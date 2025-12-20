@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+ output: 'standalone',
   images: {
     // Disable image optimization for uploaded files to prevent thumbnail generation
     // Allow images from uploads directory
@@ -15,12 +16,13 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            value: 'public, max-age=3153600, immutable',
           },
         ],
       },
     ];
   },
 };
+
 
 export default nextConfig;
