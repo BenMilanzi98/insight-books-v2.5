@@ -60,9 +60,9 @@ cd insight-books
 
 **Note:** Replace `[your-username]` with your actual GitHub username or repository URL.
 
-## Step 5: Verify the Environment Configuration
+## Step 5: Verify and Update the Environment Configuration
 
-The repository includes a `.env` file with all necessary environment variables. Review it to ensure it matches your requirements:
+The repository includes a `.env` file with all necessary environment variables. Review and update it to ensure it matches your VPS requirements:
 
 ```bash
 cat .env
@@ -73,6 +73,17 @@ The database configuration should look like this:
 - Database name: `insightbooks`
 - Username: `henmik`
 - Password: `Password2030`
+
+**Important**: Before building the application, you need to update the APP_URL in the docker-compose.yml file to match your VPS IP address:
+
+```bash
+# Edit docker-compose.yml and change:
+# APP_URL=http://localhost:3000
+# to:
+# APP_URL=http://YOUR_VPS_IP:3000
+```
+
+This is critical for the authentication flow to work properly.
 
 ## Step 6: Build and Run the Application
 
