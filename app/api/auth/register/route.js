@@ -70,13 +70,13 @@ export async function POST(request) {
         }
       });
 
-      // Create user
+      // Create user (connect to tenant using relation field)
       const newUser = await tx.user.create({
         data: {
           name,
           email: email.toLowerCase(),
           password: hashedPassword,
-          tenantId: newTenant.id,
+          tenant: { connect: { id: newTenant.id } },
           role: 'owner',
           ...otherFields
         }
