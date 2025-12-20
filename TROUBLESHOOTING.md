@@ -137,5 +137,54 @@ The login error could be due to:
 1. **Database not ready**: Wait for database initialization to complete
 2. **Schema issues**: The authentication tables might not be properly created
 3. **Connection pool**: Database connection might not be established yet
+4. **URL mismatch**: APP_URL configuration doesn't match the actual access URL
+5. **OAuth configuration**: Google OAuth redirect URIs don't match
+6. **Relative API calls during build**: During build time, relative URLs like `/api/auth/me` fail because there's no base URL context
+7. **Static rendering of dynamic pages**: Pages that depend on authentication state are being statically generated
+
+### Specific Fix for the ERR_INVALID_URL Issue
+
+The build logs show an error: `TypeError: Failed to parse URL from /api/auth/me` with `code: 'ERR_INVALID_URL'` and `input: '/api/auth/me'`.
+
+This occurs because:
+- During Next.js build (SSG/prerendering), the app tries to call `fetch('/api/auth/me')`
+- At build time, there is no browser, no origin, no request context
+- Relative URLs break during static generation
+
+### Required Fixes:
+
+1. **Ensure APP_URL consistency**: Make sure APP_URL in docker-compose.yml matches the actual domain/IP you're accessing
+   ```yaml
+   # In docker-compose.yml
+   environment:
+     - APP_URL=http://213.165.230.139:3000  # Match the IP you're accessing
+     - NEXT_PUBLIC_APP_URL=http://213.165.230.139:3000
+   ```
+
+2. **Make auth-dependent pages dynamic**: Add these exports to any page that checks auth state:
+   ```javascript
+   export const dynamic = 'force-dynamic'
+   export const revalidate = 0
+   ```
+
+3. **Fix API calls to use absolute URLs**: Wherever you fetch the current user, use:
+   ```javascript
+   import { headers } from 'next/headers'
+   
+   const baseUrl = process.env.APP_URL
+   const res = await fetch(`${baseUrl}/api/auth/me`, {
+     cache: 'no-store',
+     headers: {
+       cookie: headers().get('cookie') ?? ''
+     }
+   })
+   ```
+
+4. **Rebuild the containers** after updating environment variables:
+   ```bash
+   docker compose down
+   docker compose build app --no-cache
+   docker compose up -d
+   ```
 
 Check the application logs specifically for database connection messages and authentication-related errors.
