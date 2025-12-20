@@ -10,7 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_URL=postgresql://henmik:Password2030@db:5432/insightbooks?schema=public
-      - APP_URL=http://localhost:3000
+      - APP_URL=http://213.165.230.139:3000
       - SESSION_SECRET=your-secure-session-secret-key-change-this-in-production
       - JWT_SECRET=your-secure-jwt-secret-key-change-this-in-production
       - CRON_SECRET=3213d4730a2acb95bc05bc9a939cdce21f3afc440ebabc34ad8d1a56af10174b
