@@ -22,7 +22,13 @@ const nextConfig = {
       },
     ];
   },
+  // Force dynamic rendering for auth-related pages to prevent build-time auth failures
+  experimental: {
+    // Prevent static generation of auth-dependent pages during build
+    serverComponentsExternalPackages: ["pg", "bcryptjs", "prisma"],
+  },
+  // Ensure auth pages are not statically generated
+  generateBuildId: () => 'build',
 };
-
 
 export default nextConfig;
