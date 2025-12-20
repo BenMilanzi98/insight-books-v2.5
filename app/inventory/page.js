@@ -1,0 +1,4505 @@
+"use client";
+
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { 
+  Search, 
+  Plus, 
+  Filter, 
+  Download, 
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  AlertTriangle,
+  Package,
+  BarChart2,
+  ShoppingCart,
+  Truck,
+  RefreshCw,
+  X,
+  Save,
+  Edit,
+  Trash2,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+  Camera,
+  Upload,
+  Paperclip,
+  AlertCircle,
+  RotateCcw,
+  Archive,
+  CheckSquare,
+  ChevronDown,
+  File,
+  PlusCircle,
+  FileSpreadsheet,
+  Calendar,
+  Settings,
+} from "lucide-react";
+import Link from "next/link";
+import PermissionGuard from "@/components/PermissionGuard";
+import { getPermission } from "@/lib/permissions";
+import BulkInventoryOperations from "@/components/BulkInventoryOperations";
+import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
+import DynamicCategorySelect from "@/components/DynamicCategorySelect";
+import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
+import SkuConflictModal from "@/components/Inventory/SkuConflictModal";
+import UnitManagement from "@/components/UnitManagement/UnitManagement";
+
+// Main Inventory Management Component
+const InventoryManagement = () => {
+  // State management
+  const [inventory, setInventory] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [sortField, setSortField] = useState("name");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [view, setView] = useState("list"); // list or grid
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [productTransactions, setProductTransactions] = useState([]);
+  const [searchTimeout, setSearchTimeout] = useState(null);
+  const [statistics, setStatistics] = useState({
+    totalItems: 0,
+    totalValue: "0.00",
+    lowStock: 0,
+    outOfStock: 0
+  });
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  
+  // NEW: Deletion warning modal state
+  const [deletionWarningModal, setDeletionWarningModal] = useState({
+    isOpen: false,
+    product: null,
+    usageDetails: {}
+  });
+
+  // NEW: Deletion status tracking
+  const [deletionStatus, setDeletionStatus] = useState({});
+
+  // NEW: Batch operations state
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [showDeletedItems, setShowDeletedItems] = useState(false);
+  const [deletedProducts, setDeletedProducts] = useState([]);
+  const [batchDeleteModal, setBatchDeleteModal] = useState({ isOpen: false, products: [] });
+  const [restoreModal, setRestoreModal] = useState({ isOpen: false, products: [] });
+  const [skuConflictModal, setSkuConflictModal] = useState({ isOpen: false, conflictData: null, pendingFormData: null });
+  
+  // Modal states
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [pagePermissions, setPagePermissions] = useState({  
+    canCreateInventory: false,
+    canDeleteInventory:false, 
+    canExportInventory:false, 
+    canAdjustInventory:false, 
+    canUpdateInventory:false, 
+  });
+  
+  // NEW: Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    pageSize: 10,
+    totalItems: 0,
+    totalPages: 1
+  });
+
+  // NEW: Location filter
+  const [locationFilter, setLocationFilter] = useState("All");
+  const [locations, setLocations] = useState(["All"]);
+
+  // Load locations from API
+  const loadLocations = async () => {
+    try {
+      const response = await fetch('/api/locations');
+      if (response.ok) {
+        const data = await response.json();
+        // Add "All" option and combine with API locations
+        const allLocations = ["All", ...data.locations];
+        setLocations(allLocations);
+      }
+    } catch (error) {
+      console.error('Error loading locations:', error);
+    }
+  };
+
+  // Load categories from API
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('/api/categories?type=inventory');
+      if (response.ok) {
+        const data = await response.json();
+        // Combine API categories with default ones
+        const allCategories = [...new Set([...categoryOptions, ...data.categories])];
+        setCategoryOptions(allCategories.sort());
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+  };
+  
+  // NEW: Low Stock Alerts pagination state
+  const [lowStockPage, setLowStockPage] = useState(1);
+  const lowStockPageSize = 5;
+  
+  // NEW: Enhanced features state
+  const [isBulkOperationsOpen, setIsBulkOperationsOpen] = useState(false);
+  const [isExpiryAlertsOpen, setIsExpiryAlertsOpen] = useState(false);
+  const [customCategories, setCustomCategories] = useState([]);
+  const [customLocations, setCustomLocations] = useState([]);
+  
+  // Category options state
+  const [categoryOptions, setCategoryOptions] = useState([
+    "Electronics", 
+    "Furniture", 
+    "Office Supplies", 
+    "Clothing", 
+    "Books", 
+    "Food & Beverages", 
+    "Health & Beauty", 
+    "Sports & Recreation", 
+    "Automotive"
+  ]);
+  useEffect(() => {
+    const fetchPermissions = async () => {  
+      const canCreateInventory = await getPermission("inventory.create");
+      const canDeleteInventory = await getPermission("inventory.delete");
+      const canExportInventory = await getPermission("inventory.export"); 
+      const canAdjustInventory = await getPermission("inventory.adjust");
+      const canUpdateInventory = await getPermission("inventory.update"); 
+  
+      setPagePermissions({ 
+        canCreateInventory,
+        canDeleteInventory, 
+        canExportInventory, 
+        canAdjustInventory, 
+        canUpdateInventory,   
+        });
+    };
+  
+    fetchPermissions();
+  }, []);
+  // Toast notification states
+  const [toast, setToast] = useState({
+    show: false,
+    type: "success",
+    message: "",
+    detail: "",
+    duration: 3000
+  });
+  
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    type: 'warning'
+  });
+  
+  // Image upload ref
+  const fileInputRef = useRef(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  // Get unique categories from inventory
+  const categories = useMemo(() => {
+    const uniqueCategories = [...new Set(inventory.map(item => item.category ? item.category : "Uncategorized"))];
+    return ["All", ...uniqueCategories.filter(Boolean)];
+  }, [inventory]);
+  
+  // Show toast function
+  const showToast = (type, message, detail = null, duration = 3000) => {
+    setToast({
+      show: true,
+      type,
+      message,
+      detail,
+      duration
+    });
+    
+    if (duration !== Infinity) {
+      setTimeout(() => {
+        setToast(prev => ({ ...prev, show: false }));
+      }, duration);
+    }
+  };
+  
+  // Close toast function
+  const closeToast = () => {
+    setToast(prev => ({ ...prev, show: false }));
+  };
+  
+  // Initial data loading
+  useEffect(() => {
+    loadInventory();
+    loadStatistics();
+    loadLocations();
+    loadCategories();
+    loadRecentTransactions();
+  }, []);
+  
+  // Handle search and filter changes
+  useEffect(() => {
+    if (searchTimeout) {
+      clearTimeout(searchTimeout);
+    }
+    
+    const timeout = setTimeout(() => {
+      loadInventory();
+    }, 500);
+    
+    setSearchTimeout(timeout);
+    
+    return () => {
+      if (searchTimeout) clearTimeout(searchTimeout);
+    };
+  }, [searchTerm, categoryFilter, statusFilter, locationFilter, sortField, sortDirection, pagination.currentPage, pagination.pageSize]);
+  
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    const modalsOpen = isFormOpen || isDetailOpen || isTransactionFormOpen || confirmDialog.isOpen || isUploadModalOpen;
+    
+    if (modalsOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'auto';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isFormOpen, isDetailOpen, isTransactionFormOpen, confirmDialog.isOpen, isUploadModalOpen]);
+  
+  // Reload product transactions when selectedItem changes and detail modal is open
+  useEffect(() => {
+    if (isDetailOpen && selectedItem?.id) {
+      console.log('useEffect: Loading product transactions for:', selectedItem.id);
+      loadProductTransactions(selectedItem.id);
+    } else if (!isDetailOpen) {
+      // Clear transactions when modal closes
+      setProductTransactions([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedItem?.id, isDetailOpen]);
+  
+  // Close modals when escape key is pressed
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isFormOpen) setIsFormOpen(false);
+        else if (isDetailOpen) setIsDetailOpen(false);
+        else if (isTransactionFormOpen) setIsTransactionFormOpen(false);
+        else if (confirmDialog.isOpen) setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        else if (isUploadModalOpen) setIsUploadModalOpen(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFormOpen, isDetailOpen, isTransactionFormOpen, confirmDialog.isOpen, isUploadModalOpen]);
+  
+  // Inventory API service
+  const inventoryService = {
+    // Fetch products with filtering and sorting
+    fetchProducts: async (params = {}) => {
+      try {
+        const { search, category, status, location, sort, order, page, limit } = params;
+        
+        // Build query string
+        const queryParams = new URLSearchParams();
+        if (search) queryParams.append('search', search);
+        if (category && category !== 'All') queryParams.append('category', category);
+        if (status && status !== 'All') queryParams.append('status', status);
+        if (location && location !== 'All') queryParams.append('location', location);
+        if (sort) queryParams.append('sort', sort);
+        if (order) queryParams.append('order', order);
+        if (page) queryParams.append('page', page);
+        if (limit) queryParams.append('limit', limit);
+        
+        const queryString = queryParams.toString();
+        const url = `/api/inventory${queryString ? `?${queryString}` : ''}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching products: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        throw error;
+      }
+    },
+    
+    // Get a single product by ID
+    fetchProductById: async (productId) => {
+      try {
+        const response = await fetch(`/api/inventory/${productId}`);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching product: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Error fetching product ${productId}:`, error);
+        throw error;
+      }
+    },
+    
+    // Create a new product
+    createProduct: async (productData) => {
+      try {
+        const response = await fetch('/api/inventory', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(productData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error creating product: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error creating product:', error);
+        throw error;
+      }
+    },
+    
+    // Update an existing product
+    updateProduct: async (productId, productData, originalProduct = null) => {
+      try {
+        // Clean the data before sending - remove any extra fields that might cause issues
+        const cleanedData = {
+          ...productData,
+          selectedUnits: productData.selectedUnits?.map(unit => ({
+            id: unit.id,
+            name: unit.name,
+            symbol: unit.symbol,
+            conversionToBase: unit.conversionToBase,
+            isBaseUnit: unit.isBaseUnit,
+            baseUnitId: unit.baseUnitId
+          })) || []
+        };
+        
+        console.log("=== FRONTEND UPDATE REQUEST ===");
+        console.log("Sending update request for product:", productId);
+        console.log("Quantity being sent:", cleanedData.quantityInStock);
+        console.log("Unit management enabled:", cleanedData.unitManagementEnabled);
+        console.log("Original product data:", {
+          originalStockLevel: originalProduct?.originalStockLevel,
+          stockLevel: originalProduct?.stockLevel,
+          quantityInStock: originalProduct?.quantityInStock
+        });
+        console.log("Update data:", JSON.stringify(cleanedData, null, 2));
+        console.log("=================================");
+        
+        const response = await fetch(`/api/inventory/${productId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(cleanedData),
+        });
+        
+        console.log("Response status:", response.status, response.statusText);
+        
+        if (!response.ok) {
+          let errorMessage = `Error updating product: ${response.statusText}`;
+          try {
+          const errorData = await response.json();
+            console.log("Error response data:", errorData);
+            errorMessage = errorData.error || errorMessage;
+          } catch (parseError) {
+            console.error('Failed to parse error response:', parseError);
+            // Use the default error message if JSON parsing fails
+          }
+          throw new Error(errorMessage);
+        }
+        
+        const result = await response.json();
+        console.log("Update successful, response:", result);
+        return result;
+      } catch (error) {
+        console.error(`Error updating product ${productId}:`, error);
+        throw error;
+      }
+    },
+    
+    // Delete a product
+    deleteProduct: async (productId) => {
+      try {
+        const response = await fetch(`/api/inventory/${productId}`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error deleting product: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Error deleting product ${productId}:`, error);
+        throw error;
+      }
+    },
+    
+    // Get inventory statistics
+    getInventoryStatistics: async () => {
+      try {
+        const response = await fetch('/api/inventory/statistics');
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching inventory statistics: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching inventory statistics:', error);
+        throw error;
+      }
+    },
+    
+    // Get inventory transactions
+    getTransactions: async (params = {}) => {
+      try {
+        const { limit, productId } = params;
+        
+        const queryParams = new URLSearchParams();
+        if (limit) queryParams.append('limit', limit);
+        if (productId) queryParams.append('productId', productId);
+        
+        const queryString = queryParams.toString();
+        const url = `/api/inventory/transactions${queryString ? `?${queryString}` : ''}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+          throw new Error(`Error fetching transactions: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+        throw error;
+      }
+    },
+    
+    // Record a transaction (stock in, stock out, adjustment)
+    recordTransaction: async (transactionData) => {
+      try {
+        const response = await fetch('/api/inventory/transactions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(transactionData),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error recording transaction: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Error recording transaction:', error);
+        throw error;
+      }
+    },
+    
+    // Export inventory data to CSV
+    exportInventory: async (format = 'csv') => {
+      try {
+        const response = await fetch(`/api/inventory/export?format=${format}`);
+        
+        if (!response.ok) {
+          throw new Error(`Error exporting inventory: ${response.statusText}`);
+        }
+        
+        return await response.blob();
+      } catch (error) {
+        console.error('Error exporting inventory:', error);
+        throw error;
+      }
+    },
+    
+    // NEW: Get product usage details
+    getProductUsage: async (productId) => {
+      try {
+        const response = await fetch(`/api/inventory/${productId}/usage`);
+        
+        if (!response.ok) {
+          throw new Error(`Error getting product usage: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Error getting product usage ${productId}:`, error);
+        throw error;
+      }
+    },
+
+    // Check if a product can be deleted
+    checkCanDelete: async (productId) => {
+      try {
+        const response = await fetch(`/api/inventory/${productId}/can-delete`);
+        
+        if (!response.ok) {
+          throw new Error(`Error checking deletion status: ${response.statusText}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error(`Error checking deletion status for product ${productId}:`, error);
+        throw error;
+      }
+    }
+  };
+  
+  // Load inventory data
+  const loadInventory = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const params = {
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        location: locationFilter,
+        sort: sortField,
+        order: sortDirection,
+        page: pagination.currentPage,
+        limit: pagination.pageSize
+      };
+      
+      const data = await inventoryService.fetchProducts(params).catch(() => {
+        // Show warning toast for fallback
+        showToast("warning", "Using demo data", "API connection failed");
+        
+        // Fallback to dummy data
+        const filteredInventory = initialInventory.filter(item => {
+          const matchesSearch = !searchTerm || 
+            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+          
+          const matchesCategory = categoryFilter === "All" || 
+            (categoryFilter === "Uncategorized" && !item.category) || 
+            item.category === categoryFilter;
+          const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+          const matchesLocation = locationFilter === "All" || item.location === locationFilter;
+          
+          return matchesSearch && matchesCategory && matchesStatus && matchesLocation;
+        });
+        
+        // Sort the inventory
+        const sortedInventory = [...filteredInventory].sort((a, b) => {
+          let valueA = a[sortField];
+          let valueB = b[sortField];
+          
+          // Make sure we're comparing the right data types
+          if (typeof valueA === 'string') {
+            valueA = valueA.toLowerCase();
+            valueB = valueB.toLowerCase();
+          }
+          
+          if (sortDirection === 'asc') {
+            return valueA > valueB ? 1 : -1;
+          } else {
+            return valueA < valueB ? 1 : -1;
+          }
+        });
+        
+        // Apply pagination
+        const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
+        const endIndex = startIndex + pagination.pageSize;
+        const paginatedInventory = sortedInventory.slice(startIndex, endIndex);
+        
+        return { 
+          products: paginatedInventory,
+          pagination: {
+            totalItems: sortedInventory.length,
+            totalPages: Math.ceil(sortedInventory.length / pagination.pageSize),
+            currentPage: pagination.currentPage,
+            pageSize: pagination.pageSize
+          }
+        };
+      });
+      
+      setInventory(data.products || []);
+      
+      // Update pagination state
+      if (data.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          totalItems: data.pagination.totalItems,
+          totalPages: data.pagination.totalPages
+        }));
+      }
+      
+      // NEW: Check deletion status for all products
+      if (data.products && data.products.length > 0) {
+        checkProductsDeletionStatus(data.products);
+      }
+      
+      // Show search result toast if applicable
+      if (searchTerm) {
+        if (data.products && data.products.length > 0) {
+          showToast("info", `Found ${data.products.length} products`, `Matching "${searchTerm}"`);
+        } else {
+          showToast("info", "No products found", `No matches for "${searchTerm}"`);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading inventory:", error);
+      setError("Failed to load inventory. Please try again.");
+      showToast("error", "Failed to load inventory", error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // NEW: Handle pagination
+  const handlePageChange = (newPage) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+  };
+
+  const handlePageSizeChange = (newPageSize) => {
+    setPagination(prev => ({ 
+      ...prev, 
+      pageSize: newPageSize,
+      currentPage: 1 // Reset to first page when changing page size
+    }));
+  };
+
+  // NEW: Handle location filter change
+  const handleLocationFilterChange = (newLocation) => {
+    setLocationFilter(newLocation);
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+  
+  // NEW: Handle bulk operations
+  const handleBulkUpload = async (products) => {
+    try {
+      setIsSubmitting(true);
+      
+      // Process each product
+      for (const product of products) {
+        await inventoryService.createProduct(product);
+      }
+      
+      // Reload inventory
+      await loadInventory();
+      showToast("success", "Bulk upload completed", `${products.length} products added successfully`);
+    } catch (error) {
+      console.error("Error during bulk upload:", error);
+      showToast("error", "Bulk upload failed", error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  const handleBulkExport = async (format = 'csv') => {
+    try {
+      const blob = await inventoryService.exportInventory(format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_export.${format}`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error during export:", error);
+      showToast("error", "Export failed", error.message);
+    }
+  };
+  
+  // NEW: Handle custom category creation
+  const handleAddCustomCategory = async (categoryName) => {
+    if (categoryName.trim() && !categoryOptions.includes(categoryName.trim())) {
+      try {
+        // Call the API to create the category
+        const response = await fetch('/api/categories', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: categoryName.trim(),
+            type: 'inventory'
+          })
+        });
+
+        if (response.ok) {
+          setCategoryOptions(prev => [...prev, categoryName.trim()].sort());
+          showToast("success", "Category added", `"${categoryName}" added to categories`);
+        } else {
+          const error = await response.json();
+          showToast("error", "Failed to add category", error.error);
+        }
+      } catch (error) {
+        console.error('Error adding category:', error);
+        showToast("error", "Failed to add category", "Network error occurred");
+      }
+    }
+  };
+  
+  // NEW: Handle custom location creation
+  const handleAddCustomLocation = (locationName) => {
+    if (locationName.trim() && !customLocations.includes(locationName.trim())) {
+      setCustomLocations(prev => [...prev, locationName.trim()]);
+      setLocations(prev => [...prev.filter(loc => loc !== "All"), locationName.trim(), "All"]);
+      showToast("success", "Location added", `"${locationName}" added to locations`);
+    }
+  };
+  
+  // NEW: Handle product view for expiry alerts
+  const handleViewProduct = (product) => {
+    setSelectedItem(product);
+    setIsDetailOpen(true);
+  };
+  
+  // Load inventory statistics
+  const loadStatistics = async () => {
+    setStatisticsLoading(true);
+    try {
+      // Try to get from API, fall back to calculated stats from inventory
+      const stats = await inventoryService.getInventoryStatistics().catch((error) => {
+        console.log('Statistics API failed, using fallback calculation:', error.message);
+        // Calculate from inventory data as fallback
+        const activeInventory = inventory.filter(item => !item.isDeleted);
+        return {
+          totalItems: activeInventory.length,
+          totalValue: activeInventory.reduce((sum, item) => {
+            const quantity = item.quantityInStock || 0;
+            const cost = item.costPrice || 0;
+            return sum + (quantity * cost);
+          }, 0).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }),
+          lowStock: activeInventory.filter(item => item.status === "Low Stock").length,
+          outOfStock: activeInventory.filter(item => item.status === "Out of Stock").length,
+          nearingReorder: activeInventory.filter(item => {
+            const quantity = item.quantityInStock || 0;
+            const reorderPoint = item.reorderPoint || 10;
+            return quantity > 0 && quantity <= reorderPoint * 1.2;
+          }).length,
+          categories: [{ name: 'Uncategorized', count: activeInventory.length, percentage: 100 }],
+          recentTransactions: []
+        };
+      });
+      
+      setStatistics(stats);
+    } catch (error) {
+      console.error("Error loading statistics:", error);
+      // Don't set error state for statistics, just log it
+      showToast("warning", "Couldn't load statistics", "Using calculated values instead");
+    } finally {
+      setStatisticsLoading(false);
+    }
+  };
+  
+  // Load recent transactions
+  const loadRecentTransactions = async () => {
+    try {
+      const data = await inventoryService.getTransactions({ limit: 5 }).catch(() => {
+        // Return dummy data as fallback
+        return { transactions: recentTransactions };
+      });
+      
+      setTransactions(data.transactions || []);
+    } catch (error) {
+      console.error("Error loading transactions:", error);
+      // Don't set error state for transactions, just log it
+      showToast("warning", "Couldn't load recent transactions");
+    }
+  };
+  
+  // Load transactions for a specific product
+  const loadProductTransactions = async (productId) => {
+    try {
+      console.log('loadProductTransactions called with productId:', productId);
+      // Clear existing transactions first
+      setProductTransactions([]);
+      
+      const data = await inventoryService.getTransactions({ productId, limit: 100 }).catch((err) => {
+        console.error('Error fetching transactions:', err);
+        // Return empty array on error
+        return { transactions: [] };
+      });
+      
+      console.log('API returned transactions:', data.transactions?.length || 0, 'for product:', productId);
+      console.log('Transaction details:', data.transactions);
+      setProductTransactions(data.transactions || []);
+    } catch (error) {
+      console.error(`Error loading transactions for product ${productId}:`, error);
+      setProductTransactions([]);
+      // Don't show toast on every load to avoid spam
+    }
+  };
+  
+  // Handle sorting
+  const handleSort = (field) => {
+    if (field === sortField) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+  
+  // Handle product selection
+  const handleItemClick = async (item) => {
+    // Clear previous transactions immediately
+    setProductTransactions([]);
+    
+    // Fetch complete product data including units
+    try {
+      const response = await fetch(`/api/inventory/${item.id}`);
+      if (response.ok) {
+        const completeProduct = await response.json();
+        setSelectedItem(completeProduct);
+      } else {
+        // Fallback to the item from inventory list
+        setSelectedItem(item);
+      }
+    } catch (error) {
+      console.error('Error fetching complete product data:', error);
+      // Fallback to the item from inventory list
+      setSelectedItem(item);
+    }
+    
+    setIsDetailOpen(true);
+    
+    // Load transactions for this product - ensure we use the correct product ID
+    const productIdToLoad = item?.id;
+    if (productIdToLoad) {
+      console.log('Loading transactions for product:', productIdToLoad);
+      await loadProductTransactions(productIdToLoad);
+    }
+  };
+
+  const getMovementMeta = (transaction) => {
+    const normalize = (value) => (value || '').toString().toLowerCase();
+    const rawType = normalize(transaction.type);
+    const notes = normalize(transaction.notes);
+    const reference = normalize(transaction.reference);
+
+    const isIncoming = (value) => (
+      value.includes('stock in') ||
+      value.includes('stock_in') ||
+      value.includes('receipt') ||
+      value.includes('goods receipt') ||
+      value.includes('gr-') ||
+      value.includes('purchase') ||
+      value.includes('incoming')
+    );
+
+    const isOutgoing = (value) => (
+      value.includes('stock out') ||
+      value.includes('stock_out') ||
+      value.includes('sale') ||
+      value.includes('invoice') ||
+      value.includes('shipment') ||
+      value.includes('delivery')
+    );
+
+    if (isIncoming(rawType) || isIncoming(notes) || isIncoming(reference)) {
+      const label = notes.includes('receipt') || reference.includes('gr-') ? 'Goods Receipt' : 'Incoming Stock';
+      return { type: 'incoming', label };
+    }
+
+    if (isOutgoing(rawType) || isOutgoing(notes) || isOutgoing(reference)) {
+      const label = notes.includes('sale') ? 'Sale' : 'Stock Out';
+      return { type: 'outgoing', label };
+    }
+
+    return { type: 'adjustment', label: 'Adjustment' };
+  };
+  
+  // Open form for creating a new product
+  const handleAddProduct = () => {
+    setSelectedItem(null);
+    setIsEditing(false);
+    setIsFormOpen(true);
+  };
+  
+  // Open form for editing a product
+  const handleEditProduct = async (product, e) => {
+    if (e) e.stopPropagation(); // Prevent triggering the row click
+    
+    // Fetch complete product data including units for editing
+    try {
+      const response = await fetch(`/api/inventory/${product.id}`);
+      if (response.ok) {
+        const completeProduct = await response.json();
+        setSelectedItem(completeProduct);
+      } else {
+        // Fallback to the product from inventory list
+    setSelectedItem(product);
+      }
+    } catch (error) {
+      console.error('Error fetching complete product data for editing:', error);
+      // Fallback to the product from inventory list
+      setSelectedItem(product);
+    }
+    
+    setIsEditing(true);
+    setIsFormOpen(true);
+  };
+  
+  // Handle product deletion with warning modal
+  const handleDeleteProduct = async (productId, e) => {
+    if (e) e.stopPropagation(); // Prevent triggering the row click
+    
+    // Find product for the modal
+    const productToDelete = inventory.find(p => p.id === productId);
+    if (!productToDelete) {
+      showToast("error", "Product not found", "Unable to delete product");
+      return;
+    }
+    
+    try {
+      // Get usage details for the warning modal
+      const usageData = await inventoryService.getProductUsage(productId);
+      
+      // Show the warning modal with usage details
+      setDeletionWarningModal({
+        isOpen: true,
+        product: productToDelete,
+        usageDetails: usageData.usageDetails || {}
+      });
+    } catch (error) {
+      console.error(`Error getting product usage:`, error);
+      // Show modal anyway with empty usage details
+      setDeletionWarningModal({
+        isOpen: true,
+        product: productToDelete,
+        usageDetails: { totalUsage: 0, invoices: 0, sales: 0, quotations: 0 }
+      });
+    }
+  };
+  
+  // Handle confirmed deletion from modal
+  const handleConfirmedDeletion = async () => {
+    const { product } = deletionWarningModal;
+    const productName = product?.name || "Product";
+    
+    // Show a pending toast
+    showToast("info", `Deleting ${productName}...`, null, Infinity);
+    
+    try {
+      await inventoryService.deleteProduct(product.id);
+      
+      // Close the infinite duration toast
+      closeToast();
+      
+      // Update inventory list by removing the deleted product
+      setInventory(prevInventory => 
+        prevInventory.filter(p => p.id !== product.id)
+      );
+      
+      // Reload statistics
+      loadStatistics();
+      
+      // Show success toast
+      showToast("success", `${productName} deleted`, "Product removed successfully");
+    } catch (error) {
+      console.error(`Error deleting product ${product.id}:`, error);
+      
+      // Close the infinite duration toast
+      closeToast();
+      
+      // Show error toast
+      showToast("error", `Failed to delete ${productName}`, error.message);
+    }
+  };
+  
+  // Open transaction form
+  const handleTransactionClick = (type, product) => {
+    setSelectedItem(product);
+    setTransactionType(type);
+    setIsTransactionFormOpen(true);
+  };
+  
+  // Handle product form submission with improved image handling
+  const handleProductSubmit = async (formData) => {
+    setIsSubmitting(true);
+    
+    try {
+      let productId;
+      let resultProduct;
+      
+      if (isEditing) {
+        // Show pending toast
+        showToast("info", `Updating ${formData.name}...`, null, Infinity);
+        
+        const updated = await inventoryService.updateProduct(selectedItem.id, formData, selectedItem).catch(() => {
+          // Mock response for demo
+          showToast("warning", "Using demo mode", "Changes won't persist to a database");
+          return {
+            product: {
+              ...selectedItem,
+              ...formData,
+              lastUpdated: new Date().toISOString()
+            }
+          };
+        });
+        
+        // Close the infinite toast
+        closeToast();
+        
+        resultProduct = updated.product;
+        productId = resultProduct.id;
+        
+        // Update inventory list with the product data (without image yet)
+        // For products with units, use the original stock level for display, not the calculated total
+        const updatedProduct = {
+          ...resultProduct,
+          quantityInStock: resultProduct.originalStockLevel !== undefined 
+            ? resultProduct.originalStockLevel 
+            : resultProduct.quantityInStock
+        };
+        
+        setInventory(inventory.map(p => 
+          p.id === productId ? updatedProduct : p
+        ));
+        
+        // Update selected item if detail view is open
+        if (isDetailOpen && selectedItem.id === productId) {
+          setSelectedItem(updatedProduct);
+        }
+        
+        showToast("success", `${formData.name} updated`, "Product details saved successfully");
+      } else {
+        // Show pending toast
+        showToast("info", `Creating ${formData.name}...`, null, Infinity);
+        
+        const created = await inventoryService.createProduct(formData);
+        
+        // Close the infinite toast
+        closeToast();
+        
+        resultProduct = created.product;
+        productId = resultProduct.id;
+        
+        // Add to inventory list (without image yet)
+        setInventory([resultProduct, ...inventory]);
+        
+        showToast("success", `${formData.name} created`, "New product added to inventory");
+      }
+      
+      // Important: Don't close the form yet if there's an image to upload
+      const imageFile = formData.imageFile;
+      
+      if (imageFile) {
+        // Show uploading toast
+        showToast("info", `Uploading image for ${formData.name}...`, null, Infinity);
+        
+        // Keep the form open with submitting state until image upload completes
+        try {
+          // Create form data for file upload
+          const uploadData = new FormData();
+          uploadData.append('file', imageFile);
+          uploadData.append('productId', productId);
+          
+          // Upload the image
+          const uploadResponse = await fetch('/api/inventory/upload-image', {
+            method: 'POST',
+            body: uploadData
+          });
+          
+          // Close the infinite toast
+          closeToast();
+          
+          if (uploadResponse.ok) {
+            const responseData = await uploadResponse.json();
+            
+            // Extract image URL from response
+            let imageUrl = null;
+            if (responseData.imageUrl) {
+              imageUrl = responseData.imageUrl;
+            } else if (responseData.imagePath) {
+              imageUrl = responseData.imagePath;
+            } else if (responseData.url) {
+              imageUrl = responseData.url;
+            } else if (responseData.image) {
+              imageUrl = responseData.image;
+            }
+            
+            if (imageUrl) {
+              // Update inventory with the new image URL
+              setInventory(currentInventory => 
+                currentInventory.map(item => 
+                  item.id === productId 
+                    ? { ...item, image: imageUrl, imageUrl: imageUrl } 
+                    : item
+                )
+              );
+              
+              // Update selected item if detail view is open
+              if (isDetailOpen && selectedItem && selectedItem.id === productId) {
+                setSelectedItem(prev => ({ ...prev, image: imageUrl, imageUrl: imageUrl }));
+              }
+              
+              showToast("success", "Image uploaded", "Product image updated successfully");
+            }
+          } else {
+            showToast("error", "Failed to upload image", "Server returned an error");
+          }
+        } catch (error) {
+          console.error("Error uploading image:", error);
+          showToast("error", "Error uploading image", error.message);
+        }
+      }
+      
+      // Now close the form after all operations are complete
+      setIsFormOpen(false);
+      
+      // Refresh statistics
+      loadStatistics();
+    } catch (error) {
+      console.error("Error saving product:", error);
+      
+      // Handle SKU conflict with deleted product
+      if (error.status === 409 && error.data?.conflictType === 'deleted_product') {
+        // Close the infinite toast
+        closeToast();
+        
+        // Store the form data for later use
+        setSkuConflictModal({
+          isOpen: true,
+          conflictData: error.data,
+          pendingFormData: formData
+        });
+      } else {
+        showToast("error", "Failed to save product", error.message);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Handle SKU conflict modal actions
+  const handleRestoreProduct = async (deletedProductId) => {
+    try {
+      const response = await fetch('/api/inventory/restore', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ productIds: [deletedProductId] })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to restore product');
+      }
+
+      const result = await response.json();
+      
+      // Close the modal
+      setSkuConflictModal({ isOpen: false, conflictData: null, pendingFormData: null });
+      
+      // Show success message
+      showToast("success", "Product restored", "The deleted product has been restored successfully");
+      
+      // Refresh inventory
+      loadInventory();
+      
+      // Now create the new product with the same SKU
+      if (skuConflictModal.pendingFormData) {
+        await handleProductSubmit(skuConflictModal.pendingFormData);
+      }
+      
+    } catch (error) {
+      console.error('Error restoring product:', error);
+      showToast("error", "Failed to restore product", error.message);
+    }
+  };
+
+  const handleCreateWithNewSku = async () => {
+    try {
+      // Close the modal
+      setSkuConflictModal({ isOpen: false, conflictData: null, pendingFormData: null });
+      
+      // Reopen the form with the same data but allow user to change SKU
+      setIsFormOpen(true);
+      setIsEditing(false);
+      setSelectedItem(skuConflictModal.pendingFormData);
+      
+      showToast("info", "Please change the SKU", "The form has been reopened. Please modify the SKU and try again.");
+      
+    } catch (error) {
+      console.error('Error handling new SKU creation:', error);
+      showToast("error", "Failed to reopen form", error.message);
+    }
+  };
+
+  const handleSkuConflictCancel = () => {
+    setSkuConflictModal({ isOpen: false, conflictData: null, pendingFormData: null });
+    showToast("info", "Product creation cancelled", "You can try again with a different SKU");
+  };
+  
+  // Handle transaction form submission
+  const handleTransactionSubmit = async (formData) => {
+    setIsSubmitting(true);
+    
+    // Get transaction type and quantity for better feedback
+    const { type, quantity } = formData;
+    const productName = selectedItem?.name || "Product";
+    
+    // Show pending toast
+    showToast("info", `Processing ${type} for ${productName}...`, null, Infinity);
+    
+    try {
+      // Ensure required fields are present for API
+      const payload = {
+        productId: selectedItem?.id,
+        type: formData.type,
+        quantity: formData.quantity,
+        notes: formData.notes || null
+      };
+      const result = await inventoryService.recordTransaction(payload);
+      
+      // Close the infinite toast
+      closeToast();
+      
+      // Update inventory list with fresh data to avoid stale/partial fields (category, value)
+      if (result.updatedProduct) {
+        let hydratedProduct = null;
+        try {
+          const fresh = await inventoryService.fetchProductById(result.updatedProduct.id);
+          // API may return product directly or wrapped in { product }
+          hydratedProduct = fresh?.product || fresh || result.updatedProduct;
+        } catch (_) {
+          hydratedProduct = result.updatedProduct;
+        }
+
+        setInventory(prev => prev.map(p => 
+          p.id === result.updatedProduct.id ? hydratedProduct : p
+        ));
+
+        // Update selected item if detail view is open
+        if (isDetailOpen && selectedItem?.id === result.updatedProduct.id) {
+          setSelectedItem(hydratedProduct);
+        }
+      }
+      
+      // Add transaction to list
+      if (result.transaction) {
+        setTransactions([result.transaction, ...transactions.slice(0, 4)]);
+        
+        // Reload product transactions if detail modal is open for this product
+        if (selectedItem && isDetailOpen && result.transaction.productId === selectedItem.id) {
+          // Add the transaction immediately to show instant feedback
+          setProductTransactions([result.transaction, ...productTransactions]);
+          
+          // Then reload after a short delay to ensure we get all transactions from the database
+          setTimeout(async () => {
+            await loadProductTransactions(selectedItem.id);
+          }, 500);
+        } else if (selectedItem && result.transaction.productId === selectedItem.id) {
+          // If modal is closed but product is selected, just add to the list
+          setProductTransactions([result.transaction, ...productTransactions]);
+        }
+      }
+      
+      // Close form
+      setIsTransactionFormOpen(false);
+      
+      // Refresh statistics and lightweight list data
+      loadStatistics();
+      
+      // Show success toast with detailed information
+      const actionText = type === "Stock In" ? "added to" : 
+                         type === "Stock Out" ? "removed from" : 
+                         "adjusted in";
+      
+      showToast("success", `Inventory updated`, `${quantity} units ${actionText} ${productName}`);
+    } catch (error) {
+      console.error("Error recording transaction:", error);
+      
+      // Close the infinite toast
+      closeToast();
+      
+      // Show error toast
+      showToast("error", "Failed to record transaction", error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Handle export
+  const handleExport = async (format = 'csv') => {
+    // Show pending toast
+    showToast("info", `Preparing ${format.toUpperCase()} export...`, null, Infinity);
+    
+    try {
+      const blob = await inventoryService.exportInventory(format).catch(() => {
+        // Create CSV content as fallback
+        const headers = ['ID', 'Name', 'SKU', 'Category', 'Quantity', 'Unit Price', 'Cost Price', 'Status', 'Location'];
+        const rows = inventory.map(p => [
+          p.id,
+          p.name,
+          p.sku,
+          p.category,
+          p.quantityInStock,
+          p.unitPrice,
+          p.costPrice,
+          p.status,
+          p.location
+        ]);
+        
+        const csvContent = [
+          headers.join(','),
+          ...rows.map(r => r.join(','))
+        ].join('\n');
+        
+        showToast("warning", "Using demo mode", "Generating client-side export");
+        return new Blob([csvContent], {type: 'text/csv'});
+      });
+      
+      // Close the infinite toast
+      closeToast();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `inventory-${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      // Show success toast
+      showToast("success", "Export complete", `Downloaded as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error("Error exporting inventory:", error);
+      
+      // Close the infinite toast
+      closeToast();
+      
+      // Show error toast
+      showToast("error", "Failed to export inventory", error.message);
+    }
+  };
+  
+  // Format currency in Malawi Kwacha
+  const formatCurrency = (amount) => {
+    // Check if amount is a number
+    // if (amount === null || amount === undefined || isNaN(Number(amount))) {
+    //   return 'MWK 0'; // Return a default value instead of NaN
+    // }
+    if (amount === null || amount === undefined) {
+      return 'MWK 0';
+    }
+
+    // Remove commas if it's a string with formatted number
+    const numericAmount = typeof amount === 'string'
+      ? Number(amount.replace(/,/g, ''))
+      : Number(amount);
+
+    if (isNaN(numericAmount)) {
+      return 'MWK 0';
+    }
+    
+    try {
+      return new Intl.NumberFormat('en-MW', { 
+        style: 'currency', 
+        currency: 'MWK',
+        maximumFractionDigits: 0
+      }).format(Number(numericAmount));
+    } catch (error) {
+      console.error('Error formatting currency:', error);
+      return `MWK ${Number(numericAmount).toLocaleString() || 0}`;
+    }
+  };
+  
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+  
+  // Handle drag over for file upload
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+  
+  // Handle drag leave for file upload
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+  
+  // Handle drop for file upload
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    processFiles(files);
+  };
+  
+  // Process uploaded files
+  const processFiles = (files) => {
+    if (!files || files.length === 0) return;
+    
+    // Simulate uploading state for better UX
+    setIsUploading(true);
+    
+    setTimeout(() => {
+      const newFiles = Array.from(files).map((file, index) => {
+        // Generate a preview URL for images
+        const previewUrl = file.type.startsWith('image/')
+          ? URL.createObjectURL(file)
+          : null;
+        
+        // Format file size
+        const size = formatFileSize(file.size);
+        
+        return {
+          id: `upload-${Date.now()}-${index}`,
+          file,
+          name: file.name,
+          type: file.type,
+          size,
+          previewUrl
+        };
+      });
+      
+      setUploadedFiles([...uploadedFiles, ...newFiles]);
+      setIsUploading(false);
+    }, 500);
+  };
+  
+  // Format file size
+  const formatFileSize = (bytes) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return Math.round(bytes / 1024) + ' KB';
+    return Math.round(bytes / 1048576 * 10) / 10 + ' MB';
+  };
+  
+  // Remove file from upload list
+  const removeFile = (fileId) => {
+    const updatedFiles = uploadedFiles.filter(file => file.id !== fileId);
+    setUploadedFiles(updatedFiles);
+  };
+  
+  // Trigger file input
+  const triggerFileInput = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+  
+  // Open upload modal
+  const openUploadModal = () => {
+    setUploadedFiles([]);
+    setIsUploadModalOpen(true);
+  };
+  
+  // Handle file upload
+  const handleFileUpload = (e) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    processFiles(files);
+  };
+  
+  // Complete upload process
+  const completeUpload = async () => {
+    if (uploadedFiles.length === 0 || !selectedItem) return;
+    
+    // Show pending toast
+    showToast("info", `Uploading files...`, null, Infinity);
+    
+    // Start uploading
+    setIsUploading(true);
+    
+    try {
+      // Create form data for upload
+      const formData = new FormData();
+      uploadedFiles.forEach((file, index) => {
+        formData.append(`file-${index}`, file.file);
+      });
+      formData.append('productId', selectedItem.id);
+      
+      // Upload the image
+      const uploadResponse = await fetch('/api/inventory/upload-image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      // Close the infinite toast
+      closeToast();
+      
+      if (uploadResponse.ok) {
+        const responseData = await uploadResponse.json();
+        
+        // Extract image URL from response
+        let imageUrl = null;
+        if (responseData.imageUrl) {
+          imageUrl = responseData.imageUrl;
+        } else if (responseData.imagePath) {
+          imageUrl = responseData.imagePath;
+        } else if (responseData.url) {
+          imageUrl = responseData.url;
+        } else if (responseData.image) {
+          imageUrl = responseData.image;
+        }
+        
+        if (imageUrl) {
+          // Update inventory with the new image URL
+          setInventory(currentInventory => 
+            currentInventory.map(item => 
+              item.id === selectedItem.id 
+                ? { ...item, image: imageUrl, imageUrl: imageUrl } 
+                : item
+            )
+          );
+          
+          // Update selected item if detail view is open
+          if (isDetailOpen && selectedItem) {
+            setSelectedItem(prev => ({ ...prev, image: imageUrl, imageUrl: imageUrl }));
+          }
+          
+          showToast("success", "Files uploaded", `${uploadedFiles.length} files attached to ${selectedItem.name}`);
+        }
+      } else {
+        showToast("error", "Failed to upload files", "Server returned an error");
+      }
+      
+      // Close the upload modal
+      setIsUploadModalOpen(false);
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      showToast("error", "Error uploading files", error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // NEW: Check deletion status for multiple products
+  const checkProductsDeletionStatus = async (products) => {
+    try {
+      const statusPromises = products.map(async (product) => {
+        try {
+          const status = await inventoryService.checkCanDelete(product.id);
+          return { productId: product.id, ...status };
+        } catch (error) {
+          // If API fails, assume product can be deleted (fallback)
+          return { 
+            productId: product.id, 
+            canDelete: true, 
+            reason: null,
+            usageCount: 0
+          };
+        }
+      });
+      
+      const statuses = await Promise.all(statusPromises);
+      
+      // Update deletion status state
+      const statusMap = {};
+      statuses.forEach(status => {
+        statusMap[status.productId] = {
+          canDelete: status.canDelete,
+          reason: status.reason,
+          usageCount: status.usageCount,
+          usageDetails: status.usageDetails
+        };
+      });
+      
+      setDeletionStatus(statusMap);
+    } catch (error) {
+      console.error('Error checking products deletion status:', error);
+      // Don't show error toast for this background operation
+    }
+  };
+  
+  // NEW: Get deletion status for a specific product
+  const getProductDeletionStatus = (productId) => {
+    return deletionStatus[productId] || { canDelete: true, reason: null, usageCount: 0 };
+  };
+  
+  // NEW: Generate tooltip text for delete button
+  const getDeleteTooltipText = (productId, productName) => {
+    const status = getProductDeletionStatus(productId);
+    
+    if (status.canDelete) {
+      return `Delete ${productName}`;
+    }
+    
+    let tooltip = `Cannot delete ${productName}: ${status.reason}`;
+    if (status.usageCount > 0) {
+      tooltip += ` (${status.usageCount} usage${status.usageCount > 1 ? 's' : ''})`;
+    }
+    
+    return tooltip;
+  };
+  
+  // NEW: Batch operation functions
+  const handleSelectProduct = (productId) => {
+    setSelectedProducts(prev => {
+      if (prev.includes(productId)) {
+        return prev.filter(id => id !== productId);
+      } else {
+        return [...prev, productId];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProducts.length === inventory.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(inventory.map(product => product.id));
+    }
+  };
+
+  const handleBatchDelete = () => {
+    if (selectedProducts.length === 0) {
+      showToast("warning", "No products selected", "Please select products to delete");
+      return;
+    }
+
+    const productsToDelete = inventory.filter(p => selectedProducts.includes(p.id));
+    setBatchDeleteModal({ isOpen: true, products: productsToDelete });
+  };
+
+  const confirmBatchDelete = async (reason) => {
+    try {
+      showToast("info", "Deleting products...", null, Infinity);
+
+      const response = await fetch('/api/inventory/batch-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          productIds: selectedProducts,
+          reason: reason || 'Batch deletion'
+        })
+      });
+
+      closeToast();
+
+      if (response.ok) {
+        const result = await response.json();
+        showToast("success", "Products deleted", `Successfully deleted ${result.deletedCount} products`);
+        
+        // Reset selection and reload data
+        setSelectedProducts([]);
+        setIsSelectMode(false);
+        await loadInventory();
+        await loadStatistics();
+      } else {
+        const error = await response.json();
+        showToast("error", "Delete failed", error.error);
+      }
+    } catch (error) {
+      closeToast();
+      showToast("error", "Delete failed", "Network error occurred");
+    }
+    setBatchDeleteModal({ isOpen: false, products: [] });
+  };
+
+  const loadDeletedProducts = async () => {
+    try {
+      const response = await fetch('/api/inventory/restore');
+      if (response.ok) {
+        const data = await response.json();
+        setDeletedProducts(data.products || []);
+      }
+    } catch (error) {
+      console.error('Error loading deleted products:', error);
+    }
+  };
+
+  const handleRestore = (products) => {
+    setRestoreModal({ isOpen: true, products: Array.isArray(products) ? products : [products] });
+  };
+
+  const confirmRestore = async () => {
+    try {
+      showToast("info", "Restoring products...", null, Infinity);
+
+      const productIds = restoreModal.products.map(p => p.id);
+      const response = await fetch('/api/inventory/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds })
+      });
+
+      closeToast();
+
+      if (response.ok) {
+        const result = await response.json();
+        showToast("success", "Products restored", `Successfully restored ${result.restoredCount} products`);
+        
+        // Reload data
+        await loadInventory();
+        await loadStatistics();
+        if (showDeletedItems) {
+          await loadDeletedProducts();
+        }
+      } else {
+        const error = await response.json();
+        showToast("error", "Restore failed", error.error);
+      }
+    } catch (error) {
+      closeToast();
+      showToast("error", "Restore failed", "Network error occurred");
+    }
+    setRestoreModal({ isOpen: false, products: [] });
+  };
+
+  // Load deleted products when switching to deleted view and refresh statistics
+  useEffect(() => {
+    if (showDeletedItems) {
+      loadDeletedProducts();
+    }
+    // Always refresh statistics when switching views to ensure accuracy
+    loadStatistics();
+  }, [showDeletedItems, inventory]); // Add inventory dependency to refresh stats when inventory changes
+
+  // Status badge component for inventory items
+  const StatusBadge = ({ status }) => {
+    let badgeClass = "";
+    let icon = null;
+    
+    switch (status) {
+      case "In Stock":
+        badgeClass = "bg-green-100 text-green-800";
+        icon = <CheckCircle className="w-3.5 h-3.5 mr-1" />;
+        break;
+      case "Low Stock":
+        badgeClass = "bg-yellow-100 text-yellow-800";
+        icon = <AlertTriangle className="w-3.5 h-3.5 mr-1" />;
+        break;
+      case "Out of Stock":
+        badgeClass = "bg-red-100 text-red-800";
+        icon = <AlertCircle className="w-3.5 h-3.5 mr-1" />;
+        break;
+      default:
+        badgeClass = "bg-gray-100 text-gray-800";
+    }
+    
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs flex items-center whitespace-nowrap ${badgeClass}`}>
+        {icon}
+        {status}
+      </span>
+    );
+  };
+
+
+  return (
+    <PermissionGuard permission="inventory.view" >
+    <div className="p-4 sm:p-6">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-6 right-6 p-4 rounded shadow-lg z-50 flex items-center animate-fadeIn max-w-md
+          ${toast.type === 'success' ? 'bg-green-100 border-l-4 border-green-500 text-green-700' : 
+            toast.type === 'error' ? 'bg-red-100 border-l-4 border-red-500 text-red-700' : 
+            toast.type === 'warning' ? 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700' : 
+            'bg-blue-100 border-l-4 border-blue-500 text-blue-700'}`}
+        >
+          {toast.type === 'success' ? <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" /> : 
+           toast.type === 'error' ? <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" /> : 
+           toast.type === 'warning' ? <AlertTriangle className="w-5 h-5 mr-2 flex-shrink-0" /> : 
+           <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />}
+          <div className="mr-2 flex-grow">
+            <p className="font-medium">{toast.message}</p>
+            {toast.detail && <p className="text-sm">{toast.detail}</p>}
+          </div>
+          <button 
+            className="text-current hover:opacity-75 flex-shrink-0"
+            onClick={closeToast}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">Inventory Management</h1>
+          <p className="text-gray-600">Manage your products, track stock levels, and monitor inventory movements</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          {/* View Toggle */}
+          <div className="flex bg-gray-100 rounded-md p-1">
+            <button
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                !showDeletedItems 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              onClick={() => {
+                setShowDeletedItems(false);
+                setSelectedProducts([]);
+              }}
+            >
+              Active Products
+            </button>
+            <button
+              className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                showDeletedItems 
+                  ? 'bg-white text-gray-900 shadow-sm' 
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              onClick={() => {
+                setShowDeletedItems(true);
+                setSelectedProducts([]);
+              }}
+            >
+              <Archive size={14} className="inline mr-1" />
+              Deleted ({deletedProducts.length})
+            </button>
+          </div>
+
+          {!showDeletedItems ? (
+            <>
+              {/* Batch Operations Toggle */}
+              <button
+                className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+                  isSelectMode
+                    ? 'bg-orange-600 text-white hover:bg-orange-700'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+                onClick={() => {
+                  setIsSelectMode(!isSelectMode);
+                  setSelectedProducts([]);
+                }}
+              >
+                <CheckSquare size={16} />
+                <span>{isSelectMode ? 'Cancel Selection' : 'Select Products'}</span>
+              </button>
+
+              {/* Batch Delete Button */}
+              {isSelectMode && selectedProducts.length > 0 && (
+                <button
+                  className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center gap-2 hover:bg-red-700"
+                  onClick={handleBatchDelete}
+                >
+                  <Trash2 size={16} />
+                  <span>Delete Selected ({selectedProducts.length})</span>
+                </button>
+              )}
+
+              <button 
+                className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
+                onClick={handleAddProduct}
+              >
+                <Plus size={16} />
+                <span>Add Product</span>
+              </button>
+            </>
+          ) : (
+            /* Deleted Items View Controls */
+            selectedProducts.length > 0 && (
+              <button
+                className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
+                onClick={() => {
+                  const productsToRestore = deletedProducts.filter(p => selectedProducts.includes(p.id));
+                  handleRestore(productsToRestore);
+                }}
+              >
+                <RotateCcw size={16} />
+                <span>Restore Selected ({selectedProducts.length})</span>
+              </button>
+            )
+          )}
+          
+          {/* NEW: Bulk Operations Button */}
+          <button 
+            className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
+            onClick={() => setIsBulkOperationsOpen(true)}
+          >
+            <FileSpreadsheet size={16} />
+            <span>Bulk Operations</span>
+          </button>
+          
+          {/* NEW: Expiry Alerts Button */}
+          <button 
+            className="px-4 py-2 bg-orange-600 text-white rounded-md flex items-center gap-2 hover:bg-orange-700"
+            onClick={() => setIsExpiryAlertsOpen(true)}
+          >
+            <Calendar size={16} />
+            <span>Expiry Alerts</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow p-4 flex items-center">
+          <div className="bg-blue-100 p-3 rounded-full mr-4 flex-shrink-0">
+            <Package size={20} className="text-blue-600" />
+          </div>
+          <div>
+            <span className="text-xl font-bold block">
+              {statisticsLoading ? (
+                <div className="animate-pulse bg-gray-200 h-6 w-12 rounded"></div>
+              ) : (
+                statistics.totalItems
+              )}
+            </span>
+            <span className="text-gray-600 text-sm">Total Products</span>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 flex items-center">
+          <div className="bg-purple-100 p-3 rounded-full mr-4 flex-shrink-0">
+            <BarChart2 size={20} className="text-purple-600" />
+          </div>
+          <div>
+            <span className="text-xl font-bold block">
+              {statisticsLoading ? (
+                <div className="animate-pulse bg-gray-200 h-6 w-20 rounded"></div>
+              ) : (
+                formatCurrency(statistics.totalValue)
+              )}
+            </span>
+            <span className="text-gray-600 text-sm">Inventory Value</span>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 flex items-center">
+          <div className="bg-yellow-100 p-3 rounded-full mr-4 flex-shrink-0">
+            <AlertTriangle size={20} className="text-yellow-600" />
+          </div>
+          <div>
+            <span className="text-xl font-bold block">
+              {statisticsLoading ? (
+                <div className="animate-pulse bg-gray-200 h-6 w-8 rounded"></div>
+              ) : (
+                statistics.lowStock
+              )}
+            </span>
+            <span className="text-gray-600 text-sm">Low Stock Items</span>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 flex items-center">
+          <div className="bg-red-100 p-3 rounded-full mr-4 flex-shrink-0">
+            <AlertTriangle size={20} className="text-red-600" />
+          </div>
+          <div>
+            <span className="text-xl font-bold block">
+              {statisticsLoading ? (
+                <div className="animate-pulse bg-gray-200 h-6 w-8 rounded"></div>
+              ) : (
+                statistics.outOfStock
+              )}
+            </span>
+            <span className="text-gray-600 text-sm">Out of Stock</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
+        <div className="relative flex-grow max-w-md">
+          <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name or SKU..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
+          <div className="flex items-center border border-gray-300 rounded-md px-3 py-2 bg-white">
+            <Filter size={18} className="text-gray-500 mr-2" />
+            <select 
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="bg-transparent border-none focus:outline-none"
+            >
+              {categories.map(category => (
+                <option key={category} value={category}>
+                  {category === "All" ? "All Categories" : category}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex items-center border border-gray-300 rounded-md px-3 py-2 bg-white">
+            <Filter size={18} className="text-gray-500 mr-2" />
+            <select 
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-transparent border-none focus:outline-none"
+            >
+              <option value="All">All Status</option>
+              <option value="In Stock">In Stock</option>
+              <option value="Low Stock">Low Stock</option>
+              <option value="Out of Stock">Out of Stock</option>
+            </select>
+          </div>
+          
+          <div className="flex items-center border border-gray-300 rounded-md px-3 py-2 bg-white">
+            <Filter size={18} className="text-gray-500 mr-2" />
+            <select 
+              value={locationFilter}
+              onChange={(e) => handleLocationFilterChange(e.target.value)}
+              className="bg-transparent border-none focus:outline-none"
+            >
+              {locations.map(location => (
+                <option key={location} value={location}>
+                  {location === "All" ? "All Locations" : location}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div className="flex border border-gray-300 rounded-md overflow-hidden">
+            <button 
+              className={`px-3 py-2 ${view === 'list' ? 'bg-gray-100' : 'bg-white'}`}
+              onClick={() => setView('list')}
+              title="List View"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="3" width="14" height="2" rx="1" fill="currentColor"/>
+                <rect x="1" y="7" width="14" height="2" rx="1" fill="currentColor"/>
+                <rect x="1" y="11" width="14" height="2" rx="1" fill="currentColor"/>
+              </svg>
+            </button>
+            <button 
+              className={`px-3 py-2 ${view === 'grid' ? 'bg-gray-100' : 'bg-white'}`}
+              onClick={() => setView('grid')}
+              title="Grid View"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/>
+                <rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor"/>
+                <rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor"/>
+                <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/>
+              </svg>
+            </button>
+          </div>
+          
+          {pagePermissions.canExportInventory &&( <button 
+            className="flex items-center border border-gray-300 rounded-md px-4 py-2 bg-white gap-2 hover:bg-gray-50"
+            onClick={() => handleExport('csv')}
+          >
+            <Download size={18} className="text-gray-500" />
+            <span>Export</span>
+          </button>)}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center bg-white rounded-lg shadow py-12">
+          <div className="h-10 w-10 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-gray-600">Loading inventory...</p>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
+          <AlertTriangle size={24} className="text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-red-800 font-medium mb-1">Error Loading Inventory</h3>
+            <p className="text-red-600">{error}</p>
+            <button 
+              className="mt-3 px-4 py-2 bg-red-100 text-red-800 rounded-md hover:bg-red-200"
+              onClick={loadInventory}
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      ) : (
+        view === 'list' ? (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {(isSelectMode || showDeletedItems) && (
+                      <th className="px-4 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          checked={
+                            showDeletedItems 
+                              ? selectedProducts.length === deletedProducts.length && deletedProducts.length > 0
+                              : selectedProducts.length === inventory.length && inventory.length > 0
+                          }
+                          onChange={() => {
+                            const currentList = showDeletedItems ? deletedProducts : inventory;
+                            if (selectedProducts.length === currentList.length) {
+                              setSelectedProducts([]);
+                            } else {
+                              setSelectedProducts(currentList.map(product => product.id));
+                            }
+                          }}
+                        />
+                      </th>
+                    )}
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('name')}
+                    >
+                      <div className="flex items-center">
+                        Product Name
+                        {sortField === 'name' && (
+                          sortDirection === 'asc' ? <ArrowUp size={14} className="ml-1" /> : <ArrowDown size={14} className="ml-1" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('category')}
+                    >
+                      <div className="flex items-center">
+                        Category
+                        {sortField === 'category' && (
+                          sortDirection === 'asc' ? <ArrowUp size={14} className="ml-1" /> : <ArrowDown size={14} className="ml-1" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('quantityInStock')}
+                    >
+                      <div className="flex items-center">
+                        Quantity
+                        {sortField === 'quantityInStock' && (
+                          sortDirection === 'asc' ? <ArrowUp size={14} className="ml-1" /> : <ArrowDown size={14} className="ml-1" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('unitPrice')}
+                    >
+                      <div className="flex items-center">
+                        Unit Price
+                        {sortField === 'unitPrice' && (
+                          sortDirection === 'asc' ? <ArrowUp size={14} className="ml-1" /> : <ArrowDown size={14} className="ml-1" />
+                        )}
+                      </div>
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                      onClick={() => handleSort('status')}
+                    >
+                      <div className="flex items-center">
+                        Status
+                        {sortField === 'status' && (
+                          sortDirection === 'asc' ? <ArrowUp size={14} className="ml-1" /> : <ArrowDown size={14} className="ml-1" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Inventory Value</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {(showDeletedItems ? deletedProducts : inventory).map((item) => (
+                    <tr 
+                      key={item.id} 
+                      onClick={() => {
+                        if (isSelectMode || showDeletedItems) {
+                          handleSelectProduct(item.id);
+                        } else {
+                          handleItemClick(item);
+                        }
+                      }}
+                      className={`hover:bg-gray-50 cursor-pointer ${showDeletedItems ? 'opacity-60' : ''} ${
+                        (isSelectMode || showDeletedItems) && selectedProducts.includes(item.id) 
+                          ? 'bg-blue-50 border-l-4 border-blue-500' 
+                          : ''
+                      }`}
+                    >
+                      {(isSelectMode || showDeletedItems) && (
+                        <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            checked={selectedProducts.includes(item.id)}
+                            onChange={() => handleSelectProduct(item.id)}
+                          />
+                        </td>
+                      )}
+                      <td className="px-4 py-4">
+                        <div className="flex items-center">
+                          <img src={item.image || "/api/placeholder/80/80"} alt={item.name} className="w-10 h-10 mr-3 object-cover rounded-md" />
+                          <div>
+                            <span className="font-medium text-gray-900">{item.name}</span>
+                            {showDeletedItems && (
+                              <div className="text-xs text-red-600 mt-1">
+                                Deleted: {new Date(item.deletedAt).toLocaleDateString()}
+                                {item.deletionReason && ` - ${item.deletionReason}`}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">{item.sku}</td>
+                      <td className="px-4 py-4 text-sm text-gray-500">
+                        {item.category || "Uncategorized"}
+                      </td>
+                      <td className={`px-4 py-4 text-sm ${item.quantityInStock <= item.reorderPoint ? "text-yellow-600 font-medium" : "text-gray-500"}`}>
+                        {item.quantityInStock}
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-500">{formatCurrency(item.unitPrice)}</td>
+                      <td className="px-4 py-4 text-sm">
+                        <StatusBadge status={item.status} />
+                      </td>
+                      <td className="px-4 py-4 text-sm text-gray-900 font-semibold">{formatCurrency(item.quantityInStock * item.costPrice)}</td>
+                      <td className="px-4 py-4 text-sm">
+                        <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
+                          {showDeletedItems ? (
+                            // Actions for deleted items
+                            <button 
+                              className="text-gray-500 hover:text-green-600"
+                              onClick={() => handleRestore(item)}
+                              title={`Restore ${item.name}`}
+                            >
+                              <RotateCcw size={16} />
+                            </button>
+                          ) : (
+                            // Actions for active items
+                            <>
+                              <button 
+                                className="text-gray-500 hover:text-blue-600"
+                                onClick={() => handleItemClick(item)}
+                                title="View Details"
+                              >
+                                <Eye size={16} />
+                              </button>
+                              {pagePermissions.canUpdateInventory && (
+                                <button 
+                                  className="text-gray-500 hover:text-yellow-600"
+                                  onClick={(e) => handleEditProduct(item, e)}
+                                  title="Edit Product"
+                                >
+                                  <Edit size={16} />
+                                </button>
+                              )}
+                              {pagePermissions.canDeleteInventory && (
+                                <button 
+                                  className="text-gray-500 hover:text-red-600 cursor-pointer"
+                                  onClick={(e) => handleDeleteProduct(item.id, e)}
+                                  title={`Delete ${item.name}`}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+            {inventory.length === 0 && (
+              <div className="py-12 text-center">
+                <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">No products found</h3>
+                <p className="text-gray-600 mb-4">
+                  {(searchTerm || categoryFilter !== "All" || statusFilter !== "All") ? 
+                    "Try adjusting your search or filter criteria" : 
+                    "Get started by adding your first product"}
+                </p>
+                <button 
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  onClick={handleAddProduct}
+                >
+                  <Plus size={16} className="inline-block mr-2" />
+                  Add Your First Product
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {(showDeletedItems ? deletedProducts : inventory).map((item) => (
+              <div 
+                key={item.id} 
+                className={`bg-white rounded-lg shadow-sm hover:shadow transition-shadow overflow-hidden flex flex-col cursor-pointer ${
+                  showDeletedItems ? 'opacity-60' : ''
+                } ${
+                  (isSelectMode || showDeletedItems) && selectedProducts.includes(item.id) 
+                    ? 'ring-2 ring-blue-500 bg-blue-50' 
+                    : ''
+                }`}
+                onClick={() => {
+                  if (isSelectMode || showDeletedItems) {
+                    handleSelectProduct(item.id);
+                  } else {
+                    handleItemClick(item);
+                  }
+                }}
+              >
+                <div className="relative">
+                  <img 
+                    src={item.image || "/api/placeholder/80/80"} 
+                    alt={item.name} 
+                    className="w-full h-48 object-contain p-4"
+                  />
+                  <div className="absolute top-2 right-2">
+                    <StatusBadge status={item.status} />
+                  </div>
+                  {(isSelectMode || showDeletedItems) && (
+                    <div className="absolute top-2 left-2">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        checked={selectedProducts.includes(item.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleSelectProduct(item.id);
+                        }}
+                      />
+                    </div>
+                  )}
+                  {showDeletedItems && (
+                    <div className="absolute bottom-2 left-2 right-2">
+                      <div className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
+                        Deleted: {new Date(item.deletedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-4 flex-grow border-t border-gray-100">
+                  <h3 className="font-medium text-gray-900 mb-1">{item.name}</h3>
+                  <div className="flex justify-between text-sm text-gray-500 mb-2">
+                    <span>{item.sku}</span>
+                    <span>{item.category || "Uncategorized"}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <span className="block text-xs text-gray-500">Quantity</span>
+                      <span className={`text-sm font-medium ${item.quantityInStock <= item.reorderPoint ? "text-yellow-600" : "text-gray-900"}`}>
+                        {item.quantityInStock}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-xs text-gray-500">Price</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {formatCurrency(item.unitPrice)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div>
+                      <span className="block text-xs text-gray-500">Stock Value</span>
+                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(item.quantityInStock * item.costPrice)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="border-t border-gray-100 p-2 bg-gray-50 flex justify-end space-x-1" onClick={(e) => e.stopPropagation()}>
+                  {showDeletedItems ? (
+                    // Actions for deleted items
+                    <button 
+                      className="p-1.5 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded"
+                      onClick={() => handleRestore(item)}
+                      title={`Restore ${item.name}`}
+                    >
+                      <RotateCcw size={16} />
+                    </button>
+                  ) : (
+                    // Actions for active items
+                    <>
+                      <button 
+                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        onClick={() => handleItemClick(item)}
+                        title="View Details"
+                      >
+                        <Eye size={16} />
+                      </button>
+                      {pagePermissions.canUpdateInventory && (
+                        <button 
+                          className="p-1.5 text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 rounded"
+                          onClick={(e) => handleEditProduct(item, e)}
+                          title="Edit Product"
+                        >
+                          <Edit size={16} />
+                        </button>
+                      )}
+                      {pagePermissions.canDeleteInventory && (
+                        <button 
+                          className="p-1.5 rounded text-gray-500 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                          onClick={(e) => handleDeleteProduct(item.id, e)}
+                          title={`Delete ${item.name}`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            
+            {inventory.length === 0 && (
+              <div className="col-span-full py-12 text-center bg-white rounded-lg shadow">
+                <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">No products found</h3>
+                <p className="text-gray-600 mb-4">
+                  {(searchTerm || categoryFilter !== "All" || statusFilter !== "All" || locationFilter !== "All") ? 
+                    "Try adjusting your search or filter criteria" : 
+                    "Get started by adding your first product"}
+                </p>
+                <button 
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  onClick={handleAddProduct}
+                >
+                  <Plus size={16} className="inline-block mr-2" />
+                  Add Your First Product
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      )}
+      
+      {/* NEW: Pagination Controls */}
+      {pagination.totalPages > 1 && (
+        <div className="mt-6 bg-white rounded-lg shadow p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-700">
+                Showing {((pagination.currentPage - 1) * pagination.pageSize) + 1} to {Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)} of {pagination.totalItems} products
+              </span>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700">Show:</span>
+                <select
+                  value={pagination.pageSize}
+                  onChange={(e) => handlePageSizeChange(parseInt(e.target.value))}
+                  className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="text-sm text-gray-700">per page</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={pagination.currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                First
+              </button>
+              
+              <button
+                onClick={() => handlePageChange(pagination.currentPage - 1)}
+                disabled={pagination.currentPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                  let pageNum;
+                  if (pagination.totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (pagination.currentPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                    pageNum = pagination.totalPages - 4 + i;
+                  } else {
+                    pageNum = pagination.currentPage - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => handlePageChange(pageNum)}
+                      className={`px-3 py-1 text-sm border rounded-md ${
+                        pagination.currentPage === pageNum
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(pagination.currentPage + 1)}
+                disabled={pagination.currentPage === pagination.totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+              
+              <button
+                onClick={() => handlePageChange(pagination.totalPages)}
+                disabled={pagination.currentPage === pagination.totalPages}
+                className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Last
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-lg font-medium">Recent Transactions</h2>
+            <Link href="/inventory/transactions" className="text-sm text-blue-600 hover:text-blue-800">
+              View All
+            </Link>
+          </div>
+          
+          <div className="divide-y divide-gray-100">
+            {transactions.length > 0 ? (
+              transactions.map((transaction) => (
+                <div key={transaction.id} className="p-4 flex items-start">
+                  <div className={`p-2 rounded-full mr-3 flex-shrink-0 ${
+                    transaction.type === "Stock In" ? 'bg-green-100' : 
+                    transaction.type === "Stock Out" ? 'bg-red-100' : 
+                    'bg-blue-100'
+                  }`}>
+                    {transaction.type === "Stock In" ? (
+                      <ArrowUp size={14} className="text-green-600" />
+                    ) : transaction.type === "Stock Out" ? (
+                      <ArrowDown size={14} className="text-red-600" />
+                    ) : (
+                      <RefreshCw size={14} className="text-blue-600" />
+                    )}
+                  </div>
+                  <div className="flex-grow">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium text-gray-900">{transaction.id}</span>
+                      <span className="text-sm text-gray-500">{formatDate(transaction.date)}</span>
+                    </div>
+                    <div className="text-sm">{transaction.product}</div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-gray-500">{transaction.type}</span>
+                      <span className="text-xs font-medium">
+                        {transaction.quantity > 0 ? '+' : ''}{transaction.quantity} units
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center text-gray-500">
+                <RefreshCw className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                <p>No recent transactions found</p>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <h2 className="text-lg font-medium">Low Stock Alerts</h2>
+            <Link href="/inventory/low-stock" className="text-sm text-blue-600 hover:text-blue-800">
+              View All
+            </Link>
+          </div>
+          
+          <div className="divide-y divide-gray-100">
+            {(() => {
+              const lowStockItems = inventory.filter(item => item.status === "Low Stock" || item.status === "Out of Stock");
+              const totalPages = Math.ceil(lowStockItems.length / lowStockPageSize);
+              const startIndex = (lowStockPage - 1) * lowStockPageSize;
+              const endIndex = startIndex + lowStockPageSize;
+              const paginatedItems = lowStockItems.slice(startIndex, endIndex);
+              
+              return (
+                <>
+                  {paginatedItems.length > 0 ? (
+                    paginatedItems.map((item) => (
+                      <div key={item.id} className="p-4 flex items-center justify-between">
+                        <div className="flex items-center">
+                          <img src={item.image || "/api/placeholder/80/80"} alt={item.name} className="w-10 h-10 mr-3 object-contain rounded-md" />
+                          <div>
+                            <div className="font-medium text-gray-900">{item.name}</div>
+                            <div className="text-xs text-gray-500">{item.sku}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center">
+                          <div className="text-right mr-4">
+                            <div className="text-xs text-gray-500">Current / Reorder</div>
+                            <div className={`font-medium ${item.status === "Out of Stock" ? "text-red-600" : "text-yellow-600"}`}>
+                              {item.quantityInStock} / {item.reorderPoint}
+                            </div>
+                          </div>
+                          <button 
+                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleTransactionClick("Stock In", item);
+                            }}
+                          >
+                            Restock
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8 text-center text-gray-500">
+                      <CheckCircle className="mx-auto h-8 w-8 text-green-500 mb-2" />
+                      <p>No low stock alerts at the moment</p>
+                    </div>
+                  )}
+                  
+                  {lowStockItems.length > 0 && (
+                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                      <div className="text-sm text-gray-600">
+                        Showing {startIndex + 1} to {Math.min(endIndex, lowStockItems.length)} of {lowStockItems.length} alerts
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setLowStockPage(prev => Math.max(1, prev - 1))}
+                          disabled={lowStockPage === 1}
+                          className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          ← Prev
+                        </button>
+                        <div className="px-3 py-1 text-sm text-gray-600 flex items-center">
+                          Page {lowStockPage} of {totalPages}
+                        </div>
+                        <button
+                          onClick={() => setLowStockPage(prev => Math.min(totalPages, prev + 1))}
+                          disabled={lowStockPage === totalPages}
+                          className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Next →
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      </div>
+
+      {/* Product Detail Modal */}
+      {isDetailOpen && selectedItem && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4 ">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-fadeInUp">
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-semibold">{selectedItem.name}</h2>
+              <button 
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+                onClick={() => setIsDetailOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto flex-grow">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="md:col-span-1">
+                  <div className="relative bg-gray-50 rounded-lg p-4">
+                    <img 
+                      src={selectedItem.image || "/api/placeholder/80/80"}
+                      alt={selectedItem.name} 
+                      className="w-full h-auto object-contain"
+                    />
+                    <div className="absolute top-2 right-2">
+                      <StatusBadge status={selectedItem.status} />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="md:col-span-2">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-gray-500">SKU</span>
+                      <div className="font-medium">{selectedItem.sku}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Category</span>
+                      <div className="font-medium">{selectedItem.category}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Location</span>
+                      <div className="font-medium">{selectedItem.location || 'Not specified'}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Last Updated</span>
+                      <div className="font-medium">{formatDate(selectedItem.lastUpdated)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-medium text-lg mb-4">Stock Information</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="text-center">
+                      <div className={`text-2xl font-bold ${
+                        selectedItem.status === 'Out of Stock' ? 'text-red-600' : 
+                        selectedItem.status === 'Low Stock' ? 'text-yellow-600' : 
+                        'text-green-600'
+                      }`}>
+                        {parseFloat(selectedItem.originalStockLevel !== undefined ? selectedItem.originalStockLevel : selectedItem.quantityInStock || 0).toFixed(3)}
+                      </div>
+                      <div className="text-sm text-gray-500">In Stock</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">{selectedItem.reorderPoint}</div>
+                      <div className="text-sm text-gray-500">Reorder Point</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">-</div>
+                      <div className="text-sm text-gray-500">Reserved</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-2xl font-bold">-</div>
+                      <div className="text-sm text-gray-500">On Order</div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-medium text-lg mb-4">Pricing</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-gray-500">Cost Price</span>
+                      <div className="text-lg font-bold">{formatCurrency(selectedItem.costPrice)}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Selling Price</span>
+                      <div className="text-lg font-bold">{formatCurrency(selectedItem.unitPrice)}</div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Profit Margin</span>
+                      <div className="text-lg font-bold">
+                        {Math.round(((selectedItem.unitPrice - selectedItem.costPrice) / selectedItem.unitPrice) * 100)}%
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-500">Stock Value</span>
+                      <div className="text-lg font-bold">{formatCurrency(selectedItem.quantityInStock * selectedItem.costPrice)}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Product Units Display */}
+              {selectedItem?.units && selectedItem.units.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                  <h3 className="font-medium text-lg mb-4 text-blue-900">Product Units</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedItem.units.map((unit, index) => (
+                      <div key={unit.id || index} className="bg-white p-3 rounded-md border border-blue-200">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-medium text-gray-900">{unit.name || 'Unknown Unit'}</span>
+                            <span className="text-sm text-gray-500">({unit.symbol || 'N/A'})</span>
+                            {unit.isBaseUnit && (
+                              <span className="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded">
+                                Base Unit
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Price:</span>
+                            <span className="font-medium">MWK {parseFloat(unit.unitPrice || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Cost:</span>
+                            <span className="font-medium">MWK {parseFloat(unit.costPrice || 0).toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Stock:</span>
+                            <span className={`font-medium ${
+                              parseFloat(unit.quantityInStock || 0) <= parseFloat(unit.reorderPoint || 0) 
+                                ? 'text-red-600' 
+                                : 'text-green-600'
+                            }`}>
+                              {parseFloat(unit.quantityInStock || 0).toFixed(3)} {unit.symbol || ''}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-600">Reorder:</span>
+                            <span className="font-medium">{parseFloat(unit.reorderPoint || 0).toFixed(3)} {unit.symbol || ''}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
+                <div className="px-4 py-3 border-b border-gray-200">
+                  <h3 className="font-medium text-lg">Stock Movement History</h3>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto">
+                  {productTransactions.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {productTransactions.map((transaction, index) => {
+                        const movementMeta = getMovementMeta(transaction);
+                        const movementStyles = {
+                          incoming: {
+                            border: 'border-green-200',
+                            badge: 'bg-green-100 text-green-700',
+                            iconBg: 'bg-green-50',
+                            iconColor: 'text-green-600',
+                            quantity: 'text-green-600',
+                            label: movementMeta.label || 'Incoming Stock',
+                          },
+                          outgoing: {
+                            border: 'border-red-200',
+                            badge: 'bg-red-100 text-red-700',
+                            iconBg: 'bg-red-50',
+                            iconColor: 'text-red-600',
+                            quantity: 'text-red-600',
+                            label: movementMeta.label || 'Sale / Stock Out',
+                          },
+                          adjustment: {
+                            border: 'border-gray-200',
+                            badge: 'bg-gray-100 text-gray-700',
+                            iconBg: 'bg-gray-50',
+                            iconColor: 'text-gray-500',
+                            quantity: 'text-gray-700',
+                            label: movementMeta.label || 'Adjustment',
+                          },
+                        };
+
+                        const typeStyle = movementStyles[movementMeta.type] || movementStyles.adjustment;
+
+                        const quantityValue = Math.abs(Number(transaction.quantity) || 0);
+                        const displayQuantity =
+                          movementMeta.type === 'incoming'
+                            ? `+${quantityValue} units`
+                            : movementMeta.type === 'outgoing'
+                              ? `-${quantityValue} units`
+                              : `${Number(transaction.quantity) || 0} units`;
+
+                        return (
+                          <div
+                            key={transaction.id || index}
+                            className={`p-3 flex items-start gap-3 border-l-4 ${typeStyle.border} hover:bg-gray-50 transition-colors`}
+                          >
+                            <div className={`h-9 w-9 rounded-full flex items-center justify-center ${typeStyle.iconBg}`}>
+                              {transaction.type === "Stock In" ? (
+                                <ArrowUp size={14} className={typeStyle.iconColor} />
+                              ) : transaction.type === "Stock Out" ? (
+                                <ArrowDown size={14} className={typeStyle.iconColor} />
+                              ) : (
+                                <RefreshCw size={14} className={typeStyle.iconColor} />
+                              )}
+                            </div>
+                            
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide ${typeStyle.badge}`}>
+                                  {typeStyle.label}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {formatDate(transaction.date)}
+                                </span>
+                              </div>
+                              
+                              <div className="flex justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {transaction.product || selectedItem?.name || 'Product'}
+                                  </p>
+                                  {transaction.notes && (
+                                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                      {transaction.notes}
+                                    </p>
+                                  )}
+                                  {transaction.user && (
+                                    <p className="text-xs text-gray-400 mt-1">
+                                      Logged by {transaction.user}
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                <div className="text-right">
+                                  <span className={`block text-sm font-semibold ${typeStyle.quantity}`}>
+                                    {displayQuantity}
+                                  </span>
+                                  {transaction.balance !== undefined && (
+                                    <span className="text-xs text-gray-400">
+                                      Balance: {transaction.balance}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-gray-500">
+                      <RefreshCw className="mx-auto h-8 w-8 text-gray-300 mb-2" />
+                      <p className="text-sm">No movement history found</p>
+                      <p className="text-xs text-gray-400 mt-1">Stock transactions will appear here</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-between">
+              <div className="flex space-x-2">
+              {pagePermissions.canAdjustInventory &&(<> <button 
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
+                  onClick={() => {
+                    setIsDetailOpen(false);
+                    handleTransactionClick("Stock In", selectedItem);
+                  }}
+                >
+                  <Truck size={14} />
+                  <span>Stock In</span>
+                </button>
+                <button 
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
+                  onClick={() => {
+                    setIsDetailOpen(false);
+                    handleTransactionClick("Stock Out", selectedItem);
+                  }}
+                >
+                  <ShoppingCart size={14} />
+                  <span>Stock Out</span>
+                </button>
+                <button 
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
+                  onClick={() => {
+                    setIsDetailOpen(false);
+                    handleTransactionClick("Adjustment", selectedItem);
+                  }}
+                >
+                  <RefreshCw size={14} />
+                  <span>Adjust</span>
+                </button> </>)}
+                 {pagePermissions.canUpdateInventory &&(
+                <button 
+                  className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
+                  onClick={() => {
+                    setSelectedItem(selectedItem);
+                    setIsDetailOpen(false);
+                    setIsUploadModalOpen(true);
+                  }}
+                >
+                  <Upload size={14} />
+                  <span>Upload Image</span>
+                </button>)}
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  className="px-4 py-2 border border-gray-300 rounded-md bg-white hover:bg-gray-50"
+                  onClick={() => setIsDetailOpen(false)}
+                >
+                  Close
+                </button>
+                {pagePermissions.canUpdateInventory &&(<button 
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  onClick={() => {
+                    setIsDetailOpen(false);
+                    handleEditProduct(selectedItem);
+                  }}
+                >
+                  Edit Product
+                </button>)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog */}
+      {confirmDialog.isOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 animate-fadeIn"
+          onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white rounded-lg shadow-xl max-w-md w-full animate-fadeInUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center p-4 border-b border-gray-200">
+              <h3 className="text-xl font-semibold">{confirmDialog.title}</h3>
+              <button 
+                className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full p-1"
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                type="button"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex items-start">
+                <div className={`flex-shrink-0 p-2 rounded-full mr-4 ${
+                  confirmDialog.type === 'danger' ? 'bg-red-100' : 
+                  confirmDialog.type === 'warning' ? 'bg-yellow-100' : 
+                  'bg-blue-100'
+                }`}>
+                  {confirmDialog.type === 'danger' ? (
+                    <AlertCircle size={24} className="text-red-500" />
+                  ) : confirmDialog.type === 'warning' ? (
+                    <AlertTriangle size={24} className="text-yellow-500" />
+                  ) : (
+                    <AlertCircle size={24} className="text-blue-500" />
+                  )}
+                </div>
+                <div className="text-gray-700">
+                  {confirmDialog.message}
+                </div>
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+              <button
+                type="button"
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`px-4 py-2 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  confirmDialog.type === 'danger' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 
+                  confirmDialog.type === 'warning' ? 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500' : 
+                  'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+                }`}
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Product Form Modal */}
+      {isFormOpen && (
+        <ProductForm 
+          isOpen={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          product={isEditing ? selectedItem : null}
+          onSubmit={handleProductSubmit}
+          isSubmitting={isSubmitting}
+          showToast={showToast}
+          customCategories={customCategories}
+          categoryOptions={categoryOptions}
+          locations={locations}
+          onLocationAdd={(newLocation) => {
+            setLocations(prev => {
+              if (!prev.includes(newLocation)) {
+                return [...prev.filter(loc => loc !== "All"), newLocation, "All"].sort();
+              }
+              return prev;
+            });
+          }}
+          onCategoryAdd={(newCategory) => {
+            setCategoryOptions(prev => {
+              if (!prev.includes(newCategory)) {
+                return [...prev, newCategory].sort();
+              }
+              return prev;
+            });
+          }}
+        />
+      )}
+
+      {/* Transaction Form Modal */}
+      {isTransactionFormOpen && selectedItem && (
+        <TransactionForm 
+          isOpen={isTransactionFormOpen}
+          onClose={() => {
+            setIsTransactionFormOpen(false);
+            setTransactionType(null); // Reset transaction type when closing
+          }}
+          product={selectedItem}
+          initialType={transactionType} // Pass the transaction type from button click
+          onSubmit={handleTransactionSubmit}
+          isSubmitting={isSubmitting}
+          showToast={showToast}
+        />
+      )}
+      
+      {/* Image Upload Modal */}
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-fadeInUp"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h3 className="text-xl font-semibold flex items-center">
+                  <Paperclip className="w-5 h-5 mr-2 text-blue-600" />
+                  Upload Image
+                  {selectedItem && (
+                    <span className="ml-2 text-sm text-gray-500">for {selectedItem.name}</span>
+                  )}
+                </h3>
+                <button 
+                  className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+                  onClick={() => setIsUploadModalOpen(false)}
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-5">
+              {/* Drag & Drop Area */}
+              <div 
+                className={`border-2 border-dashed rounded-lg p-8 mb-4 text-center cursor-pointer transition-all ${
+                  isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-400 hover:bg-gray-50'
+                }`}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={triggerFileInput}
+              >
+                <Upload className={`w-10 h-10 mx-auto mb-3 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
+                <p className="text-lg font-medium mb-1">Drag & drop files here</p>
+                <p className="text-sm text-gray-500 mb-3">or click to browse files</p>
+                <p className="text-xs text-gray-400">Supports: JPG, PNG, WebP (Max 2MB per file)</p>
+              </div>
+                
+              {/* File Previews */}
+              {uploadedFiles.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="font-medium mb-2">Uploaded Files ({uploadedFiles.length})</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto p-1 rounded-md">
+                    {uploadedFiles.map((file) => (
+                      <div key={file.id} className="flex items-center bg-gray-50 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                        <div className="flex-shrink-0 mr-3 text-gray-500">
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="flex-grow min-w-0">
+                          <p className="font-medium truncate">{file.name}</p>
+                          <p className="text-xs text-gray-500">{file.size}</p>
+                        </div>
+                        {file.previewUrl && (
+                          <div className="flex-shrink-0 w-12 h-12 rounded border bg-white p-1 mr-2 overflow-hidden">
+                            <img 
+                              src={file.previewUrl} 
+                              alt="Preview" 
+                              className="w-full h-full object-cover rounded"
+                            />
+                          </div>
+                        )}
+                        <button 
+                          className="flex-shrink-0 ml-2 text-red-500 hover:text-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 rounded-full p-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile(file.id);
+                          }}
+                        >
+                          <Trash2 className="w-4.5 h-4.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+              <button 
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
+                onClick={() => setIsUploadModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 flex items-center ${
+                  (uploadedFiles.length === 0 || isUploading || !selectedItem) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={uploadedFiles.length === 0 || isUploading || !selectedItem}
+                onClick={completeUpload}
+              >
+                {isUploading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload Image
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden file input */}
+      <input 
+        ref={fileInputRef}
+        type="file" 
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileUpload}
+      />
+      
+      {/* CSS for animations */}
+      <style jsx global>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translate3d(0, 20px, 0);
+          }
+          to {
+            opacity: 1;
+            transform: translate3d(0, 0, 0);
+          }
+        }
+        
+        .animate-fadeIn {
+          animation: fadeIn 0.3s ease-out;
+        }
+        
+        .animate-fadeInUp {
+          animation: fadeInUp 0.3s ease-out;
+        }
+      `}</style>
+      
+      {/* NEW: Bulk Operations Modal */}
+      <BulkInventoryOperations
+        isOpen={isBulkOperationsOpen}
+        onClose={() => setIsBulkOperationsOpen(false)}
+        onUpload={handleBulkUpload}
+        onExport={handleBulkExport}
+        showToast={showToast}
+      />
+      
+      {/* Product Deletion Warning Modal */}
+      <ProductDeletionWarningModal
+        isOpen={deletionWarningModal.isOpen}
+        onClose={() => setDeletionWarningModal({ isOpen: false, product: null, usageDetails: {} })}
+        onConfirm={handleConfirmedDeletion}
+        product={deletionWarningModal.product}
+        usageDetails={deletionWarningModal.usageDetails}
+      />
+
+      {/* SKU Conflict Modal */}
+      <SkuConflictModal
+        isOpen={skuConflictModal.isOpen}
+        onClose={() => setSkuConflictModal({ isOpen: false, conflictData: null, pendingFormData: null })}
+        conflictData={skuConflictModal.conflictData}
+        onRestoreProduct={handleRestoreProduct}
+        onCreateWithNewSku={handleCreateWithNewSku}
+        onCancel={handleSkuConflictCancel}
+        isProcessing={isSubmitting}
+      />
+
+      {/* NEW: Expiry Alerts Modal */}
+      {isExpiryAlertsOpen && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl overflow-hidden animate-fadeInUp">
+            <div className="p-5 border-b border-gray-200">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Expiry Alert System</h2>
+                <button 
+                  className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+                  onClick={() => setIsExpiryAlertsOpen(false)}
+                  type="button"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-5 max-h-[80vh] overflow-y-auto">
+              <ExpiryAlertSystem
+                products={inventory}
+                onViewProduct={handleViewProduct}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Batch Delete Modal */}
+      {batchDeleteModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Delete {batchDeleteModal.products.length} Products
+                </h3>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-3">
+                  You are about to delete the following products:
+                </p>
+                <div className="max-h-32 overflow-y-auto bg-gray-50 rounded p-3">
+                  {batchDeleteModal.products.map(product => (
+                    <div key={product.id} className="text-sm text-gray-700 py-1">
+                      • {product.name} ({product.sku})
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for deletion (optional)
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
+                  placeholder="Enter reason..."
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      confirmBatchDelete(e.target.value);
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setBatchDeleteModal({ isOpen: false, products: [] })}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    const reason = document.querySelector('input[placeholder="Enter reason..."]')?.value;
+                    confirmBatchDelete(reason);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                >
+                  Delete Products
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Modal */}
+      {restoreModal.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <RotateCcw className="h-6 w-6 text-green-600 mr-3" />
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Restore {restoreModal.products.length} Product{restoreModal.products.length > 1 ? 's' : ''}
+                </h3>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm text-gray-600 mb-3">
+                  You are about to restore the following products:
+                </p>
+                <div className="max-h-32 overflow-y-auto bg-gray-50 rounded p-3">
+                  {restoreModal.products.map(product => (
+                    <div key={product.id} className="text-sm text-gray-700 py-1">
+                      • {product.name} ({product.sku})
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setRestoreModal({ isOpen: false, products: [] })}
+                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRestore}
+                  className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                >
+                  Restore Products
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+    </PermissionGuard>
+  );
+};
+
+const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
+  const [formData, setFormData] = useState({
+    name: "",
+    sku: "",
+    category: "",
+    description: "",
+    quantityInStock: "",
+    reorderPoint: "",
+    unitPrice: "",
+    costPrice: "",
+    location: "",
+    image: "", // This will store the URL, not the blob
+    // New enhanced fields
+    expiryDate: "",
+    discountAmount: "",
+    isPerishable: false,
+    batchNumber: "",
+    supplier: "",
+    weight: "",
+    dimensions: "",
+    barcode: "",
+    tags: [],
+    // Unit management fields
+    unitManagementEnabled: false,
+    selectedBaseUnit: null,
+    selectedUnits: [],
+    unitConfigurations: {}
+  });
+  
+  const [imageFile, setImageFile] = useState(null);
+  const [errors, setErrors] = useState({});
+  const fileInputRef = useRef(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [newTag, setNewTag] = useState("");
+  
+  // Unit management state
+  const [baseUnits, setBaseUnits] = useState([]);
+  const [units, setUnits] = useState([]);
+  const [unitsLoading, setUnitsLoading] = useState(false);
+
+  // Fetch base units and units when component mounts
+  useEffect(() => {
+    const fetchUnits = async () => {
+      setUnitsLoading(true);
+      try {
+        const response = await fetch('/api/units?includeUnits=true');
+        if (response.ok) {
+          const data = await response.json();
+          setBaseUnits(data.baseUnits);
+          
+          // Flatten all units from all base units
+          const allUnits = data.baseUnits.flatMap(baseUnit => 
+            baseUnit.units.map(unit => ({ ...unit, baseUnitId: baseUnit.id }))
+          );
+          setUnits(allUnits);
+        }
+      } catch (error) {
+        console.error('Error fetching units:', error);
+        showToast('error', 'Error', 'Failed to load unit data');
+      } finally {
+        setUnitsLoading(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchUnits();
+    }
+  }, [isOpen, showToast]);
+
+  // Stable callbacks for unit management
+  const handleUnitConfigurationChange = useCallback((configs) => {
+    setFormData(prev => ({ ...prev, unitConfigurations: configs }));
+  }, []);
+
+  const handleBaseUnitChange = useCallback((baseUnit) => {
+    setFormData(prev => ({ ...prev, selectedBaseUnit: baseUnit }));
+  }, []);
+
+  const handleUnitsChange = useCallback((units) => {
+    setFormData(prev => ({ ...prev, selectedUnits: units }));
+  }, []);
+
+  // If editing, populate the form with product data
+  useEffect(() => {
+    if (product) {
+      // Check if product has units configured
+      const hasUnits = product.units && product.units.length > 0;
+      
+      console.log("=== FRONTEND EDIT DEBUG ===");
+      console.log("Editing product:", {
+        name: product.name,
+        quantityInStock: product.quantityInStock,
+        originalStockLevel: product.originalStockLevel,
+        stockLevel: product.stockLevel,
+        hasUnits: hasUnits
+      });
+      console.log("Available stock values:", {
+        productQuantityInStock: product.quantityInStock,
+        productStockLevel: product.stockLevel,
+        productOriginalStockLevel: product.originalStockLevel,
+        willUseForForm: hasUnits ? (product.stockLevel || product.originalStockLevel || "") : (product.quantityInStock || "")
+      });
+      console.log("===========================");
+      
+      // Prepare unit management data
+      let unitManagementData = {
+        unitManagementEnabled: hasUnits,
+        selectedBaseUnit: null,
+        selectedUnits: [],
+        unitConfigurations: {}
+      };
+
+      if (hasUnits) {
+        // Find the base unit from the first unit's baseUnit
+        const firstUnit = product.units[0];
+        if (firstUnit?.unit?.baseUnit) {
+          // Find the base unit in our loaded baseUnits
+          const baseUnit = baseUnits.find(bu => bu.id === firstUnit.unit.baseUnit.id);
+          if (baseUnit) {
+            unitManagementData.selectedBaseUnit = baseUnit;
+          }
+        }
+
+        // Prepare selected units and configurations
+        unitManagementData.selectedUnits = product.units.map(pu => ({
+          id: pu.unit.id,
+          name: pu.unit.name,
+          symbol: pu.unit.symbol,
+          conversionToBase: pu.unit.conversionToBase,
+          isBaseUnit: pu.unit.isBaseUnit,
+          baseUnitId: pu.unit.baseUnit?.id
+        }));
+
+        // Prepare unit configurations
+        unitManagementData.unitConfigurations = {};
+        product.units.forEach(pu => {
+          unitManagementData.unitConfigurations[pu.unit.id] = {
+            unitPrice: parseFloat(pu.unitPrice || 0).toFixed(2),
+            costPrice: parseFloat(pu.costPrice || 0).toFixed(2),
+            quantityInStock: parseFloat(pu.quantityInStock || 0).toFixed(3),
+            reorderPoint: parseFloat(pu.reorderPoint || 0).toFixed(3),
+            isDefault: pu.isDefault || false
+          };
+        });
+      }
+
+      setFormData({
+        name: product.name || "",
+        sku: product.sku || "",
+        category: product.category || "",
+        description: product.description || "",
+        // Use original stock level for editing, not the calculated effective stock level
+        // When unit management is enabled, always use the actual database stock level
+        quantityInStock: hasUnits ? (product.stockLevel || product.originalStockLevel || "") : (product.quantityInStock || ""),
+        reorderPoint: product.reorderPoint || "",
+        unitPrice: product.unitPrice || "",
+        costPrice: product.costPrice || "",
+        location: product.location || "",
+        image: product.image || "", // Use the stored URL
+        // New enhanced fields
+        expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : "",
+        discountAmount: product.discountAmount || "",
+        isPerishable: product.isPerishable || false,
+        batchNumber: product.batchNumber || "",
+        supplier: product.supplier || "",
+        weight: product.weight || "",
+        dimensions: product.dimensions || "",
+        barcode: product.barcode || "",
+        tags: product.tags || [],
+        // Unit management fields
+        ...unitManagementData
+      });
+      
+      // Set preview URL if available
+      if (product.image) {
+        setPreviewUrl(product.image);
+      }
+    }
+  }, [product, baseUnits]); // Add baseUnits as dependency
+  
+  // Handle form field changes
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    // For number fields, allow empty string or convert to number
+    let processedValue;
+    if (type === 'number') {
+      processedValue = value === '' ? '' : parseFloat(value) || '';
+    } else if (type === 'checkbox') {
+      processedValue = checked;
+    } else {
+      processedValue = value;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: processedValue
+    }));
+    
+    // Clear error for this field when user changes it
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+  
+  // Handle tag addition
+  const handleAddTag = () => {
+    if (newTag.trim() && !formData.tags.includes(newTag.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        tags: [...prev.tags, newTag.trim()]
+      }));
+      setNewTag("");
+    }
+  };
+  
+  // Handle tag removal
+  const handleRemoveTag = (tagToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      tags: prev.tags.filter(tag => tag !== tagToRemove)
+    }));
+  };
+  
+  // Handle image file change
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        showToast("error", "Image size exceeds 2MB limit");
+        return;
+      }
+      
+      if (!file.type.startsWith('image/')) {
+        showToast("error", "Please upload an image file");
+        return;
+      }
+      
+      // Create a preview URL
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      setImageFile(file);
+      
+      // Show feedback
+      showToast("info", "Image selected", file.name);
+    }
+  };
+  
+  // Validate form data
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.name.trim()) {
+      newErrors.name = "Product name is required";
+    }
+    
+    if (!formData.category.trim()) {
+      newErrors.category = "Category is required";
+    }
+    
+    if (formData.unitPrice !== '' && formData.unitPrice < 0) newErrors.unitPrice = "Unit price cannot be negative";
+    if (formData.costPrice !== '' && formData.costPrice < 0) newErrors.costPrice = "Cost price cannot be negative";
+    if (formData.quantityInStock !== '' && formData.quantityInStock < 0) newErrors.quantityInStock = "Quantity cannot be negative";
+    if (formData.reorderPoint !== '' && formData.reorderPoint < 0) newErrors.reorderPoint = "Reorder point cannot be negative";
+    if (formData.discountAmount !== '' && formData.discountAmount < 0) newErrors.discountAmount = "Discount amount cannot be negative";
+    if (formData.weight !== '' && formData.weight < 0) newErrors.weight = "Weight cannot be negative";
+    
+    if (formData.isPerishable && !formData.expiryDate) {
+      newErrors.expiryDate = "Expiry date is required for perishable items";
+    }
+    if (formData.expiryDate && new Date(formData.expiryDate) < new Date()) {
+      newErrors.expiryDate = "Expiry date cannot be in the past";
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+  
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    // Determine product status based on quantity and reorder point
+    const quantityInStock = formData.quantityInStock === '' ? 0 : parseFloat(formData.quantityInStock) || 0;
+    const reorderPoint = formData.reorderPoint === '' ? 0 : parseFloat(formData.reorderPoint) || 0;
+    
+    const status = quantityInStock === 0 ? "Out of Stock" :
+                   quantityInStock <= reorderPoint ? "Low Stock" : "In Stock";
+    
+    // Ensure category is not empty, use "Uncategorized" as default
+    const categoryValue = formData.category ? formData.category.trim() : "Uncategorized";
+    
+    try {
+      // Prepare product data
+      const productData = {
+        ...formData,
+        category: categoryValue,
+        status,
+        image: formData.image || "/api/placeholder/80/80",
+        imageFile: imageFile, // Pass the image file to parent component
+        // Convert empty strings to null for database
+        quantityInStock: formData.quantityInStock === '' ? null : parseFloat(formData.quantityInStock),
+        reorderPoint: formData.reorderPoint === '' ? null : parseFloat(formData.reorderPoint),
+        unitPrice: formData.unitPrice === '' ? null : parseFloat(formData.unitPrice),
+        costPrice: formData.costPrice === '' ? null : parseFloat(formData.costPrice),
+        discountAmount: formData.discountAmount === '' ? null : parseFloat(formData.discountAmount),
+        weight: formData.weight === '' ? null : parseFloat(formData.weight),
+        // Unit management data
+        unitManagementEnabled: formData.unitManagementEnabled,
+        selectedBaseUnit: formData.selectedBaseUnit,
+        selectedUnits: formData.selectedUnits,
+        unitConfigurations: formData.unitConfigurations
+      };
+      
+      // Submit the product data - parent component will handle image uploads
+      await onSubmit(productData);
+    } catch (error) {
+      console.error("Error saving product:", error);
+      showToast("error", "Failed to save product", error.message);
+    }
+  };
+  
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-fadeInUp">
+        <div className="p-5 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">{product ? "Edit Product" : "Add New Product"}</h2>
+            <button 
+              className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+      
+        <div className="p-5 overflow-y-auto max-h-[70vh]">
+          <form onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              {/* Image upload on the left side */}
+              <div className="md:col-span-1">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Product Image</label>
+                  
+                  {/* Image preview */}
+                  <div 
+                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all hover:border-blue-400 hover:bg-gray-50"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {previewUrl ? (
+                      <div className="relative">
+                        <img 
+                          src={previewUrl} 
+                          alt="Product preview" 
+                          className="w-full h-32 object-contain mb-2"
+                        />
+                        <button 
+                          type="button"
+                          className="absolute top-0 right-0 bg-red-100 text-red-600 p-1 rounded-full hover:bg-red-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewUrl(null);
+                            setImageFile(null);
+                            setFormData(prev => ({ ...prev, image: "" }));
+                          }}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="w-10 h-10 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-500">Click to upload product image</p>
+                        <p className="text-xs text-gray-400 mt-1">Max size: 2MB</p>
+                      </>
+                    )}
+                    
+                    <input 
+                      type="file"
+                      ref={fileInputRef}
+                      className="hidden"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* Form fields on the right side */}
+              <div className="md:col-span-1 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name*</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    className={`w-full p-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                    placeholder="Enter product name"
+                  />
+                  {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">SKU*</label>
+                  <input
+                    type="text"
+                    name="sku"
+                    value={formData.sku}
+                    onChange={handleChange}
+                    className={`w-full p-2 border ${errors.sku ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                    placeholder="Product SKU"
+                  />
+                  {errors.sku && <p className="mt-1 text-sm text-red-500">{errors.sku}</p>}
+                  <p className="mt-1 text-xs text-gray-500">
+                    Unique identifier (e.g., TECH-KB-001 for Technology/Keyboard)
+                  </p>
+                </div>
+                
+                <div>
+                  <DynamicCategorySelect
+                    value={formData.category}
+                    onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                    options={categoryOptions}
+                    placeholder="Select or add category"
+                    onAddCategory={async (newCategory) => {
+                      try {
+                        // Call the API to create the category
+                        const response = await fetch('/api/categories', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            name: newCategory.trim(),
+                            type: 'inventory'
+                          })
+                        });
+
+                        if (response.ok) {
+                          // Add the new category to the options
+                          if (onCategoryAdd) {
+                            onCategoryAdd(newCategory);
+                          }
+                          showToast("success", "Category added", `"${newCategory}" added to categories`);
+                        } else {
+                          const error = await response.json();
+                          showToast("error", "Failed to add category", error.error);
+                        }
+                      } catch (error) {
+                        console.error('Error adding category:', error);
+                        showToast("error", "Failed to add category", "Network error occurred");
+                      }
+                    }}
+                    required={true}
+                    label="Category"
+                    className={errors.category ? 'border-red-500' : ''}
+                  />
+                  {errors.category && <p className="mt-1 text-sm text-red-500">{errors.category}</p>}
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleChange}
+                    rows="3"
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    placeholder="Product description (optional)"
+                  />
+                </div>
+              </div>
+              
+              {/* These fields span 2 columns on larger screens */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Unit Price (MWK)*</label>
+                <input
+                  type="number"
+                  name="unitPrice"
+                  value={formData.unitPrice === 0 || formData.unitPrice === '' ? '' : formData.unitPrice}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  className={`w-full p-2 border ${errors.unitPrice ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Selling price"
+                />
+                {errors.unitPrice && <p className="mt-1 text-sm text-red-500">{errors.unitPrice}</p>}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cost Price (MWK)*</label>
+                <input
+                  type="number"
+                  name="costPrice"
+                  value={formData.costPrice === 0 || formData.costPrice === '' ? '' : formData.costPrice}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  className={`w-full p-2 border ${errors.costPrice ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Purchase cost"
+                />
+                {errors.costPrice && <p className="mt-1 text-sm text-red-500">{errors.costPrice}</p>}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity In Stock*</label>
+                <input
+                  type="number"
+                  name="quantityInStock"
+                  value={formData.quantityInStock === 0 || formData.quantityInStock === '' ? '' : formData.quantityInStock}
+                  onChange={handleChange}
+                  min="0"
+                  className={`w-full p-2 border ${errors.quantityInStock ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Current quantity"
+                />
+                {errors.quantityInStock && <p className="mt-1 text-sm text-red-500">{errors.quantityInStock}</p>}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reorder Point*</label>
+                <input
+                  type="number"
+                  name="reorderPoint"
+                  value={formData.reorderPoint === 0 || formData.reorderPoint === '' ? '' : formData.reorderPoint}
+                  onChange={handleChange}
+                  min="0"
+                  className={`w-full p-2 border ${errors.reorderPoint ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Low stock threshold"
+                />
+                {errors.reorderPoint && <p className="mt-1 text-sm text-red-500">{errors.reorderPoint}</p>}
+                <p className="mt-1 text-xs text-gray-500">
+                  Quantity at which you'll receive a low stock alert
+                </p>
+              </div>
+              
+              <div className="md:col-span-2">
+                <DynamicCategorySelect
+                  value={formData.location}
+                  onChange={(value) => setFormData(prev => ({ ...prev, location: value }))}
+                  options={locations.filter(loc => loc !== "All")}
+                  placeholder="Select or add location"
+                  searchPlaceholder="Search locations..."
+                  emptyMessage="No locations available"
+                  emptySearchMessage="No locations found"
+                  addNewPlaceholder="Enter new location name..."
+                  onAddCategory={async (newLocation) => {
+                    // Add to locations list for immediate UI update
+                    if (onLocationAdd) {
+                      onLocationAdd(newLocation);
+                    }
+                    showToast("success", "Location added", `"${newLocation}" added to locations`);
+                  }}
+                  required={false}
+                  label="Location"
+                />
+              </div>
+              
+              {/* Enhanced Inventory Management Fields */}
+              <div className="md:col-span-2">
+                <h3 className="text-lg font-medium text-gray-800 mb-4 border-b pb-2">Enhanced Details</h3>
+              </div>
+              
+              {/* Unit Management Section */}
+              <div className="md:col-span-2">
+                <UnitManagement
+                  isEnabled={formData.unitManagementEnabled}
+                  onToggle={(enabled) => setFormData(prev => ({ ...prev, unitManagementEnabled: enabled }))}
+                  baseUnits={baseUnits}
+                  units={units}
+                  selectedBaseUnit={formData.selectedBaseUnit}
+                  onBaseUnitChange={handleBaseUnitChange}
+                  selectedUnits={formData.selectedUnits}
+                  onUnitsChange={handleUnitsChange}
+                  unitConfigurations={formData.unitConfigurations}
+                  onConfigurationChange={handleUnitConfigurationChange}
+                  baseUnitPrice={parseFloat(formData.unitPrice) || 0}
+                  baseCostPrice={parseFloat(formData.costPrice) || 0}
+                  baseQuantity={parseFloat(formData.quantityInStock) || 0}
+                  baseReorderPoint={parseFloat(formData.reorderPoint) || 0}
+                  disabled={isSubmitting}
+                />
+              </div>
+              
+              {/* Perishable Items Section */}
+              <div className="md:col-span-2">
+                <div className="flex items-center mb-3">
+                  <input
+                    type="checkbox"
+                    name="isPerishable"
+                    checked={formData.isPerishable}
+                    onChange={handleChange}
+                    className="mr-2"
+                  />
+                  <label className="text-sm font-medium text-gray-700">This is a perishable item</label>
+                </div>
+              </div>
+              
+              {formData.isPerishable && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date*</label>
+                    <input
+                      type="date"
+                      name="expiryDate"
+                      value={formData.expiryDate}
+                      onChange={handleChange}
+                      min={new Date().toISOString().split('T')[0]}
+                      className={`w-full p-2 border ${errors.expiryDate ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                    />
+                    {errors.expiryDate && <p className="mt-1 text-sm text-red-500">{errors.expiryDate}</p>}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Batch Number</label>
+                    <input
+                      type="text"
+                      name="batchNumber"
+                      value={formData.batchNumber}
+                      onChange={handleChange}
+                      className="w-full p-2 border border-gray-300 rounded-md"
+                      placeholder="Batch/Lot number"
+                    />
+                  </div>
+                </>
+              )}
+              
+              {/* Pricing and Discounts */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Amount (MWK)</label>
+                <input
+                  type="number"
+                  name="discountAmount"
+                  value={formData.discountAmount === 0 || formData.discountAmount === '' ? '' : formData.discountAmount}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  className={`w-full p-2 border ${errors.discountAmount ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Fixed discount amount"
+                />
+                {errors.discountAmount && <p className="mt-1 text-sm text-red-500">{errors.discountAmount}</p>}
+                <p className="mt-1 text-xs text-gray-500">Fixed amount discount (not percentage)</p>
+              </div>
+              
+              {/* Product Details */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+                <input
+                  type="text"
+                  name="supplier"
+                  value={formData.supplier}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Supplier name"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  name="weight"
+                  value={formData.weight === 0 || formData.weight === '' ? '' : formData.weight}
+                  onChange={handleChange}
+                  min="0"
+                  step="0.01"
+                  className={`w-full p-2 border ${errors.weight ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Product weight"
+                />
+                {errors.weight && <p className="mt-1 text-sm text-red-500">{errors.weight}</p>}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dimensions (LxWxH cm)</label>
+                <input
+                  type="text"
+                  name="dimensions"
+                  value={formData.dimensions}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="e.g., 10x5x2"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
+                <input
+                  type="text"
+                  name="barcode"
+                  value={formData.barcode}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Product barcode"
+                />
+              </div>
+              
+              {/* Tags Section */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+                <div className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+                    className="flex-1 p-2 border border-gray-300 rounded-md"
+                    placeholder="Add a tag and press Enter"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTag}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    Add
+                  </button>
+                </div>
+                
+                {/* Display existing tags */}
+                {formData.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {formData.tags.map((tag, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                      >
+                        {tag}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveTag(tag)}
+                          className="ml-1 text-blue-600 hover:text-blue-800"
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                <Save size={16} className="mr-1" />
+                {product ? "Update Product" : "Create Product"}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Transaction Form Component
+const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSubmitting, showToast }) => {
+  const [formData, setFormData] = useState({
+    type: initialType || "Stock In", // Use initialType if provided, otherwise default to "Stock In"
+    quantity: "",
+    notes: ""
+  });
+  
+  const [errors, setErrors] = useState({});
+  
+  // Reset form when product or initialType changes
+  useEffect(() => {
+    setFormData({
+      type: initialType || "Stock In", // Use initialType if provided
+      quantity: "",
+      notes: ""
+    });
+    setErrors({});
+  }, [product, initialType]); // Add initialType to dependencies
+  
+  // Handle form field changes
+  const handleChange = (e) => {
+    const { name, value, type } = e.target;
+    
+    // For number fields, allow empty string or convert to number
+    let processedValue;
+    if (type === 'number') {
+      processedValue = value === '' ? '' : parseInt(value, 10) || '';
+    } else {
+      processedValue = value;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: processedValue
+    }));
+    
+    // Clear error for this field when user changes it
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: null }));
+    }
+  };
+  
+  // Validate form data
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (formData.quantity === '' || formData.quantity <= 0) {
+      newErrors.quantity = "Quantity must be greater than zero";
+    }
+    
+    const availableStock = product.originalStockLevel !== undefined ? product.originalStockLevel : product.quantityInStock;
+    if (formData.type === "Stock Out" && product && formData.quantity > availableStock) {
+      newErrors.quantity = `Cannot remove more than available stock (${availableStock})`;
+    }
+    
+    setErrors(newErrors);
+    
+    if (Object.keys(newErrors).length > 0) {
+      // Show the first error as a toast
+      showToast("error", "Please correct the form errors", Object.values(newErrors)[0]);
+      return false;
+    }
+    
+    return true;
+  };
+  
+  // Handle form submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
+    // Calculate new quantity for preview
+    const quantity = formData.quantity === '' ? 0 : parseInt(formData.quantity) || 0;
+    const currentStock = product?.originalStockLevel !== undefined ? product.originalStockLevel : (product?.quantityInStock || 0);
+    let newQuantity = currentStock;
+    
+    if (formData.type === "Stock In") {
+      newQuantity += quantity;
+    } else if (formData.type === "Stock Out") {
+      newQuantity -= quantity;
+    } else if (formData.type === "Adjustment") {
+      newQuantity = quantity;
+    }
+    
+    // Add toast preview for large changes
+    const isLargeChange = quantity >= 10;
+    
+    if (isLargeChange) {
+      const actionText = formData.type === "Stock In" ? "adding" : 
+                       formData.type === "Stock Out" ? "removing" : 
+                       "adjusting to";
+                       
+      const confirmMessage = `Are you sure you want to ${actionText} ${quantity} units?`;
+      
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+    }
+    
+    // Show preview message
+    showToast("info", `New stock level will be ${newQuantity} units`, null, 3000);
+    
+    onSubmit({
+      ...formData,
+      quantity: quantity
+    });
+  };
+  
+  if (!isOpen || !product) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden animate-fadeInUp">
+        <div className="p-5 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Record Transaction</h2>
+            <button 
+              className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+              onClick={onClose}
+              type="button"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+        
+        <div className="p-5">
+          <div className="mb-6 flex items-center">
+            <div className="w-16 h-16 mr-4 flex-shrink-0">
+              <img 
+                src={product?.image || "/api/placeholder/80/80"} 
+                alt={product?.name || "Product"} 
+                className="w-full h-full object-contain rounded-md"
+              />
+            </div>
+            <div>
+              <h3 className="font-medium">{product?.name}</h3>
+              <p className="text-sm text-gray-500">
+                Current Stock: <span className="font-medium">{product?.quantityInStock}</span>
+              </p>
+              {product?.reorderPoint && (
+                <p className="text-xs text-gray-500">
+                  Reorder Point: <span className="font-medium">{product?.reorderPoint}</span>
+                </p>
+              )}
+            </div>
+          </div>
+          
+          <form onSubmit={handleSubmit}>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Transaction Type*</label>
+                <select
+                  name="type"
+                  value={formData.type}
+                  onChange={handleChange}
+                  className="w-full p-2 border border-gray-300 rounded-md bg-white"
+                >
+                  <option value="Stock In">Stock In</option>
+                  <option value="Stock Out">Stock Out</option>
+                  <option value="Adjustment">Adjustment</option>
+                </select>
+                
+                <p className="mt-1 text-xs text-gray-500">
+                  {formData.type === "Stock In" ? 
+                    "Add inventory when new stock arrives" : 
+                    formData.type === "Stock Out" ? 
+                    "Remove inventory when stock is taken" : 
+                    "Set the exact inventory count (after physical count)"}
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantity*</label>
+                <input
+                  type="number"
+                  name="quantity"
+                  value={formData.quantity}
+                  onChange={handleChange}
+                  min="1"
+                  className={`w-full p-2 border ${errors.quantity ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                  placeholder="Enter quantity"
+                />
+                {errors.quantity && <p className="mt-1 text-sm text-red-500">{errors.quantity}</p>}
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleChange}
+                  rows="3"
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  placeholder="Add any additional notes here..."
+                ></textarea>
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                <span>Processing...</span>
+              </>
+            ) : (
+              <>
+                {formData.type === "Stock In" ? <Truck size={16} className="mr-1" /> : 
+                 formData.type === "Stock Out" ? <ShoppingCart size={16} className="mr-1" /> :
+                 <RefreshCw size={16} className="mr-1" />}
+                Record {formData.type}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default InventoryManagement;

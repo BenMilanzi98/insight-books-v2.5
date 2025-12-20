@@ -1,0 +1,516 @@
+// app/api/invoices/route.js
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { createInvoiceJournalEntry, createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
+import { requireStandardAccess } from '@/lib/accessControl';
+import { calculateCOGS } from '@/lib/inventoryCosting';
+
+// Enhanced helper function to calculate invoice totals with discounts
+function calculateInvoiceTotals(items, globalDiscount = 0) {
+  let subtotal = 0;
+  let totalDiscountAmount = 0;
+  
+  const processedItems = items.map(item => {
+    // Calculate line total before discount
+    const lineTotal = item.quantity * item.unitPrice;
+    
+    // Interpret discountAmount as per-item discount; convert to line discount
+    const perItemDiscount = item.discountAmount || 0;
+    const lineDiscountAmount = perItemDiscount * item.quantity;
+    
+    // Calculate net amount after discount
+    const netLineAmount = lineTotal - lineDiscountAmount;
+    
+    // Calculate tax on net amount
+    const lineTaxAmount = netLineAmount * ((item.taxRate || 0) / 100);
+    
+    // Calculate final amount including tax
+    const finalAmount = netLineAmount + lineTaxAmount;
+    
+    // Add to totals
+    subtotal += lineTotal;
+    totalDiscountAmount += lineDiscountAmount;
+    
+    return {
+      ...item,
+      // Persist per-item discount for each item
+      discountAmount: Number(perItemDiscount.toFixed(2)),
+      netAmount: Number(netLineAmount.toFixed(2)),
+      amount: Number(finalAmount.toFixed(2))
+    };
+  });
+  
+  // Apply global discount to the net subtotal (after line item discounts)
+  const netSubtotalBeforeGlobal = subtotal - totalDiscountAmount;
+  const validGlobalDiscount = Math.max(0, Math.min(globalDiscount || 0, netSubtotalBeforeGlobal));
+  
+  // Calculate tax on the net amount after global discount
+  const finalNetSubtotal = netSubtotalBeforeGlobal - validGlobalDiscount;
+  
+  // Calculate total tax from processed items (this should already include line item taxes)
+  let totalTaxAmount = 0;
+  processedItems.forEach(item => {
+    const lineTotal = item.quantity * item.unitPrice;
+    const perItemDiscount = item.discountAmount || 0;
+    const lineDiscountAmount = perItemDiscount * item.quantity;
+    const netLineAmount = lineTotal - lineDiscountAmount;
+    totalTaxAmount += netLineAmount * ((item.taxRate || 0) / 100);
+  });
+  
+  const total = finalNetSubtotal + totalTaxAmount;
+  
+  return {
+    processedItems,
+    subtotal: Number(subtotal.toFixed(2)),
+    totalDiscountAmount: Number(totalDiscountAmount.toFixed(2)),
+    globalDiscount: Number(validGlobalDiscount.toFixed(2)),
+    taxAmount: Number(totalTaxAmount.toFixed(2)),
+    total: Number(total.toFixed(2))
+  };
+}
+
+// GET - Fetch invoices with filtering, sorting, and pagination
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    
+    // Get user from session
+    const user = await getUserFromSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Parse query parameters
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const sortBy = searchParams.get('sortBy') || 'createdAt';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const status = searchParams.get('status');
+    const client = searchParams.get('client');
+    const search = searchParams.get('search');
+    const dateFrom = searchParams.get('dateFrom');
+    const dateTo = searchParams.get('dateTo');
+    
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+    
+    // Build filter object for Prisma
+    const where = {
+      tenantId: user.tenantId
+    };
+    
+    // Add status filter if provided
+    if (status) {
+      // Handle comma-separated statuses
+      if (status.includes(',')) {
+        where.status = {
+          in: status.split(',').map(s => s.trim())
+        };
+      } else {
+        where.status = status;
+      }
+    }
+    
+    // Add client filter if provided
+    if (client) {
+      where.clientId = client;
+    }
+    
+    // Add date range filters
+    if (dateFrom) {
+      where.issueDate = {
+        ...where.issueDate,
+        gte: new Date(dateFrom)
+      };
+    }
+    
+    if (dateTo) {
+      where.issueDate = {
+        ...where.issueDate,
+        lte: new Date(dateTo)
+      };
+    }
+    
+    // Add search filter
+    if (search) {
+      where.OR = [
+        { invoiceNumber: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+        { client: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+    
+    // Get total count for pagination
+    const totalCount = await prisma.invoice.count({ where });
+    
+    // Build sort object
+    const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
+    
+    // Fetch invoices with related data
+    const invoices = await prisma.invoice.findMany({
+      where,
+      orderBy,
+      skip,
+      take: limit,
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true
+          }
+        },
+        createdBy: { // Include user info for "Prepared By"
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        items: true,
+        payments: {
+          where: {
+            status: 'Completed'
+          },
+          select: {
+            id: true,
+            amount: true,
+            paymentDate: true,
+            paymentMethod: true,
+            reference: true,
+            status: true
+          }
+        }
+      }
+    });
+    
+    // Calculate amount due for each invoice and format response
+    const invoicesWithAmountDue = invoices.map(invoice => {
+      const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
+      const outstandingAmount = invoice.total - totalPaid;
+      const isFullyPaid = totalPaid >= invoice.total;
+      const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
+      
+      return {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        clientId: invoice.clientId,
+        client: invoice.client,
+        preparedBy: invoice.createdBy?.name || 'N/A', // Include prepared by info
+        preparedById: invoice.createdBy?.id || null,
+        createdBy: invoice.createdBy, // Include full createdBy object
+        createdAt: invoice.createdAt, // Include creation timestamp
+        issueDate: invoice.issueDate,
+        dueDate: invoice.dueDate,
+        discount: invoice.discount,
+        subtotal: invoice.subtotal,
+        taxAmount: invoice.taxAmount,
+        totalDiscountAmount: invoice.totalDiscountAmount || 0, // Enhanced: Total discount amount
+        total: invoice.total,
+        status: invoice.status,
+        notes: invoice.notes,
+        items: invoice.items,
+        payments: invoice.payments,
+        amountDue: Math.max(0, outstandingAmount),
+        totalPaid,
+        paymentInfo: {
+          totalPaid,
+          outstandingAmount,
+          isFullyPaid,
+          isPartiallyPaid,
+          paymentCount: invoice.payments?.length || 0
+        },
+        updatedAt: invoice.updatedAt
+      };
+    });
+    
+    // Return invoices with pagination metadata
+    return NextResponse.json({
+      invoices: invoicesWithAmountDue,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching invoices:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch invoices. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - Create a new invoice
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    
+    console.log("🔥 INVOICE API POST ENDPOINT CALLED");
+    console.log("🔥 INVOICE API RECEIVED DATA:", JSON.stringify(body, null, 2));
+    
+    // Get user from session
+    const user = await getUserFromSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+    
+    // Validate required fields
+    if (!body.clientId || !body.items || body.items.length === 0) {
+      return NextResponse.json(
+        { error: 'Client and at least one item are required' },
+        { status: 400 }
+      );
+    }
+    
+    // Enhanced validation for each item
+    for (const item of body.items) {
+      if (!item.description || item.quantity <= 0 || item.unitPrice < 0) {
+        return NextResponse.json(
+          { error: 'All items must have valid description, quantity, and unit price' },
+          { status: 400 }
+        );
+      }
+      
+      // Validate per-item discount amount (should be non-negative and not exceed unit price)
+      if (item.discountAmount && item.discountAmount < 0) {
+        return NextResponse.json(
+          { error: 'Discount amount must be positive' },
+          { status: 400 }
+        );
+      }
+      
+      if (item.discountAmount && item.discountAmount > item.unitPrice) {
+        return NextResponse.json(
+          { error: 'Per-item discount cannot exceed unit price' },
+          { status: 400 }
+        );
+      }
+      
+      // Validate tax rate
+      if (item.taxRate && (item.taxRate < 0 || item.taxRate > 100)) {
+        return NextResponse.json(
+          { error: 'Tax rate must be between 0 and 100%' },
+          { status: 400 }
+        );
+      }
+    }
+    
+    // Enhanced calculation using the new function
+    const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
+    
+    // Generate invoice number
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    
+    // Get tenant settings for invoice prefix
+    const tenantSettings = await prisma.tenantSettings.findFirst({
+      where: { tenantId: user.tenantId }
+    });
+    
+    const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
+    
+    // Get count of invoices for this tenant in the current month for sequential numbering
+    const invoiceCount = await prisma.invoice.count({
+      where: {
+        tenantId: user.tenantId,
+        createdAt: {
+          gte: new Date(year, today.getMonth(), 1),
+          lt: new Date(year, today.getMonth() + 1, 1)
+        }
+      }
+    });
+    
+    const sequentialNumber = String(invoiceCount + 1).padStart(3, '0');
+    const invoiceNumber = `${invoicePrefix}-${year}${month}-${sequentialNumber}`;
+    const invoiceStatus = body.status || 'Draft';
+    const issueDate = new Date(body.issueDate || today);
+    
+    // Check if invoice has service items
+    const hasServices = calculations.processedItems.some(item => {
+      if (!item.productId) return true; // Custom items are considered services
+      // We'll check the product in the transaction
+      return false; // Default to false, will check in transaction
+    });
+    
+    // Create the invoice with items in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Check products to determine if invoice has services
+      let invoiceHasServices = false;
+      if (calculations.processedItems.some(item => item.productId)) {
+        const productIds = calculations.processedItems
+          .filter(item => item.productId)
+          .map(item => item.productId);
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds }, tenantId: user.tenantId },
+          select: { id: true, isService: true }
+        });
+        invoiceHasServices = products.some(p => p.isService) || 
+          calculations.processedItems.some(item => !item.productId);
+      } else {
+        invoiceHasServices = true; // All custom items
+      }
+
+      // Create the invoice with items
+      const newInvoice = await tx.invoice.create({
+        data: {
+          invoiceNumber,
+          clientId: body.clientId,
+          createdById: user.id,
+          issueDate,
+          dueDate: new Date(body.dueDate || new Date(today.setDate(today.getDate() + 30))),
+          discount: body.discount || 0, // Legacy global discount
+          subtotal: calculations.subtotal,
+          taxAmount: calculations.taxAmount,
+          totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
+          total: calculations.total,
+          status: invoiceStatus,
+          notes: body.notes,
+          tenantId: user.tenantId,
+          items: {
+            create: calculations.processedItems.map(item => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: Number(item.taxRate || 0), // Convert to number
+              discountRate: 0, // Legacy field, keep for backward compatibility
+              discountAmount: item.discountAmount || 0,
+              netAmount: item.netAmount || 0,
+              amount: item.amount,
+              productId: item.productId || null
+            }))
+          }
+        },
+        include: {
+          client: true,
+          createdBy: { // Include user info for "Prepared By"
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          items: true
+        }
+      });
+
+      // Create journal entry if invoice is not a draft
+      if (invoiceStatus !== 'Draft') {
+        try {
+          // Calculate total COGS for all inventory items
+          let totalCOGS = 0;
+          
+          for (const item of calculations.processedItems) {
+            if (item.productId) {
+              try {
+                // Check if product is a service (services don't have COGS)
+                const product = await tx.product.findUnique({
+                  where: { id: item.productId },
+                  select: { id: true, isService: true }
+                });
+                
+                // Only calculate COGS for non-service products
+                if (product && !product.isService) {
+                  const cogsData = await calculateCOGS({
+                    productId: item.productId,
+                    tenantId: user.tenantId,
+                    quantitySold: item.quantity,
+                    tx,
+                  });
+                  totalCOGS += cogsData.cogsAmount;
+                }
+              } catch (cogsError) {
+                console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
+                // Continue with other items
+              }
+            }
+          }
+
+          await createInvoiceJournalEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            invoiceId: newInvoice.id,
+            invoiceNumber,
+            issueDate,
+            totalAmount: calculations.total,
+            hasServices: invoiceHasServices,
+            cogsAmount: totalCOGS,
+            tx,
+          });
+        } catch (journalError) {
+          console.error('Error creating journal entry for invoice:', journalError);
+          // Don't fail the invoice creation if journal entry creation fails
+        }
+      }
+
+      // Create audit log entry
+      await tx.auditLog.create({
+      data: {
+        action: 'INVOICE_CREATED',
+        entityType: 'INVOICE',
+        entityId: newInvoice.id,
+        userId: user.id,
+        tenantId: user.tenantId,
+        details: JSON.stringify({
+          invoiceNumber,
+          client: newInvoice.client.name,
+          amount: newInvoice.total
+        })
+      }
+    });
+
+      return newInvoice;
+    });
+
+    const newInvoice = result;
+    
+    // Format the response
+    const formattedInvoice = {
+      id: newInvoice.id,
+      invoiceNumber: newInvoice.invoiceNumber,
+      clientId: newInvoice.clientId,
+      client: newInvoice.client,
+      preparedBy: newInvoice.createdBy?.name || 'N/A', // Include prepared by info
+      preparedById: newInvoice.createdBy?.id || null,
+      createdBy: newInvoice.createdBy, // Include full createdBy object
+      createdAt: newInvoice.createdAt, // Include creation timestamp
+      issueDate: newInvoice.issueDate,
+      dueDate: newInvoice.dueDate,
+      discount: newInvoice.discount,
+      subtotal: newInvoice.subtotal,
+      taxAmount: newInvoice.taxAmount,
+      totalDiscountAmount: newInvoice.totalDiscountAmount,
+      total: newInvoice.total,
+      status: newInvoice.status,
+      notes: newInvoice.notes,
+      items: newInvoice.items,
+      updatedAt: newInvoice.updatedAt
+    };
+    
+    // Return the created invoice
+    return NextResponse.json(
+      { 
+        message: 'Invoice created successfully',
+        invoice: formattedInvoice
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Error creating invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to create invoice. Please try again.' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,8 @@
+-- AlterTable
+ALTER TABLE "Invoice" ADD COLUMN     "discount" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "Quotation" ADD COLUMN     "discount" DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+-- AlterTable
+ALTER TABLE "Sale" ADD COLUMN     "discount" DOUBLE PRECISION NOT NULL DEFAULT 0;

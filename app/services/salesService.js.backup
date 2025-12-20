@@ -1,0 +1,362 @@
+// app/services/salesService.js
+
+// Fetch sales with optional filters, sorting, and pagination
+export const fetchSales = async (params = {}) => {
+    try {
+      const { page, limit, sortBy, sortOrder, status, clientId, search, dateFrom, dateTo } = params;
+      
+      // Build query string from params
+      const queryParams = new URLSearchParams();
+      if (page) queryParams.append('page', page);
+      if (limit) queryParams.append('limit', limit);
+      if (sortBy) queryParams.append('sortBy', sortBy);
+      if (sortOrder) queryParams.append('sortOrder', sortOrder);
+      if (status && status !== 'all') queryParams.append('status', status);
+      if (clientId && clientId !== 'all') queryParams.append('clientId', clientId);
+      if (search) queryParams.append('search', search);
+      if (dateFrom) queryParams.append('dateFrom', dateFrom);
+      if (dateTo) queryParams.append('dateTo', dateTo);
+      
+      const queryString = queryParams.toString();
+      const url = `/api/sales${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching sales: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+      throw error;
+    }
+  };
+  
+  // Get sales statistics
+  export const getSalesStatistics = async (params = {}) => {
+    try {
+      const { dateFrom, dateTo, period } = params;
+      
+      // Build query string from params
+      const queryParams = new URLSearchParams();
+      if (dateFrom) queryParams.append('dateFrom', dateFrom);
+      if (dateTo) queryParams.append('dateTo', dateTo);
+      if (period) queryParams.append('period', period);
+      
+      const queryString = queryParams.toString();
+      const url = `/api/sales/statistics${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching sales statistics: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching sales statistics:', error);
+      throw error;
+    }
+  };
+  
+  // Get a single sale by ID
+  export const fetchSaleById = async (saleId) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching sale: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error fetching sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Create a new sale
+  export const createSale = async (saleData) => {
+    try {
+      const response = await fetch('/api/sales', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saleData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error creating sale: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error creating sale:', error);
+      throw error;
+    }
+  };
+  
+  // Update an existing sale
+  export const updateSale = async (saleId, saleData) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(saleData),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error updating sale: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error updating sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Delete a sale (for drafts only)
+  export const deleteSale = async (saleId) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error deleting sale: ${response.statusText}`);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Void a sale
+  export const voidSale = async (saleId, reason) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'void',
+          notes: reason || 'Sale voided'
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error voiding sale: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error voiding sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Process a refund
+  export const refundSale = async (saleId, reason) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'refunded',
+          notes: reason || 'Sale refunded'
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error refunding sale: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error(`Error refunding sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Print receipt
+  export const printReceipt = async (saleId) => {
+    try {
+      const response = await fetch(`/api/sales/${saleId}/receipt`, {
+        method: 'GET'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Error generating receipt: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Open a new window/tab with the receipt
+      const receiptWindow = window.open(url, '_blank');
+      if (!receiptWindow) {
+        // If popup is blocked, create a download link
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `receipt-${saleId}.pdf`;
+        link.click();
+        window.URL.revokeObjectURL(url);
+      }
+      
+      return true;
+    } catch (error) {
+      console.error(`Error printing receipt for sale ${saleId}:`, error);
+      throw error;
+    }
+  };
+  
+  // Export sales data (CSV or PDF)
+  export const exportSales = async (filters = {}, format = 'csv') => {
+    try {
+      // Build query string from filters
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value !== 'all') queryParams.append(key, value);
+      });
+      queryParams.append('format', format);
+      
+      const queryString = queryParams.toString();
+      const url = `/api/sales/export${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error exporting sales: ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      
+      // Create a download link
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `sales-export.${format}`;
+      link.click();
+      
+      // Clean up
+      window.URL.revokeObjectURL(downloadUrl);
+      
+      return true;
+    } catch (error) {
+      console.error('Error exporting sales:', error);
+      throw error;
+    }
+  };
+  
+  // Fetch products for sale
+  export const fetchProductsForSale = async (params = {}) => {
+    try {
+      const { search, category, limit } = params;
+      
+      // Build query string from params
+      const queryParams = new URLSearchParams();
+      if (search) queryParams.append('search', search);
+      if (category && category !== 'all') queryParams.append('category', category);
+      if (limit) queryParams.append('limit', limit);
+      
+      const queryString = queryParams.toString();
+      const url = `/api/inventory${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching products: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.products || [];
+    } catch (error) {
+      console.error('Error fetching products for sale:', error);
+      throw error;
+    }
+  };
+  
+  // Fetch clients for sale
+  export const fetchClients = async (params = {}) => {
+    try {
+      const { search, limit } = params;
+      
+      // Build query string from params
+      const queryParams = new URLSearchParams();
+      if (search) queryParams.append('search', search);
+      if (limit) queryParams.append('limit', limit);
+      
+      const queryString = queryParams.toString();
+      const url = `/api/clients${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Error fetching clients: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      return data.clients || [];
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      throw error;
+    }
+  };
+  
+  // Create a new client
+  export const createClient = async (clientData) => {
+    try {
+      // Make sure required fields are present
+      if (!clientData.name) {
+        throw new Error('Client name is required');
+      }
+      
+      const response = await fetch('/api/clients', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clientData),
+      });
+      
+      if (!response.ok) {
+        // Try to extract error message from response if possible
+        let errorMessage = `Error creating client: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch (e) {
+          // If JSON parsing fails, use the default error message
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      const data = await response.json();
+      
+      // Return the newly created client object
+      return data.client || data;
+    } catch (error) {
+      console.error('Error creating client:', error);
+      throw error;
+    }
+  };

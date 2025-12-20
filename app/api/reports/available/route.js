@@ -1,0 +1,145 @@
+// app/api/reports/available/route.js
+import { NextResponse } from 'next/server';
+import { getUserFromSession } from '@/lib/auth';
+
+export async function GET(request) {
+  try {
+    // Get user from session
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated' },
+        { status: 401 }
+      );
+    }
+    
+    // Define available reports
+    const reports = [
+      {
+        id: 'profit-loss',
+        name: 'Profit & Loss Statement',
+        description: 'Income statement showing revenue, expenses, and profitability',
+        icon: 'FileBarChart',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'balance-sheet',
+        name: 'Balance Sheet',
+        description: 'Shows assets, liabilities, and equity at a specific point in time',
+        icon: 'FileText',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'cash-flow',
+        name: 'Cash Flow Statement',
+        description: 'Tracks the flow of cash in and out of your business',
+        icon: 'DollarSign',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'tax-summary',
+        name: 'Tax Summary',
+        description: 'Summary of collected and paid taxes for compliance',
+        icon: 'FileText',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'sales-report',
+        name: 'Sales Report',
+        description: 'Analysis of sales performance by product, customer, and time',
+        icon: 'TrendingUp',
+        category: 'Sales',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'expense-report',
+        name: 'Expense Report',
+        description: 'Breakdown of expenses by category and time period',
+        icon: 'TrendingDown',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'accounts-receivable',
+        name: 'Accounts Receivable Aging',
+        description: 'Analysis of outstanding customer invoices grouped by aging buckets',
+        icon: 'FileText',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: false
+      },
+      {
+        id: 'accounts-payable',
+        name: 'Accounts Payable Aging',
+        description: 'Analysis of outstanding vendor bills',
+        icon: 'FileText',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: false
+      },
+      {
+        id: 'inventory-valuation',
+        name: 'Inventory Valuation',
+        description: 'Current inventory value and status',
+        icon: 'Package',
+        category: 'Inventory',
+        lastGenerated: null,
+        requiresTimeframe: false
+      },
+      {
+        id: 'stock-movement',
+        name: 'Stock Movement Report',
+        description: 'Track inventory changes over time by product',
+        icon: 'Package',
+        category: 'Inventory',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'sales-analysis',
+        name: 'Sales Analysis Report',
+        description: 'Analyze sales performance by time, product, customer, or salesperson',
+        icon: 'BarChart',
+        category: 'Sales',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'expense-analysis',
+        name: 'Expense Analysis Report',
+        description: 'Analyze spending patterns by category and time period',
+        icon: 'TrendingDown',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
+        id: 'profitability-analysis',
+        name: 'Profitability Analysis',
+        description: 'Show profit margins by product, customer, or time period',
+        icon: 'PieChart',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      }
+    ];
+    
+    return NextResponse.json(reports);
+  } catch (error) {
+    console.error('Error fetching available reports:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch available reports. Please try again.' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,541 @@
+// app/api/payroll/enhanced/route.js
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { calculateMalawiPayroll } from '@/lib/malawiTaxUtils';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { generateReferenceNumber } from '@/lib/journalService';
+
+/**
+ * POST - Create enhanced payroll run with Malawi tax compliance
+ */
+export async function POST(request) {
+  try {
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const paymentAccountId = body.paymentAccountId || null;
+    const expenseAccountId = body.expenseAccountId || null;
+
+    // Validate request body
+    if (!body.periodStart || !body.periodEnd) {
+      return NextResponse.json(
+        { error: 'Period start and end dates are required' },
+        { status: 400 }
+      );
+    }
+
+    const periodStart = new Date(body.periodStart);
+    const periodEnd = new Date(body.periodEnd);
+    const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
+
+    // Validate date range
+    if (periodEnd < periodStart) {
+      return NextResponse.json(
+        { error: 'Period end date cannot be before start date' },
+        { status: 400 }
+      );
+    }
+
+    // Check if a payroll run already exists for this period
+    const existingPayroll = await prisma.payroll.findFirst({
+      where: {
+        periodStart,
+        periodEnd,
+        tenantId: user.tenantId
+      }
+    });
+
+    if (existingPayroll) {
+      return NextResponse.json(
+        { error: 'A payroll run already exists for this period' },
+        { status: 400 }
+      );
+    }
+
+    // Get all active employees with their attendance records
+    const employees = await prisma.employee.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true
+      },
+      include: {
+        attendanceRecords: {
+          where: {
+            date: {
+              gte: periodStart,
+              lte: periodEnd
+            }
+          }
+        }
+      }
+    });
+
+    if (employees.length === 0) {
+      return NextResponse.json(
+        { error: 'No active employees found' },
+        { status: 400 }
+      );
+    }
+
+    // Get or create required accounts/liabilities
+    const payrollAccounts = await getOrCreatePayrollAccounts(user.tenantId);
+
+    const [
+      selectedExpenseAccount,
+      selectedPaymentAccount
+    ] = await Promise.all([
+      expenseAccountId
+        ? prisma.account.findFirst({ where: { id: expenseAccountId, tenantId: user.tenantId } })
+        : null,
+      paymentAccountId
+        ? prisma.account.findFirst({ where: { id: paymentAccountId, tenantId: user.tenantId } })
+        : null
+    ]);
+
+    if (expenseAccountId && !selectedExpenseAccount) {
+      return NextResponse.json(
+        { error: 'Selected salary expense account was not found' },
+        { status: 400 }
+      );
+    }
+
+    if (selectedExpenseAccount && !isExpenseAccount(selectedExpenseAccount)) {
+      return NextResponse.json(
+        { error: 'Selected salary account must be an Expense account' },
+        { status: 400 }
+      );
+    }
+
+    if (paymentAccountId && !selectedPaymentAccount) {
+      return NextResponse.json(
+        { error: 'Selected payment account was not found' },
+        { status: 400 }
+      );
+    }
+
+    if (selectedPaymentAccount && !isAssetAccount(selectedPaymentAccount)) {
+      return NextResponse.json(
+        { error: 'Selected payment account must be an Asset (cash/bank) account' },
+        { status: 400 }
+      );
+    }
+
+    const findAccountByName = (name) =>
+      payrollAccounts.find(
+        (acc) => (acc.accountName || acc.name || '').toLowerCase() === name.toLowerCase()
+      );
+
+    const expenseAccount =
+      selectedExpenseAccount || findAccountByName('Salaries Expense');
+    const paymentAccount =
+      selectedPaymentAccount || findAccountByName('Cash');
+    const payeAccount = findAccountByName('PAYE Liability');
+    const npsEmployeeAccount = findAccountByName('NPS Employee Contribution Liability');
+    const npsEmployerAccount = findAccountByName('NPS Employer Contribution Liability');
+    const otherDeductionsAccount = findAccountByName('Payroll Deductions Liability');
+
+    if (!expenseAccount || !paymentAccount || !payeAccount || !npsEmployeeAccount || !npsEmployerAccount || !otherDeductionsAccount) {
+      return NextResponse.json(
+        { error: 'Required payroll accounts are missing. Please ensure payroll liability and cash accounts exist.' },
+        { status: 400 }
+      );
+    }
+
+    const payrollEntries = [];
+
+    for (const employee of employees) {
+      const baseSalary = Number(employee.grossSalary || employee.salary || 0);
+      if (!baseSalary || Number.isNaN(baseSalary)) {
+        console.warn(`No valid base salary for employee ${employee.name}`);
+      }
+
+      const totalHoursWorked = employee.attendanceRecords.reduce((sum, record) => {
+        return sum + (record.hoursWorked || 0);
+      }, 0);
+
+      const totalOvertimeHours = employee.attendanceRecords.reduce((sum, record) => {
+        return sum + (record.overtimeHours || 0);
+      }, 0);
+
+      const overtimeRate = (baseSalary / 160) * 1.5;
+      const overtimePay = totalOvertimeHours * overtimeRate;
+
+      let otherDeductions = {};
+      if (employee.selectedDeductions) {
+        let deductionIds = [];
+
+        if (Array.isArray(employee.selectedDeductions)) {
+          deductionIds = employee.selectedDeductions;
+        } else if (typeof employee.selectedDeductions === 'object') {
+          if (Object.values(employee.selectedDeductions).every(v => typeof v === 'number')) {
+            otherDeductions = employee.selectedDeductions;
+          } else {
+            deductionIds = Object.values(employee.selectedDeductions).filter(id => typeof id === 'string');
+          }
+        }
+
+        if (deductionIds.length > 0) {
+          const deductions = await prisma.deduction.findMany({
+            where: {
+              id: { in: deductionIds },
+              tenantId: user.tenantId,
+              isActive: true
+            }
+          });
+
+          deductions.forEach(deduction => {
+            if (deduction.amount) {
+              otherDeductions[deduction.id] = Number(deduction.amount);
+            } else if (deduction.percentage && baseSalary > 0) {
+              otherDeductions[deduction.id] = (baseSalary * Number(deduction.percentage)) / 100;
+            }
+          });
+        }
+      }
+
+      const payrollData = {
+        basicSalary: baseSalary,
+        allowances: {},
+        otherDeductions: otherDeductions,
+        hoursWorked: totalHoursWorked,
+        hourlyRate: employee.hourlyRate || 0,
+        overtimeHours: totalOvertimeHours,
+        overtimeRate: overtimeRate
+      };
+
+      const payrollCalculation = calculateMalawiPayroll(payrollData);
+
+      const totalDeductions = Number(payrollCalculation.totalDeductions) || 0;
+      const netPay = Number(payrollCalculation.netPay) || 0;
+      const grossPay = Number(payrollCalculation.totalGrossPay) || 0;
+      const additions = Number(payrollCalculation.overtimePay) || 0;
+      const payeAmount = Number(payrollCalculation.payeAmount) || 0;
+      const npsEmployeeAmount = Number(payrollCalculation.npsEmployeeAmount) || 0;
+      const npsEmployerAmount = Number(payrollCalculation.npsEmployerAmount) || 0;
+      const otherDeductionsTotal = Object.values(payrollCalculation.otherDeductions || {}).reduce(
+        (sum, value) => sum + (Number(value) || 0),
+        0
+      );
+
+      const additionalInfo = {
+        allowances: payrollCalculation.allowances || {},
+        otherDeductions: payrollCalculation.otherDeductions || {},
+        npsEmployeeAmount,
+        npsEmployerAmount,
+        hoursWorked: totalHoursWorked,
+        overtimeHours: totalOvertimeHours,
+        overtimePay: Number(payrollCalculation.overtimePay) || 0,
+        attendanceAdjustment: 0,
+        expenseAccount: {
+          id: expenseAccount.id,
+          name: getAccountDisplayName(expenseAccount)
+        },
+        paymentAccount: {
+          id: paymentAccount.id,
+          name: getAccountDisplayName(paymentAccount)
+        }
+      };
+
+      const payrollEntry = await prisma.payroll.create({
+        data: {
+          employeeId: employee.id,
+          periodStart,
+          periodEnd,
+          basicSalary: Number(payrollCalculation.basicSalary) || 0,
+          grossPay: grossPay,
+          deductions: totalDeductions,
+          additions: additions,
+          netPay: netPay,
+          payeAmount,
+          totalNpsAmount: Number(payrollCalculation.totalNpsAmount) || 0,
+          status: 'Draft',
+          paymentDate,
+          tenantId: user.tenantId,
+          notes: JSON.stringify(additionalInfo)
+        }
+      });
+
+      payrollEntries.push(payrollEntry);
+
+      const transactionLines = [];
+      const salaryExpenseAmount = grossPay + npsEmployerAmount;
+
+      if (salaryExpenseAmount > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: expenseAccount.id,
+          debitAmount: salaryExpenseAmount,
+          creditAmount: 0,
+          description: `Payroll expense for ${employee.name}`
+        });
+      }
+
+      if (payeAmount > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: payeAccount.id,
+          debitAmount: 0,
+          creditAmount: payeAmount,
+          description: 'PAYE withholding'
+        });
+      }
+
+      if (npsEmployeeAmount > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: npsEmployeeAccount.id,
+          debitAmount: 0,
+          creditAmount: npsEmployeeAmount,
+          description: 'NPS employee contribution payable'
+        });
+      }
+
+      if (npsEmployerAmount > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: npsEmployerAccount.id,
+          debitAmount: 0,
+          creditAmount: npsEmployerAmount,
+          description: 'NPS employer contribution payable'
+        });
+      }
+
+      if (otherDeductionsTotal > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: otherDeductionsAccount.id,
+          debitAmount: 0,
+          creditAmount: otherDeductionsTotal,
+          description: 'Other payroll deductions payable'
+        });
+      }
+
+      if (netPay > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: paymentAccount.id,
+          debitAmount: 0,
+          creditAmount: netPay,
+          description: `Net pay to employees (${getAccountDisplayName(paymentAccount)})`
+        });
+      }
+
+      if (transactionLines.length > 0) {
+        await prisma.$transaction(async (tx) => {
+          const referenceNumber = await generateReferenceNumber(tx, user.tenantId, paymentDate);
+
+          const createdTransaction = await tx.transaction.create({
+            data: {
+              tenantId: user.tenantId,
+              date: paymentDate,
+              reference: referenceNumber,
+              description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
+              entryType: 'Regular',
+              status: 'posted',
+              sourceType: 'Payroll',
+              sourceId: payrollEntry.id,
+              createdById: user.id,
+              postedById: user.id,
+              postedDate: new Date(),
+              notes: `Enhanced payroll run with Malawi tax compliance`,
+              lines: {
+                create: transactionLines
+              }
+            },
+            include: {
+              lines: true
+            }
+          });
+
+          for (const line of createdTransaction.lines) {
+            await updateAccountBalanceOnTransaction(
+              line.accountId,
+              line.debitAmount,
+              line.creditAmount,
+              tx
+            );
+          }
+        });
+      }
+    }
+
+    // Create audit log entry
+    const totalGrossPay = payrollEntries.reduce((sum, p) => sum + p.grossPay, 0);
+    const totalPAYE = payrollEntries.reduce((sum, p) => sum + p.payeAmount, 0);
+    const totalNPS = payrollEntries.reduce((sum, p) => sum + p.totalNpsAmount, 0);
+    const totalNetPay = payrollEntries.reduce((sum, p) => sum + p.netPay, 0);
+
+    await prisma.auditLog.create({
+      data: {
+        action: 'ENHANCED_PAYROLL_RUN_CREATED',
+        entityType: 'PAYROLL',
+        entityId: `PAY-${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, '0')}`,
+        userId: user.id,
+        tenantId: user.tenantId,
+        details: JSON.stringify({
+          period: `${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()}`,
+          employeeCount: employees.length,
+          totalGrossPay,
+          totalPAYE,
+          totalNPS,
+          totalNetPay
+        })
+      }
+    });
+
+    return NextResponse.json({
+      message: 'Enhanced payroll run created successfully',
+      payroll: {
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        employeeCount: employees.length,
+        totalGrossPay,
+        totalPAYE,
+        totalNPS,
+        totalNetPay,
+        entries: payrollEntries.length
+      }
+    }, { status: 201 });
+
+  } catch (error) {
+    console.error('Error creating enhanced payroll run:', error);
+    return NextResponse.json(
+      { error: 'Failed to create enhanced payroll run', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Helper function to get or create required payroll accounts
+ */
+async function getOrCreatePayrollAccounts(tenantId) {
+  const accounts = [];
+  
+  const accountNames = [
+    'Salaries Expense',
+    'PAYE Liability',
+    'NPS Employee Contribution Liability',
+    'NPS Employer Contribution Liability',
+    'Payroll Deductions Liability',
+    'Cash'
+  ];
+
+  for (const accountName of accountNames) {
+    let account = await prisma.account.findFirst({
+      where: {
+        name: accountName,
+        tenantId: tenantId
+      }
+    });
+
+    if (!account) {
+      const accountCode = generateAccountCode(accountName);
+      const accountType = getAccountType(accountName);
+      
+      const accountSubtype = getAccountSubtype(accountName);
+      const properAccountType = convertAccountType(accountType);
+      const normalBalance = (properAccountType === 'Asset' || properAccountType === 'Expense') ? 'Debit' : 'Credit';
+
+      account = await prisma.account.create({
+        data: {
+          code: accountCode,
+          name: accountName,
+          type: accountType,
+          accountCode: accountCode,
+          accountName: accountName,
+          accountType: properAccountType,
+          accountSubtype,
+          normalBalance,
+          balance: 0,
+          tenantId: tenantId
+        }
+      });
+    }
+
+    accounts.push(account);
+  }
+
+  return accounts;
+}
+
+/**
+ * Generate account code based on account name
+ */
+function generateAccountCode(accountName) {
+  const codes = {
+    'Salaries Expense': '6000',
+    'PAYE Liability': '2100',
+    'NPS Employee Contribution Liability': '2101',
+    'NPS Employer Contribution Liability': '2102',
+    'Payroll Deductions Liability': '2103',
+    'Cash': '1000'
+  };
+  
+  return codes[accountName] || '9999';
+}
+
+/**
+ * Get account type based on account name
+ */
+function getAccountType(accountName) {
+  if (accountName.includes('Expense')) return 'EXPENSE';
+  if (accountName.includes('Liability')) return 'LIABILITY';
+  if (accountName === 'Cash') return 'ASSET';
+  return 'LIABILITY';
+}
+
+function getAccountSubtype(accountName) {
+  if (accountName === 'Cash') return 'Cash & Bank';
+  if (accountName.includes('PAYE')) return 'Tax Payable';
+  if (accountName.includes('NPS Employer')) return 'Payroll Liability';
+  if (accountName.includes('NPS Employee')) return 'Payroll Liability';
+  if (accountName.includes('Payroll Deductions')) return 'Payroll Liability';
+  if (accountName.includes('Expense')) return 'Payroll Expense';
+  return null;
+}
+
+function convertAccountType(legacyType) {
+  if (!legacyType) return null;
+  const upper = legacyType.toUpperCase();
+  switch (upper) {
+    case 'EXPENSE':
+      return 'Expense';
+    case 'ASSET':
+      return 'Asset';
+    case 'LIABILITY':
+      return 'Liability';
+    case 'EQUITY':
+      return 'Equity';
+    case 'REVENUE':
+    case 'INCOME':
+      return 'Revenue';
+    default:
+      return legacyType;
+  }
+}
+
+function getAccountDisplayName(account) {
+  if (!account) return 'Account';
+  return account.accountName || account.name || account.accountCode || account.code || 'Account';
+}
+
+function isExpenseAccount(account) {
+  if (!account) return false;
+  const type = (account.accountType || account.type || '').toUpperCase();
+  return type === 'EXPENSE';
+}
+
+function isAssetAccount(account) {
+  if (!account) return false;
+  const type = (account.accountType || account.type || '').toUpperCase();
+  return type === 'ASSET';
+}
+

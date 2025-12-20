@@ -1,0 +1,1007 @@
+"use client";
+import React, { useState, useEffect } from 'react';
+import { 
+  Plus, 
+  Search, 
+  Filter, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  Download, 
+  Upload,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Loader2,
+  X
+} from 'lucide-react';
+import { formatCurrency } from '@/lib/currencyUtils';
+import PermissionGuard from '@/components/PermissionGuard';
+
+const ChartOfAccountsPage = () => {
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [accountTypeFilter, setAccountTypeFilter] = useState('All');
+  const [activeFilter, setActiveFilter] = useState(true);
+  const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [formData, setFormData] = useState({
+    accountCode: '',
+    accountName: '',
+    accountType: 'Asset',
+    accountSubtype: '',
+    normalBalance: 'Debit',
+    parentAccountId: '',
+    description: '',
+    isActive: true
+  });
+
+  // Account type options
+  const accountTypes = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+  
+  // Subtype options by account type
+  const accountSubtypes = {
+    'Asset': ['Current Asset', 'Non-Current Asset'],
+    'Liability': ['Current Liability', 'Non-Current Liability'],
+    'Equity': [],
+    'Income': ['Operating Income', 'Other Income'],
+    'Expense': ['Cost of Sales', 'Operating Expense', 'Other Expense']
+  };
+
+  // Load accounts
+  useEffect(() => {
+    loadAccounts();
+  }, [accountTypeFilter, activeFilter]);
+
+  const loadAccounts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams();
+      if (accountTypeFilter !== 'All') {
+        params.append('accountType', accountTypeFilter);
+      }
+      params.append('isActive', activeFilter.toString());
+      if (searchQuery) {
+        params.append('search', searchQuery);
+      }
+
+      const response = await fetch(`/api/chart-of-accounts?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load accounts');
+      }
+
+      const data = await response.json();
+      setAccounts(data.accounts || []);
+    } catch (err) {
+      console.error('Error loading accounts:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadAccounts();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleAddAccount = async () => {
+    try {
+      setError(null);
+
+      const response = await fetch('/api/chart-of-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create account');
+      }
+
+      setShowAddModal(false);
+      resetForm();
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleUpdateAccount = async () => {
+    try {
+      setError(null);
+
+      const response = await fetch(`/api/chart-of-accounts/${selectedAccount.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update account');
+      }
+
+      setShowEditModal(false);
+      setSelectedAccount(null);
+      resetForm();
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleDeleteAccount = async (accountId) => {
+    if (!confirm('Are you sure you want to delete this account? Accounts with transactions will be deactivated instead.')) {
+      return;
+    }
+
+    try {
+      setError(null);
+
+      const response = await fetch(`/api/chart-of-accounts/${accountId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete account');
+      }
+
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const handleImportTemplate = async (templateId = 'retail') => {
+    if (!confirm(`This will import the ${templateId} Chart of Accounts template. Existing accounts will be skipped unless overwrite is enabled. Continue?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/accounts/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, overwrite: false })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import template');
+      }
+
+      alert(`Successfully imported template! Created: ${data.results.created}, Skipped: ${data.results.skipped}`);
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleExport = async (format = 'json') => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/accounts/export?format=${format}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to export accounts');
+      }
+
+      if (format === 'csv') {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `accounts-export-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const data = await response.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `accounts-export-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImport = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const text = await file.text();
+      let accountsData;
+
+      if (file.name.endsWith('.json')) {
+        accountsData = JSON.parse(text);
+        accountsData = accountsData.accounts || accountsData;
+      } else if (file.name.endsWith('.csv')) {
+        // Simple CSV parsing (you might want to use a library for production)
+        const lines = text.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        accountsData = lines.slice(1).filter(line => line.trim()).map(line => {
+          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+          const obj = {};
+          headers.forEach((header, index) => {
+            obj[header] = values[index] || '';
+          });
+          return obj;
+        });
+      } else {
+        throw new Error('Unsupported file format. Please use JSON or CSV.');
+      }
+
+      if (!Array.isArray(accountsData)) {
+        throw new Error('Invalid file format. Expected an array of accounts.');
+      }
+
+      const response = await fetch('/api/accounts/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accounts: accountsData, overwrite: false, skipDuplicates: true })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to import accounts');
+      }
+
+      alert(`Import completed! Created: ${data.results.created}, Updated: ${data.results.updated}, Skipped: ${data.results.skipped}`);
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+      event.target.value = ''; // Reset file input
+    }
+  };
+
+  const resetForm = () => {
+    setFormData({
+      accountCode: '',
+      accountName: '',
+      accountType: 'Asset',
+      accountSubtype: '',
+      normalBalance: 'Debit',
+      parentAccountId: '',
+      description: '',
+      isActive: true
+    });
+  };
+
+  const openEditModal = (account) => {
+    setSelectedAccount(account);
+    setFormData({
+      accountCode: account.accountCode || account.code || '',
+      accountName: account.accountName || account.name || '',
+      accountType: account.accountType || account.type || '',
+      accountSubtype: account.accountSubtype || '',
+      normalBalance: account.normalBalance || '',
+      parentAccountId: account.parentAccountId || '',
+      description: account.description || '',
+      isActive: account.isActive
+    });
+    setShowEditModal(true);
+  };
+
+  const openViewModal = (account) => {
+    setSelectedAccount(account);
+    setShowViewModal(true);
+  };
+
+  const toggleExpand = (accountId) => {
+    const newExpanded = new Set(expandedAccounts);
+    if (newExpanded.has(accountId)) {
+      newExpanded.delete(accountId);
+    } else {
+      newExpanded.add(accountId);
+    }
+    setExpandedAccounts(newExpanded);
+  };
+
+  // Build hierarchical structure
+  const buildHierarchy = (accounts) => {
+    const accountMap = new Map();
+    const rootAccounts = [];
+
+    // Create map
+    accounts.forEach(account => {
+      accountMap.set(account.id, { ...account, children: [] });
+    });
+
+    // Build tree
+    accounts.forEach(account => {
+      const accountNode = accountMap.get(account.id);
+      if (account.parentAccountId) {
+        const parent = accountMap.get(account.parentAccountId);
+        if (parent) {
+          parent.children.push(accountNode);
+        } else {
+          rootAccounts.push(accountNode);
+        }
+      } else {
+        rootAccounts.push(accountNode);
+      }
+    });
+
+    // Sort by account code
+    const sortAccounts = (accounts) => {
+      accounts.sort((a, b) => {
+        const codeA = a.accountCode || a.code || '';
+        const codeB = b.accountCode || b.code || '';
+        return codeA.localeCompare(codeB);
+      });
+      accounts.forEach(account => {
+        if (account.children && account.children.length > 0) {
+          sortAccounts(account.children);
+        }
+      });
+    };
+
+    sortAccounts(rootAccounts);
+    return rootAccounts;
+  };
+
+  const renderAccountRow = (account, level = 0) => {
+    const hasChildren = account.children && account.children.length > 0;
+    const isExpanded = expandedAccounts.has(account.id);
+    const indent = level * 24;
+    const accountCode = account.accountCode || account.code || 'N/A';
+    const accountName = account.accountName || account.name || 'Unnamed Account';
+
+    return (
+      <React.Fragment key={account.id}>
+        <tr className={`hover:bg-gray-50/50 transition-colors ${!account.isActive ? 'opacity-60' : ''}`}>
+          <td className="px-5 py-3 text-sm">
+            <div className="flex items-center" style={{ paddingLeft: `${indent}px` }}>
+              {hasChildren ? (
+                <button
+                  onClick={() => toggleExpand(account.id)}
+                  className="mr-2 text-gray-400 hover:text-gray-600"
+                >
+                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+              ) : (
+                <span className="w-6 mr-2"></span>
+              )}
+              <span className="font-medium text-gray-900">{accountCode}</span>
+            </div>
+          </td>
+          <td className="px-5 py-3 text-sm text-gray-900">
+            {level > 0 && <span className="text-gray-400 mr-2">└─</span>}
+            {accountName}
+          </td>
+          <td className="px-5 py-3 text-sm text-gray-700">{account.accountType || account.type || 'N/A'}</td>
+          <td className="px-5 py-3 text-sm text-gray-700 text-right font-medium">
+            {formatCurrency(account.currentBalance || 0)}
+          </td>
+          <td className="px-5 py-3 text-sm">
+            {account.isActive ? (
+              <span className="inline-flex items-center text-green-600">
+                <CheckCircle size={14} className="mr-1" />
+                Active
+              </span>
+            ) : (
+              <span className="inline-flex items-center text-gray-400">
+                <XCircle size={14} className="mr-1" />
+                Inactive
+              </span>
+            )}
+          </td>
+          <td className="px-5 py-3 text-sm">
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => openViewModal(account)}
+                className="text-blue-600 hover:text-blue-800 transition-colors"
+                title="View Details"
+              >
+                <Eye size={16} />
+              </button>
+              <button
+                onClick={() => openEditModal(account)}
+                className="text-gray-600 hover:text-gray-800 transition-colors"
+                title="Edit"
+              >
+                <Edit size={16} />
+              </button>
+              <button
+                onClick={() => handleDeleteAccount(account.id)}
+                className="text-red-600 hover:text-red-800 transition-colors"
+                title="Delete"
+                disabled={account.transactionCount > 0}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </td>
+        </tr>
+        {hasChildren && isExpanded && account.children.map(child => renderAccountRow(child, level + 1))}
+      </React.Fragment>
+    );
+  };
+
+  const hierarchicalAccounts = buildHierarchy(accounts);
+
+  return (
+    <PermissionGuard permission="accounts.view">
+      <div className="p-6 bg-gray-50 min-h-screen">
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Chart of Accounts</h1>
+              <p className="text-sm text-gray-600 mt-1">Manage your accounting accounts and structure</p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <div className="relative">
+                <button
+                  onClick={() => handleImportTemplate('retail')}
+                  className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center"
+                  title="Import Retail Template"
+                >
+                  <Upload size={16} className="mr-2" />
+                  Templates
+                </button>
+              </div>
+              <button
+                onClick={() => handleExport('json')}
+                className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center"
+                title="Export as JSON"
+              >
+                <Download size={16} className="mr-2" />
+                Export
+              </button>
+              <label className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center cursor-pointer">
+                <Upload size={16} className="mr-2" />
+                Import
+                <input
+                  type="file"
+                  accept=".json,.csv"
+                  onChange={handleImport}
+                  className="hidden"
+                />
+              </label>
+              <button
+                onClick={() => {
+                  resetForm();
+                  setShowAddModal(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
+              >
+                <Plus size={16} className="mr-2" />
+                Add Account
+              </button>
+            </div>
+          </div>
+
+          {/* Filters */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by code, name, or description..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <select
+                  value={accountTypeFilter}
+                  onChange={(e) => setAccountTypeFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="All">All Types</option>
+                  {accountTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <label className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md bg-white">
+                  <input
+                    type="checkbox"
+                    checked={activeFilter}
+                    onChange={(e) => setActiveFilter(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className="text-sm text-gray-700">Active Only</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-4 border border-red-300 bg-red-50 rounded-md text-red-700 flex items-center">
+            <AlertCircle size={20} className="mr-2" />
+            {error}
+          </div>
+        )}
+
+        {/* Accounts Table */}
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-12 text-center">
+              <Loader2 size={32} className="mx-auto animate-spin text-blue-600 mb-4" />
+              <p className="text-gray-600">Loading accounts...</p>
+            </div>
+          ) : hierarchicalAccounts.length === 0 ? (
+            <div className="p-12 text-center">
+              <AlertCircle size={48} className="mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-700 mb-2">No Accounts Found</h3>
+              <p className="text-gray-500 mb-4">Get started by importing the standard template or creating your first account.</p>
+              <button
+                onClick={handleImportTemplate}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Import Standard Template
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Code
+                    </th>
+                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Account Name
+                    </th>
+                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Type
+                    </th>
+                    <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Balance
+                    </th>
+                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Status
+                    </th>
+                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {hierarchicalAccounts.map(account => renderAccountRow(account))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Add Account Modal */}
+        {showAddModal && (
+          <AccountModal
+            title="Add New Account"
+            formData={formData}
+            setFormData={setFormData}
+            accountTypes={accountTypes}
+            accountSubtypes={accountSubtypes}
+            accounts={accounts}
+            onSave={handleAddAccount}
+            onCancel={() => {
+              setShowAddModal(false);
+              resetForm();
+            }}
+            error={error}
+          />
+        )}
+
+        {/* Edit Account Modal */}
+        {showEditModal && selectedAccount && (
+          <AccountModal
+            title="Edit Account"
+            formData={formData}
+            setFormData={setFormData}
+            accountTypes={accountTypes}
+            accountSubtypes={accountSubtypes}
+            accounts={accounts.filter(a => a.id !== selectedAccount.id)}
+            onSave={handleUpdateAccount}
+            onCancel={() => {
+              setShowEditModal(false);
+              setSelectedAccount(null);
+              resetForm();
+            }}
+            error={error}
+            isEdit={true}
+            account={selectedAccount}
+          />
+        )}
+
+        {/* View Account Modal */}
+        {showViewModal && selectedAccount && (
+          <ViewAccountModal
+            account={selectedAccount}
+            onClose={() => {
+              setShowViewModal(false);
+              setSelectedAccount(null);
+            }}
+          />
+        )}
+      </div>
+    </PermissionGuard>
+  );
+};
+
+// Account Form Modal Component
+const AccountModal = ({ 
+  title, 
+  formData, 
+  setFormData, 
+  accountTypes, 
+  accountSubtypes, 
+  accounts,
+  onSave, 
+  onCancel, 
+  error,
+  isEdit = false,
+  account = null
+}) => {
+  // Auto-set normal balance based on account type
+  useEffect(() => {
+    const normalBalanceMap = {
+      'Asset': 'Debit',
+      'Expense': 'Debit',
+      'Liability': 'Credit',
+      'Equity': 'Credit',
+      'Income': 'Credit'
+    };
+
+    if (!isEdit && formData.accountType) {
+      setFormData(prev => ({
+        ...prev,
+        normalBalance: normalBalanceMap[formData.accountType] || 'Debit'
+      }));
+    }
+  }, [formData.accountType, isEdit]);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onCancel}>
+      <div className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">{title}</h2>
+            <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {error && (
+            <div className="p-3 border border-red-300 bg-red-50 rounded-md text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Account Code * <span className="text-xs text-gray-500">(numeric only)</span>
+              </label>
+              <input
+                type="text"
+                value={formData.accountCode}
+                onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., 1010"
+                disabled={isEdit}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Account Name *
+              </label>
+              <input
+                type="text"
+                value={formData.accountName}
+                onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="e.g., Cash on Hand"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Account Type *
+              </label>
+              <select
+                value={formData.accountType}
+                onChange={(e) => setFormData({ ...formData, accountType: e.target.value, accountSubtype: '' })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={isEdit && account?.transactionCount > 0}
+              >
+                {accountTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sub-Type
+              </label>
+              <select
+                value={formData.accountSubtype}
+                onChange={(e) => setFormData({ ...formData, accountSubtype: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                disabled={!accountSubtypes[formData.accountType] || accountSubtypes[formData.accountType].length === 0}
+              >
+                <option value="">None</option>
+                {accountSubtypes[formData.accountType]?.map(subtype => (
+                  <option key={subtype} value={subtype}>{subtype}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Normal Balance *
+              </label>
+              <div className="flex items-center space-x-4 mt-2">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="Debit"
+                    checked={formData.normalBalance === 'Debit'}
+                    onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
+                    className="mr-2"
+                    disabled={isEdit && account?.transactionCount > 0}
+                  />
+                  <span>Debit</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    value="Credit"
+                    checked={formData.normalBalance === 'Credit'}
+                    onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
+                    className="mr-2"
+                    disabled={isEdit && account?.transactionCount > 0}
+                  />
+                  <span>Credit</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Parent Account <span className="text-xs text-gray-500">(optional)</span>
+              </label>
+              <select
+                value={formData.parentAccountId}
+                onChange={(e) => setFormData({ ...formData, parentAccountId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">None (Top Level)</option>
+                {accounts
+                  .filter(a => (a.accountType || a.type) === formData.accountType && a.id !== account?.id)
+                  .map(acc => {
+                    const code = acc.accountCode || acc.code || 'N/A';
+                    const name = acc.accountName || acc.name || 'Unnamed';
+                    return (
+                      <option key={acc.id} value={acc.id}>
+                        {code} - {name}
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={3}
+              placeholder="What this account is used for..."
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="rounded"
+              />
+              <span className="text-sm font-medium text-gray-700">Active</span>
+            </label>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-200 bg-gray-50/50 flex justify-end space-x-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            {isEdit ? 'Update Account' : 'Create Account'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// View Account Modal Component
+const ViewAccountModal = ({ account, onClose }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Account Details</h2>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition-colors">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Account Code</label>
+              <p className="text-base font-semibold text-gray-900">{account.accountCode || account.code || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Account Name</label>
+              <p className="text-base font-semibold text-gray-900">{account.accountName || account.name || 'Unnamed Account'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Account Type</label>
+              <p className="text-base text-gray-900">{account.accountType || account.type || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Sub-Type</label>
+              <p className="text-base text-gray-900">{account.accountSubtype || 'N/A'}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Normal Balance</label>
+              <p className="text-base text-gray-900">{account.normalBalance || 'N/A'}</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Current Balance</label>
+              <p className="text-base font-semibold text-gray-900">
+                {formatCurrency(account.currentBalance || 0)}
+              </p>
+            </div>
+          </div>
+
+          {account.parentAccount && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Parent Account</label>
+              <p className="text-base text-gray-900">
+                {account.parentAccount.accountCode || account.parentAccount.code || 'N/A'} - {account.parentAccount.accountName || account.parentAccount.name || 'Unnamed'}
+              </p>
+            </div>
+          )}
+
+          {account.childAccounts && account.childAccounts.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Child Accounts</label>
+              <ul className="list-disc list-inside space-y-1">
+                {account.childAccounts.map(child => {
+                  const code = child.accountCode || child.code || 'N/A';
+                  const name = child.accountName || child.name || 'Unnamed';
+                  return (
+                    <li key={child.id} className="text-base text-gray-900">
+                      {code} - {name}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
+          {account.description && (
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Description</label>
+              <p className="text-base text-gray-900">{account.description}</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Status</label>
+              <p className="text-base text-gray-900">
+                {account.isActive ? (
+                  <span className="inline-flex items-center text-green-600">
+                    <CheckCircle size={16} className="mr-1" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center text-gray-400">
+                    <XCircle size={16} className="mr-1" />
+                    Inactive
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-500 mb-1">Transactions</label>
+              <p className="text-base text-gray-900">{account.transactionCount || 0} posted entries</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-200 bg-gray-50/50 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChartOfAccountsPage;

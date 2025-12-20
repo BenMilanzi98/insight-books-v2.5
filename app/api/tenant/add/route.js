@@ -1,0 +1,42 @@
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const { name } = body;
+    if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 });
+
+    const user = await getUserFromSession(request);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Create the tenant first
+    const tenant = await prisma.tenant.create({
+      data: {
+        name,
+        subdomain: `${name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+        // Set subscription based on the selected plan
+        subscriptionPlan: body.selectedPlan === '1year' ? '1year' : 
+                         body.selectedPlan === '3months' ? '3months' : 
+                         body.selectedPlan === '1month' ? '1month' : '1month',
+        status: 'active',
+      }
+    });
+
+    // Then connect the user to the tenant via the many-to-many relationship
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        tenants: {
+          connect: { id: tenant.id }
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true, tenant });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}

@@ -1,0 +1,408 @@
+// app/api/invoices/[id]/send/route.js
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { formatCurrency, formatDate } from '@/lib/invoiceCalculations';
+import { createTransport } from '@/lib/emailService';
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
+
+export async function POST(request, context) {
+    try {
+      // Await params for Next.js 15 compatibility
+      const { id: invoiceId } = await context.params;
+      
+      // Get user from session
+      const user = await getUserFromSession(request);
+      if (!user) {
+        return NextResponse.json(
+          { error: 'Authentication required' },
+          { status: 401 }
+        );
+      }
+      
+      // Get invoice to send
+      const invoice = await prisma.invoice.findUnique({
+        where: {
+          id: invoiceId,
+          tenantId: user.tenantId
+        },
+        include: {
+          client: true,
+          items: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+      
+      if (!invoice) {
+        return NextResponse.json(
+          { error: 'Invoice not found' },
+          { status: 404 }
+        );
+      }
+      
+      // Get email customization options if provided
+      const body = await request.json().catch(() => ({}));
+      const customMessage = body?.message || '';
+      const templateId = body?.templateId;
+      
+      // Get the client's email
+      const clientEmail = invoice.client.email;
+      if (!clientEmail) {
+        return NextResponse.json(
+          { error: 'Client does not have an email address' },
+          { status: 400 }
+        );
+      }
+      
+      // Fetch tenant for branding info
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        include: { settings: true }
+      });
+      
+      // Fetch the invoice template
+      let template = null;
+      if (templateId) {
+        template = await prisma.invoiceTemplate.findUnique({
+          where: { id: templateId }
+        });
+      } 
+      // If no template specified or not found, use tenant's default template
+      if (!template) {
+        template = await prisma.invoiceTemplate.findFirst({
+          where: {
+            OR: [
+              { tenantId: user.tenantId, isDefault: true },
+              { tenantId: user.tenantId }
+            ]
+          },
+          orderBy: {
+            isDefault: 'desc'
+          }
+        });
+      }
+      
+      // Generate email HTML content with enhanced invoice design
+      const invoiceHtml = generateInvoiceHtml(invoice, tenant);
+      
+
+      const transporter = await createTransport();
+      
+      // Test connection first (following your OTP email pattern)
+      try {
+        const connectionTest = await transporter.verify();
+        console.log('SMTP connection verified for invoice email:', connectionTest);
+      } catch (verifyError) {
+        console.error('SMTP verification failed:', verifyError);
+        return NextResponse.json(
+          { error: `SMTP verification failed: ${verifyError.message}` },
+          { status: 500 }
+        );
+      }
+      // 2. Build the filename and read the file - check multiple possible filename patterns
+      const possibleFilenames = [
+        `invoice-${invoiceId}.pdf`,           // Direct ID format
+        `invoice-INV-${invoice.invoiceNumber}.pdf`, // Invoice number format
+        `invoice-${invoice.invoiceNumber}.pdf`      // Fallback
+      ];
+      
+      let filePath = null;
+      let foundFilename = null;
+      
+      for (const filename of possibleFilenames) {
+        const testPath = path.join(process.cwd(), 'tmp', filename);
+        if (fs.existsSync(testPath)) {
+          filePath = testPath;
+          foundFilename = filename;
+          break;
+        }
+      }
+      
+      if (!filePath) {
+        console.error('PDF file not found. Searched for:', possibleFilenames);
+        return NextResponse.json({ 
+          error: 'PDF file not found. Please try generating the invoice again.' 
+        }, { status: 404 });
+      }
+      
+      console.log(`Found PDF file: ${foundFilename}`);
+      const pdfBuffer = fs.readFileSync(filePath);
+      // Prepare email
+      const companyName = tenant?.name || 'InsightBooks';
+      const mailOptions = {
+        from: process.env.EMAIL_FROM || `"${companyName}" <insightbooks@insightbooksafrica.com>`,
+        to: clientEmail,
+        subject: `Invoice #${invoice.invoiceNumber} from ${companyName}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+              <h2 style="color: ${tenant?.primaryColor || '#4338ca'};">${companyName}</h2>
+            </div>
+            <p>Hello ${invoice.client.name},</p>
+            <p>Please find your invoice #${invoice.invoiceNumber} below.</p>
+            ${customMessage ? `<p>${customMessage}</p>` : ''}
+            
+            ${invoiceHtml}
+            
+            <p style="margin-top: 20px;">If you have any questions about this invoice, please contact us.</p>
+            <p>Thank you for your business!</p>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #6b7280;">
+              <p>${tenant?.settings?.emailFooter || `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`}</p>
+            </div>
+          </div>
+        `,
+        // Add plain text alternative
+        text: `Hello ${invoice.client.name},\n\nPlease find your invoice #${invoice.invoiceNumber} below.\n\n${customMessage ? customMessage + '\n\n' : ''}Total amount: ${formatCurrency(invoice.total)}\nDue date: ${formatDate(invoice.dueDate)}\n\nIf you have any questions about this invoice, please contact us.\n\nThank you for your business!\n\n© ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+        attachments: [
+          {
+            filename: foundFilename || `invoice-${invoiceId}.pdf`,
+            content: pdfBuffer,
+            contentType: 'application/pdf'
+          }
+        ]
+      };
+      
+      console.log('Sending invoice email with options:', {
+        from: mailOptions.from,
+        to: mailOptions.to,
+        subject: mailOptions.subject
+      });
+      
+      // Send the email
+      const info = await transporter.sendMail(mailOptions);
+      
+      console.log('Invoice email sent successfully:', {
+        messageId: info.messageId,
+        response: info.response,
+        accepted: info.accepted,
+        rejected: info.rejected
+      });
+      
+      // Clean up the PDF file - check multiple possible filename patterns
+      try {
+        const possibleFilenames = [
+          `invoice-${invoiceId}.pdf`,           // Direct ID format
+          `invoice-INV-${invoice.invoiceNumber}.pdf`, // Invoice number format
+          `invoice-${invoice.invoiceNumber}.pdf`      // Fallback
+        ];
+        
+        let fileDeleted = false;
+        for (const filename of possibleFilenames) {
+          const filePath = path.join(process.cwd(), 'tmp', filename);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            console.log(`PDF file deleted: ${filename}`);
+            fileDeleted = true;
+            break;
+          }
+        }
+        
+        if (!fileDeleted) {
+          console.log('No PDF file found to delete - this is normal if file was already cleaned up');
+        }
+      } catch (deleteError) {
+        console.error('Failed to delete PDF file:', deleteError);
+        // Don't fail the entire process if file deletion fails
+      }
+      
+      // If using ethereal for development, log the URL to view the email
+      if (info.messageUrl) {
+        console.log('Preview URL: %s', info.messageUrl);
+      } else if (nodemailer.getTestMessageUrl && nodemailer.getTestMessageUrl(info)) {
+        console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+      }
+      
+      // Update invoice status if it's a draft
+      let statusUpdated = false;
+      let updatedInvoice = invoice;
+      
+      if (invoice.status === 'Draft') {
+        statusUpdated = true;
+        updatedInvoice = await prisma.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            status: 'Pending'
+          },
+          include: {
+            client: true,
+            items: true
+          }
+        });
+      }
+      
+      // Log the email sending
+      await prisma.auditLog.create({
+        data: {
+          action: 'INVOICE_SENT',
+          entityType: 'INVOICE',
+          entityId: invoiceId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            invoiceNumber: invoice.invoiceNumber,
+            clientId: invoice.clientId,
+            clientEmail: invoice.client.email,
+            messageId: info.messageId,
+            statusUpdated
+          })
+        }
+      });
+      
+      return NextResponse.json({
+        message: 'Invoice sent successfully',
+        invoice: updatedInvoice,
+        statusUpdated,
+        emailSent: true,
+        messageId: info.messageId
+      });
+    } catch (error) {
+      console.error('Error sending invoice:', error);
+      return NextResponse.json(
+        { error: `Failed to send invoice: ${error.message}` },
+        { status: 500 }
+      );
+    }
+}
+
+/**
+ * Generate HTML representation of the invoice
+ * Improved design that works well in email clients
+ */
+function generateInvoiceHtml(invoice, tenant) {
+  const primaryColor = tenant?.primaryColor || '#4338ca';
+  let logoUrl = tenant?.logoUrl;
+  if (logoUrl && logoUrl.startsWith('/')) {
+    // Get the base URL from environment variable or use a default
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    logoUrl = `${baseUrl}${logoUrl}`;
+  }
+  // Generate HTML for invoice items
+  const itemsHtml = invoice.items.map(item => {
+    const amount = item.quantity * item.unitPrice;
+    return `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 10px;">${item.description}</td>
+        <td style="padding: 10px; text-align: center;">${item.quantity}</td>
+        <td style="padding: 10px; text-align: right;">${formatCurrency(item.unitPrice)}</td>
+        <td style="padding: 10px; text-align: center;">${item.taxRate}%</td>
+        <td style="padding: 10px; text-align: right;">${formatCurrency(amount)}</td>
+      </tr>
+    `;
+  }).join('');
+  
+  return `
+    <div style="font-family: Arial, sans-serif; margin: 20px 0; border: 1px solid #e0e0e0; border-radius: 5px; overflow: hidden;">
+      <!-- Header -->
+      <div style="background-color: ${primaryColor}; padding: 20px; color: white;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              <h1 style="margin: 0; font-size: 24px;">INVOICE</h1>
+              <p style="margin: 5px 0 0 0; opacity: 0.9;">#${invoice.invoiceNumber}</p>
+            </td>
+            <td style="text-align: right;">
+              ${logoUrl ? 
+                `<img src="${logoUrl}" alt="${tenant?.name || 'Company'}" style="max-height: 80px; background: white; padding: 8px; border-radius: 6px;">` : 
+                `<h2 style="margin: 0; color: white;">${tenant?.name || 'InsightBooks'}</h2>`}
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <!-- Client and Invoice Info -->
+      <div style="padding: 20px; background-color: #f9fafb;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="width: 50%; vertical-align: top;">
+              <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Bill To:</h3>
+              <p style="margin: 0 0 5px 0; font-weight: bold;">${invoice.client.name}</p>
+              ${invoice.client.contactPerson ? `<p style="margin: 0 0 5px 0;">Attn: ${invoice.client.contactPerson}</p>` : ''}
+              ${invoice.client.address ? `<p style="margin: 0 0 5px 0;">${invoice.client.address}</p>` : ''}
+              <p style="margin: 0 0 5px 0;">${invoice.client.email}</p>
+              ${invoice.client.phone ? `<p style="margin: 0 0 5px 0;">Phone: ${invoice.client.phone}</p>` : ''}
+            </td>
+            <td style="width: 50%; vertical-align: top;">
+              <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Invoice Details:</h3>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-bottom: 5px;"><strong>Issue Date:</strong></td>
+                  <td style="padding-bottom: 5px; text-align: right;">${formatDate(invoice.issueDate)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom: 5px;"><strong>Due Date:</strong></td>
+                  <td style="padding-bottom: 5px; text-align: right;">${formatDate(invoice.dueDate)}</td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom: 5px;"><strong>Status:</strong></td>
+                  <td style="padding-bottom: 5px; text-align: right;">
+                    <span style="display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 12px; background-color: ${
+                      invoice.status === 'Paid' ? '#d1fae5' : 
+                      invoice.status === 'Pending' ? '#fef3c7' : 
+                      invoice.status === 'Overdue' ? '#fee2e2' : '#f3f4f6'
+                    }; color: ${
+                      invoice.status === 'Paid' ? '#065f46' : 
+                      invoice.status === 'Pending' ? '#92400e' : 
+                      invoice.status === 'Overdue' ? '#b91c1c' : '#374151'
+                    };">
+                      ${invoice.status}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <!-- Invoice Items -->
+      <div style="padding: 0 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse; margin: 20px 0;">
+          <thead>
+            <tr style="background-color: #f3f4f6;">
+              <th style="padding: 10px; text-align: left; font-size: 12px; text-transform: uppercase; color: #6b7280;">Description</th>
+              <th style="padding: 10px; text-align: center; font-size: 12px; text-transform: uppercase; color: #6b7280;">Qty</th>
+              <th style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase; color: #6b7280;">Rate</th>
+              <th style="padding: 10px; text-align: center; font-size: 12px; text-transform: uppercase; color: #6b7280;">Tax</th>
+              <th style="padding: 10px; text-align: right; font-size: 12px; text-transform: uppercase; color: #6b7280;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Totals -->
+      <div style="padding: 0 20px 20px; text-align: right;">
+        <table width="250" cellpadding="0" cellspacing="0" style="margin-left: auto;">
+          <tr>
+            <td style="padding: 5px 0;"><span style="color: #6b7280;">Subtotal:</span></td>
+            <td style="padding: 5px 0; text-align: right;">${formatCurrency(invoice.subtotal)}</td>
+          </tr>
+          <tr>
+            <td style="padding: 5px 0;"><span style="color: #6b7280;">Tax:</span></td>
+            <td style="padding: 5px 0; text-align: right;">${formatCurrency(invoice.taxAmount)}</td>
+          </tr>
+          <tr style="border-top: 2px solid #e5e7eb;">
+            <td style="padding: 10px 0; font-weight: bold; font-size: 18px; color: ${primaryColor};">Total:</td>
+            <td style="padding: 10px 0; font-weight: bold; font-size: 18px; text-align: right; color: ${primaryColor};">${formatCurrency(invoice.total)}</td>
+          </tr>
+        </table>
+      </div>
+      
+      <!-- Notes -->
+      <div style="padding: 20px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
+        <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Notes:</h3>
+        <p style="margin: 0; color: #4b5563;">${invoice.notes || 'Thank you for your business!'}</p>
+      </div>
+    </div>
+  `;
+}

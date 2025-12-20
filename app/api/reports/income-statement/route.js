@@ -1,0 +1,609 @@
+// app/api/reports/income-statement/route.js
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
+import { getCOGSSummary } from '@/lib/cogsIntegration';
+
+/**
+ * Professional Income Statement (Profit & Loss Statement) API
+ * Generates comprehensive income statement with COGS, operating expenses, and tax calculations
+ */
+export async function GET(request) {
+  try {
+    // Get user from session
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated' },
+        { status: 401 }
+      );
+    }
+    
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const compare = searchParams.get('compare') === 'true';
+    const compareYear = searchParams.get('compareYear') === 'true';
+    
+    // Validate dates
+    if (!startDate || !endDate) {
+      return NextResponse.json(
+        { error: 'Start date and end date are required' },
+        { status: 400 }
+      );
+    }
+    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Calculate comparison periods
+    let prevStartDate, prevEndDate;
+    if (compare) {
+      const diffDays = Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      prevEndDate = new Date(start);
+      prevEndDate.setDate(prevEndDate.getDate() - 1);
+      prevStartDate = new Date(prevEndDate);
+      prevStartDate.setDate(prevStartDate.getDate() - diffDays + 1);
+      prevStartDate = prevStartDate.toISOString().split('T')[0];
+      prevEndDate = prevEndDate.toISOString().split('T')[0];
+    } else if (compareYear) {
+      const yearDiff = end.getFullYear() - start.getFullYear();
+      prevStartDate = new Date(start.getFullYear() - 1, start.getMonth(), start.getDate()).toISOString().split('T')[0];
+      prevEndDate = new Date(end.getFullYear() - 1, end.getMonth(), end.getDate()).toISOString().split('T')[0];
+    }
+    
+    // Get tenant and settings
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: { 
+        name: true,
+        logoUrl: true
+      }
+    });
+    
+    const tenantSettings = await prisma.tenantSettings.findUnique({
+      where: { tenantId: user.tenantId }
+    });
+    const taxRate = tenantSettings?.defaultTaxRate || 30; // Default 30%
+    
+    // Generate current period income statement using Phase 2 enhanced service
+    const currentPeriod = await generateIncomeStatementFromAccounts(
+      user.tenantId,
+      startDate,
+      endDate,
+      tenant?.name || 'Company',
+      tenant?.logoUrl || null
+    );
+    
+    // Generate comparison period if requested
+    let previousPeriod = null;
+    if (compare && prevStartDate && prevEndDate) {
+      previousPeriod = await generateIncomeStatementFromAccounts(
+        user.tenantId,
+        prevStartDate,
+        prevEndDate,
+        tenant?.name || 'Company',
+        tenant?.logoUrl || null
+      );
+    } else if (compareYear && prevStartDate && prevEndDate) {
+      previousPeriod = await generateIncomeStatementFromAccounts(
+        user.tenantId,
+        prevStartDate,
+        prevEndDate,
+        tenant?.name || 'Company',
+        tenant?.logoUrl || null
+      );
+    }
+    
+    return NextResponse.json({
+      ...currentPeriod,
+      previous: previousPeriod,
+      comparisonType: compare ? 'previousPeriod' : compareYear ? 'previousYear' : null
+    });
+  } catch (error) {
+    console.error('Error generating income statement:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate income statement. Please try again.' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Generate income statement for a given period
+ */
+export async function generateIncomeStatement(tenantId, startDate, endDate, taxRate, companyName = 'Company', logoUrl = null) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  // ========== REVENUE SECTION ==========
+  // Get invoices (Sales Revenue)
+  const invoices = await prisma.invoice.findMany({
+    where: {
+      tenantId,
+      issueDate: { gte: start, lte: end },
+      status: { in: ['Paid', 'Completed', 'Pending'] },
+      voidedAt: null,
+      refundedAt: null
+    },
+    include: {
+      items: {
+        include: {
+          product: true
+        }
+      },
+      client: true
+    }
+  });
+  
+  // Get sales (Sales Revenue)
+  const sales = await prisma.sale.findMany({
+    where: {
+      tenantId,
+      saleDate: { gte: start, lte: end },
+      status: 'completed',
+      voidedAt: null,
+      refundedAt: null
+    },
+    include: {
+      items: {
+        include: {
+          product: true
+        }
+      },
+      client: true
+    }
+  });
+  
+  // Categorize revenue
+  const revenue = {
+    salesRevenue: 0,
+    serviceRevenue: 0,
+    otherIncome: 0,
+    details: []
+  };
+  
+  // Process invoices
+  invoices.forEach(invoice => {
+    const invoiceTotal = invoice.total || 0;
+    // Check if invoice has service items
+    const hasServices = invoice.items.some(item => 
+      item.product?.isService || !item.productId
+    );
+    
+    if (hasServices) {
+      revenue.serviceRevenue += invoiceTotal;
+    } else {
+      revenue.salesRevenue += invoiceTotal;
+    }
+    
+    revenue.details.push({
+      type: 'invoice',
+      id: invoice.id,
+      number: invoice.invoiceNumber,
+      date: invoice.issueDate,
+      client: invoice.client?.name || 'N/A',
+      amount: invoiceTotal,
+      category: hasServices ? 'Service Revenue' : 'Sales Revenue'
+    });
+  });
+  
+  // Process sales
+  sales.forEach(sale => {
+    const saleTotal = sale.total || 0;
+    const hasServices = sale.items.some(item => 
+      item.product?.isService || !item.productId
+    );
+    
+    if (hasServices) {
+      revenue.serviceRevenue += saleTotal;
+    } else {
+      revenue.salesRevenue += saleTotal;
+    }
+    
+    revenue.details.push({
+      type: 'sale',
+      id: sale.id,
+      number: sale.saleNumber,
+      date: sale.saleDate,
+      client: sale.client?.name || 'Walk-in',
+      amount: saleTotal,
+      category: hasServices ? 'Service Revenue' : 'Sales Revenue'
+    });
+  });
+  
+  const totalRevenue = revenue.salesRevenue + revenue.serviceRevenue + revenue.otherIncome;
+  
+  // ========== COGS SECTION ==========
+  const cogs = {
+    costOfProductsSold: 0,
+    freightShippingCosts: 0,
+    details: []
+  };
+  
+  // Calculate COGS from sales
+  for (const sale of sales) {
+    for (const item of sale.items) {
+      if (item.productId && item.product && !item.product.isService && item.product.cost) {
+        const itemCOGS = item.quantity * item.product.cost;
+        cogs.costOfProductsSold += itemCOGS;
+        cogs.details.push({
+          saleId: sale.id,
+          saleNumber: sale.saleNumber,
+          productId: item.productId,
+          productName: item.product.name,
+          quantity: item.quantity,
+          cost: item.product.cost,
+          cogsAmount: itemCOGS
+        });
+      }
+    }
+  }
+  
+  // Calculate COGS from invoices
+  for (const invoice of invoices) {
+    for (const item of invoice.items) {
+      if (item.productId && item.product && !item.product.isService && item.product.cost) {
+        const itemCOGS = item.quantity * item.product.cost;
+        cogs.costOfProductsSold += itemCOGS;
+        cogs.details.push({
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          productId: item.productId,
+          productName: item.product.name,
+          quantity: item.quantity,
+          cost: item.product.cost,
+          cogsAmount: itemCOGS
+        });
+      }
+    }
+  }
+  
+  // Get freight/shipping from expenses categorized as such
+  const freightExpenses = await prisma.expense.findMany({
+    where: {
+      tenantId,
+      date: { gte: start, lte: end },
+      category: { in: ['Freight', 'Shipping', 'Delivery', 'Transport'] },
+      isDeleted: false
+    }
+  });
+  
+  freightExpenses.forEach(expense => {
+    cogs.freightShippingCosts += expense.amount || 0;
+  });
+  
+  const totalCOGS = cogs.costOfProductsSold + cogs.freightShippingCosts;
+  const grossProfit = totalRevenue - totalCOGS;
+  
+  // ========== OPERATING EXPENSES SECTION ==========
+  const operatingExpenses = {
+    salariesWages: 0,
+    rentExpense: 0,
+    utilitiesExpense: 0,
+    officeSupplies: 0,
+    marketingAdvertising: 0,
+    insurance: 0,
+    depreciation: 0,
+    loanPayments: 0,
+    otherOperatingExpenses: 0,
+    details: []
+  };
+  
+  // Get all expenses
+  const expenses = await prisma.expense.findMany({
+    where: {
+      tenantId,
+      date: { gte: start, lte: end },
+      isDeleted: false
+    },
+    include: {
+      submittedBy: {
+        select: {
+          name: true
+        }
+      }
+    }
+  });
+  
+  // Categorize expenses
+  const expenseCategoryMap = {
+    'Salaries': 'salariesWages',
+    'Wages': 'salariesWages',
+    'Payroll': 'salariesWages',
+    'Rent': 'rentExpense',
+    'Utilities': 'utilitiesExpense',
+    'Office Supplies': 'officeSupplies',
+    'Office Expenses': 'officeSupplies', // Map Office Expenses to Office Supplies
+    'Office': 'officeSupplies', // Map any Office-related expense
+    'Supplies': 'officeSupplies',
+    'Marketing': 'marketingAdvertising',
+    'Advertising': 'marketingAdvertising',
+    'Insurance': 'insurance',
+    'Depreciation': 'depreciation',
+    'Amortization': 'depreciation',
+    'Equipment': 'otherOperatingExpenses', // Equipment expenses (not asset purchases)
+    'Maintenance': 'otherOperatingExpenses',
+    'Repair': 'otherOperatingExpenses',
+    'Training': 'otherOperatingExpenses',
+    'Loan': 'loanPayments',
+    'Loan Payment': 'loanPayments',
+    'Loan Repayment': 'loanPayments',
+    'Debt Service': 'loanPayments',
+    'Debt Payment': 'loanPayments',
+    'Debt Repayment': 'loanPayments'
+  };
+  
+  expenses.forEach(expense => {
+    const amount = expense.amount || 0;
+    const category = expense.category || '';
+    const normalizedCategory = category.toLowerCase();
+    
+    let mapped = false;
+    // Sort keys by length (longest first) to match more specific categories first
+    const sortedKeys = Object.keys(expenseCategoryMap).sort((a, b) => b.length - a.length);
+    
+    for (const key of sortedKeys) {
+      if (normalizedCategory.includes(key.toLowerCase())) {
+        operatingExpenses[expenseCategoryMap[key]] += amount;
+        mapped = true;
+        break;
+      }
+    }
+    
+    if (!mapped) {
+      operatingExpenses.otherOperatingExpenses += amount;
+    }
+    
+    operatingExpenses.details.push({
+      id: expense.id,
+      date: expense.date,
+      description: expense.description,
+      category: expense.category,
+      amount: amount,
+      submittedBy: expense.submittedBy?.name || 'N/A'
+    });
+  });
+  
+  // Get depreciation from assets
+  const depreciationSchedules = await prisma.depreciationSchedule.findMany({
+    where: {
+      asset: {
+        tenantId
+      },
+      periodStart: { lte: end },
+      periodEnd: { gte: start }
+    },
+    include: {
+      asset: true
+    }
+  });
+  
+  depreciationSchedules.forEach(schedule => {
+    const scheduleStart = new Date(schedule.periodStart);
+    const scheduleEnd = new Date(schedule.periodEnd);
+    const reportStart = new Date(start);
+    const reportEnd = new Date(end);
+    
+    // Calculate prorated depreciation for the period
+    const overlapStart = scheduleStart > reportStart ? scheduleStart : reportStart;
+    const overlapEnd = scheduleEnd < reportEnd ? scheduleEnd : reportEnd;
+    
+    if (overlapStart <= overlapEnd) {
+      const daysInPeriod = Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+      const daysInSchedule = Math.ceil((scheduleEnd - scheduleStart) / (1000 * 60 * 60 * 24)) + 1;
+      const proratedDepreciation = (schedule.depreciationAmount / daysInSchedule) * daysInPeriod;
+      
+      operatingExpenses.depreciation += proratedDepreciation;
+      operatingExpenses.details.push({
+        id: `depreciation-${schedule.id}`,
+        date: schedule.periodStart,
+        description: `Depreciation - ${schedule.asset.name}`,
+        category: 'Depreciation',
+        amount: proratedDepreciation,
+        submittedBy: 'System'
+      });
+    }
+  });
+  
+  const totalOperatingExpenses = 
+    operatingExpenses.salariesWages +
+    operatingExpenses.rentExpense +
+    operatingExpenses.utilitiesExpense +
+    operatingExpenses.officeSupplies +
+    operatingExpenses.marketingAdvertising +
+    operatingExpenses.insurance +
+    operatingExpenses.depreciation +
+    operatingExpenses.loanPayments +
+    operatingExpenses.otherOperatingExpenses;
+  
+  const operatingIncome = grossProfit - totalOperatingExpenses;
+  
+  // ========== OTHER INCOME/(EXPENSES) SECTION ==========
+  const otherIncomeExpenses = {
+    interestIncome: 0,
+    interestExpense: 0,
+    gainLossOnAssetSales: 0,
+    details: []
+  };
+  
+  // Get interest income/expense from expenses or transactions
+  const interestExpenses = expenses.filter(e => 
+    e.category?.toLowerCase().includes('interest')
+  );
+  
+  interestExpenses.forEach(expense => {
+    if (expense.category?.toLowerCase().includes('income')) {
+      otherIncomeExpenses.interestIncome += expense.amount || 0;
+    } else {
+      otherIncomeExpenses.interestExpense += expense.amount || 0;
+    }
+  });
+  
+  const totalOtherIncomeExpenses = 
+    otherIncomeExpenses.interestIncome -
+    otherIncomeExpenses.interestExpense +
+    otherIncomeExpenses.gainLossOnAssetSales;
+  
+  const netIncomeBeforeTax = operatingIncome + totalOtherIncomeExpenses;
+  // Tax is only calculated on profits, not losses
+  const incomeTaxExpense = netIncomeBeforeTax > 0 ? (netIncomeBeforeTax * taxRate) / 100 : 0;
+  const netIncome = netIncomeBeforeTax - incomeTaxExpense;
+  
+  // Calculate percentages for each line item (as % of Total Revenue)
+  const calculatePercentage = (amount) => {
+    return totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0;
+  };
+  
+  return {
+    companyName,
+    logoUrl,
+    period: {
+      startDate,
+      endDate
+    },
+    revenue: {
+      salesRevenue: {
+        amount: revenue.salesRevenue,
+        percentage: calculatePercentage(revenue.salesRevenue),
+        details: revenue.details.filter(d => d.category === 'Sales Revenue')
+      },
+      serviceRevenue: {
+        amount: revenue.serviceRevenue,
+        percentage: calculatePercentage(revenue.serviceRevenue),
+        details: revenue.details.filter(d => d.category === 'Service Revenue')
+      },
+      otherIncome: {
+        amount: revenue.otherIncome,
+        percentage: calculatePercentage(revenue.otherIncome),
+        details: revenue.details.filter(d => d.category === 'Other Income')
+      },
+      total: totalRevenue,
+      details: revenue.details
+    },
+    cogs: {
+      costOfProductsSold: {
+        amount: cogs.costOfProductsSold,
+        percentage: calculatePercentage(cogs.costOfProductsSold),
+        details: cogs.details.filter(d => d.productName)
+      },
+      freightShippingCosts: {
+        amount: cogs.freightShippingCosts,
+        percentage: calculatePercentage(cogs.freightShippingCosts),
+        details: []
+      },
+      total: totalCOGS,
+      details: cogs.details
+    },
+    grossProfit: {
+      amount: grossProfit,
+      percentage: calculatePercentage(grossProfit)
+    },
+    operatingExpenses: {
+      salariesWages: {
+        amount: operatingExpenses.salariesWages,
+        percentage: calculatePercentage(operatingExpenses.salariesWages),
+        details: operatingExpenses.details.filter(d => 
+          d.category?.toLowerCase().includes('salar') || 
+          d.category?.toLowerCase().includes('wage') ||
+          d.category?.toLowerCase().includes('payroll')
+        )
+      },
+      rentExpense: {
+        amount: operatingExpenses.rentExpense,
+        percentage: calculatePercentage(operatingExpenses.rentExpense),
+        details: operatingExpenses.details.filter(d => d.category?.toLowerCase().includes('rent'))
+      },
+      utilitiesExpense: {
+        amount: operatingExpenses.utilitiesExpense,
+        percentage: calculatePercentage(operatingExpenses.utilitiesExpense),
+        details: operatingExpenses.details.filter(d => d.category?.toLowerCase().includes('utilit'))
+      },
+      officeSupplies: {
+        amount: operatingExpenses.officeSupplies,
+        percentage: calculatePercentage(operatingExpenses.officeSupplies),
+        details: operatingExpenses.details.filter(d => d.category?.toLowerCase().includes('office'))
+      },
+      marketingAdvertising: {
+        amount: operatingExpenses.marketingAdvertising,
+        percentage: calculatePercentage(operatingExpenses.marketingAdvertising),
+        details: operatingExpenses.details.filter(d => 
+          d.category?.toLowerCase().includes('market') || 
+          d.category?.toLowerCase().includes('advertis')
+        )
+      },
+      insurance: {
+        amount: operatingExpenses.insurance,
+        percentage: calculatePercentage(operatingExpenses.insurance),
+        details: operatingExpenses.details.filter(d => d.category?.toLowerCase().includes('insur'))
+      },
+      depreciation: {
+        amount: operatingExpenses.depreciation,
+        percentage: calculatePercentage(operatingExpenses.depreciation),
+        details: operatingExpenses.details.filter(d => 
+          d.category?.toLowerCase().includes('depreciat') || 
+          d.category?.toLowerCase().includes('amortiz')
+        )
+      },
+      loanPayments: {
+        amount: operatingExpenses.loanPayments,
+        percentage: calculatePercentage(operatingExpenses.loanPayments),
+        details: operatingExpenses.details.filter(d => {
+          const cat = d.category?.toLowerCase() || '';
+          return cat.includes('loan') || cat.includes('debt');
+        })
+      },
+      otherOperatingExpenses: {
+        amount: operatingExpenses.otherOperatingExpenses,
+        percentage: calculatePercentage(operatingExpenses.otherOperatingExpenses),
+        details: operatingExpenses.details.filter(d => {
+          const cat = d.category?.toLowerCase() || '';
+          return !cat.includes('salar') && !cat.includes('wage') && !cat.includes('payroll') &&
+                 !cat.includes('rent') && !cat.includes('utilit') && !cat.includes('office') &&
+                 !cat.includes('market') && !cat.includes('advertis') && !cat.includes('insur') &&
+                 !cat.includes('depreciat') && !cat.includes('amortiz') && !cat.includes('loan') && !cat.includes('debt');
+        })
+      },
+      total: totalOperatingExpenses,
+      details: operatingExpenses.details
+    },
+    operatingIncome: {
+      amount: operatingIncome,
+      percentage: calculatePercentage(operatingIncome)
+    },
+    otherIncomeExpenses: {
+      interestIncome: {
+        amount: otherIncomeExpenses.interestIncome,
+        percentage: calculatePercentage(otherIncomeExpenses.interestIncome),
+        details: otherIncomeExpenses.details.filter(d => d.category?.toLowerCase().includes('interest') && d.category?.toLowerCase().includes('income'))
+      },
+      interestExpense: {
+        amount: otherIncomeExpenses.interestExpense,
+        percentage: calculatePercentage(otherIncomeExpenses.interestExpense),
+        details: otherIncomeExpenses.details.filter(d => d.category?.toLowerCase().includes('interest') && !d.category?.toLowerCase().includes('income'))
+      },
+      gainLossOnAssetSales: {
+        amount: otherIncomeExpenses.gainLossOnAssetSales,
+        percentage: calculatePercentage(otherIncomeExpenses.gainLossOnAssetSales),
+        details: []
+      },
+      total: totalOtherIncomeExpenses,
+      details: otherIncomeExpenses.details
+    },
+    netIncomeBeforeTax: {
+      amount: netIncomeBeforeTax,
+      percentage: calculatePercentage(netIncomeBeforeTax)
+    },
+    incomeTaxExpense: {
+      rate: taxRate,
+      amount: incomeTaxExpense,
+      percentage: calculatePercentage(incomeTaxExpense)
+    },
+    netIncome: {
+      amount: netIncome,
+      percentage: calculatePercentage(netIncome)
+    }
+  };
+}
