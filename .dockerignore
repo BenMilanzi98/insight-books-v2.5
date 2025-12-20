@@ -1,0 +1,61 @@
+# Dependencies
+node_modules
+
+# Environment variables
+.env*
+!.env.example
+
+# Next.js build outputs
+.next
+out
+build
+
+# Testing coverage
+coverage
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode
+.idea
+
+# Development files
+*.log
+npm-shrinkwrap.json
+
+# Git
+.git
+
+# Sensitive files
+secrets/
+credentials.json
+config/keys.json
+
+# Uploads directory (as per .gitignore)
+public/uploads/
+
+# Prisma migration files (should be handled separately)
+# NOTE: We need prisma/schema.prisma for the build, so we're excluding only migration files
+prisma/migrations/
+prisma/schema.db
+
+# Scripts that should be run inside container
+scripts/setup-admin.js
+scripts/sync-existing-data-to-accounts.js
+scripts/create-test-data.js
+scripts/delete-test-data.js
+scripts/test-phase1-validation.js
+scripts/fix-orphaned-transactions.js

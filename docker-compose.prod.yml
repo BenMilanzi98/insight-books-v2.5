@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://henmik:Password2030@db:5432/insightbooks?schema=public
+      - APP_URL=http://localhost:3000
+      - SESSION_SECRET=your-secure-session-secret-key-change-this-in-production
+      - JWT_SECRET=your-secure-jwt-secret-key-change-this-in-production
+      - CRON_SECRET=3213d4730a2acb95bc05bc9a939cdce21f3afc440ebabc34ad8d1a56af10174b
+      - EMAIL_HOST=smtp.hostinger.com
+      - EMAIL_PORT=465
+      - EMAIL_USER=noreply@insightbooksafrica.com
+      - EMAIL_PASSWORD=5lI0HGXatVMZ2pdy-M7h
+      - EMAIL_FROM=InsightBooks <noreply@insightbooksafrica.com>
+      - EMAIL_SECURE=true
+      - GOOGLE_CLIENT_ID=1046153543055-0r8p9sjbmkp3g7o3ddh4v9740s9arit0.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
+      - PAYCHANGU_SECRET_KEY=sec-test-h7XNKPQgtzi9LTGi4FzbKuMHEKLV1yRh
+    volumes:
+      # Mount uploads directory for file persistence
+      - ./public/uploads:/app/public/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    # Security configurations
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: insightbooks
+      POSTGRES_USER: henmik
+      POSTGRES_PASSWORD: Password2030
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Mount the database backup and initialization script for initialization
+      - ./db/insightbooks_backup_12202025_2.dump:/docker-entrypoint-initdb.d/01_insightbooks_backup.dump
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/02_init-db.sh
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U henmik -d insightbooks"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Security configurations
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  postgres_data:
