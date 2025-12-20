@@ -268,6 +268,32 @@ The application has been successfully configured with Docker and is ready to run
    docker compose -f docker-compose.prod.yml up -d
    ```
 
+## 🔐 Authentication and Login Issues
+
+If you're experiencing login issues where the login button shows "logging in" but doesn't redirect, this is likely due to a build-time vs runtime environment mismatch. This happens because:
+
+- During Next.js build, the app tries to call `fetch('/api/auth/me')` with a relative URL
+- At build time, there's no base URL context, causing the request to fail
+- The app statically renders auth-dependent pages without proper authentication context
+
+### Solution:
+
+1. **Ensure APP_URL is consistent** in your docker-compose.yml:
+   ```yaml
+   environment:
+     - APP_URL=http://213.165.230.139:3000  # Match the IP you're accessing
+     - NEXT_PUBLIC_APP_URL=http://213.165.230.139:3000
+   ```
+
+2. **Rebuild the application** after making environment changes:
+   ```bash
+   docker compose down
+   docker compose build app --no-cache
+   docker compose up -d
+   ```
+
+3. **For developers**: The next.config.mjs has been updated to prevent static generation of auth-dependent pages during build time.
+
 ## � License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
