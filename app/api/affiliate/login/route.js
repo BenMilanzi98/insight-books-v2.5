@@ -85,7 +85,7 @@ export async function POST(request) {
     // Set secure HTTP-only cookie (exact same pattern as admin login)
     response.cookies.set('affiliate_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: (process.env.APP_URL || '').startsWith('https'),
       sameSite: 'strict',
       maxAge: 24 * 60 * 60, // 24 hours (same as admin)
       path: '/'

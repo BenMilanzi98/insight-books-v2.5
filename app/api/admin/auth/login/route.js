@@ -95,7 +95,7 @@ export async function POST(request) {
     // Set secure HTTP-only cookie
     response.cookies.set('admin_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: (process.env.APP_URL || '').startsWith('https'),
       sameSite: 'strict',
       maxAge: 24 * 60 * 60, // 24 hours
       path: '/'

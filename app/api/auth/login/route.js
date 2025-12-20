@@ -83,7 +83,8 @@ export async function POST(request) {
       value: session,
       httpOnly: true,
       path: '/',
-      secure: process.env.NODE_ENV === 'production',
+      secure: (process.env.APP_URL || '').startsWith('https'),
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
    
