@@ -70,13 +70,13 @@ export async function POST(request) {
         }
       });
 
-      // Create user (connect to tenant using relation field)
+      // Create user
       const newUser = await tx.user.create({
         data: {
           name,
           email: email.toLowerCase(),
           password: hashedPassword,
-          tenant: { connect: { id: newTenant.id } },
+          tenantId: newTenant.id,
           role: 'owner',
           ...otherFields
         }
@@ -200,7 +200,7 @@ export async function POST(request) {
 
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: (process.env.APP_URL || '').startsWith('https'),
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 7 * 24 * 60 * 60 // 7 days
     });
