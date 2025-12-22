@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      target: builder # Use the builder stage which has all dependencies
+    environment:
+      - NODE_ENV=development
+      - APP_URL=http://213.165.230.139:3000
+    volumes:
+      - .:/app  # Mount the current directory for live reloading
+      - /app/node_modules  # Exclude node_modules from sync
+    ports:
+      - "3000:3000"
+    command: ["npm", "run", "dev"]  # Use development command
+    stdin_open: true
+    tty: true
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: insightbooks
+      POSTGRES_USER: henmik
+      POSTGRES_PASSWORD: Password2030
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Note: For development, you might not want to auto-import the production dump
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
