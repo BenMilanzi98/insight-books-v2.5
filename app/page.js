@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users } from 'lucide-react';
+import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus } from 'lucide-react';
 import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
 
 export default function LandingPage() {
@@ -12,10 +12,9 @@ export default function LandingPage() {
       <HeroSection />
       <FeaturesSection />
       {/* <VideoShowcaseSection /> */}
-      <IntegrationSection />
-      <TestimonialsSection />
       <PricingSection />
       <CtaSection />
+      <TestimonialsSection />
       <Footer />
     </main>
   );
@@ -50,29 +49,20 @@ function NavigationBar() {
               </span>
             </div>
           </div> */}
-          <div className="flex items-center">
+          <Link href="/" className="flex items-center">
             <img
               src="/logo.png"
               alt="InsightBooks Logo"
               className="h-10 w-auto object-contain rounded-md"
             />
-          </div>
+          </Link>
           
           <div className="hidden md:flex space-x-8">
-            <Link href="#features" className={`${scrolled ? "text-slate-700" : "text-white"} text-sm hover:text-indigo-500`}>
-              Features
-            </Link>
-            <Link href="#testimonials" className={`${scrolled ? "text-slate-700" : "text-white"} text-sm hover:text-indigo-500`}>
-              Testimonials
-            </Link>
-            <Link href="#pricing" className={`${scrolled ? "text-slate-700" : "text-white"} text-sm hover:text-indigo-500`}>
-              Pricing
-            </Link>
-            <Link href="/auth/login" className={`${scrolled ? "text-slate-700" : "text-white"} text-sm hover:text-indigo-500`}>
+            <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
               Log In
             </Link>
-            <Link href="/auth/signup" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
-              Create Account
+            <Link href="/contact" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
+              Book a Demo
             </Link>
           </div>
           
@@ -94,20 +84,11 @@ function NavigationBar() {
             </button>
           </div>
           <div className="px-8 py-6 space-y-6">
-            <Link href="#features" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-              Features
-            </Link>
-            <Link href="#testimonials" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-              Testimonials
-            </Link>
-            <Link href="#pricing" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-              Pricing
-            </Link>
             <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
               Log In
             </Link>
-            <Link href="/auth/signup" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
-              Create Account
+            <Link href="/contact" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
+              Book a Demo
             </Link>
           </div>
         </div>
@@ -118,9 +99,75 @@ function NavigationBar() {
 
 // Hero Section
 function HeroSection() {
+  const [dashboardData, setDashboardData] = useState({
+    revenue: 14850,
+    revenueGrowth: 12.5,
+    expenses: 5240,
+    expensesChange: 3.8,
+    graphPoints: [
+      { x: 40, y: 250 },
+      { x: 80, y: 230 },
+      { x: 120, y: 240 },
+      { x: 160, y: 210 },
+      { x: 200, y: 220 },
+      { x: 240, y: 200 },
+      { x: 280, y: 190 },
+      { x: 320, y: 210 },
+      { x: 360, y: 205 }
+    ],
+    animationCounter: 0
+  });
+
+  // Animate dashboard data
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDashboardData(prev => {
+        const counter = prev.animationCounter + 1;
+
+        // Use counter-based calculations instead of Date.now() for SSR compatibility
+        const revenueChange = (Math.sin(counter * 0.1) + Math.cos(counter * 0.07)) * 50;
+        const newRevenue = Math.max(14000, Math.min(16000, prev.revenue + revenueChange));
+
+        const growthChange = Math.sin(counter * 0.05) * 0.3;
+        const newGrowth = Math.max(8, Math.min(18, prev.revenueGrowth + growthChange));
+
+        const expenseChange = (Math.cos(counter * 0.12) + Math.sin(counter * 0.08)) * 25;
+        const newExpenses = Math.max(4800, Math.min(5800, prev.expenses + expenseChange));
+
+        const changeVariation = Math.sin(counter * 0.06) * 0.5;
+        const newChange = Math.max(-2, Math.min(8, prev.expensesChange + changeVariation));
+
+        // Update graph points with smooth wave variations
+        const newGraphPoints = prev.graphPoints.map((point, index) => {
+          const wave1 = Math.sin(counter * 0.1 + index * 0.5) * 8;
+          const wave2 = Math.cos(counter * 0.08 + index * 0.3) * 6;
+          const variation = (wave1 + wave2) * 0.5;
+          return {
+            ...point,
+            y: Math.max(180, Math.min(260, point.y + variation))
+          };
+        });
+
+        return {
+          revenue: Math.round(newRevenue),
+          revenueGrowth: Math.round(newGrowth * 10) / 10,
+          expenses: Math.round(newExpenses),
+          expensesChange: Math.round(newChange * 10) / 10,
+          graphPoints: newGraphPoints,
+          animationCounter: counter
+        };
+      });
+    }, 3000); // Update every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <section className="relative bg-indigo-900 pt-32 pb-20 overflow-hidden">
-      <div className="absolute inset-0 bg-[url('/grid.svg')] opacity-10"></div>
+      <div className="absolute inset-0 opacity-10" style={{
+        backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`,
+        backgroundSize: '20px 20px'
+      }}></div>
       <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800 clip-diagonal"></div>
       
       <div className="max-w-6xl mx-auto px-6 relative">
@@ -132,14 +179,14 @@ function HeroSection() {
             <p className="text-indigo-100 text-lg mb-10">
               One platform to manage your invoices, expenses, and financial reports. Built for growing businesses.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/auth/signup" className="bg-white text-indigo-900 px-6 py-3 rounded-md font-medium hover:bg-indigo-50 text-center">
-                Create Account
+            {/* <div className="flex flex-col sm:flex-row gap-4">
+              <Link href="/contact" className="bg-white text-indigo-900 px-6 py-3 rounded-md font-medium hover:bg-indigo-50 text-center">
+                Request a Demo
               </Link>
               <Link href="#features" className="border border-indigo-300 text-white px-6 py-3 rounded-md font-medium hover:bg-indigo-800 text-center">
                 Learn More
               </Link>
-            </div>
+            </div> */}
             <div className="mt-10 text-sm text-indigo-200">
               Trusted by growing businesses in Malawi
             </div>
@@ -168,54 +215,68 @@ function HeroSection() {
                 <rect x="20" y="100" width="170" height="80" rx="6" fill="#f1f5f9" />
                 <rect x="30" y="110" width="80" height="20" rx="4" fill="#dbeafe" />
                 <text x="40" y="125" fill="#1e40af" fontWeight="600" fontSize="12">Revenue</text>
-                <text x="130" y="125" fill="#1e40af" fontWeight="600" fontSize="12">K14,850</text>
-                
+                <text x="130" y="125" fill="#1e40af" fontWeight="600" fontSize="12">K{dashboardData.revenue.toLocaleString()}</text>
+
                 <rect x="30" y="140" width="150" height="30" rx="4" fill="white" />
                 <text x="40" y="160" fill="#64748b" fontSize="11">Monthly Growth</text>
-                <text x="140" y="160" fill="#059669" fontWeight="600" fontSize="11">+12.5%</text>
-                
+                <text x="140" y="160" fill={dashboardData.revenueGrowth >= 0 ? "#059669" : "#dc2626"} fontWeight="600" fontSize="11">
+                  {dashboardData.revenueGrowth >= 0 ? '+' : ''}{dashboardData.revenueGrowth}%
+                </text>
+
                 {/* Vertical separator */}
                 <line x1="200" y1="100" x2="200" y2="180" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 2" />
-                
+
                 {/* Right panel - summary numbers */}
                 <rect x="210" y="100" width="170" height="80" rx="6" fill="#f1f5f9" />
                 <rect x="220" y="110" width="80" height="20" rx="4" fill="#ede9fe" />
                 <text x="230" y="125" fill="#5b21b6" fontWeight="600" fontSize="12">Expenses</text>
-                <text x="320" y="125" fill="#5b21b6" fontWeight="600" fontSize="12">K5,240</text>
-                
+                <text x="320" y="125" fill="#5b21b6" fontWeight="600" fontSize="12">K{dashboardData.expenses.toLocaleString()}</text>
+
                 <rect x="220" y="140" width="150" height="30" rx="4" fill="white" />
                 <text x="230" y="160" fill="#64748b" fontSize="11">Monthly Change</text>
-                <text x="340" y="160" fill="#dc2626" fontWeight="600" fontSize="11">+3.8%</text>
+                <text x="340" y="160" fill={dashboardData.expensesChange >= 0 ? "#dc2626" : "#059669"} fontWeight="600" fontSize="11">
+                  {dashboardData.expensesChange >= 0 ? '+' : ''}{dashboardData.expensesChange}%
+                </text>
                 
                 {/* Graph area */}
                 <rect x="20" y="190" width="360" height="90" rx="6" fill="#f1f5f9" />
-                
+
                 {/* Graph line */}
-                <polyline 
-                  points="40,250 80,230 120,240 160,210 200,220 240,200 280,190 320,210 360,205" 
-                  fill="none" 
-                  stroke="#4f46e5" 
-                  strokeWidth="3" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
+                <polyline
+                  points={dashboardData.graphPoints.map(point => `${point.x},${point.y}`).join(' ')}
+                  fill="none"
+                  stroke="#4f46e5"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 />
-                
+
                 {/* Graph dots */}
-                <circle cx="40" cy="250" r="4" fill="#4f46e5" />
-                <circle cx="80" cy="230" r="4" fill="#4f46e5" />
-                <circle cx="120" cy="240" r="4" fill="#4f46e5" />
-                <circle cx="160" cy="210" r="4" fill="#4f46e5" />
-                <circle cx="200" cy="220" r="4" fill="#4f46e5" />
-                <circle cx="240" cy="200" r="4" fill="#4f46e5" />
-                <circle cx="280" cy="190" r="4" fill="#4f46e5" />
-                <circle cx="320" cy="210" r="4" fill="#4f46e5" />
-                <circle cx="360" cy="205" r="4" fill="#4f46e5" />
-                
+                {dashboardData.graphPoints.map((point, index) => (
+                  <circle
+                    key={index}
+                    cx={point.x}
+                    cy={point.y}
+                    r="4"
+                    fill="#4f46e5"
+                  >
+                    <animate
+                      attributeName="r"
+                      dur="2s"
+                      repeatCount="indefinite"
+                      values="4;6;4"
+                    />
+                  </circle>
+                ))}
+
                 {/* Horizontal line (x-axis) */}
                 <line x1="30" y1="260" x2="370" y2="260" stroke="#cbd5e1" strokeWidth="1" />
-                
+
                 {/* Chart title and legend */}
                 <text x="30" y="210" fill="#334155" fontWeight="600" fontSize="12">Monthly Performance</text>
+
+                {/* Live indicator */}
+                
               </svg>
             </div>
           </div>
@@ -229,61 +290,154 @@ function HeroSection() {
 function FeaturesSection() {
   const features = [
     {
-      icon: FileText,
+      icon: LayoutDashboard,
       color: "bg-blue-500",
-      title: "Invoicing",
-      description: "Create and send professional invoices with automatic payment reminders."
+      title: "Dashboard",
+      description: "Real-time overview of key business metrics, performance, and activity."
     },
     {
-      icon: BarChart3,
+      icon: UserCheck,
+      color: "bg-green-500",
+      title: "User & Role Management",
+      description: "Assign roles and permissions to control system access."
+    },
+    {
+      icon: Building2,
       color: "bg-purple-500",
-      title: "Reporting",
-      description: "Generate financial reports with customizable filters and insights."
+      title: "Business Management",
+      description: "Comprehensive business setup and configuration tools."
+    },
+    {
+      icon: User,
+      color: "bg-orange-500",
+      title: "Client Management",
+      description: "Manage customer details, contacts, and transaction history."
+    },
+    {
+      icon: CreditCard,
+      color: "bg-red-500",
+      title: "POS (Point of Sale)",
+      description: "Handle in-store sales, receipts, and payment processing."
+    },
+    {
+      icon: FileTextIcon,
+      color: "bg-indigo-500",
+      title: "Quotations",
+      description: "Create and manage customer price estimates."
     },
     {
       icon: Receipt,
-      color: "bg-green-500",
-      title: "Expenses",
-      description: "Track expenses, upload receipts, and categorize transactions."
+      color: "bg-cyan-500",
+      title: "Invoicing",
+      description: "Generate, send, and track invoices and payment status."
     },
-    // {
-    //   emoji: "💸",
-    //   title: "Tax Ready",
-    //   description: "Organize your finances for tax season with built-in calculations."
-    // },
     {
-      icon: Users,
-      color: "bg-orange-500",
-      title: "Client Portal",
-      description: "Give clients access to invoices and payment methods."
+      icon: DollarSign,
+      color: "bg-emerald-500",
+      title: "Expense Tracking",
+      description: "Record and monitor expenses to control costs and spending."
     },
+    {
+      icon: Wallet,
+      color: "bg-amber-500",
+      title: "Assets & Liabilities",
+      description: "Track what the business owns and owes."
+    },
+    {
+      icon: UserPlus,
+      color: "bg-gray-500",
+      title: "HR & Payroll (Coming Soon)",
+      description: "Employee records, salaries, deductions, and payroll processing."
+    },
+    {
+      icon: Banknote,
+      color: "bg-teal-500",
+      title: "Payment Processing",
+      description: "Process and record incoming and outgoing payments."
+    },
+    {
+      icon: TrendingUp,
+      color: "bg-rose-500",
+      title: "Financial Reporting",
+      description: "Generate financial statements and performance reports."
+    },
+    {
+      icon: Package,
+      color: "bg-pink-500",
+      title: "Inventory Management",
+      description: "Track stock levels, movements, and availability."
+    },
+    {
+      icon: Truck,
+      color: "bg-lime-500",
+      title: "Supplier Management (Coming Soon)",
+      description: "Manage suppliers, purchases, and transactions."
+    },
+    {
+      icon: Calculator,
+      color: "bg-violet-500",
+      title: "Tax Management",
+      description: "Calculate and track taxes in compliance with regulations."
+    },
+    {
+      icon: BookOpen,
+      color: "bg-yellow-500",
+      title: "Accounting (Coming Soon)",
+      description: "📋 Chart of Accounts\n✏️ Journal Entries\n⚖️ Trial Balance"
+    }
     // {
     //   emoji: "🔄",
   ];
 
   return (
-    <section id="features" className="pt-14 pb-10 bg-white">
-      <div className="max-w-6xl mx-auto px-6">
+    <section id="features" className="py-20 bg-gradient-to-br from-slate-50 to-white">
+      <div className="max-w-7xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Everything you need, nothing you don't</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">
-            InsightBooks focuses on the essential tools that make financial management simple and effective.
+          <h2 className="text-4xl font-bold text-slate-900 mb-4">Features</h2>
+          <p className="text-slate-600 max-w-3xl mx-auto text-lg">
+            Everything you need to manage your business finances efficiently and effectively.
           </p>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {features.map((feature, index) => {
             const IconComponent = feature.icon;
+            const isComingSoon = feature.title.includes("Coming Soon");
+
             return (
-              <div 
-                key={index} 
-                className="p-6 rounded-lg bg-white border border-slate-200 hover:shadow-lg hover:scale-105 transition-all duration-300 cursor-pointer"
+              <div
+                key={index}
+                className={`group relative p-8 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-100/50 transition-all duration-500 cursor-pointer overflow-hidden ${
+                  isComingSoon ? 'opacity-75' : ''
+                }`}
               >
-                <div className={`${feature.color} w-16 h-16 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                  <IconComponent size={30} className="text-white" />
+                {/* Background gradient on hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                {/* Content */}
+                <div className="relative z-10">
+                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 ${feature.color} shadow-lg`}>
+                    <IconComponent size={28} className="text-white" />
+                  </div>
+
+                  <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-indigo-700 transition-colors duration-300">
+                    {feature.title}
+                  </h3>
+
+                  <p className="text-slate-600 leading-relaxed group-hover:text-slate-700 transition-colors duration-300">
+                    {feature.description}
+                  </p>
+
+                  {/* Coming Soon Badge */}
+                  {isComingSoon && (
+                    <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-1 rounded-full">
+                      Soon
+                    </div>
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">{feature.title}</h3>
-                <p className="text-sm text-slate-600">{feature.description}</p>
+
+                {/* Hover effect line */}
+                <div className="absolute bottom-0 left-0 w-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600 group-hover:w-full transition-all duration-500"></div>
               </div>
             );
           })}
@@ -365,209 +519,90 @@ function VideoShowcaseSection() {
   );
 }
 
-// Integration Section
-function IntegrationSection() {
-  return (
-    <section className="py-24 bg-white">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="flex flex-col md:flex-row items-center gap-16">
-          <div className="md:w-1/2 order-2 md:order-1">
-            <div className="bg-white p-6 rounded-lg shadow">
-            <svg viewBox="0 0 400 300" className="w-full h-auto">
-                {/* Background gradient */}
-                <defs>
-                  <radialGradient id="bgGradient" cx="200" cy="150" r="180" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#f8fafc" />
-                    <stop offset="100%" stopColor="#f1f5f9" />
-                  </radialGradient>
-                  
-                  <linearGradient id="centerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#4f46e5" />
-                    <stop offset="100%" stopColor="#6366f1" />
-                  </linearGradient>
-                  
-                  <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
-                    <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#64748b" floodOpacity="0.2"/>
-                  </filter>
-                </defs>
 
-                {/* Background circle */}
-                <rect cx="200" cy="150" r="180" fill="url(#bgGradient)" />
-                
-                {/* Connection lines with curved paths */}
-                <path d="M200,110 C200,90 140,70 100,60" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
-                {/* <path d="M200,110 C200,80 200,80 200,60" stroke="#2a568bff" strokeWidth="1.5" fill="none" />
-                <path d="M200,110 C200,90 260,70 300,60" stroke="#286abaff" strokeWidth="1.5" fill="none" />
-                
-                <path d="M160,150 C120,150 100,150 60,150" stroke="#638fc5ff" strokeWidth="1.5" fill="none" /> */}
-                <path d="M240,150 C280,150 300,150 340,150" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
-                
-                {/* <path d="M200,190 C200,210 140,230 100,240" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
-                <path d="M200,190 C200,220 200,220 200,240" stroke="#cbd5e1" strokeWidth="1.5" fill="none" /> */}
-                <path d="M200,190 C200,210 260,230 300,240" stroke="#cbd5e1" strokeWidth="1.5" fill="none" />
-                
-                {/* Central hub - InsightBooks with gradient and shadow */}
-                <circle cx="200" cy="150" r="42" fill="url(#centerGradient)" filter="url(#dropShadow)" />
-                <circle cx="200" cy="150" r="40" fill="url(#centerGradient)" />
-                <text x="200" y="155" textAnchor="middle" fill="white" fontWeight="600" fontSize="12">InsightBooks</text>
-                
-                {/* Outer glow animation */}
-                <circle cx="200" cy="150" r="46" fill="none" stroke="#4f46e5" strokeWidth="2" opacity="0.3">
-                  <animate attributeName="r" values="46;52;46" dur="3s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0.1;0.3" dur="3s" repeatCount="indefinite" />
-                </circle>
-                
-                {/* Banking nodes - Top row with shadow and better styling */}
-                <g filter="url(#dropShadow)">
-                  <circle cx="100" cy="60" r="26" fill="white" />
-                  <circle cx="100" cy="60" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="100" y="65" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Inventory</text>
-                
-                {/* <g filter="url(#dropShadow)">
-                  <circle cx="200" cy="60" r="26" fill="white" />
-                  <circle cx="200" cy="60" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="200" y="65" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">CRM</text>
-                
-                <g filter="url(#dropShadow)">
-                  <circle cx="300" cy="60" r="26" fill="white" />
-                  <circle cx="300" cy="60" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="300" y="65" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Payroll</text>
-                 */}
-                {/* Middle nodes - Left and right */}
-                {/* <g filter="url(#dropShadow)">
-                  <circle cx="60" cy="150" r="26" fill="white" />
-                  <circle cx="60" cy="150" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="60" y="155" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Payments</text>
-                 */}
-                <g filter="url(#dropShadow)">
-                  <circle cx="340" cy="150" r="26" fill="white" />
-                  <circle cx="340" cy="150" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="340" y="155" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">CRM</text>
-                
-                {/* Bottom row */}
-                {/* <g filter="url(#dropShadow)">
-                  <circle cx="100" cy="240" r="26" fill="white" />
-                  <circle cx="100" cy="240" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="100" y="245" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Inventory</text>
-                 */}
-                {/* <g filter="url(#dropShadow)">
-                  <circle cx="200" cy="240" r="26" fill="white" />
-                  <circle cx="200" cy="240" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="200" y="245" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Analytics</text>
-                 */}
-                <g filter="url(#dropShadow)">
-                  <circle cx="300" cy="240" r="26" fill="white" />
-                  <circle cx="300" cy="240" r="25" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="1.5" />
-                </g>
-                <text x="300" y="245" textAnchor="middle" fill="#334155" fontWeight="500" fontSize="10">Analytics</text>
-                
-                {/* Pulse indicators with improved animation */}
-                <circle cx="150" cy="105" r="4" fill="#4f46e5" opacity="0.8">
-                  <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2s" repeatCount="indefinite" />
-                </circle>
-                
-                <circle cx="120" cy="195" r="4" fill="#4f46e5" opacity="0.8">
-                  <animate attributeName="r" values="4;6;4" dur="1.7s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.7s" repeatCount="indefinite" />
-                </circle>
-                
-                <circle cx="280" cy="195" r="4" fill="#4f46e5" opacity="0.8">
-                  <animate attributeName="r" values="4;6;4" dur="1.4s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.4s" repeatCount="indefinite" />
-                </circle>
-                
-                <circle cx="290" cy="105" r="4" fill="#4f46e5" opacity="0.8">
-                  <animate attributeName="r" values="4;6;4" dur="2.1s" repeatCount="indefinite" />
-                  <animate attributeName="opacity" values="0.3;0.8;0.3" dur="2.1s" repeatCount="indefinite" />
-                </circle>
-                
-                {/* Small data flow animation on paths */}
-                <circle r="3" fill="#4f46e5" opacity="0.6">
-                  <animateMotion path="M200,110 C200,90 140,70 100,60" dur="3s" repeatCount="indefinite" />
-                </circle>
-                
-                <circle r="3" fill="#4f46e5" opacity="0.6">
-                  <animateMotion path="M240,150 C280,150 300,150 340,150" dur="2.5s" repeatCount="indefinite" />
-                </circle>
-                
-                <circle r="3" fill="#4f46e5" opacity="0.6">
-                  <animateMotion path="M200,190 C200,210 260,230 300,240" dur="2.8s" repeatCount="indefinite" />
-                </circle>
-              </svg>
-            </div>
-          </div>
-          
-          <div className="md:w-1/2 order-1 md:order-2">
-            <h2 className="text-3xl font-bold text-slate-900 mb-6">Connect with your favorite tools</h2>
-            <p className="text-slate-600 mb-8">
-              InsightBooks integrates seamlessly with the tools and services you already use.
-            </p>
-            
-            <div className="space-y-4">
-              {["E-commerce Platforms"].map((item, i) => (
-                <div key={i} className="flex items-center">
-                  <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center mr-3">
-                    <Check className="w-3 h-3 text-white" />
-                  </div>
-                  <div className="text-slate-700">{item}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// Testimonials Section
+// Clients Section
 function TestimonialsSection() {
-  const testimonials = [
-    {
-      quote: "InsightBooks has simplified our financial reporting and saved us hours every month.",
-      author: "Sarah Chitsulo",
-      company: "TechInnovate"
-    },
-    {
-      quote: "The intuitive interface makes it easy for our entire team to track expenses and invoices.",
-      author: "Micheal Fumulani",
-      company: "Retail Plus"
-    }
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const clients = [
+    "TechInnovate",
+    "Retail Plus",
+    "Finance Corp",
+    "Business Solutions",
+    "Enterprise Ltd",
+    "Startup Hub",
+    "Global Trade",
+    "Local Services",
+    "Digital Solutions",
+    "Manufacturing Inc",
+    "Healthcare Plus",
+    "Education Hub"
   ];
+
+  // Duplicate clients for infinite scroll effect
+  const duplicatedClients = [...clients, ...clients];
+
+  const nextSlide = () => {
+    setCurrentIndex((prevIndex) => (prevIndex + 1) % clients.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentIndex((prevIndex) =>
+      prevIndex === 0 ? clients.length - 1 : prevIndex - 1
+    );
+  };
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prevIndex) => (prevIndex + 1) % clients.length);
+    }, 3000); // Auto-play every 3 seconds
+
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <section id="testimonials" className="py-24 bg-slate-50">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">What our customers say</h2>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Our Clients/Customers</h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            Businesses of all sizes trust InsightBooks for their financial management.
+            Trusted by businesses of all sizes for their financial management needs.
           </p>
         </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {testimonials.map((testimonial, index) => (
-            <div key={index} className="p-8 bg-white rounded-lg shadow">
-              <p className="text-slate-700 mb-6 text-lg italic">"{testimonial.quote}"</p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-medium mr-4">
-                  {testimonial.author.charAt(0)}
+
+        <div className="relative">
+          {/* Navigation Buttons */}
+          <button
+            onClick={prevSlide}
+            className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 bg-white shadow-lg rounded-full p-2 hover:bg-gray-50 transition-colors"
+          >
+            <ChevronLeft className="w-6 h-6 text-gray-600" />
+          </button>
+
+          <button
+            onClick={nextSlide}
+            className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 bg-white shadow-lg rounded-full p-2 hover:bg-gray-50 transition-colors"
+          >
+            <ChevronRight className="w-6 h-6 text-gray-600" />
+          </button>
+
+          {/* Slider Container */}
+          <div className="overflow-hidden">
+            <div
+              className="flex transition-transform duration-500 ease-in-out"
+              style={{ transform: `translateX(-${currentIndex * 220}px)` }}
+            >
+              {duplicatedClients.map((client, index) => (
+                <div key={`${client}-${index}`} className="flex-shrink-0 flex items-center justify-center p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-300 mx-2" style={{ minWidth: '200px' }}>
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg mb-3 mx-auto">
+                      {client.split(' ').map(word => word.charAt(0)).join('').slice(0, 2)}
+                    </div>
+                    <div className="text-sm font-medium text-slate-700">{client}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="font-medium text-slate-900">{testimonial.author}</div>
-                  <div className="text-slate-600 text-sm">{testimonial.company}</div>
-                </div>
-              </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </section>
@@ -582,7 +617,7 @@ function PricingSection() {
     <section id="pricing" className="py-24 bg-white">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Simple, transparent pricing</h2>
+          <h2 className="text-3xl font-bold text-slate-900 mb-4">Our Pricing</h2>
           <p className="text-slate-600 max-w-2xl mx-auto">
             All features included with every plan. Choose the option that works best for your business.
           </p>
@@ -590,9 +625,16 @@ function PricingSection() {
         
         <div className="flex flex-wrap justify-center gap-8">
           {plans.map((plan, index) => (
-            <div key={index} className={`bg-white rounded-lg p-8 shadow-md ${
-              plan.highlight ? "ring-2 ring-indigo-600 relative" : ""
-            }`}>
+            <div
+              key={index}
+              className={`bg-white rounded-lg p-8 shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer opacity-0 animate-fade-in ${
+                plan.highlight ? "ring-2 ring-indigo-600 relative" : ""
+              }`}
+              style={{
+                animationDelay: `${index * 0.2}s`,
+                animationFillMode: 'both'
+              }}
+            >
               {plan.highlight && (
                 <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-sm">
                   Best Value
@@ -616,14 +658,14 @@ function PricingSection() {
                   </li>
                 ))}
               </ul>
-              <Link href={plan.name === "Tailor-Made" ? "/contact" : "/auth/signup"} 
+              {/* <Link href={plan.name === "Tailor-Made" ? "/contact" : "/contact"} 
                 className={`block w-full py-3 rounded-md text-center font-medium ${
                   plan.highlight 
                     ? "bg-indigo-600 text-white hover:bg-indigo-700" 
                     : "bg-slate-100 text-slate-800 hover:bg-slate-200"
                 }`}>
-                {plan.name === "Tailor-Made" ? "Contact Us" : "Create Account"}
-              </Link>
+                {plan.name === "Tailor-Made" ? "Contact Us" : "Book a Demo"}
+              </Link> */}
             </div>
           ))}
         </div>
@@ -642,11 +684,11 @@ function CtaSection() {
          Join a community of growing businesses that trust InsightBooks for their financial management.
         </p>
         <div className="flex flex-col sm:flex-row justify-center gap-4">
-          <Link href="/auth/signup" className="bg-white text-indigo-600 px-6 py-3 rounded-md font-medium hover:bg-indigo-50">
+          {/* <Link href="/auth/signup" className="bg-white text-indigo-600 px-6 py-3 rounded-md font-medium hover:bg-indigo-50">
             Create Account
-          </Link>
+          </Link> */}
           <Link href="/contact" className="border border-white text-white px-6 py-3 rounded-md font-medium hover:bg-indigo-500">
-            Contact Us
+            Book a Demo
           </Link>
         </div>
       </div>
@@ -667,51 +709,47 @@ function Footer() {
               </div>
               <span className="text-white font-semibold">InsightBooks</span>
             </div> */}
-            <div className="flex items-center">
+            <Link href="/" className="flex items-center">
               <img
-              src="/logo.png"
-              alt="InsightBooks Logo"
-              className="h-10 w-auto object-contain rounded-md"
+                src="/logo.png"
+                alt="InsightBooks Logo"
+                className="h-10 w-auto object-contain rounded-md"
               />
-            </div>
+            </Link>
             <p className="mb-6 mt-6">Financial management solution that helps businesses make better decisions.</p>
           </div>
           
 <div>
-  <h3 className="text-white font-medium mb-4">Product</h3>
+  <h3 className="text-white font-medium mb-4">Email</h3>
   <ul className="space-y-2">
-    {[
-      { text: "Features", link: "/#features" },
-      { text: "Pricing", link: "/#pricing" },
-      // { text: "Integrations", link: "/integrations" },
-      // { text: "Documentation", link: "/docs" }
-    ].map((item, i) => (
-      <li key={i}>
-        <Link href={item.link} className="hover:text-white">
-          {item.text}
-        </Link>
-      </li>
-    ))}
+    <li>
+      <a href="mailto:insightinnovationsltd@gmail.com" className="hover:text-white">
+        insightinnovationsltd@gmail.com
+      </a>
+    </li>
+    <li>
+      <a href="mailto:info@insightbooksafrica.com" className="hover:text-white">
+        info@insightbooksafrica.com
+      </a>
+    </li>
   </ul>
 </div>
           
           <div>
-  <h3 className="text-white font-medium mb-4">Company</h3>
-  <ul className="space-y-2">
-    {[
-      { text: "About", link: "/#" },
-      // { text: "Careers", link: "/careers" },
-      // { text: "Blog", link: "/blog" },
-      { text: "Contact", link: "/contact" }
-    ].map((item, i) => (
-      <li key={i}>
-        <Link href={item.link} className="hover:text-white">
-          {item.text}
-        </Link>
-      </li>
-    ))}
-  </ul>
-</div>
+            <h3 className="text-white font-medium mb-4">Contact Us</h3>
+            <ul className="space-y-2">
+              <li>
+                <a href="tel:+265894092494" className="hover:text-white">
+                  +265 894 09 24 94
+                </a>
+              </li>
+              <li>
+                <a href="tel:+265888437000" className="hover:text-white">
+                  +265 888 43 70 00
+                </a>
+              </li>
+            </ul>
+          </div>
           
           <div>
             <h3 className="text-white font-medium mb-4">Legal</h3>
