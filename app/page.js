@@ -559,54 +559,6 @@ function TestimonialsSection() {
     return () => clearInterval(interval);
   }, []);
 
-  // return (
-  //   <section id="testimonials" className="py-24 bg-slate-50">
-  //     <div className="max-w-6xl mx-auto px-6">
-  //       <div className="text-center mb-16">
-  //         <h2 className="text-3xl font-bold text-slate-900 mb-4">Our Clients/Customers</h2>
-  //         <p className="text-slate-600 max-w-2xl mx-auto">
-  //           Trusted by businesses of all sizes for their financial management needs.
-  //         </p>
-  //       </div>
-
-  //       <div className="relative">
-  //         {/* Navigation Buttons */}
-  //         <button
-  //           onClick={prevSlide}
-  //           className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 bg-white shadow-lg rounded-full p-2 hover:bg-gray-50 transition-colors"
-  //         >
-  //           <ChevronLeft className="w-6 h-6 text-gray-600" />
-  //         </button>
-
-  //         <button
-  //           onClick={nextSlide}
-  //           className="absolute right-0 top-1/2 transform -translate-y-1/2 z-10 bg-white shadow-lg rounded-full p-2 hover:bg-gray-50 transition-colors"
-  //         >
-  //           <ChevronRight className="w-6 h-6 text-gray-600" />
-  //         </button>
-
-  //         {/* Slider Container */}
-  //         <div className="overflow-hidden">
-  //           <div
-  //             className="flex transition-transform duration-500 ease-in-out"
-  //             style={{ transform: `translateX(-${currentIndex * 220}px)` }}
-  //           >
-  //             {duplicatedClients.map((client, index) => (
-  //               <div key={`${client}-${index}`} className="flex-shrink-0 flex items-center justify-center p-6 bg-white rounded-lg shadow hover:shadow-lg transition-shadow duration-300 mx-2" style={{ minWidth: '200px' }}>
-  //                 <div className="text-center">
-  //                   <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg mb-3 mx-auto">
-  //                     {client.split(' ').map(word => word.charAt(0)).join('').slice(0, 2)}
-  //                   </div>
-  //                   <div className="text-sm font-medium text-slate-700">{client}</div>
-  //                 </div>
-  //               </div>
-  //             ))}
-  //           </div>
-  //         </div>
-  //       </div>
-  //     </div>
-  //   </section>
-  // );
 }
 
 // Pricing Section
