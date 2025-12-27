@@ -50,8 +50,44 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
   const [selectedDeductions, setSelectedDeductions] = useState([]);
   const [salaryCalculation, setSalaryCalculation] = useState(null);
   const [calculating, setCalculating] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  const steps = [
+    {
+      id: 'personal',
+      title: 'Personal Info',
+      description: 'Contact & demographic details'
+    },
+    {
+      id: 'employment',
+      title: 'Employment Details',
+      description: 'Role, dates, and status'
+    },
+    {
+      id: 'compensation',
+      title: 'Compensation',
+      description: 'Salary, deductions, and calculations'
+    },
+    {
+      id: 'nextOfKin',
+      title: 'Next of Kin',
+      description: 'Emergency contact information'
+    }
+  ];
+
+  const requiredFieldsByStep = {
+    0: [
+      { field: 'name', label: 'Full Name' },
+      { field: 'email', label: 'Email Address' }
+    ],
+    1: [
+      { field: 'jobTitle', label: 'Job Title' },
+      { field: 'startDate', label: 'Start Date' }
+    ]
+  };
 
   useEffect(() => {
+    setCurrentStep(0);
     if (employee) {
       const emergencyContact =
         (employee.emergencyContact && typeof employee.emergencyContact === 'object')
@@ -106,7 +142,13 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
     try {
       const response = await fetch('/api/deductions');
       const data = await response.json();
-      setDeductions(data.deductions || []);
+      const availableDeductions = data.deductions || [];
+      setDeductions(availableDeductions);
+
+      if (!employee) {
+        const statutoryDeductions = availableDeductions.filter(d => d.isStatutory);
+        setSelectedDeductions(statutoryDeductions);
+      }
     } catch (error) {
       console.error('Error fetching deductions:', error);
     }
@@ -171,7 +213,12 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
+    // Only allow submission on the final step
+    if (currentStep !== steps.length - 1) {
+      return;
+    }
+
     const {
       nextOfKinName,
       nextOfKinRelationship,
@@ -192,7 +239,6 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
         }
       : null;
 
-    // Include salary calculation data if available
     const submitData = {
       ...formWithoutKin,
       grossSalary: formData.grossSalary,
@@ -204,6 +250,43 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
     onSubmit(submitData);
   };
 
+  const validateStep = (stepIndex) => {
+    const rules = requiredFieldsByStep[stepIndex];
+    if (!rules) {
+      return true;
+    }
+
+    const missing = rules.filter(({ field }) => {
+      const value = formData[field];
+      return value === undefined || value === null || value.toString().trim() === '';
+    });
+
+    if (missing.length > 0) {
+      const missingLabels = missing.map(rule => rule.label).join(', ');
+      alert(`Please fill in the required fields: ${missingLabels}`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleNext = () => {
+    if (!validateStep(currentStep)) {
+      return;
+    }
+    setCurrentStep(prev => Math.min(prev + 1, steps.length - 1));
+  };
+
+  const handleBack = () => {
+    setCurrentStep(prev => Math.max(prev - 1, 0));
+  };
+
+  const handleStepClick = (index) => {
+    if (index <= currentStep) {
+      setCurrentStep(index);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
@@ -213,445 +296,519 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
         </button>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="john@example.com"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="+265 999 123 456"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ID/Passport Number</label>
-                <input
-                  type="text"
-                  name="idNumber"
-                  value={formData.idNumber}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="ID Number"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
-                <input
-                  type="date"
-                  name="dateOfBirth"
-                  value={formData.dateOfBirth}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+      <div className="mb-6">
+        <ol className="flex items-center">
+          {steps.map((step, index) => {
+            const isCompleted = index < currentStep;
+            const isActive = index === currentStep;
+            return (
+              <li key={step.id} className="flex flex-1 items-center">
+                <button
+                  type="button"
+                  onClick={() => handleStepClick(index)}
+                  className={`flex flex-col items-start text-left sm:items-center sm:text-center focus:outline-none ${index > currentStep ? 'cursor-default' : 'cursor-pointer'}`}
+                  disabled={index > currentStep}
                 >
-                  <option value="">Select Gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
-                <select
-                  name="maritalStatus"
-                  value={formData.maritalStatus}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                >
-                  <option value="">Select Status</option>
-                  <option value="Single">Single</option>
-                  <option value="Married">Married</option>
-                  <option value="Divorced">Divorced</option>
-                  <option value="Widowed">Widowed</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
-                <input
-                  type="text"
-                  name="nationality"
-                  value={formData.nationality}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Malawian"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <input
-                  type="text"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="123 Main Street, Lilongwe"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Employment Details</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Job Title *</label>
-                <input
-                  type="text"
-                  name="jobTitle"
-                  value={formData.jobTitle}
-                  onChange={handleChange}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Software Engineer"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                <input
-                  type="text"
-                  name="department"
-                  value={formData.department}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="IT"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
-                <select
-                  name="employmentType"
-                  value={formData.employmentType}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
-                >
-                  <option value="Permanent">Permanent</option>
-                  <option value="Contract">Contract</option>
-                  <option value="Casual">Casual</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-                <input
-                  type="date"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  required
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Work Location</label>
-                <input
-                  type="text"
-                  name="workLocation"
-                  value={formData.workLocation}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Lilongwe"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="isActive"
-                    checked={formData.isActive}
-                    onChange={handleChange}
-                    className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Employee is Active</span>
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Compensation & Deductions</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Gross Salary (MWK)</label>
-                <input
-                  type="number"
-                  name="grossSalary"
-                  value={formData.grossSalary}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="500000"
-                  step="0.01"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (MWK)</label>
-                <input
-                  type="number"
-                  name="hourlyRate"
-                  value={formData.hourlyRate}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="5000"
-                  step="0.01"
-                />
-              </div>
-            </div>
-
-            <div className="mb-6">
-              <h4 className="text-md font-medium text-gray-800 mb-3">Salary Deductions</h4>
-              {deductions.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
-                  {deductions.map(deduction => (
-                    <div
-                      key={deduction.id}
-                      className={`p-2 rounded-md border cursor-pointer transition-colors text-xs ${
-                        selectedDeductions.some(d => d.id === deduction.id)
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                      onClick={() => toggleDeduction(deduction)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm truncate">{deduction.name}</div>
-                          <div className="text-xs text-gray-600">
-                            {deduction.percentage !== null && deduction.percentage !== undefined
-                              ? `${deduction.percentage}%`
-                              : deduction.amount !== null && deduction.amount !== undefined
-                              ? `MWK ${(deduction.amount || 0).toLocaleString()}`
-                              : 'No value set'
-                            }
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-1 flex-shrink-0">
-                          {deduction.isStatutory && (
-                            <span className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 rounded">
-                              Statutory
-                            </span>
-                          )}
-                          {selectedDeductions.some(d => d.id === deduction.id) && (
-                            <CheckCircle size={16} className="text-blue-600" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-gray-500 text-center py-4">
-                  No deductions available for {formData.employmentType} employees
-                </div>
-              )}
-            </div>
-
-            {formData.grossSalary && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-md font-medium text-gray-800">Salary Calculation</h4>
-                  <button
-                    type="button"
-                    onClick={calculateSalary}
-                    disabled={calculating || !formData.grossSalary}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  <span
+                    className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors ${
+                      isCompleted
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : isActive
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-gray-300 text-gray-400'
+                    }`}
                   >
-                    {calculating ? 'Calculating...' : 'Calculate Net Salary'}
-                  </button>
+                    {isCompleted ? <CheckCircle size={18} className="text-white" /> : index + 1}
+                  </span>
+                  <span className={`mt-2 text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
+                    {step.title}
+                  </span>
+                  <span className="text-xs text-gray-500 hidden sm:block">{step.description}</span>
+                </button>
+                {index < steps.length - 1 && (
+                  <span
+                    className={`mx-2 hidden h-0.5 flex-1 sm:block ${index < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <form onSubmit={handleSubmit}>
+        <div className="rounded-lg border border-gray-200 p-4">
+          {currentStep === 0 && (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="John Doe"
+                  />
                 </div>
 
-                {salaryCalculation && (
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div className="bg-white p-3 rounded">
-                        <div className="text-sm text-gray-600">Gross Salary</div>
-                        <div className="text-lg font-semibold text-green-600">
-                          MWK {(salaryCalculation.grossSalary || 0).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="bg-white p-3 rounded">
-                        <div className="text-sm text-gray-600">Total Deductions</div>
-                        <div className="text-lg font-semibold text-red-600">
-                          MWK {(salaryCalculation.totalDeductions || 0).toLocaleString()}
-                        </div>
-                      </div>
-                      <div className="bg-white p-3 rounded">
-                        <div className="text-sm text-gray-600">Net Salary</div>
-                        <div className="text-lg font-semibold text-blue-600">
-                          MWK {(salaryCalculation.netPay || 0).toLocaleString()}
-                        </div>
-                      </div>
-                    </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="john@example.com"
+                  />
+                </div>
 
-                    {salaryCalculation.paye.payeAmount > 0 && (
-                      <div className="mb-3">
-                        <div className="text-sm font-medium text-gray-700 mb-2">PAYE Tax Breakdown</div>
-                        <div className="space-y-1">
-                          {salaryCalculation.paye.breakdown.map((item, index) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span>{item.bracket}</span>
-                              <span>MWK {(item.tax || 0).toLocaleString()}</span>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="+265 999 123 456"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ID/Passport Number</label>
+                  <input
+                    type="text"
+                    name="idNumber"
+                    value={formData.idNumber}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="ID Number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                  <input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                  <select
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Marital Status</label>
+                  <select
+                    name="maritalStatus"
+                    value={formData.maritalStatus}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="">Select Status</option>
+                    <option value="Single">Single</option>
+                    <option value="Married">Married</option>
+                    <option value="Divorced">Divorced</option>
+                    <option value="Widowed">Widowed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nationality</label>
+                  <input
+                    type="text"
+                    name="nationality"
+                    value={formData.nationality}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Malawian"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="123 Main Street, Lilongwe"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {currentStep === 1 && (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Employment Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Job Title *</label>
+                  <input
+                    type="text"
+                    name="jobTitle"
+                    value={formData.jobTitle}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Software Engineer"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                  <input
+                    type="text"
+                    name="department"
+                    value={formData.department}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="IT"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Employment Type</label>
+                  <select
+                    name="employmentType"
+                    value={formData.employmentType}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="Permanent">Permanent</option>
+                    <option value="Contract">Contract</option>
+                    <option value="Casual">Casual</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
+                  <input
+                    type="date"
+                    name="startDate"
+                    value={formData.startDate}
+                    onChange={handleChange}
+                    required
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Work Location</label>
+                  <input
+                    type="text"
+                    name="workLocation"
+                    value={formData.workLocation}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Lilongwe"
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="isActive"
+                      checked={formData.isActive}
+                      onChange={handleChange}
+                      className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                    />
+                    <span className="ml-2 text-sm text-gray-600">Employee is Active</span>
+                  </label>
+                </div>
+              </div>
+            </>
+          )}
+
+          {currentStep === 2 && (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Compensation &amp; Deductions</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gross Salary (MWK)</label>
+                  <input
+                    type="number"
+                    name="grossSalary"
+                    value={formData.grossSalary}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="500000"
+                    step="0.01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (MWK)</label>
+                  <input
+                    type="number"
+                    name="hourlyRate"
+                    value={formData.hourlyRate}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="5000"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-800 mb-3">Salary Deductions</h4>
+                {deductions.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {deductions.map(deduction => (
+                      <div
+                        key={deduction.id}
+                        className={`p-2 rounded-md border cursor-pointer transition-colors text-xs ${
+                          selectedDeductions.some(d => d.id === deduction.id)
+                            ? 'border-blue-500 bg-blue-50'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => toggleDeduction(deduction)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">{deduction.name}</div>
+                            <div className="text-xs text-gray-600">
+                              {deduction.percentage !== null && deduction.percentage !== undefined
+                                ? `${deduction.percentage}%`
+                                : deduction.amount !== null && deduction.amount !== undefined
+                                  ? `MWK ${(deduction.amount || 0).toLocaleString()}`
+                                  : 'No value set'
+                              }
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {salaryCalculation.nps.totalAmount > 0 && (
-                      <div className="mb-3">
-                        <div className="text-sm font-medium text-gray-700 mb-2">NPS Contributions</div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>Employee (5%)</span>
-                            <span>MWK {(salaryCalculation.nps.employeeAmount || 0).toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Employer (5%)</span>
-                            <span>MWK {(salaryCalculation.nps.employerAmount || 0).toLocaleString()}</span>
+                          <div className="flex items-center space-x-1 flex-shrink-0">
+                            {deduction.isStatutory && (
+                              <span className="px-1.5 py-0.5 text-[10px] bg-red-100 text-red-800 rounded">
+                                Statutory
+                              </span>
+                            )}
+                            {selectedDeductions.some(d => d.id === deduction.id) && (
+                              <CheckCircle size={16} className="text-blue-600" />
+                            )}
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    {salaryCalculation.customDeductions.breakdown.length > 0 && (
-                      <div>
-                        <div className="text-sm font-medium text-gray-700 mb-2">Other Deductions</div>
-                        <div className="space-y-1">
-                          {salaryCalculation.customDeductions.breakdown.map((item, index) => (
-                            <div key={index} className="flex justify-between text-sm">
-                              <span>{item.name}</span>
-                              <span>MWK {(item.amount || 0).toLocaleString()}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-4">
+                    No deductions available for {formData.employmentType} employees
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <div className="rounded-lg border border-gray-200 p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Next of Kin Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                <input
-                  type="text"
-                  name="nextOfKinName"
-                  value={formData.nextOfKinName}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Jane Doe"
-                />
-              </div>
+              {formData.grossSalary && (
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-md font-medium text-gray-800">Salary Calculation</h4>
+                    <button
+                      type="button"
+                      onClick={calculateSalary}
+                      disabled={calculating || !formData.grossSalary}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {calculating ? 'Calculating...' : 'Calculate Net Salary'}
+                    </button>
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
-                <input
-                  type="text"
-                  name="nextOfKinRelationship"
-                  value={formData.nextOfKinRelationship}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Sibling"
-                />
-              </div>
+                  {salaryCalculation && (
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-sm text-gray-600">Gross Salary</div>
+                          <div className="text-lg font-semibold text-green-600">
+                            MWK {(salaryCalculation.grossSalary || 0).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-sm text-gray-600">Total Deductions</div>
+                          <div className="text-lg font-semibold text-red-600">
+                            MWK {(salaryCalculation.totalDeductions || 0).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="bg-white p-3 rounded">
+                          <div className="text-sm text-gray-600">Net Salary</div>
+                          <div className="text-lg font-semibold text-blue-600">
+                            MWK {(salaryCalculation.netPay || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  name="nextOfKinPhone"
-                  value={formData.nextOfKinPhone}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="+265 888 123 456"
-                />
-              </div>
+                      {salaryCalculation.paye.payeAmount > 0 && (
+                        <div className="mb-3">
+                          <div className="text-sm font-medium text-gray-700 mb-2">PAYE Tax Breakdown</div>
+                          <div className="space-y-1">
+                            {salaryCalculation.paye.breakdown.map((item, index) => (
+                              <div key={index} className="flex justify-between text-sm">
+                                <span>{item.bracket}</span>
+                                <span>MWK {(item.tax || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
-                <input
-                  type="text"
-                  name="nextOfKinAddress"
-                  value={formData.nextOfKinAddress}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="456 Lakeside Drive, Blantyre"
-                />
+                      {salaryCalculation.nps.totalAmount > 0 && (
+                        <div className="mb-3">
+                          <div className="text-sm font-medium text-gray-700 mb-2">NPS Contributions</div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span>Employee (5%)</span>
+                              <span>MWK {(salaryCalculation.nps.employeeAmount || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span>Employer (5%)</span>
+                              <span>MWK {(salaryCalculation.nps.employerAmount || 0).toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {salaryCalculation.customDeductions.breakdown.length > 0 && (
+                        <div>
+                          <div className="text-sm font-medium text-gray-700 mb-2">Other Deductions</div>
+                          <div className="space-y-1">
+                            {salaryCalculation.customDeductions.breakdown.map((item, index) => (
+                              <div key={index} className="flex justify-between text-sm">
+                                <span>{item.name}</span>
+                                <span>MWK {(item.amount || 0).toLocaleString()}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {currentStep === 3 && (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Next of Kin Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    name="nextOfKinName"
+                    value={formData.nextOfKinName}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
+                  <input
+                    type="text"
+                    name="nextOfKinRelationship"
+                    value={formData.nextOfKinRelationship}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus-border-transparent"
+                    placeholder="Sibling"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    name="nextOfKinPhone"
+                    value={formData.nextOfKinPhone}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus-border-transparent"
+                    placeholder="+265 888 123 456"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Physical Address</label>
+                  <input
+                    type="text"
+                    name="nextOfKinAddress"
+                    value={formData.nextOfKinAddress}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus-border-transparent"
+                    placeholder="456 Lakeside Drive, Blantyre"
+                  />
+                </div>
               </div>
-            </div>
-          </div>
+            </>
+          )}
         </div>
 
-        <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200 mt-6">
+        <div className="flex flex-col gap-4 pt-4 border-t border-gray-200 mt-6 sm:flex-row sm:items-center sm:justify-between">
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            className="order-2 sm:order-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting && (
-              <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+          <div className="flex w-full justify-end gap-3 order-1 sm:order-2">
+            {currentStep > 0 && (
+              <button
+                type="button"
+                onClick={handleBack}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Back
+              </button>
             )}
-            {employee ? "Update Employee" : "Create Employee"}
-          </button>
+            
+            {/* Next Button - Only on steps 0-2 */}
+            {currentStep < 3 && (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Next
+              </button>
+            )}
+            
+            {/* Submit Button - Only on step 3 (final step) */}
+            {currentStep === 3 && (
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting && (
+                  <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                )}
+                {employee ? "Update Employee" : "Create Employee"}
+              </button>
+            )}
+          </div>
         </div>
       </form>
     </div>
