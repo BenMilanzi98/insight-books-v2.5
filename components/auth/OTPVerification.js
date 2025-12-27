@@ -88,7 +88,22 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
     if (/^\d{6}$/.test(pastedData)) {
       const newOtp = pastedData.split("");
       setOtp(newOtp);
-      inputRefs.current[5].focus();
+      
+      console.log("Pasted OTP:", newOtp, "Full:", newOtp.join(""));
+      
+      // Clear error and success when user pastes
+      if (error) setError("");
+      if (success) setSuccess("");
+      
+      // Focus on last input
+      if (inputRefs.current[5]) {
+        inputRefs.current[5].focus();
+      }
+      
+      // Auto-verify after paste
+      setTimeout(() => {
+        handleVerify(newOtp);
+      }, 100);
     }
   };
 
