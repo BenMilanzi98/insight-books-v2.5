@@ -94,7 +94,7 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
     try {
       // Use provided OTP value or current state, normalize to ensure it's a clean string
       const otpToVerify = otpValue || otp;
-      const otpString = otpToVerify.join("").trim();
+      const otpString = Array.isArray(otpToVerify) ? otpToVerify.join("").trim() : String(otpToVerify).trim();
       
       // Validate OTP format
       if (!/^\d{6}$/.test(otpString)) {
