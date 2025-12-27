@@ -38,23 +38,28 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
     // Allow only digits
     if (!/^\d*$/.test(value)) return;
 
-    // Update OTP state
-    const newOtp = [...otp];
-    newOtp[index] = value;
+    // Only keep the last character (in case multiple characters are pasted)
+    const digit = value.slice(-1);
+
+    // Update OTP state - ensure we're working with an array
+    const currentOtp = Array.isArray(otp) ? otp : ["", "", "", "", "", ""];
+    const newOtp = [...currentOtp];
+    newOtp[index] = digit;
     setOtp(newOtp);
+
+    console.log("Current OTP state:", newOtp, "Full OTP:", newOtp.join(""));
 
     // Clear error and success when user types
     if (error) setError("");
     if (success) setSuccess("");
 
-    // Auto-focus next input
-    if (value && index < 5 && inputRefs.current[index + 1]) {
+    // Auto-focus next input if a digit was entered
+    if (digit && index < 5 && inputRefs.current[index + 1]) {
       inputRefs.current[index + 1].focus();
     }
 
     // Auto-submit when all digits are filled
-    // Use newOtp directly to avoid race condition with state updates
-    if (value && index === 5 && newOtp.every(digit => digit)) {
+    if (digit && index === 5 && newOtp.every(d => d)) {
       // Small delay to ensure state is updated, then verify with the new OTP
       setTimeout(() => {
         handleVerify(newOtp);
@@ -93,8 +98,24 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
 
     try {
       // Use provided OTP value or current state, normalize to ensure it's a clean string
-      const otpToVerify = otpValue || otp;
-      const otpString = Array.isArray(otpToVerify) ? otpToVerify.join("").trim() : String(otpToVerify).trim();
+      let otpString = "";
+      
+      if (otpValue) {
+        // If a value is passed, use it
+        if (Array.isArray(otpValue)) {
+          otpString = otpValue.join("").trim();
+        } else if (typeof otpValue === "string") {
+          otpString = otpValue.trim();
+        } else {
+          otpString = String(otpValue).trim();
+        }
+      } else {
+        // Use current state - ensure it's an array
+        const currentOtp = Array.isArray(otp) ? otp : [];
+        otpString = currentOtp.join("").trim();
+      }
+      
+      console.log("OTP to verify:", otpString, "Length:", otpString.length, "Type:", typeof otpString);
       
       // Validate OTP format
       if (!/^\d{6}$/.test(otpString)) {
