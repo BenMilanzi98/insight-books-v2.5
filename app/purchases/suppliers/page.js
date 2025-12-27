@@ -1776,6 +1776,42 @@ export default function SuppliersPage() {
     setShowForm(false);
     setActiveSupplier(null);
     setSearch("");
+    // Refresh suppliers list
+    refreshSuppliers();
+  };
+
+  const refreshSuppliers = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchSuppliers(search, statusFilter);
+      let sorted = [...(data.suppliers ?? [])];
+      
+      // Sort suppliers
+      sorted.sort((a, b) => {
+        let aVal = a[sortBy] || "";
+        let bVal = b[sortBy] || "";
+        
+        // Handle numeric sorting
+        if (sortBy === "currentBalance" || sortBy === "paymentTerms") {
+          aVal = Number(aVal) || 0;
+          bVal = Number(bVal) || 0;
+        } else {
+          aVal = String(aVal).toLowerCase();
+          bVal = String(bVal).toLowerCase();
+        }
+        
+        if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+      
+      setSuppliers(sorted);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteSupplier = async () => {
@@ -1785,6 +1821,7 @@ export default function SuppliersPage() {
       await deleteSupplier(deletingSupplier.id);
       setDeletingSupplier(null);
       setSearch("");
+      refreshSuppliers();
     } catch (err) {
       console.error(err);
     } finally {
@@ -1801,6 +1838,7 @@ export default function SuppliersPage() {
       await bulkUpdateSuppliers(Array.from(selectedSuppliers), updates);
       setSelectedSuppliers(new Set());
       setSearch("");
+      refreshSuppliers();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -2152,6 +2190,14 @@ export default function SuppliersPage() {
             <option value="active">Active Only</option>
             <option value="inactive">Inactive Only</option>
           </select>
+          <button
+            onClick={refreshSuppliers}
+            disabled={loading}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            title="Refresh supplier list"
+          >
+            {loading ? "Refreshing..." : "🔄"}
+          </button>
         </div>
 
         {selectedSuppliers.size > 0 && (
