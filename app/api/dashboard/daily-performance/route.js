@@ -16,7 +16,11 @@ export async function GET(request) {
     const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'today';
-    const now = new Date();
+
+    // Get current time in Africa/Blantyre timezone (UTC+2)
+    const utc = new Date();
+    const offset = 2 * 60 * 60 * 1000; // Africa/Blantyre is UTC+2
+    const now = new Date(utc.getTime() + offset);
     
     // Calculate date ranges based on the selected timeframe
     let currentPeriodStart, currentPeriodEnd, previousPeriodStart, previousPeriodEnd;
@@ -194,7 +198,7 @@ export async function GET(request) {
       }
     }
     
-    const today = new Date(); // Use actual current date
+    const today = now; // Use Africa/Blantyre time
     const yesterday = previousPeriodStart;
     
     const pastWeek = Array.from({ length: 7 }, (_, i) => {
