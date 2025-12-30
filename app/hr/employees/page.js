@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import DynamicSelect from "@/components/DynamicSelect";
 import { 
   Search, 
   Plus, 
@@ -21,7 +22,7 @@ import {
 } from "lucide-react";
 
 // Employee Form Component
-const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
+const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments = [], relationships = [], onAddDepartment, onAddRelationship }) => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -479,14 +480,16 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                  <input
-                    type="text"
-                    name="department"
+                  <DynamicSelect
                     value={formData.department}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="IT"
+                    onChange={(value) => setFormData(prev => ({ ...prev, department: value }))}
+                    options={departments}
+                    placeholder="Select or add department"
+                    searchPlaceholder="Search departments..."
+                    addNewPlaceholder="Enter new department..."
+                    onAddOption={onAddDepartment}
+                    label="Department"
+                    className=""
                   />
                 </div>
 
@@ -726,14 +729,16 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Relationship</label>
-                  <input
-                    type="text"
-                    name="nextOfKinRelationship"
+                  <DynamicSelect
                     value={formData.nextOfKinRelationship}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus-border-transparent"
-                    placeholder="Sibling"
+                    onChange={(value) => setFormData(prev => ({ ...prev, nextOfKinRelationship: value }))}
+                    options={relationships}
+                    placeholder="Select or add relationship"
+                    searchPlaceholder="Search relationships..."
+                    addNewPlaceholder="Enter new relationship..."
+                    onAddOption={onAddRelationship}
+                    label="Relationship"
+                    className=""
                   />
                 </div>
 
@@ -819,6 +824,19 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting }) => {
 const EmployeeManagement = () => {
   const [employees, setEmployees] = useState([]);
   const [deductions, setDeductions] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [relationships, setRelationships] = useState([
+    "Spouse",
+    "Child",
+    "Parent",
+    "Sibling",
+    "Grandparent",
+    "Grandchild",
+    "In-law",
+    "Cousin",
+    "Friend",
+    "Other"
+  ]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState("All");
   const [filterEmploymentType, setFilterEmploymentType] = useState("All");
@@ -867,6 +885,13 @@ const EmployeeManagement = () => {
       const data = await response.json();
       setEmployees(data.employees || []);
       
+      // Extract unique departments from existing employees
+      const uniqueDepartments = [...new Set((data.employees || [])
+        .map(e => e.department)
+        .filter(d => d && d.trim() !== ""))
+      ].sort();
+      setDepartments(uniqueDepartments);
+      
       // Calculate statistics
       const active = (data.employees || []).filter(e => e.isActive).length;
       const inactive = (data.employees || []).length - active;
@@ -893,6 +918,18 @@ const EmployeeManagement = () => {
       setDeductions(data.deductions || []);
     } catch (error) {
       console.error('Error loading deductions:', error);
+    }
+  };
+
+  const handleAddDepartment = async (newDepartment) => {
+    if (!departments.includes(newDepartment)) {
+      setDepartments(prev => [...prev, newDepartment]);
+    }
+  };
+
+  const handleAddRelationship = async (newRelationship) => {
+    if (!relationships.includes(newRelationship)) {
+      setRelationships(prev => [...prev, newRelationship]);
     }
   };
 
@@ -1056,7 +1093,7 @@ const EmployeeManagement = () => {
     return matchesSearch && matchesDepartment && matchesEmploymentType && matchesStatus;
   });
 
-  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
+  const departmentFilterOptions = [...new Set(employees.map(e => e.department).filter(Boolean))];
 
   return (
     <div className="p-4 sm:p-6">
@@ -1159,7 +1196,7 @@ const EmployeeManagement = () => {
               className="bg-transparent border-none focus:outline-none"
             >
               <option value="All">All Departments</option>
-              {departments.map(dept => (
+              {departmentFilterOptions.map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
@@ -1456,6 +1493,10 @@ const EmployeeManagement = () => {
               onSubmit={handleFormSubmit}
               onCancel={() => setIsFormOpen(false)}
               isSubmitting={isSubmitting}
+              departments={departments}
+              relationships={relationships}
+              onAddDepartment={handleAddDepartment}
+              onAddRelationship={handleAddRelationship}
             />
           </div>
         </div>
