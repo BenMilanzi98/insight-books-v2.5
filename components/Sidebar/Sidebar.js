@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, User, ChevronDown, HelpCircle, LifeBuoy, LogOut, X, ChevronRight } from "lucide-react";
+import { Menu, User, ChevronDown, HelpCircle, LifeBuoy, X, ChevronRight } from "lucide-react";
+import { formatDate } from "@/lib/dateUtils";
+import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 
 // Define navigation sections with permissions
 const navigationByPermission = {
@@ -45,9 +47,9 @@ const navigationByPermission = {
     {
       label: "Accounting",
       items: [
-        // { 
-        //   href: "/financial-setup", 
-        //   icon: "💼", 
+        // {
+        //   href: "/financial-setup",
+        //   icon: "💼",
         //   text: "Financial Setup",
         //   expandable: true,
         //   subItems: [
@@ -57,24 +59,25 @@ const navigationByPermission = {
         { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts" },
         { href: "/journal-entries", icon: "✏️", text: "Journal Entries" },
         { href: "/trial-balance", icon: "⚖️", text: "Trial Balance" },
+        { href: "/capital-account", icon: "💰", text: "Capital Account" },
       ],
     },
     {
       label: "Core Features",
       items: [
-        { href: "/clients", icon: "🤵", text: "Client Management" },
         { href: "/pos", icon: "🧾", text: "POS" },
         { href: "/quotations", icon: "📄", text: "Quotations" },
         { href: "/invoice", icon: "📝", text: "Invoicing", badge: "3" },
         { href: "/expenses", icon: "💸", text: "Expense Tracking" },
         { href: "/payments", icon: "💳", text: "Payment Processing" },
         { href: "/reports", icon: "📊", text: "Financial Reporting" },
+        { href: "/clients", icon: "🤵", text: "Client Management" },
       ],
     },
       {
         label: "Additional Modules",
         items: [
-          { href: "/inventory", icon: "📦", text: "Inventory Management" },
+          { href: "/inventory", icon: "📦", text: "Stock Management" },
           {
             href: "/purchases/suppliers",
             icon: "🛒",
@@ -166,8 +169,7 @@ const navigationByPermission = {
       //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
       //   ]
       // },
-      { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts", permission: "reports.view" },
-      { href: "/journal-entries", icon: "✏️", text: "Journal Entries", permission: "reports.view" },
+      { href: "/capital-account", icon: "💰", text: "Capital Account" },
       { href: "/trial-balance", icon: "⚖️", text: "Trial Balance", permission: "reports.view" },
     ]
   },
@@ -175,7 +177,7 @@ const navigationByPermission = {
   inventory: {
     label: "Inventory",
     items: [
-      { href: "/inventory", icon: "📦", text: "Inventory Management", permission: "inventory.view" },
+      { href: "/inventory", icon: "📦", text: "Stock Management", permission: "inventory.view" },
     ]
   },
   assets: {
@@ -254,11 +256,11 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
   const pathname = usePathname();
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
   const [expandedItems, setExpandedItems] = useState([]);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isUserLoading, setIsUserLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isTrialActive, setIsTrialActive] = useState(false);
+  const [subscription, setSubscription] = useState(null);
   
   // Fetch current user with loading state
   useEffect(() => {
@@ -294,12 +296,13 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         if (response.ok) {
           const data = await response.json();
           setIsTrialActive(data.isTrialActive || false);
+          setSubscription(data.subscription);
         }
       } catch (error) {
         console.error('Error fetching subscription status:', error);
       }
     };
-    
+
     fetchSubscriptionStatus();
   }, []);
   
@@ -308,13 +311,13 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
     };
-    
+
     // Set initial width
     if (typeof window !== 'undefined') {
       setWindowWidth(window.innerWidth);
       window.addEventListener('resize', handleResize);
     }
-    
+
     // Cleanup
     return () => {
       if (typeof window !== 'undefined') {
@@ -322,6 +325,26 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       }
     };
   }, []);
+
+  // Keyboard shortcut for sidebar toggle (Ctrl/Cmd + B)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 'b') {
+        event.preventDefault();
+        toggleSidebar();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+  }, [toggleSidebar]);
 
   // Find active path and expand parent if needed
   useEffect(() => {
@@ -367,92 +390,80 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Dashboard is always included
     sections.push(navigationByPermission.dashboard);
     
-    // Create a business management section if user has access to any of these
-    const businessItems = [];
-    // Add User & Role Management if user has permission
-    if (hasPermission(user.role.permissions, "users.view")) {
-      businessItems.push({ 
-        href: "/users", 
-        icon: "👥", 
-        text: "User & Role Management" 
-      });
-    }
-    
-    // if (hasPermission(user.role.permissions, "system.view")) {
-    //   businessItems.push({ 
-    //     href: "/customization", 
-    //     icon: "🎨", 
-    //     text: "System Customization" 
-    //   });
-    // }
-    
-    // Add Business Management section if there are any items
-    if (businessItems.length > 0) {
-      sections.push({
-        label: "Business Management",
-        items: businessItems
-      });
-    }
-    
-
     
     // Create a Core Features section based on permissions
     const coreItems = [];
     
     // Add items based on permissions
-    if (hasPermission(user.role.permissions, "clients.view")) {
-      coreItems.push({ 
-        href: "/clients", 
-        icon: "🤵", 
-        text: "Client Management" 
-      });
-    }
-    
     if (hasPermission(user.role.permissions, "sales.view")) {
-    
-      coreItems.push({ 
-        href: "/pos", 
-        icon: "🧾", 
-        text: "POS" 
+
+      coreItems.push({
+        href: "/pos",
+        icon: "🧾",
+        text: "POS"
       });
     }
-    if (hasPermission(user.role.permissions, "quotations.view")) {       
-    
-      coreItems.push({ 
-        href: "/quotations", 
-        icon: "📄", 
-        text: "Quotations" 
+    if (hasPermission(user.role.permissions, "quotations.view")) {
+
+      coreItems.push({
+        href: "/quotations",
+        icon: "📄",
+        text: "Quotations"
       });
     }
     if (hasPermission(user.role.permissions, "invoices.view")) {
-    
-      coreItems.push({ 
-        href: "/invoice", 
-        icon: "📝", 
-        text: "Invoicing", 
-        badge: "" 
+
+      coreItems.push({
+        href: "/invoice",
+        icon: "📝",
+        text: "Invoicing",
+        badge: ""
       });
     }
-    
+
     if (hasPermission(user.role.permissions, "expenses.view")) {
-      coreItems.push({ 
-        href: "/expenses", 
-        icon: "💸", 
-        text: "Expense Tracking" 
+      coreItems.push({
+        href: "/expenses",
+        icon: "💸",
+        text: "Expense Tracking"
       });
     }
-    
+
+    if (hasPermission(user.role.permissions, "payments.view")) {
+      coreItems.push({
+        href: "/payments",
+        icon: "💳",
+        text: "Payment Processing"
+      });
+    }
+
+    if (hasPermission(user.role.permissions, "reports.view")) {
+      coreItems.push({
+        href: "/reports",
+        icon: "📊",
+        text: "Financial Reporting"
+      });
+    }
+
+    if (hasPermission(user.role.permissions, "clients.view")) {
+      coreItems.push({
+        href: "/clients",
+        icon: "🤵",
+        text: "Client Management"
+      });
+    }
+
     // Always show Asset & Liability Management (no permission check for now)
-    coreItems.push({ 
-      href: "/asset-management", 
-      icon: "🏗️", 
-      text: "Assets & Liabilities" 
+    coreItems.push({
+      href: "/asset-management",
+      icon: "🏗️",
+      text: "Assets & Liabilities"
     });
-    
+
     if (hasPermission(user.role.permissions, "hr.view")) {
-      coreItems.push({ 
-        href: "/hr", 
-        icon: "👨‍💼", 
+      coreItems.push({
+        href: "/hr",
+        icon: "👨‍💼",
         text: "HR & Payroll",
         expandable: true,
         subItems: [
@@ -462,22 +473,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/hr/payroll", text: "Payroll Processing" },
           { href: "/hr/reports", text: "HR Reports" }
         ]
-      });
-    }
-
-    if (hasPermission(user.role.permissions, "payments.view")) {
-      coreItems.push({ 
-        href: "/payments", 
-        icon: "💳", 
-        text: "Payment Processing" 
-      });
-    }
-    
-    if (hasPermission(user.role.permissions, "reports.view")) {
-      coreItems.push({ 
-        href: "/reports", 
-        icon: "📊", 
-        text: "Financial Reporting" 
       });
     }
     
@@ -493,10 +488,10 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     const additionalItems = [];
     
     if (hasPermission(user.role.permissions, "inventory.view")) {
-      additionalItems.push({ 
-        href: "/inventory", 
-        icon: "📦", 
-        text: "Inventory Management" 
+      additionalItems.push({
+        href: "/inventory",
+        icon: "📦",
+        text: "Stock Management"
       });
     }
 
@@ -515,22 +510,23 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     
     // HR Module temporarily commented out
 
+
     
     // // Add more additional modules based on permissions
     // if (hasPermission(user.role.permissions, "invoices.view")) {
-    //   additionalItems.push({ 
-    //     href: "/pos", 
-    //     icon: "🧾", 
-    //     text: "Point of Sale (POS)" 
+    //   additionalItems.push({
+    //     href: "/pos",
+    //     icon: "🧾",
+    //     text: "Point of Sale (POS)"
     //   });
     // }
     
     if (hasPermission(user.role.permissions, "tax.view")) {
    
-      additionalItems.push({ 
-        href: "/tax-management", 
-        icon: "📑", 
-        text: "Tax Management" 
+      additionalItems.push({
+        href: "/tax-management",
+        icon: "📑",
+        text: "Tax Management"
       });
     }
     
@@ -548,34 +544,35 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     ) {
       sections.push(navigationByPermission.accounting);
     }
-    // Add Legal section (always visible)
-    sections.push({
-      label: "Legal",
-      items: [
-        { href: "/terms", icon: "📄", text: "Terms of Service" },
-        { href: "/privacy", icon: "🔒", text: "Privacy Policy" },
-      ]
-    });
     
+    // Create a business management section if user has access to any of these
+    const businessItems = [];
+    // Add User & Role Management if user has permission
+    if (hasPermission(user.role.permissions, "users.view")) {
+      businessItems.push({
+        href: "/users",
+        icon: "👥",
+        text: "User & Role Management"
+      });
+    }
+
+    // if (hasPermission(user.role.permissions, "system.view")) {
+    //   businessItems.push({
+    //     href: "/customization",
+    //     icon: "🎨",
+    //     text: "System Customization"
+    //   });
+    // }
+
+    // Add Business Management section if there are any items
+    if (businessItems.length > 0) {
+      sections.push({
+        label: "Business Management",
+        items: businessItems
+      });
+    }
     // Only show accounting section if user has reports view permission
 
-        // Add Subscription section for trial users and account management
-        sections.push({
-          label: "Account & Billing",
-          items: [
-            { 
-              href: "/subscription", 
-              icon: "👑", 
-              text: "Subscription & Billing",
-              badge: isTrialActive ? "Trial" : null
-            },
-            { 
-              href: "/profile", 
-              icon: "👤", 
-              text: "Profile Settings" 
-            },
-          ]
-        });
     return sections;
   };
   
@@ -589,35 +586,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
   };
 
   const isExpanded = (href) => expandedItems.includes(href);
-  
-  const handleLogout = async (e) => {
-    e.preventDefault();
-    if (isLoggingOut) return;
-    
-    setIsLoggingOut(true);
-    
-    try {
-      // Call the logout API
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error('Logout failed');
-      }
-      
-      // Redirect to login page
-      router.push('/auth/login');
-      router.refresh();
-    } catch (error) {
-      console.error('Error logging out:', error);
-      // Still redirect to login even if there's an error
-      router.push('/auth/login');
-    }
-  };
 
   // Get the navigation sections based on user permissions
   const navSections = getNavigationSections();
@@ -823,140 +791,341 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
   }
   
   return (
-    <div 
-      className={`sidebar ${collapsed ? "collapsed" : ""}`}
-      style={{
-        width: collapsed ? "80px" : "280px",
-        height: "100vh",
-        backgroundColor: "#1a202c",
-        color: "white",
-        display: "flex",
-        flexDirection: "column",
-        transition: "width 0.3s ease-in-out",
-        position: isMobile ? "fixed" : "fixed",
-        top: 0,
-        left: 0,
-        zIndex: 100,
-        overflow: "hidden"
-      }}
-    >
+    <>
+      {/* Mobile Overlay */}
+      {isMobile && !collapsed && (
+        <div
+          className="sidebar-overlay"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            backdropFilter: "blur(4px)",
+            zIndex: 99,
+            animation: "fadeIn 0.3s ease-out"
+          }}
+          onClick={toggleSidebar}
+        />
+      )}
+
+      <div
+        className={`sidebar ${collapsed ? "collapsed" : ""}`}
+        style={{
+          width: collapsed ? "80px" : "280px",
+          height: "100vh",
+          backgroundColor: "#1a202c",
+          background: "linear-gradient(180deg, #1a202c 0%, #2d3748 100%)",
+          color: "white",
+          display: "flex",
+          flexDirection: "column",
+          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          position: isMobile ? "fixed" : "fixed",
+          top: 0,
+          left: 0,
+          zIndex: 100,
+          overflow: "hidden",
+          boxShadow: collapsed
+            ? "2px 0 8px rgba(0, 0, 0, 0.1)"
+            : "4px 0 24px rgba(0, 0, 0, 0.15)",
+          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+          animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+        }}
+      >
       <div className="sidebar-header" style={{
         display: "flex",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: collapsed ? "center" : "space-between",
         padding: "16px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)"
+        borderBottom: "1px solid rgba(255,255,255,0.1)",
+        position: "relative"
       }}>
+        {!collapsed && (
+          <div className="flex items-center">
+            <img src="/logo.png" alt="InsightBooks Logo" className="h-11 w-auto object-contain rounded-md"/>
+          </div>
+        )}
 
-          <div className="flex items-center"><img src="/logo.png" alt="InsightBooks Logo" className="h-11 w-auto object-contain rounded-md"/></div>
-  
+        {/* Sidebar Toggle Button */}
+        <button
+          onClick={toggleSidebar}
+          className="sidebar-toggle-btn"
+          style={{
+            backgroundColor: "rgba(255, 255, 255, 0.1)",
+            border: "1px solid rgba(255, 255, 255, 0.2)",
+            borderRadius: "8px",
+            padding: "8px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.2s ease",
+            color: "white",
+            minWidth: "36px",
+            minHeight: "36px"
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = "rgba(49, 130, 206, 0.2)";
+            e.target.style.borderColor = "rgba(49, 130, 206, 0.4)";
+            e.target.style.transform = "scale(1.05)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
+            e.target.style.borderColor = "rgba(255, 255, 255, 0.2)";
+            e.target.style.transform = "scale(1)";
+          }}
+          title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        >
+          {collapsed ? (
+            <Menu size={18} />
+          ) : (
+            <X size={18} />
+          )}
+        </button>
       </div>
 
-      <div className="user-section" style={{
-        display: "flex",
-        alignItems: "center",
-        padding: "16px",
-        gap: "12px",
-        borderBottom: "1px solid rgba(255,255,255,0.1)"
-      }}>
-        {/* Avatar is always displayed, not part of loading state */}
-        <div className="user-avatar" style={{
-          backgroundColor: "#3182ce",
+      {/* Business Name Display */}
+      {!collapsed && user?.tenant && (
+        <Link
+          href="/switch-tenant"
+          className="business-name-section"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "16px",
+            gap: "12px",
+            borderBottom: "1px solid rgba(255,255,255,0.1)",
+            textDecoration: "none",
+            color: "inherit",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+            borderRadius: "12px",
+            margin: "8px 8px 0 8px",
+            background: "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)",
+            border: "1px solid rgba(107, 114, 128, 0.15)"
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.backgroundColor = "rgba(107, 114, 128, 0.15)";
+            e.target.style.transform = "translateY(-2px) scale(1.02)";
+            e.target.style.boxShadow = "0 6px 20px rgba(107, 114, 128, 0.25)";
+            e.target.style.borderColor = "rgba(107, 114, 128, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.backgroundColor = "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)";
+            e.target.style.transform = "translateY(0) scale(1)";
+            e.target.style.boxShadow = "none";
+            e.target.style.borderColor = "rgba(107, 114, 128, 0.15)";
+          }}
+        >
+          {/* Business Icon */}
+          <div className="business-icon" style={{
+            backgroundColor: "#6b7280",
+            color: "white",
+            width: "40px",
+            height: "40px",
+            borderRadius: "10px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "18px",
+            boxShadow: "0 2px 8px rgba(107, 114, 128, 0.3)",
+            transition: "all 0.2s ease"
+          }}>
+            🏢
+          </div>
+          
+          <div className="business-info" style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: "2px"
+          }}>
+            <div className="business-name" style={{
+              fontSize: "13px",
+              color: "#d1d5db",
+              fontWeight: "600",
+              marginBottom: "2px"
+            }}>
+              {user.tenant.name}
+            </div>
+          </div>
+        </Link>
+      )}
+
+      <Link
+        href="/subscription"
+        className="user-section-link"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "16px",
+          gap: "12px",
+          borderBottom: "1px solid rgba(255,255,255,0.1)",
+          textDecoration: "none",
+          color: "inherit",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          borderRadius: "12px",
+          margin: "8px 8px 0 8px",
+          background: subscription?.isTrial
+            ? "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)"
+            : "linear-gradient(135deg, rgba(49, 130, 206, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)",
+          border: subscription?.isTrial
+            ? "1px solid rgba(251, 191, 36, 0.2)"
+            : "1px solid rgba(49, 130, 206, 0.15)"
+        }}
+        onMouseEnter={(e) => {
+          e.target.style.backgroundColor = subscription?.isTrial
+            ? "rgba(251, 191, 36, 0.15)"
+            : "rgba(49, 130, 206, 0.15)";
+          e.target.style.transform = "translateY(-2px) scale(1.02)";
+          e.target.style.boxShadow = subscription?.isTrial
+            ? "0 6px 20px rgba(251, 191, 36, 0.25)"
+            : "0 6px 20px rgba(49, 130, 206, 0.25)";
+          e.target.style.borderColor = subscription?.isTrial
+            ? "rgba(251, 191, 36, 0.4)"
+            : "rgba(49, 130, 206, 0.3)";
+        }}
+        onMouseLeave={(e) => {
+          e.target.style.backgroundColor = subscription?.isTrial
+            ? "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)"
+            : "linear-gradient(135deg, rgba(49, 130, 206, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)";
+          e.target.style.transform = "translateY(0) scale(1)";
+          e.target.style.boxShadow = "none";
+          e.target.style.borderColor = subscription?.isTrial
+            ? "rgba(251, 191, 36, 0.2)"
+            : "rgba(49, 130, 206, 0.15)";
+        }}
+      >
+        {/* Subscription Icon */}
+        <div className="subscription-icon" style={{
+          backgroundColor: subscription?.isTrial ? "#f59e0b" : "#3b82f6",
           color: "white",
           width: "40px",
           height: "40px",
-          borderRadius: "50%",
+          borderRadius: "10px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontWeight: "bold",
-          fontSize: "14px"
+          fontSize: "18px",
+          boxShadow: subscription?.isTrial
+            ? "0 2px 8px rgba(245, 158, 11, 0.3)"
+            : "0 2px 8px rgba(59, 130, 246, 0.3)",
+          transition: "all 0.2s ease"
         }}>
-          {/* {isUserLoading ? "U" : getInitials(user?.name)} */}
-            {isUserLoading ? (
-              "U"
-            ) : user?.tenant?.logoUrl ? (
-              <img 
-                src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
-                  ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
-                  : user.tenant.logoUrl} 
-                alt="Logo"
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "cover",
-                  borderRadius: "50%"
-                }}
-              />
-            ) : (
-              getInitials(user?.name)
-            )}
+          {subscription?.isTrial ? "⏰" : "👑"}
         </div>
         
         {!collapsed && (
-          <div className="user-info" style={{
-            flex: 1
+          <div className="subscription-info" style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px"
           }}>
             {isUserLoading ? (
-              // Only name and role are in loading state
+              // Loading state
               <>
-                <div style={{ 
-                  width: "100px", 
-                  height: "14px", 
+                <div style={{
+                  width: "100px",
+                  height: "16px",
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  borderRadius: "6px",
+                  animation: "pulse 1.5s infinite ease-in-out",
+                  marginBottom: "4px"
+                }}></div>
+                <div style={{
+                  width: "80px",
+                  height: "14px",
                   backgroundColor: "rgba(255, 255, 255, 0.1)",
                   borderRadius: "4px",
                   animation: "pulse 1.5s infinite ease-in-out",
-                  marginBottom: "8px"
+                  marginBottom: "4px"
                 }}></div>
-                <div style={{ 
-                  width: "80px", 
-                  height: "12px", 
+                <div style={{
+                  width: "90px",
+                  height: "12px",
                   backgroundColor: "rgba(255, 255, 255, 0.1)",
                   borderRadius: "4px",
                   animation: "pulse 1.5s infinite ease-in-out"
                 }}></div>
               </>
             ) : (
-              // Name and role loaded
+              // Subscription info loaded
               <>
-                <div className="user-name" style={{
+                <div className="subscription-header" style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  marginBottom: "2px"
+                }}>
+                  <span className="subscription-label" style={{
+                    fontWeight: "700",
+                    fontSize: "15px",
+                    color: "white",
+                    letterSpacing: "0.5px"
+                  }}>Subscription</span>
+                  {subscription?.isTrial && (
+                    <span className="trial-badge" style={{
+                      backgroundColor: "#f59e0b",
+                      color: "#92400e",
+                      fontSize: "9px",
+                      fontWeight: "700",
+                      padding: "2px 6px",
+                      borderRadius: "8px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px"
+                    }}>Trial</span>
+                  )}
+                </div>
+
+                <div className="subscription-plan" style={{
+                  fontSize: "13px",
+                  color: subscription?.isTrial ? "#fbbf24" : "#60a5fa",
                   fontWeight: "600",
-                  fontSize: "14px"
-                }}>{user?.name || 'User'}</div>
-                <div className="user-role" style={{
-                  fontSize: "12px",
-                  color: "rgba(255,255,255,0.7)"
-                }}>{user?.role?.name || 'User'}</div>
-                
-                {/* Business Name Display */}
-                {user?.tenant?.name && (
-                  <div className="business-name" style={{
+                  marginBottom: "2px"
+                }}>
+                  {subscription?.isTrial ? 'Free Trial Active' : getPlanDisplayName(subscription?.plan) || 'No Active Plan'}
+                </div>
+
+                {/* Next Payment Date Display */}
+                {(subscription?.isTrial || subscription?.expiresAt) && (
+                  <div className="next-payment-date" style={{
                     fontSize: "11px",
-                    color: "rgba(255,255,255,0.6)",
-                    marginTop: "2px",
-                    fontWeight: "500"
-                  }}>
-                    {user.tenant.name}
-                  </div>
-                )}
-                
-                {user?.role?.name === 'MASTER_ADMIN' && (
-                  <div className="tenant-selector" style={{
-                    marginTop: "4px",
+                    color: "rgba(255,255,255,0.75)",
+                    fontWeight: "500",
                     display: "flex",
                     alignItems: "center",
-                    fontSize: "12px",
-                    color: "rgba(255,255,255,0.5)"
+                    gap: "4px"
+                  }}>
+                    <span style={{ fontSize: "10px", opacity: 0.8 }}>⏰</span>
+                    {subscription?.isTrial ? 'Ends' : 'Renews'}: {formatDate(subscription?.isTrial ? subscription?.trialEndDate : subscription?.expiresAt)}
+                  </div>
+                )}
+
+                {user?.role?.name === 'MASTER_ADMIN' && (
+                  <div className="tenant-selector" style={{
+                    marginTop: "6px",
+                    display: "flex",
+                    alignItems: "center",
+                    fontSize: "11px",
+                    color: "rgba(255,255,255,0.6)",
+                    padding: "4px 8px",
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderRadius: "6px",
+                    border: "1px solid rgba(255,255,255,0.1)"
                   }}>
                     <span>Switch Business Owner</span>
-                    <ChevronDown size={14} style={{ marginLeft: "4px" }} />
+                    <ChevronDown size={12} style={{ marginLeft: "4px" }} />
                   </div>
                 )}
               </>
             )}
           </div>
         )}
-      </div>
+      </Link>
 
       <div className="nav-content" style={{
         flex: 1,
@@ -982,20 +1151,37 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                 <div key={`item-${sIndex}-${iIndex}`}>
                   {item.expandable ? (
                     <div>
-                      <div 
+                      <div
                         className={`nav-item ${isActive(item.href) ? "active" : ""}`}
                         onClick={() => !collapsed && toggleExpand(item.href)}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          padding: "10px 16px",
+                          padding: "12px 16px",
+                          margin: "2px 8px",
                           color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
                           backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
                           borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
                           gap: "12px",
                           position: "relative",
-                          transition: "all 0.2s ease",
-                          cursor: "pointer"
+                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                          cursor: "pointer",
+                          borderRadius: "8px",
+                          border: "1px solid transparent"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive(item.href)) {
+                            e.target.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
+                            e.target.style.borderColor = "rgba(49, 130, 206, 0.2)";
+                            e.target.style.transform = "translateX(4px)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive(item.href)) {
+                            e.target.style.backgroundColor = "transparent";
+                            e.target.style.borderColor = "transparent";
+                            e.target.style.transform = "translateX(0)";
+                          }
                         }}
                       >
                         <span className="nav-icon" style={{
@@ -1041,20 +1227,37 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                       )}
                     </div>
                   ) : (
-                    <Link 
-                      href={item.href} 
+                    <Link
+                      href={item.href}
                       className={`nav-item ${isActive(item.href) ? "active" : ""}`}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        padding: "10px 16px",
+                        padding: "12px 16px",
+                        margin: "2px 8px",
                         textDecoration: "none",
                         color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
                         backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
                         borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
                         gap: "12px",
                         position: "relative",
-                        transition: "all 0.2s ease"
+                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                        borderRadius: "8px",
+                        border: "1px solid transparent"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive(item.href)) {
+                          e.target.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
+                          e.target.style.borderColor = "rgba(49, 130, 206, 0.2)";
+                          e.target.style.transform = "translateX(4px)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive(item.href)) {
+                          e.target.style.backgroundColor = "transparent";
+                          e.target.style.borderColor = "transparent";
+                          e.target.style.transform = "translateX(0)";
+                        }
                       }}
                     >
                       <span className="nav-icon" style={{
@@ -1086,82 +1289,35 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           </div>
         ))}
       </div>
+</div>
 
-      {!collapsed && (
-        <div className="sidebar-footer" style={{
-          padding: "16px",
-          borderTop: "1px solid rgba(255,255,255,0.1)",
-          fontSize: "12px"
-        }}>
-          <div className="app-version" style={{
-            color: "rgba(255,255,255,0.5)",
-            marginBottom: "8px"
-          }}>InsightBooks v1.2.0</div>
-          <div className="footer-links" style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px"
-          }}>
-            <a 
-              href="#" 
-              onClick={handleLogout}
-              className="footer-link" 
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                color: "rgba(255,255,255,0.7)",
-                textDecoration: "none"
-              }}
-            >
-              <LogOut size={14} className="footer-icon" /> {isLoggingOut ? 'Logging out...' : 'Logout'}
-            </a>
-          </div>
-        </div>
-      )}
+<style dangerouslySetInnerHTML={{
+  __html: `
+    @keyframes slideIn {
+      from {
+        transform: translateX(-100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
 
-      {/* Collapsed footer with logout only */}
-      {collapsed && (
-        <div className="sidebar-footer-collapsed" style={{
-          padding: "16px 8px",
-          borderTop: "1px solid rgba(255,255,255,0.1)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "8px",
-          alignItems: "center"
-        }}>
-          <a 
-            href="#" 
-            onClick={handleLogout}
-            className="footer-link" 
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "40px",
-              height: "40px",
-              color: "rgba(255,255,255,0.7)",
-              textDecoration: "none",
-              borderRadius: "8px",
-              fontSize: "16px"
-            }}
-            title="Logout"
-          >
-            <LogOut size={16} />
-          </a>
-        </div>
-      )}
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
 
-      {/* Animation for skeletons */}
-      <style jsx>{`
-        @keyframes pulse {
-          0% { opacity: 0.6; }
-          50% { opacity: 1; }
-          100% { opacity: 0.6; }
-        }
-      `}</style>
-    </div>
-  );
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+  `
+}} />
+</>
+);
 };
 
 export default Sidebar;

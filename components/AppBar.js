@@ -122,8 +122,8 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
         gap: "16px" 
       }}>
         {isMobile && (
-          <button 
-            onClick={toggleSidebar} 
+          <button
+            onClick={toggleSidebar}
             aria-label="Toggle menu"
             style={{
               background: "none",
@@ -135,11 +135,46 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             <Menu size={24} />
           </button>
         )}
-        
-        <h1 className="page-title" style={{ 
-          fontSize: isMobile ? "16px" : "20px", 
-          fontWeight: 600, 
-          margin: 0, 
+
+        {!isMobile && (
+          <button
+            onClick={toggleSidebar}
+            title={sidebarOpen ? "Close Sidebar (Ctrl+B)" : "Open Sidebar (Ctrl+B)"}
+            style={{
+              backgroundColor: sidebarOpen ? "#6b7280" : "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              padding: "8px 12px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "14px",
+              fontWeight: "500",
+              boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = sidebarOpen ? "#4b5563" : "#1d4ed8";
+              e.target.style.transform = "translateY(-1px)";
+              e.target.style.boxShadow = "0 4px 8px rgba(37, 99, 235, 0.3)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = sidebarOpen ? "#6b7280" : "#2563eb";
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 2px 4px rgba(37, 99, 235, 0.2)";
+            }}
+          >
+            <Menu size={16} />
+            <span>{sidebarOpen ? "Close" : "Open"} Sidebar</span>
+          </button>
+        )}
+
+        <h1 className="page-title" style={{
+          fontSize: isMobile ? "16px" : "20px",
+          fontWeight: 600,
+          margin: 0,
           color: "#333"
         }}>
           {getPageTitle()}
@@ -609,9 +644,9 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                   </Link>
                   
                   <div style={{ height: "1px", backgroundColor: "#e0e0e0", margin: "8px 0" }}></div>
-                  
-                  <Link 
-                    href="/help" 
+
+                  <Link
+                    href="/terms"
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -622,9 +657,25 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       transition: "background-color 0.2s"
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>❓</span>
-                    <span>Help Center</span>
+                    <span style={{ fontSize: "16px", opacity: "0.8" }}>📄</span>
+                    <span>Terms of Service</span>
                   </Link>
+                  <Link
+                    href="/privacy"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "10px 16px",
+                      color: "#333",
+                      textDecoration: "none",
+                      transition: "background-color 0.2s"
+                    }}
+                  >
+                    <span style={{ fontSize: "16px", opacity: "0.8" }}>🔒</span>
+                    <span>Privacy Policy</span>
+                  </Link>
+
                   <button
                     onClick={async() => {
                         await fetch("/api/auth/logout", {

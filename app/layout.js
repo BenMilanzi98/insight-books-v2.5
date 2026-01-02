@@ -88,7 +88,7 @@ export default function RootLayout({ children }) {
                 boxShadow: sidebarOpen ? "2px 0 5px rgba(0,0,0,0.1)" : "none",
               }}
             >
-              <Sidebar collapsed={!sidebarOpen} setCollapsed={() => setSidebarOpen(false)} />
+              <Sidebar collapsed={!sidebarOpen} toggleSidebar={toggleSidebar} />
             </div>
           )}
 

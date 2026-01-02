@@ -945,7 +945,7 @@ const defaultConfig = {
   filters: {
     status: {
       enabled: true,
-      options: ["all", "active", "inactive", "pending"]
+      options: ["all", "active", "inactive", "deleted", "pending"]
     },
     role: {
       enabled: true
@@ -1010,21 +1010,25 @@ const defaultConfig = {
   
   // Status configuration
   statusConfig: {
-    active: { 
-      color: "bg-emerald-100 text-emerald-800", 
-      icon: <CheckCircle size={14} className="mr-1" /> 
+    active: {
+      color: "bg-emerald-100 text-emerald-800",
+      icon: <CheckCircle size={14} className="mr-1" />
     },
-    inactive: { 
-      color: "bg-gray-100 text-gray-800", 
-      icon: <XCircle size={14} className="mr-1" /> 
+    inactive: {
+      color: "bg-gray-100 text-gray-800",
+      icon: <XCircle size={14} className="mr-1" />
     },
-    pending: { 
-      color: "bg-amber-100 text-amber-800", 
-      icon: <AlertCircle size={14} className="mr-1" /> 
+    deleted: {
+      color: "bg-red-100 text-red-800",
+      icon: <XCircle size={14} className="mr-1" />
     },
-    default: { 
-      color: "bg-gray-100 text-gray-800", 
-      icon: <AlertCircle size={14} className="mr-1" /> 
+    pending: {
+      color: "bg-amber-100 text-amber-800",
+      icon: <AlertCircle size={14} className="mr-1" />
+    },
+    default: {
+      color: "bg-gray-100 text-gray-800",
+      icon: <AlertCircle size={14} className="mr-1" />
     }
   },
   
@@ -1047,7 +1051,7 @@ const defaultConfig = {
         { key: "email", label: "Email Address", type: "email", required: true, fullWidth: true },
         { key: "role", label: "Role", type: "select", options: "roles", required: true },
         { key: "department", label: "Department", type: "text" },
-        { key: "status", label: "Status", type: "select", options: ["active", "inactive", "pending"], defaultValue: "active" },
+        { key: "status", label: "Status", type: "select", options: ["active", "inactive", "deleted", "pending"], defaultValue: "active" },
         { key: "sendEmail", label: "Send Welcome Email", type: "toggle", defaultValue: true }
       ]
     },
@@ -2104,7 +2108,7 @@ const toggleModulePermissions = (module) => {
   
   // Handle delete user
   const handleDeleteUser = async (userId) => {
-    if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+    if (!confirm("Are you sure you want to delete this user? The user will be deactivated but all their records will be preserved.")) {
       return;
     }
     
@@ -3381,6 +3385,7 @@ const toggleModulePermissions = (module) => {
               >
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
+                <option value="deleted">Deleted</option>
                 <option value="pending">Pending</option>
               </select>
             </div>

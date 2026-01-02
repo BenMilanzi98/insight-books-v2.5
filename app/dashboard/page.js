@@ -1,45 +1,33 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Calendar, 
-  CreditCard, 
-  Users, 
-  FileText, 
-  ShoppingCart, 
-  BarChart3, 
-  Bell, 
+import {
+  ArrowUpRight,
+  ArrowDownRight,
+  Calendar,
+  CreditCard,
+  FileText,
+  ShoppingCart,
+  BarChart3,
+  Bell,
   ChevronRight,
   ChevronLeft,
-  MoreHorizontal,
   Clock,
   DollarSign,
-  CheckCircle2,
   AlertCircle,
-  Filter,
   ArrowUp,
   ArrowDown,
   TrendingUp,
   TrendingDown,
   Activity,
   ArrowRight,
-  X,
   Building,
   Package,
   AlertTriangle,
   CheckCircle,
   XCircle,
-  Plus,
-  Eye,
   Download,
-  BarChart,
-  PieChart,
   Settings,
-  ChevronDown,
-  ChevronUp,
-  Search,
   RefreshCw,
   Wallet
 } from "lucide-react";
@@ -412,14 +400,13 @@ const BusinessOwnerDashboard = () => {
   const [payables, setPayables] = useState(null);
   const [incomeExpenses, setIncomeExpenses] = useState(null);
   const [expensesBreakdown, setExpensesBreakdown] = useState(null);
-  const [recentInvoices, setRecentInvoices] = useState(null);
   const [upcomingPayments, setUpcomingPayments] = useState(null);
   const [financialPosition, setFinancialPosition] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({
     canViewDashboard: false,
-    canViewInvoices: false  
+    canViewInvoices: false
   });
   
   // State for user subscription data
@@ -575,17 +562,15 @@ const BusinessOwnerDashboard = () => {
 
       // Fetch all dashboard data using actual API endpoints
       // Note: Daily Performance should ALWAYS show "Today" data regardless of selected date range
-      const [metricsData, dailyPerformanceData, receivablesData, payablesData, incomeExpensesData, expensesBreakdownData, recentInvoicesData, upcomingPaymentsData, stockAlertsData, transactionsData, financialPositionData] = await Promise.all([
+      const [metricsData, dailyPerformanceData, receivablesData, payablesData, incomeExpensesData, expensesBreakdownData, upcomingPaymentsData, stockAlertsData, financialPositionData] = await Promise.all([
         safeFetch(buildApiUrl('/api/dashboard/metrics')),
         safeFetch('/api/dashboard/daily-performance?dateRange=today'), // Always fetch today's data
         safeFetch(buildApiUrl('/api/dashboard/receivables')),
         safeFetch(buildApiUrl('/api/dashboard/payables')),
         safeFetch(buildApiUrl('/api/dashboard/income-expenses')),
         safeFetch(buildApiUrl('/api/dashboard/expenses-breakdown')),
-        safeFetch(buildApiUrl('/api/dashboard/recent-invoices')),
         safeFetch(buildApiUrl('/api/dashboard/upcoming-payments')),
         safeFetch(buildApiUrl('/api/dashboard/stock-alerts')),
-        safeFetch(buildApiUrl('/api/dashboard/transactions')),
         safeFetch(buildApiUrl('/api/dashboard/financial-position'))
       ]);
 
@@ -596,18 +581,15 @@ const BusinessOwnerDashboard = () => {
       setPayables(payablesData.accountsPayable);
       setIncomeExpenses(incomeExpensesData.incomeExpenses);
       setExpensesBreakdown(expensesBreakdownData.expensesBreakdown);
-      setRecentInvoices(recentInvoicesData.recentInvoices);
       setUpcomingPayments(upcomingPaymentsData.upcomingPayments);
       setFinancialPosition(financialPositionData.financialPosition);
-      
-      // Debug transactions data
-      console.log('Transactions API Response:', transactionsData);
+
+      // Debug data
       console.log('Stock Alerts API Response:', stockAlertsData);
        console.log('Receivables API Response:', receivablesData);
        console.log('Payables API Response:', payablesData);
-      
+
       setStockAlerts(stockAlertsData.alerts || []);
-      setRecentTransactions(transactionsData.transactions || []);
 
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -956,7 +938,7 @@ const BusinessOwnerDashboard = () => {
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Today's Revenue Card */}
           <div className="bg-white rounded-lg shadow p-5">
             <div className="flex justify-between mb-2">
@@ -1018,47 +1000,6 @@ const BusinessOwnerDashboard = () => {
               <div className="text-xs text-gray-500">Last 7 days</div>
             </div>
           </div>
-          
-          {/* Net Daily Profit Card */}
-          <div className="bg-white rounded-lg shadow p-5">
-            <div className="flex justify-between mb-2">
-              <div className="flex items-center text-sm font-medium text-gray-600">
-                <Activity size={16} className="mr-1 text-indigo-500" />
-                Net Daily Profit
-              </div>
-              <div className="text-xs text-gray-500">Today's Performance</div>
-            </div>
-            
-            <div className="flex items-center mb-3">
-              <div className="text-2xl font-bold mr-2">
-                {dailyPerformance ? 
-                  formatCurrency(dailyPerformance.today.revenue - dailyPerformance.today.expenses) : 
-                  <SkeletonElement className="h-8 w-32" />
-                }
-              </div>
-              {dailyPerformance ? (
-                <div className={`text-xs font-medium px-2 py-1 rounded-full ${
-                  (dailyPerformance.today.revenue - dailyPerformance.today.expenses) / (dailyPerformance.today.revenue || 1) > 0.5 
-                    ? 'bg-green-100 text-green-800' 
-                    : (dailyPerformance.today.revenue - dailyPerformance.today.expenses) / (dailyPerformance.today.revenue || 1) > 0.3 
-                      ? 'bg-blue-100 text-blue-800' 
-                      : 'bg-yellow-100 text-yellow-800'
-                }`}>
-                  {(((dailyPerformance.today.revenue - dailyPerformance.today.expenses) / (dailyPerformance.today.revenue || 1)) * 100).toFixed(1)}% margin
-                </div>
-              ) : <SkeletonElement className="h-6 w-24 rounded-full" />}
-            </div>
-            
-            <div className="flex items-center mt-4 text-sm text-gray-600">
-              <DollarSign size={14} className="mr-1" />
-              <span>
-                {dailyPerformance ? 
-                  `${dailyPerformance.today.transactions} transactions today` : 
-                  <SkeletonElement className="h-5 w-40 ml-1" />
-                }
-              </span>
-            </div>
-          </div>
         </div>
       </div>
       
@@ -1069,7 +1010,7 @@ const BusinessOwnerDashboard = () => {
           Financial Summary
         </h2>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Total Revenue Card */}
           <div className="bg-white rounded-lg shadow p-5">
             <div className="flex justify-between mb-4">
@@ -1113,114 +1054,9 @@ const BusinessOwnerDashboard = () => {
                 </span>
             </div>
           </div>
-          
-          {/* Net Profit Card */}
-          <div className="bg-white rounded-lg shadow p-5">
-            <div className="flex justify-between mb-4">
-              <div className="text-sm font-medium text-gray-600">Net Profit</div>
-              <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                <BarChart3 size={16} className="text-blue-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold mb-1">
-              {metrics ? formatCurrency(metrics.profit.current) : <SkeletonElement className="h-8 w-32" />}
-            </div>
-            <div className="flex items-center text-sm text-green-600">
-              <ArrowUpRight size={16} className="mr-1" />
-                <span>
-                  {metrics ? 
-                    `${metrics.profit.change}% from last ${getDateRangeLabel(selectedDateRange)}` : 
-                    <SkeletonElement className="h-5 w-40 ml-1" />
-                  }
-                </span>
-            </div>
-          </div>
-          
-          {/* Capital Account Card */}
-          <div className="bg-white rounded-lg shadow p-5">
-            <div className="flex justify-between mb-4">
-              <div className="text-sm font-medium text-gray-600">Capital Account</div>
-              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                <Wallet size={16} className="text-purple-600" />
-              </div>
-            </div>
-            <div className="text-2xl font-bold mb-1">
-              {metrics ? formatCurrency(metrics.capital?.current || 0) : <SkeletonElement className="h-8 w-32" />}
-            </div>
-            <div className="flex items-center text-sm text-purple-600">
-              <a 
-                href="/capital-account"
-                className="flex items-center hover:text-purple-700 transition-colors"
-              >
-                <span>Manage Capital</span>
-                <ChevronRight size={14} className="ml-1" />
-              </a>
-            </div>
-          </div>
         </div>
       </div>
       
-      {/* Quick Access to Financial Tools */}
-      <div className="mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 flex items-center mb-4">
-          <Settings size={18} className="mr-2 text-indigo-500" />
-          Financial Management Tools
-        </h2>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <a 
-            href="/capital-account"
-            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow border-l-4 border-purple-500"
-          >
-            <div className="flex items-center">
-              <Wallet className="h-8 w-8 text-purple-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">Capital Account</p>
-                <p className="text-xs text-gray-500">Manage business capital</p>
-              </div>
-            </div>
-          </a>
-          
-          <a 
-            href="/chart-of-accounts"
-            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow border-l-4 border-blue-500"
-          >
-            <div className="flex items-center">
-              <BarChart3 className="h-8 w-8 text-blue-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">Chart of Accounts</p>
-                <p className="text-xs text-gray-500">View all accounts</p>
-              </div>
-            </div>
-          </a>
-          
-          <a 
-            href="/journal-entries"
-            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow border-l-4 border-green-500"
-          >
-            <div className="flex items-center">
-              <FileText className="h-8 w-8 text-green-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">Journal Entries</p>
-                <p className="text-xs text-gray-500">Record transactions</p>
-              </div>
-            </div>
-          </a>
-          
-          <a 
-            href="/trial-balance"
-            className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow border-l-4 border-orange-500"
-          >
-            <div className="flex items-center">
-              <TrendingUp className="h-8 w-8 text-orange-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-gray-900">Trial Balance</p>
-                <p className="text-xs text-gray-500">Financial overview</p>
-              </div>
-            </div>
-          </a>
-        </div>
-      </div>
 
       {/* Main Dashboard Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1456,62 +1292,6 @@ const BusinessOwnerDashboard = () => {
           </div>
         </div>
         
-        {/* Recent Invoices */}
-        {pagePermissions.canViewInvoices && (    <div className="bg-white rounded-lg shadow lg:col-span-2">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-800">Recent Invoices</h2>
-            <a href="/invoice" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-              View All <ChevronRight size={16} className="ml-1" />
-            </a>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {recentInvoices ? (
-                  recentInvoices.map((invoice) => (
-                    <tr key={invoice.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{invoice.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{invoice.client}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(invoice.date)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">{formatCurrency(invoice.amount)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          invoice.status === 'paid' ? 'bg-green-100 text-green-800' :
-                          invoice.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {invoice.status === 'paid' ? <CheckCircle2 className="mr-1 h-3 w-3" /> :
-                          invoice.status === 'pending' ? <Clock className="mr-1 h-3 w-3" /> :
-                          <AlertCircle className="mr-1 h-3 w-3" />}
-                          {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  [...Array(5)].map((_, index) => (
-                    <tr key={index}>
-                      <td className="px-6 py-4"><SkeletonElement className="h-5 w-20" /></td>
-                      <td className="px-6 py-4"><SkeletonElement className="h-5 w-32" /></td>
-                      <td className="px-6 py-4"><SkeletonElement className="h-5 w-24" /></td>
-                      <td className="px-6 py-4 text-right"><SkeletonElement className="h-5 w-20 ml-auto" /></td>
-                      <td className="px-6 py-4 text-center"><SkeletonElement className="h-5 w-24 mx-auto" /></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>)}
       </div>
 
       {/* Stock Alerts Section */}
@@ -1610,90 +1390,6 @@ const BusinessOwnerDashboard = () => {
         </div>
       </div>
 
-      {/* Recent Transactions Section */}
-      <div className="mt-6 bg-white rounded-lg shadow">
-        <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-          <h2 className="font-semibold text-gray-800">Recent Transactions</h2>
-          <a href="/payments" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-            View All <ChevronRight size={16} className="ml-1" />
-          </a>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {recentTransactions && recentTransactions.length > 0 ? (
-                recentTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{transaction.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        transaction.type === 'income' ? 'bg-green-100 text-green-800' :
-                        transaction.type === 'expense' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {transaction.type === 'income' ? <TrendingUp className="mr-1 h-3 w-3" /> :
-                        transaction.type === 'expense' ? <TrendingDown className="mr-1 h-3 w-3" /> :
-                        <Activity className="mr-1 h-3 w-3" />}
-                        {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transaction.description}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(transaction.date)}</td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium text-right ${
-                      transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        transaction.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {transaction.status === 'completed' ? <CheckCircle className="mr-1 h-3 w-3" /> :
-                        transaction.status === 'pending' ? <Clock className="mr-1 h-3 w-3" /> :
-                        <XCircle className="mr-1 h-3 w-3" />}
-                        {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              ) : isLoading ? (
-                [...Array(5)].map((_, index) => (
-                  <tr key={index}>
-                    <td className="px-6 py-4"><SkeletonElement className="h-5 w-20" /></td>
-                    <td className="px-6 py-4"><SkeletonElement className="h-5 w-16" /></td>
-                    <td className="px-6 py-4"><SkeletonElement className="h-5 w-32" /></td>
-                    <td className="px-6 py-4"><SkeletonElement className="h-5 w-24" /></td>
-                    <td className="px-6 py-4 text-right"><SkeletonElement className="h-5 w-20 ml-auto" /></td>
-                    <td className="px-6 py-4 text-center"><SkeletonElement className="h-5 w-24 mx-auto" /></td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center">
-                    <div className="text-gray-500">
-                      <Activity size={48} className="mx-auto mb-3 text-gray-300" />
-                      <p className="text-sm font-medium">No transactions found</p>
-                      <p className="text-xs text-gray-400 mt-1">Transactions will appear here once you create invoices or expenses</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
     </div>
   );
 }
