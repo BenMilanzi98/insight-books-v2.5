@@ -1060,6 +1060,38 @@ const BusinessOwnerDashboard = () => {
 
       {/* Main Dashboard Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Income & Expenses Bar Chart */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+            <h2 className="font-semibold text-gray-800">Income & Expense Overview</h2>
+            <a href="/reports/" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
+              Detailed Report <ChevronRight size={16} className="ml-1" />
+            </a>
+          </div>
+          <div className="p-5 h-80">
+            {incomeExpenses ?
+              <DashboardBarChart data={incomeExpenses} /> :
+              <SkeletonBarChart />
+            }
+          </div>
+        </div>
+
+        {/* Expense Breakdown Pie Chart */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+            <h2 className="font-semibold text-gray-800">Expenses Breakdown</h2>
+            <a href="/expenses" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
+              View Details <ChevronRight size={16} className="ml-1" />
+            </a>
+          </div>
+          <div className="p-5 h-80">
+            {expensesBreakdown ?
+              <DashboardPieChart data={expensesBreakdown} /> :
+              <SkeletonPieChart />
+            }
+          </div>
+        </div>
+
         {/* Accounts Receivable */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
@@ -1091,7 +1123,7 @@ const BusinessOwnerDashboard = () => {
                 </div>
               </div>
             </div>
-            
+
             <div>
                <div className="flex items-center justify-between mb-3">
                  <h3 className="text-sm font-medium text-gray-700">Aging Summary</h3>
@@ -1119,16 +1151,16 @@ const BusinessOwnerDashboard = () => {
                    receivables.aging.map((period, index) => {
                      const percentage = receivables.current > 0 ? (period.amount / receivables.current) * 100 : 0;
                      const isOverdue = index > 0; // 0-30 days is current, others are overdue
-                     
+
                      return (
                     <div key={index} className="flex items-center">
                       <div className="w-28 text-xs text-gray-500">{period.range}</div>
                       <div className="flex-1 mx-2">
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
+                          <div
                                className={`h-2 rounded-full transition-all duration-300 ${
-                                 index === 0 ? 'bg-green-500' : 
-                                 index === 1 ? 'bg-yellow-500' : 
+                                 index === 0 ? 'bg-green-500' :
+                                 index === 1 ? 'bg-yellow-500' :
                                  index === 2 ? 'bg-orange-500' : 'bg-red-500'
                                }`}
                                style={{ width: `${Math.max(percentage, 2)}%` }} // Minimum 2% width for visibility
@@ -1191,7 +1223,7 @@ const BusinessOwnerDashboard = () => {
                 </div>
               </div>
             </div>
-            
+
             <div>
                <div className="flex items-center justify-between mb-3">
                  <h3 className="text-sm font-medium text-gray-700">Aging Summary</h3>
@@ -1219,16 +1251,16 @@ const BusinessOwnerDashboard = () => {
                    payables.aging.map((period, index) => {
                      const percentage = payables.current > 0 ? (period.amount / payables.current) * 100 : 0;
                      const isOverdue = index > 0; // 0-30 days is current, others are overdue
-                     
+
                      return (
                     <div key={index} className="flex items-center">
                       <div className="w-28 text-xs text-gray-500">{period.range}</div>
                       <div className="flex-1 mx-2">
                         <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
+                          <div
                                className={`h-2 rounded-full transition-all duration-300 ${
-                                 index === 0 ? 'bg-green-500' : 
-                                 index === 1 ? 'bg-yellow-500' : 
+                                 index === 0 ? 'bg-green-500' :
+                                 index === 1 ? 'bg-yellow-500' :
                                  index === 2 ? 'bg-orange-500' : 'bg-red-500'
                                }`}
                                style={{ width: `${Math.max(percentage, 2)}%` }} // Minimum 2% width for visibility
@@ -1257,38 +1289,6 @@ const BusinessOwnerDashboard = () => {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-        
-        {/* Income & Expenses Bar Chart */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-800">Income & Expense Overview</h2>
-            <a href="/reports/" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-              Detailed Report <ChevronRight size={16} className="ml-1" />
-            </a>
-          </div>
-          <div className="p-5 h-80">
-            {incomeExpenses ? 
-              <DashboardBarChart data={incomeExpenses} /> : 
-              <SkeletonBarChart />
-            }
-          </div>
-        </div>
-
-        {/* Expense Breakdown Pie Chart */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
-            <h2 className="font-semibold text-gray-800">Expenses Breakdown</h2>
-            <a href="/expenses" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-              View Details <ChevronRight size={16} className="ml-1" />
-            </a>
-          </div>
-          <div className="p-5 h-80">
-            {expensesBreakdown ? 
-              <DashboardPieChart data={expensesBreakdown} /> : 
-              <SkeletonPieChart />
-            }
           </div>
         </div>
         
