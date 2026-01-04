@@ -36,6 +36,43 @@ import TrialCountdown from "@/components/TrialCountdown";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { formatCurrency, formatDate, getDateRange } from "@/lib/dateUtils";
 
+// Animated Counter Component
+const CountUp = ({ end, duration = 2000, format = (val) => val }) => {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    if (end === 0 || !end) {
+      setCount(end || 0);
+      return;
+    }
+
+    const startTime = Date.now();
+    const startValue = 0;
+
+    const animate = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Easing function for smooth animation
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      const currentValue = startValue + (end - startValue) * easeOutQuart;
+
+      setCount(currentValue);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        setCount(end);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [end, duration]);
+
+  return <span>{format(count)}</span>;
+};
+
 // Mini Sparkline component for daily metrics
 const MiniSparkline = ({ data, type = "revenue" }) => {
   if (!data || data.length === 0) return null;
@@ -264,8 +301,8 @@ const DashboardPieChart = ({ data }) => {
   
   // Generate colors for pie segments
   const colors = [
-    'bg-blue-500', 'bg-purple-500', 'bg-green-500',
-    'bg-yellow-500', 'bg-red-500', 'bg-indigo-500'
+    'bg-gradient-to-r from-blue-400 to-blue-600', 'bg-gradient-to-r from-purple-400 to-purple-600', 'bg-gradient-to-r from-green-400 to-green-600',
+    'bg-gradient-to-r from-yellow-400 to-yellow-600', 'bg-gradient-to-r from-red-400 to-red-600', 'bg-gradient-to-r from-indigo-400 to-indigo-600'
   ];
   
   return (
@@ -273,6 +310,32 @@ const DashboardPieChart = ({ data }) => {
       {/* Create SVG-based pie chart */}
       <div className="relative w-48 h-48 flex-shrink-0">
         <svg viewBox="0 0 100 100" className="w-full h-full">
+          <defs>
+            <linearGradient id="blueGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#60A5FA', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#2563EB', stopOpacity: 1 }} />
+            </linearGradient>
+            <linearGradient id="purpleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#A78BFA', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#7C3AED', stopOpacity: 1 }} />
+            </linearGradient>
+            <linearGradient id="greenGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#34D399', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#059669', stopOpacity: 1 }} />
+            </linearGradient>
+            <linearGradient id="yellowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#FCD34D', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#D97706', stopOpacity: 1 }} />
+            </linearGradient>
+            <linearGradient id="redGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#F87171', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#DC2626', stopOpacity: 1 }} />
+            </linearGradient>
+            <linearGradient id="indigoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" style={{ stopColor: '#818CF8', stopOpacity: 1 }} />
+              <stop offset="100%" style={{ stopColor: '#4F46E5', stopOpacity: 1 }} />
+            </linearGradient>
+          </defs>
           {data.map((segment, index) => {
             // Calculate the segment angles
             const cumulativePercentage = data
@@ -302,12 +365,12 @@ const DashboardPieChart = ({ data }) => {
             
             // Generate a fill color based on the colorIndex
             const fillColors = {
-              0: '#3B82F6', // blue-500
-              1: '#8B5CF6', // purple-500
-              2: '#10B981', // green-500
-              3: '#F59E0B', // yellow-500
-              4: '#EF4444', // red-500
-              5: '#6366F1'  // indigo-500
+              0: 'url(#blueGradient)', // blue gradient
+              1: 'url(#purpleGradient)', // purple gradient
+              2: 'url(#greenGradient)', // green gradient
+              3: 'url(#yellowGradient)', // yellow gradient
+              4: 'url(#redGradient)', // red gradient
+              5: 'url(#indigoGradient)'  // indigo gradient
             };
             
             return (
@@ -701,79 +764,13 @@ const BusinessOwnerDashboard = () => {
 
   if(pagePermissions.canViewDashboard){
   return (
-    <div className="p-4 sm:p-6 bg-gray-50">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-        <div>
-          {/* Business Name Header - Show prominently if user has multiple businesses */}
-          {hasMultipleBusinesses && tenantInfo && (
-            <div className="mb-3">
-              <div className="flex items-center space-x-2">
-                <Building className="h-5 w-5 text-blue-600" />
-                <span className="text-sm font-medium text-gray-500">Current Business:</span>
-              </div>
-              <h1 className="text-3xl font-bold text-blue-600 mt-1">
-                {tenantInfo.name}
-              </h1>
-              <div className="mt-2">
-                <a 
-                  href="/switch-tenant"
-                  className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
-                >
-                  Switch Business
-                  <ArrowRight className="h-4 w-4 ml-1" />
-                </a>
-              </div>
-            </div>
-          )}
+    <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 via-purple-50 to-pink-50 min-h-screen">
+      {/* Dashboard Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Welcome back!</h1>
+        <p className="text-gray-600 mt-1">
           
-          {/* Regular Dashboard Header */}
-          <h1 className={`font-bold text-gray-800 ${hasMultipleBusinesses ? 'text-xl' : 'text-2xl'}`}>
-            Dashboard
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {hasMultipleBusinesses 
-              ? `Here's an overview of ${tenantInfo?.name}'s performance and financial status`
-              : "Welcome back! Here's an overview of your business performance and financial status"
-            }
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0 flex items-center space-x-4">
-          <button
-            onClick={handleDataExport}
-            disabled={isExporting}
-            className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium text-white ${
-              isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
-            } transition-colors`}
-          >
-            {isExporting ? (
-              <>
-                <RefreshCw size={16} className="mr-2 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download size={16} className="mr-2" />
-                Data Backup
-              </>
-            )}
-          </button>
-          <UniversalDateRangeFilter
-            timeframe={selectedDateRange}
-            onTimeframeChange={handleDateRangeChange}
-            onCustomDateChange={handleCustomDateChange}
-            loading={isLoading}
-            className="bg-white border border-gray-200 rounded-md"
-          />
-          <button
-            onClick={refreshDashboard}
-            disabled={isLoading}
-            className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-            title="Refresh dashboard data"
-          >
-            <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
-          </button>
-        </div>
+        </p>
       </div>
 
       {/* Trial Countdown */}
@@ -787,63 +784,87 @@ const BusinessOwnerDashboard = () => {
         />
       )}
 
-      {/* Business Switching Tab */}
+      {/* Business Overview Card */}
       <div className="mb-6">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          <div className="flex p-4 border-b border-gray-200">
-            <button 
-              className={`px-4 py-2 rounded-md mr-2 font-medium text-sm ${!hasMultipleBusinesses ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-gray-700 hover:bg-gray-50"}`}
-              onClick={() => {
-                // Current business view - already active
-              }}
-            >
-              <Building className="h-4 w-4 mr-2 inline" />
-              Current Business
-            </button>
-            <button 
-              className={`px-4 py-2 rounded-md mr-2 font-medium text-sm ${hasMultipleBusinesses ? "bg-blue-50 text-blue-700 border border-blue-200" : "text-gray-700 hover:bg-gray-50"}`}
-              onClick={() => {
-                window.location.href = '/switch-tenant';
-              }}
-            >
-              <ArrowRight className="h-4 w-4 mr-2 inline" />
-              Switch Business
-            </button>
-          </div>
-          
-          <div className="p-4">
-            {hasMultipleBusinesses ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{tenantInfo?.name}</h3>
-                  <p className="text-sm text-gray-600">Currently viewing this business's dashboard</p>
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+          <div className="p-6">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-md">
+                  <Building className="h-6 w-6 text-white" />
                 </div>
-                <a 
-                  href="/switch-tenant"
-                  className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  Switch to Another Business
-                </a>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">
+                  <h3 className="text-xl font-bold text-gray-800 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                     {tenantInfo?.name || 'Loading...'}
                   </h3>
                   <p className="text-sm text-gray-600">
-                    {tenantInfo ? 'Single business account - no switching needed' : 'Loading business information...'}
+                    {hasMultipleBusinesses ? 'Multi-business account' : 'Your business dashboard'}
                   </p>
                 </div>
-                <button 
-                  onClick={() => window.location.href = '/auth/business-setup'}
-                  disabled={!tenantInfo}
-                  className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleDataExport}
+                  disabled={isExporting}
+                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white transition-all duration-200 transform hover:scale-105 ${
+                    isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg'
+                  }`}
                 >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Manage Business
+                  {isExporting ? (
+                    <>
+                      <RefreshCw size={14} className="mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} className="mr-2" />
+                      Data Backup
+                    </>
+                  )}
                 </button>
+                <div className="bg-white/70 rounded-lg p-1">
+                  <UniversalDateRangeFilter
+                    timeframe={selectedDateRange}
+                    onTimeframeChange={handleDateRangeChange}
+                    onCustomDateChange={handleCustomDateChange}
+                    loading={isLoading}
+                    className="bg-white border border-gray-200 rounded-md"
+                  />
+                </div>
+                <button
+                  onClick={refreshDashboard}
+                  disabled={isLoading}
+                  className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/70 rounded-lg transition-all duration-200 transform hover:scale-110 hover:shadow-md"
+                  title="Refresh dashboard data"
+                >
+                  <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
+                </button>
+                {hasMultipleBusinesses && (
+                  <button
+                    onClick={() => window.location.href = '/switch-tenant'}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
+                  >
+                    <ArrowRight className="h-4 w-4 mr-2" />
+                    Switch Business
+                  </button>
+                )}
+                {!hasMultipleBusinesses && tenantInfo && (
+                  <button
+                    onClick={() => window.location.href = '/auth/business-setup'}
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-lg hover:from-gray-200 hover:to-gray-300 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Manage Business
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {hasMultipleBusinesses && (
+              <div className="mt-4 p-3 bg-white/50 rounded-lg border border-blue-200">
+                <p className="text-sm text-blue-700">
+                  <span className="font-medium">Here's an overview of {tenantInfo?.name}'s performance and financial status:</span>
+                </p>
               </div>
             )}
           </div>
@@ -940,7 +961,7 @@ const BusinessOwnerDashboard = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Today's Revenue Card */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
             <div className="flex justify-between mb-2">
               <div className="flex items-center text-sm font-medium text-gray-600">
                 <TrendingUp size={16} className="mr-1 text-green-500" />
@@ -971,7 +992,7 @@ const BusinessOwnerDashboard = () => {
           </div>
           
           {/* Today's Expenses Card */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
             <div className="flex justify-between mb-2">
               <div className="flex items-center text-sm font-medium text-gray-600">
                 <TrendingDown size={16} className="mr-1 text-red-500" />
@@ -1012,7 +1033,7 @@ const BusinessOwnerDashboard = () => {
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Total Revenue Card */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
             <div className="flex justify-between mb-4">
               <div className="text-sm font-medium text-gray-600">Total Revenue</div>
               <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
@@ -1020,13 +1041,13 @@ const BusinessOwnerDashboard = () => {
               </div>
             </div>
             <div className="text-2xl font-bold mb-1">
-              {metrics ? formatCurrency(metrics.revenue.current) : <SkeletonElement className="h-8 w-32" />}
+              {incomeExpenses ? formatCurrency(incomeExpenses.income.reduce((sum, val) => sum + val, 0)) : <SkeletonElement className="h-8 w-32" />}
             </div>
             <div className="flex items-center text-sm text-green-600">
               <ArrowUpRight size={16} className="mr-1" />
                 <span>
-                  {metrics ? 
-                    `${metrics.revenue.change}% from last ${getDateRangeLabel(selectedDateRange)}` : 
+                  {metrics ?
+                    `${metrics.revenue.change}% from last ${getDateRangeLabel(selectedDateRange)}` :
                     <SkeletonElement className="h-5 w-40 ml-1" />
                   }
                 </span>
@@ -1034,7 +1055,7 @@ const BusinessOwnerDashboard = () => {
           </div>
           
           {/* Total Expenses Card */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
             <div className="flex justify-between mb-4">
               <div className="text-sm font-medium text-gray-600">Total Expenses</div>
               <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
@@ -1042,13 +1063,13 @@ const BusinessOwnerDashboard = () => {
               </div>
             </div>
             <div className="text-2xl font-bold mb-1">
-              {metrics ? formatCurrency(metrics.expenses.current) : <SkeletonElement className="h-8 w-32" />}
+              {incomeExpenses ? formatCurrency(incomeExpenses.expenses.reduce((sum, val) => sum + val, 0)) : <SkeletonElement className="h-8 w-32" />}
             </div>
             <div className="flex items-center text-sm text-red-600">
               <ArrowUpRight size={16} className="mr-1" />
                 <span>
-                  {metrics ? 
-                    `${metrics.expenses.change}% from last ${getDateRangeLabel(selectedDateRange)}` : 
+                  {metrics ?
+                    `${metrics.expenses.change}% from last ${getDateRangeLabel(selectedDateRange)}` :
                     <SkeletonElement className="h-5 w-40 ml-1" />
                   }
                 </span>
@@ -1061,7 +1082,7 @@ const BusinessOwnerDashboard = () => {
       {/* Main Dashboard Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Income & Expenses Bar Chart */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Income & Expense Overview</h2>
             <a href="/reports/" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
@@ -1077,7 +1098,7 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Expense Breakdown Pie Chart */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Expenses Breakdown</h2>
             <a href="/expenses" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
@@ -1093,7 +1114,7 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Accounts Receivable */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Receivable</h2>
             <a href="/accounting/receivables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
@@ -1193,7 +1214,7 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Accounts Payable */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Payable</h2>
             <a href="/accounting/payables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
@@ -1295,12 +1316,12 @@ const BusinessOwnerDashboard = () => {
       </div>
 
       {/* Stock Alerts Section */}
-      <div className="mt-6 bg-white rounded-lg shadow">
+      <div className="mt-6 bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
         <div className="p-5 border-b border-gray-100 flex justify-between items-center">
           <h2 className="font-semibold text-gray-800">Stock Alerts</h2>
-          <button 
+          <button
             onClick={refreshDashboard}
-            className="text-sm text-indigo-600 flex items-center hover:text-indigo-800"
+            className="text-sm text-indigo-600 flex items-center hover:text-indigo-800 transition-all duration-200 transform hover:scale-105 hover:bg-indigo-50 px-3 py-1 rounded-md"
             disabled={isLoading}
           >
             <RefreshCw size={16} className={`mr-1 ${isLoading ? 'animate-spin' : ''}`} />
@@ -1318,10 +1339,10 @@ const BusinessOwnerDashboard = () => {
                   const paginatedAlerts = stockAlerts.slice(startIndex, endIndex);
                   
                   return paginatedAlerts.map((alert, index) => (
-                    <div key={index} className={`p-4 rounded-lg border-l-4 ${
-                      alert.type === 'low_stock' ? 'bg-red-50 border-red-400' :
-                      alert.type === 'out_of_stock' ? 'bg-red-50 border-red-500' :
-                      'bg-yellow-50 border-yellow-400'
+                    <div key={index} className={`p-4 rounded-lg border-l-4 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 ${
+                      alert.type === 'low_stock' ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-400 hover:border-red-500' :
+                      alert.type === 'out_of_stock' ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-500 hover:border-red-600' :
+                      'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400 hover:border-yellow-500'
                     }`}>
                       <div className="flex items-start justify-between">
                         <div className="flex items-start">
@@ -1347,7 +1368,7 @@ const BusinessOwnerDashboard = () => {
                             </div>
                           </div>
                         </div>
-                        <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium">
+                        <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-indigo-50 px-3 py-1 rounded-md">
                           Restock
                         </button>
                       </div>
@@ -1365,14 +1386,14 @@ const BusinessOwnerDashboard = () => {
                     <button
                       onClick={() => setStockAlertsPage(prev => Math.max(1, prev - 1))}
                       disabled={stockAlertsPage === 1}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 hover:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                     >
                       ← Back
                     </button>
                     <button
                       onClick={() => setStockAlertsPage(prev => Math.min(Math.ceil(stockAlerts.length / stockAlertsPageSize), prev + 1))}
                       disabled={stockAlertsPage === Math.ceil(stockAlerts.length / stockAlertsPageSize)}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 hover:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
                     >
                       Next →
                     </button>
