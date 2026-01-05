@@ -137,21 +137,23 @@ export async function POST(request, context) {
       const pdfBuffer = fs.readFileSync(filePath);
       // Prepare email
       const companyName = tenant?.name || 'InsightBooks';
+      const isPaid = invoice.status === 'Paid';
+
       const mailOptions = {
         from: process.env.EMAIL_FROM || `"${companyName}" <insightbooks@insightbooksafrica.com>`,
         to: clientEmail,
-        subject: `Invoice #${invoice.invoiceNumber} from ${companyName}`,
+        subject: isPaid ? `Payment Confirmation - Invoice #${invoice.invoiceNumber} from ${companyName}` : `Invoice #${invoice.invoiceNumber} from ${companyName}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
             <div style="text-align: center; margin-bottom: 20px;">
               <h2 style="color: ${tenant?.primaryColor || '#4338ca'};">${companyName}</h2>
             </div>
             <p>Hello ${invoice.client.name},</p>
-            <p>Please find your invoice #${invoice.invoiceNumber} below.</p>
+            <p>${isPaid ? `Your invoice #${invoice.invoiceNumber} has been paid. Please find the payment confirmation below.` : `Please find your invoice #${invoice.invoiceNumber} below.`}</p>
             ${customMessage ? `<p>${customMessage}</p>` : ''}
-            
+
             ${invoiceHtml}
-            
+
             <p style="margin-top: 20px;">If you have any questions about this invoice, please contact us.</p>
             <p>Thank you for your business!</p>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #6b7280;">
@@ -160,7 +162,7 @@ export async function POST(request, context) {
           </div>
         `,
         // Add plain text alternative
-        text: `Hello ${invoice.client.name},\n\nPlease find your invoice #${invoice.invoiceNumber} below.\n\n${customMessage ? customMessage + '\n\n' : ''}Total amount: ${formatCurrency(invoice.total)}\nDue date: ${formatDate(invoice.dueDate)}\n\nIf you have any questions about this invoice, please contact us.\n\nThank you for your business!\n\n© ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
+        text: `Hello ${invoice.client.name},\n\n${isPaid ? `Your invoice #${invoice.invoiceNumber} has been paid. Please find the payment confirmation below.` : `Please find your invoice #${invoice.invoiceNumber} below.`}\n\n${customMessage ? customMessage + '\n\n' : ''}Total amount: ${formatCurrency(invoice.total)}\nDue date: ${formatDate(invoice.dueDate)}\n\nIf you have any questions about this invoice, please contact us.\n\nThank you for your business!\n\n© ${new Date().getFullYear()} ${companyName}. All rights reserved.`,
         attachments: [
           {
             filename: foundFilename || `invoice-${invoiceId}.pdf`,

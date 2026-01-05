@@ -644,7 +644,8 @@ const sendInvoiceWithMessage = async (customMessage) => {
             setSendInvoiceModalOpen(false);
             
             // Show success message
-            setSuccessMessage(`Invoice sent successfully to ${captureInvoiceData.invoice.client.email}`);
+            const isPaid = captureInvoiceData.invoice.status === 'Paid';
+            setSuccessMessage(`${isPaid ? 'Payment confirmation' : 'Invoice'} sent successfully to ${captureInvoiceData.invoice.client.email}`);
             
             // If status was updated (e.g., from Draft to Pending), refresh the invoice list
             if (result.statusUpdated) {
@@ -1251,10 +1252,10 @@ const sendInvoiceWithMessage = async (customMessage) => {
                         >
                           <Printer size={16} />
                         </button>
-                        {invoice.status !== 'Paid' && pagePermissions.canSendInvoices &&(
-                            <button 
+                        {pagePermissions.canSendInvoices &&(
+                            <button
                               className={`text-blue-500 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded-md p-1 ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
-                              title={isCapturingPdf ? "Sending invoice..." : "Send Invoice"}
+                              title={isCapturingPdf ? "Sending invoice..." : invoice.status === 'Paid' ? "Send Payment Confirmation" : "Send Invoice"}
                               onClick={() => handleSendInvoice(invoice)}
                               disabled={isCapturingPdf}
                             >
