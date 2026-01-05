@@ -7,12 +7,16 @@ import { requireStandardAccess } from '@/lib/accessControl';
 /**
  * Helper to generate a supplier code
  */
-async function generateSupplierCode(tenantId) {
-  const count = await prisma.supplier.count({
-    where: { tenantId }
-  });
-  const sequence = String(count + 1).padStart(4, '0');
-  return `SUP-${sequence}`;
+async function generateSupplierCode() {
+  // Generate a globally unique SUP-XXXX code to avoid collisions across tenants
+  let seq = (await prisma.supplier.count()) + 1;
+  let code = `SUP-${String(seq).padStart(4, '0')}`;
+  // If a supplier with this code exists (global unique), increment until we find a free code
+  while (await prisma.supplier.findUnique({ where: { supplierCode: code } })) {
+    seq++;
+    code = `SUP-${String(seq).padStart(4, '0')}`;
+  }
+  return code;
 }
 
 /**
@@ -99,7 +103,8 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    if (!body.supplierName) {
+    const supplierName = body.supplierName?.trim();
+    if (!supplierName) {
       return NextResponse.json(
         { error: 'Supplier name is required' },
         { status: 400 }
@@ -138,11 +143,22 @@ export async function POST(request) {
       );
     }
 
-    const supplierCode = body.supplierCode?.trim() || await generateSupplierCode(user.tenantId);
+    // Check for duplicate supplier name
+    const existingName = await prisma.supplier.findFirst({
+      where: { tenantId: user.tenantId, supplierName }
+    });
+    if (existingName) {
+      return NextResponse.json(
+        { error: 'Supplier name already exists' },
+        { status: 400 }
+      );
+    }
 
-    // Ensure unique supplier code per tenant
-    const existingCode = await prisma.supplier.findFirst({
-      where: { tenantId: user.tenantId, supplierCode }
+    const supplierCode = body.supplierCode?.trim() || await generateSupplierCode();
+
+    // Ensure supplierCode is unique globally (database enforces a global unique constraint)
+    const existingCode = await prisma.supplier.findUnique({
+      where: { supplierCode }
     });
     if (existingCode) {
       return NextResponse.json(
@@ -155,7 +171,7 @@ export async function POST(request) {
       data: {
         tenantId: user.tenantId,
         supplierCode,
-        supplierName: body.supplierName,
+        supplierName,
         contactPerson: body.contactPerson || null,
         email: body.email || null,
         phone: body.phone || null,
@@ -179,7 +195,16 @@ export async function POST(request) {
 
     return NextResponse.json({ supplier });
   } catch (error) {
-    console.error('Error creating supplier:', error);
+    console.error('Error creating supplier:', error?.message || error);
+
+    // Prisma unique constraint error (supplierCode): return a 409 with a clear message
+    if (error && error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Supplier code already exists' },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to create supplier. Please try again.' },
       { status: 500 }
