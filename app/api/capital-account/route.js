@@ -398,14 +398,30 @@ export async function POST(request) {
     ]);
 
     // Update account balances
+    const capitalBalance = parseFloat(initialBalance);
+    const cashBalance = (cashAccount.balance || 0) + parseFloat(initialBalance);
+    
     await prisma.account.update({
       where: { id: capitalAccount.id },
-      data: { balance: parseFloat(initialBalance) }
+      data: { balance: capitalBalance }
     });
 
     await prisma.account.update({
       where: { id: cashAccount.id },
-      data: { balance: (cashAccount.balance || 0) + parseFloat(initialBalance) }
+      data: { balance: cashBalance }
+    });
+
+    // Also update AccountBalance records to keep them in sync
+    await prisma.accountBalance.upsert({
+      where: { tenantId_account: { tenantId: user.tenantId, account: capitalAccount.id } },
+      update: { balance: capitalBalance },
+      create: { tenantId: user.tenantId, account: capitalAccount.id, balance: capitalBalance }
+    });
+
+    await prisma.accountBalance.upsert({
+      where: { tenantId_account: { tenantId: user.tenantId, account: cashAccount.id } },
+      update: { balance: cashBalance },
+      create: { tenantId: user.tenantId, account: cashAccount.id, balance: cashBalance }
     });
 
     // Create audit log

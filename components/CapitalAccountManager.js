@@ -161,7 +161,7 @@ const CapitalAccountManager = () => {
   };
 
   const handleTransfer = async () => {
-    if (!transferData.amount || !transferData.destinationAccount || !transferData.description) {
+    if (!transferData.amount || !transferData.destinationAccount) {
       setError('Please fill in all required fields');
       return;
     }
@@ -631,13 +631,15 @@ const CapitalAccountManager = () => {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Description</label>
+              <label className="block text-sm font-medium mb-2">
+                Description <span className="text-gray-500 font-normal">(Optional)</span>
+              </label>
               <input
                 type="text"
                 value={transferData.description}
                 onChange={(e) => setTransferData({...transferData, description: e.target.value})}
                 className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Transfer description"
+                placeholder="Transfer description (optional)"
               />
             </div>
 
