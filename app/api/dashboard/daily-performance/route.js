@@ -310,61 +310,69 @@ export async function GET(request) {
     );
 
     // Only count actual payments made for expenses, not pending expenses
-    // Exclude payments linked to deleted expenses
-    const todayExpenses = await prisma.payment.aggregate({
-      where: {
-        tenantId,
-        type: 'expense',
-        status: 'Completed',
-        paymentDate: { 
-          gte: currentPeriodStart,
-          lte: currentPeriodEnd
+    const [todayExpensePayments] = await Promise.all([
+      // Regular expense payments
+      prisma.payment.aggregate({
+        where: {
+          tenantId,
+          type: 'expense',
+          status: 'Completed',
+          paymentDate: {
+            gte: currentPeriodStart,
+            lte: currentPeriodEnd
+          },
+          expense: {
+            isDeleted: false
+          }
         },
-        expense: {
-          isDeleted: false
-        }
-      },
-      _sum: { amount: true }
-    });
+        _sum: { amount: true }
+      })
+    ]);
 
-    const yesterdayExpenses = await prisma.payment.aggregate({
-      where: {
-        tenantId,
-        type: 'expense',
-        status: 'Completed',
-        paymentDate: { 
-          gte: previousPeriodStart,
-          lte: previousPeriodEnd
+    const [yesterdayExpensePayments] = await Promise.all([
+      // Regular expense payments
+      prisma.payment.aggregate({
+        where: {
+          tenantId,
+          type: 'expense',
+          status: 'Completed',
+          paymentDate: {
+            gte: previousPeriodStart,
+            lte: previousPeriodEnd
+          },
+          expense: {
+            isDeleted: false
+          }
         },
-        expense: {
-          isDeleted: false
-        }
-      },
-      _sum: { amount: true }
-    });
+        _sum: { amount: true }
+      })
+    ]);
 
     const weeklyExpenses = await Promise.all(
       pastWeek.map(async (date) => {
         const nextDay = new Date(date);
         nextDay.setDate(date.getDate() + 1);
         
-        const data = await prisma.payment.aggregate({
-          where: {
-            tenantId,
-            type: 'expense',
-            status: 'Completed',
-            paymentDate: { 
-              gte: date,
-              lt: nextDay
+        const [expensePayment] = await Promise.all([
+          // Regular expense payments
+          prisma.payment.aggregate({
+            where: {
+              tenantId,
+              type: 'expense',
+              status: 'Completed',
+              paymentDate: {
+                gte: date,
+                lt: nextDay
+              },
+              expense: {
+                isDeleted: false
+              }
             },
-            expense: {
-              isDeleted: false
-            }
-          },
-          _sum: { amount: true }
-        });
+            _sum: { amount: true }
+          })
+        ]);
         
-        return data._sum.amount || 0;
+        return (expensePayment._sum.amount || 0);
       })
     );
 
@@ -377,13 +385,13 @@ export async function GET(request) {
         today: {
           date: today.toISOString().split('T')[0],
           revenue: todayRevenue,
-          expenses: todayExpenses._sum.amount || 0,
+          expenses: (todayExpensePayments._sum.amount || 0),
           transactions: todayInvoiceCount + todaySaleCount
         },
         yesterday: {
           date: yesterday.toISOString().split('T')[0],
           revenue: yesterdayRevenue,
-          expenses: yesterdayExpenses._sum.amount || 0,
+          expenses: (yesterdayExpensePayments._sum.amount || 0),
           transactions: 0 // Add similar count if needed
         },
         weeklyTrend: {

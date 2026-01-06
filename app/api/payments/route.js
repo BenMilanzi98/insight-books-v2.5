@@ -407,11 +407,35 @@ export async function POST(request) {
       });
     }
 
+    // Helper function to normalize payment method for AccountBalance
+    const normalizePaymentMethod = (method) => {
+      if (!method) return 'cash';
+      const methodStr = method.toString().trim();
+      
+      // If it's already a normalized key (contains underscore), return as is
+      if (methodStr.includes('_')) {
+        return methodStr.toLowerCase();
+      }
+      
+      // If it looks like an account ID (CUID format: starts with letters, no spaces, long string), don't normalize
+      // CUIDs are typically 25 characters, alphanumeric, no spaces
+      if (methodStr.length > 20 && /^[a-z0-9]+$/i.test(methodStr) && !methodStr.includes(' ')) {
+        return methodStr; // Likely an account ID, return as is
+      }
+      
+      // Otherwise normalize: "Bank Transfer" -> "bank_transfer", "PayChangu" -> "paychangu"
+      return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
+    };
+
     // 🔄 Handle balance updates
     if (["invoice", "sale"].includes(type)) {
-      await updateAccountBalance(user.tenantId, paymentMethod, amount, "add");
+      const normalizedMethod = normalizePaymentMethod(paymentMethod);
+      await updateAccountBalance(user.tenantId, normalizedMethod, amount, "add");
     } else if (type === "expense") {
-      await updateAccountBalance(user.tenantId, sourceAccount, amount, "subtract");
+      // For expenses, sourceAccount might be a payment method key or account ID
+      // Try to normalize it if it looks like a payment method name
+      const normalizedSource = normalizePaymentMethod(sourceAccount);
+      await updateAccountBalance(user.tenantId, normalizedSource, amount, "subtract");
     } else if (type === "transfer") {
       // Check if this is a capital account transfer
       const isCapitalAccountTransfer = sourceAccount === capitalAccount?.id;
@@ -420,7 +444,8 @@ export async function POST(request) {
         // For capital account transfers, use the simple balance update method
         // since destination is a payment method key, not an Account model ID
         await updateAccountBalance(user.tenantId, sourceAccount, amount, "subtract");
-        await updateAccountBalance(user.tenantId, destinationAccount, amount, "add");
+        const normalizedDestination = normalizePaymentMethod(destinationAccount);
+        await updateAccountBalance(user.tenantId, normalizedDestination, amount, "add");
       } else {
         // For regular account-to-account transfers, use the enhanced function
         try {
@@ -428,12 +453,15 @@ export async function POST(request) {
         } catch (transferError) {
           console.error('Transfer error:', transferError);
           // Fallback to old method if the new one fails
-          await updateAccountBalance(user.tenantId, sourceAccount, amount, "subtract");
-          await updateAccountBalance(user.tenantId, destinationAccount, amount, "add");
+          const normalizedSource = normalizePaymentMethod(sourceAccount);
+          const normalizedDestination = normalizePaymentMethod(destinationAccount);
+          await updateAccountBalance(user.tenantId, normalizedSource, amount, "subtract");
+          await updateAccountBalance(user.tenantId, normalizedDestination, amount, "add");
         }
       }
     } else if (type === "adjustment") {
-      await updateAccountBalance(user.tenantId, paymentMethod, amount, "add");
+      const normalizedMethod = normalizePaymentMethod(paymentMethod);
+      await updateAccountBalance(user.tenantId, normalizedMethod, amount, "add");
     }
 
     await recordPaymentTransaction({

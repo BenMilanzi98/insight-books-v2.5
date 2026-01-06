@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import Image from "next/image";
-import { Eye, Search } from "lucide-react";
+import { Eye, Search, Download, Calendar } from "lucide-react";
 import SupplierForm from "@/components/purchases/SupplierForm";
 
 async function updateSupplier(id, payload) {
@@ -746,7 +746,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
     expectedDeliveryDate: initialData?.expectedDeliveryDate
       ? format(new Date(initialData.expectedDeliveryDate), "yyyy-MM-dd")
       : "",
-    status: initialData?.status || "Posted",
+    status: initialData?.status || "Approved",
     notes: initialData?.notes || "",
   }));
   const [items, setItems] = useState(() => {
@@ -1036,10 +1036,34 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [filteredPurchaseOrders, setFilteredPurchaseOrders] = useState([]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSupplierChange = (supplierId) => {
+    setForm(prev => ({ ...prev, supplierId, purchaseOrderId: "" }));
+    setFilteredPurchaseOrders(purchaseOrders.filter(po => po.supplierId === supplierId));
+    setItems([{ productId: "", quantityReceived: 1, unitCost: 0 }]);
+  };
+
+  const handlePurchaseOrderChange = (poId) => {
+    setForm(prev => ({ ...prev, purchaseOrderId: poId }));
+    if (poId) {
+      const po = purchaseOrders.find(p => p.id === poId);
+      if (po && po.items) {
+        const receiptItems = po.items.map(item => ({
+          productId: item.productId,
+          quantityReceived: item.quantityOrdered,
+          unitCost: item.unitCost,
+        }));
+        setItems(receiptItems);
+      }
+    } else {
+      setItems([{ productId: "", quantityReceived: 1, unitCost: 0 }]);
+    }
   };
 
   const handleItemChange = (index, key, value) => {
@@ -1096,7 +1120,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
             <select
               name="supplierId"
               value={form.supplierId}
-              onChange={handleChange}
+              onChange={(e) => handleSupplierChange(e.target.value)}
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
@@ -1124,11 +1148,11 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
             <select
               name="purchaseOrderId"
               value={form.purchaseOrderId}
-              onChange={handleChange}
+              onChange={(e) => handlePurchaseOrderChange(e.target.value)}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             >
               <option value="">(Optional)</option>
-              {purchaseOrders.map((po) => (
+              {filteredPurchaseOrders.map((po) => (
                 <option key={po.id} value={po.id}>
                   {po.poNumber} — {po.supplier?.supplierName}
                 </option>
@@ -1538,6 +1562,20 @@ export default function SuppliersPage() {
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentSupplierFilter, setPaymentSupplierFilter] = useState("");
   const [unpaidBills, setUnpaidBills] = useState([]);
+  const [viewingPayment, setViewingPayment] = useState(null);
+  
+  // View modals state
+  const [viewingBill, setViewingBill] = useState(null);
+  const [viewingOrder, setViewingOrder] = useState(null);
+  const [viewingReceipt, setViewingReceipt] = useState(null);
+  
+  // Export date range state
+  const [exportDateRange, setExportDateRange] = useState({
+    bills: { startDate: "", endDate: "" },
+    orders: { startDate: "", endDate: "" },
+    receipts: { startDate: "", endDate: "" },
+    payments: { startDate: "", endDate: "" }
+  });
 
   // Load suppliers
   useEffect(() => {
@@ -1609,7 +1647,7 @@ export default function SuppliersPage() {
 
   // Load bills
   useEffect(() => {
-    if (activeTab !== "orders-bills") return;
+    if (activeTab !== "bills") return;
     let mounted = true;
     setBillsLoading(true);
     Promise.all([
@@ -1635,7 +1673,7 @@ export default function SuppliersPage() {
 
   // Load orders
   useEffect(() => {
-    if (activeTab !== "orders-bills") return;
+    if (activeTab !== "orders") return;
     let mounted = true;
     setOrdersLoading(true);
     Promise.all([
@@ -1957,6 +1995,37 @@ export default function SuppliersPage() {
     setShowOrderPreview(true);
   };
 
+  // Export helper functions
+  const handleExport = async (type, itemId = null) => {
+    try {
+      const dateRange = exportDateRange[type];
+      const params = new URLSearchParams();
+      if (dateRange.startDate) params.set('startDate', dateRange.startDate);
+      if (dateRange.endDate) params.set('endDate', dateRange.endDate);
+      if (itemId) params.set('id', itemId);
+      
+      const url = `/api/purchases/${type}/export?${params.toString()}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `${type}-export-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export. Please try again.');
+    }
+  };
+
   const handleExportOrderPreview = () => {
     if (!previewOrder) return;
 
@@ -2108,9 +2177,9 @@ export default function SuppliersPage() {
   // Tab navigation
   const tabs = [
     { id: "suppliers", label: "Suppliers", icon: "👥" },
-
-    { id: "orders-bills", label: "Orders & Bills", icon: "📋" },
+    { id: "orders", label: "Orders", icon: "📋" },
     { id: "receipts", label: "Receipts", icon: "📦" },
+    { id: "bills", label: "Bills", icon: "📄" },
     { id: "payments", label: "Payments", icon: "💳" },
   ];
 
@@ -2378,16 +2447,49 @@ export default function SuppliersPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Supplier Bills</h2>
-              <button
-                onClick={() => {
-                  setBillFormMode("create");
-                  setActiveBill(null);
-                  setShowBillForm(true);
-                }}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                New Bill
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
+                  <Calendar size={16} className="text-gray-500" />
+                  <input
+                    type="date"
+                    value={exportDateRange.bills.startDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      bills: { ...prev.bills, startDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={exportDateRange.bills.endDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      bills: { ...prev.bills, endDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="To"
+                  />
+                  <button
+                    onClick={() => handleExport('bills')}
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                  >
+                    <Download size={14} />
+                    Export
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    setBillFormMode("create");
+                    setActiveBill(null);
+                    setShowBillForm(true);
+                  }}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  New Bill
+                </button>
+              </div>
             </div>
 
             <div className="mb-4 grid gap-3 md:grid-cols-2">
@@ -2504,6 +2606,12 @@ export default function SuppliersPage() {
                               </button>
                             )}
                             <button
+                              className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                              onClick={() => setViewingBill(bill)}
+                            >
+                              View
+                            </button>
+                            <button
                               className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40"
                               onClick={() => {
                                 setBillFormMode("edit");
@@ -2533,30 +2641,67 @@ export default function SuppliersPage() {
         </>
       )}
 
-      {activeTab === "orders-bills" && (
+      {activeTab === "orders" && (
         <>
-          {/* Combined Summary Cards */}
+          {/* Orders Summary Cards */}
           <div className="grid gap-4 md:grid-cols-4">
             <SummaryCard label="Total Orders" value={ordersStats.total} helper="All time" />
             <SummaryCard label="Awaiting Approval" value={ordersStats.awaitingApproval} />
-            <SummaryCard label="Total Bills" value={billsStats.total} />
-            <SummaryCard label="Unpaid Bills" value={billsStats.unpaid} />
+            <SummaryCard label="Awaiting Receipt" value={ordersStats.awaitingReceipt} />
+            <SummaryCard
+              label="Open Amount"
+              value={`MWK ${ordersStats.openAmount.toLocaleString()}`}
+              helper="Unfulfilled orders"
+            />
           </div>
 
           {/* Orders Section */}
-          <div className="rounded-lg border border-gray-200 bg-white p-4 mb-6">
+          <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Purchase Orders</h2>
-              <button
-                onClick={() => {
-                  setOrderFormMode("create");
-                  setActiveOrder(null);
-                  setShowOrderForm(true);
-                }}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                New Purchase Order
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
+                  <Calendar size={16} className="text-gray-500" />
+                  <input
+                    type="date"
+                    value={exportDateRange.orders.startDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      orders: { ...prev.orders, startDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={exportDateRange.orders.endDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      orders: { ...prev.orders, endDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="To"
+                  />
+                  <button
+                    onClick={() => handleExport('orders')}
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                  >
+                    <Download size={14} />
+                    Export
+                  </button>
+                </div>
+                <button
+                  onClick={() => {
+                    setOrderFormMode("create");
+                    setActiveOrder(null);
+                    setShowOrderForm(true);
+                  }}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  New Purchase Order
+                </button>
+              </div>
             </div>
 
             <div className="mb-4 grid gap-3 md:grid-cols-2">
@@ -2642,6 +2787,12 @@ export default function SuppliersPage() {
                         <td className="px-4 py-2 text-right">
                           <div className="flex justify-end gap-2">
                             <button
+                              className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                              onClick={() => setViewingOrder(order)}
+                            >
+                              View
+                            </button>
+                            <button
                               className="flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-blue-600 hover:bg-gray-50"
                               onClick={() => handlePreviewOrder(order)}
                             >
@@ -2673,165 +2824,9 @@ export default function SuppliersPage() {
               </div>
             )}
           </div>
-
-          {/* Bills Section */}
-          <div className="rounded-lg border border-gray-200 bg-white p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Supplier Bills</h2>
-              <button
-                onClick={() => {
-                  setBillFormMode("create");
-                  setActiveBill(null);
-                  setShowBillForm(true);
-                }}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                New Bill
-              </button>
-            </div>
-
-            <div className="mb-4 grid gap-3 md:grid-cols-2">
-              <select
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                value={billSupplierFilter}
-                onChange={(e) => setBillSupplierFilter(e.target.value)}
-              >
-                <option value="">All Suppliers</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.supplierName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
-                value={billStatusFilter}
-                onChange={(e) => setBillStatusFilter(e.target.value)}
-              >
-                <option value="">All Statuses</option>
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {billsLoading ? (
-              <p className="text-sm text-gray-500">Loading bills…</p>
-            ) : billsError ? (
-              <p className="text-sm text-red-500">{billsError}</p>
-            ) : bills.length === 0 ? (
-              <p className="text-sm text-gray-500">No bills found.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Bill #
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Supplier
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Due Date
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Status
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Balance
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white text-sm">
-                    {bills.map((bill) => (
-                      <tr key={bill.id}>
-                        <td className="px-4 py-2 font-semibold text-gray-900">{bill.billNumber}</td>
-                        <td className="px-4 py-2">
-                          <div className="font-medium text-gray-900">
-                            {bill.supplier?.supplierName ?? "—"}
-                          </div>
-                          <div className="text-xs text-gray-500">{bill.supplierInvoiceNumber ?? "-"}</div>
-                        </td>
-                        <td className="px-4 py-2 text-gray-700">
-                          {bill.dueDate ? format(new Date(bill.dueDate), "dd MMM yyyy") : "—"}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span
-                            className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                              bill.status === "Paid"
-                                ? "bg-green-100 text-green-800"
-                                : bill.status === "Overdue"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {bill.status}
-                          </span>
-                    </td>
-                        <td className="px-4 py-2 text-right text-gray-900">
-                          MWK {Number((Number(bill.totalAmount || 0) - Number(bill.amountPaid || 0))).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-2 text-right">
-                          <div className="flex justify-end gap-2">
-                            {Number(bill.totalAmount || 0) > Number(bill.amountPaid || 0) && (
-                              <button
-                                className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-green-600 hover:bg-green-50"
-                                onClick={() => {
-                                  const supplierId = bill.supplierId || bill.supplier?.id || "";
-                                  setPaymentSupplierFilter(supplierId);
-                                  setShowPaymentForm(true);
-                              setPendingPaymentPrefill({
-                                supplierId,
-                                allocations: [
-                                  {
-                                    billId: bill.id,
-                                    amount: Number(
-                                      (Number(bill.totalAmount || 0) -
-                                        Number(bill.amountPaid || 0)).toFixed(2)
-                                    ),
-                                  },
-                                ],
-                              });
-                                }}
-                              >
-                                Make Payment
-                              </button>
-                            )}
-                            <button
-                              className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-40"
-                              onClick={() => {
-                                setBillFormMode("edit");
-                                setActiveBill(bill);
-                                setShowBillForm(true);
-                              }}
-                              disabled={bill.status === "Paid" || bill.status === "Partially Paid"}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
-                              onClick={() => setDeletingBill(bill)}
-                              disabled={bill.status === "Paid" || bill.status === "Partially Paid"}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
         </>
       )}
+
 
       {activeTab === "receipts" && (
         <>
@@ -2849,12 +2844,45 @@ export default function SuppliersPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Goods Receipts</h2>
-              <button
-                onClick={() => setShowReceiptForm(true)}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                Receive Goods
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
+                  <Calendar size={16} className="text-gray-500" />
+                  <input
+                    type="date"
+                    value={exportDateRange.receipts.startDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      receipts: { ...prev.receipts, startDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={exportDateRange.receipts.endDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      receipts: { ...prev.receipts, endDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="To"
+                  />
+                  <button
+                    onClick={() => handleExport('receipts')}
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                  >
+                    <Download size={14} />
+                    Export
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowReceiptForm(true)}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Receive Goods
+                </button>
+              </div>
             </div>
 
             <div className="mb-4 grid gap-3 md:grid-cols-2">
@@ -2945,6 +2973,14 @@ export default function SuppliersPage() {
                         <td className="px-4 py-2 text-right text-gray-900">
                           MWK {Number(receipt.totalAmount || 0).toLocaleString()}
                         </td>
+                        <td className="px-4 py-2 text-right">
+                          <button
+                            className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                            onClick={() => setViewingReceipt(receipt)}
+                          >
+                            View
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2981,12 +3017,45 @@ export default function SuppliersPage() {
           <div className="rounded-lg border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Supplier Payments</h2>
-              <button
-                onClick={() => setShowPaymentForm(true)}
-                className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                Record Payment
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2">
+                  <Calendar size={16} className="text-gray-500" />
+                  <input
+                    type="date"
+                    value={exportDateRange.payments.startDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      payments: { ...prev.payments, startDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="From"
+                  />
+                  <span className="text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={exportDateRange.payments.endDate}
+                    onChange={(e) => setExportDateRange(prev => ({
+                      ...prev,
+                      payments: { ...prev.payments, endDate: e.target.value }
+                    }))}
+                    className="text-xs border-0 focus:ring-0"
+                    placeholder="To"
+                  />
+                  <button
+                    onClick={() => handleExport('payments')}
+                    className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                  >
+                    <Download size={14} />
+                    Export
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowPaymentForm(true)}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Record Payment
+                </button>
+              </div>
             </div>
 
             <div className="mb-4">
@@ -3056,6 +3125,7 @@ export default function SuppliersPage() {
                         </td>
                         <td className="px-4 py-2 text-right">
                           <button
+                            onClick={() => setViewingPayment(payment)}
                             className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                           >
                             View
@@ -3270,6 +3340,390 @@ export default function SuppliersPage() {
         </div>
       )}
 
+      {viewingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white ">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{viewingPayment.paymentNumber}</h2>
+                <p className="text-sm text-gray-500">
+                  {viewingPayment.supplier?.supplierName ?? "—"} •{" "}
+                  {viewingPayment.paymentDate ? format(new Date(viewingPayment.paymentDate), "dd MMM yyyy") : "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExport('payments', viewingPayment.id)}
+                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  <Download size={14} />
+                  Export
+                </button>
+                <button onClick={() => setViewingPayment(null)} className="text-gray-500 hover:text-gray-700">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Payment Method</div>
+                  <div className="mt-1 text-gray-900">{viewingPayment.paymentMethod}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Reference</div>
+                  <div className="mt-1 text-gray-900">{viewingPayment.referenceNumber || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number(viewingPayment.totalAmount || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Allocations</div>
+                  <div className="mt-1 text-gray-900">{viewingPayment.allocations?.length ?? 0}</div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700">Bill Allocations</h3>
+                <div className="mt-2 overflow-x-auto rounded-lg border">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                      <tr>
+                        <th className="px-4 py-2">Bill</th>
+                        <th className="px-4 py-2 text-right">Allocated</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 bg-white">
+                      {viewingPayment.allocations?.length ? (
+                        viewingPayment.allocations.map((allocation) => (
+                          <tr key={allocation.id}>
+                            <td className="px-4 py-2 text-gray-900">
+                              {allocation.bill?.billNumber ?? allocation.billId}
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              MWK {Number(allocation.amountAllocated || allocation.amount || 0).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="px-4 py-2 text-gray-500" colSpan={2}>
+                            No allocations recorded.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white ">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{viewingBill.billNumber}</h2>
+                <p className="text-sm text-gray-500">
+                  {viewingBill.supplier?.supplierName ?? "—"} •{" "}
+                  {viewingBill.billDate ? format(new Date(viewingBill.billDate), "dd MMM yyyy") : "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExport('bills', viewingBill.id)}
+                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  <Download size={14} />
+                  Export
+                </button>
+                <button onClick={() => setViewingBill(null)} className="text-gray-500 hover:text-gray-700">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="mt-1 text-gray-900">{viewingBill.supplier?.supplierName || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Bill Date</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingBill.billDate ? format(new Date(viewingBill.billDate), "dd MMM yyyy") : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Due Date</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingBill.dueDate ? format(new Date(viewingBill.dueDate), "dd MMM yyyy") : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                        viewingBill.status === "Paid"
+                          ? "bg-green-100 text-green-800"
+                          : viewingBill.status === "Overdue"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {viewingBill.status}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number(viewingBill.totalAmount || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Amount Paid</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number(viewingBill.amountPaid || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Balance</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number((Number(viewingBill.totalAmount || 0) - Number(viewingBill.amountPaid || 0))).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Supplier Invoice #</div>
+                  <div className="mt-1 text-gray-900">{viewingBill.supplierInvoiceNumber || "—"}</div>
+                </div>
+              </div>
+              {viewingBill.notes && (
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Notes</div>
+                  <div className="mt-1 text-gray-900">{viewingBill.notes}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white ">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{viewingOrder.poNumber}</h2>
+                <p className="text-sm text-gray-500">
+                  {viewingOrder.supplier?.supplierName ?? "—"} •{" "}
+                  {viewingOrder.poDate ? format(new Date(viewingOrder.poDate), "dd MMM yyyy") : "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExport('orders', viewingOrder.id)}
+                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  <Download size={14} />
+                  Export
+                </button>
+                <button onClick={() => setViewingOrder(null)} className="text-gray-500 hover:text-gray-700">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="mt-1 text-gray-900">{viewingOrder.supplier?.supplierName || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">PO Date</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingOrder.poDate ? format(new Date(viewingOrder.poDate), "dd MMM yyyy") : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Expected Delivery</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingOrder.expectedDeliveryDate ? format(new Date(viewingOrder.expectedDeliveryDate), "dd MMM yyyy") : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                        statusColors[viewingOrder.status] || "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {viewingOrder.status}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number(viewingOrder.totalAmount || 0).toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Payment Terms</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingOrder.paymentTerms ? `${viewingOrder.paymentTerms} days` : "—"}
+                  </div>
+                </div>
+              </div>
+              {viewingOrder.items && viewingOrder.items.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Items</h3>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                        <tr>
+                          <th className="px-4 py-2">Product</th>
+                          <th className="px-4 py-2 text-right">Quantity</th>
+                          <th className="px-4 py-2 text-right">Unit Price</th>
+                          <th className="px-4 py-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {viewingOrder.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2 text-gray-900">{item.productName || item.name || "—"}</td>
+                            <td className="px-4 py-2 text-right text-gray-900">{item.quantity || 0}</td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              MWK {Number(item.unitPrice || 0).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              MWK {Number((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {viewingOrder.notes && (
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Notes</div>
+                  <div className="mt-1 text-gray-900">{viewingOrder.notes}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white ">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">{viewingReceipt.receiptNumber}</h2>
+                <p className="text-sm text-gray-500">
+                  {viewingReceipt.supplier?.supplierName ?? "—"} •{" "}
+                  {viewingReceipt.receiptDate ? format(new Date(viewingReceipt.receiptDate), "dd MMM yyyy") : "—"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleExport('receipts', viewingReceipt.id)}
+                  className="flex items-center gap-1 rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                >
+                  <Download size={14} />
+                  Export
+                </button>
+                <button onClick={() => setViewingReceipt(null)} className="text-gray-500 hover:text-gray-700">
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="space-y-6 p-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Supplier</div>
+                  <div className="mt-1 text-gray-900">{viewingReceipt.supplier?.supplierName || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Receipt Date</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingReceipt.receiptDate ? format(new Date(viewingReceipt.receiptDate), "dd MMM yyyy") : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Purchase Order</div>
+                  <div className="mt-1 text-gray-900">
+                    {viewingReceipt.purchaseOrder?.poNumber || "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Status</div>
+                  <div className="mt-1">
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                        viewingReceipt.status === "Posted"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                      }`}
+                    >
+                      {viewingReceipt.status}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-gray-500">Total Amount</div>
+                  <div className="mt-1 text-gray-900">
+                    MWK {Number(viewingReceipt.totalAmount || 0).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              {viewingReceipt.items && viewingReceipt.items.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Items Received</h3>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                      <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                        <tr>
+                          <th className="px-4 py-2">Product</th>
+                          <th className="px-4 py-2 text-right">Quantity</th>
+                          <th className="px-4 py-2 text-right">Unit Price</th>
+                          <th className="px-4 py-2 text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 bg-white">
+                        {viewingReceipt.items.map((item, idx) => (
+                          <tr key={idx}>
+                            <td className="px-4 py-2 text-gray-900">{item.productName || item.name || "—"}</td>
+                            <td className="px-4 py-2 text-right text-gray-900">{item.quantityReceived || item.quantity || 0}</td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              MWK {Number(item.unitPrice || 0).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-2 text-right text-gray-900">
+                              MWK {Number((item.quantityReceived || item.quantity || 0) * (item.unitPrice || 0)).toLocaleString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 ">
@@ -3311,6 +3765,16 @@ export default function SuppliersPage() {
           onConfirm={handleDeleteSupplier}
           onCancel={() => setDeletingSupplier(null)}
           loading={deleteLoading}
+        />
+      )}
+
+      {deletingOrder && (
+        <ConfirmDialog
+          title="Delete Purchase Order"
+          message={`Are you sure you want to delete ${deletingOrder.poNumber}?`}
+          onConfirm={handleDeleteOrder}
+          onCancel={() => setDeletingOrder(null)}
+          loading={deleteOrderLoading}
         />
       )}
 

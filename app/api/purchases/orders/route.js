@@ -7,9 +7,15 @@ import { requireStandardAccess } from '@/lib/accessControl';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 
-async function generatePurchaseOrderNumber(tenantId) {
-  const count = await prisma.purchaseOrder.count({ where: { tenantId } });
-  return `PO-${String(count + 1).padStart(5, '0')}`;
+async function generatePurchaseOrderNumber() {
+  // Generate a globally unique PO-XXXXX number to avoid collisions across tenants
+  let seq = (await prisma.purchaseOrder.count()) + 1;
+  let number = `PO-${String(seq).padStart(5, '0')}`;
+  while (await prisma.purchaseOrder.findUnique({ where: { poNumber: number } })) {
+    seq++;
+    number = `PO-${String(seq).padStart(5, '0')}`;
+  }
+  return number;
 }
 
 function validateItems(items) {
@@ -118,7 +124,19 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
 
-    const poNumber = body.poNumber?.trim() || await generatePurchaseOrderNumber(user.tenantId);
+    // Validate product IDs exist and belong to the tenant
+    const productIds = [...new Set((body.items || []).map((it) => it.productId).filter(Boolean))];
+    if (productIds.length === 0) {
+      return NextResponse.json({ error: 'No valid productIds provided in items' }, { status: 400 });
+    }
+    const products = await prisma.product.findMany({ where: { id: { in: productIds }, tenantId: user.tenantId } });
+    if (products.length !== productIds.length) {
+      const foundIds = new Set(products.map((p) => p.id));
+      const missing = productIds.filter((id) => !foundIds.has(id));
+      return NextResponse.json({ error: `Products not found or not accessible: ${missing.join(', ')}` }, { status: 400 });
+    }
+
+    const poNumber = body.poNumber?.trim() || await generatePurchaseOrderNumber();
     const subtotal = body.items.reduce(
       (sum, item) => sum + Number(item.quantityOrdered) * Number(item.unitCost),
       0
@@ -164,9 +182,20 @@ export async function POST(request) {
 
     return NextResponse.json({ purchaseOrder }, { status: 201 });
   } catch (error) {
-    console.error('Error creating purchase order:', error);
+    console.error('Error creating purchase order:', error?.message || error);
+
+    // Prisma unique constraint (poNumber) -> 409
+    if (error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Purchase order number already exists' }, { status: 409 });
+    }
+
+    // Prisma foreign key constraint -> likely a missing/invalid product or supplier ID
+    if (error && error.code === 'P2003') {
+      return NextResponse.json({ error: 'Invalid reference: missing related record (product/supplier)' }, { status: 400 });
+    }
+
     return NextResponse.json(
-      { error: error.message || 'Failed to create purchase order.' },
+      { error: 'Failed to create purchase order.' },
       { status: 500 }
     );
   }

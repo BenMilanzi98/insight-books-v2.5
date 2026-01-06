@@ -221,7 +221,7 @@ export async function GET(request) {
 
       return {
         income: (invoices._sum.amount || 0),
-        expenses: expenses._sum.amount || 0
+        expenses: (expenses._sum.amount || 0)
       };
     };
 

@@ -107,17 +107,6 @@ export async function GET(request) {
       partially_refunded: { count: 0, amount: 0 }
     });
 
-    // Fetch account balances
-    const accountBalances = await prisma.accountBalance.findMany({
-      where: {
-        tenantId: user.tenantId,
-      },
-      select: {
-        account: true,
-        balance: true,
-      },
-    });
-
     // Format method statistics
     const methodStats = paymentByMethod.reduce((acc, method) => {
       const methodKey = method.paymentMethod.replace(/\s+/g, '_').toLowerCase();
@@ -128,18 +117,173 @@ export async function GET(request) {
       return acc;
     }, {});
 
-    // Create a balance map for lookup
-    const balanceMap = accountBalances.reduce((acc, b) => {
-      const key = b.account.replace(/\s+/g, '_').toLowerCase();
-      acc[key] = b.balance;
-      return acc;
-    }, {});
+    // Fetch account balances with account details to map to payment methods
+    const accountBalances = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+      },
+      select: {
+        id: true,
+        accountCode: true,
+        balance: true,
+      },
+    });
+    
+    // Also get account balances (for any additional tracking)
+    const accountBalanceRecords = await prisma.accountBalance.findMany({
+      where: {
+        tenantId: user.tenantId,
+      },
+      select: {
+        account: true, // This is the account identifier
+        balance: true,
+      },
+    });
+    
+    // Combine both sources, prioritizing account balance records
+    const allBalances = new Map();
+    
+    // Add account balance records (these might have different identifiers)
+    for (const record of accountBalanceRecords) {
+      allBalances.set(record.account, record.balance);
+    }
+    
+    // Add direct account balances
+    for (const account of accountBalances) {
+      // If not already set by accountBalance record, use the account's direct balance
+      if (!allBalances.has(account.id)) {
+        allBalances.set(account.id, account.balance);
+      }
+      // Also add account code if it exists
+      if (account.accountCode && !allBalances.has(account.accountCode)) {
+        allBalances.set(account.accountCode, account.balance);
+      }
+    }
+    
+    // Convert back to array format for processing
+    const processedBalances = Array.from(allBalances, ([account, balance]) => ({
+      account,
+      balance
+    }));
 
+    // Create a balance map for lookup from the combined balances map
+    const balanceMap = {};
+    for (const [account, balance] of allBalances) {
+      const key = account.replace(/\s+/g, '_').toLowerCase();
+      balanceMap[key] = balance;
+    }
+    
+    // Also fetch account details to map account codes to payment method keys
+    const accounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+      },
+      select: {
+        id: true,
+        accountCode: true,
+      },
+    });
+    
+    // Create a map from account ID to account code
+    const accountIdToCodeMap = {};
+    accounts.forEach(account => {
+      if (account.accountCode) {
+        accountIdToCodeMap[account.id] = account.accountCode;
+      }
+    });
+    
+
+    // Get supplier payment statistics to include in the method distribution
+    const supplierPaymentsByMethod = await prisma.supplierPayment.groupBy({
+      by: ['paymentMethod'],
+      where: {
+        tenantId: user.tenantId
+      },
+      _count: {
+        id: true
+      },
+      _sum: {
+        totalAmount: true
+      }
+    });
+
+    // Add supplier payment stats to methodStats
+    supplierPaymentsByMethod.forEach(method => {
+      const methodKey = method.paymentMethod.replace(/\s+/g, '_').toLowerCase();
+      if (methodStats[methodKey]) {
+        methodStats[methodKey].count += method._count.id;
+        methodStats[methodKey].amount += method._sum.totalAmount || 0;
+      } else {
+        methodStats[methodKey] = {
+          count: method._count.id,
+          amount: method._sum.totalAmount || 0
+        };
+      }
+    });
+
+    // Create account code to payment method mapping
+    const accountCodeToPaymentMethod = {
+      '1000': 'cash',
+      '1010': 'cash',
+      '1020': 'bank_transfer',
+      '1030': 'airtel_money',
+      '1040': 'mpamba',
+      '1050': 'paychangu',
+    };
+    
+    // Create a combined balance map that includes both account IDs and account codes
+    const combinedBalanceMap = { ...balanceMap };
+    
+    // Add account code balances to the combined map using the account code to payment method mapping
+    for (const account of accountBalances) {
+      if (account.accountCode && accountCodeToPaymentMethod[account.accountCode]) {
+        const paymentMethodKey = accountCodeToPaymentMethod[account.accountCode];
+        // Only set if not already set in combinedBalanceMap
+        if (!combinedBalanceMap.hasOwnProperty(paymentMethodKey)) {
+          combinedBalanceMap[paymentMethodKey] = account.balance;
+        }
+      }
+    }
+    
+    // Additionally, ensure all payment methods have a balance value (even if 0)
+    for (const [accountCode, paymentMethodKey] of Object.entries(accountCodeToPaymentMethod)) {
+      const account = accountBalances.find(acc => acc.accountCode === accountCode);
+      if (account && !combinedBalanceMap.hasOwnProperty(paymentMethodKey)) {
+        combinedBalanceMap[paymentMethodKey] = account.balance;
+      }
+    }
+    
+    // Also check AccountBalance records for payment method balances
+    // This handles cases where the account field in AccountBalance might be the payment method key directly
+    // Helper to normalize payment method names
+    const normalizePaymentMethod = (method) => {
+      if (!method) return '';
+      const methodStr = method.toString().trim();
+      if (methodStr.includes('_')) {
+        return methodStr.toLowerCase();
+      }
+      return methodStr.toLowerCase().replace(/\s+/g, '_');
+    };
+    
+    for (const record of accountBalanceRecords) {
+      const accountKey = record.account;
+      // Check if it matches a payment method key directly
+      if (paymentMethods.some(pm => pm.key === accountKey)) {
+        combinedBalanceMap[accountKey] = record.balance;
+      } else {
+        // Try normalizing it to see if it matches a payment method
+        const normalized = normalizePaymentMethod(accountKey);
+        if (paymentMethods.some(pm => pm.key === normalized)) {
+          combinedBalanceMap[normalized] = record.balance;
+        }
+      }
+    }
+    
     // Filtered and formatted method statistics with only availableBalance
     const methodStatsBalance = paymentMethods.reduce((acc, method) => {
       const methodKey = method.key;
       acc[methodKey] = {
-        availableBalance: balanceMap[methodKey] || 0
+        availableBalance: combinedBalanceMap[methodKey] || 0
       };
       return acc;
     }, {});

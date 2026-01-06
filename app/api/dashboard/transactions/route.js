@@ -197,7 +197,29 @@ export async function GET(request) {
       take: 10
     });
     
-    console.log(`Found ${invoices.length} invoices, ${sales.length} sales, and ${expenses.length} expenses for tenant ${tenantId}`);
+    // Get recent supplier payments (expense transactions)
+    const supplierPayments = await prisma.supplierPayment.findMany({
+      where: {
+        tenantId,
+        paymentDate: {
+          gte: startDate,
+          lte: endDate
+        }
+      },
+      orderBy: {
+        paymentDate: 'desc'
+      },
+      take: 10,
+      include: {
+        supplier: {
+          select: {
+            supplierName: true
+          }
+        }
+      }
+    });
+    
+    console.log(`Found ${invoices.length} invoices, ${sales.length} sales, ${expenses.length} expenses, and ${supplierPayments.length} supplier payments for tenant ${tenantId}`);
     
     // Combine and format transactions
     const transactions = [
@@ -224,6 +246,14 @@ export async function GET(request) {
         date: expense.date.toISOString(),
         amount: expense.amount,
         status: expense.status.toLowerCase()
+      })),
+      ...supplierPayments.map(payment => ({
+        id: `SUPP-${payment.id}`,
+        type: 'expense',
+        description: `Payment to ${payment.supplier?.supplierName || 'Supplier'}`,
+        date: payment.paymentDate.toISOString(),
+        amount: payment.totalAmount,
+        status: payment.status?.toLowerCase() || 'completed'
       }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
     

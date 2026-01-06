@@ -6,6 +6,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createSupplierPaymentEntry } from '@/lib/purchaseAccounting';
 import { updateAccountBalance } from '@/lib/core';
+import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 
 function parsePagination(searchParams) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
@@ -125,7 +126,6 @@ export async function POST(request) {
 
     const paymentNumber = body.paymentNumber?.trim() || `SP-${Date.now()}`;
     const paymentMethodInput = body.paymentMethod || 'Cash';
-    const paymentMethodKey = normalizePaymentMethod(paymentMethodInput);
 
     const result = await prisma.$transaction(async (tx) => {
       const payment = await tx.supplierPayment.create({
@@ -173,20 +173,64 @@ export async function POST(request) {
         }
       });
 
-      const journalEntry = await createSupplierPaymentEntry({
-        tenantId: user.tenantId,
-        userId: user.id,
-        paymentId: payment.id,
-        supplierName: supplier.supplierName,
-        amount: Number(body.totalAmount),
-        paymentMethod: paymentMethodInput,
-        reference: payment.paymentNumber,
-        tx
-      });
+      // Get the payment account ID to update balances
+      let paymentAccount;
+      try {
+        paymentAccount = await getAccountForPaymentMethod(user.tenantId, paymentMethodInput, tx);
+      } catch (error) {
+        console.error('Error getting payment account:', error.message);
+        // Fallback: try to find account by code 1030 (Airtel Money) directly
+        if (paymentMethodInput === 'Airtel Money') {
+          paymentAccount = await tx.account.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              accountCode: '1030',
+              isActive: true,
+              accountType: 'Asset'
+            }
+          });
+        }
+        
+        // If still not found, try to find any active asset account as a last resort
+        if (!paymentAccount) {
+          paymentAccount = await tx.account.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              isActive: true,
+              accountType: 'Asset'
+            },
+            orderBy: { accountCode: 'asc' }
+          });
+        }
+        
+        if (!paymentAccount) {
+          throw new Error(`No payment account found for method: ${paymentMethodInput}. Please set up your chart of accounts.`);
+        }
+      }
+      
+      let journalEntry;
+      try {
+        journalEntry = await createSupplierPaymentEntry({
+          tenantId: user.tenantId,
+          userId: user.id,
+          paymentId: payment.id,
+          supplierName: supplier.supplierName,
+          amount: Number(body.totalAmount),
+          paymentMethod: paymentMethodInput,
+          reference: payment.paymentNumber,
+          tx
+        });
+      } catch (error) {
+        console.error('Error creating supplier payment journal entry:', error);
+        throw new Error(`Failed to create journal entry for payment: ${error.message}`);
+      }
 
+      // Update account balance to reflect the payment
+      // Normalize payment method to match AccountBalance format (e.g., "Airtel Money" -> "airtel_money")
+      const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodInput);
       await updateAccountBalance(
         user.tenantId,
-        paymentMethodKey,
+        normalizedPaymentMethod, // Use normalized payment method key for AccountBalance
         Number(body.totalAmount),
         'subtract',
         tx
@@ -194,7 +238,7 @@ export async function POST(request) {
 
       await tx.supplierPayment.update({
         where: { id: payment.id },
-        data: { journalEntryId: journalEntry.journalEntryId || journalEntry.id }
+        data: { journalEntryId: journalEntry?.journalEntryId || journalEntry?.id || null }
       });
 
       return payment;
@@ -203,6 +247,13 @@ export async function POST(request) {
     return NextResponse.json({ payment: result }, { status: 201 });
   } catch (error) {
     console.error('Error creating supplier payment:', error);
+    // Return more specific error messages
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return NextResponse.json(
+        { error: `Database error: ${error.message}` },
+        { status: 500 }
+      );
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to create supplier payment.' },
       { status: 500 }

@@ -91,7 +91,7 @@ export async function POST(request, context) {
       }
       
       // Generate email HTML content with enhanced invoice design
-      const invoiceHtml = generateInvoiceHtml(invoice, tenant);
+      const invoiceHtml = generateInvoiceHtml(invoice, tenant, isPaid);
       
 
       const transporter = await createTransport();
@@ -278,7 +278,7 @@ export async function POST(request, context) {
  * Generate HTML representation of the invoice
  * Improved design that works well in email clients
  */
-function generateInvoiceHtml(invoice, tenant) {
+function generateInvoiceHtml(invoice, tenant, isPaid = false) {
   const primaryColor = tenant?.primaryColor || '#4338ca';
   let logoUrl = tenant?.logoUrl;
   if (logoUrl && logoUrl.startsWith('/')) {
@@ -307,7 +307,7 @@ function generateInvoiceHtml(invoice, tenant) {
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td>
-              <h1 style="margin: 0; font-size: 24px;">INVOICE</h1>
+              <h1 style="margin: 0; font-size: 24px;">${isPaid ? 'PAYMENT CONFIRMATION' : 'INVOICE'}</h1>
               <p style="margin: 5px 0 0 0; opacity: 0.9;">#${invoice.invoiceNumber}</p>
             </td>
             <td style="text-align: right;">

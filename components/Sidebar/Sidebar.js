@@ -1239,11 +1239,13 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                         color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
                         backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
                         borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
+                        borderRight: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
+                        borderTop: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
+                        borderBottom: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
                         gap: "12px",
                         position: "relative",
                         transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                        borderRadius: "8px",
-                        border: "1px solid transparent"
+                        borderRadius: "8px"
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive(item.href)) {

@@ -117,6 +117,7 @@ export async function GET(request) {
       
       // Cash Outflows (Money going out)
       expensePayments,
+      supplierPayments,
       
       // Outstanding amounts (Money owed)
       outstandingReceivables,
@@ -208,6 +209,29 @@ export async function GET(request) {
         orderBy: { paymentDate: 'desc' }
       }),
       
+      // Supplier payments (cash out)
+      prisma.supplierPayment.findMany({
+        where: {
+          tenantId,
+          paymentDate: {
+            gte: startDate,
+            lte: endDate
+          }
+        },
+        select: {
+          id: true,
+          totalAmount: true,
+          paymentDate: true,
+          paymentMethod: true,
+          supplier: {
+            select: {
+              supplierName: true
+            }
+          }
+        },
+        orderBy: { paymentDate: 'desc' }
+      }),
+      
       // Outstanding receivables (money owed to us)
       prisma.invoice.findMany({
         where: {
@@ -259,10 +283,11 @@ export async function GET(request) {
     ]);
     
     // Calculate totals
-    const totalCashIn = invoicePayments.reduce((sum, p) => sum + p.amount, 0) + 
+    const totalCashIn = invoicePayments.reduce((sum, p) => sum + p.amount, 0) +
                        salesPayments.reduce((sum, p) => sum + p.amount, 0);
     
-    const totalCashOut = expensePayments.reduce((sum, p) => sum + p.amount, 0);
+    const totalCashOut = expensePayments.reduce((sum, p) => sum + p.amount, 0) +
+                        supplierPayments.reduce((sum, p) => sum + p.totalAmount, 0);
     
     const totalReceivables = outstandingReceivables.reduce((sum, inv) => 
       sum + (inv.remainingBalance || (inv.total - (inv.totalPaid || 0))), 0);
@@ -282,7 +307,14 @@ export async function GET(request) {
     const allPayments = [
       ...invoicePayments.map(p => ({ ...p, type: 'inflow', source: 'invoice' })),
       ...salesPayments.map(p => ({ ...p, type: 'inflow', source: 'sale' })),
-      ...expensePayments.map(p => ({ ...p, type: 'outflow', source: 'expense' }))
+      ...expensePayments.map(p => ({ ...p, type: 'outflow', source: 'expense' })),
+      ...supplierPayments.map(p => ({
+        ...p,
+        type: 'outflow',
+        source: 'supplier_payment',
+        amount: p.totalAmount,
+        description: p.supplier?.supplierName || 'Supplier Payment'
+      }))
     ];
     
     allPayments.forEach(payment => {
@@ -346,6 +378,15 @@ export async function GET(request) {
             source: p.expense.description,
             merchant: p.expense.merchant,
             category: p.expense.category
+          })),
+          supplierPayments: supplierPayments.map(p => ({
+            id: p.id,
+            amount: p.totalAmount,
+            date: p.paymentDate,
+            method: p.paymentMethod,
+            source: `Payment to ${p.supplier?.supplierName || 'Supplier'}`,
+            merchant: p.supplier?.supplierName,
+            category: 'Supplier Payment'
           }))
         },
         outstanding: {

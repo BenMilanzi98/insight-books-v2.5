@@ -3594,36 +3594,52 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       };
 
       if (hasUnits) {
+        // Helper function to normalize unit structure (handles both nested and flattened)
+        const getUnit = (pu) => pu.unit || pu;
+        
         // Find the base unit from the first unit's baseUnit
         const firstUnit = product.units[0];
-        if (firstUnit?.unit?.baseUnit) {
+        const firstUnitData = getUnit(firstUnit);
+        if (firstUnitData?.baseUnit) {
           // Find the base unit in our loaded baseUnits
-          const baseUnit = baseUnits.find(bu => bu.id === firstUnit.unit.baseUnit.id);
+          const baseUnitId = firstUnitData.baseUnit?.id || firstUnitData.baseUnit;
+          const baseUnit = baseUnits.find(bu => bu.id === baseUnitId);
           if (baseUnit) {
             unitManagementData.selectedBaseUnit = baseUnit;
           }
         }
 
         // Prepare selected units and configurations
-        unitManagementData.selectedUnits = product.units.map(pu => ({
-          id: pu.unit.id,
-          name: pu.unit.name,
-          symbol: pu.unit.symbol,
-          conversionToBase: pu.unit.conversionToBase,
-          isBaseUnit: pu.unit.isBaseUnit,
-          baseUnitId: pu.unit.baseUnit?.id
-        }));
+        unitManagementData.selectedUnits = product.units
+          .filter(pu => {
+            const unit = getUnit(pu);
+            return unit && unit.id; // Filter out any undefined units
+          })
+          .map(pu => {
+            const unit = getUnit(pu);
+            return {
+              id: unit.id,
+              name: unit.name,
+              symbol: unit.symbol,
+              conversionToBase: unit.conversionToBase,
+              isBaseUnit: unit.isBaseUnit,
+              baseUnitId: unit.baseUnit?.id || unit.baseUnit
+            };
+          });
 
         // Prepare unit configurations
         unitManagementData.unitConfigurations = {};
         product.units.forEach(pu => {
-          unitManagementData.unitConfigurations[pu.unit.id] = {
-            unitPrice: parseFloat(pu.unitPrice || 0).toFixed(2),
-            costPrice: parseFloat(pu.costPrice || 0).toFixed(2),
-            quantityInStock: parseFloat(pu.quantityInStock || 0).toFixed(3),
-            reorderPoint: parseFloat(pu.reorderPoint || 0).toFixed(3),
-            isDefault: pu.isDefault || false
-          };
+          const unit = getUnit(pu);
+          if (unit && unit.id) {
+            unitManagementData.unitConfigurations[unit.id] = {
+              unitPrice: parseFloat(pu.unitPrice || 0).toFixed(2),
+              costPrice: parseFloat(pu.costPrice || 0).toFixed(2),
+              quantityInStock: parseFloat(pu.quantityInStock || 0).toFixed(3),
+              reorderPoint: parseFloat(pu.reorderPoint || 0).toFixed(3),
+              isDefault: pu.isDefault || false
+            };
+          }
         });
       }
 

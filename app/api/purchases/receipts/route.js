@@ -8,8 +8,43 @@ import { updateAverageCost } from '@/lib/inventoryCosting';
 import { createPurchaseReceiptJournalEntry } from '@/lib/purchaseAccounting';
 
 async function generateReceiptNumber(tenantId) {
-  const count = await prisma.goodsReceipt.count({ where: { tenantId } });
-  return `GR-${String(count + 1).padStart(5, '0')}`;
+  // Try to generate a unique receipt number with retry logic to handle race conditions
+ for (let attempt = 0; attempt < 10; attempt++) {
+    // First, get the highest receipt number for this tenant
+    const latestReceipt = await prisma.goodsReceipt.findFirst({
+      where: { tenantId },
+      orderBy: { receiptNumber: 'desc' },
+      select: { receiptNumber: true }
+    });
+    
+    let nextNumber = 1;
+    if (latestReceipt) {
+      // Extract the number from the format "GR-XXXXX"
+      const match = latestReceipt.receiptNumber.match(/GR-(\d+)$/);
+      if (match) {
+        const lastNumber = parseInt(match[1], 10);
+        nextNumber = lastNumber + 1 + attempt; // Add attempt number to avoid conflicts
+      }
+    } else {
+      nextNumber = 1 + attempt; // For first receipt, add attempt to handle potential race condition
+    }
+    
+    const receiptNumber = `GR-${String(nextNumber).padStart(5, '0')}`;
+    
+    // Check if this number already exists (to handle race conditions)
+    const existing = await prisma.goodsReceipt.findUnique({
+      where: { receiptNumber }
+    });
+    
+    if (!existing) {
+      return receiptNumber;
+    }
+    
+    // If it exists, try the next number in the next attempt
+ }
+  
+  // If we've tried 10 times and still failed, throw an error
+  throw new Error('Failed to generate unique receipt number after 10 attempts');
 }
 
 function validateItems(items) {
@@ -199,14 +234,14 @@ export async function POST(request) {
       }
     }
 
-    const receiptNumber = body.receiptNumber?.trim() || await generateReceiptNumber(user.tenantId);
     const totalAmount = body.items.reduce(
       (sum, item) => sum + Number(item.quantityReceived) * Number(item.unitCost),
       0
     );
 
-    const result = await prisma.$transaction(async (trx) => {
-      const goodsReceipt = await trx.goodsReceipt.create({
+    // Function to create goods receipt with unique receipt number handling
+    const createGoodsReceipt = async (trx, receiptNumber) => {
+      return await trx.goodsReceipt.create({
         data: {
           tenantId: user.tenantId,
           supplierId: supplier.id,
@@ -233,6 +268,40 @@ export async function POST(request) {
         },
         include: { items: true }
       });
+    };
+
+    // Generate receipt number with fallback for race conditions
+    let receiptNumber = body.receiptNumber?.trim() || null;
+    if (!receiptNumber) {
+      receiptNumber = await generateReceiptNumber(user.tenantId);
+    }
+
+    const result = await prisma.$transaction(async (trx) => {
+      let goodsReceipt;
+      let attempt = 0;
+      const maxAttempts = 10;
+      
+      while (attempt < maxAttempts) {
+        try {
+          goodsReceipt = await createGoodsReceipt(trx, receiptNumber);
+          break; // Success, exit the loop
+        } catch (error) {
+          // Check if the error is due to unique constraint violation
+          if (error.code === 'P202' && error.meta?.target?.includes('receiptNumber')) {
+            // Generate a new receipt number and try again
+            attempt++;
+            receiptNumber = await generateReceiptNumber(user.tenantId);
+            continue; // Retry with new number
+          } else {
+            // Some other error, re-throw it
+            throw error;
+          }
+        }
+      }
+      
+      if (!goodsReceipt) {
+        throw new Error('Failed to create goods receipt after maximum attempts');
+      }
 
       for (const item of goodsReceipt.items) {
         await updateAverageCost({
