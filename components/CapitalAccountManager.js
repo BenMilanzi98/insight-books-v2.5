@@ -600,173 +600,244 @@ const CapitalAccountManager = () => {
 
       {/* Transfer Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-md p-6 relative">
-            {isTransferring && (
-              <div className="absolute inset-0 bg-white/90 rounded-lg flex flex-col items-center justify-center z-10">
-                <div className="relative">
-                  <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <ArrowRightLeft className="w-6 h-6 text-blue-600 animate-pulse" />
-                  </div>
-                </div>
-                <p className="mt-4 text-sm font-medium text-gray-700">Transferring funds...</p>
-                <p className="mt-2 text-xs text-gray-500">Please wait while we process your transfer</p>
-              </div>
-            )}
-            <h3 className="text-lg font-semibold mb-4">Transfer from Capital Account</h3>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Source Account</label>
-              <div className="w-full p-3 border border-gray-300 rounded-md bg-gray-50">
-                <div className="text-sm font-medium text-gray-900">
-                  {capitalAccount?.code} - {capitalAccount?.name} ({capitalAccount?.type})
-                </div>
-                <div className="text-sm text-gray-600">
-                  Current Balance: MWK {formatCurrency(capitalAccount?.balance || 0)}
-                </div>
-                {transferData.amount && (
-                  <div className="text-sm text-gray-600">
-                    New Balance: MWK {formatCurrency((capitalAccount?.balance || 0) - parseFloat(transferData.amount))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Amount (MWK)</label>
-              <input
-                type="number"
-                value={transferData.amount}
-                onChange={(e) => setTransferData({...transferData, amount: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Enter amount"
-                min="0"
-                step="0.01"
-              />
-              {transferData.amount && parseFloat(transferData.amount) > (capitalAccount?.balance || 0) && (
-                <p className="text-sm text-red-600 mt-1">
-                  Insufficient balance. Available: MWK {formatCurrency(capitalAccount?.balance || 0)}
-                </p>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Destination Account</label>
-              <select
-                value={transferData.destinationAccount}
-                onChange={(e) => setTransferData({...transferData, destinationAccount: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-md"
-              >
-                <option value="">Select destination account</option>
-                {paymentMethods
-                  .map(method => (
-                    <option key={method.key} value={method.key}>
-                      {method.name} - Balance: MWK {formatCurrency(getBalance(method.key))}
-                    </option>
-                  ))
-                }
-              </select>
-              {transferData.destinationAccount && (
-                <p className="text-sm text-gray-500 mt-1">
-                  Current Balance: MWK {formatCurrency(getBalance(transferData.destinationAccount))} | 
-                  New Balance: MWK {formatCurrency(getBalance(transferData.destinationAccount) + parseFloat(transferData.amount || 0))}
-                </p>
-              )}
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Description <span className="text-gray-500 font-normal">(Optional)</span>
-              </label>
-              <input
-                type="text"
-                value={transferData.description}
-                onChange={(e) => setTransferData({...transferData, description: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-md"
-                placeholder="Transfer description (optional)"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Date</label>
-              <input
-                type="date"
-                value={transferData.date}
-                onChange={(e) => setTransferData({...transferData, date: e.target.value})}
-                className="w-full p-2 border border-gray-300 rounded-md"
-              />
-            </div>
-
-            {/* Transfer Summary */}
-            {transferData.amount && transferData.destinationAccount && (
-              <div className="mb-4 p-3 bg-blue-50 rounded-md border border-blue-200">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Transfer Summary</h4>
-                <div className="text-sm text-blue-800 space-y-1">
-                  <div>From: {capitalAccount?.name} (Capital Account)</div>
-                  <div>To: {paymentMethods.find(method => method.key === transferData.destinationAccount)?.name}</div>
-                  <div>Amount: MWK {formatCurrency(parseFloat(transferData.amount))}</div>
-                  <div>Date: {new Date(transferData.date).toLocaleDateString('en-US')}</div>
-                  <div>Description: {transferData.description || 'No description'}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Success Message */}
-            {transferSuccess && (
-              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-3 animate-pulse">
-                <div className="flex-shrink-0">
-                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
-                    <Check className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-green-900">{successMessage}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {error && !transferSuccess && (
-              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600" />
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => {
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 py-4 sm:px-6 lg:px-8">
+            {/* Background overlay */}
+            <div 
+              className="fixed inset-0 bg-black/50 transition-opacity"
+              onClick={() => {
+                if (!isTransferring) {
                   setShowTransferModal(false);
                   setTransferSuccess(false);
                   setSuccessMessage("");
                   setError(null);
                   setIsTransferring(false);
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50"
-                disabled={isTransferring}
-              >
-                {transferSuccess ? 'Close' : 'Cancel'}
-              </button>
-              <button
-                onClick={handleTransfer}
-                disabled={isTransferring || transferSuccess}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {isTransferring ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Transferring...
-                  </>
-                ) : transferSuccess ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Success
-                  </>
-                ) : (
-                  'Transfer'
+                }
+              }}
+            ></div>
+            
+            {/* Modal container */}
+            <div className="relative bg-white rounded-lg shadow-xl w-full max-w-lg transform transition-all">
+              {/* Transfer animation overlay */}
+              {isTransferring && (
+                <div className="absolute inset-0 bg-white/95 rounded-lg flex flex-col items-center justify-center z-10 backdrop-blur-sm">
+                  <div className="relative">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <ArrowRightLeft className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 animate-pulse" />
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm sm:text-base font-medium text-gray-700">Transferring funds...</p>
+                  <p className="mt-2 text-xs sm:text-sm text-gray-500 text-center px-4">Please wait while we process your transfer</p>
+                </div>
+              )}
+
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-4 py-4 sm:px-6 sm:py-5 border-b border-gray-200">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900">Transfer from Capital Account</h3>
+                <button
+                  onClick={() => {
+                    if (!isTransferring) {
+                      setShowTransferModal(false);
+                      setTransferSuccess(false);
+                      setSuccessMessage("");
+                      setError(null);
+                      setIsTransferring(false);
+                    }
+                  }}
+                  className="text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg p-1 disabled:opacity-50"
+                  disabled={isTransferring}
+                >
+                  <X className="h-5 w-5 sm:h-6 sm:w-6" />
+                </button>
+              </div>
+
+              {/* Scrollable content area */}
+              <div className="px-4 py-4 sm:px-6 sm:py-5 max-h-[calc(100vh-200px)] overflow-y-auto">
+                {/* Source Account */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Source Account</label>
+                  <div className="w-full p-3 sm:p-4 border border-gray-300 rounded-lg bg-gray-50">
+                    <div className="text-sm sm:text-base font-medium text-gray-900 break-words">
+                      {capitalAccount?.code} - {capitalAccount?.name} ({capitalAccount?.type})
+                    </div>
+                    <div className="text-xs sm:text-sm text-gray-600 mt-1">
+                      Current Balance: MWK {formatCurrency(capitalAccount?.balance || 0)}
+                    </div>
+                    {transferData.amount && (
+                      <div className="text-xs sm:text-sm text-gray-600 mt-1">
+                        New Balance: MWK {formatCurrency((capitalAccount?.balance || 0) - parseFloat(transferData.amount))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Amount */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Amount (MWK) <span className="text-red-500">*</span></label>
+                  <input
+                    type="number"
+                    value={transferData.amount}
+                    onChange={(e) => setTransferData({...transferData, amount: e.target.value})}
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                    placeholder="Enter amount"
+                    min="0"
+                    step="0.01"
+                    disabled={isTransferring || transferSuccess}
+                  />
+                  {transferData.amount && parseFloat(transferData.amount) > (capitalAccount?.balance || 0) && (
+                    <p className="text-xs sm:text-sm text-red-600 mt-1.5 flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      Insufficient balance. Available: MWK {formatCurrency(capitalAccount?.balance || 0)}
+                    </p>
+                  )}
+                </div>
+
+                {/* Destination Account */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Destination Account <span className="text-red-500">*</span></label>
+                  <select
+                    value={transferData.destinationAccount}
+                    onChange={(e) => setTransferData({...transferData, destinationAccount: e.target.value})}
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base bg-white"
+                    disabled={isTransferring || transferSuccess}
+                  >
+                    <option value="">Select destination account</option>
+                    {paymentMethods
+                      .map(method => (
+                        <option key={method.key} value={method.key}>
+                          {method.name} - Balance: MWK {formatCurrency(getBalance(method.key))}
+                        </option>
+                      ))
+                    }
+                  </select>
+                  {transferData.destinationAccount && (
+                    <div className="mt-2 text-xs sm:text-sm text-gray-600 space-y-1">
+                      <div>Current Balance: MWK {formatCurrency(getBalance(transferData.destinationAccount))}</div>
+                      <div>New Balance: MWK {formatCurrency(getBalance(transferData.destinationAccount) + parseFloat(transferData.amount || 0))}</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description <span className="text-gray-500 font-normal text-xs">(Optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={transferData.description}
+                    onChange={(e) => setTransferData({...transferData, description: e.target.value})}
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                    placeholder="Transfer description (optional)"
+                    disabled={isTransferring || transferSuccess}
+                  />
+                </div>
+
+                {/* Date */}
+                <div className="mb-4 sm:mb-5">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Date</label>
+                  <input
+                    type="date"
+                    value={transferData.date}
+                    onChange={(e) => setTransferData({...transferData, date: e.target.value})}
+                    className="w-full p-2.5 sm:p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
+                    disabled={isTransferring || transferSuccess}
+                  />
+                </div>
+
+                {/* Transfer Summary */}
+                {transferData.amount && transferData.destinationAccount && (
+                  <div className="mb-4 sm:mb-5 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="text-sm sm:text-base font-semibold text-blue-900 mb-2 sm:mb-3">Transfer Summary</h4>
+                    <div className="text-xs sm:text-sm text-blue-800 space-y-1.5">
+                      <div className="flex flex-wrap gap-1">
+                        <span className="font-medium">From:</span>
+                        <span>{capitalAccount?.name} (Capital Account)</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="font-medium">To:</span>
+                        <span>{paymentMethods.find(method => method.key === transferData.destinationAccount)?.name}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="font-medium">Amount:</span>
+                        <span>MWK {formatCurrency(parseFloat(transferData.amount))}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="font-medium">Date:</span>
+                        <span>{new Date(transferData.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        <span className="font-medium">Description:</span>
+                        <span>{transferData.description || 'No description'}</span>
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </button>
+
+                {/* Success Message */}
+                {transferSuccess && (
+                  <div className="mb-4 sm:mb-5 p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg flex items-start sm:items-center gap-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                        <Check className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm sm:text-base font-medium text-green-900 break-words">{successMessage}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error Message */}
+                {error && !transferSuccess && (
+                  <div className="mb-4 sm:mb-5 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg flex items-start sm:items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm sm:text-base text-red-800 break-words">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer */}
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3">
+                  <button
+                    onClick={() => {
+                      setShowTransferModal(false);
+                      setTransferSuccess(false);
+                      setSuccessMessage("");
+                      setError(null);
+                      setIsTransferring(false);
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg text-sm sm:text-base font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
+                    disabled={isTransferring}
+                  >
+                    {transferSuccess ? 'Close' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={handleTransfer}
+                    disabled={isTransferring || transferSuccess || !transferData.amount || !transferData.destinationAccount}
+                    className="w-full sm:w-auto px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg text-sm sm:text-base font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                  >
+                    {isTransferring ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Transferring...</span>
+                      </>
+                    ) : transferSuccess ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Success</span>
+                      </>
+                    ) : (
+                      <>
+                        <ArrowRightLeft className="w-4 h-4" />
+                        <span>Transfer</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
