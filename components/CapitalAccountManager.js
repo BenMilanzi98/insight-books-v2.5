@@ -14,6 +14,9 @@ const CapitalAccountManager = () => {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferSuccess, setTransferSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [initialBalance, setInitialBalance] = useState("");
   const [editData, setEditData] = useState({
     name: "",
@@ -39,6 +42,16 @@ const CapitalAccountManager = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
+
+  // Reset transfer states when modal opens
+  useEffect(() => {
+    if (showTransferModal) {
+      setIsTransferring(false);
+      setTransferSuccess(false);
+      setSuccessMessage("");
+      setError(null);
+    }
+  }, [showTransferModal]);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -183,6 +196,10 @@ const CapitalAccountManager = () => {
       return;
     }
 
+    setIsTransferring(true);
+    setError(null);
+    setTransferSuccess(false);
+
     try {
       // Create a transfer via the payments API
       const transfer = {
@@ -192,7 +209,7 @@ const CapitalAccountManager = () => {
         sourceAccount: capitalAccount.id,
         destinationAccount: transferData.destinationAccount,
         reference: `CAP-${Date.now()}`,
-        notes: transferData.description
+        notes: transferData.description || ""
       };
 
       const response = await fetch('/api/payments', {
@@ -202,15 +219,24 @@ const CapitalAccountManager = () => {
       });
 
       if (response.ok) {
-        setShowTransferModal(false);
-        setTransferData({
-          amount: "",
-          destinationAccount: "",
-          description: "",
-          date: new Date().toISOString().split('T')[0]
-        });
-        fetchData(); // Refresh data
-        setError(null);
+        const destinationName = paymentMethods.find(m => m.key === transferData.destinationAccount)?.name || transferData.destinationAccount;
+        setTransferSuccess(true);
+        setSuccessMessage(`Successfully transferred MWK ${amount.toLocaleString()} to ${destinationName}`);
+        
+        // Wait a bit to show success message, then close modal and refresh
+        setTimeout(() => {
+          setShowTransferModal(false);
+          setTransferSuccess(false);
+          setSuccessMessage("");
+          setTransferData({
+            amount: "",
+            destinationAccount: "",
+            description: "",
+            date: new Date().toISOString().split('T')[0]
+          });
+          fetchData(); // Refresh data
+          setError(null);
+        }, 2000);
       } else {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to create transfer');
@@ -218,6 +244,7 @@ const CapitalAccountManager = () => {
     } catch (error) {
       console.error('Error creating transfer:', error);
       setError(error.message);
+      setIsTransferring(false);
     }
   };
 
@@ -282,7 +309,13 @@ const CapitalAccountManager = () => {
               Set Initial Balance
             </button>
             <button
-              onClick={() => setShowTransferModal(true)}
+              onClick={() => {
+                setIsTransferring(false);
+                setTransferSuccess(false);
+                setSuccessMessage("");
+                setError(null);
+                setShowTransferModal(true);
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
             >
               <ArrowRightLeft className="mr-2 h-4 w-4" />
@@ -568,7 +601,19 @@ const CapitalAccountManager = () => {
       {/* Transfer Modal */}
       {showTransferModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-md p-6">
+          <div className="bg-white rounded-lg w-full max-w-md p-6 relative">
+            {isTransferring && (
+              <div className="absolute inset-0 bg-white/90 rounded-lg flex flex-col items-center justify-center z-10">
+                <div className="relative">
+                  <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <ArrowRightLeft className="w-6 h-6 text-blue-600 animate-pulse" />
+                  </div>
+                </div>
+                <p className="mt-4 text-sm font-medium text-gray-700">Transferring funds...</p>
+                <p className="mt-2 text-xs text-gray-500">Please wait while we process your transfer</p>
+              </div>
+            )}
             <h3 className="text-lg font-semibold mb-4">Transfer from Capital Account</h3>
             
             <div className="mb-4">
@@ -667,18 +712,60 @@ const CapitalAccountManager = () => {
               </div>
             )}
 
+            {/* Success Message */}
+            {transferSuccess && (
+              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-md flex items-center gap-3 animate-pulse">
+                <div className="flex-shrink-0">
+                  <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center animate-bounce">
+                    <Check className="w-5 h-5 text-white" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-green-900">{successMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {error && !transferSuccess && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+            )}
+
             <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowTransferModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-md"
+                onClick={() => {
+                  setShowTransferModal(false);
+                  setTransferSuccess(false);
+                  setSuccessMessage("");
+                  setError(null);
+                  setIsTransferring(false);
+                }}
+                className="px-4 py-2 border border-gray-300 rounded-md disabled:opacity-50"
+                disabled={isTransferring}
               >
-                Cancel
+                {transferSuccess ? 'Close' : 'Cancel'}
               </button>
               <button
                 onClick={handleTransfer}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                disabled={isTransferring || transferSuccess}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Transfer
+                {isTransferring ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Transferring...
+                  </>
+                ) : transferSuccess ? (
+                  <>
+                    <Check className="w-4 h-4" />
+                    Success
+                  </>
+                ) : (
+                  'Transfer'
+                )}
               </button>
             </div>
           </div>
