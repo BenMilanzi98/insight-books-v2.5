@@ -13,6 +13,26 @@ const formatCurrency = (amount) => {
     : amount}`;
 };
 
+// Helper function to normalize payment method for AccountBalance
+const normalizePaymentMethod = (method) => {
+  if (!method) return 'cash';
+  const methodStr = method.toString().trim();
+  
+  // If it's already a normalized key (contains underscore), return as is
+  if (methodStr.includes('_')) {
+    return methodStr.toLowerCase();
+  }
+  
+  // If it looks like an account ID (CUID format: starts with letters, no spaces, long string), don't normalize
+  // CUIDs are typically 25 characters, alphanumeric, no spaces
+  if (methodStr.length > 20 && /^[a-z0-9]+$/i.test(methodStr) && !methodStr.includes(' ')) {
+    return methodStr; // Likely an account ID, return as is
+  }
+  
+  // Otherwise normalize: "Bank Transfer" -> "bank_transfer", "PayChangu" -> "paychangu", "Mpamba" -> "mpamba"
+  return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
+};
+
 // GET - Fetch sales with filtering, sorting, and pagination
 export async function GET(request) {
   try {
@@ -559,20 +579,33 @@ export async function POST(request) {
           // This ensures historical sales are recorded with their actual sale date
           const paymentDate = sale.historicalDate || sale.saleDate;
           
+          const paymentMethodInput = data.paymentMethod || 'cash';
+          
           const newPayment = await tx.payment.create({
             data: {
               saleId: sale.id,
               amount: finalTotal,
               paymentDate: paymentDate, // Use sale date instead of current date
-              paymentMethod: data.paymentMethod || 'cash',
+              paymentMethod: paymentMethodInput,
               reference: `Sale ${saleNumber}`,
               notes: data.notes || `Payment for sale ${saleNumber}`,
               status: 'Completed',
               tenantId: user.tenantId,
               type: 'sale',
-              sourceAccount: data.paymentMethod || 'cash'
+              sourceAccount: paymentMethodInput
             }
           });
+
+          // Update account balance for the payment method
+          // Normalize payment method to match AccountBalance format (e.g., "Mpamba" -> "mpamba", "Airtel Money" -> "airtel_money")
+          const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodInput);
+          await updateAccountBalance(
+            user.tenantId,
+            normalizedPaymentMethod,
+            Number(finalTotal),
+            'add',
+            tx
+          );
 
           // Create journal entries for sale (Revenue + COGS)
           // Note: Account balances are updated automatically when transactions are created

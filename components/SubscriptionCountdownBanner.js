@@ -6,7 +6,7 @@ import { Clock, AlertCircle, Crown, ArrowRight, Sparkles, Zap } from 'lucide-rea
 import Link from 'next/link';
 import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
 
-const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTrialDays, onUpgrade }) => {
+const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTrialDays, onUpgrade, thresholdDays }) => {
   const [timeRemaining, setTimeRemaining] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [isExpired, setIsExpired] = useState(false);
   const [urgencyLevel, setUrgencyLevel] = useState('normal'); // normal, warning, urgent, expired
@@ -15,6 +15,11 @@ const SubscriptionCountdownBanner = ({ subscription, isTrialActive, remainingTri
 
   // Get countdown threshold based on subscription plan
   const getCountdownThreshold = () => {
+    // If thresholdDays prop is provided, use it (allows override for dashboard)
+    if (thresholdDays !== undefined && thresholdDays !== null) {
+      return thresholdDays;
+    }
+    
     if (!subscription) return 0;
     
     // Trial: Show all 3 days

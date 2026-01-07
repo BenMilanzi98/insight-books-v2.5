@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
+import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { formatCurrency, formatDate, getDateRange } from "@/lib/dateUtils";
 
@@ -779,6 +780,25 @@ const BusinessOwnerDashboard = () => {
           subscriptionData={userSubscription} 
           className="mb-6"
           onUpgrade={() => {
+            window.location.href = '/subscription';
+          }}
+        />
+      )}
+
+      {/* Subscription Countdown Banner */}
+      {!subscriptionLoading && userSubscription && (userSubscription.isTrialActive || userSubscription.subscription) && (
+        <SubscriptionCountdownBanner 
+          subscription={{
+            ...userSubscription.subscription,
+            isTrial: userSubscription.subscription?.isTrial !== undefined ? userSubscription.subscription.isTrial : userSubscription.isTrialActive,
+            trialEndDate: userSubscription.subscription?.trialEndDate || null,
+            expiresAt: userSubscription.subscription?.expiresAt || null,
+            plan: userSubscription.subscription?.plan || userSubscription.subscriptionStatus?.plan || null
+          }}
+          isTrialActive={userSubscription.isTrialActive}
+          remainingTrialDays={userSubscription.remainingTrialDays || 0}
+          thresholdDays={10}
+          onUpgrade={async () => {
             window.location.href = '/subscription';
           }}
         />

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { getTenantSubscription, getRemainingTrialDays, isTenantTrialActive } from '@/lib/subscriptionService';
 
 export async function GET(request) {
   try {
@@ -8,6 +9,35 @@ export async function GET(request) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // Helper function to get subscription status for a tenant
+    const getSubscriptionStatus = async (tenantId) => {
+      const subscription = await getTenantSubscription(tenantId);
+      if (!subscription) {
+        return {
+          isExpired: true,
+          daysRemaining: 0,
+          isTrial: false,
+          expiresAt: null,
+          trialEndDate: null
+        };
+      }
+
+      const now = new Date();
+      const expiryDate = subscription.isTrial ? subscription.trialEndDate : subscription.expiresAt;
+      const isExpired = expiryDate ? now > expiryDate : true;
+      const daysRemaining = expiryDate && !isExpired 
+        ? Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24)) 
+        : 0;
+
+      return {
+        isExpired,
+        daysRemaining: Math.max(0, daysRemaining),
+        isTrial: subscription.isTrial || false,
+        expiresAt: subscription.expiresAt,
+        trialEndDate: subscription.trialEndDate
+      };
+    };
 
     // If user is MASTER_ADMIN, return all tenants
     if (user.role?.name === 'MASTER_ADMIN') {
@@ -21,8 +51,16 @@ export async function GET(request) {
         }
       });
 
+      // Add subscription status to each tenant
+      const tenantsWithSubscription = await Promise.all(
+        allTenants.map(async (tenant) => ({
+          ...tenant,
+          subscription: await getSubscriptionStatus(tenant.id)
+        }))
+      );
+
       return NextResponse.json({
-        tenants: allTenants,
+        tenants: tenantsWithSubscription,
         currentTenantId: user.tenantId
       });
     }
@@ -104,8 +142,16 @@ export async function GET(request) {
       }
     }
 
+    // Add subscription status to each tenant
+    const tenantsWithSubscription = await Promise.all(
+      allTenants.map(async (tenant) => ({
+        ...tenant,
+        subscription: await getSubscriptionStatus(tenant.id)
+      }))
+    );
+
     return NextResponse.json({
-      tenants: allTenants,
+      tenants: tenantsWithSubscription,
       currentTenantId: user.tenantId
     });
   } catch (err) {
