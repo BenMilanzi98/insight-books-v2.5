@@ -773,7 +773,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
       expectedDeliveryDate: initialData.expectedDeliveryDate
         ? format(new Date(initialData.expectedDeliveryDate), "yyyy-MM-dd")
         : "",
-      status: initialData.status || "Posted",
+      status: "Approved", // Always set to Approved, even when editing
       notes: initialData.notes || "",
     });
     setItems(
@@ -839,7 +839,8 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         quantityOrdered: Number(item.quantityOrdered || 0),
         unitCost: Number(item.unitCost || 0),
       }));
-      await onSave({ ...form, items: normalizedItems });
+      // Always set status to Approved when saving
+      await onSave({ ...form, status: "Approved", items: normalizedItems });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -853,7 +854,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
 
       <FormSection
         title="Order Information"
-        description="Supplier, timing and status for this purchase request."
+        description="Supplier and timing for this purchase request."
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

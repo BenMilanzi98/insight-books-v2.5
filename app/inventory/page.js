@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { format } from "date-fns";
 import { 
   Search, 
   Plus, 
@@ -92,6 +93,12 @@ const InventoryManagement = () => {
   const [batchDeleteModal, setBatchDeleteModal] = useState({ isOpen: false, products: [] });
   const [restoreModal, setRestoreModal] = useState({ isOpen: false, products: [] });
   const [skuConflictModal, setSkuConflictModal] = useState({ isOpen: false, conflictData: null, pendingFormData: null });
+  
+  // Purchase Order Modal state
+  const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
+  const [purchaseOrderProduct, setPurchaseOrderProduct] = useState(null);
+  const [suppliers, setSuppliers] = useState([]);
+  const [suppliersLoading, setSuppliersLoading] = useState(false);
   
   // Modal states
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1042,6 +1049,49 @@ const InventoryManagement = () => {
     setSelectedItem(product);
     setTransactionType(type);
     setIsTransactionFormOpen(true);
+  };
+
+  // Handle restock - open purchase order modal
+  const handleRestock = async (product) => {
+    setPurchaseOrderProduct(product);
+    setSuppliersLoading(true);
+    try {
+      const response = await fetch("/api/purchases/suppliers");
+      if (response.ok) {
+        const data = await response.json();
+        setSuppliers(data.suppliers || []);
+      }
+    } catch (error) {
+      console.error("Error loading suppliers:", error);
+      showToast("error", "Failed to load suppliers", "Please try again");
+    } finally {
+      setSuppliersLoading(false);
+    }
+    setShowPurchaseOrderModal(true);
+  };
+
+  // Handle purchase order save
+  const handleSavePurchaseOrder = async (payload) => {
+    try {
+      const response = await fetch("/api/purchases/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data?.error || "Failed to create purchase order");
+      }
+      showToast("success", "Purchase order created successfully", "");
+      setShowPurchaseOrderModal(false);
+      setPurchaseOrderProduct(null);
+      // Optionally reload inventory to reflect any changes
+      loadInventory();
+    } catch (error) {
+      console.error("Error creating purchase order:", error);
+      showToast("error", "Failed to create purchase order", error.message);
+      throw error;
+    }
   };
   
   // Handle product form submission with improved image handling
@@ -2667,7 +2717,7 @@ const InventoryManagement = () => {
                             className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleTransactionClick("Stock In", item);
+                              handleRestock(item);
                             }}
                           >
                             Restock
@@ -3477,10 +3527,454 @@ const InventoryManagement = () => {
         </div>
       )}
 
+      {/* Purchase Order Modal */}
+      {showPurchaseOrderModal && (
+        <PurchaseOrderModal
+          isOpen={showPurchaseOrderModal}
+          onClose={() => {
+            setShowPurchaseOrderModal(false);
+            setPurchaseOrderProduct(null);
+          }}
+          product={purchaseOrderProduct}
+          suppliers={suppliers}
+          suppliersLoading={suppliersLoading}
+          products={inventory}
+          onSave={handleSavePurchaseOrder}
+        />
+      )}
+
     </div>
     </PermissionGuard>
   );
 };
+
+// Helper function to format product label
+function formatProductLabel(product) {
+  if (!product) return "";
+  const code = product.sku || product.code || "";
+  const name = product.name || "";
+  return code ? `${code} — ${name}` : name;
+}
+
+// Product Search Select Component
+function ProductSearchSelect({
+  products = [],
+  value,
+  onChange,
+  placeholder = "Search products...",
+  required = false,
+}) {
+  const containerRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const selectedProduct = useMemo(
+    () => products.find((product) => product.id === value),
+    [products, value]
+  );
+
+  useEffect(() => {
+    if (!open) {
+      setSearchTerm(selectedProduct ? formatProductLabel(selectedProduct) : "");
+    }
+  }, [selectedProduct, open]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setOpen(false);
+        if (selectedProduct) {
+          setSearchTerm(formatProductLabel(selectedProduct));
+        }
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [selectedProduct]);
+
+  const filteredProducts = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) {
+      return products.slice(0, 50);
+    }
+    return products
+      .filter((product) => formatProductLabel(product).toLowerCase().includes(term))
+      .slice(0, 50);
+  }, [products, searchTerm]);
+
+  const handleSelect = (product) => {
+    onChange?.(product.id);
+    setOpen(false);
+    setSearchTerm(formatProductLabel(product));
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <input type="hidden" value={value || ""} required={required} />
+      <input
+        type="text"
+        value={searchTerm}
+        placeholder={placeholder}
+        onFocus={() => setOpen(true)}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          setOpen(true);
+        }}
+        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+      />
+      <Search className="pointer-events-none absolute right-3 top-2.5 h-4 w-4 text-gray-400" />
+      {open && (
+        <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+          {filteredProducts.length === 0 ? (
+            <p className="px-3 py-2 text-sm text-gray-500">No products found</p>
+          ) : (
+            filteredProducts.map((product) => (
+              <button
+                type="button"
+                key={product.id}
+                className="flex w-full items-center justify-between gap-3 border-b border-gray-100 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                onClick={() => handleSelect(product)}
+              >
+                <div>
+                  <p className="font-medium text-gray-900">{product.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {product.sku || product.code || "No SKU"} • In stock:{" "}
+                    {product.stockLevel ?? product.quantityInStock ?? "N/A"}
+                  </p>
+                </div>
+                <div className="text-xs font-semibold text-gray-700">
+                  MWK{" "}
+                  {Number(
+                    product.costPrice || product.cost || product.purchasePrice || product.price || 0
+                  ).toLocaleString()}
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Get default product cost
+const getDefaultProductCost = (product) => {
+  if (!product) return 0;
+  const value =
+    product.costPrice ??
+    product.cost ??
+    product.purchasePrice ??
+    product.unitCost ??
+    product.price ??
+    product.defaultPrice ??
+    0;
+  return Number(value) || 0;
+};
+
+// Form Section Component
+function FormSection({ title, description, children }) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        {description && <p className="mt-0.5 text-xs text-gray-600">{description}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+// Purchase Order Modal Component
+function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoading, products, onSave }) {
+  const [form, setForm] = useState({
+    supplierId: "",
+    poDate: format(new Date(), "yyyy-MM-dd"),
+    expectedDeliveryDate: "",
+    status: "Approved",
+    notes: "",
+  });
+  const [items, setItems] = useState([
+    {
+      productId: product?.id || "",
+      quantityOrdered: String(product?.reorderPoint || 10),
+      unitCost: String(getDefaultProductCost(product)),
+      description: product?.description || product?.name || "",
+    },
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (product) {
+      setItems([
+        {
+          productId: product.id,
+          quantityOrdered: String(product.reorderPoint || 10),
+          unitCost: String(getDefaultProductCost(product)),
+          description: product.description || product.name || "",
+        },
+      ]);
+    }
+  }, [product]);
+
+  const subtotal = useMemo(
+    () =>
+      items.reduce(
+        (sum, item) =>
+          sum + Number(item.quantityOrdered || 0) * Number(item.unitCost || 0),
+        0
+      ),
+    [items]
+  );
+
+  const handleChange = (name, value) => {
+    setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleItemChange = (index, key, value) => {
+    setItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== index) return item;
+        const updated = { ...item, [key]: value };
+        if (key === "productId" && value) {
+          const selectedProduct = products.find((p) => p.id === value);
+          if (selectedProduct) {
+            if (!item.unitCost || Number(item.unitCost) === 0) {
+              updated.unitCost = String(getDefaultProductCost(selectedProduct));
+            }
+            if (!item.description) {
+              updated.description = selectedProduct.description || selectedProduct.name || "";
+            }
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const addItem = () => {
+    setItems((prev) => [...prev, { productId: "", quantityOrdered: "", unitCost: "", description: "" }]);
+  };
+
+  const removeItem = (index) => {
+    setItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const normalizedItems = items.map((item) => ({
+        ...item,
+        quantityOrdered: Number(item.quantityOrdered || 0),
+        unitCost: Number(item.unitCost || 0),
+      }));
+      await onSave({ ...form, status: "Approved", items: normalizedItems });
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center z-10">
+          <h2 className="text-xl font-semibold text-gray-900">New Purchase Order</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        <div className="p-6">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
+
+            <FormSection
+              title="Order Information"
+              description="Supplier and timing for this purchase request."
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">
+                    Supplier <span className="text-red-500">*</span>
+                  </label>
+                  {suppliersLoading ? (
+                    <div className="mt-1 w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                      Loading suppliers...
+                    </div>
+                  ) : (
+                    <select
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      value={form.supplierId}
+                      onChange={(e) => handleChange("supplierId", e.target.value)}
+                      required
+                    >
+                      <option value="">Select supplier</option>
+                      {suppliers.map((supplier) => (
+                        <option key={supplier.id} value={supplier.id}>
+                          {supplier.supplierName}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">PO Date *</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={form.poDate}
+                    onChange={(e) => handleChange("poDate", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
+                  <input
+                    type="date"
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    value={form.expectedDeliveryDate}
+                    onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
+                  />
+                </div>
+              </div>
+            </FormSection>
+
+            <FormSection
+              title="Line Items"
+              description="Each product row drives receiving, costing, and billing."
+            >
+              <div className="space-y-3">
+                {items.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-5"
+                  >
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Product</label>
+                      <ProductSearchSelect
+                        products={products}
+                        value={item.productId}
+                        onChange={(productId) => handleItemChange(idx, "productId", productId)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Quantity</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        value={item.quantityOrdered}
+                        onChange={(e) => handleItemChange(idx, "quantityOrdered", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Cost Price</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        value={item.unitCost}
+                        onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Description</label>
+                      <input
+                        type="text"
+                        placeholder="Optional note"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        value={item.description}
+                        onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
+                      <span>
+                        MWK{" "}
+                        {(
+                          Number(item.quantityOrdered || 0) * Number(item.unitCost || 0)
+                        ).toLocaleString()}
+                      </span>
+                      {items.length > 1 && (
+                        <button
+                          type="button"
+                          className="text-xs text-red-600"
+                          onClick={() => removeItem(idx)}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  + Add Item
+                </button>
+              </div>
+            </FormSection>
+
+            <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Notes</label>
+                  <textarea
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    rows={3}
+                    value={form.notes}
+                    onChange={(e) => handleChange("notes", e.target.value)}
+                    placeholder="Delivery windows, approvals, offloading instructions…"
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
+                    <p className="text-sm text-indigo-900">Products × cost price</p>
+                  </div>
+                  <div className="text-lg font-semibold text-indigo-900">
+                    MWK {subtotal.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            </FormSection>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save Purchase Order"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
   const [formData, setFormData] = useState({

@@ -158,7 +158,9 @@ export async function POST(request) {
         taxRate: body.taxRate ?? 0,
         taxAmount,
         totalAmount,
-        status: body.status && PO_STATUSES.includes(body.status) ? body.status : 'Draft',
+        status: 'Approved', // Always save as Approved
+        approvedById: user.id,
+        approvedDate: new Date(),
         notes: body.notes || null,
         termsAndConditions: body.termsAndConditions || null,
         createdById: user.id,

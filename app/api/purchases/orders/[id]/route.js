@@ -79,13 +79,10 @@ export async function PUT(request, { params }) {
       termsAndConditions: body.termsAndConditions ?? purchaseOrder.termsAndConditions
     };
 
-    if (body.status && PO_STATUSES.includes(body.status)) {
-      data.status = body.status;
-      if (body.status === 'Approved') {
-        data.approvedById = user.id;
-        data.approvedDate = new Date();
-      }
-    }
+    // Always set status to Approved when updating
+    data.status = 'Approved';
+    data.approvedById = user.id;
+    data.approvedDate = new Date();
 
     let subtotal = purchaseOrder.subtotal;
     if (body.items) {
