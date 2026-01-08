@@ -140,20 +140,20 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // Get unpaid invoices within the date range
+    // Get ALL unpaid invoices (Accounts Receivable should show all outstanding invoices regardless of issue date)
     // Include invoices that are Pending or Partial (these represent money owed by customers)
+    // Calculate actual remaining balance from payments to ensure accuracy
     const invoices = await prisma.invoice.findMany({
       where: {
         tenantId,
-        status: { in: ['Pending', 'Partial'] },
         // Exclude voided and refunded invoices
-        NOT: { 
-          status: { in: ['void', 'refunded', 'partially_refunded'] }
-        },
-        issueDate: {
-          gte: startDate,
-          lte: endDate
-        }
+        voidedAt: null,
+        refundedAt: null,
+        // Include invoices with status Pending or Partial, or any invoice with remaining balance > 0
+        OR: [
+          { status: { in: ['Pending', 'Partial', 'pending', 'partial'] } },
+          { remainingBalance: { gt: 0 } }
+        ]
       },
       select: {
         id: true,
@@ -165,12 +165,24 @@ export async function GET(request) {
         invoiceNumber: true,
         issueDate: true,
         lastPaymentDate: true,
+        payments: {
+          where: {
+            status: 'Completed'
+          },
+          select: {
+            amount: true
+          }
+        },
         client: {
           select: {
+            id: true,
             name: true,
             email: true
           }
         }
+      },
+      orderBy: {
+        dueDate: 'asc'
       }
     });
     
@@ -187,20 +199,52 @@ export async function GET(request) {
     let notDue = 0;
     
     invoices.forEach(invoice => {
+      // Skip if no due date
+      if (!invoice.dueDate) {
+        console.warn(`Invoice ${invoice.invoiceNumber} has no due date, skipping aging calculation`);
+        return;
+      }
+      
       const dueDate = new Date(invoice.dueDate);
+      
+      // Validate due date
+      if (isNaN(dueDate.getTime())) {
+        console.warn(`Invoice ${invoice.invoiceNumber} has invalid due date: ${invoice.dueDate}`);
+        return;
+      }
+      
       const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
       
-      // Use remainingBalance if available, otherwise calculate from total - totalPaid
-      let amountOwed = invoice.remainingBalance || (invoice.total - (invoice.totalPaid || 0));
+      // Calculate actual remaining balance from payments (more accurate than stored fields)
+      // First, calculate total paid from actual completed payments
+      const actualTotalPaid = invoice.payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+      
+      // Calculate actual remaining balance
+      const actualRemaining = Math.max(0, parseFloat(invoice.total) - actualTotalPaid);
+      
+      // Use the calculated remaining balance, or fall back to stored remainingBalance if available
+      let amountOwed = actualRemaining > 0 ? actualRemaining : (invoice.remainingBalance || 0);
+      
+      // Only include invoices with actual money owed
+      if (amountOwed <= 0) {
+        return; // Skip invoices with no balance owed
+      }
       
       total += amountOwed;
       
+      // Categorize as not due or overdue
       if (daysDiff < 0) {
         notDue += amountOwed;
+        // Invoices not yet due go into the "0-30 days" bucket (current/not overdue)
+        aging[0].amount += amountOwed;
       } else {
         overdue += amountOwed;
         
-        // Add to appropriate aging bucket
+        // Add to appropriate aging bucket based on days past due (only for overdue invoices)
+        // 0-30 days: overdue by 0-30 days
+        // 31-60 days: overdue by 31-60 days
+        // 61-90 days: overdue by 61-90 days
+        // >90 days: overdue by more than 90 days
         if (daysDiff <= 30) {
           aging[0].amount += amountOwed;
         } else if (daysDiff <= 60) {
@@ -213,13 +257,58 @@ export async function GET(request) {
       }
     });
     
+    // Prepare invoice list for the Outstanding Invoices table
+    const outstandingInvoices = invoices
+      .map(invoice => {
+        // Calculate actual remaining balance from payments
+        const actualTotalPaid = invoice.payments?.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0) || 0;
+        const actualRemaining = Math.max(0, parseFloat(invoice.total) - actualTotalPaid);
+        const amountOwed = actualRemaining > 0 ? actualRemaining : (invoice.remainingBalance || 0);
+        
+        // Skip if no balance owed
+        if (amountOwed <= 0) {
+          return null;
+        }
+        
+        const dueDate = new Date(invoice.dueDate);
+        const daysDiff = Math.floor((now - dueDate) / (1000 * 60 * 60 * 24));
+        
+        // Determine status
+        let invoiceStatus = 'Pending';
+        if (daysDiff < 0) {
+          invoiceStatus = 'Not Due';
+        } else if (daysDiff > 0) {
+          invoiceStatus = 'Overdue';
+        } else if (invoice.status === 'Partial') {
+          invoiceStatus = 'Partial';
+        }
+        
+        return {
+          id: invoice.id,
+          invoiceNumber: invoice.invoiceNumber,
+          clientId: invoice.client?.id,
+          clientName: invoice.client?.name || 'Unknown',
+          clientEmail: invoice.client?.email,
+          issueDate: invoice.issueDate,
+          dueDate: invoice.dueDate,
+          total: invoice.total,
+          totalPaid: actualTotalPaid,
+          amountOwed: amountOwed,
+          status: invoiceStatus,
+          daysPastDue: daysDiff > 0 ? daysDiff : 0,
+          originalStatus: invoice.status
+        };
+      })
+      .filter(inv => inv !== null); // Remove null entries
+    
     return NextResponse.json({
       accountsReceivable: {
         current: total,
         overdue,
         notDue,
         aging
-      }
+      },
+      invoices: outstandingInvoices
     });
   } catch (error) {
     console.error('Error getting receivables data:', error);

@@ -1577,6 +1577,63 @@ export default function SuppliersPage() {
     payments: { startDate: "", endDate: "" }
   });
 
+  // Handle restock from dashboard - check URL parameters on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const urlParams = new URLSearchParams(window.location.search);
+    const restock = urlParams.get('restock');
+    const productId = urlParams.get('productId');
+    const tab = urlParams.get('tab');
+    
+    if (restock === 'true' && productId) {
+      // Store product ID in sessionStorage to persist across re-renders
+      sessionStorage.setItem('restockProductId', productId);
+      
+      // Set active tab to orders if specified
+      if (tab === 'orders') {
+        setActiveTab('orders');
+      }
+      
+      // Clean up URL parameters immediately
+      window.history.replaceState({}, '', '/purchases/suppliers');
+    }
+  }, []); // Run once on mount
+
+  // Handle opening order form with product when products and suppliers are loaded and we're on orders tab
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeTab !== 'orders') return;
+    if (products.length === 0) return;
+    if (suppliers.length === 0) return; // Wait for suppliers to be loaded
+    if (showOrderForm) return; // Already open, don't reopen
+    
+    // Check if we came from restock (we stored this in sessionStorage to persist across re-renders)
+    const restockProductId = sessionStorage.getItem('restockProductId');
+    if (restockProductId) {
+      const product = products.find(p => p.id === restockProductId);
+      
+      if (product) {
+        // Open order form with product pre-selected
+        setShowOrderForm(true);
+        setOrderFormMode('create');
+        
+        // Set initial data with the product pre-selected
+        setActiveOrder({
+          items: [{
+            productId: product.id,
+            quantityOrdered: product.reorderPoint || 10, // Suggest reorder point quantity
+            unitCost: product.cost || product.costPrice || 0,
+            description: product.description || product.name || ""
+          }]
+        });
+        
+        // Clear the sessionStorage
+        sessionStorage.removeItem('restockProductId');
+      }
+    }
+  }, [activeTab, products, suppliers, showOrderForm]); // Run when orders tab is active and both products and suppliers are loaded
+
   // Load suppliers
   useEffect(() => {
     const fetchTenantBrand = async () => {
@@ -1685,6 +1742,10 @@ export default function SuppliersPage() {
         if (mounted) {
           setOrders(orderData.purchaseOrders ?? []);
           setProducts(productData.products ?? []);
+          // Also set suppliers so they're available for the order form
+          if (supplierData.suppliers) {
+            setSuppliers(supplierData.suppliers ?? []);
+          }
           setOrdersError(null);
         }
       })
@@ -3830,7 +3891,7 @@ export default function SuppliersPage() {
             <OrderForm
               suppliers={suppliers}
               products={products}
-              initialData={orderFormMode === "edit" ? activeOrder : null}
+              initialData={orderFormMode === "edit" ? activeOrder : (activeOrder?.items ? activeOrder : null)}
               onSave={handleSaveOrder}
               onCancel={() => {
                 setShowOrderForm(false);

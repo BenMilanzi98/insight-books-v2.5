@@ -26,13 +26,18 @@ export async function GET(request) {
     
     // Parse query parameters
     const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
+    const limitParam = searchParams.get('limit');
+    // If no limit is specified or limit is 0, fetch all items
+    const limit = limitParam ? (parseInt(limitParam) || 0) : 0;
     const sort = searchParams.get('sort') || 'name';
     const order = searchParams.get('order') || 'asc';
     const search = searchParams.get('search');
+    const category = searchParams.get('category');
+    const status = searchParams.get('status');
+    const location = searchParams.get('location');
     
-    // Calculate pagination
-    const skip = (page - 1) * limit;
+    // Calculate pagination (only if limit is specified and > 0)
+    const skip = limit > 0 ? (page - 1) * limit : 0;
     
     // Build filter object for Prisma
     const where = {
@@ -50,6 +55,24 @@ export async function GET(request) {
       ];
     }
     
+    // Add category filter if provided
+    if (category && category !== 'All') {
+      if (category === 'Uncategorized') {
+        where.category = null;
+      } else {
+        where.category = category;
+      }
+    }
+    
+    // Add location filter if provided
+    if (location && location !== 'All') {
+      where.location = location;
+    }
+    
+    // Add status filter if provided (this is computed, so we'll filter after fetching)
+    // Note: Status is computed based on stockLevel and reorderPoint, so we can't filter in the query
+    // We'll filter it after fetching if needed
+    
     // Get total count for pagination
     const totalCount = await prisma.product.count({ where });
     
@@ -64,12 +87,11 @@ export async function GET(request) {
     const products = await prisma.product.findMany({
       where,
       orderBy,
-      skip,
-      take: limit
+      ...(limit > 0 ? { skip, take: limit } : {}) // Only apply pagination if limit > 0
     });
     
     // Process products to enhance with derived fields
-    const processedProducts = products.map(product => {
+    let processedProducts = products.map(product => {
       // Default values for missing fields
       const stockLevel = product.stockLevel || 0;
       const reorderPoint = product.reorderPoint || 10;
@@ -103,14 +125,20 @@ export async function GET(request) {
       };
     });
     
+    // Filter by status if provided (since status is computed)
+    if (status && status !== 'All') {
+      processedProducts = processedProducts.filter(product => product.status === status);
+    }
+    
     // Return products with pagination metadata
+    const finalCount = processedProducts.length;
     return NextResponse.json({
       products: processedProducts,
       pagination: {
-        page,
-        limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit)
+        page: limit > 0 ? page : 1,
+        limit: limit > 0 ? limit : finalCount,
+        totalCount: limit > 0 ? totalCount : finalCount,
+        totalPages: limit > 0 ? Math.ceil(totalCount / limit) : 1
       }
     });
   } catch (error) {

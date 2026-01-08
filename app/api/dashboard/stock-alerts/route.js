@@ -15,61 +15,95 @@ export async function GET(request) {
     
     const tenantId = user.tenantId;
     
-    // Get all products (we'll filter for alerts in JavaScript)
+    // Get all products for this tenant that are not services and not deleted
     const allProducts = await prisma.product.findMany({
       where: {
         tenantId,
         isService: false, // Only physical products, not services
-        stockLevel: { not: null } // Only products with stock level set
+        isDeleted: false // Exclude soft-deleted products
       },
       select: {
         id: true,
         name: true,
         stockLevel: true,
         reorderPoint: true,
-        sku: true
+        sku: true,
+        category: true,
+        location: true
       }
     });
     
     // Filter products that need alerts
     const productsWithAlerts = allProducts.filter(product => {
-      const stockLevel = product.stockLevel || 0;
-      const reorderPoint = product.reorderPoint || 10;
+      // Convert stockLevel to number (handle null/undefined)
+      const stockLevel = product.stockLevel !== null && product.stockLevel !== undefined 
+        ? Number(product.stockLevel) 
+        : 0;
+      
+      // Get reorder point (default to 10 if not set)
+      const reorderPoint = product.reorderPoint !== null && product.reorderPoint !== undefined
+        ? Number(product.reorderPoint)
+        : 10;
       
       // Show alert if:
-      // 1. Out of stock (stockLevel = 0)
+      // 1. Out of stock (stockLevel = 0 or null/undefined)
       // 2. Stock level is at or below reorder point
       return stockLevel === 0 || stockLevel <= reorderPoint;
     });
     
     console.log(`Found ${allProducts.length} products, ${productsWithAlerts.length} need alerts`);
     
-    // Format alerts
-    const alerts = productsWithAlerts.map(product => {
-      let type, message;
-      const stockLevel = product.stockLevel || 0;
-      const reorderPoint = product.reorderPoint || 10;
-      
-      if (stockLevel === 0) {
-        type = 'out_of_stock';
-        message = `${product.name} is out of stock`;
-      } else if (stockLevel <= reorderPoint) {
-        type = 'low_stock';
-        message = `${product.name} stock level is below reorder point`;
-      } else {
-        type = 'warning';
-        message = `${product.name} stock is running low`;
-      }
-      
-      return {
-        type,
-        product: product.name,
-        message,
-        currentStock: stockLevel,
-        reorderPoint: reorderPoint,
-        sku: product.sku
-      };
-    });
+    // Format alerts - sort by priority (out of stock first, then low stock)
+    const alerts = productsWithAlerts
+      .map(product => {
+        // Convert stockLevel to number (handle null/undefined)
+        const stockLevel = product.stockLevel !== null && product.stockLevel !== undefined 
+          ? Number(product.stockLevel) 
+          : 0;
+        
+        // Get reorder point (default to 10 if not set)
+        const reorderPoint = product.reorderPoint !== null && product.reorderPoint !== undefined
+          ? Number(product.reorderPoint)
+          : 10;
+        
+        let type, message, priority;
+        
+        if (stockLevel === 0) {
+          type = 'out_of_stock';
+          message = `${product.name} is out of stock`;
+          priority = 1; // Highest priority
+        } else if (stockLevel <= reorderPoint) {
+          type = 'low_stock';
+          message = `${product.name} stock level (${stockLevel}) is at or below reorder point (${reorderPoint})`;
+          priority = 2; // Second priority
+        } else {
+          // This shouldn't happen due to our filter, but handle it just in case
+          type = 'warning';
+          message = `${product.name} stock is running low`;
+          priority = 3;
+        }
+        
+        return {
+          id: product.id,
+          type,
+          product: product.name,
+          message,
+          currentStock: stockLevel,
+          reorderPoint: reorderPoint,
+          sku: product.sku || 'N/A',
+          category: product.category || 'Uncategorized',
+          location: product.location || 'Default Location',
+          priority
+        };
+      })
+      .sort((a, b) => {
+        // Sort by priority first (out of stock first)
+        if (a.priority !== b.priority) {
+          return a.priority - b.priority;
+        }
+        // Then sort by stock level (lowest first)
+        return a.currentStock - b.currentStock;
+      });
     
     return NextResponse.json({
       alerts

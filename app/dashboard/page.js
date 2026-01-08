@@ -1138,7 +1138,7 @@ const BusinessOwnerDashboard = () => {
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Receivable</h2>
             <a href="/accounting/receivables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-              Manage <ChevronRight size={16} className="ml-1" />
+              View More <ChevronRight size={16} className="ml-1" />
             </a>
           </div>
           <div className="p-5">
@@ -1238,7 +1238,7 @@ const BusinessOwnerDashboard = () => {
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Payable</h2>
             <a href="/accounting/payables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
-              Manage <ChevronRight size={16} className="ml-1" />
+              View More <ChevronRight size={16} className="ml-1" />
             </a>
           </div>
           <div className="p-5">
@@ -1388,7 +1388,13 @@ const BusinessOwnerDashboard = () => {
                             </div>
                           </div>
                         </div>
-                        <button className="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-indigo-50 px-3 py-1 rounded-md">
+                        <button 
+                          onClick={() => {
+                            // Navigate to suppliers page with product ID and open order form
+                            window.location.href = `/purchases/suppliers?restock=true&productId=${alert.id}&tab=orders`;
+                          }}
+                          className="text-indigo-600 hover:text-indigo-800 text-sm font-medium transition-all duration-200 transform hover:scale-105 hover:bg-indigo-50 px-3 py-1 rounded-md"
+                        >
                           Restock
                         </button>
                       </div>

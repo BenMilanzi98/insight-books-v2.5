@@ -266,7 +266,7 @@ const InventoryManagement = () => {
     return () => {
       if (searchTimeout) clearTimeout(searchTimeout);
     };
-  }, [searchTerm, categoryFilter, statusFilter, locationFilter, sortField, sortDirection, pagination.currentPage, pagination.pageSize]);
+  }, [searchTerm, categoryFilter, statusFilter, locationFilter, sortField, sortDirection]);
   
   // Disable body scroll when modal is open
   useEffect(() => {
@@ -589,8 +589,9 @@ const InventoryManagement = () => {
         location: locationFilter,
         sort: sortField,
         order: sortDirection,
-        page: pagination.currentPage,
-        limit: pagination.pageSize
+        // Fetch all items by default (no pagination limit)
+        // Only use pagination if explicitly needed
+        limit: 0 // 0 means fetch all items
       };
       
       const data = await inventoryService.fetchProducts(params).catch(() => {
