@@ -37,7 +37,14 @@ function getColumnValue(row, possibleNames) {
 
 // Helper function to parse CSV content
 function parseCSV(csvText) {
-  const lines = csvText.split('\n').filter(line => line.trim());
+  // Normalize line endings (handle both \r\n and \n)
+  const normalizedText = csvText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalizedText.split('\n').filter(line => line.trim());
+  
+  if (lines.length === 0) {
+    throw new Error('CSV file is empty');
+  }
+  
   const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
   
   return lines.slice(1).map((line, index) => {
@@ -50,21 +57,19 @@ function parseCSV(csvText) {
       if (char === '"') {
         inQuotes = !inQuotes;
       } else if (char === ',' && !inQuotes) {
-        values.push(current.trim());
+        values.push(current.trim().replace(/^"|"$/g, '')); // Remove quotes
         current = '';
       } else {
         current += char;
       }
     }
-    values.push(current.trim());
+    // Push the last value
+    values.push(current.trim().replace(/^"|"$/g, '')); // Remove quotes
     
     const row = {};
     headers.forEach((header, i) => {
-      // Remove quotes from values (handles quoted CSV values like "Custom Product - Widget")
-      let value = values[i] || '';
-      if (value.startsWith('"') && value.endsWith('"')) {
-        value = value.slice(1, -1);
-      }
+      // Get value, defaulting to empty string if index is out of bounds
+      let value = (values[i] !== undefined) ? values[i] : '';
       row[header] = value;
     });
     row.rowNumber = index + 2; // +2 because we skip header and arrays are 0-indexed
@@ -490,11 +495,24 @@ export async function POST(request) {
     };
 
     // Process transactions in database transaction
+    // Increase timeout for large batches (586 rows * ~200ms per row = ~120 seconds, with buffer = 10 minutes)
+    // Calculate timeout: 10 minutes for very large batches, or 500ms per transaction
+    const transactionTimeout = Math.max(600000, validTransactions.length * 500); // At least 10 minutes, or 500ms per transaction
+    const maxWait = 60000; // Wait up to 60 seconds for transaction to start
+    
+    console.log(`Processing ${validTransactions.length} transactions with timeout: ${transactionTimeout}ms, maxWait: ${maxWait}ms`);
+    
     try {
       await prisma.$transaction(async (tx) => {
+        console.log(`Starting database transaction for ${validTransactions.length} transactions`);
+        let processedCount = 0;
         for (const transaction of validTransactions) {
           try {
-            console.log(`Processing transaction row ${transaction?.rowNumber || 'unknown'}...`);
+            processedCount++;
+            // Log progress every 50 transactions to reduce console spam
+            if (processedCount % 50 === 0 || processedCount === 1) {
+              console.log(`Processing transaction ${processedCount}/${validTransactions.length} (row ${transaction?.rowNumber || 'unknown'})...`);
+            }
           // Get field values - use EXACT column names from template (matching template/route.js)
           // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
           const customerName = transaction['Customer Name'] || '';
@@ -854,11 +872,18 @@ export async function POST(request) {
           });
           }
         }
+      }, {
+        maxWait: maxWait, // Maximum time to wait for a transaction slot (60 seconds)
+        timeout: transactionTimeout // Maximum time the transaction can run (10 minutes or calculated)
       });
     } catch (dbError) {
       console.error('Database transaction error:', dbError);
       console.error('Database error stack:', dbError.stack);
-      throw new Error(`Database transaction failed: ${dbError.message}`);
+      console.error('Database error code:', dbError.code);
+      console.error('Database error meta:', dbError.meta);
+      console.error('Number of transactions processed before error:', results.successful?.length || 0);
+      console.error('Number of transactions failed before error:', results.failed?.length || 0);
+      throw new Error(`Database transaction failed: ${dbError.message || 'Unknown error'}. Code: ${dbError.code || 'N/A'}`);
     }
 
     // Combine validation errors with processing errors
