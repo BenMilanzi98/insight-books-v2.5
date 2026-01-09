@@ -27,7 +27,13 @@ export const InventoryValuationReport = ({
   return (
     <FinancialReport
       title="Inventory Valuation"
-      subtitle={data?.generatedAt ? `As of ${new Date(data.generatedAt).toLocaleDateString()}` : "Inventory Value Report"}
+      subtitle={data?.generatedAt ? (() => {
+        const date = new Date(data.generatedAt);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `As of ${day}-${month}-${year}`;
+      })() : "Inventory Value Report"}
       onRefresh={onRefresh}
       onExport={onExport}
       loading={loading}
@@ -224,7 +230,13 @@ export const InventoryValuationReport = ({
                       {data.recentTransactions.map((transaction, index) => (
                         <tr key={index} className="hover:bg-gray-50">
                           <td className="px-4 py-2 text-sm text-gray-900">
-                            {new Date(transaction.createdAt).toLocaleDateString()}
+                            {(() => {
+                              const date = new Date(transaction.createdAt);
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const year = date.getFullYear();
+                              return `${day}-${month}-${year}`;
+                            })()}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-900">
                             {transaction.product.name}

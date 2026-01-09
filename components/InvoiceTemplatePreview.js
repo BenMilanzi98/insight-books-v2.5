@@ -61,8 +61,20 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   // Sample invoice data for template preview (used when no invoice is provided)
   const sampleData = {
     invoiceNumber: 'INV-0001',
-    issueDate: new Date().toLocaleDateString(),
-    dueDate: new Date(Date.now() + 30*24*60*60*1000).toLocaleDateString(),
+    issueDate: (() => {
+      const date = new Date();
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    })(),
+    dueDate: (() => {
+      const date = new Date(Date.now() + 30*24*60*60*1000);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    })(),
     status: 'Draft',
     client: {
       name: 'Sample Client',

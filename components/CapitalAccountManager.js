@@ -258,11 +258,16 @@ const CapitalAccountManager = () => {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch (error) {
+      return 'N/A';
+    }
   };
 
   if (isLoading) {
@@ -765,7 +770,7 @@ const CapitalAccountManager = () => {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         <span className="font-medium">Date:</span>
-                        <span>{new Date(transferData.date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        <span>{formatDate(transferData.date)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         <span className="font-medium">Description:</span>

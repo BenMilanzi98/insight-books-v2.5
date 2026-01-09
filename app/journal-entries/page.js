@@ -687,7 +687,13 @@ const handleDeleteEntry = async (entryId) => {
                         {index === 0 && (
                           <>
                             <td className="p-3 text-blue-600" rowSpan={rowSpan}>{entry.id ? entry.id.substring(0, 8) : 'N/A'}</td>
-                            <td className="p-3" rowSpan={rowSpan}>{entry.date ? new Date(entry.date).toLocaleDateString() : 'N/A'}</td>
+                            <td className="p-3" rowSpan={rowSpan}>{entry.date ? (() => {
+                              const date = new Date(entry.date);
+                              const day = String(date.getDate()).padStart(2, '0');
+                              const month = String(date.getMonth() + 1).padStart(2, '0');
+                              const year = date.getFullYear();
+                              return `${day}-${month}-${year}`;
+                            })() : 'N/A'}</td>
                             <td className="p-3" rowSpan={rowSpan}>{entry.referenceNumber || '-'}</td>
                             <td className="p-3" rowSpan={rowSpan}>
                               <span className={`px-2 py-1 rounded-full text-xs ${sourceTypeColor}`}>
@@ -979,7 +985,13 @@ const handleDeleteEntry = async (entryId) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Date</p>
-                  <p className="font-medium">{new Date(viewEntry.date).toLocaleDateString()}</p>
+                  <p className="font-medium">{(() => {
+                    const date = new Date(viewEntry.date);
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = date.getFullYear();
+                    return `${day}-${month}-${year}`;
+                  })()}</p>
                 </div>
                 {/* Reference field removed as it doesn't exist in schema */}
                 <div className="md:col-span-2">

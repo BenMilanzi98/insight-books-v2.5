@@ -1420,9 +1420,21 @@ const LiabilityManagement = () => {
                     <div>
                       <h3 className="font-semibold mb-2">Dates</h3>
                       <div className="space-y-2 text-sm">
-                        <div><span className="font-medium">Start Date:</span> {new Date(viewLiability.startDate).toLocaleDateString()}</div>
+                        <div><span className="font-medium">Start Date:</span> {(() => {
+                          const date = new Date(viewLiability.startDate);
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const year = date.getFullYear();
+                          return `${day}-${month}-${year}`;
+                        })()}</div>
                         {viewLiability.maturityDate && (
-                          <div><span className="font-medium">Maturity Date:</span> {new Date(viewLiability.maturityDate).toLocaleDateString()}</div>
+                          <div><span className="font-medium">Maturity Date:</span> {(() => {
+                            const date = new Date(viewLiability.maturityDate);
+                            const day = String(date.getDate()).padStart(2, '0');
+                            const month = String(date.getMonth() + 1).padStart(2, '0');
+                            const year = date.getFullYear();
+                            return `${day}-${month}-${year}`;
+                          })()}</div>
                         )}
                         <div><span className="font-medium">Payment Frequency:</span> {paymentFrequencies.find(f => f.value === viewLiability.paymentFrequency)?.label || viewLiability.paymentFrequency || 'N/A'}</div>
                       </div>
@@ -1469,7 +1481,13 @@ const LiabilityManagement = () => {
                             {paymentSchedule.map((row) => (
                               <tr key={row.period} className="border-t border-gray-100">
                                 <td className="p-2">{row.period}</td>
-                                <td className="p-2">{row.dueDate ? new Date(row.dueDate).toLocaleDateString() : '-'}</td>
+                                <td className="p-2">{row.dueDate ? (() => {
+                                  const date = new Date(row.dueDate);
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const year = date.getFullYear();
+                                  return `${day}-${month}-${year}`;
+                                })() : '-'}</td>
                                 <td className="p-2 text-right">{formatCurrency(row.principal || 0)}</td>
                                 <td className="p-2 text-right">{formatCurrency(row.interest || 0)}</td>
                                 <td className="p-2 text-right">{formatCurrency(row.payment || 0)}</td>
@@ -1499,7 +1517,13 @@ const LiabilityManagement = () => {
                           <tbody>
                             {viewLiability.payments.map((payment) => (
                               <tr key={payment.id} className="border-t border-gray-200">
-                                <td className="p-2">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                                <td className="p-2">{(() => {
+                                  const date = new Date(payment.paymentDate);
+                                  const day = String(date.getDate()).padStart(2, '0');
+                                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                                  const year = date.getFullYear();
+                                  return `${day}-${month}-${year}`;
+                                })()}</td>
                                 <td className="p-2 text-right">{formatCurrency(payment.amount)}</td>
                                 <td className="p-2 text-right">{formatCurrency(payment.principalPaid)}</td>
                                 <td className="p-2 text-right">{formatCurrency(payment.interestPaid)}</td>
@@ -1592,7 +1616,13 @@ const LiabilityManagement = () => {
                           <option value="">Choose installment</option>
                           {paymentScheduleOptions.map((entry, idx) => (
                             <option key={idx} value={idx}>
-                              {`#${entry.period} – ${entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : 'No date'} – ${formatCurrency(entry.payment || 0)}`}
+                              {`#${entry.period} – ${entry.dueDate ? (() => {
+                                const date = new Date(entry.dueDate);
+                                const day = String(date.getDate()).padStart(2, '0');
+                                const month = String(date.getMonth() + 1).padStart(2, '0');
+                                const year = date.getFullYear();
+                                return `${day}-${month}-${year}`;
+                              })() : 'No date'} – ${formatCurrency(entry.payment || 0)}`}
                             </option>
                           ))}
                         </select>

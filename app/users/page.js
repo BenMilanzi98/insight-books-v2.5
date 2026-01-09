@@ -76,12 +76,15 @@ const permissionModules = {
 // Format date for display
 const formatDate = (dateString) => {
   if (!dateString) return "—";
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  }).format(date);
+  try {
+    const date = new Date(dateString);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  } catch (error) {
+    return "—";
+  }
 };
 
 // Format time ago

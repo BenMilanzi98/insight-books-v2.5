@@ -23,6 +23,7 @@ import { syncPayments, fetchPayments, getPaymentStatistics, exportPayments, upda
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { getPaymentMethodColor, getPaymentMethodIcon, getPaymentMethodName, paymentMethods } from "@/lib/paymentMethods";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 const PaymentProcessingPage = () => {
   const [activeTab, setActiveTab] = useState("recent");
@@ -572,7 +573,7 @@ const PaymentProcessingPage = () => {
                       {payment.id}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(payment.paymentDate).toLocaleDateString()}
+                      {formatDateDDMMYYYY(payment.paymentDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {payment.client?.name || "-"}

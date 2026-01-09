@@ -13,27 +13,19 @@ const QuotationTemplatePreview = forwardRef(({
     
     try {
       // If it's already a Date object, use it directly
-      if (date instanceof Date) {
-        return date.toLocaleDateString('en-GB', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        });
+      let dateObj = date;
+      if (!(date instanceof Date)) {
+        dateObj = new Date(date);
       }
       
-      // If it's a string, try to parse it
-      if (typeof date === 'string') {
-        const parsedDate = new Date(date);
-        if (!isNaN(parsedDate.getTime())) {
-          return parsedDate.toLocaleDateString('en-GB', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          });
-        }
+      if (isNaN(dateObj.getTime())) {
+        return 'Invalid Date';
       }
       
-      return 'Invalid Date';
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}-${month}-${year}`;
     } catch (error) {
       console.error('Error formatting date:', error, date);
       return 'Invalid Date';

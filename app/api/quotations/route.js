@@ -292,22 +292,62 @@ export async function POST(request) {
     // Enhanced calculation using the new function
     const calculations = calculateQuotationTotals(body.items, body.discount || 0);
 
-    // Generate quotation number
-    // Get the last quotation number for this tenant
-    const lastQuotation = await prisma.quotation.findFirst({
-      where: { tenantId: user.tenantId },
-      orderBy: { createdAt: 'desc' }
+    // Generate quotation number with continuous sequential numbering
+    // Format: QUO-DDMMYYYY-00010 (date changes, but number never resets)
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const dateStr = `${day}${month}${year}`; // DDMMYYYY format
+    
+    // Get tenant settings for quotation prefix (default to 'QUO' if not set)
+    const tenantSettings = await prisma.tenantSettings.findFirst({
+      where: { tenantId: user.tenantId }
     });
     
-    let quotationNumber;
-    if (lastQuotation) {
-      // Extract the number part from the last quotation number and increment it
-      const lastNumber = parseInt(lastQuotation.quotationNumber.split('-')[1] || '0');
-      quotationNumber = `QT-${String(lastNumber + 1).padStart(3, '0')}`;
-    } else {
-      // This is the first quotation for this tenant
-      quotationNumber = 'QT-001';
+    // Use 'QUO' as default prefix (quotationPrefix not in settings, but could be added later)
+    const quotationPrefix = 'QUO';
+    
+    // Get the last quotation for this tenant to extract the sequential number
+    // The sequential number should NEVER reset, it continues infinitely
+    const lastQuotation = await prisma.quotation.findFirst({
+      where: {
+        tenantId: user.tenantId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        quotationNumber: true
+      }
+    });
+    
+    let sequentialNumber = 1; // Default to 1 if no quotations exist
+    
+    if (lastQuotation && lastQuotation.quotationNumber) {
+      // Extract the sequential number from the last quotation
+      // Format: QUO-DDMMYYYY-00010 or QT-001 (old format)
+      const parts = lastQuotation.quotationNumber.split('-');
+      if (parts.length >= 3) {
+        // Get the last part which should be the sequential number
+        const lastPart = parts[parts.length - 1];
+        const parsedNumber = parseInt(lastPart, 10);
+        if (!isNaN(parsedNumber) && parsedNumber > 0) {
+          sequentialNumber = parsedNumber + 1; // Increment by 1
+        }
+      } else if (parts.length === 2) {
+        // Handle old format: QT-001
+        const lastPart = parts[1];
+        const parsedNumber = parseInt(lastPart, 10);
+        if (!isNaN(parsedNumber) && parsedNumber > 0) {
+          sequentialNumber = parsedNumber + 1; // Increment by 1
+        }
+      }
     }
+    
+    // Format sequential number with 5 digits (00010, 00011, etc.)
+    const sequentialNumberStr = String(sequentialNumber).padStart(5, '0');
+    const quotationNumber = `${quotationPrefix}-${dateStr}-${sequentialNumberStr}`;
     
     // Create the quotation
     const newQuotation = await prisma.quotation.create({

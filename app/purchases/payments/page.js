@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 async function fetchPayments(params = {}) {
   const searchParams = new URLSearchParams();
@@ -185,7 +186,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
                   <div>
                     <div className="font-semibold text-gray-900">{bill.billNumber}</div>
                     <div className="text-xs text-gray-500">
-                      Due {bill.dueDate ? format(new Date(bill.dueDate), "dd MMM yyyy") : "—"}
+                      Due {bill.dueDate ? formatDateDDMMYYYY(bill.dueDate) : "—"}
                     </div>
                     <div className="text-xs text-gray-500">
                       Balance MWK {Number(bill.balanceDue || 0).toLocaleString()}
@@ -271,7 +272,7 @@ function PaymentDetails({ payment, onClose }) {
             <h2 className="text-xl font-semibold text-gray-900">{payment.paymentNumber}</h2>
             <p className="text-sm text-gray-500">
               {payment.supplier?.supplierName ?? "—"} •{" "}
-              {payment.paymentDate ? format(new Date(payment.paymentDate), "dd MMM yyyy") : "—"}
+              {payment.paymentDate ? formatDateDDMMYYYY(payment.paymentDate) : "—"}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -490,7 +491,7 @@ export default function SupplierPaymentsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2 text-gray-700">
-                      {payment.paymentDate ? format(new Date(payment.paymentDate), "dd MMM yyyy") : "—"}
+                      {payment.paymentDate ? formatDateDDMMYYYY(payment.paymentDate) : "—"}
                     </td>
                     <td className="px-4 py-2 text-gray-700">{payment.paymentMethod}</td>
                     <td className="px-4 py-2 text-right text-gray-900">

@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import Image from "next/image";
 import { Eye, Search, Download, Calendar } from "lucide-react";
 import SupplierForm from "@/components/purchases/SupplierForm";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 async function updateSupplier(id, payload) {
   const res = await fetch(`/api/purchases/suppliers/${id}`, {
@@ -1421,7 +1422,7 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
                     <div>
                       <div className="font-semibold text-gray-900">{bill.billNumber}</div>
                       <div className="text-xs text-gray-500">
-                        Due {bill.dueDate ? format(new Date(bill.dueDate), "dd MMM yyyy") : "—"}
+                        Due {bill.dueDate ? formatDateDDMMYYYY(bill.dueDate) : "—"}
                       </div>
                       <div className="text-xs text-gray-500">
                         Balance MWK {balanceDue.toLocaleString()}
@@ -2148,7 +2149,7 @@ export default function SuppliersPage() {
 
           <p><strong>Supplier:</strong> ${previewOrder.supplier?.supplierName || "-"}</p>
           <p><strong>PO Date:</strong> ${
-            previewOrder.poDate ? format(new Date(previewOrder.poDate), "dd MMM yyyy") : "-"
+            previewOrder.poDate ? formatDateDDMMYYYY(previewOrder.poDate) : "-"
           }</p>
           <p><strong>Status:</strong> ${previewOrder.status}</p>
           <p><strong>Total Amount:</strong> ${formatMoney(previewOrder.totalAmount)}</p>
@@ -2832,7 +2833,7 @@ export default function SuppliersPage() {
                           </div>
                         </td>
                         <td className="px-4 py-2 text-gray-700">
-                          {order.poDate ? format(new Date(order.poDate), "dd MMM yyyy") : "—"}
+                          {order.poDate ? formatDateDDMMYYYY(order.poDate) : "—"}
                         </td>
                         <td className="px-4 py-2">
                           <span
@@ -3018,7 +3019,7 @@ export default function SuppliersPage() {
                         </td>
                         <td className="px-4 py-2 text-gray-700">
                           {receipt.receiptDate
-                            ? format(new Date(receipt.receiptDate), "dd MMM yyyy")
+                            ? formatDateDDMMYYYY(receipt.receiptDate)
                             : "—"}
                         </td>
                         <td className="px-4 py-2">
@@ -3179,7 +3180,7 @@ export default function SuppliersPage() {
                           </div>
                         </td>
                         <td className="px-4 py-2 text-gray-700">
-                          {payment.paymentDate ? format(new Date(payment.paymentDate), "dd MMM yyyy") : "—"}
+                          {payment.paymentDate ? formatDateDDMMYYYY(payment.paymentDate) : "—"}
                         </td>
                         <td className="px-4 py-2 text-gray-700">{payment.paymentMethod}</td>
                         <td className="px-4 py-2 text-right text-gray-900">
@@ -3284,13 +3285,13 @@ export default function SuppliersPage() {
             <p>
               <span className="text-gray-500">PO Date:</span>{" "}
               {previewOrder.poDate
-                ? format(new Date(previewOrder.poDate), "dd MMM yyyy")
+                ? formatDateDDMMYYYY(previewOrder.poDate)
                 : "—"}
             </p>
             <p>
               <span className="text-gray-500">Expected Delivery:</span>{" "}
               {previewOrder.expectedDeliveryDate
-                ? format(new Date(previewOrder.expectedDeliveryDate), "dd MMM yyyy")
+                ? formatDateDDMMYYYY(previewOrder.expectedDeliveryDate)
                 : "—"}
             </p>
             <p>
@@ -3410,7 +3411,7 @@ export default function SuppliersPage() {
                 <h2 className="text-xl font-semibold text-gray-900">{viewingPayment.paymentNumber}</h2>
                 <p className="text-sm text-gray-500">
                   {viewingPayment.supplier?.supplierName ?? "—"} •{" "}
-                  {viewingPayment.paymentDate ? format(new Date(viewingPayment.paymentDate), "dd MMM yyyy") : "—"}
+                  {viewingPayment.paymentDate ? formatDateDDMMYYYY(viewingPayment.paymentDate) : "—"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -3494,7 +3495,7 @@ export default function SuppliersPage() {
                 <h2 className="text-xl font-semibold text-gray-900">{viewingBill.billNumber}</h2>
                 <p className="text-sm text-gray-500">
                   {viewingBill.supplier?.supplierName ?? "—"} •{" "}
-                  {viewingBill.billDate ? format(new Date(viewingBill.billDate), "dd MMM yyyy") : "—"}
+                  {viewingBill.billDate ? formatDateDDMMYYYY(viewingBill.billDate) : "—"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -3519,13 +3520,13 @@ export default function SuppliersPage() {
                 <div>
                   <div className="text-xs uppercase text-gray-500">Bill Date</div>
                   <div className="mt-1 text-gray-900">
-                    {viewingBill.billDate ? format(new Date(viewingBill.billDate), "dd MMM yyyy") : "—"}
+                    {viewingBill.billDate ? formatDateDDMMYYYY(viewingBill.billDate) : "—"}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs uppercase text-gray-500">Due Date</div>
                   <div className="mt-1 text-gray-900">
-                    {viewingBill.dueDate ? format(new Date(viewingBill.dueDate), "dd MMM yyyy") : "—"}
+                    {viewingBill.dueDate ? formatDateDDMMYYYY(viewingBill.dueDate) : "—"}
                   </div>
                 </div>
                 <div>
@@ -3586,7 +3587,7 @@ export default function SuppliersPage() {
                 <h2 className="text-xl font-semibold text-gray-900">{viewingOrder.poNumber}</h2>
                 <p className="text-sm text-gray-500">
                   {viewingOrder.supplier?.supplierName ?? "—"} •{" "}
-                  {viewingOrder.poDate ? format(new Date(viewingOrder.poDate), "dd MMM yyyy") : "—"}
+                  {viewingOrder.poDate ? formatDateDDMMYYYY(viewingOrder.poDate) : "—"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -3611,13 +3612,13 @@ export default function SuppliersPage() {
                 <div>
                   <div className="text-xs uppercase text-gray-500">PO Date</div>
                   <div className="mt-1 text-gray-900">
-                    {viewingOrder.poDate ? format(new Date(viewingOrder.poDate), "dd MMM yyyy") : "—"}
+                    {viewingOrder.poDate ? formatDateDDMMYYYY(viewingOrder.poDate) : "—"}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs uppercase text-gray-500">Expected Delivery</div>
                   <div className="mt-1 text-gray-900">
-                    {viewingOrder.expectedDeliveryDate ? format(new Date(viewingOrder.expectedDeliveryDate), "dd MMM yyyy") : "—"}
+                    {viewingOrder.expectedDeliveryDate ? formatDateDDMMYYYY(viewingOrder.expectedDeliveryDate) : "—"}
                   </div>
                 </div>
                 <div>
@@ -3695,7 +3696,7 @@ export default function SuppliersPage() {
                 <h2 className="text-xl font-semibold text-gray-900">{viewingReceipt.receiptNumber}</h2>
                 <p className="text-sm text-gray-500">
                   {viewingReceipt.supplier?.supplierName ?? "—"} •{" "}
-                  {viewingReceipt.receiptDate ? format(new Date(viewingReceipt.receiptDate), "dd MMM yyyy") : "—"}
+                  {viewingReceipt.receiptDate ? formatDateDDMMYYYY(viewingReceipt.receiptDate) : "—"}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -3720,7 +3721,7 @@ export default function SuppliersPage() {
                 <div>
                   <div className="text-xs uppercase text-gray-500">Receipt Date</div>
                   <div className="mt-1 text-gray-900">
-                    {viewingReceipt.receiptDate ? format(new Date(viewingReceipt.receiptDate), "dd MMM yyyy") : "—"}
+                    {viewingReceipt.receiptDate ? formatDateDDMMYYYY(viewingReceipt.receiptDate) : "—"}
                   </div>
                 </div>
                 <div>

@@ -121,13 +121,18 @@ export async function GET(request) {
       return `MWK ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    // Helper function to format date
+    // Helper function to format date (DD-MM-YYYY)
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A';
-      const d = new Date(dateString);
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December'];
-      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      try {
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (error) {
+        return 'N/A';
+      }
     };
 
     // Build CSV content with header information

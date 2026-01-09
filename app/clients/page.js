@@ -752,6 +752,21 @@ const ClientManagement = () => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     
+    // Format date as DD-MM-YYYY
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch (error) {
+      return '';
+    }
+  };
+  
+  // Legacy formatDate function (kept for backward compatibility, but not used)
+  const formatDateLegacy = (dateString) => {
+    if (!dateString) return '';
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: 'numeric',
       month: 'short',

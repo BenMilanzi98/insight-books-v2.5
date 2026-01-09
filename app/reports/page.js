@@ -1289,7 +1289,13 @@ const FinancialReportingPage = () => {
                               {report.lastGenerated && (
                                 <span className="flex items-center">
                                   <Clock size={12} className="mr-1" />
-                                  {new Date(report.lastGenerated).toLocaleDateString()}
+                                  {(() => {
+                                    const date = new Date(report.lastGenerated);
+                                    const day = String(date.getDate()).padStart(2, '0');
+                                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                                    const year = date.getFullYear();
+                                    return `${day}-${month}-${year}`;
+                                  })()}
                                 </span>
                               )}
                             </div>

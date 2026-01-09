@@ -791,7 +791,13 @@ const DrillDownModal = ({ data, onClose }) => {
               {data.details.map((detail, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm text-gray-900">
-                    {detail.date ? new Date(detail.date).toLocaleDateString() : 'N/A'}
+                    {detail.date ? (() => {
+                      const date = new Date(detail.date);
+                      const day = String(date.getDate()).padStart(2, '0');
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const year = date.getFullYear();
+                      return `${day}-${month}-${year}`;
+                    })() : 'N/A'}
                   </td>
                   <td className="px-4 py-2 text-sm text-gray-900">
                     {detail.number || detail.invoiceNumber || detail.saleNumber || detail.reference || 'N/A'}
@@ -1445,7 +1451,13 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                       <td className="px-4 py-2 text-sm text-gray-900">{item.invoiceNumber || 'N/A'}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">{item.clientName || 'N/A'}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">
-                        {item.dueDate ? new Date(item.dueDate).toLocaleDateString() : 'N/A'}
+                        {item.dueDate ? (() => {
+                          const date = new Date(item.dueDate);
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const year = date.getFullYear();
+                          return `${day}-${month}-${year}`;
+                        })() : 'N/A'}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.total || 0)}</td>
                       <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.paid || 0)}</td>
@@ -1455,7 +1467,13 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                   {data.type === 'Accounts Payable' && (
                     <>
                       <td className="px-4 py-2 text-sm text-gray-900">
-                        {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
+                        {item.date ? (() => {
+                          const date = new Date(item.date);
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const year = date.getFullYear();
+                          return `${day}-${month}-${year}`;
+                        })() : 'N/A'}
                       </td>
                       <td className="px-4 py-2 text-sm text-gray-900">{item.description || 'N/A'}</td>
                       <td className="px-4 py-2 text-sm text-gray-900">{item.merchant || 'N/A'}</td>
@@ -1956,10 +1974,20 @@ export const AgingReportTable = ({
                         <td className="px-4 py-2 text-sm text-gray-900">{item.invoiceNumber || entityInfo.documentNumber || 'N/A'}</td>
                         <td className="px-4 py-2 text-sm text-gray-900">{entityInfo.name}</td>
                         <td className="px-4 py-2 text-sm text-gray-900">
-                          {issueDate && !isNaN(issueDate.getTime()) ? issueDate.toLocaleDateString() : 'N/A'}
+                          {issueDate && !isNaN(issueDate.getTime()) ? (() => {
+                            const day = String(issueDate.getDate()).padStart(2, '0');
+                            const month = String(issueDate.getMonth() + 1).padStart(2, '0');
+                            const year = issueDate.getFullYear();
+                            return `${day}-${month}-${year}`;
+                          })() : 'N/A'}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-900">
-                          {dueDate && !isNaN(dueDate.getTime()) ? dueDate.toLocaleDateString() : 'N/A'}
+                          {dueDate && !isNaN(dueDate.getTime()) ? (() => {
+                            const day = String(dueDate.getDate()).padStart(2, '0');
+                            const month = String(dueDate.getMonth() + 1).padStart(2, '0');
+                            const year = dueDate.getFullYear();
+                            return `${day}-${month}-${year}`;
+                          })() : 'N/A'}
                         </td>
                         <td className="px-4 py-2 text-sm text-gray-900 text-right">{daysPastDue}</td>
                         <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(Number(item.amount) || 0)}</td>
@@ -2273,8 +2301,14 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
               {data.items.map((item, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-4 py-2 text-sm text-gray-900">
-                    {item.date ? new Date(item.date).toLocaleDateString() : 'N/A'}
-                    </td>
+                    {item.date ? (() => {
+                      const date = new Date(item.date);
+                      const day = String(date.getDate()).padStart(2, '0');
+                      const month = String(date.getMonth() + 1).padStart(2, '0');
+                      const year = date.getFullYear();
+                      return `${day}-${month}-${year}`;
+                    })() : 'N/A'}
+                  </td>
                   <td className="px-4 py-2 text-sm text-gray-900">
                     {item.reference || 'N/A'}
                     </td>

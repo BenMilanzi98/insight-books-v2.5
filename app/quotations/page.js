@@ -43,6 +43,7 @@ import {
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import QuotationTemplateCapture from "@/components/QuotationTemplateCapture";
+import { formatDate } from "@/lib/dateUtils";
 
 const QuotationsPage = () => {
   const [activeTab, setActiveTab] = useState("all");
@@ -699,7 +700,7 @@ const QuotationsPage = () => {
                         {quotation.createdBy?.name || 'N/A'}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {new Date(quotation.createdAt || quotation.date).toLocaleDateString()}
+                        {formatDate(quotation.createdAt || quotation.date)}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900">

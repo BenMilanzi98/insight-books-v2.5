@@ -1592,15 +1592,18 @@ const InventoryManagement = () => {
     }
   };
   
-  // Format date
+  // Format date (DD-MM-YYYY)
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric'
-    });
+    try {
+      const date = new Date(dateString);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}-${month}-${year}`;
+    } catch (error) {
+      return 'N/A';
+    }
   };
   
   // Handle drag over for file upload
@@ -2409,7 +2412,7 @@ const InventoryManagement = () => {
                             <span className="font-medium text-gray-900">{item.name}</span>
                             {showDeletedItems && (
                               <div className="text-xs text-red-600 mt-1">
-                                Deleted: {new Date(item.deletedAt).toLocaleDateString()}
+                                Deleted: {formatDate(item.deletedAt)}
                                 {item.deletionReason && ` - ${item.deletionReason}`}
                               </div>
                             )}
@@ -2541,7 +2544,7 @@ const InventoryManagement = () => {
                   {showDeletedItems && (
                     <div className="absolute bottom-2 left-2 right-2">
                       <div className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded">
-                        Deleted: {new Date(item.deletedAt).toLocaleDateString()}
+                        Deleted: {formatDate(item.deletedAt)}
                       </div>
                     </div>
                   )}

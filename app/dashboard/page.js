@@ -973,7 +973,13 @@ const BusinessOwnerDashboard = () => {
           </h2>
           <div className="text-sm text-gray-500">
             {dailyPerformance ? 
-              new Date(dailyPerformance.today.date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 
+              (() => {
+                const date = new Date(dailyPerformance.today.date);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = date.getFullYear();
+                return `${day}-${month}-${year}`;
+              })() : 
               <SkeletonElement className="h-5 w-48" />
             }
           </div>

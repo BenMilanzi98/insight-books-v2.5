@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 const statusOptions = ["Draft", "Posted"];
 
@@ -286,7 +287,7 @@ function ReceiptDetails({ receipt, onClose }) {
             <h2 className="text-xl font-semibold text-gray-900">{receipt.receiptNumber}</h2>
             <p className="text-sm text-gray-500">
               {receipt.supplier?.supplierName ?? "—"} •{" "}
-              {receipt.receiptDate ? format(new Date(receipt.receiptDate), "dd MMM yyyy") : "—"}
+              {receipt.receiptDate ? formatDateDDMMYYYY(receipt.receiptDate) : "—"}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">

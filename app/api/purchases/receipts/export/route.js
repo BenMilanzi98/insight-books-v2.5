@@ -50,13 +50,18 @@ export async function GET(request) {
       return `MWK ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     };
 
-    // Helper function to format date
+    // Helper function to format date (DD-MM-YYYY)
     const formatDate = (date) => {
       if (!date) return 'N/A';
-      const d = new Date(date);
-      const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                     'July', 'August', 'September', 'October', 'November', 'December'];
-      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+      try {
+        const dateObj = new Date(date);
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const year = dateObj.getFullYear();
+        return `${day}-${month}-${year}`;
+      } catch (error) {
+        return 'N/A';
+      }
     };
 
     // Build CSV content with header information

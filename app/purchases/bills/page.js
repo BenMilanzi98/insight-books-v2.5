@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 const statusOptions = ["Draft", "Approved", "Unpaid", "Partially Paid", "Paid", "Overdue", "Cancelled"];
 
@@ -544,7 +545,7 @@ export default function SupplierBillsPage() {
                       <div className="text-xs text-gray-500">Invoice {bill.supplierInvoiceNumber ?? "-"}</div>
                     </td>
                     <td className="px-4 py-2 text-gray-700">
-                      {bill.dueDate ? format(new Date(bill.dueDate), "dd MMM yyyy") : "—"}
+                      {bill.dueDate ? formatDateDDMMYYYY(bill.dueDate) : "—"}
                     </td>
                     <td className="px-4 py-2">
                       <span

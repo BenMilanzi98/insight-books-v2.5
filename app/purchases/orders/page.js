@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
+import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 const statusColors = {
   Draft: "bg-gray-100 text-gray-800",
@@ -81,7 +82,7 @@ function DetailDrawer({ order, onClose }) {
             <h2 className="text-xl font-semibold text-gray-900">{order.poNumber}</h2>
             <p className="text-sm text-gray-500">
               {order.supplier?.supplierName ?? "No supplier"} •{" "}
-              {order.poDate ? format(new Date(order.poDate), "dd MMM yyyy") : "—"}
+              {order.poDate ? formatDateDDMMYYYY(order.poDate) : "—"}
             </p>
           </div>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -107,7 +108,7 @@ function DetailDrawer({ order, onClose }) {
                 <div className="text-xs uppercase text-gray-500">Expected Delivery</div>
                 <div className="mt-1 text-gray-900">
                   {order.expectedDeliveryDate
-                    ? format(new Date(order.expectedDeliveryDate), "dd MMM yyyy")
+                    ? formatDateDDMMYYYY(order.expectedDeliveryDate)
                     : "—"}
                 </div>
               </div>
@@ -736,7 +737,7 @@ export default function PurchaseOrdersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-2 text-gray-700">
-                      {order.poDate ? format(new Date(order.poDate), "dd MMM yyyy") : "—"}
+                      {order.poDate ? formatDateDDMMYYYY(order.poDate) : "—"}
                     </td>
                     <td className="px-4 py-2">
                       <span

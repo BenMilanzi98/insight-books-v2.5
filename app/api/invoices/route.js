@@ -309,10 +309,13 @@ export async function POST(request) {
     // Enhanced calculation using the new function
     const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
     
-    // Generate invoice number
+    // Generate invoice number with continuous sequential numbering
+    // Format: INV-DDMMYYYY-00010 (date changes, but number never resets)
     const today = new Date();
-    const year = today.getFullYear();
+    const day = String(today.getDate()).padStart(2, '0');
     const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const dateStr = `${day}${month}${year}`; // DDMMYYYY format
     
     // Get tenant settings for invoice prefix
     const tenantSettings = await prisma.tenantSettings.findFirst({
@@ -321,19 +324,39 @@ export async function POST(request) {
     
     const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
     
-    // Get count of invoices for this tenant in the current month for sequential numbering
-    const invoiceCount = await prisma.invoice.count({
+    // Get the last invoice for this tenant to extract the sequential number
+    // The sequential number should NEVER reset, it continues infinitely
+    const lastInvoice = await prisma.invoice.findFirst({
       where: {
-        tenantId: user.tenantId,
-        createdAt: {
-          gte: new Date(year, today.getMonth(), 1),
-          lt: new Date(year, today.getMonth() + 1, 1)
-        }
+        tenantId: user.tenantId
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      select: {
+        invoiceNumber: true
       }
     });
     
-    const sequentialNumber = String(invoiceCount + 1).padStart(3, '0');
-    const invoiceNumber = `${invoicePrefix}-${year}${month}-${sequentialNumber}`;
+    let sequentialNumber = 1; // Default to 1 if no invoices exist
+    
+    if (lastInvoice && lastInvoice.invoiceNumber) {
+      // Extract the sequential number from the last invoice
+      // Format: INV-DDMMYYYY-00010 or INV-YYYYMM-001 (old format)
+      const parts = lastInvoice.invoiceNumber.split('-');
+      if (parts.length >= 3) {
+        // Get the last part which should be the sequential number
+        const lastPart = parts[parts.length - 1];
+        const parsedNumber = parseInt(lastPart, 10);
+        if (!isNaN(parsedNumber) && parsedNumber > 0) {
+          sequentialNumber = parsedNumber + 1; // Increment by 1
+        }
+      }
+    }
+    
+    // Format sequential number with 5 digits (00010, 00011, etc.)
+    const sequentialNumberStr = String(sequentialNumber).padStart(5, '0');
+    const invoiceNumber = `${invoicePrefix}-${dateStr}-${sequentialNumberStr}`;
     const invoiceStatus = body.status || 'Draft';
     const issueDate = new Date(body.issueDate || today);
     

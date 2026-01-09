@@ -46,6 +46,7 @@ import {
 } from "@/app/services/invoiceService";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import { formatDate } from "@/lib/dateUtils";
 
 const InvoicingPage = () => {
   // State management
@@ -1206,14 +1207,32 @@ const sendInvoiceWithMessage = async (customMessage) => {
                       {invoice.invoiceNumber}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500 hidden md:table-cell">
-                      {new Date(invoice.issueDate).toLocaleDateString()}
+                      {(() => {
+                        const date = new Date(invoice.issueDate);
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
+                        return `${day}-${month}-${year}`;
+                      })()}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500 hidden lg:table-cell">
-                      {new Date(invoice.dueDate).toLocaleDateString()}
+                      {(() => {
+                        const date = new Date(invoice.dueDate);
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
+                        return `${day}-${month}-${year}`;
+                      })()}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="text-xs font-medium text-gray-900">{invoice.client.name}</div>
-                      <div className="text-xs text-gray-500 md:hidden">{new Date(invoice.issueDate).toLocaleDateString()}</div>
+                      <div className="text-xs text-gray-500 md:hidden">{(() => {
+                        const date = new Date(invoice.issueDate);
+                        const day = String(date.getDate()).padStart(2, '0');
+                        const month = String(date.getMonth() + 1).padStart(2, '0');
+                        const year = date.getFullYear();
+                        return `${day}-${month}-${year}`;
+                      })()}</div>
                       <div className="text-xs text-gray-500">{invoice.client.email}</div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-900 text-right">
@@ -1231,7 +1250,7 @@ const sendInvoiceWithMessage = async (customMessage) => {
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500 hidden lg:table-cell">
                       <div className="font-medium">{invoice.createdBy?.name || 'N/A'}</div>
-                      <div className="text-xs">{new Date(invoice.createdAt || invoice.issueDate).toLocaleDateString()}</div>
+                      <div className="text-xs">{formatDate(invoice.createdAt || invoice.issueDate)}</div>
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap text-center">
                       <StatusBadge status={invoice.status} />
