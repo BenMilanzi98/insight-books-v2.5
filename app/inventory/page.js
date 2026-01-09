@@ -369,7 +369,7 @@ const InventoryManagement = () => {
     },
     
     // Create a new product
-    createProduct: async (productData) => {
+    createProduct: async (productData, suppressExpectedErrors = false) => {
       try {
         const response = await fetch('/api/inventory', {
           method: 'POST',
@@ -381,12 +381,23 @@ const InventoryManagement = () => {
         
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || `Error creating product: ${response.statusText}`);
+          // Preserve full error data for conflict handling
+          const error = new Error(errorData.error || `Error creating product: ${response.statusText}`);
+          error.status = response.status;
+          error.errorData = errorData;
+          // Only log unexpected errors (not 409 conflicts that we handle)
+          if (!suppressExpectedErrors || response.status !== 409) {
+            console.error('Error creating product:', error);
+          }
+          throw error;
         }
         
         return await response.json();
       } catch (error) {
-        console.error('Error creating product:', error);
+        // Only log if not suppressed or not a handled 409
+        if (!suppressExpectedErrors || error.status !== 409) {
+          console.error('Error creating product:', error);
+        }
         throw error;
       }
     },
@@ -711,14 +722,107 @@ const InventoryManagement = () => {
     try {
       setIsSubmitting(true);
       
+      let created = 0;
+      let restored = 0;
+      let errors = [];
+      
       // Process each product
       for (const product of products) {
-        await inventoryService.createProduct(product);
+        try {
+          // Suppress expected 409 errors in console (we handle them below)
+          await inventoryService.createProduct(product, true);
+          created++;
+        } catch (error) {
+          // Check if it's a 409 conflict with a deleted product
+          if (error.status === 409 && error.errorData?.conflictType === 'deleted_product' && error.errorData?.deletedProduct) {
+            try {
+              const deletedProduct = error.errorData.deletedProduct;
+              
+              // Restore the deleted product
+              const restoreResponse = await fetch('/api/inventory/restore', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productIds: [deletedProduct.id] })
+              });
+              
+              if (restoreResponse.ok) {
+                // Wait a bit for the database transaction to complete
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Format the product data for the update API - only include valid fields
+                // Remove any fields that might cause issues (empty strings, undefined, etc.)
+                // Do NOT include selectedUnits or unitManagementEnabled to avoid unit management processing
+                const updateData = {
+                  name: (product.name || '').trim(),
+                  sku: (product.sku || '').trim(),
+                  description: (product.description || '').trim(),
+                  category: (product.category || 'Uncategorized').trim(),
+                  stockLevel: parseInt(String(product.stockLevel || product.quantityInStock || 0), 10),
+                  reorderPoint: parseInt(String(product.reorderPoint || 10), 10),
+                  location: (product.location || 'Default Location').trim(),
+                  price: parseFloat(String(product.price || product.unitPrice || 0)),
+                  cost: parseFloat(String(product.cost || product.costPrice || 0)),
+                  isService: Boolean(product.isService),
+                  // Explicitly set unitManagementEnabled to false to avoid unit processing
+                  unitManagementEnabled: false,
+                };
+                
+                // Only include image if it's a valid URL (not empty string or blob)
+                if (product.image && typeof product.image === 'string' && product.image.trim() && !product.image.startsWith('blob:')) {
+                  updateData.image = product.image.trim();
+                }
+                
+                // Retry logic: try updating up to 3 times with increasing delays
+                let updateSuccess = false;
+                for (let retry = 0; retry < 3; retry++) {
+                  try {
+                    await inventoryService.updateProduct(deletedProduct.id, updateData);
+                    updateSuccess = true;
+                    break;
+                  } catch (updateError) {
+                    if (retry < 2) {
+                      // Wait longer before retrying
+                      await new Promise(resolve => setTimeout(resolve, 300 * (retry + 1)));
+                    } else {
+                      throw updateError;
+                    }
+                  }
+                }
+                
+                if (updateSuccess) {
+                  restored++;
+                  continue;
+                }
+              } else {
+                const restoreError = await restoreResponse.json().catch(() => ({ error: 'Failed to restore deleted product' }));
+                errors.push({ sku: product.sku, name: product.name, error: restoreError.error || 'Failed to restore deleted product' });
+              }
+            } catch (restoreError) {
+              console.error(`Error restoring product with SKU ${product.sku}:`, restoreError);
+              errors.push({ sku: product.sku, name: product.name, error: restoreError.message || 'Failed to restore' });
+            }
+          } else {
+            // Other errors
+            errors.push({ sku: product.sku, name: product.name, error: error.message });
+          }
+        }
       }
       
       // Reload inventory
       await loadInventory();
-      showToast("success", "Bulk upload completed", `${products.length} products added successfully`);
+      
+      // Show summary
+      const summary = [];
+      if (created > 0) summary.push(`${created} created`);
+      if (restored > 0) summary.push(`${restored} restored`);
+      if (errors.length > 0) summary.push(`${errors.length} failed`);
+      
+      if (errors.length === 0) {
+        showToast("success", "Bulk upload completed", summary.join(", "));
+      } else {
+        showToast("warning", "Bulk upload completed with errors", `${summary.join(", ")}. Check console for details.`);
+        console.error("Bulk upload errors:", errors);
+      }
     } catch (error) {
       console.error("Error during bulk upload:", error);
       showToast("error", "Bulk upload failed", error.message);

@@ -1,8 +1,39 @@
 // app/api/historical-transactions/batch-upload/route.js
 import { NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { updateAccountBalance } from '@/lib/core';
+
+// Helper function to normalize column names (case-insensitive, handle variations)
+function normalizeColumnName(name) {
+  if (!name) return '';
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+// Helper function to find column value by normalized name
+function getColumnValue(row, possibleNames) {
+  const normalizedRow = {};
+  Object.keys(row).forEach(key => {
+    normalizedRow[normalizeColumnName(key)] = row[key];
+  });
+  
+  for (const name of possibleNames) {
+    const normalized = normalizeColumnName(name);
+    if (normalizedRow[normalized] !== undefined) {
+      return normalizedRow[normalized];
+    }
+  }
+  
+  // Try exact match as fallback
+  for (const name of possibleNames) {
+    if (row[name] !== undefined) {
+      return row[name];
+    }
+  }
+  
+  return undefined;
+}
 
 // Helper function to parse CSV content
 function parseCSV(csvText) {
@@ -29,11 +60,51 @@ function parseCSV(csvText) {
     
     const row = {};
     headers.forEach((header, i) => {
-      row[header] = values[i] || '';
+      // Remove quotes from values (handles quoted CSV values like "Custom Product - Widget")
+      let value = values[i] || '';
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      }
+      row[header] = value;
     });
     row.rowNumber = index + 2; // +2 because we skip header and arrays are 0-indexed
     return row;
   });
+}
+
+// Helper function to normalize payment method
+function normalizePaymentMethod(method) {
+  if (!method) return 'cash';
+  const methodStr = method.toString().trim();
+  
+  // If it's already a normalized key (contains underscore), return as is
+  if (methodStr.includes('_')) {
+    return methodStr.toLowerCase();
+  }
+  
+  // Map display names to normalized keys
+  const methodMap = {
+    'cash': 'cash',
+    'card': 'card', // Keep for backward compatibility
+    'mobile_money': 'mobile_money', // Keep for backward compatibility
+    'bank transfer': 'bank_transfer',
+    'banktransfer': 'bank_transfer',
+    'airtel money': 'airtel_money',
+    'airtelmoney': 'airtel_money',
+    'mpamba': 'mpamba',
+    'paychangu': 'paychangu',
+    'pay changu': 'paychangu',
+    'cheque': 'cheque', // Keep for backward compatibility
+    'check': 'cheque'
+  };
+  
+  const normalized = methodMap[methodStr.toLowerCase()];
+  if (normalized) {
+    return normalized;
+  }
+  
+  // Default normalization: lowercase and replace spaces with underscores
+  return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
 }
 
 // Helper function to parse dates with multiple format support
@@ -45,49 +116,93 @@ function parseDate(dateStr) {
   
   // Try different formats
   if (cleanStr.includes('/')) {
-    const parts = cleanStr.split('/');
+    const parts = cleanStr.split('/').map(p => p.trim());
     if (parts.length === 3) {
-      const [part1, part2, part3] = parts.map(p => parseInt(p));
+      const [part1, part2, part3] = parts.map(p => parseInt(p, 10));
       
-      // Determine format based on values
-      if (part3 > 31) {
-        // Third part is year: DD/MM/YYYY or MM/DD/YYYY
-        if (part1 > 12) {
-          // First part > 12, must be DD/MM/YYYY
-          date = new Date(part3, part2 - 1, part1);
-        } else if (part2 > 12) {
-          // Second part > 12, must be MM/DD/YYYY (invalid, but handle as DD/MM/YYYY)
-          date = new Date(part3, part2 - 1, part1);
-        } else {
-          // Ambiguous case - try DD/MM/YYYY first (European standard)
-          date = new Date(part3, part2 - 1, part1);
-          // Validate the date makes sense
-          if (date.getDate() !== part1 || date.getMonth() !== part2 - 1) {
-            // Try MM/DD/YYYY instead
-            date = new Date(part3, part1 - 1, part2);
-          }
+      // Check if any part is NaN
+      if (isNaN(part1) || isNaN(part2) || isNaN(part3)) {
+        // Try direct parsing as last resort
+        date = new Date(cleanStr);
+      } else {
+        // Handle 2-digit years (e.g., 21, 22, 23 -> 2021, 2022, 2023)
+        let year = part3;
+        if (part3 < 100) {
+          // 2-digit year: assume 2000-2099
+          year = part3 < 50 ? 2000 + part3 : 1900 + part3;
         }
-      } else if (part1 > 31) {
-        // First part is year: YYYY/MM/DD
-        date = new Date(part1, part2 - 1, part3);
+        
+        // Determine format based on values
+        if (year > 31) {
+          // Third part is year: DD/MM/YYYY or MM/DD/YYYY
+          if (part1 > 12) {
+            // First part > 12, must be DD/MM/YYYY
+            date = new Date(year, part2 - 1, part1);
+          } else if (part2 > 12) {
+            // Second part > 12, must be MM/DD/YYYY (invalid, but handle as DD/MM/YYYY)
+            date = new Date(year, part2 - 1, part1);
+          } else {
+            // Ambiguous case - try DD/MM/YYYY first (European standard)
+            date = new Date(year, part2 - 1, part1);
+            // Validate the date makes sense
+            if (date.getDate() !== part1 || date.getMonth() !== part2 - 1) {
+              // Try MM/DD/YYYY instead
+              date = new Date(year, part1 - 1, part2);
+            }
+          }
+        } else if (part1 > 31) {
+          // First part is year: YYYY/MM/DD
+          date = new Date(part1, part2 - 1, part3);
+        } else {
+          // Try DD/MM/YYYY as default
+          date = new Date(year, part2 - 1, part1);
+        }
       }
     }
   } else if (cleanStr.includes('-')) {
-    const parts = cleanStr.split('-');
+    const parts = cleanStr.split('-').map(p => p.trim());
     if (parts.length === 3) {
-      const [part1, part2, part3] = parts.map(p => parseInt(p));
+      const [part1, part2, part3] = parts.map(p => parseInt(p, 10));
       
-      if (part1 > 31) {
-        // YYYY-MM-DD format
-        date = new Date(part1, part2 - 1, part3);
-      } else if (part3 > 31) {
-        // DD-MM-YYYY format
-        date = new Date(part3, part2 - 1, part1);
+      if (isNaN(part1) || isNaN(part2) || isNaN(part3)) {
+        // Try direct parsing as last resort
+        date = new Date(cleanStr);
+      } else {
+        if (part1 > 31) {
+          // YYYY-MM-DD format
+          date = new Date(part1, part2 - 1, part3);
+        } else if (part3 > 31) {
+          // DD-MM-YYYY format
+          date = new Date(part3, part2 - 1, part1);
+        } else {
+          // Try YYYY-MM-DD as default
+          date = new Date(part1, part2 - 1, part3);
+        }
+      }
+    }
+  } else if (cleanStr.includes('.')) {
+    // Try DD.MM.YYYY format
+    const parts = cleanStr.split('.').map(p => p.trim());
+    if (parts.length === 3) {
+      const [part1, part2, part3] = parts.map(p => parseInt(p, 10));
+      if (!isNaN(part1) && !isNaN(part2) && !isNaN(part3)) {
+        if (part3 > 31) {
+          // DD.MM.YYYY format
+          date = new Date(part3, part2 - 1, part1);
+        } else if (part1 > 31) {
+          // YYYY.MM.DD format
+          date = new Date(part1, part2 - 1, part3);
+        }
       }
     }
   } else {
-    // Try direct parsing as last resort
-    date = new Date(cleanStr);
+    // Try ISO format (YYYY-MM-DD) first
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+      date = new Date(cleanStr + 'T00:00:00');
+    } else {
+      // Try direct parsing as last resort
+      date = new Date(cleanStr);
+    }
   }
   
   // Validate the parsed date
@@ -98,15 +213,64 @@ function parseDate(dateStr) {
   return date;
 }
 
-// Helper function to validate transaction data
-function validateTransaction(transaction, rowNumber) {
+// Helper function to validate and apply default values to transaction data
+function validateTransaction(transaction, rowNumber, applyDefaults = false) {
   const errors = [];
   
-  // Required fields
-  if (!transaction['Transaction Date']) {
+  // Helper to parse numeric values (handles currency formatting, commas, etc.)
+  const parseNumericValue = (value) => {
+    if (value === undefined || value === null) return '';
+    const str = String(value).trim();
+    if (!str || str === '') return '';
+    // Remove currency symbols, commas, and whitespace
+    return str.replace(/[$,\s]/g, '');
+  };
+
+  // Get field values - use EXACT column names from template
+  // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
+  let transactionDate = transaction['Transaction Date'] || '';
+  let productDescription = transaction['Product/Service Description'] || '';
+  let quantity = transaction['Quantity'] || '';
+  let unitPrice = transaction['Unit Price'] || '';
+  const taxRate = transaction['Tax Rate (%)'] || '';
+  const discountAmount = transaction['Discount Amount'] || '';
+  let paymentMethod = transaction['Payment Method'] || '';
+  
+  // Apply default values if enabled and field is empty
+  if (applyDefaults) {
+    // Default transaction date to today if empty
+    if (!transactionDate || transactionDate.trim() === '') {
+      transactionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+      console.log(`Row ${rowNumber}: Using default Transaction Date: ${transactionDate}`);
+    }
+    
+    // Default product description if empty
+    if (!productDescription || productDescription.trim() === '') {
+      productDescription = 'Historical Transaction Item';
+      console.log(`Row ${rowNumber}: Using default Product Description: ${productDescription}`);
+    }
+    
+    // Default quantity to 1 if empty
+    if (!quantity || parseNumericValue(quantity) === '') {
+      quantity = '1';
+      console.log(`Row ${rowNumber}: Using default Quantity: ${quantity}`);
+    }
+    
+    // Note: Unit Price cannot have a default - it must be provided
+    // If empty, it will still be flagged as an error
+    
+    // Default payment method to cash if empty
+    if (!paymentMethod || paymentMethod.trim() === '') {
+      paymentMethod = 'cash';
+      console.log(`Row ${rowNumber}: Using default Payment Method: ${paymentMethod}`);
+    }
+  }
+  
+  // Required fields validation
+  if (!transactionDate || transactionDate.trim() === '') {
     errors.push(`Row ${rowNumber}: Transaction Date is required`);
   } else {
-    const date = parseDate(transaction['Transaction Date']);
+    const date = parseDate(transactionDate);
     if (!date) {
       errors.push(`Row ${rowNumber}: Invalid Transaction Date format. Please use formats like: 15/01/2023, 2023-01-15, or 01/15/2023`);
     } else if (date > new Date()) {
@@ -114,34 +278,83 @@ function validateTransaction(transaction, rowNumber) {
     }
   }
   
-  if (!transaction['Product/Service Description']) {
+  if (!productDescription || productDescription.trim() === '') {
     errors.push(`Row ${rowNumber}: Product/Service Description is required`);
   }
-  
-  if (!transaction['Quantity'] || isNaN(parseFloat(transaction['Quantity'])) || parseFloat(transaction['Quantity']) <= 0) {
-    errors.push(`Row ${rowNumber}: Valid Quantity is required`);
+
+  // Validate Quantity
+  const quantityStr = parseNumericValue(quantity);
+  if (!quantityStr || quantityStr === '') {
+    errors.push(`Row ${rowNumber}: Quantity is required`);
+  } else {
+    const quantityNum = parseFloat(quantityStr);
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+      errors.push(`Row ${rowNumber}: Quantity must be a valid number greater than 0`);
+    }
   }
   
-  if (!transaction['Unit Price'] || isNaN(parseFloat(transaction['Unit Price'])) || parseFloat(transaction['Unit Price']) <= 0) {
-    errors.push(`Row ${rowNumber}: Valid Unit Price is required`);
+  // Validate Unit Price
+  // Check if unitPrice is undefined (field not found) vs empty string (field exists but empty)
+  if (unitPrice === undefined) {
+    // Field not found - this shouldn't happen if CSV has the column
+    const availableFields = Object.keys(transaction).filter(k => k !== 'rowNumber').join(', ');
+    errors.push(`Row ${rowNumber}: Unit Price column not found. Available columns: ${availableFields}`);
+  } else {
+    const unitPriceStr = parseNumericValue(unitPrice);
+    if (!unitPriceStr || unitPriceStr === '') {
+      // Field exists but is empty - Unit Price cannot have a default, it's required
+      errors.push(`Row ${rowNumber}: Unit Price is required but is empty. Please provide a valid unit price for this row.`);
+    } else {
+      const unitPriceNum = parseFloat(unitPriceStr);
+      if (isNaN(unitPriceNum) || unitPriceNum < 0) {
+        errors.push(`Row ${rowNumber}: Unit Price must be a valid number >= 0 (found: "${unitPrice}")`);
+      }
+    }
   }
   
   // Optional but validated fields
-  if (transaction['Tax Rate (%)'] && (isNaN(parseFloat(transaction['Tax Rate (%)'])) || parseFloat(transaction['Tax Rate (%)']) < 0)) {
-    errors.push(`Row ${rowNumber}: Tax Rate must be a valid number >= 0`);
+  if (taxRate && taxRate.trim() !== '') {
+    const taxRateStr = parseNumericValue(taxRate);
+    if (taxRateStr && taxRateStr !== '') {
+      const taxRateNum = parseFloat(taxRateStr);
+      if (isNaN(taxRateNum) || taxRateNum < 0) {
+        errors.push(`Row ${rowNumber}: Tax Rate must be a valid number >= 0`);
+      }
+    }
   }
   
-  if (transaction['Discount Amount'] && (isNaN(parseFloat(transaction['Discount Amount'])) || parseFloat(transaction['Discount Amount']) < 0)) {
-    errors.push(`Row ${rowNumber}: Discount Amount must be a valid number >= 0`);
+  if (discountAmount && discountAmount.trim() !== '') {
+    const discountStr = parseNumericValue(discountAmount);
+    if (discountStr && discountStr !== '') {
+      const discount = parseFloat(discountStr);
+      if (isNaN(discount) || discount < 0) {
+        errors.push(`Row ${rowNumber}: Discount Amount must be a valid number >= 0`);
+      }
+    }
   }
   
-  // Payment method validation
-  const validPaymentMethods = ['cash', 'card', 'mobile_money', 'bank_transfer', 'cheque'];
-  if (transaction['Payment Method'] && !validPaymentMethods.includes(transaction['Payment Method'].toLowerCase())) {
-    errors.push(`Row ${rowNumber}: Payment Method must be one of: ${validPaymentMethods.join(', ')}`);
+  // Payment method validation - normalize and check
+  const validPaymentMethods = ['cash', 'card', 'mobile_money', 'bank_transfer', 'airtel_money', 'mpamba', 'paychangu', 'cheque'];
+  if (paymentMethod && paymentMethod.trim() !== '') {
+    const normalizedMethod = normalizePaymentMethod(paymentMethod);
+    if (!validPaymentMethods.includes(normalizedMethod)) {
+      errors.push(`Row ${rowNumber}: Payment Method must be one of: Cash, Bank Transfer, Airtel Money, Mpamba, PayChangu, Card, Mobile Money, or Cheque`);
+    }
   }
   
-  return errors;
+  // Return validated data with defaults applied
+  return {
+    errors,
+    validatedData: {
+      transactionDate,
+      productDescription,
+      quantity,
+      unitPrice,
+      taxRate: taxRate || '0',
+      discountAmount: discountAmount || '0',
+      paymentMethod: paymentMethod || 'cash'
+    }
+  };
 }
 
 export async function POST(request) {
@@ -224,30 +437,49 @@ export async function POST(request) {
     const validTransactions = [];
     
     console.log('Starting validation of', transactions.length, 'transactions');
+    if (transactions.length > 0) {
+      console.log('CSV Headers:', Object.keys(transactions[0]).filter(k => k !== 'rowNumber'));
+    }
     
     for (const transaction of transactions) {
-      const errors = validateTransaction(transaction, transaction.rowNumber);
-      if (errors.length > 0) {
-        console.log(`Validation errors for row ${transaction.rowNumber}:`, errors);
-        allErrors.push(...errors);
+      // Validate with defaults enabled (applyDefaults = true)
+      const validationResult = validateTransaction(transaction, transaction.rowNumber, true);
+      
+      if (validationResult.errors.length > 0) {
+        console.log(`Validation errors for row ${transaction.rowNumber}:`, validationResult.errors);
+        allErrors.push(...validationResult.errors);
       } else {
-        validTransactions.push(transaction);
+        // Store validated data with defaults applied
+        const validatedTransaction = {
+          ...transaction,
+          ...validationResult.validatedData
+        };
+        validTransactions.push(validatedTransaction);
       }
     }
 
     console.log('Validation complete. Valid:', validTransactions.length, 'Invalid:', allErrors.length);
 
-    if (allErrors.length > 0) {
-      console.log('Returning validation errors:', allErrors);
+    // If there are validation errors but we have some valid transactions, 
+    // we can either fail completely or process the valid ones
+    // For now, we'll process valid transactions and report errors separately
+    if (allErrors.length > 0 && validTransactions.length === 0) {
+      // All transactions are invalid - fail completely
+      console.log('All transactions are invalid. Returning validation errors:', allErrors);
       return NextResponse.json(
         { 
-          error: 'Validation failed',
+          error: 'Validation failed - all rows have errors',
           details: allErrors,
-          validCount: validTransactions.length,
+          validCount: 0,
           totalCount: transactions.length
         },
         { status: 400 }
       );
+    }
+    
+    // If we have some valid transactions, we'll process them and report errors
+    if (allErrors.length > 0 && validTransactions.length > 0) {
+      console.log(`Processing ${validTransactions.length} valid transactions. ${allErrors.length} rows will be skipped due to validation errors.`);
     }
 
     // Process valid transactions in batches
@@ -258,15 +490,36 @@ export async function POST(request) {
     };
 
     // Process transactions in database transaction
-    await prisma.$transaction(async (tx) => {
-      for (const transaction of validTransactions) {
-        try {
+    try {
+      await prisma.$transaction(async (tx) => {
+        for (const transaction of validTransactions) {
+          try {
+            console.log(`Processing transaction row ${transaction?.rowNumber || 'unknown'}...`);
+          // Get field values - use EXACT column names from template (matching template/route.js)
+          // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
+          const customerName = transaction['Customer Name'] || '';
+          const customerEmail = transaction['Customer Email'] || '';
+          // Use validated data if available (from validation with defaults), otherwise get from transaction
+          const transactionDate = transaction.transactionDate || transaction['Transaction Date'] || '';
+          const productDescription = transaction.productDescription || transaction['Product/Service Description'] || '';
+          const quantity = transaction.quantity || transaction['Quantity'] || '';
+          const unitPrice = transaction.unitPrice || transaction['Unit Price'] || '';
+          // Validate Unit Price is not empty (should have been caught in validation, but double-check)
+          if (!unitPrice || unitPrice.trim() === '') {
+            throw new Error(`Row ${transaction.rowNumber}: Unit Price is required but is empty. This row should have been skipped during validation.`);
+          }
+          const taxRate = transaction.taxRate || transaction['Tax Rate (%)'] || '0';
+          const discountAmount = transaction.discountAmount || transaction['Discount Amount'] || '0';
+          const paymentMethod = transaction.paymentMethod || transaction['Payment Method'] || 'cash';
+          const originalReference = transaction['Original Reference'] || '';
+          const notes = transaction['Notes'] || '';
+
           // Find or create client if provided
           let clientId = null;
-          if (transaction['Customer Name'] && transaction['Customer Name'].trim()) {
-            const clientName = transaction['Customer Name'].trim();
-            const clientEmail = transaction['Customer Email'] && transaction['Customer Email'].trim() 
-              ? transaction['Customer Email'].trim() 
+          if (customerName && customerName.trim()) {
+            const clientName = customerName.trim();
+            const clientEmail = customerEmail && customerEmail.trim() 
+              ? customerEmail.trim() 
               : `${clientName.toLowerCase().replace(/\s+/g, '.')}@placeholder.com`;
             
             // Try to find existing client by email and tenantId
@@ -291,49 +544,83 @@ export async function POST(request) {
             clientId = client.id;
           }
 
-          // Calculate amounts
-          const quantity = parseFloat(transaction['Quantity']);
-          const unitPrice = parseFloat(transaction['Unit Price']);
-          const taxRate = parseFloat(transaction['Tax Rate (%)'] || '0');
-          const discountAmount = parseFloat(transaction['Discount Amount'] || '0');
+          // Helper to parse numeric values (handles currency formatting, commas, etc.)
+          const parseNumericValue = (value) => {
+            if (!value) return '0';
+            // Remove currency symbols, commas, and whitespace
+            return String(value).trim().replace(/[$,\s]/g, '');
+          };
+
+          // Calculate amounts - parse values with currency formatting support
+          const quantityNum = parseFloat(parseNumericValue(quantity));
+          const unitPriceNum = parseFloat(parseNumericValue(unitPrice));
+          const taxRateNum = parseFloat(parseNumericValue(taxRate));
+          const discountAmountNum = parseFloat(parseNumericValue(discountAmount));
           
-          const subtotal = quantity * unitPrice;
-          const taxAmount = subtotal * (taxRate / 100);
-          const total = subtotal + taxAmount - discountAmount;
+          const subtotal = quantityNum * unitPriceNum;
+          const taxAmount = subtotal * (taxRateNum / 100);
+          const total = subtotal + taxAmount - discountAmountNum;
 
           // Parse transaction date using robust date parser
-          const transactionDate = parseDate(transaction['Transaction Date']);
+          let parsedTransactionDate = parseDate(transactionDate);
+          
+          // If parseDate fails, try parsing the default format (YYYY-MM-DD) directly
+          if (!parsedTransactionDate && transactionDate) {
+            try {
+              // Try ISO format (YYYY-MM-DD)
+              if (/^\d{4}-\d{2}-\d{2}$/.test(transactionDate.trim())) {
+                parsedTransactionDate = new Date(transactionDate.trim() + 'T00:00:00');
+                if (isNaN(parsedTransactionDate.getTime())) {
+                  parsedTransactionDate = null;
+                }
+              }
+            } catch (e) {
+              console.error(`Error parsing date ${transactionDate}:`, e);
+            }
+          }
+          
+          if (!parsedTransactionDate) {
+            throw new Error(`Invalid transaction date for row ${transaction.rowNumber}: "${transactionDate}". Please use formats like: 15/01/2023, 2023-01-15, or 01/15/2023`);
+          }
           
           // Generate sale number
-          const saleDateStr = transactionDate.toISOString().split('T')[0].replace(/-/g, '').substring(2); // YYMMDD format
+          const saleDateStr = parsedTransactionDate.toISOString().split('T')[0].replace(/-/g, '').substring(2); // YYMMDD format
+          const startOfDay = new Date(parsedTransactionDate);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(parsedTransactionDate);
+          endOfDay.setHours(23, 59, 59, 999);
+          
           const salesCount = await tx.sale.count({
             where: {
               tenantId: user.tenantId,
               saleDate: {
-                gte: new Date(transactionDate.setHours(0, 0, 0, 0)),
-                lt: new Date(transactionDate.setHours(23, 59, 59, 999))
+                gte: startOfDay,
+                lt: endOfDay
               }
             }
           });
           const saleNumber = `SALE-${saleDateStr}-${(salesCount + 1).toString().padStart(3, '0')}`;
 
+          // Normalize payment method
+          const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
+          
           // Create sale
           const saleData = {
             saleNumber,
-            saleDate: transactionDate,
+            saleDate: parsedTransactionDate,
             subtotal,
             totalTaxAmount: taxAmount,
-            totalDiscountAmount: discountAmount,
+            totalDiscountAmount: discountAmountNum,
             total,
             status: 'completed',
-            paymentMethod: transaction['Payment Method']?.toLowerCase() || 'cash',
-            notes: transaction['Notes'] || '',
-            taxRate,
+            paymentMethod: normalizedPaymentMethod,
+            notes: notes || '',
+            taxRate: taxRateNum,
             taxAmount,
             isHistorical: true,
-            historicalDate: transactionDate,
+            historicalDate: parsedTransactionDate,
             migrationBatch,
-            originalReference: transaction['Original Reference'] || null,
+            originalReference: originalReference || null,
             createdBy: {
               connect: { id: user.id }
             },
@@ -349,28 +636,162 @@ export async function POST(request) {
             };
           }
 
+          // Find or create product based on description BEFORE creating the sale
+          let product = null;
+          let productId = null;
+          
+          try {
+            // Try to find existing product by name (case-insensitive)
+            product = await tx.product.findFirst({
+              where: {
+                name: {
+                  equals: productDescription.trim(),
+                  mode: 'insensitive'
+                },
+                tenantId: user.tenantId,
+                isDeleted: false
+              }
+            });
+
+            // If product doesn't exist, create it
+            if (!product) {
+              // Generate a SKU from the product name
+              const cleanName = productDescription.trim();
+              let skuBase = cleanName
+                .toUpperCase()
+                .replace(/[^A-Z0-9]/g, '');
+              
+              // Ensure SKU is not empty
+              if (!skuBase || skuBase.length === 0) {
+                skuBase = 'PROD';
+              }
+              
+              // Limit SKU length to 20 characters
+              if (skuBase.length > 20) {
+                skuBase = skuBase.substring(0, 20);
+              }
+              
+              // Check if SKU already exists and make it unique
+              let sku = skuBase;
+              let skuCounter = 1;
+              let existingProductWithSku = await tx.product.findFirst({
+                where: {
+                  sku: sku,
+                  tenantId: user.tenantId
+                }
+              });
+              
+              while (existingProductWithSku && skuCounter < 1000) { // Prevent infinite loop
+                const suffix = `-${skuCounter}`;
+                const maxLength = Math.max(1, 20 - suffix.length);
+                sku = `${skuBase.substring(0, maxLength)}${suffix}`;
+                skuCounter++;
+                existingProductWithSku = await tx.product.findFirst({
+                  where: {
+                    sku: sku,
+                    tenantId: user.tenantId
+                  }
+                });
+              }
+              
+              // If we hit the limit, use timestamp-based SKU
+              if (skuCounter >= 1000) {
+                sku = `${skuBase.substring(0, 10)}-${Date.now().toString().slice(-6)}`;
+              }
+
+              // Create new product with initial stock
+              try {
+                product = await tx.product.create({
+                  data: {
+                    name: cleanName,
+                    sku: sku || null, // SKU is optional
+                    description: cleanName || null,
+                    category: 'Historical',
+                    stockLevel: new Prisma.Decimal(Math.max(0, quantityNum)), // Use Prisma.Decimal for Decimal field
+                    reorderPoint: 10,
+                    location: 'Default Location',
+                    price: parseFloat(String(Math.max(0, unitPriceNum))), // Ensure non-negative price
+                    cost: 0, // Default cost to 0 for historical products
+                    isService: false,
+                    tenant: {
+                      connect: { id: user.tenantId }
+                    }
+                  }
+                });
+                console.log(`Created new product: ${product.name} (SKU: ${product.sku}) with stock: ${quantityNum}`);
+              } catch (createError) {
+                console.error(`Failed to create product "${cleanName}":`, createError);
+                console.error('Create error details:', {
+                  message: createError.message,
+                  code: createError.code,
+                  sku: sku,
+                  name: cleanName,
+                  quantityNum: quantityNum,
+                  unitPriceNum: unitPriceNum
+                });
+                throw createError; // Re-throw to be caught by outer catch
+              }
+            } else {
+              // Product exists - add quantity to existing stock
+              const currentStock = parseFloat(String(product.stockLevel || 0));
+              const newStock = Math.max(0, currentStock + quantityNum);
+              
+              product = await tx.product.update({
+                where: { id: product.id },
+                data: { stockLevel: new Prisma.Decimal(newStock) }
+              });
+              console.log(`Updated product: ${product.name} stock from ${currentStock} to ${newStock}`);
+            }
+
+            productId = product.id;
+          } catch (productError) {
+            console.error(`Error finding/creating product for "${productDescription}":`, productError);
+            console.error('Product error details:', {
+              message: productError.message,
+              stack: productError.stack,
+              productDescription: productDescription
+            });
+            // Continue without product - will create as custom item
+            productId = null;
+          }
+
+          // Create sale
           const sale = await tx.sale.create({
             data: saleData
           });
 
-          // Create sale item
+          // Create sale item linked to the actual product
+          const saleItemData = {
+            sale: {
+              connect: { id: sale.id }
+            },
+            description: productDescription,
+            quantity: quantityNum,
+            unitPrice: unitPriceNum,
+            amount: subtotal,
+            taxRate: taxRateNum,
+            taxAmount: taxAmount,
+            discountAmount: discountAmountNum,
+            discount: discountAmountNum,
+            isCustom: !productId, // Mark as custom only if no product was found/created
+          };
+
+          // Add product connection if product exists
+          if (productId) {
+            saleItemData.product = {
+              connect: { id: productId }
+            };
+          } else {
+            // If no product, add custom product data
+            saleItemData.customProductData = {
+              name: productDescription,
+              price: unitPriceNum,
+              description: productDescription
+            };
+          }
+
           await tx.saleItem.create({
-            data: {
-              sale: { connect: { id: sale.id } },
-              description: transaction['Product/Service Description'],
-              quantity: quantity,
-              unitPrice: unitPrice,
-              amount: subtotal,
-              taxRate: taxRate,
-              taxAmount: taxAmount,
-              discountAmount: discountAmount,
-              isCustom: true,
-              customProductData: {
-                name: transaction['Product/Service Description'],
-                price: unitPrice,
-                description: transaction['Product/Service Description']
-              }
-            }
+            data: saleItemData
           });
 
           // Create payment record
@@ -378,19 +799,19 @@ export async function POST(request) {
             data: {
               saleId: sale.id,
               amount: total,
-              paymentDate: transactionDate,
-              paymentMethod: transaction['Payment Method']?.toLowerCase() || 'cash',
+              paymentDate: parsedTransactionDate,
+              paymentMethod: normalizedPaymentMethod,
               reference: `Historical Sale ${saleNumber}`,
               notes: `Historical payment for ${saleNumber}`,
               status: 'Completed',
               tenantId: user.tenantId,
               type: 'sale',
-              sourceAccount: transaction['Payment Method']?.toLowerCase() || 'cash'
+              sourceAccount: normalizedPaymentMethod
             }
           });
 
           // Update account balance
-          await updateAccountBalance(user.tenantId, transaction['Payment Method']?.toLowerCase() || 'cash', total, "add");
+          await updateAccountBalance(user.tenantId, normalizedPaymentMethod, total, "add");
 
           // Create audit log
           await tx.auditLog.create({
@@ -404,7 +825,7 @@ export async function POST(request) {
                 saleNumber: sale.saleNumber,
                 total: sale.total,
                 migrationBatch: migrationBatch,
-                originalReference: transaction['Original Reference'],
+                originalReference: originalReference,
                 rowNumber: transaction.rowNumber
               })
             }
@@ -414,41 +835,80 @@ export async function POST(request) {
             rowNumber: transaction.rowNumber,
             saleNumber: sale.saleNumber,
             total: total,
-            customer: transaction['Customer Name'] || 'Walk-in Customer'
+            customer: customerName || 'Walk-in Customer'
           });
           results.totalProcessed++;
 
         } catch (error) {
-          console.error(`Error processing row ${transaction.rowNumber}:`, error);
-          results.failed.push({
-            rowNumber: transaction.rowNumber,
-            error: error.message,
-            transaction: transaction['Product/Service Description']
+          console.error(`Error processing row ${transaction?.rowNumber || 'unknown'}:`, error);
+          console.error(`Error details:`, {
+            message: error.message,
+            stack: error.stack,
+            transaction: JSON.stringify(transaction, null, 2)
           });
+          const productDesc = transaction?.productDescription || getColumnValue(transaction, ['Product/Service Description', 'Product/ServiceDescription', 'Product Description', 'Description', 'Product']) || 'Unknown';
+          results.failed.push({
+            rowNumber: transaction?.rowNumber || 'unknown',
+            error: error.message || String(error),
+            transaction: productDesc
+          });
+          }
         }
-      }
-    });
+      });
+    } catch (dbError) {
+      console.error('Database transaction error:', dbError);
+      console.error('Database error stack:', dbError.stack);
+      throw new Error(`Database transaction failed: ${dbError.message}`);
+    }
+
+    // Combine validation errors with processing errors
+    const allFailedRows = [
+      ...(allErrors || []).map(err => {
+        const match = err.match(/Row (\d+):/);
+        return {
+          rowNumber: match ? parseInt(match[1]) : 0,
+          error: err,
+          type: 'validation'
+        };
+      }),
+      ...(results.failed || []).map(f => ({ ...f, type: 'processing' }))
+    ].sort((a, b) => a.rowNumber - b.rowNumber);
+
+    const validCount = validTransactions ? validTransactions.length : 0;
+    const successCount = results.successful ? results.successful.length : 0;
+    const failedCount = allFailedRows.length;
 
     return NextResponse.json({
-      message: 'Batch upload completed',
+      message: validCount > 0 
+        ? `Batch upload completed. ${successCount} transactions processed successfully. ${failedCount} rows skipped due to errors.`
+        : 'Batch upload completed with errors',
       results: {
         totalRows: transactions.length,
-        successful: results.successful.length,
-        failed: results.failed.length,
+        successful: successCount,
+        failed: failedCount,
+        skipped: failedCount,
         migrationBatch: migrationBatch,
-        successfulTransactions: results.successful,
-        failedTransactions: results.failed
+        successfulTransactions: results.successful || [],
+        failedTransactions: allFailedRows,
+        validationErrors: (allErrors && allErrors.length > 0) ? allErrors : undefined
       }
-    }, { status: 200 });
+    }, { status: validCount > 0 ? 200 : 400 });
 
   } catch (error) {
     console.error('Error processing batch upload:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Full error object:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
     return NextResponse.json(
       { 
         error: 'Failed to process batch upload',
-        details: error.message 
+        details: error.message || 'Unknown error occurred',
+        errorType: error.name,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
   }
 }
+

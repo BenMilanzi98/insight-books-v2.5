@@ -24,10 +24,12 @@ import {
   DollarSign,
   Smartphone,
   User,
-  Clock
+  Clock,
+  Trash2,
+  AlertTriangle
 } from "lucide-react";
 import { fetchSales, exportSales } from "@/app/services/salesService";
-import { getPermission } from "@/lib/permissions";
+import { getPermission, getCurrentUser } from "@/lib/permissions";
 import { paymentMethods } from "@/lib/paymentMethods";
 
 const SalesListPage = () => {
@@ -59,13 +61,16 @@ const SalesListPage = () => {
   
   // State for export
   const [isExporting, setIsExporting] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
   const [pagePermissions, setPagePermissions] = useState({ 
     canVoidSales: false,
     canCreateSales: false,
     canDeleteSales:false, 
     canExportSales:false, 
     canRefundSales:false, 
-    canUpdateSales:false, 
+    canUpdateSales:false,
+    canClearHistory: false,
   });
   
   useEffect(() => {
@@ -75,7 +80,12 @@ const SalesListPage = () => {
       const canDeleteSales = await getPermission("sales.delete");
       const canExportSales = await getPermission("sales.export"); 
       const canRefundSales = await getPermission("sales.refund");
-      const canUpdateSales = await getPermission("sales.update"); 
+      const canUpdateSales = await getPermission("sales.update");
+      
+      // Check if user is admin (MASTER_ADMIN) or has sales.delete permission
+      const user = await getCurrentUser();
+      const isMasterAdmin = user?.role?.name === 'MASTER_ADMIN';
+      const canClearHistory = isMasterAdmin || canDeleteSales;
   
       setPagePermissions({ 
         canVoidSales,
@@ -83,7 +93,8 @@ const SalesListPage = () => {
         canDeleteSales, 
         canExportSales, 
         canRefundSales, 
-        canUpdateSales,   
+        canUpdateSales,
+        canClearHistory,
         });
     };
   
@@ -179,6 +190,36 @@ const SalesListPage = () => {
       alert("Failed to export sales. Please try again.");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Handle clear sales history
+  const handleClearHistory = async () => {
+    try {
+      setIsClearingHistory(true);
+      const response = await fetch('/api/sales/clear-history', {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to clear sales history');
+      }
+
+      // Show success message
+      alert(`Successfully cleared ${data.deletedCount || 0} sales records.`);
+      
+      // Reload sales list
+      await loadSales();
+      
+      // Close modal
+      setShowClearConfirmModal(false);
+    } catch (error) {
+      console.error("Error clearing sales history:", error);
+      alert(error.message || "Failed to clear sales history. Please try again.");
+    } finally {
+      setIsClearingHistory(false);
     }
   };
   
@@ -311,6 +352,16 @@ const SalesListPage = () => {
             <PlusCircle className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">New Sale</span>
           </button>)}
+          
+          {pagePermissions.canClearHistory && (
+            <button 
+              className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center hover:bg-red-700"
+              onClick={() => setShowClearConfirmModal(true)}
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Clear History</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -661,6 +712,53 @@ const SalesListPage = () => {
           </>
         )}
       </div>
+
+      {/* Clear History Confirmation Modal */}
+      {showClearConfirmModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center mb-4">
+                <div className="flex-shrink-0 mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
+                  <AlertTriangle className="h-6 w-6 text-red-600" />
+                </div>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
+                Clear Sales History
+              </h3>
+              <p className="text-sm text-gray-500 text-center mb-6">
+                Are you sure you want to clear all sales history? This action cannot be undone. 
+                All sales records, payments, and related data will be permanently deleted.
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  onClick={() => setShowClearConfirmModal(false)}
+                  disabled={isClearingHistory}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-2 border border-transparent rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleClearHistory}
+                  disabled={isClearingHistory}
+                >
+                  {isClearingHistory ? (
+                    <>
+                      <Loader className="w-4 h-4 mr-2 inline-block animate-spin" />
+                      Clearing...
+                    </>
+                  ) : (
+                    'Clear History'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
