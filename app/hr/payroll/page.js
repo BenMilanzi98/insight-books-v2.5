@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle } from "lucide-react";
+import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2 } from "lucide-react";
 
 export default function PayrollProcessing() {
   const [payrollRuns, setPayrollRuns] = useState([]);
@@ -12,12 +12,24 @@ export default function PayrollProcessing() {
   const [viewLoading, setViewLoading] = useState(false);
   const [viewEntries, setViewEntries] = useState([]);
   const [toast, setToast] = useState({ visible: false, type: 'success', message: '' });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPayroll, setEditingPayroll] = useState(null);
+  const [editFormData, setEditFormData] = useState({
+    basicSalary: 0,
+    deductions: {},
+    additions: 0,
+    notes: ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [payrollToDelete, setPayrollToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsError, setAccountsError] = useState(null);
   const [formData, setFormData] = useState({
-    periodStart: '',
-    periodEnd: '',
+    payrollMonth: new Date().getMonth() + 1, // Current month (1-12)
+    payrollYear: new Date().getFullYear(), // Current year
     paymentDate: new Date().toISOString().split('T')[0],
     expenseAccountId: '',
     paymentAccountId: ''
@@ -175,6 +187,228 @@ export default function PayrollProcessing() {
     }
   };
 
+  const handleDeleteClick = (run) => {
+    setPayrollToDelete(run);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!payrollToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      
+      // Fetch all payroll entries for this period
+      const start = new Date(payrollToDelete.periodStart).toISOString().split('T')[0];
+      const end = new Date(payrollToDelete.periodEnd).toISOString().split('T')[0];
+      const res = await fetch(`/api/payroll?start=${start}&end=${end}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch payroll entries');
+      }
+
+      const payrollEntries = data.payrolls || [];
+      
+      if (payrollEntries.length === 0) {
+        setToast({ visible: true, type: 'error', message: 'No payroll entries found to delete' });
+        setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+        setShowDeleteModal(false);
+        setPayrollToDelete(null);
+        return;
+      }
+
+      // Delete each payroll entry
+      let deletedCount = 0;
+      let failedCount = 0;
+      const errors = [];
+
+      for (const entry of payrollEntries) {
+        try {
+          const deleteRes = await fetch(`/api/payroll/${entry.id}`, {
+            method: 'DELETE'
+          });
+
+          if (deleteRes.ok) {
+            deletedCount++;
+          } else {
+            const errorData = await deleteRes.json().catch(() => ({}));
+            failedCount++;
+            errors.push(errorData.error || `Failed to delete payroll for ${entry.employee?.name || 'employee'}`);
+          }
+        } catch (error) {
+          failedCount++;
+          errors.push(`Error deleting payroll: ${error.message}`);
+        }
+      }
+
+      // Show appropriate message
+      if (deletedCount > 0 && failedCount === 0) {
+        setToast({
+          visible: true,
+          type: 'success',
+          message: `Successfully deleted ${deletedCount} payroll ${deletedCount === 1 ? 'entry' : 'entries'}`
+        });
+        fetchPayrollRuns(); // Refresh the list
+      } else if (deletedCount > 0 && failedCount > 0) {
+        setToast({
+          visible: true,
+          type: 'error',
+          message: `Deleted ${deletedCount} entries, but ${failedCount} failed. ${errors[0]}`
+        });
+        fetchPayrollRuns(); // Refresh the list anyway
+      } else {
+        setToast({
+          visible: true,
+          type: 'error',
+          message: `Failed to delete payroll entries. ${errors[0] || 'Unknown error'}`
+        });
+      }
+
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+      setShowDeleteModal(false);
+      setPayrollToDelete(null);
+    } catch (error) {
+      console.error('Error deleting payroll:', error);
+      setToast({
+        visible: true,
+        type: 'error',
+        message: error.message || 'Failed to delete payroll'
+      });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleEditPayroll = async (entry) => {
+    try {
+      let additionalInfo = {};
+      try {
+        additionalInfo = entry.notes ? JSON.parse(entry.notes) : {};
+      } catch (e) {
+        // If notes is not JSON, use as is
+      }
+
+      setEditingPayroll(entry);
+      setEditFormData({
+        basicSalary: entry.basicSalary || 0,
+        deductions: additionalInfo.otherDeductions || {},
+        additions: entry.additions || 0,
+        notes: typeof entry.notes === 'string' && !entry.notes.startsWith('{') ? entry.notes : ''
+      });
+      setShowEditModal(true);
+    } catch (error) {
+      console.error('Error preparing edit:', error);
+      setToast({ visible: true, type: 'error', message: 'Failed to load payroll for editing' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingPayroll) return;
+
+    try {
+      setIsSaving(true);
+      const response = await fetch('/api/payroll/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grossSalary: editFormData.basicSalary,
+          deductionIds: [],
+          customDeductions: Object.entries(editFormData.deductions).map(([name, value]) => ({
+            name,
+            type: 'amount',
+            value: Number(value) || 0
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to recalculate payroll');
+      }
+
+      const data = await response.json();
+      const calculation = data.calculation;
+      
+      const updateResponse = await fetch(`/api/payroll/${editingPayroll.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          basicSalary: editFormData.basicSalary,
+          grossPay: calculation.grossSalary || editFormData.basicSalary,
+          deductions: calculation.totalDeductions || 0,
+          additions: editFormData.additions,
+          netPay: calculation.netPay || 0,
+          payeAmount: calculation.paye?.payeAmount || 0,
+          notes: JSON.stringify({
+            otherDeductions: editFormData.deductions,
+            notes: editFormData.notes
+          })
+        })
+      });
+
+      if (!updateResponse.ok) {
+        const error = await updateResponse.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to update payroll');
+      }
+
+      setToast({ visible: true, type: 'success', message: 'Payroll updated successfully' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+      
+      setShowEditModal(false);
+      setEditingPayroll(null);
+      
+      if (showViewModal) {
+        const run = payrollRuns.find(r => 
+          new Date(r.periodStart).toISOString().split('T')[0] === 
+          new Date(editingPayroll.periodStart).toISOString().split('T')[0]
+        );
+        if (run) {
+          await handleViewRun(run);
+        }
+      }
+    } catch (error) {
+      console.error('Error saving payroll edit:', error);
+      setToast({ visible: true, type: 'error', message: error.message || 'Failed to update payroll' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGeneratePayslip = async (payrollId) => {
+    try {
+      const response = await fetch(`/api/payroll/${payrollId}/payslip`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to generate payslip');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `payslip-${payrollId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setToast({ visible: true, type: 'success', message: 'Payslip generated successfully' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    } catch (error) {
+      console.error('Error generating payslip:', error);
+      setToast({ visible: true, type: 'error', message: error.message || 'Failed to generate payslip' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    }
+  };
+
   const markDraft = async (id) => {
     try {
       const res = await fetch(`/api/payroll/${id}/status`, {
@@ -199,10 +433,21 @@ export default function PayrollProcessing() {
   const handleProcessPayroll = async () => {
     try {
       setProcessing(true);
+      
+      // Calculate period start and end dates from selected month/year
+      const periodStart = new Date(formData.payrollYear, formData.payrollMonth - 1, 1);
+      const periodEnd = new Date(formData.payrollYear, formData.payrollMonth, 0); // Last day of the month
+      
+      const payload = {
+        ...formData,
+        periodStart: periodStart.toISOString().split('T')[0],
+        periodEnd: periodEnd.toISOString().split('T')[0]
+      };
+      
       const response = await fetch('/api/payroll/enhanced', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       
       if (!response.ok) {
@@ -358,9 +603,22 @@ export default function PayrollProcessing() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-center">
-                    <button className="text-blue-600 hover:text-blue-800" onClick={() => handleViewRun(run)}>
-                      <Eye size={18} />
-                    </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        className="text-blue-600 hover:text-blue-800" 
+                        onClick={() => handleViewRun(run)}
+                        title="View Payroll"
+                      >
+                        <Eye size={18} />
+                      </button>
+                      <button 
+                        className="text-red-600 hover:text-red-800" 
+                        onClick={() => handleDeleteClick(run)}
+                        title="Delete Payroll"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -398,26 +656,48 @@ export default function PayrollProcessing() {
               <h2 className="text-xl font-semibold mb-4">Process Payroll</h2>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Period Start Date *</label>
-                  <input
-                    type="date"
-                    value={formData.periodStart}
-                    onChange={(e) => setFormData({ ...formData, periodStart: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Period End Date *</label>
-                  <input
-                    type="date"
-                    value={formData.periodEnd}
-                    onChange={(e) => setFormData({ ...formData, periodEnd: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Month *</label>
+                    <select
+                      value={formData.payrollMonth}
+                      onChange={(e) => setFormData({ ...formData, payrollMonth: parseInt(e.target.value) })}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      <option value="1">January</option>
+                      <option value="2">February</option>
+                      <option value="3">March</option>
+                      <option value="4">April</option>
+                      <option value="5">May</option>
+                      <option value="6">June</option>
+                      <option value="7">July</option>
+                      <option value="8">August</option>
+                      <option value="9">September</option>
+                      <option value="10">October</option>
+                      <option value="11">November</option>
+                      <option value="12">December</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Year *</label>
+                    <select
+                      value={formData.payrollYear}
+                      onChange={(e) => setFormData({ ...formData, payrollYear: parseInt(e.target.value) })}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      required
+                    >
+                      {Array.from({ length: 10 }, (_, i) => {
+                        const year = new Date().getFullYear() - 2 + i;
+                        return (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
                 </div>
                 
                 <div>
@@ -496,8 +776,8 @@ export default function PayrollProcessing() {
                   onClick={handleProcessPayroll}
                   disabled={
                     processing ||
-                    !formData.periodStart ||
-                    !formData.periodEnd ||
+                    !formData.payrollMonth ||
+                    !formData.payrollYear ||
                     !formData.paymentDate ||
                     !formData.expenseAccountId ||
                     !formData.paymentAccountId
@@ -557,9 +837,40 @@ export default function PayrollProcessing() {
                               <span className={`px-2 py-1 rounded-full text-xs ${entry.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{entry.status}</span>
                             </td>
                             <td className="px-4 py-2 text-sm text-center">
-                              {entry.status !== 'Draft' && (
-                                <button onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">Mark Draft</button>
-                              )}
+                              <div className="flex items-center justify-center gap-2">
+                                {entry.status === 'Draft' && (
+                                  <button 
+                                    onClick={() => handleEditPayroll(entry)} 
+                                    className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 rounded border text-blue-700 flex items-center gap-1"
+                                    title="Edit Payroll"
+                                  >
+                                    <Edit size={14} />
+                                    Edit
+                                  </button>
+                                )}
+                                {entry.status === 'Processed' && (
+                                  <>
+                                    <button 
+                                      onClick={() => handleGeneratePayslip(entry.id)} 
+                                      className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 rounded border text-green-700 flex items-center gap-1"
+                                      title="Generate Payslip"
+                                    >
+                                      <FileText size={14} />
+                                      Payslip
+                                    </button>
+                                    <button 
+                                      onClick={() => markDraft(entry.id)} 
+                                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+                                      title="Mark as Draft"
+                                    >
+                                      Draft
+                                    </button>
+                                  </>
+                                )}
+                                {entry.status !== 'Draft' && entry.status !== 'Processed' && (
+                                  <button onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">Mark Draft</button>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -568,6 +879,167 @@ export default function PayrollProcessing() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payroll Modal */}
+      {showEditModal && editingPayroll && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !isSaving && setShowEditModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold">Edit Payroll - {editingPayroll.employee?.name || 'Employee'}</h2>
+                <button 
+                  className="text-gray-500 hover:text-gray-700" 
+                  onClick={() => !isSaving && setShowEditModal(false)}
+                  disabled={isSaving}
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Basic Salary (MWK) *</label>
+                  <input
+                    type="number"
+                    value={editFormData.basicSalary}
+                    onChange={(e) => setEditFormData({ ...editFormData, basicSalary: parseFloat(e.target.value) || 0 })}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    disabled={isSaving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Additions (MWK)</label>
+                  <input
+                    type="number"
+                    value={editFormData.additions}
+                    onChange={(e) => setEditFormData({ ...editFormData, additions: parseFloat(e.target.value) || 0 })}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    disabled={isSaving}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Other Deductions</label>
+                  <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
+                    {Object.keys(editFormData.deductions).length === 0 ? (
+                      <p className="text-sm text-gray-500">No other deductions</p>
+                    ) : (
+                      Object.entries(editFormData.deductions).map(([key, value]) => (
+                        <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                          <span className="text-sm">{key}</span>
+                          <input
+                            type="number"
+                            value={value}
+                            onChange={(e) => {
+                              const newDeductions = { ...editFormData.deductions };
+                              newDeductions[key] = parseFloat(e.target.value) || 0;
+                              setEditFormData({ ...editFormData, deductions: newDeductions });
+                            }}
+                            className="w-32 p-1 border border-gray-300 rounded text-sm"
+                            disabled={isSaving}
+                          />
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={editFormData.notes}
+                    onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    disabled={isSaving}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={isSaving}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={isSaving || !editFormData.basicSalary}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving && (
+                    <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  )}
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && payrollToDelete && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !isDeleting && setShowDeleteModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-red-600">Delete Payroll</h2>
+                <button 
+                  className="text-gray-500 hover:text-gray-700"
+                  onClick={() => !isDeleting && setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-4">
+                  Are you sure you want to delete all payroll entries for this period?
+                </p>
+                <div className="bg-gray-50 p-4 rounded-md">
+                  <p className="text-sm text-gray-600">
+                    <strong>Period:</strong> {formatDate(payrollToDelete.periodStart)} - {formatDate(payrollToDelete.periodEnd)}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <strong>Employees:</strong> {payrollToDelete.employees}
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <strong>Total Net Pay:</strong> {formatCurrency(payrollToDelete.totalNet)}
+                  </p>
+                </div>
+                <p className="text-sm text-red-600 mt-4 font-medium">
+                  ⚠️ This action cannot be undone. All payroll entries for this period will be permanently deleted.
+                </p>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={isDeleting}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDeleting && (
+                    <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  )}
+                  {isDeleting ? 'Deleting...' : 'Delete Payroll'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

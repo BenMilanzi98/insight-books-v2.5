@@ -427,7 +427,7 @@ export const uploadProductImage = async (imageFile, productId) => {
     formData.append('file', imageFile);
     formData.append('productId', productId);
     
-    const response = await fetch('/api/inventory/upload-image', {
+    const response = await fetch('/api/stock/upload-image', {
       method: 'POST',
       body: formData,
     });
@@ -450,7 +450,7 @@ export const createProduct = async (productData) => {
     const { imageFile, ...productDataWithoutImage } = productData;
     
     // First create the product
-    const response = await fetch('/api/inventory', {
+    const response = await fetch('/api/stock', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -504,7 +504,7 @@ export const updateProduct = async (productId, productData) => {
     const { imageFile, ...productDataWithoutImage } = productData;
     
     // First update the product
-    const response = await fetch(`/api/inventory/${productId}`, {
+    const response = await fetch(`/api/stock/${productId}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

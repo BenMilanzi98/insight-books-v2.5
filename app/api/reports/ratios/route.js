@@ -129,7 +129,7 @@ const generateFinancialRatios = (timeframe) => {
   
   // Add efficiency insights
   if (efficiency.inventoryTurnover < benchmarks.inventoryTurnover) {
-    insights.push(`Your inventory turnover of ${efficiency.inventoryTurnover.toFixed(2)} is below the industry average of ${benchmarks.inventoryTurnover.toFixed(2)}. Consider optimizing inventory management.`);
+    insights.push(`Your inventory turnover of ${efficiency.inventoryTurnover.toFixed(2)} is below the industry average of ${benchmarks.inventoryTurnover.toFixed(2)}. Consider optimizing Stock Management.`);
   }
   
   // Add solvency insights

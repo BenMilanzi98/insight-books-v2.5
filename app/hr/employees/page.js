@@ -78,8 +78,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
   const requiredFieldsByStep = {
     0: [
-      { field: 'name', label: 'Full Name' },
-      { field: 'email', label: 'Email Address' }
+      { field: 'name', label: 'Full Name' }
+      // Email is optional - removed from required fields
     ],
     1: [
       { field: 'jobTitle', label: 'Job Title' },
@@ -357,13 +357,12 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address <span className="text-gray-400 text-xs">(Optional)</span></label>
                   <input
                     type="email"
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
-                    required
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="john@example.com"
                   />

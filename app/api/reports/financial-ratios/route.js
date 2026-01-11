@@ -319,9 +319,9 @@ function interpretGrossProfitMargin(value) {
   }
   
   function interpretInventoryTurnover(value) {
-    if (value >= 6) return "Excellent inventory management";
-    if (value >= 4) return "Good inventory management";
-    if (value >= 2) return "Average inventory management";
-    return "Poor inventory management";
+    if (value >= 6) return "Excellent Stock Management";
+    if (value >= 4) return "Good Stock Management";
+    if (value >= 2) return "Average Stock Management";
+    return "Poor Stock Management";
   }
   

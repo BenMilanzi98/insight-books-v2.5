@@ -551,7 +551,7 @@ export default function PurchaseOrdersPage() {
       const [orderRes, supplierRes, productRes] = await Promise.all([
         getOrders({ search, status: statusFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
-        fetch("/api/inventory").then((res) => res.json()),
+        fetch("/api/stock").then((res) => res.json()),
       ]);
       setOrders(orderRes.purchaseOrders ?? []);
       setSuppliers(supplierRes.suppliers ?? []);

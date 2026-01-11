@@ -364,7 +364,7 @@ function FeaturesSection() {
     {
       icon: Package,
       color: "bg-pink-500",
-      title: "Inventory Management",
+      title: "Stock Management",
       description: "Track stock levels, movements, and availability."
     },
     {

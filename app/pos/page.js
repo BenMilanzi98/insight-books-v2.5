@@ -33,7 +33,9 @@ import {
   Upload,
   FileText,
   UserPlus,
-  Printer
+  Printer,
+  CreditCard,
+  Smartphone
 
 } from 'lucide-react';
 import { 
@@ -376,7 +378,7 @@ const POSPage = () => {
     
     try {
       console.log("Fetching product details from API...");
-      const res = await fetch(`/api/inventory/${product.id}`);
+      const res = await fetch(`/api/stock/${product.id}`);
       console.log("API response status:", res.status);
       
       if (res.ok) {
@@ -1130,16 +1132,20 @@ const POSPage = () => {
 
   return (
     <PermissionGuard permission="sales.view">   
-    <div className="p-4 sm:p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">POS</h1>
-        <div className="flex space-x-2">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
+        <div>
+          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Point of Sale</h1>
+          <p className="text-sm text-gray-600">Process sales and manage transactions</p>
+        </div>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button 
-            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center"
+            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
             onClick={() => router.push('/pos/list')}
           >
             <Calendar className="w-4 h-4 mr-2" />
-            <span>Sales History</span>
+            <span className="text-sm font-medium">Sales History</span>
           </button>
           {/* {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
@@ -1153,13 +1159,13 @@ const POSPage = () => {
 
       {/* Success message */}
       {saleSuccess && (
-        <div className="mb-6 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow animated fadeIn">
-          <div className="flex">
+        <div className="mb-6 bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl shadow-lg animated fadeIn">
+          <div className="flex items-center">
             <div className="flex-shrink-0">
-              <CheckCircle className="h-5 w-5 text-green-500" />
+              <CheckCircle className="h-5 w-5 text-green-600" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium">Sale completed successfully!</p>
+              <p className="text-sm font-semibold">Sale completed successfully!</p>
             </div>
           </div>
         </div>
@@ -1167,26 +1173,31 @@ const POSPage = () => {
 
       {/* Error message */}
       {saleError && (
-        <div className="mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow animated fadeIn">
-          <div className="flex">
+        <div className="mb-6 bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl shadow-lg animated fadeIn">
+          <div className="flex items-center">
             <div className="flex-shrink-0">
-              <AlertCircle className="h-5 w-5 text-red-500" />
+              <AlertCircle className="h-5 w-5 text-red-600" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium">{saleError}</p>
+              <p className="text-sm font-semibold">{saleError}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Left Column - New Sale Form */}
-        {pagePermissions.canCreateSales &&( <div className="lg:col-span-2 bg-white rounded-lg shadow p-4">
+        {pagePermissions.canCreateSales && (
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
           <div>
-            <h2 className="text-lg font-semibold mb-2">New Sale</h2>
-            <div className="flex mb-4">
+            <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">New Sale</h2>
+            <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
               <button 
-                className={`px-4 py-2 ${activeTab === "walkIn" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} rounded-l-md`}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activeTab === "walkIn" 
+                    ? "bg-white text-blue-600 shadow-md" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
                 onClick={() => {
                   setActiveTab("walkIn");
                   setSelectedCustomer("");
@@ -1195,14 +1206,22 @@ const POSPage = () => {
                 Walk-in Customer
               </button>
               <button 
-                className={`px-4 py-2 ${activeTab === "registered" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} flex items-center`}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center ${
+                  activeTab === "registered" 
+                    ? "bg-white text-blue-600 shadow-md" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
                 onClick={() => setActiveTab("registered")}
               >
                 <UserPlus className="w-4 h-4 mr-2" />
                 Registered Customer
               </button>
               <button 
-                className={`px-4 py-2 ${activeTab === "historical" ? "bg-blue-100 text-blue-600" : "bg-gray-100"} rounded-r-md flex items-center`}
+                className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all flex items-center ${
+                  activeTab === "historical" 
+                    ? "bg-white text-blue-600 shadow-md" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
                 onClick={() => setActiveTab("historical")}
               >
                 <Calendar className="w-4 h-4 mr-2" />
@@ -1211,14 +1230,14 @@ const POSPage = () => {
             </div>
 
             {activeTab === "registered" && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Select Customer</label>
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Select Customer</label>
                 <div className="relative">
                   <div className="relative">
                     <input
                       type="text"
                       placeholder="Search and select customer..."
-                      className="w-full p-2 border border-gray-200 rounded-md pr-10"
+                      className="w-full p-3 border-2 border-gray-200 rounded-xl pr-10 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                       value={clientSearchQuery}
                       onChange={handleClientSearchChange}
                       onFocus={() => setShowClientDropdown(true)}
@@ -1228,52 +1247,55 @@ const POSPage = () => {
                       }}
                       disabled={isLoadingClients}
                     />
-                    <div className="absolute right-3 top-3 pointer-events-none">
+                    <div className="absolute right-3 top-3.5 pointer-events-none">
                       {isLoadingClients ? (
                         <Loader className="h-4 w-4 animate-spin text-gray-500" />
                       ) : (
-                        <Search className="w-4 h-4 text-gray-500" />
+                        <Search className="w-4 h-4 text-gray-400" />
                       )}
                     </div>
                   </div>
                   
                   {/* Dropdown with search results */}
                   {showClientDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 w-full mt-2 bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                       {filteredClients.length > 0 ? (
                         <>
                           {filteredClients.map((client) => (
                             <div
                               key={client.id}
-                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100 last:border-b-0"
+                              className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
                               onClick={() => {
                                 setSelectedCustomer(client.id);
                                 setClientSearchQuery(client.name);
                                 setShowClientDropdown(false);
                               }}
                             >
-                              <div className="font-medium text-gray-900">{client.name}</div>
+                              <div className="font-semibold text-gray-900">{client.name}</div>
                               {client.email && (
-                                <div className="text-sm text-gray-500">{client.email}</div>
+                                <div className="text-sm text-gray-500 mt-0.5">{client.email}</div>
                               )}
                             </div>
                           ))}
                           <div
-                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer border-t border-gray-200 bg-blue-50"
+                            className="px-4 py-3 hover:bg-blue-100 cursor-pointer border-t-2 border-gray-200 bg-blue-50 transition-colors"
                             onClick={() => {
                               setShowClientModal(true);
                               setShowClientDropdown(false);
                             }}
                           >
-                            <div className="font-medium text-blue-600">+ Add New Client</div>
+                            <div className="font-semibold text-blue-600 flex items-center">
+                              <UserPlus className="w-4 h-4 mr-2" />
+                              Add New Client
+                            </div>
                           </div>
                         </>
                       ) : clientSearchQuery.trim() !== "" ? (
-                        <div className="px-3 py-2 text-gray-500 text-center">
+                        <div className="px-4 py-4 text-gray-500 text-center">
                           No clients found
                         </div>
                       ) : (
-                        <div className="px-3 py-2 text-gray-500 text-center">
+                        <div className="px-4 py-4 text-gray-500 text-center">
                           Start typing to search clients...
                         </div>
                       )}
@@ -1488,14 +1510,14 @@ const POSPage = () => {
               </div>
             )}
 
-            <div className="mb-4 relative">
-              <label className="block text-sm font-medium mb-1">Add Products</label>
-              <div className="flex gap-2">
+            <div className="mb-6 relative">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Add Products</label>
+              <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-grow" ref={productSearchRef}>
                   <input
                     type="text"
                     placeholder="Search products by name or SKU..."
-                    className="w-full p-2 border border-gray-200 rounded-md"
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
                     onFocus={() => setShowProductSearch(true)}
@@ -1509,43 +1531,45 @@ const POSPage = () => {
                       }
                     }}
                   />
-                  <div className="absolute right-3 top-3 pointer-events-none">
-                    <Search className="w-4 h-4 text-gray-400" />
+                  <div className="absolute right-3 top-3.5 pointer-events-none">
+                    <Search className="w-5 h-5 text-gray-400" />
                   </div>
                   
                   {/* Product search results dropdown */}
                   {showProductSearch && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div className="absolute z-10 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                       {isLoadingProducts ? (
-                        <div className="p-4 text-center">
-                          <Loader className="w-5 h-5 text-blue-500 animate-spin mx-auto mb-2" />
+                        <div className="p-6 text-center">
+                          <Loader className="w-6 h-6 text-blue-500 animate-spin mx-auto mb-2" />
                           <p className="text-gray-500 text-sm">Loading products...</p>
                         </div>
                       ) : filteredProducts.length === 0 ? (
-                        <div className="p-4 text-center">
+                        <div className="p-6 text-center">
                           <p className="text-gray-500">No products found</p>
                         </div>
                       ) : (
                         filteredProducts.map(product => (
                           <div 
                             key={product.id}
-                            className={`p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 flex justify-between items-center ${product.stockLevel <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`p-4 hover:bg-blue-50 cursor-pointer border-b border-gray-100 flex justify-between items-center transition-colors ${product.stockLevel <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                             onClick={() => product.stockLevel > 0 && handleQuickAdd(product)}
                           >
-                            <div>
-                              <p className="font-medium">{product.name}</p>
-                              <div className="flex text-xs text-gray-500 gap-2">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900">{product.name}</p>
+                              <div className="flex flex-wrap text-xs text-gray-500 gap-3 mt-1">
                                 {product.sku && <span>SKU: {product.sku}</span>}
-                                <span>In stock: {product.stockLevel !== null ? product.stockLevel : 'N/A'}</span>
+                                <span className={product.stockLevel !== null && product.stockLevel > 0 ? 'text-green-600' : 'text-red-600'}>
+                                  Stock: {product.stockLevel !== null ? product.stockLevel : 'N/A'}
+                                </span>
                               </div>
                             </div>
-                            <div className="text-right">
-                              <p className="font-medium">{formatCurrency(product.price)}</p>
+                            <div className="text-right ml-4">
+                              <p className="font-bold text-gray-900">{formatCurrency(product.price)}</p>
                               {product.stockLevel <= 0 ? (
-                                <span className="text-xs text-red-500">Out of stock</span>
+                                <span className="text-xs text-red-600 font-medium">Out of stock</span>
                               ) : (
                                 <button 
-                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-semibold mt-1"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleQuickAdd(product);
@@ -1562,58 +1586,60 @@ const POSPage = () => {
                   )}
                 </div>
                 
-                <div className="w-20">
+                <div className="w-full sm:w-24">
                   <input 
                     type="number" 
-                    className="w-full p-2 border border-gray-200 rounded-md" 
+                    className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
                     min="1" 
                     value={quantity} 
                     onChange={(e) => {
                       const val = parseInt(e.target.value, 10);
                       setQuantity(val > 0 ? val : 1);
                     }}
+                    placeholder="Qty"
                   />
                 </div>
               </div>
             </div>
 
             {/* Custom Product Button */}
-            <div className="mb-4">
+            <div className="mb-6">
               <button
-                className="w-full p-2 border-2 border-dashed border-gray-300 rounded-md text-gray-600 hover:border-blue-300 hover:text-blue-600 flex items-center justify-center"
+                className="w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium"
                 onClick={() => setShowCustomProduct(true)}
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-5 h-5 mr-2" />
                 Add Custom Product
               </button>
             </div>
 
-            <div className="border border-gray-200 rounded-md overflow-hidden mb-4">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    {selectedProducts.some(p => !hasUnitManagement(p)) && (
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                    )}
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tax</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount (per item)</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
+            <div className="border-2 border-gray-200 rounded-xl overflow-hidden mb-6 shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Product</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Price</th>
+                      {selectedProducts.some(p => !hasUnitManagement(p)) && (
+                        <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Quantity</th>
+                      )}
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Tax</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Discount</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">Total</th>
+                      <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
                   {selectedProducts.length > 0 ? (
                     selectedProducts.map((product) => (
-                      <tr key={product.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm">{product.name}</td>
-                        <td className="px-4 py-3 text-sm text-right">{formatCurrency(product.price)}</td>
+                      <tr key={product.id} className="hover:bg-blue-50 transition-colors">
+                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{product.name}</td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold text-gray-700">{formatCurrency(product.price)}</td>
                         {!hasUnitManagement(product) && (
                           <td className="px-4 py-3 text-sm text-right">
                             <input
                               type="number"
-                              className="w-16 p-1 text-right border border-gray-200 rounded-md"
+                              className="w-20 p-1.5 text-right border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none font-semibold"
                               min="1"
                               value={product.quantity}
                               onChange={(e) => updateProductQuantity(product.id, e.target.value)}
@@ -1621,61 +1647,66 @@ const POSPage = () => {
                           </td>
                         )}
                         <td className="px-4 py-3 text-sm">
-                          <div className="space-y-1">
-                            <div className="flex items-center">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-end">
                               <input
                                 type="number"
-                                className="w-12 p-1 text-right border border-gray-200 rounded-md text-xs"
+                                className="w-16 p-1.5 text-right border-2 border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                                 min="0"
                                 step="0.1"
                                 value={product.taxRate || ''}
                                 onChange={(e) => updateProductTax(product.id, e.target.value, product.taxDescription)}
+                                placeholder="0"
                               />
-                              <span className="text-xs ml-1">%</span>
+                              <span className="text-xs ml-1 text-gray-600">%</span>
                             </div>
                             <input
                               type="text"
                               placeholder="Tax type"
-                              className="w-20 p-1 border border-gray-200 rounded-md text-xs"
+                              className="w-full p-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                               value={product.taxDescription || ""}
                               onChange={(e) => updateProductTax(product.id, product.taxRate, e.target.value)}
                             />
                           </div>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <div className="flex items-center">
-                            <span className="text-xs mr-1 text-gray-600">MK</span>
+                          <div className="flex items-center justify-end">
+                            <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
                             <input
                               type="number"
-                              className="w-16 p-1 text-right border border-gray-200 rounded-md text-xs"
+                              className="w-20 p-1.5 text-right border-2 border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                               min="0"
                               step="0.01"
-                              placeholder="0.00 per item"
+                              placeholder="0.00"
                               value={product.discount || ''}
                               onChange={(e) => updateProductDiscount(product.id, e.target.value)}
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-right">{formatCurrency(product.subtotal + (product.taxAmount || 0) - (product.discountAmount || 0))}</td>
+                        <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">{formatCurrency(product.subtotal + (product.taxAmount || 0) - (product.discountAmount || 0))}</td>
                         <td className="px-4 py-3 text-sm text-center">
                           <button 
-                            className="text-red-500 hover:text-red-700"
+                            className="text-red-500 hover:text-red-700 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                             onClick={() => removeProduct(product.id)}
+                            title="Remove product"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="px-4 py-3 text-sm text-gray-500 text-center">
-                        No products added yet. Search and select products to add to the sale.
+                      <td colSpan="7" className="px-8 py-12 text-sm text-gray-500 text-center">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p className="font-medium">No products added yet</p>
+                        <p className="text-xs mt-1">Search and select products to add to the sale</p>
                       </td>
                     </tr>
                   )}
                 </tbody>
-              </table>
+                </table>
+              </div>
             </div>
 
             {/* Unit-Based Quantity Input Section */}
@@ -1705,131 +1736,141 @@ const POSPage = () => {
               </div>
             )}
 
-            <div className="bg-gray-50 p-4 rounded-md mb-4">
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Subtotal:</span>
-                <span>{formatCurrency(calculateSubtotal())}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Total Tax:</span>
-                <span>{formatCurrency(calculateTaxAmount())}</span>
-              </div>
-              <div className="flex justify-between mb-2">
-                <span className="font-medium">Total Discount:</span>
-                <span className="text-red-600">-{formatCurrency(calculateDiscountAmount())}</span>
-              </div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="font-medium">Global Discount:</span>
-                <div className="flex items-center">
-                  <span className="text-xs mr-1 text-gray-600">MK</span>
-                  <input
-                    type="number"
-                    className="w-20 p-1 text-right border border-gray-200 rounded-md text-xs"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={globalDiscount || ''}
-                    onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
-                  />
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl mb-6 border-2 border-gray-200 shadow-sm">
+              <div className="space-y-3 mb-4">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-700">Subtotal:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(calculateSubtotal())}</span>
                 </div>
-              </div>
-              {globalDiscount > 0 && (
-                <div className="flex justify-between mb-2">
-                  <span className="font-medium text-gray-600">Applied Global Discount:</span>
-                  <span className="text-red-600">-{formatCurrency(globalDiscount)}</span>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-700">Total Tax:</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(calculateTaxAmount())}</span>
                 </div>
-              )}
-              <div className="flex justify-between text-lg font-bold">
-                <span>Total:</span>
-                <span>{formatCurrency(calculateTotal())}</span>
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-gray-700">Total Discount:</span>
+                  <span className="font-bold text-red-600">-{formatCurrency(calculateDiscountAmount())}</span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-gray-300">
+                  <span className="font-semibold text-gray-700">Global Discount:</span>
+                  <div className="flex items-center">
+                    <span className="text-xs mr-1 text-gray-600 font-medium">MK</span>
+                    <input
+                      type="number"
+                      className="w-24 p-2 text-right border-2 border-gray-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none font-semibold bg-white"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={globalDiscount || ''}
+                      onChange={(e) => setGlobalDiscount(parseFloat(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+                {globalDiscount > 0 && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-gray-600">Applied Global Discount:</span>
+                    <span className="font-bold text-red-600">-{formatCurrency(globalDiscount)}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-between items-center pt-4 border-t-2 border-gray-300">
+                <span className="text-xl font-bold text-gray-900">Total:</span>
+                <span className="text-2xl font-extrabold text-blue-600">{formatCurrency(calculateTotal())}</span>
               </div>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Payment Method</label>
-              <div className="grid grid-cols-3 gap-2">
-                {paymentMethods.map(method => (
-                  <button
-                    key={method.key}
-                    onClick={() => setPaymentMethod(method.key)}
-                    className={`p-2 border rounded-md flex justify-center items-center ${
-                      paymentMethod === method.key
-                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <span className="mr-2">{method.icon}</span>
-                    {method.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Notes (Optional)</label>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Notes (Optional)</label>
               <textarea
-                className="w-full p-2 border border-gray-200 rounded-md"
-                rows="2"
+                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none resize-none"
+                rows="3"
                 placeholder="Add notes about this sale..."
                 value={saleNotes}
                 onChange={(e) => setSaleNotes(e.target.value)}
               ></textarea>
             </div>
+          </div>
+        </div>
+        )}
 
-            <div className="flex space-x-2">
+        {/* Right Column - Payment Method & Action Buttons */}
+        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
+          <div className="mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3">
+              {paymentMethods.map(method => (
+                <button
+                  key={method.key}
+                  onClick={() => setPaymentMethod(method.key)}
+                  className={`p-4 border-2 rounded-xl flex flex-col justify-center items-center transition-all ${
+                    paymentMethod === method.key
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-md scale-105'
+                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-2xl mb-2">{method.icon}</span>
+                  <span className="text-sm font-semibold">{method.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="flex flex-col gap-3">
               <button 
-                className="px-4 py-2 border border-gray-300 bg-white rounded-md flex-1 flex items-center justify-center"
+                className="w-full px-6 py-3 border-2 border-gray-300 bg-white rounded-xl flex items-center justify-center font-semibold text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm hover:shadow-md"
                 onClick={clearSale}
               >
-                <X className="w-4 h-4 mr-2" />
+                <X className="w-5 h-5 mr-2" />
                 Clear
               </button>
               <button 
-                className={`px-4 py-2 bg-gray-200 text-gray-700 rounded-md flex-1 flex items-center justify-center ${
-                  isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : ''
+                className={`w-full px-6 py-3 bg-gray-200 text-gray-700 rounded-xl flex items-center justify-center font-semibold transition-all shadow-sm hover:shadow-md ${
+                  isSubmitting || selectedProducts.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-300'
                 }`}
                 onClick={saveDraft}
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
-                <Save className="w-4 h-4 mr-2" />
+                <Save className="w-5 h-5 mr-2" />
                 Save Draft
               </button>
               <button 
-                className={`px-4 py-2 bg-green-600 text-white rounded-md flex-1 flex items-center justify-center ${
-                  isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : ''
+                className={`w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl flex items-center justify-center font-bold transition-all shadow-lg hover:shadow-xl ${
+                  isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800 transform hover:scale-105'
                 }`}
                 onClick={completeSale}
                 disabled={isSubmitting || selectedProducts.length === 0}
               >
                 {isSubmitting ? (
                   <>
-                    <Loader className="animate-spin h-4 w-4 mr-2" />
+                    <Loader className="animate-spin h-5 w-5 mr-2" />
                     Processing...
                   </>
                 ) : (
                   <>
-                    <ShoppingCart className="w-4 h-4 mr-2" />
+                    <ShoppingCart className="w-5 h-5 mr-2" />
                     Complete Sale
                   </>
                 )}
               </button>
             </div>
           </div>
-        </div>)}
+        </div>
+      </div>
 
-        {/* Right Column - Recent Sales */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-4">Recent Sales</h2>
-          <div className="mb-4">
+      {/* Recent Sales Section - Full Width at Bottom */}
+      <div className="mt-6 lg:mt-8 bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+        <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Recent Sales</h2>
+          <div className="mb-6">
             <div className="relative">
               <input 
                 type="text" 
                 placeholder="Search sales..." 
-                className="w-full p-2 pl-10 border border-gray-200 rounded-md"
+                className="w-full p-3 pl-10 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                 // Note: This would ideally be connected to an actual search function
               />
-              <div className="absolute left-3 top-3">
-                <Search className="w-4 h-4 text-gray-400" />
+              <div className="absolute left-3 top-3.5">
+                <Search className="w-5 h-5 text-gray-400" />
               </div>
             </div>
           </div>
@@ -1858,39 +1899,39 @@ const POSPage = () => {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                   <tr>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">ID</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Customer</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
-                    <th className="px-4 py-2 text-center text-xs font-medium text-gray-500">Actions</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase">Customer</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-700 uppercase">Amount</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-gray-200 bg-white">
                   {recentSales.map((sale) => (
                     <tr 
                       key={sale.id} 
-                      className="hover:bg-gray-50" 
+                      className="hover:bg-blue-50 transition-colors" 
                     >
-                      <td className="px-4 py-2 text-sm font-medium">
+                      <td className="px-4 py-3 text-sm font-semibold text-gray-900">
                         <div className="flex items-center gap-2">
                           {sale.saleNumber}
                           {sale.isHistorical && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
                               <Calendar className="w-3 h-3 mr-1" />
                               Historical
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-4 py-2 text-sm">{sale.date}</td>
-                      <td className="px-4 py-2 text-sm">{sale.client}</td>
-                      <td className="px-4 py-2 text-sm text-right">{sale.total}</td>
-                      <td className="px-4 py-2 text-sm text-center">
-                        <div className="flex justify-center space-x-1">
+                      <td className="px-4 py-3 text-sm text-gray-700">{sale.date}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{sale.client}</td>
+                      <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">{sale.total}</td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <div className="flex justify-center space-x-2">
                           <button
-                            className="text-blue-600 hover:text-blue-800"
+                            className="text-blue-600 hover:text-blue-800 p-1.5 rounded-lg hover:bg-blue-100 transition-colors"
                             onClick={() => viewSaleDetails(sale.id)}
                             title="View Details"
                           >
@@ -1898,7 +1939,7 @@ const POSPage = () => {
                           </button>
                           {pagePermissions.canVoidSales && sale.status === 'completed' && (
                             <button
-                              className="text-orange-600 hover:text-orange-800"
+                              className="text-orange-600 hover:text-orange-800 p-1.5 rounded-lg hover:bg-orange-100 transition-colors"
                               onClick={() => {
                                 setSelectedSaleForAction(sale);
                                 setShowVoidModal(true);
@@ -1910,7 +1951,7 @@ const POSPage = () => {
                           )}
                           {pagePermissions.canRefundSales && sale.status === 'completed' && (
                             <button
-                              className="text-purple-600 hover:text-purple-800"
+                              className="text-purple-600 hover:text-purple-800 p-1.5 rounded-lg hover:bg-purple-100 transition-colors"
                               onClick={() => {
                                 setSelectedSaleForAction(sale);
                                 setShowRefundModal(true);
@@ -1929,12 +1970,11 @@ const POSPage = () => {
             </div>
           )}
           
-          <div className="mt-4 flex justify-center">
-            <a href="/pos/list" className="text-blue-600 text-sm hover:underline flex items-center">
-              View All Sales
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </a>
-          </div>
+        <div className="mt-6 flex justify-center">
+          <a href="/pos/list" className="text-blue-600 text-sm font-semibold hover:text-blue-800 hover:underline flex items-center transition-colors">
+            View All Sales
+            <ArrowRight className="w-4 h-4 ml-1" />
+          </a>
         </div>
       </div>
       

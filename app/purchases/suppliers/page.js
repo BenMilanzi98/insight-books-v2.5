@@ -443,7 +443,7 @@ function BillForm({ suppliers, initialData = null, onSave, onCancel }) {
   const [products, setProducts] = useState([]);
 
   useEffect(() => {
-    fetch("/api/inventory").then((res) => res.json()).then((data) => {
+    fetch("/api/stock").then((res) => res.json()).then((data) => {
       setProducts(data.products || []);
     }).catch(() => {});
   }, []);
@@ -1738,7 +1738,7 @@ export default function SuppliersPage() {
     Promise.all([
       getOrders({ search: orderSearch, status: orderStatusFilter }),
       fetch("/api/purchases/suppliers").then((res) => res.json()),
-      fetch("/api/inventory").then((res) => res.json()),
+      fetch("/api/stock").then((res) => res.json()),
     ])
       .then(([orderData, supplierData, productData]) => {
         if (mounted) {
@@ -1770,7 +1770,7 @@ export default function SuppliersPage() {
     Promise.all([
       fetchReceipts({ status: receiptStatusFilter, supplierId: receiptSupplierFilter }),
       fetch("/api/purchases/suppliers").then((res) => res.json()),
-      fetch("/api/inventory").then((res) => res.json()),
+      fetch("/api/stock").then((res) => res.json()),
       fetch("/api/purchases/orders?limit=200").then((res) => res.json()),
     ])
       .then(([receiptData, supplierData, productData, poData]) => {

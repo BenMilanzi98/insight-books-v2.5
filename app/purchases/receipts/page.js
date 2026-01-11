@@ -386,7 +386,7 @@ export default function GoodsReceiptsPage() {
       const [receiptData, supplierData, productData, poData] = await Promise.all([
         fetchReceipts({ status: statusFilter, supplierId: supplierFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
-        fetch("/api/inventory").then((res) => res.json()),
+        fetch("/api/stock").then((res) => res.json()),
         fetch("/api/purchases/orders?status=Approved").then((res) => res.json()),
       ]);
       setReceipts(receiptData.receipts ?? []);

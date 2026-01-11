@@ -203,7 +203,7 @@ For production deployments, use the Docker setup which provides:
 The application provides extensive API functionality:
 - Authentication and user management
 - Financial accounting (charts of accounts, journal entries, transactions)
-- Inventory management
+- Stock Management
 - HR and payroll
 - Asset and liability tracking
 - Invoice and quotation management

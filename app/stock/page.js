@@ -46,10 +46,10 @@ import BulkInventoryOperations from "@/components/BulkInventoryOperations";
 import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
 import DynamicCategorySelect from "@/components/DynamicCategorySelect";
 import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
-import SkuConflictModal from "@/components/Inventory/SkuConflictModal";
+import SkuConflictModal from "@/components/Stock/SkuConflictModal";
 import UnitManagement from "@/components/UnitManagement/UnitManagement";
 
-// Main Inventory Management Component
+// Main Stock Management Component
 const InventoryManagement = () => {
   // State management
   const [inventory, setInventory] = useState([]);
@@ -337,7 +337,7 @@ const InventoryManagement = () => {
         if (limit) queryParams.append('limit', limit);
         
         const queryString = queryParams.toString();
-        const url = `/api/inventory${queryString ? `?${queryString}` : ''}`;
+        const url = `/api/stock${queryString ? `?${queryString}` : ''}`;
         
         const response = await fetch(url);
         
@@ -355,7 +355,7 @@ const InventoryManagement = () => {
     // Get a single product by ID
     fetchProductById: async (productId) => {
       try {
-        const response = await fetch(`/api/inventory/${productId}`);
+        const response = await fetch(`/api/stock/${productId}`);
         
         if (!response.ok) {
           throw new Error(`Error fetching product: ${response.statusText}`);
@@ -371,7 +371,7 @@ const InventoryManagement = () => {
     // Create a new product
     createProduct: async (productData, suppressExpectedErrors = false) => {
       try {
-        const response = await fetch('/api/inventory', {
+        const response = await fetch('/api/stock', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -430,7 +430,7 @@ const InventoryManagement = () => {
         console.log("Update data:", JSON.stringify(cleanedData, null, 2));
         console.log("=================================");
         
-        const response = await fetch(`/api/inventory/${productId}`, {
+        const response = await fetch(`/api/stock/${productId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -465,7 +465,7 @@ const InventoryManagement = () => {
     // Delete a product
     deleteProduct: async (productId) => {
       try {
-        const response = await fetch(`/api/inventory/${productId}`, {
+        const response = await fetch(`/api/stock/${productId}`, {
           method: 'DELETE',
         });
         
@@ -484,7 +484,7 @@ const InventoryManagement = () => {
     // Get inventory statistics
     getInventoryStatistics: async () => {
       try {
-        const response = await fetch('/api/inventory/statistics');
+        const response = await fetch('/api/stock/statistics');
         
         if (!response.ok) {
           throw new Error(`Error fetching inventory statistics: ${response.statusText}`);
@@ -507,7 +507,7 @@ const InventoryManagement = () => {
         if (productId) queryParams.append('productId', productId);
         
         const queryString = queryParams.toString();
-        const url = `/api/inventory/transactions${queryString ? `?${queryString}` : ''}`;
+        const url = `/api/stock/transactions${queryString ? `?${queryString}` : ''}`;
         
         const response = await fetch(url);
         
@@ -525,7 +525,7 @@ const InventoryManagement = () => {
     // Record a transaction (stock in, stock out, adjustment)
     recordTransaction: async (transactionData) => {
       try {
-        const response = await fetch('/api/inventory/transactions', {
+        const response = await fetch('/api/stock/transactions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -548,7 +548,7 @@ const InventoryManagement = () => {
     // Export inventory data to CSV
     exportInventory: async (format = 'csv') => {
       try {
-        const response = await fetch(`/api/inventory/export?format=${format}`);
+        const response = await fetch(`/api/stock/export?format=${format}`);
         
         if (!response.ok) {
           throw new Error(`Error exporting inventory: ${response.statusText}`);
@@ -564,7 +564,7 @@ const InventoryManagement = () => {
     // NEW: Get product usage details
     getProductUsage: async (productId) => {
       try {
-        const response = await fetch(`/api/inventory/${productId}/usage`);
+        const response = await fetch(`/api/stock/${productId}/usage`);
         
         if (!response.ok) {
           throw new Error(`Error getting product usage: ${response.statusText}`);
@@ -580,7 +580,7 @@ const InventoryManagement = () => {
     // Check if a product can be deleted
     checkCanDelete: async (productId) => {
       try {
-        const response = await fetch(`/api/inventory/${productId}/can-delete`);
+        const response = await fetch(`/api/stock/${productId}/can-delete`);
         
         if (!response.ok) {
           throw new Error(`Error checking deletion status: ${response.statusText}`);
@@ -739,7 +739,7 @@ const InventoryManagement = () => {
               const deletedProduct = error.errorData.deletedProduct;
               
               // Restore the deleted product
-              const restoreResponse = await fetch('/api/inventory/restore', {
+              const restoreResponse = await fetch('/api/stock/restore', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ productIds: [deletedProduct.id] })
@@ -988,7 +988,7 @@ const InventoryManagement = () => {
     
     // Fetch complete product data including units
     try {
-      const response = await fetch(`/api/inventory/${item.id}`);
+      const response = await fetch(`/api/stock/${item.id}`);
       if (response.ok) {
         const completeProduct = await response.json();
         setSelectedItem(completeProduct);
@@ -1063,7 +1063,7 @@ const InventoryManagement = () => {
     
     // Fetch complete product data including units for editing
     try {
-      const response = await fetch(`/api/inventory/${product.id}`);
+      const response = await fetch(`/api/stock/${product.id}`);
       if (response.ok) {
         const completeProduct = await response.json();
         setSelectedItem(completeProduct);
@@ -1280,7 +1280,7 @@ const InventoryManagement = () => {
           uploadData.append('productId', productId);
           
           // Upload the image
-          const uploadResponse = await fetch('/api/inventory/upload-image', {
+          const uploadResponse = await fetch('/api/stock/upload-image', {
             method: 'POST',
             body: uploadData
           });
@@ -1359,7 +1359,7 @@ const InventoryManagement = () => {
   // Handle SKU conflict modal actions
   const handleRestoreProduct = async (deletedProductId) => {
     try {
-      const response = await fetch('/api/inventory/restore', {
+      const response = await fetch('/api/stock/restore', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1710,7 +1710,7 @@ const InventoryManagement = () => {
       formData.append('productId', selectedItem.id);
       
       // Upload the image
-      const uploadResponse = await fetch('/api/inventory/upload-image', {
+      const uploadResponse = await fetch('/api/stock/upload-image', {
         method: 'POST',
         body: formData
       });
@@ -1856,7 +1856,7 @@ const InventoryManagement = () => {
     try {
       showToast("info", "Deleting products...", null, Infinity);
 
-      const response = await fetch('/api/inventory/batch-delete', {
+      const response = await fetch('/api/stock/batch-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1889,7 +1889,7 @@ const InventoryManagement = () => {
 
   const loadDeletedProducts = async () => {
     try {
-      const response = await fetch('/api/inventory/restore');
+      const response = await fetch('/api/stock/restore');
       if (response.ok) {
         const data = await response.json();
         setDeletedProducts(data.products || []);
@@ -1908,7 +1908,7 @@ const InventoryManagement = () => {
       showToast("info", "Restoring products...", null, Infinity);
 
       const productIds = restoreModal.products.map(p => p.id);
-      const response = await fetch('/api/inventory/restore', {
+      const response = await fetch('/api/stock/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ productIds })
@@ -2007,7 +2007,7 @@ const InventoryManagement = () => {
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Inventory Management</h1>
+          <h1 className="text-2xl font-bold">Stock Management</h1>
           <p className="text-gray-600">Manage your products, track stock levels, and monitor inventory movements</p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -2739,7 +2739,7 @@ const InventoryManagement = () => {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-lg font-medium">Recent Transactions</h2>
-            <Link href="/inventory/transactions" className="text-sm text-blue-600 hover:text-blue-800">
+            <Link href="/stock/transactions" className="text-sm text-blue-600 hover:text-blue-800">
               View All
             </Link>
           </div>
@@ -2788,7 +2788,7 @@ const InventoryManagement = () => {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
             <h2 className="text-lg font-medium">Low Stock Alerts</h2>
-            <Link href="/inventory/low-stock" className="text-sm text-blue-600 hover:text-blue-800">
+            <Link href="/stock/low-stock" className="text-sm text-blue-600 hover:text-blue-800">
               View All
             </Link>
           </div>
@@ -4665,7 +4665,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                 />
               </div>
               
-              {/* Enhanced Inventory Management Fields */}
+              {/* Enhanced Stock Management Fields */}
               <div className="md:col-span-2">
                 <h3 className="text-lg font-medium text-gray-800 mb-4 border-b pb-2">Enhanced Details</h3>
               </div>

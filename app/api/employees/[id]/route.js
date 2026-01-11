@@ -101,16 +101,34 @@ export async function PUT(request, { params }) {
       );
     }
     
-    // Check if changing email to one that already exists
-    if (body.email && body.email !== existingEmployee.email) {
-      const emailExists = await prisma.employee.findFirst({
+    // Check if changing email to one that already exists (case-insensitive)
+    // Only check if email is provided and not empty
+    const emailInput = body.email ? body.email.trim() : '';
+    const normalizedEmail = emailInput ? emailInput.toLowerCase() : '';
+    const existingEmailNormalized = existingEmployee.email ? existingEmployee.email.trim().toLowerCase() : '';
+    
+    if (normalizedEmail && normalizedEmail.length > 0 && normalizedEmail !== existingEmailNormalized) {
+      // Get all employees for case-insensitive comparison
+      const allEmployees = await prisma.employee.findMany({
         where: {
-          email: body.email,
           tenantId: user.tenantId,
           id: {
             not: employeeId
           }
+        },
+        select: {
+          id: true,
+          email: true
         }
+      });
+      
+      // Check if any existing email matches (case-insensitive)
+      // Only compare non-empty emails
+      const emailExists = allEmployees.find(emp => {
+        if (!emp.email || emp.email.trim().length === 0) {
+          return false; // Skip empty emails
+        }
+        return emp.email.trim().toLowerCase() === normalizedEmail;
       });
       
       if (emailExists) {
@@ -122,9 +140,14 @@ export async function PUT(request, { params }) {
     }
     
     // Prepare update data
+    // Normalize email if provided
+    const normalizedEmail = body.email !== undefined 
+      ? (body.email ? body.email.trim().toLowerCase() : '') 
+      : undefined;
+    
     const updateData = {
       name: body.name !== undefined ? body.name : undefined,
-      email: body.email !== undefined ? body.email : undefined,
+      email: normalizedEmail,
       phone: body.phone !== undefined ? body.phone : undefined,
       position: body.position !== undefined ? body.position : undefined,
       jobTitle: body.jobTitle !== undefined ? body.jobTitle : undefined,

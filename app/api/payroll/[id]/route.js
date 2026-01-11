@@ -102,10 +102,11 @@ export async function PUT(request, context) {
     }
     */
     
-    // Prevent updating completed payrolls unless explicitly allowed
-    if (existingPayroll.status === 'Completed' && !body.forceUpdate) {
+    // Prevent updating processed payrolls unless explicitly allowed
+    // Only allow editing of Draft payrolls
+    if (existingPayroll.status === 'Processed' && !body.forceUpdate) {
       return NextResponse.json(
-        { error: 'Cannot update a completed payroll. Use forceUpdate flag if necessary.' },
+        { error: 'Cannot update a processed payroll. Use forceUpdate flag if necessary.' },
         { status: 400 }
       );
     }
@@ -187,10 +188,10 @@ export async function DELETE(request, context) {
       );
     }
     
-    // Prevent deleting completed payrolls
-    if (existingPayroll.status === 'Completed') {
+    // Prevent deleting processed payrolls
+    if (existingPayroll.status === 'Processed') {
       return NextResponse.json(
-        { error: 'Cannot delete a completed payroll. Set to void status instead.' },
+        { error: 'Cannot delete a processed payroll. Set to void status instead.' },
         { status: 400 }
       );
     }

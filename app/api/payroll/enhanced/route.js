@@ -255,7 +255,7 @@ export async function POST(request) {
           netPay: netPay,
           payeAmount,
           totalNpsAmount: Number(payrollCalculation.totalNpsAmount) || 0,
-          status: 'Draft',
+          status: 'Posted', // Changed from 'Draft' to 'Posted'
           paymentDate,
           tenantId: user.tenantId,
           notes: JSON.stringify(additionalInfo)
@@ -264,8 +264,48 @@ export async function POST(request) {
 
       payrollEntries.push(payrollEntry);
 
+      // Create expense record for this payroll entry
+      // Use periodEnd date so expenses appear in the correct month
+      const expenseDate = periodEnd;
+      const salaryExpenseAmount = grossPay + additions + npsEmployerAmount;
+      
+      if (salaryExpenseAmount > 0) {
+        // Create expense record with Salary category
+        const expense = await prisma.expense.create({
+          data: {
+            description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
+            amount: salaryExpenseAmount,
+            date: expenseDate, // Use periodEnd so it appears in the correct month
+            category: 'Salary',
+            paymentMethod: getAccountDisplayName(paymentAccount),
+            sourceAccountId: paymentAccount.id,
+            status: 'Approved', // Payroll expenses are automatically approved when posted
+            paymentStatus: 'Fully paid',
+            paidAmount: salaryExpenseAmount,
+            submittedById: user.id,
+            tenantId: user.tenantId,
+            notes: `Payroll expense: Gross Pay: ${grossPay.toFixed(2)}, Overtime: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
+          }
+        });
+
+        // Create payment record linked to the expense
+        await prisma.payment.create({
+          data: {
+            tenantId: user.tenantId,
+            amount: salaryExpenseAmount,
+            paymentDate: paymentDate,
+            paymentMethod: getAccountDisplayName(paymentAccount),
+            type: 'expense',
+            status: 'Completed',
+            expenseId: expense.id,
+            notes: `Payroll payment for ${employee.name} - Period: ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`
+          }
+        });
+      }
+
       const transactionLines = [];
-      const salaryExpenseAmount = grossPay + npsEmployerAmount;
+      // Salary expense should include: gross pay (basic + allowances) + overtime + employer NPS contribution
+      // This ensures all salary-related costs correctly hit expenses in accounts
 
       if (salaryExpenseAmount > 0) {
         transactionLines.push({

@@ -38,8 +38,8 @@ export async function POST(request, { params }) {
       );
     }
     
-    // Check if payroll is already completed
-    if (existingPayroll.status === 'Completed') {
+    // Check if payroll is already processed
+    if (existingPayroll.status === 'Processed') {
       return NextResponse.json(
         { error: 'Payroll has already been processed' },
         { status: 400 }
@@ -51,11 +51,11 @@ export async function POST(request, { params }) {
     const paymentMethod = body.paymentMethod || 'Bank Transfer';
     const notes = body.notes || `Processed on ${new Date().toLocaleDateString()}`;
     
-    // Update the payroll
+    // Update the payroll status from Draft to Processed
     const updatedPayroll = await prisma.payroll.update({
       where: { id: payrollId },
       data: {
-        status: 'Completed',
+        status: 'Processed',
         paymentDate: paymentDate,
         notes: `${existingPayroll.notes ? existingPayroll.notes + '\n' : ''}${notes}`
       },

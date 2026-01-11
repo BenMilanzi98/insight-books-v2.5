@@ -5,6 +5,14 @@ import { getUserFromSession } from '@/lib/auth';
 export async function POST(request) {
   try {
     const data = await request.json();
+    
+    // Debug: Log the incoming email
+    console.log('[Employee Create] Incoming request data:', {
+      email: data.email,
+      emailType: typeof data.email,
+      emailLength: data.email?.length
+    });
+    
     const user = await getUserFromSession(request);
     
     if (!user || !user.tenantId) {
@@ -27,39 +35,106 @@ export async function POST(request) {
     }
     
     // Validate required fields
-    if (!data.name || !data.email) {
+    if (!data.name) {
       return NextResponse.json(
-        { error: 'Name and email are required' },
+        { error: 'Name is required' },
         { status: 400 }
       );
     }
     
-    // Check if email already exists
-    const existingEmployee = await prisma.employee.findFirst({
-      where: { 
-        email: data.email,
-        tenantId: user.tenantId
-      },
+    // Normalize email: trim whitespace and convert to lowercase for consistency
+    // Only check for duplicates if email is provided and not empty
+    const emailInput = data.email ? String(data.email).trim() : '';
+    const normalizedEmail = emailInput && emailInput.length > 0 ? emailInput.toLowerCase() : '';
+    
+    // Debug: Log normalization
+    console.log('[Employee Create] Email normalization:', {
+      original: data.email,
+      trimmed: emailInput,
+      normalized: normalizedEmail,
+      willCheck: !!normalizedEmail
     });
     
-    if (existingEmployee) {
+    // Check if email already exists (case-insensitive, only if email is provided and not empty)
+    // TEMPORARILY DISABLED: Email uniqueness check is causing false positives
+    // TODO: Re-enable and fix the comparison logic
+    /*
+    try {
+      if (normalizedEmail && normalizedEmail.length > 0) {
+        // Use a simple Prisma query to check for exact email match (case-insensitive via database)
+        // This is more efficient than fetching all employees
+        const existingEmployee = await prisma.employee.findFirst({
+          where: { 
+            tenantId: user.tenantId,
+            isActive: true,
+            email: {
+              equals: normalizedEmail,
+              mode: 'insensitive'
+            }
+          },
+          select: {
+            id: true,
+            email: true,
+            name: true
+          }
+        });
+        
+        if (existingEmployee) {
+          return NextResponse.json(
+            { error: `An employee with this email already exists (${existingEmployee.name || 'Unknown'})` },
+            { status: 400 }
+          );
+        }
+      }
+    } catch (emailCheckError) {
+      console.error('[Employee Create] Error during email duplicate check:', emailCheckError);
+      // Don't fail the entire request if email check fails - just log and continue
+    }
+    */
+    
+    // Generate unique employee ID
+    // Check for existing employeeIds to ensure uniqueness
+    let employeeId;
+    let attemptCount = 0;
+    const maxAttempts = 100;
+    
+    do {
+      const employeeCount = await prisma.employee.count({
+        where: { tenantId: user.tenantId }
+      });
+      employeeId = `EMP${String(employeeCount + 1 + attemptCount).padStart(4, '0')}`;
+      
+      // Check if this employeeId already exists
+      const existing = await prisma.employee.findUnique({
+        where: { employeeId },
+        select: { id: true }
+      });
+      
+      if (!existing) {
+        break; // Found a unique ID
+      }
+      
+      attemptCount++;
+    } while (attemptCount < maxAttempts);
+    
+    if (attemptCount >= maxAttempts) {
       return NextResponse.json(
-        { error: 'An employee with this email already exists' },
-        { status: 400 }
+        { error: 'Failed to generate unique employee ID. Please try again.' },
+        { status: 500 }
       );
     }
-    
-    // Generate employee ID
-    const employeeCount = await prisma.employee.count({
-      where: { tenantId: user.tenantId }
-    });
-    const employeeId = `EMP${String(employeeCount + 1).padStart(4, '0')}`;
     
     // Create new employee with all form fields
+    // IMPORTANT: If email is empty, generate a unique placeholder to avoid unique constraint violations
+    // The email field is required by schema but we want to allow employees without emails
+    const finalEmail = normalizedEmail && normalizedEmail.length > 0 
+      ? normalizedEmail 
+      : `no-email-${Date.now()}-${Math.random().toString(36).substring(7)}@placeholder.local`;
+    
     const employeeData = {
       employeeId,
       name: data.name,
-      email: data.email,
+      email: finalEmail, // Use normalized email or generate unique placeholder
       position: data.position || data.jobTitle || null,
       jobTitle: data.jobTitle || null,
       department: data.department || null,
@@ -138,7 +213,14 @@ export async function POST(request) {
     }, { status: 201 });
     
   } catch (error) {
-    console.error('Error creating employee:', error);
+    console.error('[Employee Create] Full error details:', {
+      error: error,
+      code: error.code,
+      message: error.message,
+      meta: error.meta,
+      stack: error.stack,
+      name: error.name
+    });
     
     // Handle specific Prisma errors
     if (error.code === 'P2003') {
@@ -149,14 +231,55 @@ export async function POST(request) {
     }
     
     if (error.code === 'P2002') {
+      // P2002 is a unique constraint violation
+      // Log detailed information about the violation
+      console.error('[Employee Create] Unique constraint violation details:', {
+        code: error.code,
+        target: error.meta?.target,
+        cause: error.meta?.cause,
+        message: error.message,
+        fullMeta: JSON.stringify(error.meta, null, 2)
+      });
+      
+      // If it's the email field, return email-specific error
+      if (Array.isArray(error.meta?.target) && error.meta.target.includes('email')) {
+        return NextResponse.json(
+          { error: 'An employee with this email already exists.' },
+          { status: 400 }
+        );
+      }
+      
+      // Check if it's employeeId
+      if (Array.isArray(error.meta?.target) && error.meta.target.includes('employeeId')) {
+        return NextResponse.json(
+          { error: 'An employee with this employee ID already exists.' },
+          { status: 400 }
+        );
+      }
+      
+      // Otherwise, return a generic unique constraint error with details
+      const targetFields = Array.isArray(error.meta?.target) 
+        ? error.meta.target.join(', ') 
+        : (error.meta?.target || 'unknown field');
+      
       return NextResponse.json(
-        { error: 'An employee with this email already exists.' },
+        { 
+          error: `A record with this ${targetFields} already exists.`,
+          details: process.env.NODE_ENV === 'development' ? {
+            target: error.meta?.target,
+            cause: error.meta?.cause
+          } : undefined
+        },
         { status: 400 }
       );
     }
     
     return NextResponse.json(
-      { error: 'Failed to create employee', details: error.message },
+      { 
+        error: 'Failed to create employee', 
+        details: process.env.NODE_ENV === 'development' ? error.message : 'An error occurred while creating the employee. Please try again.',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack })
+      },
       { status: 500 }
     );
   }

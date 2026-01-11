@@ -552,7 +552,7 @@ const QuotationModal = ({
     
     try {
       // Fetch full product details including units
-      const response = await fetch(`/api/inventory/${product.id}`);
+      const response = await fetch(`/api/stock/${product.id}`);
       if (response.ok) {
         const productData = await response.json();
         console.log("Full product data with units:", productData);

@@ -346,7 +346,7 @@ export const fetchProductsForSale = async (params = {}) => {
     if (page) queryParams.append('page', page);
     
     const queryString = queryParams.toString();
-    const url = `/api/inventory${queryString ? `?${queryString}` : ''}`;
+    const url = `/api/stock${queryString ? `?${queryString}` : ''}`;
     
     const response = await fetch(url);
     
@@ -372,7 +372,7 @@ export const fetchProductsForSalePage = async (params = {}) => {
     if (limit) queryParams.append('limit', limit);
     if (page) queryParams.append('page', page);
 
-    const url = `/api/inventory?${queryParams.toString()}`;
+    const url = `/api/stock?${queryParams.toString()}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Error fetching products page: ${response.statusText}`);
@@ -403,7 +403,7 @@ export const fetchProductsForSaleAll = async (params = {}) => {
       queryParams.append('limit', pageSize);
       queryParams.append('page', String(page));
 
-      const url = `/api/inventory?${queryParams.toString()}`;
+      const url = `/api/stock?${queryParams.toString()}`;
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Error fetching products (page ${page}): ${response.statusText}`);
@@ -568,7 +568,7 @@ export const getSaleHistory = async (saleId) => {
 // Update inventory after void/refund
 export const adjustInventory = async (adjustments) => {
   try {
-    const response = await fetch('/api/inventory/adjust', {
+    const response = await fetch('/api/stock/adjust', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -591,7 +591,7 @@ export const adjustInventory = async (adjustments) => {
 // Get inventory adjustment history
 export const getInventoryAdjustments = async (productId) => {
   try {
-    const response = await fetch(`/api/inventory/adjustments?productId=${productId}`);
+    const response = await fetch(`/api/stock/adjustments?productId=${productId}`);
     
     if (!response.ok) {
       throw new Error(`Error fetching inventory adjustments: ${response.statusText}`);

@@ -64,7 +64,7 @@ const permissionModules = {
   expenses: { label: 'Expense Tracking', actions: ['create', 'view', 'update', 'delete', 'approve', 'export'] },
   payments: { label: 'Payment Processing', actions: ['create', 'view', 'update', 'delete', 'export'] },
   reports: { label: 'Financial Reporting', actions: ['view', 'export'] },
-  inventory: { label: 'Inventory Management', actions: ['create', 'view', 'update', 'delete', 'adjust', 'export'] },
+  inventory: { label: 'Stock Management', actions: ['create', 'view', 'update', 'delete', 'adjust', 'export'] },
   hr: { label: 'HR Management', actions: ['create', 'view', 'update', 'delete', 'export'] },
   payroll: { label: 'Payroll', actions: ['create', 'view', 'update', 'delete', 'process', 'export'] },
   tax: { label: 'Tax Management', actions: ['view', 'update', 'export'] },

@@ -342,7 +342,7 @@ function DemoRequestForm() {
                     required
                     rows={6}
                     className="w-full px-4 py-4 pl-12 border-2 border-gray-200 rounded-xl focus:border-orange-500 focus:ring-4 focus:ring-orange-100 transition-all duration-200 text-gray-800 placeholder-gray-400 resize-vertical"
-                    placeholder="Please describe your business, current challenges, and what you're looking to achieve with InsightBooks. For example: 'We run a retail business with 50+ employees and need better inventory management and invoicing solutions.'"
+                    placeholder="Please describe your business, current challenges, and what you're looking to achieve with InsightBooks. For example: 'We run a retail business with 50+ employees and need better Stock Management and invoicing solutions.'"
                   />
                   <div className="absolute left-4 top-4 text-gray-400">
                     💭

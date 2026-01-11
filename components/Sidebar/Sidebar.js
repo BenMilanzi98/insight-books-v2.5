@@ -77,11 +77,11 @@ const navigationByPermission = {
       {
         label: "Additional Modules",
         items: [
-          { href: "/inventory", icon: "📦", text: "Stock Management" },
+          { href: "/stock", icon: "📦", text: "Stock Management" },
           {
             href: "/purchases/suppliers",
             icon: "🛒",
-            text: "Supplier Management",
+            text: "Purchases",
           },
         // HR Module temporarily commented out
         { 
@@ -174,10 +174,10 @@ const navigationByPermission = {
     ]
   },
   // Additional modules
-  inventory: {
-    label: "Inventory",
+  stock: {
+    label: "Stock",
     items: [
-      { href: "/inventory", icon: "📦", text: "Stock Management", permission: "inventory.view" },
+      { href: "/stock", icon: "📦", text: "Stock Management", permission: "inventory.view" },
     ]
   },
   assets: {
@@ -489,20 +489,20 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     
     if (hasPermission(user.role.permissions, "inventory.view")) {
       additionalItems.push({
-        href: "/inventory",
+        href: "/stock",
         icon: "📦",
         text: "Stock Management"
       });
     }
 
     
-    // Add Supplier Management if user has inventory or purchases permission
+    // Add Purchases if user has inventory or purchases permission
     const canViewPurchases = hasPermission(user.role.permissions, "purchases.view") || hasPermission(user.role.permissions, "inventory.view");
     if (canViewPurchases) {
       additionalItems.push({
         href: "/purchases/suppliers",
         icon: "🛒",
-        text: "Supplier Management",
+        text: "Purchases",
       });
     }
     

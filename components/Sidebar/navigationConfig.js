@@ -51,7 +51,7 @@ export const navigationByPermission = {
       {
         label: "Additional Modules",
         items: [
-          { href: "/inventory", icon: "📦", text: "Inventory Management" },
+          { href: "/stock", icon: "📦", text: "Stock Management" },
           // { href: "/hr", icon: "👨‍💼", text: "HR & Payroll" },
           { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
           { href: "/affiliate", icon: "🔗", text: "Affiliate System" },
@@ -113,7 +113,7 @@ export const navigationByPermission = {
     inventory: {
       label: "Inventory",
       items: [
-        { href: "/inventory", icon: "📦", text: "Inventory Management", permission: "inventory.view" },
+        { href: "/stock", icon: "📦", text: "Stock Management", permission: "inventory.view" },
       ]
     },
     // HR Module temporarily commented out
@@ -292,9 +292,9 @@ export const navigationByPermission = {
     
     if (hasPermission(user.role.permissions, "inventory.view")) {
       additionalItems.push({ 
-        href: "/inventory", 
+        href: "/stock", 
         icon: "📦", 
-        text: "Inventory Management" 
+        text: "Stock Management" 
       });
     }
     

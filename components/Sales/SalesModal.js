@@ -58,7 +58,7 @@ const SalesModal = ({
         }
         
         // Fetch products
-        const productsResponse = await fetch('/api/inventory');
+        const productsResponse = await fetch('/api/stock');
         if (productsResponse.ok) {
           const productsData = await productsResponse.json();
           setProducts(productsData.products || []);
