@@ -103,8 +103,14 @@ export async function PUT(request, { params }) {
     
     // Check if changing email to one that already exists (case-insensitive)
     // Only check if email is provided and not empty
-    const emailInput = body.email ? body.email.trim() : '';
-    const normalizedEmail = emailInput ? emailInput.toLowerCase() : '';
+    let normalizedEmail;
+    if (body.email !== undefined) {
+      const emailInput = body.email ? body.email.trim() : '';
+      normalizedEmail = emailInput ? emailInput.toLowerCase() : '';
+    } else {
+      normalizedEmail = undefined;
+    }
+    
     const existingEmailNormalized = existingEmployee.email ? existingEmployee.email.trim().toLowerCase() : '';
     
     if (normalizedEmail && normalizedEmail.length > 0 && normalizedEmail !== existingEmailNormalized) {
@@ -140,11 +146,6 @@ export async function PUT(request, { params }) {
     }
     
     // Prepare update data
-    // Normalize email if provided
-    const normalizedEmail = body.email !== undefined 
-      ? (body.email ? body.email.trim().toLowerCase() : '') 
-      : undefined;
-    
     const updateData = {
       name: body.name !== undefined ? body.name : undefined,
       email: normalizedEmail,
