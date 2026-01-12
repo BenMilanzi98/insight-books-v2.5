@@ -220,13 +220,17 @@ export async function POST(request, { params }) {
       ? (body.interestPaid ? parseFloat(body.interestPaid) : (paymentAmount - principalPaid))
       : 0;
 
+    // Support historical dates
+    const paymentDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.paymentDate);
+    const isHistorical = !!body.historicalDate;
+
     const result = await prisma.$transaction(async (tx) => {
       // Create payment
       const payment = await tx.liabilityPayment.create({
         data: {
           liabilityId: id,
           amount: paymentAmount,
-          paymentDate: new Date(body.paymentDate),
+          paymentDate: paymentDate,
           paymentType: paymentType,
           principalPaid: principalPaid,
           interestPaid: interestPaid,
@@ -257,33 +261,59 @@ export async function POST(request, { params }) {
         throw new Error('No asset account found for the selected payment method. Please configure the Chart of Accounts.');
       }
 
-      const expenseAccount = await resolveLoanExpenseAccount(tx, user.tenantId);
-      if (!expenseAccount) {
+      // Get separate expense accounts for principal and interest
+      const principalExpenseAccount = await resolveLoanExpenseAccount(tx, user.tenantId);
+      const interestExpenseAccount = await tx.account.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          isActive: true,
+          accountType: 'Expense',
+          accountName: { contains: 'interest', mode: 'insensitive' }
+        }
+      }) || principalExpenseAccount; // Fallback to same account if no interest account found
+
+      if (!principalExpenseAccount) {
         throw new Error('Unable to find an expense account to record the loan payment. Please create an expense account in the Chart of Accounts.');
       }
 
-      const journalLines = [
-        {
-          lineNumber: 1,
-          accountId: expenseAccount.id,
-          debitAmount: paymentAmount,
+      // Create separate journal lines for principal and interest
+      const journalLines = [];
+      let lineNumber = 1;
+
+      if (principalPaid > 0) {
+        journalLines.push({
+          lineNumber: lineNumber++,
+          accountId: principalExpenseAccount.id,
+          debitAmount: principalPaid,
           creditAmount: 0,
-          description: 'Loan payment expense'
-        },
-        {
-          lineNumber: 2,
-          accountId: cashAccount.id,
-          debitAmount: 0,
-          creditAmount: paymentAmount,
-          description: `Payment via ${paymentMethod.replace('_', ' ')}`
-        }
-      ];
+          description: `Loan principal payment - ${liability.name}`
+        });
+      }
+
+      if (interestPaid > 0) {
+        journalLines.push({
+          lineNumber: lineNumber++,
+          accountId: interestExpenseAccount.id,
+          debitAmount: interestPaid,
+          creditAmount: 0,
+          description: `Loan interest payment - ${liability.name}`
+        });
+      }
+
+      // Add cash account credit
+      journalLines.push({
+        lineNumber: lineNumber,
+        accountId: cashAccount.id,
+        debitAmount: 0,
+        creditAmount: paymentAmount,
+        description: `Payment via ${paymentMethod.replace('_', ' ')}`
+      });
 
       const journalEntry = await tx.journalEntry.create({
         data: {
           tenantId: user.tenantId,
-          entryDate: new Date(body.paymentDate),
-          description: `Liability payment for ${liability.name}`,
+          entryDate: paymentDate,
+          description: `Liability payment for ${liability.name}${principalPaid > 0 && interestPaid > 0 ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})` : ''}`,
           entryType: 'Regular',
           status: 'Posted',
           sourceType: 'LiabilityPayment',
@@ -299,48 +329,98 @@ export async function POST(request, { params }) {
       const trasactionRecord = await tx.transaction.create({
         data: {
           tenantId: user.tenantId,
-          date: new Date(body.paymentDate),
-          description: `Liability payment - ${liability.name}`,
+          date: paymentDate,
+          description: `Liability payment - ${liability.name}${principalPaid > 0 && interestPaid > 0 ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})` : ''}`,
           reference: body.reference || payment.id,
-          status: 'posted'
+          status: 'posted',
+          sourceType: 'LiabilityPayment',
+          sourceId: payment.id
         }
       });
 
-      const expenseRecord = await tx.expense.create({
-        data: {
-          tenantId: user.tenantId,
-          description: `Loan payment - ${liability.name}`,
-          amount: paymentAmount,
-          date: new Date(body.paymentDate),
-          category: 'Loan Payment',
-          paymentMethod: paymentMethod,
-          sourceAccountId: cashAccount.id,
-          submittedById: user.id,
-          status: 'Approved',
-          notes: body.notes || null,
-          merchant: liability.lender || liability.name || null,
-          paymentStatus: 'Fully paid',
-          paidAmount: paymentAmount,
-          paymentReference: body.reference || null
-        }
-      });
+      // Create separate expense records for principal and interest
+      const expenseRecords = [];
+      
+      if (principalPaid > 0) {
+        const principalExpense = await tx.expense.create({
+          data: {
+            tenantId: user.tenantId,
+            description: `Loan principal payment - ${liability.name}`,
+            amount: principalPaid,
+            date: paymentDate,
+            category: 'Loan Principal',
+            paymentMethod: paymentMethod,
+            sourceAccountId: cashAccount.id,
+            submittedById: user.id,
+            status: 'Approved',
+            notes: body.notes ? `Principal: ${body.notes}` : null,
+            merchant: liability.lender || liability.name || null,
+            paymentStatus: 'Fully paid',
+            paidAmount: principalPaid,
+            paymentReference: body.reference ? `${body.reference}-PRINCIPAL` : null,
+            isHistorical: isHistorical,
+            historicalDate: isHistorical ? paymentDate : null,
+            migrationBatch: body.migrationBatch || null,
+            originalReference: body.originalReference ? `${body.originalReference}-PRINCIPAL` : null
+          }
+        });
+        expenseRecords.push(principalExpense);
+      }
 
-      const paymentRecord = await tx.payment.create({
-        data: {
-          tenantId: user.tenantId,
-          type: 'Loan Payment',
-          expenseId: expenseRecord.id,
-          amount: paymentAmount,
-          paymentDate: new Date(body.paymentDate),
-          paymentMethod: paymentMethod,
-          sourceAccount: paymentMethod,
-          reference: body.reference || `LIAB-${payment.id}`,
-          notes: body.notes || `Liability payment for ${liability.name}`,
-          status: 'Completed'
-        }
-      });
+      if (interestPaid > 0) {
+        const interestExpense = await tx.expense.create({
+          data: {
+            tenantId: user.tenantId,
+            description: `Loan interest payment - ${liability.name}`,
+            amount: interestPaid,
+            date: paymentDate,
+            category: 'Loan Interest',
+            paymentMethod: paymentMethod,
+            sourceAccountId: cashAccount.id,
+            submittedById: user.id,
+            status: 'Approved',
+            notes: body.notes ? `Interest: ${body.notes}` : null,
+            merchant: liability.lender || liability.name || null,
+            paymentStatus: 'Fully paid',
+            paidAmount: interestPaid,
+            paymentReference: body.reference ? `${body.reference}-INTEREST` : null,
+            isHistorical: isHistorical,
+            historicalDate: isHistorical ? paymentDate : null,
+            migrationBatch: body.migrationBatch || null,
+            originalReference: body.originalReference ? `${body.originalReference}-INTEREST` : null
+          }
+        });
+        expenseRecords.push(interestExpense);
+      }
 
-      return { payment, updatedLiability, journalEntry, expenseRecord, paymentRecord, transactionRecord: trasactionRecord };
+      // Create payment records for each expense (principal and interest)
+      const paymentRecords = [];
+      for (const expenseRecord of expenseRecords) {
+        const paymentRecord = await tx.payment.create({
+          data: {
+            tenantId: user.tenantId,
+            type: expenseRecord.category === 'Loan Principal' ? 'Loan Payment - Principal' : 'Loan Payment - Interest',
+            expenseId: expenseRecord.id,
+            amount: expenseRecord.amount,
+            paymentDate: paymentDate,
+            paymentMethod: paymentMethod,
+            sourceAccount: paymentMethod,
+            reference: body.reference || `LIAB-${payment.id}-${expenseRecord.category === 'Loan Principal' ? 'PRIN' : 'INT'}`,
+            notes: body.notes || `${expenseRecord.category} payment for ${liability.name}`,
+            status: 'Completed'
+          }
+        });
+        paymentRecords.push(paymentRecord);
+      }
+
+      return { 
+        payment, 
+        updatedLiability, 
+        journalEntry, 
+        expenseRecords, 
+        paymentRecords, 
+        transactionRecord: trasactionRecord 
+      };
     });
 
     await prisma.accountBalance.upsert({
@@ -378,9 +458,10 @@ export async function POST(request, { params }) {
           interestPaid: interestPaid,
           paymentMethod,
           journalEntryId: result.journalEntry.id,
-          expenseId: result.expenseRecord.id,
-          paymentRecordId: result.paymentRecord.id,
-          transactionId: result.transactionRecord.id
+          expenseIds: result.expenseRecords.map(e => e.id),
+          paymentRecordIds: result.paymentRecords.map(p => p.id),
+          transactionId: result.transactionRecord.id,
+          isHistorical: isHistorical
         })
       }
     });

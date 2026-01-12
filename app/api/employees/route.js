@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { sendEmail } from '@/lib/emailService';
 
 export async function POST(request) {
   try {
@@ -142,7 +143,10 @@ export async function POST(request) {
       phone: data.phone || null,
       address: data.address || null,
       salary: data.salary ? parseFloat(data.salary) : null,
-      startDate: data.startDate ? new Date(data.startDate) : new Date(),
+      startDate: data.startDate && data.startDate !== '' ? (() => {
+        const date = new Date(data.startDate);
+        return isNaN(date.getTime()) ? new Date() : date;
+      })() : new Date(),
       status: data.status || 'Active',
       
       // Additional HR fields
@@ -150,7 +154,10 @@ export async function POST(request) {
       employmentType: data.employmentType || 'Permanent',
       grossSalary: data.grossSalary ? parseFloat(data.grossSalary) : null,
       hourlyRate: data.hourlyRate ? parseFloat(data.hourlyRate) : null,
-      dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+      dateOfBirth: data.dateOfBirth && data.dateOfBirth !== '' ? (() => {
+        const date = new Date(data.dateOfBirth);
+        return isNaN(date.getTime()) ? null : date;
+      })() : null,
       gender: data.gender || null,
       maritalStatus: data.maritalStatus || null,
       nationality: data.nationality || 'Malawian',
@@ -195,6 +202,14 @@ export async function POST(request) {
       }
     }
 
+    // Handle documents - store in bankDetails JSON field
+    if (data.documents && Object.keys(data.documents).length > 0) {
+      employeeData.bankDetails = {
+        ...(employeeData.bankDetails && typeof employeeData.bankDetails === 'object' ? employeeData.bankDetails : {}),
+        documents: data.documents
+      };
+    }
+
     const employee = await prisma.employee.create({
       data: employeeData,
       include: {
@@ -206,6 +221,79 @@ export async function POST(request) {
         }
       }
     });
+
+    // Send welcome email if requested and employee has a valid email
+    if (data.sendEmail && normalizedEmail && normalizedEmail.length > 0 && !normalizedEmail.includes('@placeholder.local')) {
+      try {
+        // Get tenant info for email template
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: user.tenantId },
+          select: {
+            name: true,
+            logoUrl: true,
+            primaryColor: true
+          }
+        });
+
+        const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const formattedStartDate = employee.startDate 
+          ? new Date(employee.startDate).toLocaleDateString('en-GB', {
+              day: '2-digit',
+              month: 'long',
+              year: 'numeric'
+            })
+          : 'TBD';
+
+        const emailContent = `
+          <p>Dear ${employee.name},</p>
+          <p>Welcome to ${tenant?.name || 'our company'}! We are excited to have you join our team.</p>
+          <p>Your employment details:</p>
+          <ul style="margin: 16px 0; padding-left: 20px;">
+            <li style="margin: 4px 0; color: #374151; line-height: 1.6;"><strong>Employee ID:</strong> ${employee.employeeId || 'N/A'}</li>
+            <li style="margin: 4px 0; color: #374151; line-height: 1.6;"><strong>Position:</strong> ${employee.jobTitle || employee.position || 'N/A'}</li>
+            <li style="margin: 4px 0; color: #374151; line-height: 1.6;"><strong>Department:</strong> ${employee.department || 'N/A'}</li>
+            <li style="margin: 4px 0; color: #374151; line-height: 1.6;"><strong>Start Date:</strong> ${formattedStartDate}</li>
+            ${employee.employmentType ? `<li style="margin: 4px 0; color: #374151; line-height: 1.6;"><strong>Employment Type:</strong> ${employee.employmentType}</li>` : ''}
+          </ul>
+          <p>We look forward to working with you and wish you success in your new role.</p>
+          <p>If you have any questions or need assistance, please don't hesitate to contact the HR department.</p>
+          <p>Once again, welcome aboard!</p>
+          <p>Best regards,<br>Human Resources Department<br>${tenant?.name || 'InsightBooks'}</p>
+        `;
+
+        await sendEmail({
+          to: normalizedEmail,
+          subject: `Welcome to ${tenant?.name || 'InsightBooks'}!`,
+          template: 'rich-email',
+          data: {
+            companyName: tenant?.name || 'InsightBooks',
+            tenantName: tenant?.name || 'InsightBooks',
+            htmlContent: emailContent,
+            baseUrl: baseUrl,
+            priority: 'normal',
+            showPriority: false
+          }
+        });
+
+        // Log email sent
+        await prisma.auditLog.create({
+          data: {
+            action: 'EMPLOYEE_WELCOME_EMAIL_SENT',
+            entityType: 'EMPLOYEE',
+            entityId: employee.id,
+            userId: user.id,
+            tenantId: user.tenantId,
+            details: JSON.stringify({
+              employeeName: employee.name,
+              email: normalizedEmail
+            })
+          }
+        });
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't fail the employee creation if email fails
+      }
+    }
     
     return NextResponse.json({ 
       message: 'Employee created successfully', 

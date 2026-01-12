@@ -48,14 +48,7 @@ export async function GET(request) {
       where,
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        _count: {
-          select: {
-            leaveRequests: true
-          }
-        }
-      }
+      orderBy: { createdAt: 'desc' }
     });
 
     const totalCount = await prisma.leavePolicy.count({ where });
@@ -72,8 +65,16 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Error fetching leave policies:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error code:', error.code);
     return NextResponse.json(
-      { error: 'Failed to fetch leave policies', details: error.message },
+      { 
+        error: 'Failed to fetch leave policies', 
+        details: error.message,
+        code: error.code,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

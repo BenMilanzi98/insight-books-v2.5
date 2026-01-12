@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2 } from "lucide-react";
+import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt } from "lucide-react";
 
 export default function PayrollProcessing() {
   const [payrollRuns, setPayrollRuns] = useState([]);
@@ -24,6 +24,8 @@ export default function PayrollProcessing() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [payrollToDelete, setPayrollToDelete] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [newDeductionName, setNewDeductionName] = useState('');
+  const [newDeductionAmount, setNewDeductionAmount] = useState('');
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsError, setAccountsError] = useState(null);
@@ -34,6 +36,22 @@ export default function PayrollProcessing() {
     expenseAccountId: '',
     paymentAccountId: ''
   });
+
+  // Month names for the selector
+  const months = [
+    { value: 1, label: 'January' },
+    { value: 2, label: 'February' },
+    { value: 3, label: 'March' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'May' },
+    { value: 6, label: 'June' },
+    { value: 7, label: 'July' },
+    { value: 8, label: 'August' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'October' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'December' }
+  ];
 
   useEffect(() => {
     fetchPayrollRuns();
@@ -283,25 +301,84 @@ export default function PayrollProcessing() {
 
   const handleEditPayroll = async (entry) => {
     try {
+      if (!entry || !entry.id) {
+        throw new Error('Invalid payroll entry');
+      }
+
       let additionalInfo = {};
       try {
-        additionalInfo = entry.notes ? JSON.parse(entry.notes) : {};
+        if (entry.notes && typeof entry.notes === 'string') {
+          // Try to parse as JSON only if it looks like JSON
+          const trimmedNotes = entry.notes.trim();
+          if (trimmedNotes.startsWith('{') && trimmedNotes.endsWith('}')) {
+            additionalInfo = JSON.parse(entry.notes);
+          }
+        }
       } catch (e) {
-        // If notes is not JSON, use as is
+        // If notes is not valid JSON, use empty object
+        console.warn('Could not parse notes as JSON:', e);
+        additionalInfo = {};
       }
 
       setEditingPayroll(entry);
       setEditFormData({
-        basicSalary: entry.basicSalary || 0,
-        deductions: additionalInfo.otherDeductions || {},
-        additions: entry.additions || 0,
-        notes: typeof entry.notes === 'string' && !entry.notes.startsWith('{') ? entry.notes : ''
+        basicSalary: Number(entry.basicSalary) || 0,
+        deductions: (additionalInfo.otherDeductions && typeof additionalInfo.otherDeductions === 'object' && !Array.isArray(additionalInfo.otherDeductions)) 
+          ? additionalInfo.otherDeductions 
+          : {},
+        additions: Number(entry.additions) || 0,
+        notes: (typeof entry.notes === 'string' && !entry.notes.trim().startsWith('{')) 
+          ? entry.notes 
+          : (additionalInfo.notes || '')
       });
       setShowEditModal(true);
+      // Reset new deduction form
+      setNewDeductionName('');
+      setNewDeductionAmount('');
     } catch (error) {
       console.error('Error preparing edit:', error);
-      setToast({ visible: true, type: 'error', message: 'Failed to load payroll for editing' });
+      setToast({ 
+        visible: true, 
+        type: 'error', 
+        message: error.message || 'Failed to load payroll for editing' 
+      });
       setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+    }
+  };
+
+  const handleAddDeduction = () => {
+    try {
+      const trimmedName = newDeductionName.trim();
+      const amount = parseFloat(newDeductionAmount);
+
+      if (!trimmedName) {
+        setToast({ visible: true, type: 'error', message: 'Please enter a deduction name' });
+        setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+        return;
+      }
+
+      if (isNaN(amount) || amount <= 0) {
+        setToast({ visible: true, type: 'error', message: 'Please enter a valid amount greater than 0' });
+        setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+        return;
+      }
+
+      if (editFormData.deductions[trimmedName] !== undefined) {
+        setToast({ visible: true, type: 'error', message: 'A deduction with this name already exists' });
+        setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
+        return;
+      }
+
+      const newDeductions = { ...editFormData.deductions, [trimmedName]: amount };
+      setEditFormData({ ...editFormData, deductions: newDeductions });
+      
+      // Clear the form
+      setNewDeductionName('');
+      setNewDeductionAmount('');
+    } catch (error) {
+      console.error('Error adding deduction:', error);
+      setToast({ visible: true, type: 'error', message: 'Failed to add deduction' });
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
     }
   };
 
@@ -310,11 +387,14 @@ export default function PayrollProcessing() {
 
     try {
       setIsSaving(true);
+      // Calculate gross salary including additions
+      const grossSalaryWithAdditions = editFormData.basicSalary + (editFormData.additions || 0);
+      
       const response = await fetch('/api/payroll/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          grossSalary: editFormData.basicSalary,
+          grossSalary: grossSalaryWithAdditions, // Include additions in gross salary for deduction calculation
           deductionIds: [],
           customDeductions: Object.entries(editFormData.deductions).map(([name, value]) => ({
             name,
@@ -332,15 +412,21 @@ export default function PayrollProcessing() {
       const data = await response.json();
       const calculation = data.calculation;
       
+      // Net pay should be: (basicSalary + additions) - deductions
+      // The calculation already includes additions in grossSalary, so netPay is correct
+      const calculatedGrossPay = calculation.grossSalary || grossSalaryWithAdditions;
+      const calculatedDeductions = calculation.totalDeductions || 0;
+      const calculatedNetPay = calculatedGrossPay - calculatedDeductions;
+      
       const updateResponse = await fetch(`/api/payroll/${editingPayroll.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           basicSalary: editFormData.basicSalary,
-          grossPay: calculation.grossSalary || editFormData.basicSalary,
-          deductions: calculation.totalDeductions || 0,
-          additions: editFormData.additions,
-          netPay: calculation.netPay || 0,
+          grossPay: calculatedGrossPay,
+          deductions: calculatedDeductions,
+          additions: editFormData.additions || 0,
+          netPay: calculatedNetPay,
           payeAmount: calculation.paye?.payeAmount || 0,
           notes: JSON.stringify({
             otherDeductions: editFormData.deductions,
@@ -357,17 +443,55 @@ export default function PayrollProcessing() {
       setToast({ visible: true, type: 'success', message: 'Payroll updated successfully' });
       setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
       
+      // Store periodStart before clearing editingPayroll
+      const periodStartToRefresh = editingPayroll?.periodStart;
+      
       setShowEditModal(false);
       setEditingPayroll(null);
       
-      if (showViewModal) {
-        const run = payrollRuns.find(r => 
-          new Date(r.periodStart).toISOString().split('T')[0] === 
-          new Date(editingPayroll.periodStart).toISOString().split('T')[0]
-        );
-        if (run) {
-          await handleViewRun(run);
-        }
+      // Refresh payroll runs
+      await fetchPayrollRuns();
+      
+      // If view modal is open, refresh it after a short delay to allow state to update
+      if (showViewModal && periodStartToRefresh) {
+        setTimeout(async () => {
+          try {
+            const response = await fetch('/api/payroll');
+            const data = await response.json();
+            const updatedRuns = (data.payrolls || []).reduce((grouped, payroll) => {
+              const key = `${payroll.periodStart}-${payroll.periodEnd}`;
+              if (!grouped[key]) {
+                grouped[key] = {
+                  periodStart: payroll.periodStart,
+                  periodEnd: payroll.periodEnd,
+                  paymentDate: payroll.paymentDate,
+                  employees: 0,
+                  totalGross: 0,
+                  totalNet: 0,
+                  totalPAYE: 0,
+                  totalNPS: 0,
+                  status: payroll.status
+                };
+              }
+              grouped[key].employees++;
+              grouped[key].totalGross += parseFloat(payroll.grossPay || 0);
+              grouped[key].totalNet += parseFloat(payroll.netPay || 0);
+              grouped[key].totalPAYE += parseFloat(payroll.payeAmount || 0);
+              grouped[key].totalNPS += parseFloat(payroll.totalNpsAmount || 0);
+              return grouped;
+            }, {});
+            
+            const run = Object.values(updatedRuns).find(r => 
+              new Date(r.periodStart).toISOString().split('T')[0] === 
+              new Date(periodStartToRefresh).toISOString().split('T')[0]
+            );
+            if (run) {
+              await handleViewRun(run);
+            }
+          } catch (err) {
+            console.error('Error refreshing view after edit:', err);
+          }
+        }, 200);
       }
     } catch (error) {
       console.error('Error saving payroll edit:', error);
@@ -662,21 +786,14 @@ export default function PayrollProcessing() {
                     <select
                       value={formData.payrollMonth}
                       onChange={(e) => setFormData({ ...formData, payrollMonth: parseInt(e.target.value) })}
-                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                      className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 font-medium"
                       required
                     >
-                      <option value="1">January</option>
-                      <option value="2">February</option>
-                      <option value="3">March</option>
-                      <option value="4">April</option>
-                      <option value="5">May</option>
-                      <option value="6">June</option>
-                      <option value="7">July</option>
-                      <option value="8">August</option>
-                      <option value="9">September</option>
-                      <option value="10">October</option>
-                      <option value="11">November</option>
-                      <option value="12">December</option>
+                      {months.map((month) => (
+                        <option key={month.value} value={month.value}>
+                          {month.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   
@@ -852,11 +969,11 @@ export default function PayrollProcessing() {
                                   <>
                                     <button 
                                       onClick={() => handleGeneratePayslip(entry.id)} 
-                                      className="px-2 py-1 text-xs bg-green-100 hover:bg-green-200 rounded border text-green-700 flex items-center gap-1"
+                                      className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-md text-white flex items-center gap-1.5 shadow-sm transition-colors"
                                       title="Generate Payslip"
                                     >
-                                      <FileText size={14} />
-                                      Payslip
+                                      <Receipt size={14} />
+                                      Generate Payslip
                                     </button>
                                     <button 
                                       onClick={() => markDraft(entry.id)} 
@@ -924,25 +1041,89 @@ export default function PayrollProcessing() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Other Deductions</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Other Deductions</label>
+                  
+                  {/* Add New Deduction Form */}
+                  <div className="mb-3 p-3 bg-blue-50 rounded-md border border-blue-200">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Deduction name (e.g., Loan, Advance)"
+                        value={newDeductionName}
+                        onChange={(e) => setNewDeductionName(e.target.value)}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isSaving}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddDeduction();
+                          }
+                        }}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Amount"
+                        value={newDeductionAmount}
+                        onChange={(e) => setNewDeductionAmount(e.target.value)}
+                        className="w-32 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isSaving}
+                        min="0"
+                        step="0.01"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleAddDeduction();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddDeduction}
+                        disabled={isSaving || !newDeductionName.trim() || !newDeductionAmount || parseFloat(newDeductionAmount) <= 0}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Existing Deductions List */}
                   <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
                     {Object.keys(editFormData.deductions).length === 0 ? (
-                      <p className="text-sm text-gray-500">No other deductions</p>
+                      <p className="text-sm text-gray-500 text-center py-2">No other deductions added yet</p>
                     ) : (
                       Object.entries(editFormData.deductions).map(([key, value]) => (
-                        <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-sm">{key}</span>
-                          <input
-                            type="number"
-                            value={value}
-                            onChange={(e) => {
-                              const newDeductions = { ...editFormData.deductions };
-                              newDeductions[key] = parseFloat(e.target.value) || 0;
-                              setEditFormData({ ...editFormData, deductions: newDeductions });
-                            }}
-                            className="w-32 p-1 border border-gray-300 rounded text-sm"
-                            disabled={isSaving}
-                          />
+                        <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                          <span className="text-sm font-medium text-gray-700">{key}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-500">MWK</span>
+                            <input
+                              type="number"
+                              value={value}
+                              onChange={(e) => {
+                                const newDeductions = { ...editFormData.deductions };
+                                newDeductions[key] = parseFloat(e.target.value) || 0;
+                                setEditFormData({ ...editFormData, deductions: newDeductions });
+                              }}
+                              className="w-32 p-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500"
+                              disabled={isSaving}
+                              min="0"
+                              step="0.01"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newDeductions = { ...editFormData.deductions };
+                                delete newDeductions[key];
+                                setEditFormData({ ...editFormData, deductions: newDeductions });
+                              }}
+                              disabled={isSaving}
+                              className="text-red-600 hover:text-red-800 hover:bg-red-50 text-lg font-bold px-2 py-1 rounded disabled:opacity-50 transition-colors"
+                              title="Remove deduction"
+                            >
+                              ×
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -958,6 +1139,72 @@ export default function PayrollProcessing() {
                     rows={3}
                     disabled={isSaving}
                   />
+                </div>
+
+                {/* Calculation Preview */}
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Calculation Preview</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Basic Salary:</span>
+                      <span className="font-medium">MWK {editFormData.basicSalary.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Additions:</span>
+                      <span className="font-medium text-green-600">+ MWK {(editFormData.additions || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t pt-2">
+                      <span className="text-gray-700 font-medium">Gross Pay:</span>
+                      <span className="font-bold text-blue-600">MWK {(editFormData.basicSalary + (editFormData.additions || 0)).toLocaleString()}</span>
+                    </div>
+                    <div className="pt-2 space-y-1">
+                      <div className="text-xs text-gray-500 font-medium mb-1">Deductions (will be calculated):</div>
+                      <div className="text-xs text-gray-500 pl-2">• PAYE (based on gross pay)</div>
+                      <div className="text-xs text-gray-500 pl-2">• NPS Employee (5% of gross pay)</div>
+                      {Object.keys(editFormData.deductions || {}).length > 0 && (
+                        <>
+                          {Object.entries(editFormData.deductions || {}).map(([name, value]) => (
+                            <div key={name} className="text-xs text-gray-500 pl-2">
+                              • {name}: MWK {Number(value || 0).toLocaleString()}
+                            </div>
+                          ))}
+                        </>
+                      )}
+                    </div>
+                    <div className="flex justify-between border-t pt-2 mt-2">
+                      <span className="text-gray-700 font-medium">Net Pay:</span>
+                      <span className="font-bold text-green-600">MWK {(() => {
+                        try {
+                          const basicSalary = Number(editFormData.basicSalary) || 0;
+                          const additions = Number(editFormData.additions) || 0;
+                          const gross = basicSalary + additions;
+                          
+                          // Estimate PAYE using proper tax brackets
+                          let estimatedPAYE = 0;
+                          if (gross > 2550000) {
+                            estimatedPAYE = (150000 * 0) + (350000 * 0.25) + (2050000 * 0.30) + ((gross - 2550000) * 0.35);
+                          } else if (gross > 500000) {
+                            estimatedPAYE = (150000 * 0) + (350000 * 0.25) + ((gross - 500000) * 0.30);
+                          } else if (gross > 150000) {
+                            estimatedPAYE = (150000 * 0) + ((gross - 150000) * 0.25);
+                          }
+                          
+                          const estimatedNPS = gross * 0.05;
+                          const otherDeductions = Object.values(editFormData.deductions || {}).reduce((sum, val) => {
+                            return sum + (Number(val) || 0);
+                          }, 0);
+                          const estimatedDeductions = estimatedPAYE + estimatedNPS + otherDeductions;
+                          return Math.max(0, gross - estimatedDeductions).toLocaleString();
+                        } catch (e) {
+                          console.error('Error calculating estimated net pay:', e);
+                          return '0';
+                        }
+                      })()}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 mt-2 italic">
+                      * Final calculation will be done when you save
+                    </div>
+                  </div>
                 </div>
               </div>
 

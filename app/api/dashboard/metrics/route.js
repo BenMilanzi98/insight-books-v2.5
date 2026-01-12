@@ -24,21 +24,21 @@ export async function GET(request) {
     switch (dateRange) {
       case 'today': {
         // Today's data
-        currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
+        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         // Yesterday's data
-        previousPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
+        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
         break;
       }
-      
+
       case 'yesterday': {
         // Yesterday's data
-        currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
+        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
         // Day before yesterday's data
-        previousPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999);
+        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0, 0));
+        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999));
         break;
       }
       

@@ -10,7 +10,13 @@ const UltimateEmailComposer = ({
   attachments, 
   setAttachments,
   onSend,
-  isSending = false 
+  isSending = false,
+  priority = 'normal',
+  setPriority,
+  showPriority = false,
+  setShowPriority,
+  selectedTemplate = 'custom',
+  setSelectedTemplate
 }) => {
   const [dragOver, setDragOver] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
@@ -248,6 +254,29 @@ const UltimateEmailComposer = ({
 
   return (
     <div className="space-y-6">
+      {/* Template Selector */}
+      {setSelectedTemplate && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Email Template
+          </label>
+          <select
+            value={selectedTemplate}
+            onChange={(e) => setSelectedTemplate(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="custom">Custom Email</option>
+            <option value="subscription-reminder">Subscription Reminder</option>
+            <option value="announcement">Announcement</option>
+            <option value="welcome">Welcome Email</option>
+            <option value="maintenance-notice">Maintenance Notice</option>
+            <option value="feature-update">Feature Update</option>
+            <option value="password-reset">Password Reset</option>
+          </select>
+          <p className="mt-1 text-xs text-gray-500">Select a template to pre-fill subject and content</p>
+        </div>
+      )}
+
       {/* Subject Field */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -262,6 +291,48 @@ const UltimateEmailComposer = ({
           required
         />
       </div>
+
+      {/* Priority Section Toggle */}
+      {setShowPriority && (
+        <>
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Show Priority Badge
+              </label>
+              <p className="text-xs text-gray-500">Display a priority indicator in the email</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showPriority}
+                onChange={(e) => setShowPriority(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Priority Level Selector (shown when toggle is on) */}
+          {showPriority && setPriority && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Priority Level
+              </label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="low">Low</option>
+                <option value="normal">Normal</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Professional WYSIWYG Editor */}
       <div>

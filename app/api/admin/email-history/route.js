@@ -44,6 +44,8 @@ export async function GET(request) {
     const totalEmails = await prisma.emailLog.count({ where });
     
     // Get email logs with pagination
+    // If limit is very high (10000+), fetch all without pagination for stats
+    const shouldFetchAll = limit >= 10000;
     const emailLogs = await prisma.emailLog.findMany({
       where,
       include: {
@@ -56,8 +58,10 @@ export async function GET(request) {
       orderBy: {
         createdAt: 'desc'
       },
-      skip: (page - 1) * limit,
-      take: limit
+      ...(shouldFetchAll ? {} : {
+        skip: (page - 1) * limit,
+        take: limit
+      })
     });
 
     // Transform data for frontend

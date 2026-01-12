@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import * as XLSX from 'xlsx';
 
 // Helper function to format currency
 function formatCurrency(amount) {
@@ -291,7 +292,7 @@ export async function GET(request) {
     const periodStart = searchParams.get('periodStart') || searchParams.get('startDate');
     const periodEnd = searchParams.get('periodEnd') || searchParams.get('endDate');
     const employeeId = searchParams.get('employeeId');
-    const format = searchParams.get('format') || 'pdf'; // json, pdf - default to pdf
+    const format = (searchParams.get('format') || 'json').toLowerCase(); // json, pdf, excel - default to json for preview
 
     if (!periodStart || !periodEnd) {
       return NextResponse.json(
@@ -303,15 +304,22 @@ export async function GET(request) {
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
 
-    // Use date range query instead of exact match
+    // Find payrolls that overlap with the selected date range
+    // A payroll overlaps if: periodStart <= endDate AND periodEnd >= startDate
     const where = {
       tenantId: user.tenantId,
-      periodStart: {
-        gte: startDate
-      },
-      periodEnd: {
-        lte: endDate
-      }
+      AND: [
+        {
+          periodStart: {
+            lte: endDate
+          }
+        },
+        {
+          periodEnd: {
+            gte: startDate
+          }
+        }
+      ]
     };
 
     if (employeeId) {
@@ -408,6 +416,72 @@ export async function GET(request) {
       });
     }
 
+    if (format === 'excel' || format === 'xlsx') {
+      // Prepare data for Excel
+      const excelData = payslips.map(payslip => ({
+        'Employee ID': payslip.employee.employeeId || payslip.employee.id,
+        'Employee Name': payslip.employee.name,
+        'Job Title': payslip.employee.jobTitle || '',
+        'Department': payslip.employee.department || '',
+        'Period Start': formatDate(payslip.period.start),
+        'Period End': formatDate(payslip.period.end),
+        'Payment Date': payslip.period.paymentDate ? formatDate(payslip.period.paymentDate) : '',
+        'Basic Salary': payslip.earnings.basicSalary || 0,
+        'Gross Pay': payslip.earnings.grossPay || 0,
+        'PAYE': payslip.deductions.paye || 0,
+        'NPS Employee': payslip.deductions.npsEmployee || 0,
+        'Other Deductions': Object.values(payslip.deductions.otherDeductions || {}).reduce((sum, val) => sum + (typeof val === 'number' ? val : 0), 0),
+        'Total Deductions': payslip.deductions.totalDeductions || 0,
+        'Net Pay': payslip.netPay || 0,
+        'Hours Worked': payslip.hoursWorked || 0,
+        'Overtime Hours': payslip.overtimeHours || 0,
+        'Status': payslip.status || ''
+      }));
+
+      // Add summary row
+      const summary = {
+        'Employee ID': 'SUMMARY',
+        'Employee Name': '',
+        'Job Title': '',
+        'Department': '',
+        'Period Start': '',
+        'Period End': '',
+        'Payment Date': '',
+        'Basic Salary': payslips.reduce((sum, p) => sum + (p.earnings.basicSalary || 0), 0),
+        'Gross Pay': payslips.reduce((sum, p) => sum + (p.earnings.grossPay || 0), 0),
+        'PAYE': payslips.reduce((sum, p) => sum + (p.deductions.paye || 0), 0),
+        'NPS Employee': payslips.reduce((sum, p) => sum + (p.deductions.npsEmployee || 0), 0),
+        'Other Deductions': payslips.reduce((sum, p) => {
+          return sum + Object.values(p.deductions.otherDeductions || {}).reduce((s, val) => s + (typeof val === 'number' ? val : 0), 0);
+        }, 0),
+        'Total Deductions': payslips.reduce((sum, p) => sum + (p.deductions.totalDeductions || 0), 0),
+        'Net Pay': payslips.reduce((sum, p) => sum + (p.netPay || 0), 0),
+        'Hours Worked': '',
+        'Overtime Hours': '',
+        'Status': ''
+      };
+
+      excelData.push(summary);
+
+      // Create worksheet
+      const worksheet = XLSX.utils.json_to_sheet(excelData);
+      
+      // Create workbook
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Payslips');
+      
+      // Generate Excel buffer
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+      
+      return new NextResponse(excelBuffer, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="payslips-${periodStart}-to-${periodEnd}.xlsx"`,
+        },
+      });
+    }
+
+    // Default: return JSON for preview
     return NextResponse.json({
       payslips,
       summary: {

@@ -18,8 +18,16 @@ import {
   Calendar,
   DollarSign,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  FileText,
+  Eye,
+  Printer,
+  CreditCard,
+  Ban,
+  UserX,
+  UserCheck
 } from "lucide-react";
+import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 
 // Employee Form Component
 const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments = [], relationships = [], onAddDepartment, onAddRelationship }) => {
@@ -52,6 +60,11 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   const [salaryCalculation, setSalaryCalculation] = useState(null);
   const [calculating, setCalculating] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [contractFile, setContractFile] = useState(null);
+  const [idFile, setIdFile] = useState(null);
+  const [uploadingDocuments, setUploadingDocuments] = useState(false);
+  const [contractUrl, setContractUrl] = useState(null);
+  const [idUrl, setIdUrl] = useState(null);
 
   const steps = [
     {
@@ -73,6 +86,11 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       id: 'nextOfKin',
       title: 'Next of Kin',
       description: 'Emergency contact information'
+    },
+    {
+      id: 'documents',
+      title: 'Documents',
+      description: 'Employment contract & ID documents'
     }
   ];
 
@@ -118,6 +136,19 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         nextOfKinPhone: emergencyContact.phone || "",
         nextOfKinAddress: emergencyContact.address || ""
       });
+      
+      // Load documents if they exist
+      const bankDetails = (employee.bankDetails && typeof employee.bankDetails === 'object') 
+        ? employee.bankDetails 
+        : {};
+      const documents = bankDetails.documents || {};
+      
+      if (documents.contract) {
+        setContractUrl(documents.contract);
+      }
+      if (documents.nationalId) {
+        setIdUrl(documents.nationalId);
+      }
       
       // Reset salary calculation when editing
       setSalaryCalculation(null);
@@ -212,7 +243,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     // Only allow submission on the final step
@@ -240,12 +271,88 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         }
       : null;
 
+    // Upload documents if provided
+    let documents = {};
+    if (contractUrl) {
+      documents.contract = contractUrl;
+    }
+    if (idUrl) {
+      documents.nationalId = idUrl;
+    }
+
+    // Upload new files if selected
+    if (contractFile || idFile) {
+      setUploadingDocuments(true);
+      try {
+        const uploadPromises = [];
+        
+        if (contractFile) {
+          const contractFormData = new FormData();
+          contractFormData.append('file', contractFile);
+          contractFormData.append('type', 'contract');
+          uploadPromises.push(
+            fetch('/api/employees/upload-document', {
+              method: 'POST',
+              body: contractFormData
+            }).then(async (res) => {
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || data.details || 'Failed to upload contract');
+              }
+              if (data.url) {
+                documents.contract = data.url;
+              } else {
+                throw new Error('No URL returned from upload');
+              }
+            })
+          );
+        }
+        
+        if (idFile) {
+          const idFormData = new FormData();
+          idFormData.append('file', idFile);
+          idFormData.append('type', 'nationalId');
+          uploadPromises.push(
+            fetch('/api/employees/upload-document', {
+              method: 'POST',
+              body: idFormData
+            }).then(async (res) => {
+              const data = await res.json();
+              if (!res.ok) {
+                throw new Error(data.error || data.details || 'Failed to upload ID document');
+              }
+              if (data.url) {
+                documents.nationalId = data.url;
+              } else {
+                throw new Error('No URL returned from upload');
+              }
+            })
+          );
+        }
+        
+        await Promise.all(uploadPromises);
+      } catch (error) {
+        console.error('Error uploading documents:', error);
+        alert('Failed to upload documents. Please try again.');
+        setUploadingDocuments(false);
+        return;
+      } finally {
+        setUploadingDocuments(false);
+      }
+    }
+
+    // Get email notification preference from form
+    const sendEmailCheckbox = e.target.querySelector('input[name="sendEmail"]');
+    const sendEmail = sendEmailCheckbox ? sendEmailCheckbox.checked : false;
+
     const submitData = {
       ...formWithoutKin,
       grossSalary: formData.grossSalary,
       selectedDeductions: selectedDeductions.map(d => d.id),
       salaryCalculation: salaryCalculation,
-      emergencyContact
+      emergencyContact,
+      documents: Object.keys(documents).length > 0 ? documents : undefined,
+      sendEmail: !employee && sendEmail // Only send email for new employees
     };
     
     onSubmit(submitData);
@@ -283,9 +390,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   };
 
   const handleStepClick = (index) => {
-    if (index <= currentStep) {
-      setCurrentStep(index);
-    }
+    // Allow navigation to any step
+    setCurrentStep(index);
   };
 
   return (
@@ -307,21 +413,20 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 <button
                   type="button"
                   onClick={() => handleStepClick(index)}
-                  className={`flex flex-col items-start text-left sm:items-center sm:text-center focus:outline-none ${index > currentStep ? 'cursor-default' : 'cursor-pointer'}`}
-                  disabled={index > currentStep}
+                  className="flex flex-col items-start text-left sm:items-center sm:text-center focus:outline-none cursor-pointer hover:opacity-80 transition-opacity"
                 >
                   <span
                     className={`flex h-9 w-9 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors ${
                       isCompleted
                         ? 'border-blue-600 bg-blue-600 text-white'
                         : isActive
-                          ? 'border-blue-600 text-blue-600'
-                          : 'border-gray-300 text-gray-400'
+                          ? 'border-blue-600 text-blue-600 bg-blue-50'
+                          : 'border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500'
                     }`}
                   >
                     {isCompleted ? <CheckCircle size={18} className="text-white" /> : index + 1}
                   </span>
-                  <span className={`mt-2 text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
+                  <span className={`mt-2 text-sm font-medium ${isActive ? 'text-blue-600' : isCompleted ? 'text-blue-600' : 'text-gray-700'}`}>
                     {step.title}
                   </span>
                   <span className="text-xs text-gray-500 hidden sm:block">{step.description}</span>
@@ -767,6 +872,182 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               </div>
             </>
           )}
+
+          {currentStep === 4 && (
+            <>
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Employee Documents</h3>
+              <p className="text-sm text-gray-600 mb-6">Upload employment contract and national ID documents (PDF, JPG, PNG - Max 10MB each)</p>
+              
+              <div className="space-y-6">
+                {/* Employment Contract Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Employment Contract</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
+                    {contractUrl ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                            <FileText className="text-blue-600" size={20} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">Contract uploaded</p>
+                            <a 
+                              href={contractUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              View document
+                            </a>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setContractFile(null);
+                            setContractUrl(null);
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <input
+                          type="file"
+                          id="contract-upload"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                alert('File size must be less than 10MB');
+                                return;
+                              }
+                              setContractFile(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="contract-upload"
+                          className="cursor-pointer flex flex-col items-center"
+                        >
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                            <FileText className="text-gray-400" size={24} />
+                          </div>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 10MB)</p>
+                        </label>
+                        {contractFile && (
+                          <p className="mt-2 text-sm text-gray-700">{contractFile.name}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* National ID Upload */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">National ID / Identification Document</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition-colors">
+                    {idUrl ? (
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                            <FileText className="text-green-600" size={20} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">ID document uploaded</p>
+                            <a 
+                              href={idUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              View document
+                            </a>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIdFile(null);
+                            setIdUrl(null);
+                          }}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <input
+                          type="file"
+                          id="id-upload"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              if (file.size > 10 * 1024 * 1024) {
+                                alert('File size must be less than 10MB');
+                                return;
+                              }
+                              setIdFile(file);
+                            }
+                          }}
+                          className="hidden"
+                        />
+                        <label
+                          htmlFor="id-upload"
+                          className="cursor-pointer flex flex-col items-center"
+                        >
+                          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
+                            <FileText className="text-gray-400" size={24} />
+                          </div>
+                          <p className="text-sm text-gray-600 mb-1">
+                            <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 10MB)</p>
+                        </label>
+                        {idFile && (
+                          <p className="mt-2 text-sm text-gray-700">{idFile.name}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <p className="mt-4 text-xs text-gray-500 italic">Note: Documents are optional but recommended for record keeping.</p>
+              
+              {/* Email Notification Option - Only show when creating new employee */}
+              {!employee && (
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-start">
+                    <input
+                      type="checkbox"
+                      id="send-welcome-email"
+                      name="sendEmail"
+                      disabled={!formData.email || formData.email.trim() === ''}
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                    <label htmlFor="send-welcome-email" className={`ml-3 block text-sm ${!formData.email || formData.email.trim() === '' ? 'text-gray-500' : 'text-gray-700'}`}>
+                      <span className="font-medium">Send welcome email to employee</span>
+                      <p className="text-xs text-gray-600 mt-1">
+                        {formData.email && formData.email.trim() !== ''
+                          ? `Email will be sent to: ${formData.email}`
+                          : 'Please provide an email address in Personal Info section to enable this option'}
+                      </p>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         <div className="flex flex-col gap-4 pt-4 border-t border-gray-200 mt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -788,8 +1069,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               </button>
             )}
             
-            {/* Next Button - Only on steps 0-2 */}
-            {currentStep < 3 && (
+            {/* Next Button - Show on all steps except the last one */}
+            {currentStep < steps.length - 1 && (
               <button
                 type="button"
                 onClick={handleNext}
@@ -799,17 +1080,17 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               </button>
             )}
             
-            {/* Submit Button - Only on step 3 (final step) */}
-            {currentStep === 3 && (
+            {/* Submit Button - Only on the final step */}
+            {currentStep === steps.length - 1 && (
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || uploadingDocuments}
                 className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting && (
+                {(isSubmitting || uploadingDocuments) && (
                   <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                 )}
-                {employee ? "Update Employee" : "Create Employee"}
+                {uploadingDocuments ? 'Uploading Documents...' : (employee ? "Update Employee" : "Create Employee")}
               </button>
             )}
           </div>
@@ -821,6 +1102,40 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
 // Main Employee Management Component
 const EmployeeManagement = () => {
+  // Add print styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        #employee-view-print,
+        #employee-view-print * {
+          visibility: visible;
+        }
+        #employee-view-print {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          max-width: 100%;
+          box-shadow: none;
+          border: none;
+        }
+        .print\\:hidden {
+          display: none !important;
+        }
+        .print\\:block {
+          display: block !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
   const [employees, setEmployees] = useState([]);
   const [deductions, setDeductions] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -850,6 +1165,13 @@ const EmployeeManagement = () => {
   const [showDeductionModal, setShowDeductionModal] = useState(false);
   const [editingDeduction, setEditingDeduction] = useState(null);
   const [deductionType, setDeductionType] = useState('custom');
+  const [viewingEmployee, setViewingEmployee] = useState(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [showIDCardGenerator, setShowIDCardGenerator] = useState(false);
+  const [tenantInfo, setTenantInfo] = useState(null);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [employeeToAction, setEmployeeToAction] = useState(null);
   const [statistics, setStatistics] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -860,7 +1182,20 @@ const EmployeeManagement = () => {
   useEffect(() => {
     loadEmployees();
     loadDeductions();
+    loadTenantInfo();
   }, []);
+
+  const loadTenantInfo = async () => {
+    try {
+      const response = await fetch('/api/account');
+      if (response.ok) {
+        const data = await response.json();
+        setTenantInfo(data);
+      }
+    } catch (error) {
+      console.error('Error loading tenant info:', error);
+    }
+  };
 
   const loadEmployees = async () => {
     try {
@@ -882,7 +1217,15 @@ const EmployeeManagement = () => {
       }
       
       const data = await response.json();
-      setEmployees(data.employees || []);
+      // Map employees and extract photo URLs from contactDetails
+      const employeesWithPhotos = (data.employees || []).map(emp => {
+        const contactDetails = emp.contactDetails && typeof emp.contactDetails === 'object' ? emp.contactDetails : {};
+        return {
+          ...emp,
+          photoUrl: contactDetails.photoUrl || contactDetails.photo || emp.photoUrl || emp.photo || null
+        };
+      });
+      setEmployees(employeesWithPhotos);
       
       // Extract unique departments from existing employees
       const uniqueDepartments = [...new Set((data.employees || [])
@@ -970,6 +1313,62 @@ const EmployeeManagement = () => {
     setIsFormOpen(true);
   };
 
+  const handleViewEmployee = (employee, e) => {
+    if (e) e.stopPropagation();
+    setViewingEmployee(employee);
+    setShowViewModal(true);
+  };
+
+  const handlePrintEmployee = () => {
+    const printContent = document.getElementById('employee-view-print');
+    if (!printContent) return;
+    
+    const printWindow = window.open('', '_blank');
+    
+    if (printWindow) {
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Employee Details - ${viewingEmployee.name}</title>
+            <style>
+              @media print {
+                body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+                .print\\:hidden { display: none !important; }
+                .print\\:block { display: block !important; }
+                @page { margin: 1cm; }
+                h2, h3 { color: #000; }
+                .bg-gray-50 { background-color: #f9fafb; }
+                .bg-white { background-color: #fff; }
+                .text-gray-900 { color: #111827; }
+                .text-gray-600 { color: #4b5563; }
+                .border { border: 1px solid #e5e7eb; }
+                .rounded-lg { border-radius: 0.5rem; }
+                .p-4 { padding: 1rem; }
+                .mb-4 { margin-bottom: 1rem; }
+                .space-y-3 > * + * { margin-top: 0.75rem; }
+                a { color: #2563eb; text-decoration: underline; }
+              }
+              body { font-family: Arial, sans-serif; padding: 20px; }
+            </style>
+          </head>
+          <body>
+            ${printContent.innerHTML}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 250);
+    } else {
+      // Fallback to regular print if popup is blocked
+      window.print();
+    }
+  };
+
   const handleEditEmployee = (employee, e) => {
     if (e) e.stopPropagation();
     setSelectedEmployee(employee);
@@ -1003,6 +1402,118 @@ const EmployeeManagement = () => {
         console.error(`Error deleting employee ${employeeId}:`, error);
         alert("Failed to delete employee. Please try again.");
       }
+    }
+  };
+
+  const handleTerminateEmployee = (employee, e) => {
+    if (e) e.stopPropagation();
+    setEmployeeToAction(employee);
+    setShowTerminateModal(true);
+  };
+
+  const handleSuspendEmployee = (employee, e) => {
+    if (e) e.stopPropagation();
+    setEmployeeToAction(employee);
+    setShowSuspendModal(true);
+  };
+
+  const handleReactivateEmployee = async (employee, e) => {
+    if (e) e.stopPropagation();
+    
+    if (confirm(`Are you sure you want to reactivate ${employee.name}?`)) {
+      try {
+        const response = await fetch(`/api/employees/${employee.id}/reactivate`, {
+          method: 'POST',
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            setError('Please log in to reactivate employees. Authentication required.');
+            return;
+          }
+          throw new Error('Failed to reactivate employee');
+        }
+        
+        const data = await response.json();
+        setEmployees(employees.map(e => 
+          e.id === employee.id ? data.employee : e
+        ));
+        setSuccessMessage('Employee reactivated successfully');
+        setTimeout(() => setSuccessMessage(''), 3000);
+        
+        loadEmployees(); // Refresh statistics
+      } catch (error) {
+        console.error(`Error reactivating employee ${employee.id}:`, error);
+        alert("Failed to reactivate employee. Please try again.");
+      }
+    }
+  };
+
+  const handleTerminateSubmit = async (formData) => {
+    try {
+      const response = await fetch(`/api/employees/${employeeToAction.id}/terminate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Please log in to terminate employees. Authentication required.');
+          return;
+        }
+        throw new Error('Failed to terminate employee');
+      }
+      
+      const data = await response.json();
+      setEmployees(employees.map(e => 
+        e.id === employeeToAction.id ? data.employee : e
+      ));
+      setSuccessMessage('Employee terminated successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+      setShowTerminateModal(false);
+      setEmployeeToAction(null);
+      loadEmployees(); // Refresh statistics
+    } catch (error) {
+      console.error('Error terminating employee:', error);
+      alert("Failed to terminate employee. Please try again.");
+    }
+  };
+
+  const handleSuspendSubmit = async (formData) => {
+    try {
+      const response = await fetch(`/api/employees/${employeeToAction.id}/suspend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          setError('Please log in to suspend employees. Authentication required.');
+          return;
+        }
+        throw new Error('Failed to suspend employee');
+      }
+      
+      const data = await response.json();
+      setEmployees(employees.map(e => 
+        e.id === employeeToAction.id ? data.employee : e
+      ));
+      setSuccessMessage('Employee suspended successfully');
+      setTimeout(() => setSuccessMessage(''), 3000);
+      
+      setShowSuspendModal(false);
+      setEmployeeToAction(null);
+      loadEmployees(); // Refresh statistics
+    } catch (error) {
+      console.error('Error suspending employee:', error);
+      alert("Failed to suspend employee. Please try again.");
     }
   };
 
@@ -1118,13 +1629,23 @@ const EmployeeManagement = () => {
           <h1 className="text-2xl font-bold">Employee Management</h1>
           <p className="text-gray-600">Manage your employees and their information</p>
         </div>
-        <button 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
-          onClick={handleAddEmployee}
-        >
-          <Plus size={16} />
-          <span>Add Employee</span>
-        </button>
+        <div className="flex gap-2">
+          <button 
+            className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
+            onClick={() => setShowIDCardGenerator(true)}
+            title="Generate Employee ID Cards"
+          >
+            <CreditCard size={16} />
+            <span>Generate ID Cards</span>
+          </button>
+          <button 
+            className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
+            onClick={handleAddEmployee}
+          >
+            <Plus size={16} />
+            <span>Add Employee</span>
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}
@@ -1302,13 +1823,26 @@ const EmployeeManagement = () => {
                     <td className="px-4 py-4 text-sm text-gray-900 text-right">{formatCurrency(employee.salary)}</td>
                     <td className="px-4 py-4 text-sm">
                       <span className={`px-2.5 py-1 rounded-full text-xs ${
-                        employee.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                        employee.status === 'Active' && employee.isActive
+                          ? 'bg-green-100 text-green-800'
+                          : employee.status === 'Suspended'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : employee.status === 'Terminated'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {employee.isActive ? 'Active' : 'Inactive'}
+                        {employee.status || (employee.isActive ? 'Active' : 'Inactive')}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
                       <div className="flex justify-center gap-2">
+                        <button 
+                          className="text-green-600 hover:text-green-800 p-1 rounded"
+                          onClick={(e) => handleViewEmployee(employee, e)}
+                          title="View Employee"
+                        >
+                          <Eye size={16} />
+                        </button>
                         <button 
                           className="text-blue-600 hover:text-blue-800 p-1 rounded"
                           onClick={(e) => handleEditEmployee(employee, e)}
@@ -1316,6 +1850,33 @@ const EmployeeManagement = () => {
                         >
                           <Edit size={16} />
                         </button>
+                        {(employee.status === 'Active' || employee.isActive) && (
+                          <>
+                            <button 
+                              className="text-yellow-600 hover:text-yellow-800 p-1 rounded"
+                              onClick={(e) => handleSuspendEmployee(employee, e)}
+                              title="Suspend Employee"
+                            >
+                              <Ban size={16} />
+                            </button>
+                            <button 
+                              className="text-orange-600 hover:text-orange-800 p-1 rounded"
+                              onClick={(e) => handleTerminateEmployee(employee, e)}
+                              title="Terminate Employee"
+                            >
+                              <UserX size={16} />
+                            </button>
+                          </>
+                        )}
+                        {(employee.status === 'Suspended' || employee.status === 'Terminated') && (
+                          <button 
+                            className="text-green-600 hover:text-green-800 p-1 rounded"
+                            onClick={(e) => handleReactivateEmployee(employee, e)}
+                            title="Reactivate Employee"
+                          >
+                            <UserCheck size={16} />
+                          </button>
+                        )}
                         <button 
                           className="text-red-600 hover:text-red-800 p-1 rounded"
                           onClick={(e) => handleDeleteEmployee(employee.id, e)}
@@ -1501,6 +2062,278 @@ const EmployeeManagement = () => {
         </div>
       )}
 
+      {/* Employee View Modal */}
+      {showViewModal && viewingEmployee && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowViewModal(false)}>
+          <div 
+            id="employee-view-print" 
+            className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto" 
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Print Header - Only visible when printing */}
+            <div className="hidden print:block print:mb-6 print:border-b print:pb-4">
+              <h1 className="text-2xl font-bold">Employee Details</h1>
+              <p className="text-gray-600">Generated on {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+            </div>
+
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold text-xl">
+                    {viewingEmployee.name?.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">{viewingEmployee.name}</h2>
+                    <p className="text-gray-600">{viewingEmployee.email}</p>
+                    <p className="text-sm text-gray-500">Employee ID: {viewingEmployee.employeeId || 'N/A'}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handlePrintEmployee}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2 print:hidden"
+                    title="Print Employee Details"
+                  >
+                    <Printer size={18} />
+                    Print
+                  </button>
+                  <button
+                    onClick={() => setShowViewModal(false)}
+                    className="text-gray-500 hover:text-gray-700 print:hidden"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Personal Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <User size={20} />
+                    Personal Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Full Name:</span>
+                      <p className="text-gray-900">{viewingEmployee.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Email:</span>
+                      <p className="text-gray-900">{viewingEmployee.email || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Phone:</span>
+                      <p className="text-gray-900">{viewingEmployee.phone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Date of Birth:</span>
+                      <p className="text-gray-900">
+                        {viewingEmployee.dateOfBirth 
+                          ? new Date(viewingEmployee.dateOfBirth).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Gender:</span>
+                      <p className="text-gray-900">{viewingEmployee.gender || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Marital Status:</span>
+                      <p className="text-gray-900">{viewingEmployee.maritalStatus || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Nationality:</span>
+                      <p className="text-gray-900">{viewingEmployee.nationality || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">National ID:</span>
+                      <p className="text-gray-900">{viewingEmployee.idNumber || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Address:</span>
+                      <p className="text-gray-900">{viewingEmployee.address || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Employment Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Briefcase size={20} />
+                    Employment Information
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Employee ID:</span>
+                      <p className="text-gray-900">{viewingEmployee.employeeId || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Job Title:</span>
+                      <p className="text-gray-900">{viewingEmployee.jobTitle || viewingEmployee.position || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Department:</span>
+                      <p className="text-gray-900">{viewingEmployee.department || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Employment Type:</span>
+                      <p className="text-gray-900">{viewingEmployee.employmentType || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Start Date:</span>
+                      <p className="text-gray-900">
+                        {viewingEmployee.startDate 
+                          ? new Date(viewingEmployee.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                          : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Work Location:</span>
+                      <p className="text-gray-900">{viewingEmployee.workLocation || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Status:</span>
+                      <span className={`ml-2 px-2.5 py-1 rounded-full text-xs ${
+                        viewingEmployee.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      }`}>
+                        {viewingEmployee.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compensation Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <DollarSign size={20} />
+                    Compensation
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Gross Salary:</span>
+                      <p className="text-gray-900 font-semibold">
+                        {viewingEmployee.grossSalary ? formatCurrency(viewingEmployee.grossSalary) : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Net Salary:</span>
+                      <p className="text-gray-900 font-semibold">
+                        {viewingEmployee.salary ? formatCurrency(viewingEmployee.salary) : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">Hourly Rate:</span>
+                      <p className="text-gray-900">
+                        {viewingEmployee.hourlyRate ? formatCurrency(viewingEmployee.hourlyRate) : 'N/A'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Emergency Contact */}
+                {viewingEmployee.emergencyContact && typeof viewingEmployee.emergencyContact === 'object' && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <Phone size={20} />
+                      Emergency Contact
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">Name:</span>
+                        <p className="text-gray-900">{viewingEmployee.emergencyContact.name || viewingEmployee.emergencyContact.fullName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">Relationship:</span>
+                        <p className="text-gray-900">{viewingEmployee.emergencyContact.relationship || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">Phone:</span>
+                        <p className="text-gray-900">{viewingEmployee.emergencyContact.phone || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">Address:</span>
+                        <p className="text-gray-900">{viewingEmployee.emergencyContact.address || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Documents */}
+                {(() => {
+                  const bankDetails = (viewingEmployee.bankDetails && typeof viewingEmployee.bankDetails === 'object') 
+                    ? viewingEmployee.bankDetails 
+                    : {};
+                  const documents = bankDetails.documents || {};
+                  
+                  if (documents.contract || documents.nationalId) {
+                    return (
+                      <div className="bg-gray-50 rounded-lg p-4 md:col-span-2">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                          <FileText size={20} />
+                          Documents
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {documents.contract && (
+                            <div className="bg-white p-3 rounded border border-gray-200">
+                              <span className="text-sm font-medium text-gray-600 block mb-1">Employment Contract</span>
+                              <a 
+                                href={documents.contract} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                              >
+                                <FileText size={14} />
+                                View Document
+                              </a>
+                            </div>
+                          )}
+                          {documents.nationalId && (
+                            <div className="bg-white p-3 rounded border border-gray-200">
+                              <span className="text-sm font-medium text-gray-600 block mb-1">National ID</span>
+                              <a 
+                                href={documents.nationalId} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
+                              >
+                                <FileText size={14} />
+                                View Document
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              {/* Print Footer */}
+              <div className="mt-6 pt-4 border-t border-gray-200 print:block hidden print:mt-8">
+                <p className="text-xs text-gray-500 text-center">
+                  This document was generated on {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} at {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ID Card Generator */}
+      {showIDCardGenerator && (
+        <EmployeeIDCardGenerator
+          employees={employees}
+          tenantInfo={tenantInfo}
+          onClose={() => {
+            setShowIDCardGenerator(false);
+            // Reload employees to get updated photo URLs
+            loadEmployees();
+          }}
+        />
+      )}
+
       {/* Deduction Modal */}
       {showDeductionModal && (
         <DeductionModal
@@ -1520,6 +2353,211 @@ const EmployeeManagement = () => {
             setSuccessMessage('Deduction saved successfully');
           }}
         />
+      )}
+
+      {/* Terminate Employee Modal */}
+      {showTerminateModal && employeeToAction && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Terminate Employee</h2>
+                <button className="text-gray-500 hover:text-gray-700" onClick={() => {
+                  setShowTerminateModal(false);
+                  setEmployeeToAction(null);
+                }}>
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-gray-600">Are you sure you want to terminate <strong>{employeeToAction.name}</strong>?</p>
+              </div>
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                handleTerminateSubmit({
+                  terminationDate: formData.get('terminationDate'),
+                  terminationReason: formData.get('terminationReason'),
+                  sendEmail: formData.get('sendEmail') === 'on'
+                });
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Termination Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="terminationDate"
+                      required
+                      defaultValue={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Termination Reason
+                    </label>
+                    <textarea
+                      name="terminationReason"
+                      rows={4}
+                      placeholder="Enter reason for termination..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="sendEmail"
+                      id="terminate-send-email"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="terminate-send-email" className="ml-2 block text-sm text-gray-700">
+                      Send email notification to employee
+                    </label>
+                  </div>
+                  {employeeToAction?.email && (
+                    <p className="text-xs text-gray-500 ml-6">
+                      Email will be sent to: {employeeToAction.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowTerminateModal(false);
+                      setEmployeeToAction(null);
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                  >
+                    Terminate Employee
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend Employee Modal */}
+      {showSuspendModal && employeeToAction && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Suspend Employee</h2>
+                <button className="text-gray-500 hover:text-gray-700" onClick={() => {
+                  setShowSuspendModal(false);
+                  setEmployeeToAction(null);
+                }}>
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-gray-600">Suspend <strong>{employeeToAction.name}</strong> from work?</p>
+              </div>
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                handleSuspendSubmit({
+                  suspendedFrom: formData.get('suspendedFrom'),
+                  suspendedTo: formData.get('suspendedTo'),
+                  suspensionReason: formData.get('suspensionReason'),
+                  sendEmail: formData.get('sendEmail') === 'on'
+                });
+              }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Suspension Start Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="suspendedFrom"
+                      required
+                      defaultValue={new Date().toISOString().split('T')[0]}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Suspension End Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      name="suspendedTo"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite suspension</p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Suspension Reason
+                    </label>
+                    <textarea
+                      name="suspensionReason"
+                      rows={4}
+                      placeholder="Enter reason for suspension..."
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="sendEmail"
+                      id="suspend-send-email"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="suspend-send-email" className="ml-2 block text-sm text-gray-700">
+                      Send email notification to employee
+                    </label>
+                  </div>
+                  {employeeToAction?.email && (
+                    <p className="text-xs text-gray-500 ml-6">
+                      Email will be sent to: {employeeToAction.email}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSuspendModal(false);
+                      setEmployeeToAction(null);
+                    }}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700"
+                  >
+                    Suspend Employee
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

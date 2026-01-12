@@ -24,28 +24,26 @@ export async function GET(request) {
     
     // Calculate date ranges based on the selected timeframe
     let currentPeriodStart, currentPeriodEnd, previousPeriodStart, previousPeriodEnd;
-    
+
     switch (dateRange) {
       case 'today': {
-        currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        currentPeriodStart.setHours(0, 0, 0, 0);
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        currentPeriodEnd.setHours(23, 59, 59, 999);
-        previousPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        previousPeriodStart.setHours(0, 0, 0, 0);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        previousPeriodEnd.setHours(23, 59, 59, 999);
+        // Use local date to match database dates
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+        const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+        
+        currentPeriodStart = todayStart;
+        currentPeriodEnd = todayEnd;
+        previousPeriodStart = yesterdayStart;
+        previousPeriodEnd = yesterdayEnd;
         break;
       }
       case 'yesterday': {
-        currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        currentPeriodStart.setHours(0, 0, 0, 0);
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        currentPeriodEnd.setHours(23, 59, 59, 999);
-        previousPeriodStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
-        previousPeriodStart.setHours(0, 0, 0, 0);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
-        previousPeriodEnd.setHours(23, 59, 59, 999);
+        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
+        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
+        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0, 0));
+        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999));
         break;
       }
       case 'thisWeek': {
@@ -170,31 +168,31 @@ export async function GET(request) {
         // Handle custom date range from query parameters
         const startDate = searchParams.get('startDate');
         const endDate = searchParams.get('endDate');
-        
+
         if (startDate && endDate) {
           currentPeriodStart = new Date(startDate);
           currentPeriodEnd = new Date(endDate);
           currentPeriodStart.setHours(0, 0, 0, 0);
           currentPeriodEnd.setHours(23, 59, 59, 999);
-          
+
           // For custom ranges, we don't calculate previous period automatically
           previousPeriodStart = currentPeriodStart;
           previousPeriodEnd = currentPeriodEnd;
         } else {
           // Default to this month if custom dates not provided
-          currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          currentPeriodEnd = new Date(now);
-          previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+          currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+          currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+          previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
+          previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
         }
         break;
       }
       
       default: {
-        currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        currentPeriodEnd = new Date(now);
-        previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
+        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
       }
     }
     
@@ -207,21 +205,9 @@ export async function GET(request) {
       return date;
     }).reverse();
 
-    // Get current period's actual revenue (only completed payments received)
-    const [todayInvoices, todaySales] = await Promise.all([
-      // Revenue should only include actual payments received, not pending invoices
-      prisma.payment.aggregate({
-        where: {
-          tenantId,
-          type: { in: ['invoice', 'sale'] },
-          status: 'Completed',
-          paymentDate: { 
-            gte: currentPeriodStart,
-            lte: currentPeriodEnd
-          }
-        },
-        _sum: { amount: true }
-      }),
+    // Get current period's actual revenue from sales and invoices
+    const [todaySales, todayInvoices] = await Promise.all([
+      // Revenue from sales created today
       prisma.sale.aggregate({
         where: {
           tenantId,
@@ -232,6 +218,19 @@ export async function GET(request) {
           status: 'completed'
         },
         _sum: { total: true }
+      }),
+      // Revenue from invoice payments received today
+      prisma.payment.aggregate({
+        where: {
+          tenantId,
+          type: 'invoice',
+          status: 'Completed',
+          paymentDate: { 
+            gte: currentPeriodStart,
+            lte: currentPeriodEnd
+          }
+        },
+        _sum: { amount: true }
       })
     ]);
 
@@ -309,40 +308,32 @@ export async function GET(request) {
       })
     );
 
-    // Only count actual payments made for expenses, not pending expenses
-    const [todayExpensePayments] = await Promise.all([
-      // Regular expense payments
-      prisma.payment.aggregate({
+    // Count expenses from expense records created today
+    const [todayExpenses] = await Promise.all([
+      // Expenses created today
+      prisma.expense.aggregate({
         where: {
           tenantId,
-          type: 'expense',
-          status: 'Completed',
-          paymentDate: {
+          date: {
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           },
-          expense: {
-            isDeleted: false
-          }
+          isDeleted: false
         },
         _sum: { amount: true }
       })
     ]);
 
-    const [yesterdayExpensePayments] = await Promise.all([
-      // Regular expense payments
-      prisma.payment.aggregate({
+    const [yesterdayExpenses] = await Promise.all([
+      // Expenses created yesterday
+      prisma.expense.aggregate({
         where: {
           tenantId,
-          type: 'expense',
-          status: 'Completed',
-          paymentDate: {
+          date: {
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           },
-          expense: {
-            isDeleted: false
-          }
+          isDeleted: false
         },
         _sum: { amount: true }
       })
@@ -353,31 +344,31 @@ export async function GET(request) {
         const nextDay = new Date(date);
         nextDay.setDate(date.getDate() + 1);
         
-        const [expensePayment] = await Promise.all([
-          // Regular expense payments
-          prisma.payment.aggregate({
+        const [expenses] = await Promise.all([
+          // Expenses created on this date
+          prisma.expense.aggregate({
             where: {
               tenantId,
-              type: 'expense',
-              status: 'Completed',
-              paymentDate: {
+              date: {
                 gte: date,
                 lt: nextDay
               },
-              expense: {
-                isDeleted: false
-              }
+              isDeleted: false
             },
             _sum: { amount: true }
           })
         ]);
         
-        return (expensePayment._sum.amount || 0);
+        return (expenses._sum.amount || 0);
       })
     );
 
-    // Calculate revenue from payments only to avoid double-counting sales
-    const todayRevenue = (todayInvoices._sum.amount || 0);
+    // Calculate revenue: sales + invoice payments (avoid double counting sales that have payments)
+    const saleRevenue = (todaySales._sum.total || 0);
+    const invoicePaymentRevenue = (todayInvoices._sum.amount || 0);
+    // Total revenue is sales + invoice payments (they don't overlap)
+    const todayRevenue = saleRevenue + invoicePaymentRevenue;
+    
     const yesterdayRevenue = (yesterdayInvoices._sum.amount || 0);
 
     return NextResponse.json({
@@ -385,13 +376,13 @@ export async function GET(request) {
         today: {
           date: today.toISOString().split('T')[0],
           revenue: todayRevenue,
-          expenses: (todayExpensePayments._sum.amount || 0),
+          expenses: (todayExpenses._sum.amount || 0),
           transactions: todayInvoiceCount + todaySaleCount
         },
         yesterday: {
           date: yesterday.toISOString().split('T')[0],
           revenue: yesterdayRevenue,
-          expenses: (yesterdayExpensePayments._sum.amount || 0),
+          expenses: (yesterdayExpenses._sum.amount || 0),
           transactions: 0 // Add similar count if needed
         },
         weeklyTrend: {

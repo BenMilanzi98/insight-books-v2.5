@@ -75,13 +75,6 @@ export async function GET(request) {
               leaveType: true,
               maxDaysPerYear: true
             } 
-          },
-          reviewer: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
           }
         }
       })
@@ -99,8 +92,16 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Error fetching leave requests:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error code:', error.code);
     return NextResponse.json(
-      { error: 'Failed to fetch leave requests', details: error.message },
+      { 
+        error: 'Failed to fetch leave requests', 
+        details: error.message,
+        code: error.code,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

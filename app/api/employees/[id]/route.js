@@ -145,6 +145,18 @@ export async function PUT(request, { params }) {
       }
     }
     
+    // Handle documents - store in bankDetails JSON field
+    if (body.documents && Object.keys(body.documents).length > 0) {
+      // Merge with existing bankDetails if it exists
+      const existingBankDetails = existingEmployee.bankDetails && typeof existingEmployee.bankDetails === 'object' 
+        ? existingEmployee.bankDetails 
+        : {};
+      body.bankDetails = {
+        ...existingBankDetails,
+        documents: body.documents
+      };
+    }
+
     // Prepare update data
     const updateData = {
       name: body.name !== undefined ? body.name : undefined,
@@ -155,14 +167,20 @@ export async function PUT(request, { params }) {
       department: body.department !== undefined ? body.department : undefined,
       departmentId: body.departmentId !== undefined ? body.departmentId : undefined,
       status: body.status !== undefined ? body.status : undefined,
-      startDate: body.startDate !== undefined ? new Date(body.startDate) : undefined,
+      startDate: body.startDate !== undefined && body.startDate !== '' ? (() => {
+        const date = new Date(body.startDate);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
       address: body.address !== undefined ? body.address : undefined,
       
       // Additional HR fields
       idNumber: body.idNumber !== undefined ? body.idNumber : undefined,
       employmentType: body.employmentType !== undefined ? body.employmentType : undefined,
       hourlyRate: body.hourlyRate !== undefined ? parseFloat(body.hourlyRate) : undefined,
-      dateOfBirth: body.dateOfBirth !== undefined ? new Date(body.dateOfBirth) : undefined,
+      dateOfBirth: body.dateOfBirth !== undefined && body.dateOfBirth !== '' ? (() => {
+        const date = new Date(body.dateOfBirth);
+        return isNaN(date.getTime()) ? undefined : date;
+      })() : undefined,
       gender: body.gender !== undefined ? body.gender : undefined,
       maritalStatus: body.maritalStatus !== undefined ? body.maritalStatus : undefined,
       nationality: body.nationality !== undefined ? body.nationality : undefined,

@@ -58,6 +58,12 @@ model Tenant {
   suppliers                  Supplier[]
   purchaseOrders             PurchaseOrder[]
   goodsReceipts              GoodsReceipt[]
+  leavePolicies              LeavePolicy[]
+  leaveRequests              LeaveRequest[]
+  leaveBalances              LeaveBalance[]
+  performanceReviews         PerformanceReview[]
+  performanceGoals           PerformanceGoal[]
+  performanceFeedback        PerformanceFeedback[]
   budgets                    Budget[]
   exchangeRates              ExchangeRate[]
   supplierBills              SupplierBill[]
@@ -65,6 +71,8 @@ model Tenant {
   supplierPaymentAllocations SupplierPaymentAllocation[]
   bankAccounts               BankAccount[]
   equityAccounts             EquityAccount[]
+  gratuityAccounts           GratuityAccount[]
+  salaryAdvances             SalaryAdvance[]
 }
 
 model TenantSettings {
@@ -183,6 +191,9 @@ model User {
   createdJournalEntries        JournalEntry[]         @relation("JournalEntryCreatedBy")
   postedJournalEntries         JournalEntry[]         @relation("JournalEntryPostedBy")
   createdTransactions          Transaction[]          @relation("TransactionCreatedBy")
+  leaveRequestsReviewed        LeaveRequest[]
+  performanceReviewsConducted  PerformanceReview[]
+  performanceReviewsAcknowledged PerformanceReview[] @relation("ReviewAcknowledgedBy")
   postedTransactions           Transaction[]          @relation("TransactionPostedBy")
 
   @@index([email])
@@ -1012,10 +1023,23 @@ model Employee {
   reportingManager   Json?
   selectedDeductions Json?
   workLocation       String?
+  terminationDate    DateTime?
+  terminationReason  String?
+  suspendedFrom      DateTime?
+  suspendedTo        DateTime?
+  suspensionReason   String?
   departmentRef      Department?        @relation(fields: [departmentId], references: [id])
   tenant             Tenant             @relation(fields: [tenantId], references: [id])
   payrolls           Payroll[]
   attendanceRecords  AttendanceRecord[]
+  gratuityAccount    GratuityAccount?
+  salaryAdvances     SalaryAdvance[]
+  leaveRequests      LeaveRequest[]
+  leaveBalances      LeaveBalance[]
+  performanceReviews PerformanceReview[]
+  performanceGoals   PerformanceGoal[]
+  performanceFeedbackGiven PerformanceFeedback[] @relation("FeedbackGiven")
+  performanceFeedbackReceived PerformanceFeedback[] @relation("FeedbackReceived")
 
   @@index([tenantId])
   @@index([departmentId])
@@ -1079,6 +1103,82 @@ model Deduction {
   @@index([tenantId])
   @@index([isStatutory])
   @@index([isActive])
+}
+
+model GratuityAccount {
+  id                String            @id @default(cuid())
+  employeeId        String            @unique
+  tenantId          String
+  accrualRate       Float             @default(0.0833) // Default 1/12 of monthly salary per year (8.33% per year)
+  totalAccrued      Float             @default(0)
+  totalPaid         Float             @default(0)
+  outstandingAmount Float             @default(0)
+  lastCalculatedAt  DateTime?
+  notes             String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  employee          Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tenant            Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payments          GratuityPayment[]
+
+  @@index([tenantId])
+  @@index([employeeId])
+}
+
+model GratuityPayment {
+  id                String          @id @default(cuid())
+  gratuityAccountId String
+  amount            Float
+  paymentDate       DateTime
+  reference         String?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  gratuityAccount   GratuityAccount @relation(fields: [gratuityAccountId], references: [id], onDelete: Cascade)
+
+  @@index([gratuityAccountId])
+  @@index([paymentDate])
+}
+
+model SalaryAdvance {
+  id                String             @id @default(cuid())
+  employeeId        String
+  tenantId          String
+  amount            Float
+  advanceDate       DateTime
+  repaymentMonths   Int                @default(1) // Number of months to repay
+  monthlyDeduction  Float // Amount to deduct per month
+  totalDeducted     Float              @default(0)
+  outstandingAmount Float // Calculated: amount - totalDeducted
+  status            String             @default("Active") // Active, Completed, Cancelled
+  reference         String?
+  notes             String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  employee          Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deductions        AdvanceDeduction[]
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([advanceDate])
+}
+
+model AdvanceDeduction {
+  id              String        @id @default(cuid())
+  salaryAdvanceId String
+  payrollId       String?
+  amount          Float
+  deductionDate   DateTime
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  salaryAdvance   SalaryAdvance @relation(fields: [salaryAdvanceId], references: [id], onDelete: Cascade)
+
+  @@index([salaryAdvanceId])
+  @@index([payrollId])
+  @@index([deductionDate])
 }
 
 model Affiliate {
@@ -1516,6 +1616,188 @@ model AttendanceRegister {
   @@unique([tenantId, date])
   @@index([tenantId])
   @@index([date])
+}
+
+model LeavePolicy {
+  id                    String        @id @default(cuid())
+  name                  String
+  description           String?
+  leaveType             String        // annual, sick, maternity, paternity, emergency, unpaid
+  maxDaysPerYear        Int?
+  maxDaysPerRequest     Int?
+  minDaysPerRequest     Int?
+  requiresApproval      Boolean       @default(true)
+  requiresDocumentation Boolean      @default(false)
+  isPaid                Boolean       @default(true)
+  accrualRate           Float?        // Days per month (e.g., 1.25 for 15 days/year)
+  carryOverLimit        Int?          // Max days that can be carried over
+  isActive              Boolean       @default(true)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  tenantId              String
+  tenant                Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leaveRequests         LeaveRequest[]
+  leaveBalances         LeaveBalance[]
+
+  @@index([tenantId])
+  @@index([leaveType])
+  @@index([isActive])
+}
+
+model LeaveRequest {
+  id              String      @id @default(cuid())
+  employeeId      String
+  leavePolicyId   String
+  startDate       DateTime
+  endDate         DateTime
+  totalDays       Int
+  reason          String?
+  documentation  String?      // URL to uploaded document
+  status          String      @default("pending") // pending, approved, rejected, cancelled
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  reviewComments  String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  tenantId        String
+  employee        Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leavePolicy     LeavePolicy  @relation(fields: [leavePolicyId], references: [id], onDelete: Cascade)
+  tenant          Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reviewer        User?       @relation(fields: [reviewedBy], references: [id])
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([leavePolicyId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+}
+
+model LeaveBalance {
+  id                String      @id @default(cuid())
+  employeeId        String
+  leavePolicyId     String
+  tenantId          String
+  allocatedDays     Float       @default(0)  // Total days allocated for the year
+  usedDays          Float       @default(0)  // Days used
+  pendingDays       Float       @default(0)  // Days in pending requests
+  availableDays     Float       @default(0)  // Available days (allocated - used - pending)
+  carriedOverDays   Float       @default(0)  // Days carried over from previous year
+  year              Int         // The year this balance is for
+  lastCalculatedAt  DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  employee          Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leavePolicy       LeavePolicy @relation(fields: [leavePolicyId], references: [id], onDelete: Cascade)
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, leavePolicyId, year])
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([leavePolicyId])
+  @@index([year])
+}
+
+model PerformanceReview {
+  id                String      @id @default(cuid())
+  employeeId        String
+  reviewerId        String      // User who conducted the review
+  tenantId          String
+  reviewPeriod      String      // e.g., "Q1 2024", "Annual 2024"
+  reviewType        String      @default("annual") // annual, quarterly, mid-year, probation
+  reviewDate        DateTime
+  overallRating     Float       // 1-5 scale
+  overallComments   String?
+  strengths         String?
+  areasForImprovement String?
+  goalsAchieved     Int         @default(0)
+  goalsTotal        Int         @default(0)
+  status            String      @default("draft") // draft, completed, acknowledged
+  acknowledgedAt    DateTime?
+  acknowledgedBy    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  employee          Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reviewer          User        @relation(fields: [reviewerId], references: [id])
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reviewCriteria    PerformanceReviewCriteria[]
+  acknowledger      User?       @relation("ReviewAcknowledgedBy", fields: [acknowledgedBy], references: [id])
+  goals             PerformanceGoal[]
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([reviewerId])
+  @@index([reviewDate])
+  @@index([status])
+}
+
+model PerformanceReviewCriteria {
+  id                String            @id @default(cuid())
+  reviewId          String
+  criteriaName      String            // e.g., "Communication", "Technical Skills"
+  rating            Float             // 1-5 scale
+  comments          String?
+  weight            Float             @default(1.0) // Weight for calculating overall rating
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  review            PerformanceReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+}
+
+model PerformanceGoal {
+  id                String      @id @default(cuid())
+  employeeId        String
+  tenantId          String
+  title             String
+  description       String?
+  category          String?     // e.g., "Professional Development", "Sales", "Quality"
+  targetValue       Float?      // Numeric target if applicable
+  targetUnit        String?     // e.g., "sales", "projects", "percentage"
+  startDate         DateTime
+  targetDate        DateTime
+  status            String      @default("active") // active, completed, cancelled, on-hold
+  progress          Float       @default(0) // 0-100 percentage
+  currentValue      Float?      // Current progress value
+  notes             String?
+  completedAt       DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  employee          Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  review            PerformanceReview? @relation(fields: [reviewId], references: [id])
+  reviewId          String?
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([targetDate])
+}
+
+model PerformanceFeedback {
+  id                String      @id @default(cuid())
+  employeeId        String      // Employee receiving feedback
+  feedbackGiverId   String      // Employee/User giving feedback
+  tenantId          String
+  feedbackType      String      @default("peer") // peer, manager, subordinate, self, 360
+  reviewId          String?     // Optional link to performance review
+  rating            Float?      // 1-5 scale (optional)
+  strengths         String?
+  areasForImprovement String?
+  suggestions       String?
+  isAnonymous       Boolean     @default(false)
+  status            String      @default("submitted") // submitted, reviewed, archived
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  employee          Employee    @relation("FeedbackReceived", fields: [employeeId], references: [id], onDelete: Cascade)
+  feedbackGiver     Employee    @relation("FeedbackGiven", fields: [feedbackGiverId], references: [id], onDelete: Cascade)
+  tenant            Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([feedbackGiverId])
+  @@index([feedbackType])
+  @@index([createdAt])
 }
 
 model AssetCategory {

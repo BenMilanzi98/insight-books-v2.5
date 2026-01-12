@@ -33,13 +33,13 @@ export async function GET(request) {
     
     switch (dateRange) {
       case 'today': {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         break;
       }
       case 'yesterday': {
-        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
         break;
       }
       case 'thisWeek': {
@@ -51,18 +51,18 @@ export async function GET(request) {
         break;
       }
       case 'thisMonth': {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now);
+        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         break;
       }
       case 'lastMonth': {
-        startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
         break;
       }
       case 'thisYear': {
-        startDate = new Date(now.getFullYear(), 0, 1);
-        endDate = new Date(now);
+        startDate = new Date(Date.UTC(now.getFullYear(), 0, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
         break;
       }
       case 'custom': {
@@ -78,8 +78,8 @@ export async function GET(request) {
         break;
       }
       default: {
-        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-        endDate = new Date(now);
+        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
       }
     }
     
@@ -204,16 +204,18 @@ export async function GET(request) {
           _sum: { amount: true }
         }),
         // Only count actual payments made for expenses, not pending expenses
+        // Include both regular expenses and loan payments (principal and interest)
         // Exclude payments linked to deleted expenses
         prisma.payment.aggregate({
           where: {
             tenantId,
-            type: 'expense',
+            type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
             status: 'Completed',
             paymentDate: { gte: filterStartDate, lte: filterEndDate },
-            expense: {
-              isDeleted: false
-            }
+            OR: [
+              { expense: { isDeleted: false } },
+              { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
+            ]
           },
           _sum: { amount: true }
         })

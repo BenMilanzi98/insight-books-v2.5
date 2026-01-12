@@ -200,6 +200,97 @@ export async function POST(request) {
         }
       }
 
+      // Fetch active salary advances for this employee
+      const activeAdvances = await prisma.salaryAdvance.findMany({
+        where: {
+          employeeId: employee.id,
+          tenantId: user.tenantId,
+          status: 'Active',
+          outstandingAmount: { gt: 0 }
+        }
+      });
+
+      // Add advance deductions to otherDeductions
+      const advanceDeductions = [];
+      for (const advance of activeAdvances) {
+        // Calculate deduction amount (use monthly deduction, but don't exceed outstanding)
+        const deductionAmount = Math.min(advance.monthlyDeduction, advance.outstandingAmount);
+        if (deductionAmount > 0) {
+          otherDeductions[`advance_${advance.id}`] = deductionAmount;
+          advanceDeductions.push({
+            advanceId: advance.id,
+            amount: deductionAmount
+          });
+        }
+      }
+
+      // Fetch unpaid leave requests for this employee during the payroll period
+      const unpaidLeaveRequests = await prisma.leaveRequest.findMany({
+        where: {
+          employeeId: employee.id,
+          tenantId: user.tenantId,
+          status: 'approved',
+          leavePolicy: {
+            isPaid: false // Only unpaid leave should be deducted
+          },
+          OR: [
+            {
+              AND: [
+                { startDate: { lte: periodEnd } },
+                { endDate: { gte: periodStart } }
+              ]
+            }
+          ]
+        },
+        include: {
+          leavePolicy: {
+            select: {
+              id: true,
+              name: true,
+              leaveType: true,
+              isPaid: true
+            }
+          }
+        }
+      });
+
+      // Calculate leave deduction for unpaid leave days within the payroll period
+      let leaveDeductions = [];
+      let totalLeaveDeduction = 0;
+      
+      for (const leaveRequest of unpaidLeaveRequests) {
+        // Calculate overlapping days between leave period and payroll period
+        const leaveStart = new Date(leaveRequest.startDate);
+        const leaveEnd = new Date(leaveRequest.endDate);
+        const payrollStart = new Date(periodStart);
+        const payrollEnd = new Date(periodEnd);
+
+        // Find the overlap
+        const overlapStart = leaveStart > payrollStart ? leaveStart : payrollStart;
+        const overlapEnd = leaveEnd < payrollEnd ? leaveEnd : payrollEnd;
+
+        if (overlapStart <= overlapEnd) {
+          // Calculate days in overlap (inclusive of both start and end)
+          const overlapDays = Math.ceil((overlapEnd - overlapStart) / (1000 * 60 * 60 * 24)) + 1;
+          
+          // Calculate daily rate (assuming monthly salary / working days per month)
+          const workingDaysPerMonth = 22; // Standard working days
+          const dailyRate = baseSalary / workingDaysPerMonth;
+          const deductionAmount = dailyRate * overlapDays;
+
+          if (deductionAmount > 0) {
+            otherDeductions[`leave_${leaveRequest.id}`] = deductionAmount;
+            totalLeaveDeduction += deductionAmount;
+            leaveDeductions.push({
+              leaveRequestId: leaveRequest.id,
+              leaveType: leaveRequest.leavePolicy.leaveType,
+              days: overlapDays,
+              amount: deductionAmount
+            });
+          }
+        }
+      }
+
       const payrollData = {
         basicSalary: baseSalary,
         allowances: {},
@@ -212,10 +303,7 @@ export async function POST(request) {
 
       const payrollCalculation = calculateMalawiPayroll(payrollData);
 
-      const totalDeductions = Number(payrollCalculation.totalDeductions) || 0;
-      const netPay = Number(payrollCalculation.netPay) || 0;
-      const grossPay = Number(payrollCalculation.totalGrossPay) || 0;
-      const additions = Number(payrollCalculation.overtimePay) || 0;
+      // Ensure all values are properly calculated
       const payeAmount = Number(payrollCalculation.payeAmount) || 0;
       const npsEmployeeAmount = Number(payrollCalculation.npsEmployeeAmount) || 0;
       const npsEmployerAmount = Number(payrollCalculation.npsEmployerAmount) || 0;
@@ -223,10 +311,49 @@ export async function POST(request) {
         (sum, value) => sum + (Number(value) || 0),
         0
       );
+      
+      // Calculate total deductions by adding all deduction components
+      // This ensures deductions are properly accumulated before subtracting
+      const totalDeductions = payeAmount + npsEmployeeAmount + otherDeductionsTotal;
+      
+      const grossPay = Number(payrollCalculation.totalGrossPay) || 0;
+      const additions = Number(payrollCalculation.overtimePay) || 0;
+      
+      // Calculate net pay: Gross Pay - Total Deductions
+      // Ensure net pay is never negative
+      const netPay = Math.max(0, grossPay - totalDeductions);
+      
+      // Debug logging to verify calculation
+      console.log(`Payroll Calculation for ${employee.name}:`, {
+        basicSalary: baseSalary,
+        additions: additions,
+        grossPay: grossPay,
+        payeAmount: payeAmount,
+        npsEmployeeAmount: npsEmployeeAmount,
+        otherDeductionsTotal: otherDeductionsTotal,
+        totalDeductions: totalDeductions,
+        netPay: netPay,
+        calculation: `Net Pay = ${grossPay} - ${totalDeductions} = ${netPay}`
+      });
+
+      // Calculate total advance deductions for display
+      const totalAdvanceDeductions = advanceDeductions.reduce((sum, ad) => sum + ad.amount, 0);
 
       const additionalInfo = {
         allowances: payrollCalculation.allowances || {},
         otherDeductions: payrollCalculation.otherDeductions || {},
+        advanceDeductions: advanceDeductions.map(ad => ({
+          advanceId: ad.advanceId,
+          amount: ad.amount
+        })),
+        totalAdvanceDeductions,
+        leaveDeductions: leaveDeductions.map(ld => ({
+          leaveRequestId: ld.leaveRequestId,
+          leaveType: ld.leaveType,
+          days: ld.days,
+          amount: ld.amount
+        })),
+        totalLeaveDeductions: totalLeaveDeduction,
         npsEmployeeAmount,
         npsEmployerAmount,
         hoursWorked: totalHoursWorked,
@@ -263,6 +390,44 @@ export async function POST(request) {
       });
 
       payrollEntries.push(payrollEntry);
+
+      // Record advance deductions
+      for (const advanceDeduction of advanceDeductions) {
+        try {
+          await prisma.advanceDeduction.create({
+            data: {
+              salaryAdvanceId: advanceDeduction.advanceId,
+              payrollId: payrollEntry.id,
+              amount: advanceDeduction.amount,
+              deductionDate: paymentDate || periodEnd,
+              notes: `Deducted from payroll for period ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()}`
+            }
+          });
+
+          // Update advance totals
+          const advance = await prisma.salaryAdvance.findUnique({
+            where: { id: advanceDeduction.advanceId }
+          });
+
+          if (advance) {
+            const newTotalDeducted = advance.totalDeducted + advanceDeduction.amount;
+            const newOutstanding = Math.max(0, advance.amount - newTotalDeducted);
+            const newStatus = newOutstanding <= 0 ? 'Completed' : advance.status;
+
+            await prisma.salaryAdvance.update({
+              where: { id: advanceDeduction.advanceId },
+              data: {
+                totalDeducted: newTotalDeducted,
+                outstandingAmount: newOutstanding,
+                status: newStatus
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error recording advance deduction for advance ${advanceDeduction.advanceId}:`, error);
+          // Continue processing other advances even if one fails
+        }
+      }
 
       // Create expense record for this payroll entry
       // Use periodEnd date so expenses appear in the correct month

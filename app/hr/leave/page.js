@@ -184,6 +184,26 @@ export default function LeaveManagement() {
             >
               Leave Requests
             </button>
+            <button
+              onClick={() => setActiveTab('balances')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'balances'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Leave Balances
+            </button>
+            <button
+              onClick={() => setActiveTab('calendar')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'calendar'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Calendar
+            </button>
           </nav>
         </div>
       </div>
@@ -363,6 +383,16 @@ export default function LeaveManagement() {
         />
       )}
 
+      {/* Balances Tab */}
+      {activeTab === 'balances' && (
+        <LeaveBalancesTab />
+      )}
+
+      {/* Calendar Tab */}
+      {activeTab === 'calendar' && (
+        <LeaveCalendarTab requests={requests} />
+      )}
+
       {/* Request Modal */}
       {showRequestModal && (
         <RequestModal
@@ -375,6 +405,245 @@ export default function LeaveManagement() {
           onSubmit={handleRequestSubmit}
         />
       )}
+    </div>
+  );
+}
+
+// Leave Balances Tab Component
+function LeaveBalancesTab() {
+  const [balances, setBalances] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  useEffect(() => {
+    loadBalances();
+  }, [year]);
+
+  const loadBalances = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/leave-balances?year=${year}`);
+      const data = await response.json();
+      if (response.ok) {
+        setBalances(data.balances || []);
+      }
+    } catch (error) {
+      console.error('Error loading balances:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRecalculate = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/leave-balances/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        await loadBalances();
+        alert('Leave balances recalculated successfully');
+      } else {
+        alert(data.error || 'Failed to recalculate balances');
+      }
+    } catch (error) {
+      console.error('Error recalculating balances:', error);
+      alert('Failed to recalculate balances');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Group balances by employee
+  const balancesByEmployee = balances.reduce((acc, balance) => {
+    const empId = balance.employeeId;
+    if (!acc[empId]) {
+      acc[empId] = {
+        employee: balance.employee,
+        policies: []
+      };
+    }
+    acc[empId].policies.push(balance);
+    return acc;
+  }, {});
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold">Leave Balances</h2>
+          <select
+            value={year}
+            onChange={(e) => setYear(parseInt(e.target.value))}
+            className="border border-gray-300 rounded-md px-3 py-1 text-sm"
+          >
+            {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleRecalculate}
+          disabled={loading}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Recalculating...' : 'Recalculate All Balances'}
+        </button>
+      </div>
+
+      {loading && balances.length === 0 ? (
+        <div className="text-center py-8">Loading balances...</div>
+      ) : Object.keys(balancesByEmployee).length === 0 ? (
+        <div className="text-center py-8 text-gray-500">No leave balances found</div>
+      ) : (
+        <div className="space-y-4">
+          {Object.values(balancesByEmployee).map(({ employee, policies }) => (
+            <div key={employee.id} className="bg-white shadow rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">
+                {employee.name} {employee.employeeId && `(${employee.employeeId})`}
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {policies.map((balance) => (
+                  <div key={balance.id} className="border border-gray-200 rounded-md p-3">
+                    <p className="text-sm font-medium text-gray-700">{balance.leavePolicy.name}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-600">Available:</span>
+                        <span className="ml-1 font-semibold text-green-600">{balance.availableDays?.toFixed(1) || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Used:</span>
+                        <span className="ml-1 font-semibold text-blue-600">{balance.usedDays?.toFixed(1) || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Pending:</span>
+                        <span className="ml-1 font-semibold text-yellow-600">{balance.pendingDays?.toFixed(1) || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">Allocated:</span>
+                        <span className="ml-1 font-semibold text-gray-900">{balance.allocatedDays?.toFixed(1) || 0}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Leave Calendar Tab Component
+function LeaveCalendarTab({ requests }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1).getDay();
+
+  // Get approved leave requests for the current month
+  const monthRequests = requests.filter(req => {
+    if (req.status !== 'approved') return false;
+    const reqStart = new Date(req.startDate);
+    const reqEnd = new Date(req.endDate);
+    const monthStart = new Date(currentYear, currentMonth, 1);
+    const monthEnd = new Date(currentYear, currentMonth + 1, 0);
+    return (reqStart <= monthEnd && reqEnd >= monthStart);
+  });
+
+  const getDayRequests = (day) => {
+    const date = new Date(currentYear, currentMonth, day);
+    return monthRequests.filter(req => {
+      const reqStart = new Date(req.startDate);
+      const reqEnd = new Date(req.endDate);
+      return date >= reqStart && date <= reqEnd;
+    });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'approved': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">Leave Calendar</h2>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (currentMonth === 0) {
+                setCurrentMonth(11);
+                setCurrentYear(currentYear - 1);
+              } else {
+                setCurrentMonth(currentMonth - 1);
+              }
+            }}
+            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Previous
+          </button>
+          <span className="font-medium">{monthNames[currentMonth]} {currentYear}</span>
+          <button
+            onClick={() => {
+              if (currentMonth === 11) {
+                setCurrentMonth(0);
+                setCurrentYear(currentYear + 1);
+              } else {
+                setCurrentMonth(currentMonth + 1);
+              }
+            }}
+            className="px-3 py-1 border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 gap-px bg-gray-200">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="bg-gray-50 p-2 text-center text-sm font-medium text-gray-700">
+              {day}
+            </div>
+          ))}
+          {Array(firstDayOfMonth).fill(null).map((_, i) => (
+            <div key={`empty-${i}`} className="bg-white p-2 min-h-[100px]"></div>
+          ))}
+          {Array(daysInMonth).fill(null).map((_, i) => {
+            const day = i + 1;
+            const dayRequests = getDayRequests(day);
+            return (
+              <div key={day} className="bg-white p-2 min-h-[100px] border-r border-b border-gray-200">
+                <div className="text-sm font-medium text-gray-900 mb-1">{day}</div>
+                <div className="space-y-1">
+                  {dayRequests.slice(0, 2).map(req => (
+                    <div
+                      key={req.id}
+                      className={`text-xs px-1 py-0.5 rounded ${getStatusColor(req.status)} truncate`}
+                      title={`${req.employee?.name} - ${req.leavePolicy?.name}`}
+                    >
+                      {req.employee?.name}
+                    </div>
+                  ))}
+                  {dayRequests.length > 2 && (
+                    <div className="text-xs text-gray-500">+{dayRequests.length - 2} more</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -527,8 +796,12 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
     endDate: '',
     reason: ''
   });
+  const [employees, setEmployees] = useState([]);
+  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [loadingBalance, setLoadingBalance] = useState(false);
 
   useEffect(() => {
+    loadEmployees();
     if (request) {
       setFormData({
         employeeId: request.employeeId || '',
@@ -539,6 +812,43 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
       });
     }
   }, [request]);
+
+  useEffect(() => {
+    if (formData.employeeId && formData.leavePolicyId && !request) {
+      loadLeaveBalance(formData.employeeId, formData.leavePolicyId);
+    } else {
+      setLeaveBalance(null);
+    }
+  }, [formData.employeeId, formData.leavePolicyId]);
+
+  const loadEmployees = async () => {
+    try {
+      const response = await fetch('/api/employees?limit=1000&isActive=true');
+      const data = await response.json();
+      if (response.ok) {
+        setEmployees(data.employees || []);
+      }
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    }
+  };
+
+  const loadLeaveBalance = async (employeeId, leavePolicyId) => {
+    try {
+      setLoadingBalance(true);
+      const year = new Date().getFullYear();
+      const response = await fetch(`/api/leave-balances?employeeId=${employeeId}&year=${year}`);
+      const data = await response.json();
+      if (response.ok) {
+        const balance = data.balances?.find(b => b.leavePolicyId === leavePolicyId);
+        setLeaveBalance(balance);
+      }
+    } catch (error) {
+      console.error('Error loading leave balance:', error);
+    } finally {
+      setLoadingBalance(false);
+    }
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -553,8 +863,27 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
             {request ? 'View Leave Request' : 'New Leave Request'}
           </h3>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {!request && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Employee *</label>
+                <select
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  required
+                >
+                  <option value="">Select an employee</option>
+                  {employees.map((employee) => (
+                    <option key={employee.id} value={employee.id}>
+                      {employee.name} {employee.employeeId ? `(${employee.employeeId})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
-              <label className="block text-sm font-medium text-gray-700">Leave Policy</label>
+              <label className="block text-sm font-medium text-gray-700">Leave Policy *</label>
               <select
                 value={formData.leavePolicyId}
                 onChange={(e) => setFormData({ ...formData, leavePolicyId: e.target.value })}
@@ -570,6 +899,26 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
                 ))}
               </select>
             </div>
+
+            {leaveBalance && !request && (
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-sm font-medium text-blue-900">Leave Balance</p>
+                <div className="mt-1 grid grid-cols-3 gap-2 text-xs">
+                  <div>
+                    <span className="text-blue-700">Available:</span>
+                    <span className="ml-1 font-semibold text-blue-900">{leaveBalance.availableDays?.toFixed(1) || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Used:</span>
+                    <span className="ml-1 font-semibold text-blue-900">{leaveBalance.usedDays?.toFixed(1) || 0}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-700">Pending:</span>
+                    <span className="ml-1 font-semibold text-blue-900">{leaveBalance.pendingDays?.toFixed(1) || 0}</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700">Start Date</label>

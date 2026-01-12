@@ -91,9 +91,12 @@ const navigationByPermission = {
           expandable: true,
           subItems: [
             { href: "/hr/employees", text: "Employee Management" },
-           // { href: "/hr/leave", text: "Leave Management" },
+            { href: "/hr/leave", text: "Leave Management" },
             { href: "/hr/attendance", text: "Attendance Tracking" },
+            { href: "/hr/performance", text: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing" },
+            { href: "/hr/gratuity", text: "Gratuity Management" },
+            { href: "/hr/advances", text: "Salary Advances" },
             { href: "/hr/reports", text: "HR Reports" }
           ]
         },
@@ -468,9 +471,12 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         expandable: true,
         subItems: [
           { href: "/hr/employees", text: "Employee Management" },
-          //{ href: "/hr/leave", text: "Leave Management" },
-          // { href: "/hr/attendance", text: "Attendance Tracking" },
+          { href: "/hr/leave", text: "Leave Management" },
+          { href: "/hr/attendance", text: "Attendance Tracking" },
+          { href: "/hr/performance", text: "Performance Management" },
           { href: "/hr/payroll", text: "Payroll Processing" },
+          { href: "/hr/gratuity", text: "Gratuity Management" },
+          { href: "/hr/advances", text: "Salary Advances" },
           { href: "/hr/reports", text: "HR Reports" }
         ]
       });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, Filter, X, Edit, Trash2, CheckCircle, AlertTriangle } from "lucide-react";
+import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User } from "lucide-react";
 
 export default function AttendancePage() {
   const [records, setRecords] = useState([]);

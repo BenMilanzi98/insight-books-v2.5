@@ -123,6 +123,7 @@ export async function GET(request) {
     }
     
     // Get all expenses for the selected period, grouped by category
+    // Include loan principal and interest as separate categories
     // Exclude deleted expenses
     const expenses = await prisma.expense.groupBy({
       by: ['category'],
@@ -147,7 +148,7 @@ export async function GET(request) {
     const expensesBreakdown = expenses.map(expense => ({
       category: expense.category,
       amount: expense._sum.amount,
-      percentage: ((expense._sum.amount / totalExpenses) * 100).toFixed(1)
+      percentage: totalExpenses > 0 ? ((expense._sum.amount / totalExpenses) * 100).toFixed(1) : '0.0'
     }));
     
     return NextResponse.json({
