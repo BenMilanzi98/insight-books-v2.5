@@ -5,15 +5,37 @@
 
 set -e
 
+# Get the directory where the script is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Get the project root (parent of scripts directory)
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
+
+# Change to project root
+cd "$PROJECT_ROOT"
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+echo "Working directory: $PROJECT_ROOT"
+echo ""
+
+# Load .env file if it exists
+if [ -f .env ]; then
+    echo -e "${GREEN}Loading database configuration from .env file...${NC}"
+    # Use a safer method to load .env (handles values with spaces)
+    set -a
+    source .env
+    set +a
+else
+    echo -e "${YELLOW}Warning: .env file not found. Using environment variables.${NC}"
+fi
+
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
-    echo "ERROR: DATABASE_URL environment variable is not set"
-    echo "Please set it with: export DATABASE_URL='postgresql://henmik:Password2030@localhost:5432/insightbooks?schema=public'"
+    echo "ERROR: DATABASE_URL not found in .env or environment variables"
+    echo "Please ensure DATABASE_URL is set in your .env file or as an environment variable"
     exit 1
 fi
 

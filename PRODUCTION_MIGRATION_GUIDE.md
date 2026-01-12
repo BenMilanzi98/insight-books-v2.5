@@ -9,12 +9,14 @@ Before making any changes to production, **ALWAYS backup your database**.
 ### 1. **Backup Your Production Database** (MANDATORY)
 
 ```bash
-# Connect to your production server and create a backup
-# Replace with your actual database credentials
-pg_dump -h YOUR_DB_HOST -U YOUR_DB_USER -d YOUR_DB_NAME -F c -f backup_$(date +%Y%m%d_%H%M%S).dump
+# Use the backup script (automatically reads from .env)
+./scripts/backup-database.sh
 
-# Or if using a connection string:
-pg_dump "YOUR_DATABASE_URL" -F c -f backup_$(date +%Y%m%d_%H%M%S).dump
+# OR manually:
+# The script loads DATABASE_URL from .env automatically
+# Or set it manually:
+# export DATABASE_URL="your_production_database_url"
+# pg_dump "$DATABASE_URL" -F c -f backup_$(date +%Y%m%d_%H%M%S).dump
 ```
 
 ### 2. **Create Migration Locally** (Development)
@@ -66,10 +68,14 @@ npx prisma migrate deploy
 #### Option A: Using Prisma Migrate Deploy (Recommended)
 
 ```bash
-# Set production DATABASE_URL
-export DATABASE_URL="your_production_database_url"
+# The script will automatically load DATABASE_URL from .env file
+# Or set it manually if needed:
+# export DATABASE_URL="your_production_database_url"
 
-# Apply pending migrations (doesn't create new ones)
+# Use the deployment script (recommended - has safety checks)
+./scripts/deploy-to-production.sh
+
+# OR apply manually:
 npx prisma migrate deploy
 
 # This will:
@@ -159,13 +165,19 @@ If something goes wrong:
 ## Quick Reference Commands
 
 ```bash
+# Backup database (reads from .env automatically)
+./scripts/backup-database.sh
+
+# Deploy migrations to production (reads from .env automatically)
+./scripts/deploy-to-production.sh
+
 # Check migration status
 npx prisma migrate status
 
 # Create new migration (development only)
 npx prisma migrate dev --name migration_name
 
-# Apply migrations to production
+# Apply migrations to production (manual)
 npx prisma migrate deploy
 
 # Generate Prisma client
@@ -174,6 +186,8 @@ npx prisma generate
 # View database in browser
 npx prisma studio
 ```
+
+**Note:** The scripts automatically load `DATABASE_URL` from your `.env` file, so you don't need to set it manually.
 
 ## Important Notes
 
