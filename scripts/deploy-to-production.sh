@@ -19,7 +19,7 @@ NC='\033[0m' # No Color
 # Check if DATABASE_URL is set
 if [ -z "$DATABASE_URL" ]; then
     echo -e "${RED}ERROR: DATABASE_URL environment variable is not set${NC}"
-    echo "Please set it with: export DATABASE_URL='your_production_database_url'"
+    echo "Please set it with: export DATABASE_URL='postgresql://henmik:Password2030@localhost:5432/insightbooks?schema=public'"
     exit 1
 fi
 
