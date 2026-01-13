@@ -94,7 +94,9 @@ export async function POST(request) {
       hoursWorked = 0,
       overtimeHours = 0,
       status = 'Present',
-      notes
+      notes,
+      clockIn,
+      clockOut
     } = body;
 
     if (!employeeId || !date) {
@@ -125,6 +127,60 @@ export async function POST(request) {
       parsedDate = new Date(date);
     }
 
+    // Check if record already exists for this employee and date
+    const existingRecord = await prisma.attendanceRecord.findFirst({
+      where: {
+        employeeId,
+        tenantId: user.tenantId,
+        date: parsedDate
+      }
+    });
+
+    if (existingRecord) {
+      return NextResponse.json(
+        { error: 'Attendance record already exists for this employee and date. Please update the existing record instead.' },
+        { status: 400 }
+      );
+    }
+
+    // Parse clock in/out times
+    let parsedClockIn = null;
+    let parsedClockOut = null;
+    
+    if (clockIn) {
+      try {
+        parsedClockIn = new Date(clockIn);
+        if (isNaN(parsedClockIn.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid clock in time format' },
+            { status: 400 }
+          );
+        }
+      } catch (e) {
+        return NextResponse.json(
+          { error: 'Invalid clock in time format' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (clockOut) {
+      try {
+        parsedClockOut = new Date(clockOut);
+        if (isNaN(parsedClockOut.getTime())) {
+          return NextResponse.json(
+            { error: 'Invalid clock out time format' },
+            { status: 400 }
+          );
+        }
+      } catch (e) {
+        return NextResponse.json(
+          { error: 'Invalid clock out time format' },
+          { status: 400 }
+        );
+      }
+    }
+
     const record = await prisma.attendanceRecord.create({
       data: {
         employeeId,
@@ -133,15 +189,34 @@ export async function POST(request) {
         hoursWorked: Number(hoursWorked) || 0,
         overtimeHours: Number(overtimeHours) || 0,
         status,
-        notes: notes || null
+        notes: notes || null,
+        clockIn: parsedClockIn,
+        clockOut: parsedClockOut
       }
     });
 
     return NextResponse.json({ attendance: record }, { status: 201 });
   } catch (error) {
     console.error('Error creating attendance:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    
+    // Handle Prisma unique constraint violation
+    if (error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Attendance record already exists for this employee and date. Please update the existing record instead.' },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create attendance' },
+      { 
+        error: 'Failed to create attendance',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }

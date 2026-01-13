@@ -127,10 +127,29 @@ export async function POST(request) {
       );
     }
 
-    const findAccountByName = (name) =>
-      payrollAccounts.find(
-        (acc) => (acc.accountName || acc.name || '').toLowerCase() === name.toLowerCase()
+    const findAccountByName = (name) => {
+      const found = payrollAccounts.find(
+        (acc) => {
+          const accName = (acc.accountName || acc.name || '').trim();
+          return accName.toLowerCase() === name.toLowerCase();
+        }
       );
+      
+      if (!found && name === 'Salaries Expense') {
+        // If Salaries Expense not found, try to find any expense account with "Salary" or "Salaries" in the name
+        const salaryExpense = payrollAccounts.find(
+          (acc) => {
+            const accName = (acc.accountName || acc.name || '').trim().toLowerCase();
+            const accType = (acc.accountType || acc.type || '').toLowerCase();
+            return (accName.includes('salary') || accName.includes('salaries')) && 
+                   (accType.includes('expense') || accType === 'expense');
+          }
+        );
+        return salaryExpense;
+      }
+      
+      return found;
+    };
 
     const expenseAccount =
       selectedExpenseAccount || findAccountByName('Salaries Expense');
@@ -141,9 +160,48 @@ export async function POST(request) {
     const npsEmployerAccount = findAccountByName('NPS Employer Contribution Liability');
     const otherDeductionsAccount = findAccountByName('Payroll Deductions Liability');
 
+    // Validate expense account is actually an expense account and not COGS
+    if (expenseAccount) {
+      const expenseAccountName = (expenseAccount.accountName || expenseAccount.name || '').toLowerCase();
+      const expenseAccountType = (expenseAccount.accountType || expenseAccount.type || '').toLowerCase();
+      
+      // Check if it's COGS or wrong account type
+      if (expenseAccountName.includes('cost of goods') || expenseAccountName.includes('cogs')) {
+        return NextResponse.json(
+          { 
+            error: 'Invalid expense account selected. Payroll must use a Salaries/Salary Expense account, not Cost of Goods Sold. Please select the correct account or ensure "Salaries Expense" account exists.',
+            details: `Found account: ${expenseAccount.accountName || expenseAccount.name}`
+          },
+          { status: 400 }
+        );
+      }
+      
+      // Ensure it's an expense account
+      if (!expenseAccountType.includes('expense') && expenseAccountType !== 'expense') {
+        return NextResponse.json(
+          { 
+            error: 'Selected expense account must be an Expense account type.',
+            details: `Account type: ${expenseAccountType}`
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     if (!expenseAccount || !paymentAccount || !payeAccount || !npsEmployeeAccount || !npsEmployerAccount || !otherDeductionsAccount) {
+      const missingAccounts = [];
+      if (!expenseAccount) missingAccounts.push('Salaries Expense');
+      if (!paymentAccount) missingAccounts.push('Cash');
+      if (!payeAccount) missingAccounts.push('PAYE Liability');
+      if (!npsEmployeeAccount) missingAccounts.push('NPS Employee Contribution Liability');
+      if (!npsEmployerAccount) missingAccounts.push('NPS Employer Contribution Liability');
+      if (!otherDeductionsAccount) missingAccounts.push('Payroll Deductions Liability');
+      
       return NextResponse.json(
-        { error: 'Required payroll accounts are missing. Please ensure payroll liability and cash accounts exist.' },
+        { 
+          error: 'Required payroll accounts are missing. Please ensure all payroll accounts exist.',
+          missingAccounts: missingAccounts
+        },
         { status: 400 }
       );
     }
@@ -634,12 +692,54 @@ async function getOrCreatePayrollAccounts(tenantId) {
   ];
 
   for (const accountName of accountNames) {
+    // First try exact match on name field
     let account = await prisma.account.findFirst({
       where: {
         name: accountName,
         tenantId: tenantId
       }
     });
+
+    // If not found, try accountName field
+    if (!account) {
+      account = await prisma.account.findFirst({
+        where: {
+          accountName: accountName,
+          tenantId: tenantId
+        }
+      });
+    }
+
+    // For Salaries Expense specifically, also check for variations
+    if (!account && accountName === 'Salaries Expense') {
+      account = await prisma.account.findFirst({
+        where: {
+          tenantId: tenantId,
+          OR: [
+            { name: { contains: 'Salary', mode: 'insensitive' } },
+            { accountName: { contains: 'Salary', mode: 'insensitive' } }
+          ],
+          AND: [
+            {
+              OR: [
+                { accountType: 'Expense' },
+                { type: 'EXPENSE' },
+                { type: 'Expense' }
+              ]
+            }
+          ]
+        }
+      });
+      
+      // If found a salary account but it's not the exact name, verify it's not COGS
+      if (account) {
+        const accName = (account.accountName || account.name || '').toLowerCase();
+        if (accName.includes('cost of goods') || accName.includes('cogs')) {
+          // Skip this account, it's COGS, not salaries
+          account = null;
+        }
+      }
+    }
 
     if (!account) {
       const accountCode = generateAccountCode(accountName);

@@ -296,10 +296,79 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const getDefaultProductCost = (product) => {
+    if (!product) return 0;
+    
+    // Helper to convert Decimal/object values to numbers
+    const toNumber = (val) => {
+      if (val === null || val === undefined) return null;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'object' && val !== null) {
+        // Handle Prisma Decimal type
+        return Number(val) || null;
+      }
+      const num = Number(val);
+      return isNaN(num) ? null : num;
+    };
+    
+    // Try multiple fields in order of preference
+    // Priority: lastPurchaseCost > cost > averageCost > costPrice > purchasePrice
+    const lastPurchaseCost = toNumber(product.lastPurchaseCost);
+    const cost = toNumber(product.cost);
+    const averageCost = toNumber(product.averageCost);
+    const costPrice = toNumber(product.costPrice);
+    const purchasePrice = toNumber(product.purchasePrice);
+    const unitCost = toNumber(product.unitCost);
+    
+    const value = lastPurchaseCost || cost || averageCost || costPrice || purchasePrice || unitCost || 0;
+    return value;
+  };
+
   const handleItemChange = (index, key, value) => {
-    setItems((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [key]: value } : item))
-    );
+    setItems((prev) => {
+      const updated = prev.map((item, idx) => {
+        if (idx === index) {
+          const newItem = { ...item, [key]: value };
+          
+          // If product is being changed, auto-populate unit cost
+          if (key === "productId" && value) {
+            const selectedProduct = products.find((p) => p.id === value);
+            if (selectedProduct) {
+              const defaultCost = getDefaultProductCost(selectedProduct);
+              
+              // Debug: log product data to help troubleshoot
+              if (process.env.NODE_ENV === 'development') {
+                console.log('Selected product:', {
+                  id: selectedProduct.id,
+                  name: selectedProduct.name,
+                  cost: selectedProduct.cost,
+                  costPrice: selectedProduct.costPrice,
+                  lastPurchaseCost: selectedProduct.lastPurchaseCost,
+                  averageCost: selectedProduct.averageCost,
+                  defaultCost: defaultCost
+                });
+              }
+              
+              // Always populate cost when product is selected (user can still manually change it)
+              // Use the cost value even if it's 0, but format it properly
+              newItem.unitCost = defaultCost > 0 ? String(defaultCost) : "";
+              
+              // Also auto-populate description if empty
+              if (!newItem.description && selectedProduct.name) {
+                newItem.description = selectedProduct.name;
+              }
+            } else {
+              // Product not found, clear the cost
+              newItem.unitCost = "";
+            }
+          }
+          
+          return newItem;
+        }
+        return item;
+      });
+      return updated;
+    });
   };
 
   const addItem = () => {

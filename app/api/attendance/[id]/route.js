@@ -30,15 +30,39 @@ export async function PUT(request, { params }) {
       }
     }
 
+    const updateData = {};
+    
+    if (parsedDate) {
+      updateData.date = parsedDate;
+    }
+    
+    if (body.hoursWorked !== undefined) {
+      updateData.hoursWorked = Number(body.hoursWorked);
+    }
+    
+    if (body.overtimeHours !== undefined) {
+      updateData.overtimeHours = Number(body.overtimeHours);
+    }
+    
+    if (body.status !== undefined) {
+      updateData.status = body.status;
+    }
+    
+    if (body.notes !== undefined) {
+      updateData.notes = body.notes || null;
+    }
+    
+    if (body.clockIn !== undefined) {
+      updateData.clockIn = body.clockIn ? new Date(body.clockIn) : null;
+    }
+    
+    if (body.clockOut !== undefined) {
+      updateData.clockOut = body.clockOut ? new Date(body.clockOut) : null;
+    }
+
     const record = await prisma.attendanceRecord.update({
       where: { id },
-      data: {
-        date: parsedDate,
-        hoursWorked: body.hoursWorked !== undefined ? Number(body.hoursWorked) : undefined,
-        overtimeHours: body.overtimeHours !== undefined ? Number(body.overtimeHours) : undefined,
-        status: body.status,
-        notes: body.notes
-      }
+      data: updateData
     });
 
     return NextResponse.json({ attendance: record });

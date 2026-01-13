@@ -6,6 +6,20 @@ Before making any changes to production, **ALWAYS backup your database**.
 
 ## Step-by-Step Safe Migration Process
 
+### ⚠️ CRITICAL: Follow These Steps in Order!
+
+### Step 0: **Check What Migrations Are Pending**
+
+```bash
+# Run the safety checklist script
+./scripts/safe-migration-checklist.sh
+
+# This will:
+# - Show pending migrations
+# - Check for dangerous operations (DROP, DELETE, etc.)
+# - Warn you if data loss is possible
+```
+
 ### 1. **Backup Your Production Database** (MANDATORY)
 
 ```bash
@@ -65,18 +79,34 @@ npx prisma migrate deploy
 
 ### 5. **Apply Migration to Production**
 
-#### Option A: Using Prisma Migrate Deploy (Recommended)
+#### Option A: Using the Deployment Script (Recommended - Safest)
 
 ```bash
-# The script will automatically load DATABASE_URL from .env file
-# Or set it manually if needed:
-# export DATABASE_URL="your_production_database_url"
+# Step 1: Run safety checklist first
+./scripts/safe-migration-checklist.sh
 
-# Use the deployment script (recommended - has safety checks)
+# Step 2: If checklist passes, create backup
+./scripts/backup-database.sh
+
+# Step 3: Deploy migrations (script has safety checks)
 ./scripts/deploy-to-production.sh
+```
 
-# OR apply manually:
+#### Option B: Manual Deployment (If you need more control)
+
+```bash
+# 1. Check status
+npx prisma migrate status
+
+# 2. Review pending migrations
+# Look at each migration SQL file in prisma/migrations/
+
+# 3. Apply migrations
 npx prisma migrate deploy
+
+# 4. Generate Prisma client
+npx prisma generate
+```
 
 # This will:
 # - Check which migrations haven't been applied

@@ -401,14 +401,31 @@ function ProductSearchSelect({
 
 const getDefaultProductCost = (product) => {
   if (!product) return 0;
-  const value =
-    product.costPrice ??
-    product.purchasePrice ??
-    product.unitCost ??
-    product.price ??
-    product.defaultPrice ??
-    0;
-  return Number(value) || 0;
+  
+  // Helper to convert Decimal/object values to numbers
+  const toNumber = (val) => {
+    if (val === null || val === undefined) return null;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'object' && val !== null) {
+      // Handle Prisma Decimal type
+      return Number(val) || null;
+    }
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
+  
+  // Try multiple fields in order of preference
+  // Priority: lastPurchaseCost > cost > averageCost > costPrice > purchasePrice
+  const lastPurchaseCost = toNumber(product.lastPurchaseCost);
+  const cost = toNumber(product.cost);
+  const averageCost = toNumber(product.averageCost);
+  const costPrice = toNumber(product.costPrice);
+  const purchasePrice = toNumber(product.purchasePrice);
+  const unitCost = toNumber(product.unitCost);
+  const price = toNumber(product.price);
+  
+  const value = lastPurchaseCost || cost || averageCost || costPrice || purchasePrice || unitCost || price || 0;
+  return value;
 };
 
 // Bill Form Component
@@ -809,12 +826,21 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         if (key === "productId" && value) {
           const product = products.find((p) => p.id === value);
           if (product) {
-            if (!item.unitCost || Number(item.unitCost) === 0) {
-              updated.unitCost = String(getDefaultProductCost(product));
+            const defaultCost = getDefaultProductCost(product);
+            // Always populate cost when product is selected (user can still manually change it)
+            if (defaultCost > 0) {
+              updated.unitCost = String(defaultCost);
+            } else {
+              // If no cost found, set to empty string so user can enter manually
+              updated.unitCost = "";
             }
-            if (!item.description) {
+            // Also auto-populate description if empty
+            if (!updated.description) {
               updated.description = product.description || product.name || "";
             }
+          } else {
+            // Product not found, clear the cost
+            updated.unitCost = "";
           }
         }
         return updated;

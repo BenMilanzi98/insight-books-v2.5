@@ -28,10 +28,29 @@ NC='\033[0m' # No Color
 # Load .env file if it exists
 if [ -f .env ]; then
     echo -e "${GREEN}Loading database configuration from .env file...${NC}"
-    # Use a safer method to load .env (handles values with spaces)
-    set -a
-    source .env
-    set +a
+    # Extract DATABASE_URL from .env file, handling quotes and comments
+    # This method is more robust and handles special characters
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Skip comments and empty lines
+        [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        [[ -z "${line// }" ]] && continue
+        
+        # Check if line contains DATABASE_URL
+        if [[ "$line" =~ ^[[:space:]]*DATABASE_URL[[:space:]]*= ]]; then
+            # Remove 'DATABASE_URL=' prefix and any quotes
+            DATABASE_URL="${line#*=}"
+            # Remove leading/trailing whitespace
+            DATABASE_URL="${DATABASE_URL#"${DATABASE_URL%%[![:space:]]*}"}"
+            DATABASE_URL="${DATABASE_URL%"${DATABASE_URL##*[![:space:]]}"}"
+            # Remove surrounding quotes if present
+            DATABASE_URL="${DATABASE_URL%\"}"
+            DATABASE_URL="${DATABASE_URL#\"}"
+            DATABASE_URL="${DATABASE_URL%\'}"
+            DATABASE_URL="${DATABASE_URL#\'}"
+            export DATABASE_URL
+            break
+        fi
+    done < .env
 else
     echo -e "${YELLOW}Warning: .env file not found. Using environment variables.${NC}"
 fi
@@ -42,6 +61,10 @@ if [ -z "$DATABASE_URL" ]; then
     echo "Please ensure DATABASE_URL is set in your .env file or as an environment variable"
     exit 1
 fi
+
+# Debug: Show database connection (mask password)
+DB_INFO=$(echo "$DATABASE_URL" | sed 's/:[^:@]*@/:***@/')
+echo -e "${GREEN}Database: ${DB_INFO}${NC}"
 
 # Confirm this is production
 echo -e "${YELLOW}WARNING: You are about to modify the PRODUCTION database!${NC}"

@@ -1100,6 +1100,211 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   );
 };
 
+// Deduction Modal Component
+const DeductionModal = ({ deduction, deductionType, setDeductionType, onClose, onSave }) => {
+  const [formData, setFormData] = useState({
+    name: deduction?.name || '',
+    description: deduction?.description || '',
+    type: deduction?.percentage !== null && deduction?.percentage !== undefined ? 'percentage' : 'fixed',
+    value: deduction?.percentage !== null && deduction?.percentage !== undefined 
+      ? deduction.percentage 
+      : deduction?.amount || '',
+    isStatutory: deduction?.isStatutory || false,
+    isActive: deduction?.isActive !== undefined ? deduction.isActive : true
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        name: formData.name,
+        description: formData.description || null,
+        isStatutory: formData.isStatutory,
+        isActive: formData.isActive,
+        type: formData.type
+      };
+
+      if (formData.type === 'percentage') {
+        payload.percentage = parseFloat(formData.value);
+      } else {
+        payload.amount = parseFloat(formData.value);
+      }
+
+      const url = deduction ? `/api/deductions/${deduction.id}` : '/api/deductions';
+      const method = deduction ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save deduction');
+      }
+
+      onSave();
+    } catch (err) {
+      setError(err.message || 'Failed to save deduction');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b">
+          <h2 className="text-xl font-semibold text-gray-900">
+            {deduction ? 'Edit Deduction' : 'Create Deduction'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              placeholder="e.g., Health Insurance"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+              rows={3}
+              placeholder="Optional description"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value, value: '' })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+            >
+              <option value="fixed">Fixed Amount</option>
+              <option value="percentage">Percentage</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {formData.type === 'percentage' ? 'Percentage' : 'Amount'} <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              {formData.type === 'percentage' ? (
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={formData.value}
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                  <span className="absolute right-3 text-gray-500">%</span>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <span className="absolute left-3 text-gray-500">MK</span>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    value={formData.value}
+                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                    className="w-full pl-12 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-6">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.isStatutory}
+                onChange={(e) => setFormData({ ...formData, isStatutory: e.target.checked })}
+                className="w-4 h-4 text-gray-600 border-gray-300 rounded focus:ring-gray-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Statutory Deduction</span>
+            </label>
+
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                className="w-4 h-4 text-gray-600 border-gray-300 rounded focus:ring-gray-500"
+              />
+              <span className="ml-2 text-sm text-gray-700">Active</span>
+            </label>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4 border-t">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Saving...' : deduction ? 'Update' : 'Create'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Main Employee Management Component
 const EmployeeManagement = () => {
   // Add print styles
