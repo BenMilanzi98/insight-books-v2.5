@@ -9,7 +9,7 @@ import { createPurchaseReceiptJournalEntry } from '@/lib/purchaseAccounting';
 
 async function generateReceiptNumber(tenantId) {
   // Try to generate a unique receipt number with retry logic to handle race conditions
- for (let attempt = 0; attempt < 10; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     // First, get the highest receipt number for this tenant
     const latestReceipt = await prisma.goodsReceipt.findFirst({
       where: { tenantId },
@@ -18,12 +18,14 @@ async function generateReceiptNumber(tenantId) {
     });
     
     let nextNumber = 1;
-    if (latestReceipt) {
+    if (latestReceipt && latestReceipt.receiptNumber) {
       // Extract the number from the format "GR-XXXXX"
       const match = latestReceipt.receiptNumber.match(/GR-(\d+)$/);
       if (match) {
         const lastNumber = parseInt(match[1], 10);
-        nextNumber = lastNumber + 1 + attempt; // Add attempt number to avoid conflicts
+        if (!isNaN(lastNumber)) {
+          nextNumber = lastNumber + 1 + attempt; // Add attempt number to avoid conflicts
+        }
       }
     } else {
       nextNumber = 1 + attempt; // For first receipt, add attempt to handle potential race condition
@@ -32,6 +34,7 @@ async function generateReceiptNumber(tenantId) {
     const receiptNumber = `GR-${String(nextNumber).padStart(5, '0')}`;
     
     // Check if this number already exists (to handle race conditions)
+    // Note: receiptNumber is @unique globally, so we check without tenantId
     const existing = await prisma.goodsReceipt.findUnique({
       where: { receiptNumber }
     });
@@ -40,11 +43,16 @@ async function generateReceiptNumber(tenantId) {
       return receiptNumber;
     }
     
-    // If it exists, try the next number in the next attempt
- }
+    // If it exists, wait a tiny bit and try the next number in the next attempt
+    // This helps with race conditions
+    if (attempt < 19) {
+      await new Promise(resolve => setTimeout(resolve, 10 * (attempt + 1)));
+    }
+  }
   
-  // If we've tried 10 times and still failed, throw an error
-  throw new Error('Failed to generate unique receipt number after 10 attempts');
+  // If we've tried 20 times and still failed, generate with timestamp to ensure uniqueness
+  const timestamp = Date.now().toString().slice(-6);
+  return `GR-${timestamp}`;
 }
 
 function validateItems(items) {
@@ -287,11 +295,30 @@ export async function POST(request) {
           break; // Success, exit the loop
         } catch (error) {
           // Check if the error is due to unique constraint violation
-          if (error.code === 'P202' && error.meta?.target?.includes('receiptNumber')) {
+          // Prisma error code P2002 is for unique constraint violations
+          if (error.code === 'P2002' && error.meta?.target?.includes('receiptNumber')) {
             // Generate a new receipt number and try again
             attempt++;
-            receiptNumber = await generateReceiptNumber(user.tenantId);
-            continue; // Retry with new number
+            if (attempt < maxAttempts) {
+              receiptNumber = await generateReceiptNumber(user.tenantId);
+              // Small delay to reduce race condition probability
+              await new Promise(resolve => setTimeout(resolve, 50 * attempt));
+              continue; // Retry with new number
+            } else {
+              // Last attempt - use timestamp-based number
+              const timestamp = Date.now().toString().slice(-6);
+              receiptNumber = `GR-${timestamp}`;
+              try {
+                goodsReceipt = await createGoodsReceipt(trx, receiptNumber);
+                break;
+              } catch (finalError) {
+                // If even timestamp fails, use a more unique identifier
+                const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+                receiptNumber = `GR-${uniqueId.slice(-8)}`;
+                goodsReceipt = await createGoodsReceipt(trx, receiptNumber);
+                break;
+              }
+            }
           } else {
             // Some other error, re-throw it
             throw error;

@@ -96,8 +96,11 @@ export default function AttendancePage() {
 
   const quickMarkStatus = async (employeeId, status) => {
     try {
-      // Check if record exists for this date
-      const existingRecord = attendanceRecords.find(r => r.employeeId === employeeId);
+      // Check if record exists for this date in current state
+      const existingRecord = attendanceRecords.find(r => 
+        r.employeeId === employeeId && 
+        new Date(r.date).toISOString().split('T')[0] === selectedDate
+      );
       
       if (existingRecord) {
         // Update existing record
@@ -113,7 +116,7 @@ export default function AttendancePage() {
         if (!res.ok) throw new Error(data.error || 'Failed to update');
         showToast('success', 'Attendance updated');
       } else {
-        // Create new record
+        // Try to create new record
         const res = await fetch('/api/attendance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -126,8 +129,36 @@ export default function AttendancePage() {
           })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to create');
-        showToast('success', 'Attendance recorded');
+        
+        if (!res.ok) {
+          // If record already exists error, fetch and update it
+          if (res.status === 400 && data.error && data.error.includes('already exists')) {
+            // Fetch the existing record and update it
+            const fetchRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${employeeId}`);
+            const fetchData = await fetchRes.json();
+            
+            if (fetchRes.ok && fetchData.attendance && fetchData.attendance.length > 0) {
+              const record = fetchData.attendance[0];
+              const updateRes = await fetch(`/api/attendance/${record.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  status,
+                  date: selectedDate
+                })
+              });
+              const updateData = await updateRes.json();
+              if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
+              showToast('success', 'Attendance updated');
+            } else {
+              throw new Error(data.error || 'Failed to create attendance');
+            }
+          } else {
+            throw new Error(data.error || 'Failed to create');
+          }
+        } else {
+          showToast('success', 'Attendance recorded');
+        }
       }
       await loadAttendance();
     } catch (e) {
