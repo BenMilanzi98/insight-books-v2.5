@@ -63,9 +63,10 @@ export default function PayrollProcessing() {
     
     setFormData((prev) => {
       const updates = { ...prev };
-      if (!prev.expenseAccountId) {
-        const defaultExpense = getDefaultExpenseAccount();
-        if (defaultExpense) updates.expenseAccountId = defaultExpense.id;
+      // Always set to Salaries Expense account (fixed, cannot be changed)
+      const defaultExpense = getDefaultExpenseAccount();
+      if (defaultExpense) {
+        updates.expenseAccountId = defaultExpense.id;
       }
       if (!prev.paymentAccountId) {
         const defaultPayment = getDefaultPaymentAccount();
@@ -121,11 +122,20 @@ export default function PayrollProcessing() {
   }, [accounts]);
 
   const getDefaultExpenseAccount = () => {
-    return (
-      expenseAccountOptions.find((account) =>
+    // First try to find exact match "Salaries Expense"
+    let account = expenseAccountOptions.find((account) => {
+      const name = (account.accountName || account.name || '').toLowerCase().trim();
+      return name === 'salaries expense' || name === 'salary expense';
+    });
+    
+    // If not found, try partial match
+    if (!account) {
+      account = expenseAccountOptions.find((account) =>
         (account.accountName || account.name || '').toLowerCase().includes('salar')
-      ) || expenseAccountOptions[0]
-    );
+      );
+    }
+    
+    return account || expenseAccountOptions[0];
   };
 
   const getDefaultPaymentAccount = () => {
@@ -829,27 +839,25 @@ export default function PayrollProcessing() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Salary Expense Account</label>
-                  <select
-                    value={formData.expenseAccountId || ''}
-                    onChange={(e) => setFormData({ ...formData, expenseAccountId: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    disabled={accountsLoading || expenseAccountOptions.length === 0}
-                  >
-                    {accountsLoading && <option>Loading accounts...</option>}
-                    {!accountsLoading && expenseAccountOptions.length === 0 && (
-                      <option value="">No expense accounts available</option>
-                    )}
-                    {!accountsLoading && expenseAccountOptions.length > 0 && (
-                      <>
-                        <option value="">Select expense account</option>
-                        {expenseAccountOptions.map((account) => (
-                          <option key={account.id} value={account.id}>
-                            {formatAccountOption(account)}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
+                  {accountsLoading ? (
+                    <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                      Loading accounts...
+                    </div>
+                  ) : formData.expenseAccountId ? (
+                    <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
+                      {(() => {
+                        const selectedAccount = accounts.find(acc => acc.id === formData.expenseAccountId);
+                        return selectedAccount ? formatAccountOption(selectedAccount) : 'Salaries Expense';
+                      })()}
+                    </div>
+                  ) : (
+                    <div className="w-full p-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500">
+                      Salaries Expense (Auto-selected)
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    This account is automatically set to "Salaries Expense" for payroll processing
+                  </p>
                   {accountsError && (
                     <p className="text-xs text-red-500 mt-1">Failed to load accounts: {accountsError}</p>
                   )}

@@ -41,6 +41,30 @@ export async function GET(request) {
       where.isStatutory = isStatutory === 'true';
     }
 
+    // Ensure default PAYE deduction exists (2025/26 Malawi tax brackets)
+    const existingPAYE = await prisma.deduction.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        name: { contains: 'PAYE', mode: 'insensitive' },
+        isStatutory: true
+      }
+    });
+
+    if (!existingPAYE) {
+      // Create default PAYE deduction
+      await prisma.deduction.create({
+        data: {
+          name: 'PAYE (Malawi Income Tax 2025/26)',
+          description: 'Pay As You Earn tax based on Malawi 2025/26 tax brackets:\n- Up to 170,000 MWK: 0% (tax-free)\n- 170,001 - 1,570,000 MWK: 30%\n- 1,570,001 - 10,000,000 MWK: 35%\n- Above 10,000,000 MWK: 40%\n\nThis deduction is automatically calculated based on gross salary.',
+          amount: null,
+          percentage: null, // PAYE is calculated automatically, not a fixed amount or percentage
+          isStatutory: true,
+          isActive: true,
+          tenantId: user.tenantId
+        }
+      });
+    }
+
     // Fetch deductions
     const deductions = await prisma.deduction.findMany({
       where,

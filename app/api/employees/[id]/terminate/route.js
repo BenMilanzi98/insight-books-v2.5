@@ -121,6 +121,7 @@ export async function POST(request, { params }) {
           data: {
             companyName: tenant?.name || 'InsightBooks',
             tenantName: tenant?.name || 'InsightBooks',
+            tenantLogoUrl: tenant?.logoUrl || null,
             htmlContent: emailContent,
             baseUrl: baseUrl,
             priority: 'high',

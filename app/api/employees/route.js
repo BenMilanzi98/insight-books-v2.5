@@ -170,6 +170,7 @@ export async function POST(request) {
       emergencyContact: data.emergencyContact || null,
       reportingManager: data.reportingManager || null,
       selectedDeductions: data.selectedDeductions || null,
+      gratuityAccountId: data.gratuityAccountId || null,
       
       tenantId: user.tenantId
     };
@@ -268,6 +269,7 @@ export async function POST(request) {
           data: {
             companyName: tenant?.name || 'InsightBooks',
             tenantName: tenant?.name || 'InsightBooks',
+            tenantLogoUrl: tenant?.logoUrl || null,
             htmlContent: emailContent,
             baseUrl: baseUrl,
             priority: 'normal',

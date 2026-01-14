@@ -24,6 +24,57 @@ export default function AttendancePage() {
     notes: ""
   });
 
+  // Calculate hours worked automatically when clockIn and clockOut are both set
+  useEffect(() => {
+    // Only calculate if both clockIn and clockOut are provided and not empty
+    if (formData.clockIn && formData.clockIn.trim() !== '' && formData.clockOut && formData.clockOut.trim() !== '') {
+      try {
+        const clockInDate = new Date(formData.clockIn);
+        const clockOutDate = new Date(formData.clockOut);
+        
+        if (!isNaN(clockInDate.getTime()) && !isNaN(clockOutDate.getTime())) {
+          if (clockOutDate > clockInDate) {
+            // Calculate difference in hours
+            const diffMs = clockOutDate.getTime() - clockInDate.getTime();
+            const diffHours = diffMs / (1000 * 60 * 60); // Convert milliseconds to hours
+            
+            // Round to 2 decimal places
+            const totalHours = Math.round(diffHours * 100) / 100;
+            
+            // Calculate overtime (assuming 8 hours is standard work day)
+            const standardHours = 8;
+            let regularHours = totalHours;
+            let overtimeHours = 0;
+            
+            if (totalHours > standardHours) {
+              regularHours = standardHours;
+              overtimeHours = Math.round((totalHours - standardHours) * 100) / 100;
+            }
+            
+            // Always update when clock times change
+            setFormData(prev => ({
+              ...prev,
+              hoursWorked: String(regularHours),
+              overtimeHours: String(overtimeHours)
+            }));
+          } else {
+            // Clock out must be after clock in - clear hours
+            setFormData(prev => ({
+              ...prev,
+              hoursWorked: "",
+              overtimeHours: ""
+            }));
+          }
+        }
+      } catch (e) {
+        console.error('Error calculating hours:', e);
+      }
+    } else {
+      // If either clockIn or clockOut is cleared, don't clear hours (user might have manually entered them)
+      // Only auto-calculate when both are set
+    }
+  }, [formData.clockIn, formData.clockOut]);
+
   useEffect(() => {
     loadEmployees();
     loadAttendance();
@@ -53,7 +104,20 @@ export default function AttendancePage() {
       const res = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}`);
       const data = await res.json();
       if (res.ok) {
-        setAttendanceRecords(data.attendance || []);
+        const records = data.attendance || [];
+        console.log('Loaded attendance records:', records.length, 'for date:', selectedDate);
+        // Log records with clockIn to debug
+        records.forEach(r => {
+          if (r.clockIn) {
+            console.log('Record with clockIn:', {
+              employeeId: r.employeeId,
+              date: r.date,
+              clockIn: r.clockIn,
+              status: r.status
+            });
+          }
+        });
+        setAttendanceRecords(records);
       } else {
         setError(data.error || 'Failed to load attendance');
       }
@@ -65,7 +129,7 @@ export default function AttendancePage() {
     }
   }
 
-  const openModal = (record = null) => {
+  const openModal = (record = null, preserveFormData = false) => {
     if (record) {
       setEditingRecord(record);
       const clockIn = record.clockIn ? new Date(record.clockIn).toISOString().slice(0, 16) : "";
@@ -79,7 +143,8 @@ export default function AttendancePage() {
         overtimeHours: record.overtimeHours || "",
         notes: record.notes || ""
       });
-    } else {
+    } else if (!preserveFormData) {
+      // Only reset if formData is not being preserved (e.g., when clicking "Add Record" button)
       setEditingRecord(null);
       setFormData({
         employeeId: "",
@@ -90,27 +155,65 @@ export default function AttendancePage() {
         overtimeHours: "",
         notes: ""
       });
+    } else {
+      // Preserve existing formData (e.g., when Clock button sets it)
+      setEditingRecord(null);
     }
     setShowModal(true);
   };
 
   const quickMarkStatus = async (employeeId, status) => {
     try {
-      // Check if record exists for this date in current state
-      const existingRecord = attendanceRecords.find(r => 
-        r.employeeId === employeeId && 
-        new Date(r.date).toISOString().split('T')[0] === selectedDate
-      );
+      // Helper to find existing record - check API first, then local state
+      const findExistingRecord = async () => {
+        // Always check API first (most reliable)
+        try {
+          const checkRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${employeeId}`);
+          const checkData = await checkRes.json();
+          console.log('API check result:', { 
+            ok: checkRes.ok, 
+            count: checkData.attendance?.length || 0,
+            date: selectedDate,
+            employeeId 
+          });
+          if (checkRes.ok && checkData.attendance && checkData.attendance.length > 0) {
+            return checkData.attendance[0];
+          }
+        } catch (checkError) {
+          console.warn('API check failed:', checkError);
+        }
+        
+        // Fallback to local state
+        return attendanceRecords.find(r => 
+          r.employeeId === employeeId && 
+          new Date(r.date).toISOString().split('T')[0] === selectedDate
+        );
+      };
+
+      let existingRecord = await findExistingRecord();
       
       if (existingRecord) {
-        // Update existing record
+        // Update existing record - preserve clockIn/clockOut and other fields
+        const updatePayload = {
+          status,
+          date: selectedDate,
+          hoursWorked: existingRecord.hoursWorked || 0,
+          overtimeHours: existingRecord.overtimeHours || 0,
+          notes: existingRecord.notes || null
+        };
+        
+        // Preserve clockIn/clockOut if they exist
+        if (existingRecord.clockIn) {
+          updatePayload.clockIn = new Date(existingRecord.clockIn).toISOString();
+        }
+        if (existingRecord.clockOut) {
+          updatePayload.clockOut = new Date(existingRecord.clockOut).toISOString();
+        }
+        
         const res = await fetch(`/api/attendance/${existingRecord.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            status,
-            date: selectedDate
-          })
+          body: JSON.stringify(updatePayload)
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update');
@@ -131,27 +234,76 @@ export default function AttendancePage() {
         const data = await res.json();
         
         if (!res.ok) {
-          // If record already exists error, fetch and update it
+          // If record already exists error, try to find and update it
           if (res.status === 400 && data.error && data.error.includes('already exists')) {
-            // Fetch the existing record and update it
-            const fetchRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${employeeId}`);
-            const fetchData = await fetchRes.json();
+            // Wait a bit for the record to be available, then try to find it
+            await new Promise(resolve => setTimeout(resolve, 300));
+            existingRecord = await findExistingRecord();
             
-            if (fetchRes.ok && fetchData.attendance && fetchData.attendance.length > 0) {
-              const record = fetchData.attendance[0];
-              const updateRes = await fetch(`/api/attendance/${record.id}`, {
+            if (existingRecord) {
+              // Preserve all existing fields when updating
+              const updatePayload = {
+                status,
+                date: selectedDate,
+                hoursWorked: existingRecord.hoursWorked || 0,
+                overtimeHours: existingRecord.overtimeHours || 0,
+                notes: existingRecord.notes || null
+              };
+              
+              // Preserve clockIn/clockOut if they exist
+              if (existingRecord.clockIn) {
+                updatePayload.clockIn = new Date(existingRecord.clockIn).toISOString();
+              }
+              if (existingRecord.clockOut) {
+                updatePayload.clockOut = new Date(existingRecord.clockOut).toISOString();
+              }
+              
+              const updateRes = await fetch(`/api/attendance/${existingRecord.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  status,
-                  date: selectedDate
-                })
+                body: JSON.stringify(updatePayload)
               });
               const updateData = await updateRes.json();
               if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
               showToast('success', 'Attendance updated');
             } else {
-              throw new Error(data.error || 'Failed to create attendance');
+              // Last resort: try querying all records for this employee and find by date
+              try {
+                const allRes = await fetch(`/api/attendance?employeeId=${employeeId}&limit=100`);
+                const allData = await allRes.json();
+                if (allRes.ok && allData.attendance) {
+                  const matchingRecord = allData.attendance.find(r => {
+                    const recordDate = new Date(r.date).toISOString().split('T')[0];
+                    return recordDate === selectedDate;
+                  });
+                  if (matchingRecord) {
+                    const updatePayload = {
+                      status,
+                      date: selectedDate,
+                      hoursWorked: matchingRecord.hoursWorked || 0,
+                      overtimeHours: matchingRecord.overtimeHours || 0,
+                      notes: matchingRecord.notes || null
+                    };
+                    if (matchingRecord.clockIn) updatePayload.clockIn = new Date(matchingRecord.clockIn).toISOString();
+                    if (matchingRecord.clockOut) updatePayload.clockOut = new Date(matchingRecord.clockOut).toISOString();
+                    
+                    const updateRes = await fetch(`/api/attendance/${matchingRecord.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updatePayload)
+                    });
+                    const updateData = await updateRes.json();
+                    if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
+                    showToast('success', 'Attendance updated');
+                  } else {
+                    throw new Error('Record exists but could not be found. Please refresh the page.');
+                  }
+                } else {
+                  throw new Error('Record exists but could not be found. Please refresh the page.');
+                }
+              } catch (finalError) {
+                throw new Error('Record exists but could not be found. Please refresh the page.');
+              }
             }
           } else {
             throw new Error(data.error || 'Failed to create');
@@ -160,6 +312,8 @@ export default function AttendancePage() {
           showToast('success', 'Attendance recorded');
         }
       }
+      // Small delay to ensure backend has processed
+      await new Promise(resolve => setTimeout(resolve, 100));
       await loadAttendance();
     } catch (e) {
       console.error('Error marking attendance:', e);
@@ -170,33 +324,109 @@ export default function AttendancePage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Helper function to find existing record
+      const findExistingRecord = async () => {
+        // First check if we're editing
+        if (editingRecord) return editingRecord;
+        
+        // Check local state
+        let record = attendanceRecords.find(r => 
+          r.employeeId === formData.employeeId && 
+          new Date(r.date).toISOString().split('T')[0] === selectedDate
+        );
+        
+        // Always double-check with API
+        try {
+          const checkRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${formData.employeeId}`);
+          const checkData = await checkRes.json();
+          if (checkRes.ok && checkData.attendance && checkData.attendance.length > 0) {
+            record = checkData.attendance[0];
+          }
+        } catch (e) {
+          console.warn('API check failed, using local state:', e);
+        }
+        
+        return record;
+      };
+
+      // Find existing record
+      let existingRecord = await findExistingRecord();
+      console.log('Found existing record:', existingRecord?.id, 'for employee:', formData.employeeId, 'date:', selectedDate);
+
+      // Calculate hours if clockIn and clockOut are set but hoursWorked is not
+      let finalHoursWorked = formData.hoursWorked ? parseFloat(formData.hoursWorked) : 0;
+      let finalOvertimeHours = formData.overtimeHours ? parseFloat(formData.overtimeHours) : 0;
+      
+      if (formData.clockIn && formData.clockIn.trim() !== '' && formData.clockOut && formData.clockOut.trim() !== '') {
+        try {
+          const clockInDate = new Date(formData.clockIn);
+          const clockOutDate = new Date(formData.clockOut);
+          
+          if (!isNaN(clockInDate.getTime()) && !isNaN(clockOutDate.getTime()) && clockOutDate > clockInDate) {
+            const diffMs = clockOutDate.getTime() - clockInDate.getTime();
+            const diffHours = diffMs / (1000 * 60 * 60);
+            const totalHours = Math.round(diffHours * 100) / 100;
+            const standardHours = 8;
+            
+            if (totalHours > standardHours) {
+              finalHoursWorked = standardHours;
+              finalOvertimeHours = Math.round((totalHours - standardHours) * 100) / 100;
+            } else {
+              finalHoursWorked = totalHours;
+              finalOvertimeHours = 0;
+            }
+            
+          }
+        } catch (e) {
+          console.error('Error calculating hours before save:', e);
+        }
+      }
+
       const payload = {
         employeeId: formData.employeeId,
         date: selectedDate,
         status: formData.status,
-        hoursWorked: formData.hoursWorked ? parseFloat(formData.hoursWorked) : 0,
-        overtimeHours: formData.overtimeHours ? parseFloat(formData.overtimeHours) : 0,
+        hoursWorked: finalHoursWorked,
+        overtimeHours: finalOvertimeHours,
         notes: formData.notes || null
       };
 
-      // Add clock in/out times if provided
-      if (formData.clockIn) {
-        payload.clockIn = new Date(formData.clockIn).toISOString();
-      }
-      if (formData.clockOut) {
-        payload.clockOut = new Date(formData.clockOut).toISOString();
+      // Add clock in/out times - when updating, always include to preserve or update
+      if (existingRecord) {
+        // When updating, always include clockIn/clockOut to ensure they're preserved or updated
+        if (formData.clockIn && formData.clockIn.trim() !== '') {
+          payload.clockIn = new Date(formData.clockIn).toISOString();
+        } else {
+          // Preserve existing clockIn or set to null if it was cleared
+          payload.clockIn = existingRecord.clockIn ? new Date(existingRecord.clockIn).toISOString() : null;
+        }
+        
+        if (formData.clockOut && formData.clockOut.trim() !== '') {
+          payload.clockOut = new Date(formData.clockOut).toISOString();
+        } else {
+          // Preserve existing clockOut or set to null if it was cleared
+          payload.clockOut = existingRecord.clockOut ? new Date(existingRecord.clockOut).toISOString() : null;
+        }
+      } else {
+        // When creating, only include if provided
+        if (formData.clockIn && formData.clockIn.trim() !== '') {
+          payload.clockIn = new Date(formData.clockIn).toISOString();
+        }
+        if (formData.clockOut && formData.clockOut.trim() !== '') {
+          payload.clockOut = new Date(formData.clockOut).toISOString();
+        }
       }
 
-      // Check if record already exists for this employee and date
-      const existingRecord = attendanceRecords.find(r => 
-        r.employeeId === formData.employeeId && 
-        new Date(r.date).toISOString().split('T')[0] === selectedDate
-      );
+      // Determine method and URL
+      let url, method;
+      if (existingRecord) {
+        url = `/api/attendance/${existingRecord.id}`;
+        method = 'PUT';
+      } else {
+        url = '/api/attendance';
+        method = 'POST';
+      }
 
-      const url = (editingRecord || existingRecord) 
-        ? `/api/attendance/${(editingRecord || existingRecord).id}` 
-        : '/api/attendance';
-      const method = (editingRecord || existingRecord) ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
@@ -206,30 +436,61 @@ export default function AttendancePage() {
 
       const data = await res.json();
       if (!res.ok) {
-        // If it's a duplicate error, try to update instead
-        if (data.error && data.error.includes('already exists') && !existingRecord) {
-          // Find the existing record and update it
-          const checkRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${formData.employeeId}`);
-          const checkData = await checkRes.json();
-          if (checkRes.ok && checkData.attendance && checkData.attendance.length > 0) {
-            const updateRes = await fetch(`/api/attendance/${checkData.attendance[0].id}`, {
+        // If it's a duplicate error and we tried to POST, find and update it
+        if (data.error && data.error.includes('already exists') && method === 'POST') {
+          // Wait a bit for the record to be available, then try multiple strategies
+          await new Promise(resolve => setTimeout(resolve, 300));
+          existingRecord = await findExistingRecord();
+          
+          // If still not found, try querying all records for this employee
+          if (!existingRecord) {
+            try {
+              const allRes = await fetch(`/api/attendance?employeeId=${formData.employeeId}&limit=100`);
+              const allData = await allRes.json();
+              if (allRes.ok && allData.attendance) {
+                existingRecord = allData.attendance.find(r => {
+                  const recordDate = new Date(r.date).toISOString().split('T')[0];
+                  return recordDate === selectedDate;
+                });
+              }
+            } catch (e) {
+              console.warn('Fallback query failed:', e);
+            }
+          }
+          
+          if (existingRecord) {
+            // Update the existing record with all the data, preserving clockIn/clockOut
+            const updatePayload = { ...payload };
+            // If clockIn/clockOut weren't in original payload, preserve existing values
+            if (!updatePayload.clockIn && existingRecord.clockIn) {
+              updatePayload.clockIn = new Date(existingRecord.clockIn).toISOString();
+            }
+            if (!updatePayload.clockOut && existingRecord.clockOut) {
+              updatePayload.clockOut = new Date(existingRecord.clockOut).toISOString();
+            }
+            
+            const updateRes = await fetch(`/api/attendance/${existingRecord.id}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(payload)
+              body: JSON.stringify(updatePayload)
             });
             const updateData = await updateRes.json();
             if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
             showToast('success', 'Attendance updated');
             setShowModal(false);
+            await new Promise(resolve => setTimeout(resolve, 150));
             await loadAttendance();
             return;
+          } else {
+            throw new Error('Record exists but could not be found. Please refresh the page and try again.');
           }
         }
         throw new Error(data.error || 'Failed to save');
       }
 
-      showToast('success', (editingRecord || existingRecord) ? 'Attendance updated' : 'Attendance recorded');
+      showToast('success', existingRecord ? 'Attendance updated' : 'Attendance recorded');
       setShowModal(false);
+      await new Promise(resolve => setTimeout(resolve, 150));
       await loadAttendance();
     } catch (e) {
       console.error('Error saving attendance:', e);
@@ -252,7 +513,13 @@ export default function AttendancePage() {
   };
 
   const getAttendanceForEmployee = (employeeId) => {
-    return attendanceRecords.find(r => r.employeeId === employeeId);
+    // Find record for this employee and the selected date
+    return attendanceRecords.find(r => {
+      if (r.employeeId !== employeeId) return false;
+      // Compare dates by converting to YYYY-MM-DD format
+      const recordDate = r.date ? new Date(r.date).toISOString().split('T')[0] : null;
+      return recordDate === selectedDate;
+    });
   };
 
   const filteredEmployees = employees.filter(emp => {
@@ -372,17 +639,35 @@ export default function AttendancePage() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                          {record?.clockIn ? new Date(record.clockIn).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          {record?.clockIn ? (() => {
+                            try {
+                              const clockInDate = new Date(record.clockIn);
+                              if (isNaN(clockInDate.getTime())) return '-';
+                              return clockInDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            } catch (e) {
+                              console.error('Error formatting clockIn:', e, record.clockIn);
+                              return '-';
+                            }
+                          })() : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                          {record?.clockOut ? new Date(record.clockOut).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                          {record?.clockOut ? (() => {
+                            try {
+                              const clockOutDate = new Date(record.clockOut);
+                              if (isNaN(clockOutDate.getTime())) return '-';
+                              return clockOutDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                            } catch (e) {
+                              console.error('Error formatting clockOut:', e, record.clockOut);
+                              return '-';
+                            }
+                          })() : '-'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
                           {record ? (
                             <div>
-                              <div>{record.hoursWorked || 0}h</div>
-                              {record.overtimeHours > 0 && (
-                                <div className="text-xs text-orange-600">+{record.overtimeHours}h OT</div>
+                              <div>{record.hoursWorked ? Number(record.hoursWorked).toFixed(2) + 'h' : '0h'}</div>
+                              {record.overtimeHours && Number(record.overtimeHours) > 0 && (
+                                <div className="text-xs text-orange-600">+{Number(record.overtimeHours).toFixed(2)}h OT</div>
                               )}
                             </div>
                           ) : '-'}
@@ -428,11 +713,22 @@ export default function AttendancePage() {
                             {!record && (
                               <button
                                 onClick={() => {
-                                  setFormData({ ...formData, employeeId: employee.id });
-                                  openModal();
+                                  // Auto-fill clockIn with current time when clicking Clock button
+                                  const now = new Date();
+                                  const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                                  setFormData({ 
+                                    employeeId: employee.id,
+                                    status: "Present",
+                                    clockIn: localDateTime,
+                                    clockOut: "",
+                                    hoursWorked: "",
+                                    overtimeHours: "",
+                                    notes: ""
+                                  });
+                                  openModal(null, true); // Preserve the formData we just set
                                 }}
                                 className="text-blue-600 hover:text-blue-900"
-                                title="Add Details"
+                                title="Clock In Now"
                               >
                                 <Clock size={18} />
                               </button>
@@ -523,23 +819,51 @@ export default function AttendancePage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Clock In
                     </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.clockIn}
-                      onChange={(e) => setFormData({ ...formData, clockIn: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="datetime-local"
+                        value={formData.clockIn}
+                        onChange={(e) => setFormData({ ...formData, clockIn: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                          setFormData({ ...formData, clockIn: localDateTime });
+                        }}
+                        className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
+                        title="Set to current time"
+                      >
+                        Now
+                      </button>
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Clock Out
                     </label>
-                    <input
-                      type="datetime-local"
-                      value={formData.clockOut}
-                      onChange={(e) => setFormData({ ...formData, clockOut: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="datetime-local"
+                        value={formData.clockOut}
+                        onChange={(e) => setFormData({ ...formData, clockOut: e.target.value })}
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date();
+                          const localDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                          setFormData({ ...formData, clockOut: localDateTime });
+                        }}
+                        className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-md hover:bg-blue-100 text-sm whitespace-nowrap"
+                        title="Set to current time"
+                      >
+                        Now
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -547,6 +871,9 @@ export default function AttendancePage() {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Hours Worked
+                      {formData.clockIn && formData.clockOut && (
+                        <span className="text-xs text-gray-500 ml-2">(Auto-calculated)</span>
+                      )}
                     </label>
                     <input
                       type="number"
@@ -554,13 +881,19 @@ export default function AttendancePage() {
                       min="0"
                       value={formData.hoursWorked}
                       onChange={(e) => setFormData({ ...formData, hoursWorked: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                        formData.clockIn && formData.clockOut ? 'bg-gray-50' : ''
+                      }`}
                       placeholder="8.0"
+                      title={formData.clockIn && formData.clockOut ? 'Auto-calculated from Clock In/Out times. You can manually override if needed.' : 'Enter hours worked or set Clock In/Out to auto-calculate'}
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Overtime Hours
+                      {formData.clockIn && formData.clockOut && (
+                        <span className="text-xs text-gray-500 ml-2">(Auto-calculated)</span>
+                      )}
                     </label>
                     <input
                       type="number"
@@ -568,8 +901,11 @@ export default function AttendancePage() {
                       min="0"
                       value={formData.overtimeHours}
                       onChange={(e) => setFormData({ ...formData, overtimeHours: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                      className={`w-full px-3 py-2 border border-gray-300 rounded-md ${
+                        formData.clockIn && formData.clockOut ? 'bg-gray-50' : ''
+                      }`}
                       placeholder="0.0"
+                      title={formData.clockIn && formData.clockOut ? 'Auto-calculated from Clock In/Out times. You can manually override if needed.' : 'Enter overtime hours or set Clock In/Out to auto-calculate'}
                     />
                   </div>
                 </div>

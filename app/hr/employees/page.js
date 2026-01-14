@@ -57,6 +57,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
   const [deductions, setDeductions] = useState([]);
   const [selectedDeductions, setSelectedDeductions] = useState([]);
+  const [gratuityAccounts, setGratuityAccounts] = useState([]);
+  const [selectedGratuityAccount, setSelectedGratuityAccount] = useState('');
   const [salaryCalculation, setSalaryCalculation] = useState(null);
   const [calculating, setCalculating] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -158,6 +160,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   // Fetch deductions when employment type changes
   useEffect(() => {
     fetchDeductions();
+    fetchGratuityAccounts();
   }, [formData.employmentType]);
 
   // Load selected deductions when deductions are fetched and employee has selectedDeductions
@@ -167,6 +170,11 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         employee.selectedDeductions.includes(d.id)
       );
       setSelectedDeductions(selectedDeductionObjects);
+    }
+    
+    // Load gratuity account if employee has one
+    if (employee && employee.gratuityAccount) {
+      setSelectedGratuityAccount(employee.gratuityAccount.id);
     }
   }, [employee, deductions]);
 
@@ -183,6 +191,17 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       }
     } catch (error) {
       console.error('Error fetching deductions:', error);
+    }
+  };
+
+  const fetchGratuityAccounts = async () => {
+    try {
+      const response = await fetch('/api/gratuity');
+      const data = await response.json();
+      const accounts = data.gratuityAccounts || [];
+      setGratuityAccounts(accounts);
+    } catch (error) {
+      console.error('Error fetching gratuity accounts:', error);
     }
   };
 
@@ -349,6 +368,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       ...formWithoutKin,
       grossSalary: formData.grossSalary,
       selectedDeductions: selectedDeductions.map(d => d.id),
+      gratuityAccountId: selectedGratuityAccount || null,
       salaryCalculation: salaryCalculation,
       emergencyContact,
       documents: Object.keys(documents).length > 0 ? documents : undefined,
@@ -726,6 +746,38 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                   <div className="text-gray-500 text-center py-4">
                     No deductions available for {formData.employmentType} employees
                   </div>
+                )}
+              </div>
+
+              {/* Gratuity Selection */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-800 mb-3">Gratuity Account (Optional)</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Select a gratuity account to apply gratuity deductions for this employee during payroll processing.
+                </p>
+                <select
+                  value={selectedGratuityAccount}
+                  onChange={(e) => setSelectedGratuityAccount(e.target.value)}
+                  className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">No Gratuity Account</option>
+                  {gratuityAccounts
+                    .filter(account => !employee || account.employeeId === employee.id)
+                    .map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.employee?.name || 'Employee'} - Outstanding: MWK {(account.outstandingAmount || 0).toLocaleString()}
+                      </option>
+                    ))}
+                </select>
+                {!employee && gratuityAccounts.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    No gratuity accounts available. Create a gratuity account in the Gratuity Management section first.
+                  </p>
+                )}
+                {selectedGratuityAccount && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    Gratuity will be deducted from this employee's salary during payroll processing.
+                  </p>
                 )}
               </div>
 

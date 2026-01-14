@@ -226,6 +226,10 @@ export async function POST(request) {
       const overtimePay = totalOvertimeHours * overtimeRate;
 
       let otherDeductions = {};
+      let deductionNames = {}; // Store deduction names for payslip display
+      let applyPAYE = false;
+      let applyNPS = true; // NPS is applied by default, but can be made optional too
+      
       if (employee.selectedDeductions) {
         let deductionIds = [];
 
@@ -249,10 +253,31 @@ export async function POST(request) {
           });
 
           deductions.forEach(deduction => {
-            if (deduction.amount) {
+            // Check if this is PAYE deduction (by name or isStatutory flag)
+            const isPAYE = deduction.name && (
+              deduction.name.toLowerCase().includes('paye') || 
+              deduction.name.toLowerCase().includes('income tax') ||
+              (deduction.isStatutory && deduction.name.toLowerCase().includes('tax'))
+            );
+            
+            // Check if this is NPS deduction
+            const isNPS = deduction.name && (
+              deduction.name.toLowerCase().includes('nps') || 
+              deduction.name.toLowerCase().includes('pension')
+            );
+            
+            if (isPAYE) {
+              // PAYE is selected, will be calculated automatically
+              applyPAYE = true;
+            } else if (isNPS) {
+              // NPS is selected
+              applyNPS = true;
+            } else if (deduction.amount) {
               otherDeductions[deduction.id] = Number(deduction.amount);
+              deductionNames[deduction.id] = deduction.name;
             } else if (deduction.percentage && baseSalary > 0) {
               otherDeductions[deduction.id] = (baseSalary * Number(deduction.percentage)) / 100;
+              deductionNames[deduction.id] = deduction.name;
             }
           });
         }
@@ -274,11 +299,37 @@ export async function POST(request) {
         // Calculate deduction amount (use monthly deduction, but don't exceed outstanding)
         const deductionAmount = Math.min(advance.monthlyDeduction, advance.outstandingAmount);
         if (deductionAmount > 0) {
-          otherDeductions[`advance_${advance.id}`] = deductionAmount;
+          const advanceKey = `advance_${advance.id}`;
+          otherDeductions[advanceKey] = deductionAmount;
+          deductionNames[advanceKey] = `Salary Advance (${advance.reference || advance.id.substring(0, 8)})`;
           advanceDeductions.push({
             advanceId: advance.id,
             amount: deductionAmount
           });
+        }
+      }
+
+      // Fetch gratuity account if employee has one selected
+      let gratuityDeduction = 0;
+      if (employee.gratuityAccountId) {
+        const gratuityAccount = await prisma.gratuityAccount.findUnique({
+          where: { id: employee.gratuityAccountId },
+          include: { employee: true }
+        });
+        
+        if (gratuityAccount && gratuityAccount.outstandingAmount > 0) {
+          // Calculate gratuity deduction (typically a percentage of salary or fixed amount)
+          // For now, we'll use a percentage-based approach (e.g., 5% of basic salary)
+          // This can be customized based on company policy
+          const gratuityRate = 0.05; // 5% - can be made configurable
+          const calculatedGratuity = baseSalary * gratuityRate;
+          // Don't deduct more than outstanding amount
+          gratuityDeduction = Math.min(calculatedGratuity, gratuityAccount.outstandingAmount);
+          
+          if (gratuityDeduction > 0) {
+            otherDeductions['gratuity'] = gratuityDeduction;
+            deductionNames['gratuity'] = 'Gratuity Contribution';
+          }
         }
       }
 
@@ -359,7 +410,8 @@ export async function POST(request) {
         overtimeRate: overtimeRate
       };
 
-      const payrollCalculation = calculateMalawiPayroll(payrollData);
+      // Calculate payroll with optional PAYE and NPS
+      const payrollCalculation = calculateMalawiPayroll(payrollData, applyPAYE, applyNPS);
 
       // Ensure all values are properly calculated
       const payeAmount = Number(payrollCalculation.payeAmount) || 0;
@@ -400,6 +452,7 @@ export async function POST(request) {
       const additionalInfo = {
         allowances: payrollCalculation.allowances || {},
         otherDeductions: payrollCalculation.otherDeductions || {},
+        deductionNames: deductionNames, // Store deduction names for payslip
         advanceDeductions: advanceDeductions.map(ad => ({
           advanceId: ad.advanceId,
           amount: ad.amount
@@ -412,6 +465,7 @@ export async function POST(request) {
           amount: ld.amount
         })),
         totalLeaveDeductions: totalLeaveDeduction,
+        gratuityDeduction: gratuityDeduction,
         npsEmployeeAmount,
         npsEmployerAmount,
         hoursWorked: totalHoursWorked,

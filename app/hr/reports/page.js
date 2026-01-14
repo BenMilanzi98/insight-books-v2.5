@@ -20,7 +20,9 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Info
+  Info,
+  Mail,
+  Printer
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
@@ -40,6 +42,13 @@ export default function HRReports() {
   const [reportPreview, setReportPreview] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
+  
+  // Payslip-specific state
+  const [payslipMonth, setPayslipMonth] = useState('');
+  const [payslipYear, setPayslipYear] = useState(new Date().getFullYear().toString());
+  const [selectedPayslipEmployee, setSelectedPayslipEmployee] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [generatingPayslip, setGeneratingPayslip] = useState(false);
 
   const reportTypes = [
     {
@@ -373,11 +382,311 @@ export default function HRReports() {
 
   const selectedReportType = reportTypes.find(r => r.id === reportType);
 
+  // Get month/year for payslip period
+  const getPayslipPeriod = () => {
+    if (!payslipMonth || !payslipYear) return null;
+    const month = parseInt(payslipMonth);
+    const year = parseInt(payslipYear);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0); // Last day of the month
+    return {
+      start: startDate.toISOString().split('T')[0],
+      end: endDate.toISOString().split('T')[0]
+    };
+  };
+
+  // Handle payslip print
+  const handlePrintPayslip = async () => {
+    const period = getPayslipPeriod();
+    if (!period) {
+      setNotification({
+        type: 'error',
+        message: 'Please select month and year'
+      });
+      return;
+    }
+    if (!selectedPayslipEmployee) {
+      setNotification({
+        type: 'error',
+        message: 'Please select an employee'
+      });
+      return;
+    }
+
+    try {
+      setGeneratingPayslip(true);
+      const params = new URLSearchParams();
+      params.append('startDate', period.start);
+      params.append('endDate', period.end);
+      params.append('employeeId', selectedPayslipEmployee);
+      params.append('format', 'pdf');
+
+      const response = await fetch(`/api/hr-reports/payslips?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to generate payslip');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const printWindow = window.open(url);
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to generate payslip for printing'
+      });
+    } finally {
+      setGeneratingPayslip(false);
+    }
+  };
+
+  // Handle payslip PDF download
+  const handleDownloadPayslipPDF = async () => {
+    const period = getPayslipPeriod();
+    if (!period) {
+      setNotification({
+        type: 'error',
+        message: 'Please select month and year'
+      });
+      return;
+    }
+    if (!selectedPayslipEmployee) {
+      setNotification({
+        type: 'error',
+        message: 'Please select an employee'
+      });
+      return;
+    }
+
+    try {
+      setGeneratingPayslip(true);
+      const params = new URLSearchParams();
+      params.append('startDate', period.start);
+      params.append('endDate', period.end);
+      params.append('employeeId', selectedPayslipEmployee);
+      params.append('format', 'pdf');
+
+      const response = await fetch(`/api/hr-reports/payslips?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to generate payslip');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const employee = employees.find(e => e.id === selectedPayslipEmployee);
+      const employeeName = employee?.name?.replace(/\s+/g, '-') || 'employee';
+      a.download = `payslip-${employeeName}-${payslipMonth}-${payslipYear}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      setNotification({
+        type: 'success',
+        message: 'Payslip downloaded successfully'
+      });
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to download payslip'
+      });
+    } finally {
+      setGeneratingPayslip(false);
+    }
+  };
+
+  // Handle sending payslip via email
+  const handleEmailPayslip = async () => {
+    const period = getPayslipPeriod();
+    if (!period) {
+      setNotification({
+        type: 'error',
+        message: 'Please select month and year'
+      });
+      return;
+    }
+    if (!selectedPayslipEmployee) {
+      setNotification({
+        type: 'error',
+        message: 'Please select an employee'
+      });
+      return;
+    }
+
+    try {
+      setSendingEmail(true);
+      const response = await fetch('/api/hr-reports/payslips/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employeeId: selectedPayslipEmployee,
+          startDate: period.start,
+          endDate: period.end
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to send payslip');
+
+      setNotification({
+        type: 'success',
+        message: 'Payslip sent to employee email successfully'
+      });
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: error.message || 'Failed to send payslip via email'
+      });
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900">HR Reports</h1>
         <p className="text-gray-600 mt-1">Generate comprehensive HR and payroll reports</p>
+      </div>
+
+      {/* Payslip Generation Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <FileText size={24} className="text-blue-600" />
+          Employee Payslip Generator
+        </h2>
+        <p className="text-gray-600 mb-6">Generate, print, email, or export payslips for employees</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Month Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Month <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={payslipMonth}
+              onChange={(e) => setPayslipMonth(e.target.value)}
+              className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select Month</option>
+              <option value="1">January</option>
+              <option value="2">February</option>
+              <option value="3">March</option>
+              <option value="4">April</option>
+              <option value="5">May</option>
+              <option value="6">June</option>
+              <option value="7">July</option>
+              <option value="8">August</option>
+              <option value="9">September</option>
+              <option value="10">October</option>
+              <option value="11">November</option>
+              <option value="12">December</option>
+            </select>
+          </div>
+
+          {/* Year Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Year <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              value={payslipYear}
+              onChange={(e) => setPayslipYear(e.target.value)}
+              min="2020"
+              max={new Date().getFullYear() + 1}
+              className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          {/* Employee Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Employee <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedPayslipEmployee}
+              onChange={(e) => setSelectedPayslipEmployee(e.target.value)}
+              disabled={loadingEmployees}
+              className="w-full p-2.5 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+              required
+            >
+              <option value="">Select Employee</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.employeeId || employee.id.substring(0, 8)} - {employee.name}
+                </option>
+              ))}
+            </select>
+            {loadingEmployees && (
+              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                <Loader2 size={12} className="animate-spin" />
+                Loading employees...
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handlePrintPayslip}
+            disabled={generatingPayslip || !payslipMonth || !payslipYear || !selectedPayslipEmployee}
+            className="px-6 py-2.5 bg-gray-700 text-white rounded-lg flex items-center gap-2 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {generatingPayslip ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Printer size={18} />
+                Print Payslip
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleDownloadPayslipPDF}
+            disabled={generatingPayslip || !payslipMonth || !payslipYear || !selectedPayslipEmployee}
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {generatingPayslip ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Generating...
+              </>
+            ) : (
+              <>
+                <Download size={18} />
+                Export PDF
+              </>
+            )}
+          </button>
+
+          <button
+            onClick={handleEmailPayslip}
+            disabled={sendingEmail || !payslipMonth || !payslipYear || !selectedPayslipEmployee}
+            className="px-6 py-2.5 bg-green-600 text-white rounded-lg flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {sendingEmail ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Mail size={18} />
+                Send via Email
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Notification */}

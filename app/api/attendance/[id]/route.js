@@ -55,9 +55,35 @@ export async function PUT(request, { params }) {
     if (body.clockIn !== undefined) {
       updateData.clockIn = body.clockIn ? new Date(body.clockIn) : null;
     }
+    // If clockIn is not provided, preserve existing value (don't update it)
     
     if (body.clockOut !== undefined) {
       updateData.clockOut = body.clockOut ? new Date(body.clockOut) : null;
+    }
+    // If clockOut is not provided, preserve existing value (don't update it)
+
+    // If both clockIn and clockOut are being updated, recalculate hours worked
+    const existingRecord = await prisma.attendanceRecord.findUnique({ where: { id } });
+    const finalClockIn = updateData.clockIn !== undefined ? updateData.clockIn : (existingRecord?.clockIn ? new Date(existingRecord.clockIn) : null);
+    const finalClockOut = updateData.clockOut !== undefined ? updateData.clockOut : (existingRecord?.clockOut ? new Date(existingRecord.clockOut) : null);
+    
+    if (finalClockIn && finalClockOut && (updateData.hoursWorked === undefined || updateData.hoursWorked === 0)) {
+      const diffMs = finalClockOut.getTime() - finalClockIn.getTime();
+      if (diffMs > 0) {
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const totalHours = Math.round(diffHours * 100) / 100;
+        const standardHours = 8;
+        
+        if (totalHours > standardHours) {
+          updateData.hoursWorked = standardHours;
+          updateData.overtimeHours = Math.round((totalHours - standardHours) * 100) / 100;
+        } else {
+          updateData.hoursWorked = totalHours;
+          if (updateData.overtimeHours === undefined) {
+            updateData.overtimeHours = 0;
+          }
+        }
+      }
     }
 
     const record = await prisma.attendanceRecord.update({

@@ -29,8 +29,29 @@ export async function GET(request) {
 
     if (fromDate || toDate) {
       where.date = {};
-      if (fromDate) where.date.gte = new Date(fromDate);
-      if (toDate) where.date.lte = new Date(toDate);
+      if (fromDate && toDate && fromDate === toDate) {
+        // If fromDate and toDate are the same, query for that specific date
+        // Parse date and create range from start to end of day
+        const dateStr = fromDate.match(/^\d{4}-\d{2}-\d{2}$/) ? fromDate : fromDate.split('T')[0];
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+        const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+        where.date.gte = startOfDay;
+        where.date.lte = endOfDay;
+      } else {
+        if (fromDate) {
+          // Parse date and set to start of day (00:00:00) to ensure we catch all records for that date
+          const dateStr = fromDate.match(/^\d{4}-\d{2}-\d{2}$/) ? fromDate : fromDate.split('T')[0];
+          const [year, month, day] = dateStr.split('-').map(Number);
+          where.date.gte = new Date(year, month - 1, day, 0, 0, 0, 0);
+        }
+        if (toDate) {
+          // Parse date and set to end of day (23:59:59) to ensure we catch all records for that date
+          const dateStr = toDate.match(/^\d{4}-\d{2}-\d{2}$/) ? toDate : toDate.split('T')[0];
+          const [year, month, day] = dateStr.split('-').map(Number);
+          where.date.lte = new Date(year, month - 1, day, 23, 59, 59, 999);
+        }
+      }
     }
 
     if (employeeId) {
@@ -181,13 +202,34 @@ export async function POST(request) {
       }
     }
 
+    // Calculate hours worked from clockIn/clockOut if provided and hoursWorked is 0 or not provided
+    let calculatedHoursWorked = Number(hoursWorked) || 0;
+    let calculatedOvertimeHours = Number(overtimeHours) || 0;
+    
+    if (parsedClockIn && parsedClockOut && (calculatedHoursWorked === 0 || !hoursWorked)) {
+      const diffMs = parsedClockOut.getTime() - parsedClockIn.getTime();
+      if (diffMs > 0) {
+        const diffHours = diffMs / (1000 * 60 * 60);
+        const totalHours = Math.round(diffHours * 100) / 100;
+        const standardHours = 8;
+        
+        if (totalHours > standardHours) {
+          calculatedHoursWorked = standardHours;
+          calculatedOvertimeHours = Math.round((totalHours - standardHours) * 100) / 100;
+        } else {
+          calculatedHoursWorked = totalHours;
+          calculatedOvertimeHours = 0;
+        }
+      }
+    }
+
     const record = await prisma.attendanceRecord.create({
       data: {
         employeeId,
         tenantId: user.tenantId,
         date: parsedDate,
-        hoursWorked: Number(hoursWorked) || 0,
-        overtimeHours: Number(overtimeHours) || 0,
+        hoursWorked: calculatedHoursWorked,
+        overtimeHours: calculatedOvertimeHours,
         status,
         notes: notes || null,
         clockIn: parsedClockIn,

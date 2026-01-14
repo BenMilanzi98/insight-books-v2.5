@@ -217,18 +217,37 @@ async function generatePayslipsPDF(payslips, tenantId) {
     doc.text('Deductions', margin, yPos);
     yPos += 8;
 
-    const totalOtherDeductions = Object.values(payslip.deductions.otherDeductions || {}).reduce((sum, val) => sum + (Number(val) || 0), 0);
+    // Get deduction names from payslip data
+    const deductionNames = payslip.deductions?.deductionNames || {};
+    
     const deductionsData = [];
     
+    // Add PAYE if applicable
     if (payslip.deductions.paye > 0) {
       deductionsData.push(['PAYE (Income Tax)', formatCurrency(payslip.deductions.paye)]);
     }
+    
+    // Add NPS if applicable
     if (payslip.deductions.npsEmployee > 0) {
       deductionsData.push(['NPS Employee Contribution', formatCurrency(payslip.deductions.npsEmployee)]);
     }
-    if (totalOtherDeductions > 0) {
-      deductionsData.push(['Other Deductions', formatCurrency(totalOtherDeductions)]);
+    
+    // Add all other deductions with their names
+    if (payslip.deductions.otherDeductions && typeof payslip.deductions.otherDeductions === 'object') {
+      Object.entries(payslip.deductions.otherDeductions).forEach(([key, value]) => {
+        const amount = Number(value) || 0;
+        if (amount > 0) {
+          // Get deduction name from stored names, or use a default name
+          const deductionName = deductionNames[key] || 
+            (key.startsWith('advance_') ? 'Salary Advance' :
+             key.startsWith('leave_') ? 'Unpaid Leave' :
+             key === 'gratuity' ? 'Gratuity Contribution' :
+             `Deduction ${key.substring(0, 8)}`);
+          deductionsData.push([deductionName, formatCurrency(amount)]);
+        }
+      });
     }
+    
     deductionsData.push(['Total Deductions', formatCurrency(payslip.deductions.totalDeductions)]);
 
     autoTable(doc, {
@@ -392,6 +411,7 @@ export async function GET(request) {
           paye: payroll.payeAmount || 0,
           npsEmployee: additionalInfo.npsEmployeeAmount || 0,
           otherDeductions: additionalInfo.otherDeductions || {},
+          deductionNames: additionalInfo.deductionNames || {}, // Include deduction names for display
           totalDeductions: payroll.deductions || 0
         },
         netPay: payroll.netPay || 0,

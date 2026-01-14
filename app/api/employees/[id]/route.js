@@ -192,7 +192,8 @@ export async function PUT(request, { params }) {
       bankDetails: body.bankDetails !== undefined ? body.bankDetails : undefined,
       emergencyContact: body.emergencyContact !== undefined ? body.emergencyContact : undefined,
       reportingManager: body.reportingManager !== undefined ? body.reportingManager : undefined,
-      selectedDeductions: body.selectedDeductions !== undefined ? body.selectedDeductions : undefined
+      selectedDeductions: body.selectedDeductions !== undefined ? body.selectedDeductions : undefined,
+      gratuityAccountId: body.gratuityAccountId !== undefined ? body.gratuityAccountId : undefined
     };
 
     // Handle salary calculation
