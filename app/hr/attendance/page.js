@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User, Edit, Trash2, FileText, Download, FileSpreadsheet } from "lucide-react";
+import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
 
 export default function AttendancePage() {
   const [employees, setEmployees] = useState([]);
@@ -14,6 +15,12 @@ export default function AttendancePage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [showReportSection, setShowReportSection] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0]); // First day of current month
+  const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportEmployeeId, setReportEmployeeId] = useState("all");
+  const [reportData, setReportData] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
   const [formData, setFormData] = useState({
     employeeId: "",
     status: "Present",
@@ -622,6 +629,174 @@ export default function AttendancePage() {
     );
   });
 
+  // Load attendance report data
+  const loadAttendanceReport = async () => {
+    setReportLoading(true);
+    try {
+      const startDate = new Date(reportStartDate);
+      const endDate = new Date(reportEndDate);
+      endDate.setHours(23, 59, 59, 999);
+
+      const params = new URLSearchParams({
+        fromDate: startDate.toISOString(),
+        toDate: endDate.toISOString()
+      });
+
+      if (reportEmployeeId !== "all") {
+        params.append('employeeId', reportEmployeeId);
+      }
+
+      const response = await fetch(`/api/attendance?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to load attendance report');
+      }
+
+      const data = await response.json();
+      const records = data.attendance || [];
+
+      const enrichedRecords = records.map(record => {
+        const employee = employees.find(emp => emp.id === record.employeeId);
+        return {
+          ...record,
+          employeeName: employee?.name || 'Unknown',
+          employeeId: employee?.employeeId || 'N/A',
+          department: employee?.department || 'N/A'
+        };
+      });
+
+      enrichedRecords.sort((a, b) => {
+        const dateCompare = new Date(a.date) - new Date(b.date);
+        if (dateCompare !== 0) return dateCompare;
+        return a.employeeName.localeCompare(b.employeeName);
+      });
+
+      setReportData(enrichedRecords);
+    } catch (error) {
+      console.error('Error loading attendance report:', error);
+      showToast('error', error.message || 'Failed to load attendance report');
+      setReportData([]);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  // Export report as PDF
+  const exportReportPDF = () => {
+    if (reportData.length === 0) {
+      showToast('error', 'No data to export');
+      return;
+    }
+
+    const selectedEmployee = reportEmployeeId !== "all" 
+      ? employees.find(e => e.id === reportEmployeeId)
+      : null;
+
+    const title = selectedEmployee 
+      ? `Attendance Report - ${selectedEmployee.name}`
+      : 'Attendance Report - All Employees';
+    
+    const subtitle = `Period: ${new Date(reportStartDate).toLocaleDateString()} - ${new Date(reportEndDate).toLocaleDateString()}`;
+
+    const headers = [
+      { key: 'date', label: 'Date' },
+      { key: 'employeeName', label: 'Employee Name' },
+      { key: 'employeeId', label: 'Employee ID' },
+      { key: 'department', label: 'Department' },
+      { key: 'status', label: 'Status' },
+      { key: 'clockIn', label: 'Clock In' },
+      { key: 'clockOut', label: 'Clock Out' },
+      { key: 'hoursWorked', label: 'Hours Worked' },
+      { key: 'overtimeHours', label: 'Overtime Hours' }
+    ];
+
+    const exportData = reportData.map(record => ({
+      date: new Date(record.date).toLocaleDateString(),
+      employeeName: record.employeeName,
+      employeeId: record.employeeId,
+      department: record.department,
+      status: record.status || 'N/A',
+      clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : 'N/A',
+      clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : 'N/A',
+      hoursWorked: record.hoursWorked ? `${record.hoursWorked}h` : '0h',
+      overtimeHours: record.overtimeHours ? `${record.overtimeHours}h` : '0h'
+    }));
+
+    const totalRecords = exportData.length;
+    const presentCount = exportData.filter(r => r.status === 'Present').length;
+    const absentCount = exportData.filter(r => r.status === 'Absent').length;
+    const totalHours = exportData.reduce((sum, r) => {
+      const hours = parseFloat(r.hoursWorked) || 0;
+      return sum + hours;
+    }, 0);
+    const totalOvertime = exportData.reduce((sum, r) => {
+      const hours = parseFloat(r.overtimeHours) || 0;
+      return sum + hours;
+    }, 0);
+
+    const summaryData = [
+      { label: 'Total Records', value: totalRecords },
+      { label: 'Present', value: presentCount },
+      { label: 'Absent', value: absentCount },
+      { label: 'Total Hours Worked', value: `${totalHours.toFixed(2)}h` },
+      { label: 'Total Overtime', value: `${totalOvertime.toFixed(2)}h` }
+    ];
+
+    downloadPDF({
+      title,
+      subtitle,
+      data: exportData,
+      headers,
+      summaryData
+    }, `attendance-report-${reportStartDate}-${reportEndDate}.pdf`);
+
+    showToast('success', 'PDF exported successfully');
+  };
+
+  // Export report as Excel
+  const exportReportExcel = async () => {
+    if (reportData.length === 0) {
+      showToast('error', 'No data to export');
+      return;
+    }
+
+    const selectedEmployee = reportEmployeeId !== "all" 
+      ? employees.find(e => e.id === reportEmployeeId)
+      : null;
+
+    const sheetName = selectedEmployee 
+      ? `${selectedEmployee.name} Attendance`
+      : 'All Employees Attendance';
+
+    const headers = [
+      { key: 'date', label: 'Date' },
+      { key: 'employeeName', label: 'Employee Name' },
+      { key: 'employeeId', label: 'Employee ID' },
+      { key: 'department', label: 'Department' },
+      { key: 'status', label: 'Status' },
+      { key: 'clockIn', label: 'Clock In' },
+      { key: 'clockOut', label: 'Clock Out' },
+      { key: 'hoursWorked', label: 'Hours Worked' },
+      { key: 'overtimeHours', label: 'Overtime Hours' }
+    ];
+
+    const exportData = reportData.map(record => ({
+      date: new Date(record.date).toLocaleDateString(),
+      employeeName: record.employeeName,
+      employeeId: record.employeeId,
+      department: record.department,
+      status: record.status || 'N/A',
+      clockIn: record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : 'N/A',
+      clockOut: record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : 'N/A',
+      hoursWorked: record.hoursWorked || 0,
+      overtimeHours: record.overtimeHours || 0
+    }));
+
+    const filename = `attendance-report-${reportStartDate}-${reportEndDate}.xlsx`;
+
+    await downloadExcel(exportData, headers, sheetName, filename);
+    showToast('success', 'Excel file exported successfully');
+  };
+
   return (
     <div className="p-6">
       {toast.visible && (
@@ -645,6 +820,13 @@ export default function AttendancePage() {
             className="px-4 py-2 border border-gray-300 rounded-md"
           />
           <button
+            onClick={() => setShowReportSection(!showReportSection)}
+            className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
+          >
+            <FileText size={18} />
+            {showReportSection ? 'Hide Report' : 'View Report'}
+          </button>
+          <button
             onClick={() => openModal()}
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
           >
@@ -653,6 +835,162 @@ export default function AttendancePage() {
           </button>
         </div>
       </div>
+
+      {/* Attendance Report Section */}
+      {showReportSection && (
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Attendance Report</h2>
+            <button
+              onClick={() => setShowReportSection(false)}
+              className="text-gray-500 hover:text-gray-700"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Report Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={reportStartDate}
+                onChange={(e) => setReportStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                value={reportEndDate}
+                onChange={(e) => setReportEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Employee</label>
+              <select
+                value={reportEmployeeId}
+                onChange={(e) => setReportEmployeeId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              >
+                <option value="all">All Employees</option>
+                {employees.map(emp => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={loadAttendanceReport}
+                disabled={reportLoading}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {reportLoading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    <Search size={18} />
+                    Generate Report
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Export Buttons */}
+          {reportData.length > 0 && (
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={exportReportPDF}
+                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center gap-2"
+              >
+                <FileText size={18} />
+                Export PDF
+              </button>
+              <button
+                onClick={exportReportExcel}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center gap-2"
+              >
+                <FileSpreadsheet size={18} />
+                Export Excel
+              </button>
+            </div>
+          )}
+
+          {/* Report Data Table */}
+          {reportData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock In</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Clock Out</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Overtime</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {reportData.map((record, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(record.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {record.employeeName}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {record.employeeId}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {record.department}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
+                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                          record.status === 'Present' ? 'bg-green-100 text-green-800' :
+                          record.status === 'Absent' ? 'bg-red-100 text-red-800' :
+                          record.status === 'Late' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {record.status || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900">
+                        {record.clockIn ? new Date(record.clockIn).toLocaleTimeString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900">
+                        {record.clockOut ? new Date(record.clockOut).toLocaleTimeString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900">
+                        {record.hoursWorked ? `${record.hoursWorked}h` : '0h'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900">
+                        {record.overtimeHours ? `${record.overtimeHours}h` : '0h'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : reportLoading ? (
+            <div className="text-center py-12 text-gray-600">Loading report data...</div>
+          ) : (
+            <div className="text-center py-12 text-gray-500">
+              Click "Generate Report" to view attendance data
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">

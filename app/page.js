@@ -24,6 +24,8 @@ export default function LandingPage() {
 function NavigationBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,6 +33,27 @@ function NavigationBar() {
     };
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/me');
+        if (response.ok) {
+          setIsLoggedIn(true);
+        } else {
+          setIsLoggedIn(false);
+        }
+      } catch (error) {
+        console.error('Error checking auth:', error);
+        setIsLoggedIn(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+    
+    checkAuth();
   }, []);
 
   return (
@@ -58,12 +81,22 @@ function NavigationBar() {
           </Link>
           
           <div className="hidden md:flex space-x-8">
-            <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
-              Log In
-            </Link>
-            <Link href="/contact" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
-              Book a Demo
-            </Link>
+            {!isCheckingAuth && (
+              <>
+                {isLoggedIn ? (
+                  <Link href="/dashboard" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
+                    Dashboard
+                  </Link>
+                ) : (
+                  <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
+                    Log In
+                  </Link>
+                )}
+                <Link href="/contact" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
+                  Book a Demo
+                </Link>
+              </>
+            )}
           </div>
           
           <button 
@@ -84,12 +117,22 @@ function NavigationBar() {
             </button>
           </div>
           <div className="px-8 py-6 space-y-6">
-            <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-              Log In
-            </Link>
-            <Link href="/contact" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
-              Book a Demo
-            </Link>
+            {!isCheckingAuth && (
+              <>
+                {isLoggedIn ? (
+                  <Link href="/dashboard" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
+                    Dashboard
+                  </Link>
+                ) : (
+                  <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
+                    Log In
+                  </Link>
+                )}
+                <Link href="/contact" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
+                  Book a Demo
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -345,9 +388,11 @@ function FeaturesSection() {
     },
     {
       icon: UserPlus,
-      color: "bg-gray-500",
-      title: "HR & Payroll (Coming Soon)",
-      description: "Employee records, salaries, deductions, and payroll processing."
+      color: "bg-gradient-to-br from-indigo-500 to-purple-600",
+      title: "HR & Payroll",
+      description: "Employee records, salaries, deductions, and payroll processing.",
+      isNew: true,
+      isHighlighted: true
     },
     {
       icon: Banknote,
@@ -370,8 +415,9 @@ function FeaturesSection() {
     {
       icon: Truck,
       color: "bg-lime-500",
-      title: "Supplier Management (Coming Soon)",
-      description: "Manage suppliers, purchases, and transactions."
+      title: "Supplier Management",
+      description: "Manage suppliers, purchases, and transactions.",
+      isNew: true
     },
     {
       icon: Calculator,
@@ -403,30 +449,57 @@ function FeaturesSection() {
           {features.map((feature, index) => {
             const IconComponent = feature.icon;
             const isComingSoon = feature.title.includes("Coming Soon");
+            const isNew = feature.isNew || false;
+            const isHighlighted = feature.isHighlighted || false;
 
             return (
               <div
                 key={index}
-                className={`group relative p-8 rounded-2xl bg-white border border-slate-200 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-100/50 transition-all duration-500 cursor-pointer overflow-hidden ${
-                  isComingSoon ? 'opacity-75' : ''
-                }`}
+                className={`group relative p-8 rounded-2xl bg-white border-2 transition-all duration-500 cursor-pointer overflow-hidden ${
+                  isHighlighted 
+                    ? 'border-indigo-500 shadow-xl shadow-indigo-100/50 ring-2 ring-indigo-200' 
+                    : 'border-slate-200 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-100/50'
+                } ${isComingSoon ? 'opacity-75' : ''}`}
               >
                 {/* Background gradient on hover */}
-                <div className="absolute inset-0 bg-gradient-to-br from-indigo-50 to-purple-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
+                  isHighlighted 
+                    ? 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50' 
+                    : 'bg-gradient-to-br from-indigo-50 to-purple-50'
+                }`}></div>
 
                 {/* Content */}
                 <div className="relative z-10">
-                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 ${feature.color} shadow-lg`}>
+                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 ${feature.color} shadow-lg ${
+                    isHighlighted ? 'ring-2 ring-indigo-300 ring-offset-2' : ''
+                  }`}>
                     <IconComponent size={28} className="text-white" />
                   </div>
 
-                  <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-indigo-700 transition-colors duration-300">
+                  <h3 className={`text-xl font-bold mb-3 group-hover:text-indigo-700 transition-colors duration-300 ${
+                    isHighlighted ? 'text-indigo-700' : 'text-slate-900'
+                  }`}>
                     {feature.title}
                   </h3>
 
                   <p className="text-slate-600 leading-relaxed group-hover:text-slate-700 transition-colors duration-300">
                     {feature.description}
                   </p>
+
+                  {/* New Feature Badge - Fancy */}
+                  {isNew && (
+                    <div className="absolute top-4 right-4">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-sm opacity-75 animate-pulse"></div>
+                        <div className="relative bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-300">
+                          <span className="relative z-10 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
+                            NEW
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Coming Soon Badge */}
                   {isComingSoon && (
@@ -437,7 +510,16 @@ function FeaturesSection() {
                 </div>
 
                 {/* Hover effect line */}
-                <div className="absolute bottom-0 left-0 w-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-600 group-hover:w-full transition-all duration-500"></div>
+                <div className={`absolute bottom-0 left-0 w-0 h-1 group-hover:w-full transition-all duration-500 ${
+                  isHighlighted 
+                    ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500' 
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-600'
+                }`}></div>
+
+                {/* Highlighted feature glow effect */}
+                {isHighlighted && (
+                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl opacity-20 blur-xl -z-10"></div>
+                )}
               </div>
             );
           })}
@@ -565,12 +647,27 @@ function TestimonialsSection() {
 function PricingSection() {
   const plans = SUBSCRIPTION_PLANS_ARRAY;
 
+  // Enhanced features list with HR & Payroll highlighted
+  const allFeatures = [
+    "POS (Point of Sale)",
+    "Inventory Tracking",
+    "Expenses Tracking",
+    "Invoices",
+    "Quotations",
+    "Customer Database",
+    "Financial Reporting",
+    "HR & Payroll",
+    "Supplier Management",
+    "Tax Management",
+    "Accounting & Bookkeeping"
+  ];
+
   return (
-    <section id="pricing" className="py-24 bg-white">
+    <section id="pricing" className="py-24 bg-gradient-to-br from-slate-50 via-white to-indigo-50">
       <div className="max-w-6xl mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Our Pricing</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto">
+          <h2 className="text-4xl font-bold text-slate-900 mb-4">Our Pricing</h2>
+          <p className="text-slate-600 max-w-2xl mx-auto text-lg">
             All features included with every plan. Choose the option that works best for your business.
           </p>
         </div>
@@ -579,8 +676,10 @@ function PricingSection() {
           {plans.map((plan, index) => (
             <div
               key={index}
-              className={`bg-white rounded-lg p-8 shadow-md hover:shadow-xl hover:scale-105 transition-all duration-300 cursor-pointer opacity-0 animate-fade-in ${
-                plan.highlight ? "ring-2 ring-indigo-600 relative" : ""
+              className={`bg-white rounded-xl p-8 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer opacity-0 animate-fade-in border-2 ${
+                plan.highlight 
+                  ? "ring-4 ring-indigo-200 border-indigo-500 relative bg-gradient-to-br from-white to-indigo-50" 
+                  : "border-slate-200"
               }`}
               style={{
                 animationDelay: `${index * 0.2}s`,
@@ -588,28 +687,52 @@ function PricingSection() {
               }}
             >
               {plan.highlight && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-indigo-600 text-white px-4 py-1 rounded-full text-sm">
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-1.5 rounded-full text-sm font-bold shadow-lg">
                   Best Value
                 </div>
               )}
-              <h3 className="text-xl font-bold text-slate-900 mb-2">{plan.name}</h3>
-              <div className="flex items-baseline mb-2">
-                <span className="text-3xl font-bold text-slate-900">{plan.priceFormatted}</span>
-                {plan.periodDisplay && <span className="text-slate-600 ml-2">{plan.periodDisplay}</span>}
+              <h3 className="text-2xl font-bold text-slate-900 mb-3">{plan.name}</h3>
+              <div className="flex items-baseline mb-3">
+                <span className="text-4xl font-bold text-slate-900">{plan.priceFormatted}</span>
+                {plan.periodDisplay && <span className="text-slate-600 ml-2 text-lg">{plan.periodDisplay}</span>}
               </div>
               {plan.savings && (
-                <div className="mb-6 text-sm text-green-600 font-medium">{plan.savings}</div>
+                <div className="mb-6 text-sm text-green-600 font-semibold bg-green-50 px-3 py-1.5 rounded-lg inline-block">
+                  {plan.savings}
+                </div>
               )}
-              <ul className="space-y-3 mb-8">
-                {plan.features.map((feature, fIndex) => (
-                  <li key={fIndex} className="flex items-center">
-                    <div className="w-5 h-5 bg-indigo-100 rounded-full flex items-center justify-center mr-3">
-                      <Check className="w-3 h-3 text-indigo-600" />
-                    </div>
-                    <span className="text-slate-700 text-sm">{feature}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="mb-6">
+                <h4 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">All Features Included:</h4>
+                <ul className="space-y-2.5">
+                  {allFeatures.map((feature, fIndex) => {
+                    const isHRPayroll = feature === "HR & Payroll";
+                    return (
+                      <li key={fIndex} className={`flex items-center ${isHRPayroll ? 'bg-gradient-to-r from-indigo-50 to-purple-50 px-2 py-1.5 rounded-lg -mx-2' : ''}`}>
+                        <div className={`w-5 h-5 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
+                          isHRPayroll 
+                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md' 
+                            : 'bg-indigo-100'
+                        }`}>
+                          <Check className={`w-3 h-3 ${isHRPayroll ? 'text-white' : 'text-indigo-600'}`} />
+                        </div>
+                        <span className={`text-slate-700 text-sm ${isHRPayroll ? 'font-semibold text-indigo-700' : ''}`}>
+                          {feature}
+                          {isHRPayroll && (
+                            <span className="ml-2 inline-flex items-center gap-1">
+                              <span className="relative">
+                                <span className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full blur opacity-50"></span>
+                                <span className="relative bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                                  NEW
+                                </span>
+                              </span>
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
               {/* <Link href={plan.name === "Tailor-Made" ? "/contact" : "/contact"} 
                 className={`block w-full py-3 rounded-md text-center font-medium ${
                   plan.highlight 
