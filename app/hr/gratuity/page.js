@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download } from "lucide-react";
+import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download, Trash2, X } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate } from "@/lib/dateUtils";
 
@@ -12,11 +12,13 @@ export default function GratuityManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [formData, setFormData] = useState({
     employeeId: '',
-    accrualRate: 0.0833, // Default 8.33% per year
+    accrualRate: 0.05, // Default 5% per month
     notes: ''
   });
   const [paymentData, setPaymentData] = useState({
@@ -84,7 +86,7 @@ export default function GratuityManagement() {
       const data = await response.json();
       setNotification({ type: 'success', message: 'Gratuity account updated successfully' });
       setShowCreateModal(false);
-      setFormData({ employeeId: '', accrualRate: 0.0833, notes: '' });
+      setFormData({ employeeId: '', accrualRate: 0.05, notes: '' });
       fetchGratuityAccounts();
     } catch (error) {
       console.error('Error creating/updating gratuity account:', error);
@@ -241,7 +243,7 @@ export default function GratuityManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(account.accrualRate * 100).toFixed(2)}% per year
+                      {(account.accrualRate * 100).toFixed(2)}% per month
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                       {formatCurrency(account.totalAccrued || 0)}
@@ -269,8 +271,29 @@ export default function GratuityManagement() {
                             setShowPaymentModal(true);
                           }}
                           className="text-green-600 hover:text-green-900"
+                          title="Record Payment"
                         >
                           <DollarSign size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedAccount(account);
+                            setShowClearModal(true);
+                          }}
+                          className="text-orange-600 hover:text-orange-900"
+                          title="Clear Account"
+                        >
+                          <X size={18} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedAccount(account);
+                            setShowDeleteModal(true);
+                          }}
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete Account"
+                        >
+                          <Trash2 size={18} />
                         </button>
                       </div>
                     </td>
@@ -305,17 +328,24 @@ export default function GratuityManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Accrual Rate (per year, default: 8.33%)
+                  Accrual Rate (per month, default: 5%)
                 </label>
                 <input
                   type="number"
-                  step="0.0001"
+                  step="0.01"
+                  min="0"
+                  max="1"
                   value={formData.accrualRate}
-                  onChange={(e) => setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0.0833 })}
+                  onChange={(e) => setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0.05 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {(formData.accrualRate * 100).toFixed(2)}% per year ({(formData.accrualRate * 100 / 12).toFixed(2)}% per month)
+                  {(formData.accrualRate * 100).toFixed(2)}% of gross salary per month
+                  {formData.accrualRate > 0 && (
+                    <span className="block mt-1">
+                      Example: For 500,000 MWK salary, {(500000 * formData.accrualRate).toLocaleString()} MWK will accumulate each month
+                    </span>
+                  )}
                 </p>
               </div>
               <div>
@@ -338,7 +368,7 @@ export default function GratuityManagement() {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setFormData({ employeeId: '', accrualRate: 0.0833, notes: '' });
+                  setFormData({ employeeId: '', accrualRate: 0.05, notes: '' });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
@@ -438,7 +468,7 @@ export default function GratuityManagement() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Accrual Rate</p>
-                  <p className="font-medium">{(selectedAccount.accrualRate * 100).toFixed(2)}% per year</p>
+                  <p className="font-medium">{(selectedAccount.accrualRate * 100).toFixed(2)}% per month</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Accrued</p>
@@ -488,6 +518,118 @@ export default function GratuityManagement() {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && selectedAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4 text-red-600">Delete Gratuity Account</h2>
+            <div className="mb-4">
+              <p className="text-gray-700 mb-2">
+                Are you sure you want to delete the gratuity account for <strong>{selectedAccount.employee?.name}</strong>?
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-800">
+                  <strong>Warning:</strong> This will permanently delete the account and all associated payment records. This action cannot be undone.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`/api/gratuity/${selectedAccount.id}`, {
+                      method: 'DELETE'
+                    });
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to delete gratuity account');
+                    }
+                    setNotification({ type: 'success', message: 'Gratuity account deleted successfully' });
+                    setShowDeleteModal(false);
+                    setSelectedAccount(null);
+                    fetchGratuityAccounts();
+                  } catch (error) {
+                    console.error('Error deleting gratuity account:', error);
+                    setNotification({ type: 'error', message: error.message });
+                  }
+                }}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setSelectedAccount(null);
+                }}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Modal */}
+      {showClearModal && selectedAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4 text-orange-600">Clear Gratuity Account</h2>
+            <div className="mb-4">
+              <p className="text-gray-700 mb-2">
+                Are you sure you want to clear the gratuity account for <strong>{selectedAccount.employee?.name}</strong>?
+              </p>
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-3">
+                <p className="text-sm text-orange-800 mb-2">
+                  <strong>This will:</strong>
+                </p>
+                <ul className="text-sm text-orange-800 list-disc list-inside space-y-1">
+                  <li>Reset total accrued to 0</li>
+                  <li>Reset total paid to 0</li>
+                  <li>Reset outstanding amount to 0</li>
+                  <li>Keep the account and accrual rate unchanged</li>
+                </ul>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`/api/gratuity/${selectedAccount.id}/clear`, {
+                      method: 'POST'
+                    });
+                    if (!response.ok) {
+                      const error = await response.json();
+                      throw new Error(error.error || 'Failed to clear gratuity account');
+                    }
+                    setNotification({ type: 'success', message: 'Gratuity account cleared successfully' });
+                    setShowClearModal(false);
+                    setSelectedAccount(null);
+                    fetchGratuityAccounts();
+                  } catch (error) {
+                    console.error('Error clearing gratuity account:', error);
+                    setNotification({ type: 'error', message: error.message });
+                  }
+                }}
+                className="flex-1 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700"
+              >
+                Clear Account
+              </button>
+              <button
+                onClick={() => {
+                  setShowClearModal(false);
+                  setSelectedAccount(null);
+                }}
+                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -112,3 +112,50 @@ export async function PUT(request, { params }) {
   }
 }
 
+/**
+ * DELETE - Delete gratuity account and all associated payments
+ */
+export async function DELETE(request, { params }) {
+  try {
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = params;
+
+    const gratuityAccount = await prisma.gratuityAccount.findUnique({
+      where: { id }
+    });
+
+    if (!gratuityAccount || gratuityAccount.tenantId !== user.tenantId) {
+      return NextResponse.json(
+        { error: 'Gratuity account not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete all payments first (cascade should handle this, but being explicit)
+    await prisma.gratuityPayment.deleteMany({
+      where: { gratuityAccountId: id }
+    });
+
+    // Delete the gratuity account
+    await prisma.gratuityAccount.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ message: 'Gratuity account deleted successfully' });
+
+  } catch (error) {
+    console.error('Error deleting gratuity account:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete gratuity account', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+

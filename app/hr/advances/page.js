@@ -20,7 +20,8 @@ export default function SalaryAdvancesManagement() {
     advanceDate: new Date().toISOString().split('T')[0],
     repaymentMonths: 1,
     reference: '',
-    notes: ''
+    notes: '',
+    paymentMethod: 'Cash'
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [notification, setNotification] = useState(null);
@@ -93,7 +94,8 @@ export default function SalaryAdvancesManagement() {
         advanceDate: new Date().toISOString().split('T')[0],
         repaymentMonths: 1,
         reference: '',
-        notes: ''
+        notes: '',
+        paymentMethod: 'Cash'
       });
       fetchAdvances();
     } catch (error) {
@@ -305,8 +307,15 @@ export default function SalaryAdvancesManagement() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
                       {formatCurrency(advance.totalDeducted || 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">
-                      {formatCurrency(advance.outstandingAmount || 0)}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-orange-600">
+                        {formatCurrency(advance.outstandingAmount || 0)}
+                      </div>
+                      {advance.amount > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {Math.round((advance.totalDeducted || 0) / advance.amount * 100)}% repaid
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
@@ -399,6 +408,22 @@ export default function SalaryAdvancesManagement() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method *</label>
+                <select
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="Cash">Cash</option>
+                  <option value="Bank">Bank Transfer</option>
+                  <option value="Check">Check</option>
+                  <option value="Mobile Money">Mobile Money</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  This will create an expense entry in your accounting records
+                </p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Repayment Period (Months)</label>
                 <input
                   type="number"
@@ -452,7 +477,8 @@ export default function SalaryAdvancesManagement() {
                     advanceDate: new Date().toISOString().split('T')[0],
                     repaymentMonths: 1,
                     reference: '',
-                    notes: ''
+                    notes: '',
+                    paymentMethod: 'Cash'
                   });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
@@ -620,24 +646,56 @@ export default function SalaryAdvancesManagement() {
                   </div>
                 )}
               </div>
+              
+              {/* Repayment Progress */}
+              {selectedAdvance.amount > 0 && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-gray-700">Repayment Progress</p>
+                    <p className="text-sm text-gray-600">
+                      {Math.round((selectedAdvance.totalDeducted || 0) / selectedAdvance.amount * 100)}% Complete
+                    </p>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className="bg-blue-600 h-3 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, ((selectedAdvance.totalDeducted || 0) / selectedAdvance.amount) * 100)}%`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>Deducted: {formatCurrency(selectedAdvance.totalDeducted || 0)}</span>
+                    <span>Remaining: {formatCurrency(selectedAdvance.outstandingAmount || 0)}</span>
+                  </div>
+                </div>
+              )}
+              
+              {/* Deduction History */}
               {selectedAdvance.deductions && selectedAdvance.deductions.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="font-semibold mb-3">Deduction History</h3>
-                  <div className="overflow-x-auto">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Deduction History</p>
+                  <div className="border rounded-lg overflow-hidden">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
                           <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Amount</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payroll ID</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payroll Period</th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {selectedAdvance.deductions.map((deduction) => (
-                          <tr key={deduction.id}>
-                            <td className="px-4 py-2 text-sm">{formatDate(deduction.deductionDate)}</td>
-                            <td className="px-4 py-2 text-sm font-medium text-green-600">{formatCurrency(deduction.amount)}</td>
-                            <td className="px-4 py-2 text-sm text-gray-500">{deduction.payrollId || '-'}</td>
+                        {selectedAdvance.deductions.map((deduction, index) => (
+                          <tr key={deduction.id || index}>
+                            <td className="px-4 py-2 text-sm text-gray-900">
+                              {formatDate(deduction.deductionDate)}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-medium text-green-600">
+                              {formatCurrency(deduction.amount || 0)}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-500">
+                              {deduction.payrollId ? `Payroll: ${deduction.payrollId.substring(0, 8)}...` : '-'}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

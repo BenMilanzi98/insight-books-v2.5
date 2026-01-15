@@ -112,19 +112,9 @@ export async function POST(request) {
     });
 
     const baseSalary = employee.grossSalary || employee.salary || 0;
-    const rate = accrualRate || 0.0833; // Default 8.33% per year (1/12 of monthly salary)
+    const rate = accrualRate || 0.05; // Default 5% per month
 
-    // Calculate years of service
-    const startDate = new Date(employee.startDate);
-    const now = new Date();
-    const yearsOfService = (now - startDate) / (1000 * 60 * 60 * 24 * 365.25);
-
-    // Calculate total accrued gratuity
-    // Formula: (Monthly Salary * Accrual Rate) * Years of Service
-    const monthlyAccrual = baseSalary * rate;
-    const totalAccrued = monthlyAccrual * Math.max(0, yearsOfService);
-
-    // Get total paid
+    // Get total paid from existing account
     let totalPaid = 0;
     if (gratuityAccount) {
       const payments = await prisma.gratuityPayment.findMany({
@@ -134,10 +124,23 @@ export async function POST(request) {
       });
       totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
     }
-    const outstandingAmount = Math.max(0, totalAccrued - totalPaid);
 
     if (gratuityAccount) {
       // Update existing account
+      let totalAccrued = gratuityAccount.totalAccrued;
+      let outstandingAmount = Math.max(0, totalAccrued - totalPaid);
+      
+      // Only recalculate if explicitly requested (for backdating purposes)
+      if (recalculate) {
+        // Calculate years of service for backdating
+        const startDate = new Date(employee.startDate);
+        const now = new Date();
+        const yearsOfService = (now - startDate) / (1000 * 60 * 60 * 24 * 365.25);
+        const monthlyAccrual = baseSalary * rate;
+        totalAccrued = monthlyAccrual * Math.max(0, yearsOfService);
+        outstandingAmount = Math.max(0, totalAccrued - totalPaid);
+      }
+
       gratuityAccount = await prisma.gratuityAccount.update({
         where: { id: gratuityAccount.id },
         data: {
@@ -158,16 +161,16 @@ export async function POST(request) {
         }
       });
     } else {
-      // Create new account
+      // Create new account - start with 0 accrued (will accumulate from payroll going forward)
       gratuityAccount = await prisma.gratuityAccount.create({
         data: {
           employeeId,
           tenantId: user.tenantId,
           accrualRate: rate,
-          totalAccrued: totalAccrued,
-          totalPaid,
-          outstandingAmount,
-          lastCalculatedAt: new Date()
+          totalAccrued: 0, // Start fresh - no backdating
+          totalPaid: 0,
+          outstandingAmount: 0,
+          lastCalculatedAt: null // Will be set when first payroll is processed
         },
         include: {
           employee: {
@@ -181,15 +184,17 @@ export async function POST(request) {
       });
     }
 
+    // Calculate monthly accrual for display purposes
+    const monthlyAccrual = baseSalary * rate;
+
     return NextResponse.json({
       gratuityAccount,
       calculation: {
         baseSalary,
         monthlyAccrual,
-        yearsOfService: yearsOfService.toFixed(2),
-        totalAccrued,
-        totalPaid,
-        outstandingAmount
+        totalAccrued: gratuityAccount.totalAccrued,
+        totalPaid: gratuityAccount.totalPaid,
+        outstandingAmount: gratuityAccount.outstandingAmount
       }
     });
 

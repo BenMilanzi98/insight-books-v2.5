@@ -73,6 +73,15 @@ export async function POST(request) {
               lte: periodEnd
             }
           }
+        },
+        gratuityAccount: {
+          select: {
+            id: true,
+            accrualRate: true,
+            totalAccrued: true,
+            totalPaid: true,
+            outstandingAmount: true
+          }
         }
       }
     });
@@ -309,28 +318,18 @@ export async function POST(request) {
         }
       }
 
-      // Fetch gratuity account if employee has one selected
-      let gratuityDeduction = 0;
-      if (employee.gratuityAccountId) {
-        const gratuityAccount = await prisma.gratuityAccount.findUnique({
-          where: { id: employee.gratuityAccountId },
-          include: { employee: true }
-        });
-        
-        if (gratuityAccount && gratuityAccount.outstandingAmount > 0) {
-          // Calculate gratuity deduction (typically a percentage of salary or fixed amount)
-          // For now, we'll use a percentage-based approach (e.g., 5% of basic salary)
-          // This can be customized based on company policy
-          const gratuityRate = 0.05; // 5% - can be made configurable
-          const calculatedGratuity = baseSalary * gratuityRate;
-          // Don't deduct more than outstanding amount
-          gratuityDeduction = Math.min(calculatedGratuity, gratuityAccount.outstandingAmount);
-          
-          if (gratuityDeduction > 0) {
-            otherDeductions['gratuity'] = gratuityDeduction;
-            deductionNames['gratuity'] = 'Gratuity Contribution';
-          }
-        }
+      // Fetch gratuity account if employee has one
+      // Note: Gratuity is added to the account, not deducted from salary
+      let gratuityAccount = employee.gratuityAccount;
+      let gratuityAccrualAmount = 0;
+      
+      if (gratuityAccount) {
+        // Calculate gratuity accrual based on accrual rate
+        // Gratuity accumulates as a percentage of salary each month - NOT deducted from salary
+        // Monthly accrual = baseSalary * accrualRate
+        // Default accrualRate is 0.05 (5% per month)
+        // Example: If salary is 500,000 MWK and rate is 0.05, monthly accrual = 25,000 MWK
+        gratuityAccrualAmount = baseSalary * (gratuityAccount.accrualRate || 0.05);
       }
 
       // Fetch unpaid leave requests for this employee during the payroll period
@@ -465,7 +464,7 @@ export async function POST(request) {
           amount: ld.amount
         })),
         totalLeaveDeductions: totalLeaveDeduction,
-        gratuityDeduction: gratuityDeduction,
+        gratuityAccrualAmount: gratuityAccrualAmount,
         npsEmployeeAmount,
         npsEmployerAmount,
         hoursWorked: totalHoursWorked,
@@ -538,6 +537,28 @@ export async function POST(request) {
         } catch (error) {
           console.error(`Error recording advance deduction for advance ${advanceDeduction.advanceId}:`, error);
           // Continue processing other advances even if one fails
+        }
+      }
+
+      // Update gratuity account - add accrual amount to the account
+      if (gratuityAccount && gratuityAccrualAmount > 0) {
+        try {
+          const newTotalAccrued = gratuityAccount.totalAccrued + gratuityAccrualAmount;
+          const newOutstandingAmount = Math.max(0, newTotalAccrued - gratuityAccount.totalPaid);
+
+          await prisma.gratuityAccount.update({
+            where: { id: gratuityAccount.id },
+            data: {
+              totalAccrued: newTotalAccrued,
+              outstandingAmount: newOutstandingAmount,
+              lastCalculatedAt: new Date()
+            }
+          });
+
+          console.log(`Updated gratuity account for ${employee.name}: Added ${gratuityAccrualAmount.toFixed(2)} MWK. New total accrued: ${newTotalAccrued.toFixed(2)} MWK`);
+        } catch (error) {
+          console.error(`Error updating gratuity account for employee ${employee.id}:`, error);
+          // Continue processing even if gratuity update fails
         }
       }
 

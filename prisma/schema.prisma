@@ -1109,7 +1109,7 @@ model GratuityAccount {
   id                String            @id @default(cuid())
   employeeId        String            @unique
   tenantId          String
-  accrualRate       Float             @default(0.0833) // Default 1/12 of monthly salary per year (8.33% per year)
+  accrualRate       Float             @default(0.05) // Default 5% of monthly salary per month
   totalAccrued      Float             @default(0)
   totalPaid         Float             @default(0)
   outstandingAmount Float             @default(0)

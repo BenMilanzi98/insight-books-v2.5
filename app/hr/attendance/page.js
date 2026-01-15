@@ -164,6 +164,9 @@ export default function AttendancePage() {
 
   const quickMarkStatus = async (employeeId, status) => {
     try {
+      // Get current time when button is clicked
+      const currentTime = new Date().toISOString();
+      
       // Helper to find existing record - check API first, then local state
       const findExistingRecord = async () => {
         // Always check API first (most reliable)
@@ -202,10 +205,15 @@ export default function AttendancePage() {
           notes: existingRecord.notes || null
         };
         
-        // Preserve clockIn/clockOut if they exist
-        if (existingRecord.clockIn) {
+        // If marking Present and no clockIn exists, set it to current time
+        if (status === 'Present' && !existingRecord.clockIn) {
+          updatePayload.clockIn = currentTime;
+        } else if (existingRecord.clockIn) {
+          // Preserve existing clockIn
           updatePayload.clockIn = new Date(existingRecord.clockIn).toISOString();
         }
+        
+        // Preserve clockOut if it exists
         if (existingRecord.clockOut) {
           updatePayload.clockOut = new Date(existingRecord.clockOut).toISOString();
         }
@@ -217,19 +225,26 @@ export default function AttendancePage() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to update');
-        showToast('success', 'Attendance updated');
+        showToast('success', status === 'Present' && !existingRecord.clockIn ? 'Present marked and clocked in' : 'Attendance updated');
       } else {
         // Try to create new record
+        const createPayload = {
+          employeeId,
+          date: selectedDate,
+          status,
+          hoursWorked: 0,
+          overtimeHours: 0
+        };
+        
+        // If marking Present, set clockIn to current time
+        if (status === 'Present') {
+          createPayload.clockIn = currentTime;
+        }
+        
         const res = await fetch('/api/attendance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employeeId,
-            date: selectedDate,
-            status,
-            hoursWorked: 0,
-            overtimeHours: 0
-          })
+          body: JSON.stringify(createPayload)
         });
         const data = await res.json();
         
@@ -250,10 +265,13 @@ export default function AttendancePage() {
                 notes: existingRecord.notes || null
               };
               
-              // Preserve clockIn/clockOut if they exist
-              if (existingRecord.clockIn) {
+              // If marking Present and no clockIn exists, set it to current time
+              if (status === 'Present' && !existingRecord.clockIn) {
+                updatePayload.clockIn = currentTime;
+              } else if (existingRecord.clockIn) {
                 updatePayload.clockIn = new Date(existingRecord.clockIn).toISOString();
               }
+              
               if (existingRecord.clockOut) {
                 updatePayload.clockOut = new Date(existingRecord.clockOut).toISOString();
               }
@@ -265,7 +283,7 @@ export default function AttendancePage() {
               });
               const updateData = await updateRes.json();
               if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
-              showToast('success', 'Attendance updated');
+              showToast('success', status === 'Present' && !existingRecord.clockIn ? 'Present marked and clocked in' : 'Attendance updated');
             } else {
               // Last resort: try querying all records for this employee and find by date
               try {
@@ -284,8 +302,17 @@ export default function AttendancePage() {
                       overtimeHours: matchingRecord.overtimeHours || 0,
                       notes: matchingRecord.notes || null
                     };
-                    if (matchingRecord.clockIn) updatePayload.clockIn = new Date(matchingRecord.clockIn).toISOString();
-                    if (matchingRecord.clockOut) updatePayload.clockOut = new Date(matchingRecord.clockOut).toISOString();
+                    
+                    // If marking Present and no clockIn exists, set it to current time
+                    if (status === 'Present' && !matchingRecord.clockIn) {
+                      updatePayload.clockIn = currentTime;
+                    } else if (matchingRecord.clockIn) {
+                      updatePayload.clockIn = new Date(matchingRecord.clockIn).toISOString();
+                    }
+                    
+                    if (matchingRecord.clockOut) {
+                      updatePayload.clockOut = new Date(matchingRecord.clockOut).toISOString();
+                    }
                     
                     const updateRes = await fetch(`/api/attendance/${matchingRecord.id}`, {
                       method: 'PUT',
@@ -294,7 +321,7 @@ export default function AttendancePage() {
                     });
                     const updateData = await updateRes.json();
                     if (!updateRes.ok) throw new Error(updateData.error || 'Failed to update');
-                    showToast('success', 'Attendance updated');
+                    showToast('success', status === 'Present' && !matchingRecord.clockIn ? 'Present marked and clocked in' : 'Attendance updated');
                   } else {
                     throw new Error('Record exists but could not be found. Please refresh the page.');
                   }
@@ -309,7 +336,7 @@ export default function AttendancePage() {
             throw new Error(data.error || 'Failed to create');
           }
         } else {
-          showToast('success', 'Attendance recorded');
+          showToast('success', status === 'Present' ? 'Present marked and clocked in' : 'Attendance recorded');
         }
       }
       // Small delay to ensure backend has processed
@@ -318,6 +345,69 @@ export default function AttendancePage() {
     } catch (e) {
       console.error('Error marking attendance:', e);
       showToast('error', e.message || 'Failed to mark attendance');
+    }
+  };
+
+  const quickClockOut = async (employeeId) => {
+    try {
+      const currentTime = new Date().toISOString();
+      
+      // Helper to find existing record
+      const findExistingRecord = async () => {
+        try {
+          const checkRes = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&employeeId=${employeeId}`);
+          const checkData = await checkRes.json();
+          if (checkRes.ok && checkData.attendance && checkData.attendance.length > 0) {
+            return checkData.attendance[0];
+          }
+        } catch (checkError) {
+          console.warn('API check failed:', checkError);
+        }
+        
+        return attendanceRecords.find(r => 
+          r.employeeId === employeeId && 
+          new Date(r.date).toISOString().split('T')[0] === selectedDate
+        );
+      };
+
+      const existingRecord = await findExistingRecord();
+      
+      if (!existingRecord) {
+        showToast('error', 'No attendance record found. Please mark present first.');
+        return;
+      }
+
+      if (existingRecord.clockOut) {
+        showToast('error', 'Employee has already clocked out for this day.');
+        return;
+      }
+
+      // Update with clock out time
+      const updatePayload = {
+        status: existingRecord.status || 'Present',
+        date: selectedDate,
+        clockIn: existingRecord.clockIn ? new Date(existingRecord.clockIn).toISOString() : currentTime, // Set clockIn if missing
+        clockOut: currentTime,
+        hoursWorked: existingRecord.hoursWorked || 0,
+        overtimeHours: existingRecord.overtimeHours || 0,
+        notes: existingRecord.notes || null
+      };
+
+      const res = await fetch(`/api/attendance/${existingRecord.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatePayload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to clock out');
+      
+      showToast('success', 'Clock out recorded');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      await loadAttendance();
+    } catch (e) {
+      console.error('Error clocking out:', e);
+      showToast('error', e.message || 'Failed to clock out');
     }
   };
 
@@ -679,7 +769,7 @@ export default function AttendancePage() {
                                 <button
                                   onClick={() => quickMarkStatus(employee.id, 'Present')}
                                   className="text-green-600 hover:text-green-900"
-                                  title="Mark Present"
+                                  title="Mark Present (Records Clock In Time)"
                                 >
                                   <CheckCircle size={18} />
                                 </button>
@@ -694,6 +784,15 @@ export default function AttendancePage() {
                             )}
                             {record && (
                               <>
+                                {record.status === 'Present' && !record.clockOut && (
+                                  <button
+                                    onClick={() => quickClockOut(employee.id)}
+                                    className="text-orange-600 hover:text-orange-900"
+                                    title="Clock Out"
+                                  >
+                                    <Clock size={18} />
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => openModal(record)}
                                   className="text-blue-600 hover:text-blue-900"

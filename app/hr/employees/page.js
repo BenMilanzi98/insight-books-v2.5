@@ -368,7 +368,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       ...formWithoutKin,
       grossSalary: formData.grossSalary,
       selectedDeductions: selectedDeductions.map(d => d.id),
-      gratuityAccountId: selectedGratuityAccount || null,
+      gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
       salaryCalculation: salaryCalculation,
       emergencyContact,
       documents: Object.keys(documents).length > 0 ? documents : undefined,
@@ -704,6 +704,9 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
               <div className="mb-6">
                 <h4 className="text-md font-medium text-gray-800 mb-3">Salary Deductions</h4>
+                <p className="text-xs text-gray-500 mb-2">
+                  Select deductions to apply to this employee. <strong>PAYE (Malawi Income Tax 2025/26) is optional</strong> and can be enabled/disabled per employee.
+                </p>
                 {deductions.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
                     {deductions.map(deduction => (
@@ -720,7 +723,9 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <div className="min-w-0">
                             <div className="font-medium text-sm truncate">{deduction.name}</div>
                             <div className="text-xs text-gray-600">
-                              {deduction.percentage !== null && deduction.percentage !== undefined
+                              {deduction.name && deduction.name.toLowerCase().includes('paye') ? (
+                                <span className="text-blue-600 font-medium">Auto-calculated</span>
+                              ) : deduction.percentage !== null && deduction.percentage !== undefined
                                 ? `${deduction.percentage}%`
                                 : deduction.amount !== null && deduction.amount !== undefined
                                   ? `MWK ${(deduction.amount || 0).toLocaleString()}`
@@ -753,7 +758,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               <div className="mb-6">
                 <h4 className="text-md font-medium text-gray-800 mb-3">Gratuity Account (Optional)</h4>
                 <p className="text-sm text-gray-600 mb-3">
-                  Select a gratuity account to apply gratuity deductions for this employee during payroll processing.
+                  Select a gratuity account to accumulate gratuity for this employee. Gratuity is calculated as a percentage of salary and accumulates over time. It is NOT deducted from salary but will be paid to the employee after the specified period.
                 </p>
                 <select
                   value={selectedGratuityAccount}
@@ -765,7 +770,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     .filter(account => !employee || account.employeeId === employee.id)
                     .map((account) => (
                       <option key={account.id} value={account.id}>
-                        {account.employee?.name || 'Employee'} - Outstanding: MWK {(account.outstandingAmount || 0).toLocaleString()}
+                        {account.employee?.name || 'Employee'} - Accrued: MWK {(account.totalAccrued || 0).toLocaleString()}
                       </option>
                     ))}
                 </select>
@@ -775,8 +780,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                   </p>
                 )}
                 {selectedGratuityAccount && (
-                  <p className="text-xs text-gray-500 mt-2">
-                    Gratuity will be deducted from this employee's salary during payroll processing.
+                  <p className="text-xs text-blue-600 mt-2">
+                    ✓ Gratuity will accumulate each month as a percentage of salary. The accumulated amount will be available for payment after the specified period.
                   </p>
                 )}
               </div>
@@ -2283,14 +2288,14 @@ const EmployeeManagement = () => {
               </div>
               
               <div className="mt-4 pt-4 border-t border-gray-200">
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Malawi Tax Info</h4>
+                <h4 className="text-sm font-semibold text-gray-900 mb-2">Malawi Tax Info (2025/26)</h4>
                 <div className="text-xs text-gray-700 space-y-1">
                   <div>• PAYE: Progressive rates</div>
                   <div>• NPS: 5% employee + 5% employer</div>
-                  <div>• First MK 150,000: 0%</div>
-                  <div>• Next MK 350,000: 25%</div>
-                  <div>• Next MK 2,050,000: 30%</div>
-                  <div>• Excess MK 2,550,000: 35%</div>
+                  <div>• Up to MK 170,000: 0% (tax-free)</div>
+                  <div>• MK 170,001 – 1,570,000: 30%</div>
+                  <div>• MK 1,570,001 – 10,000,000: 35%</div>
+                  <div>• Above MK 10,000,000: 40%</div>
                 </div>
               </div>
             </div>

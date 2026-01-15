@@ -55,7 +55,7 @@ export async function GET(request) {
       await prisma.deduction.create({
         data: {
           name: 'PAYE (Malawi Income Tax 2025/26)',
-          description: 'Pay As You Earn tax based on Malawi 2025/26 tax brackets:\n- Up to 170,000 MWK: 0% (tax-free)\n- 170,001 - 1,570,000 MWK: 30%\n- 1,570,001 - 10,000,000 MWK: 35%\n- Above 10,000,000 MWK: 40%\n\nThis deduction is automatically calculated based on gross salary.',
+          description: 'Pay As You Earn tax based on Malawi 2025/26 tax brackets:\n\nMonthly Taxable Income (MWK) | PAYE Rate (%)\nUp to 170,000 | 0% (tax-free)\n170,001 – 1,570,000 | 30%\n1,570,001 – 10,000,000 | 35%\nAbove 10,000,000 | 40%\n\nThis deduction is OPTIONAL and can be enabled/disabled for each employee.\nWhen enabled, PAYE is automatically calculated based on gross salary.',
           amount: null,
           percentage: null, // PAYE is calculated automatically, not a fixed amount or percentage
           isStatutory: true,

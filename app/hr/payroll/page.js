@@ -34,8 +34,10 @@ export default function PayrollProcessing() {
     payrollYear: new Date().getFullYear(), // Current year
     paymentDate: new Date().toISOString().split('T')[0],
     expenseAccountId: '',
-    paymentAccountId: ''
+    paymentAccountId: '',
+    sendEmails: false // Option to send payslips via email
   });
+  const [sendingEmails, setSendingEmails] = useState(false);
 
   // Month names for the selector
   const months = [
@@ -597,12 +599,52 @@ export default function PayrollProcessing() {
       const totalGross = summary.totalGrossPay || 0;
       const totalNet = summary.totalNetPay || 0;
 
-      setToast({
-        visible: true,
-        type: 'success',
-        message: `Payroll processed. Employees: ${totalEmployees}, Gross: MWK ${Number(totalGross).toLocaleString()}, Net: MWK ${Number(totalNet).toLocaleString()}`
-      });
-      setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
+      // Send payslips via email if enabled
+      if (formData.sendEmails) {
+        try {
+          setSendingEmails(true);
+          const emailResponse = await fetch('/api/payroll/send-payslips', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              periodStart: payload.periodStart,
+              periodEnd: payload.periodEnd
+            })
+          });
+
+          if (emailResponse.ok) {
+            const emailData = await emailResponse.json();
+            setToast({
+              visible: true,
+              type: 'success',
+              message: `Payroll processed. Employees: ${totalEmployees}, Gross: MWK ${Number(totalGross).toLocaleString()}, Net: MWK ${Number(totalNet).toLocaleString()}. Payslips sent: ${emailData.emailsSent || 0}, Skipped: ${emailData.skipped || 0}`
+            });
+          } else {
+            const emailError = await emailResponse.json().catch(() => ({}));
+            setToast({
+              visible: true,
+              type: 'warning',
+              message: `Payroll processed but email sending failed: ${emailError.error || 'Unknown error'}`
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending payslip emails:', emailError);
+          setToast({
+            visible: true,
+            type: 'warning',
+            message: `Payroll processed but email sending failed: ${emailError.message || 'Unknown error'}`
+          });
+        } finally {
+          setSendingEmails(false);
+        }
+      } else {
+        setToast({
+          visible: true,
+          type: 'success',
+          message: `Payroll processed. Employees: ${totalEmployees}, Gross: MWK ${Number(totalGross).toLocaleString()}, Net: MWK ${Number(totalNet).toLocaleString()}`
+        });
+      }
+      setTimeout(() => setToast(t => ({ ...t, visible: false })), 6000);
 
       setShowProcessModal(false);
       fetchPayrollRuns();
@@ -887,6 +929,25 @@ export default function PayrollProcessing() {
                     )}
                   </select>
                 </div>
+
+                {/* Send Email Option */}
+                <div className="flex items-center space-x-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="sendEmails"
+                    checked={formData.sendEmails}
+                    onChange={(e) => setFormData({ ...formData, sendEmails: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="sendEmails" className="text-sm font-medium text-gray-700 cursor-pointer">
+                    Send payslips via email to employees
+                  </label>
+                </div>
+                {formData.sendEmails && (
+                  <p className="text-xs text-gray-500 ml-7 -mt-2">
+                    Payslips will be sent as PDF attachments. Employees without email addresses will be skipped.
+                  </p>
+                )}
               </div>
               
               <div className="flex justify-end space-x-3 mt-6">
@@ -909,10 +970,10 @@ export default function PayrollProcessing() {
                   }
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {processing && (
+                  {(processing || sendingEmails) && (
                     <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   )}
-                  {processing ? 'Processing...' : 'Process Payroll'}
+                  {sendingEmails ? 'Sending Emails...' : processing ? 'Processing...' : 'Process Payroll'}
                 </button>
               </div>
             </div>
