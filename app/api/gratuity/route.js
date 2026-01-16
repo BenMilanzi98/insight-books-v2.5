@@ -3,6 +3,23 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function normalizeGratuityRatePercent(rawRate) {
+  // We store rates as percentage points (e.g. 5 = 5%).
+  // Backward compatibility: if an existing record uses decimal (e.g. 0.05), treat it as 5%.
+  const n = Number(rawRate);
+  if (!Number.isFinite(n)) return 5;
+  if (n <= 0) return 5;
+  // If it's 0 < n <= 1, assume it's decimal fraction.
+  if (n > 0 && n <= 1) return n * 100;
+  return n;
+}
+
+function ratePercentToFraction(ratePercent) {
+  const n = Number(ratePercent);
+  if (!Number.isFinite(n) || n <= 0) return 0.05;
+  return n / 100;
+}
+
 /**
  * GET - Get all gratuity accounts for the tenant
  */
@@ -112,7 +129,8 @@ export async function POST(request) {
     });
 
     const baseSalary = employee.grossSalary || employee.salary || 0;
-    const rate = accrualRate || 0.05; // Default 5% per month
+    const ratePercent = normalizeGratuityRatePercent(accrualRate ?? gratuityAccount?.accrualRate ?? 5);
+    const rate = ratePercentToFraction(ratePercent); // fraction (e.g. 0.05)
 
     // Get total paid from existing account
     let totalPaid = 0;
@@ -144,7 +162,7 @@ export async function POST(request) {
       gratuityAccount = await prisma.gratuityAccount.update({
         where: { id: gratuityAccount.id },
         data: {
-          accrualRate: rate,
+          accrualRate: ratePercent, // store as percent points (e.g. 5)
           totalAccrued: recalculate ? totalAccrued : gratuityAccount.totalAccrued,
           totalPaid,
           outstandingAmount: recalculate ? outstandingAmount : gratuityAccount.outstandingAmount,
@@ -166,7 +184,7 @@ export async function POST(request) {
         data: {
           employeeId,
           tenantId: user.tenantId,
-          accrualRate: rate,
+          accrualRate: ratePercent, // store as percent points (e.g. 5)
           totalAccrued: 0, // Start fresh - no backdating
           totalPaid: 0,
           outstandingAmount: 0,

@@ -18,7 +18,7 @@ export default function GratuityManagement() {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [formData, setFormData] = useState({
     employeeId: '',
-    accrualRate: 0.05, // Default 5% per month
+    accrualRate: 5, // Default 5% per month (percentage points)
     notes: ''
   });
   const [paymentData, setPaymentData] = useState({
@@ -28,6 +28,14 @@ export default function GratuityManagement() {
     notes: ''
   });
   const [notification, setNotification] = useState(null);
+
+  const toPercentPoints = (rate) => {
+    const n = Number(rate);
+    if (!Number.isFinite(n)) return 0;
+    // Backward compat: 0.05 => 5
+    if (n > 0 && n <= 1) return n * 100;
+    return n;
+  };
 
   useEffect(() => {
     fetchGratuityAccounts();
@@ -86,7 +94,7 @@ export default function GratuityManagement() {
       const data = await response.json();
       setNotification({ type: 'success', message: 'Gratuity account updated successfully' });
       setShowCreateModal(false);
-      setFormData({ employeeId: '', accrualRate: 0.05, notes: '' });
+      setFormData({ employeeId: '', accrualRate: 5, notes: '' });
       fetchGratuityAccounts();
     } catch (error) {
       console.error('Error creating/updating gratuity account:', error);
@@ -243,7 +251,7 @@ export default function GratuityManagement() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {(account.accrualRate * 100).toFixed(2)}% per month
+                      {toPercentPoints(account.accrualRate).toFixed(2)}% per month
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
                       {formatCurrency(account.totalAccrued || 0)}
@@ -332,18 +340,18 @@ export default function GratuityManagement() {
                 </label>
                 <input
                   type="number"
-                  step="0.01"
+                  step="0.1"
                   min="0"
-                  max="1"
+                  max="100"
                   value={formData.accrualRate}
-                  onChange={(e) => setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0.05 })}
+                  onChange={(e) => setFormData({ ...formData, accrualRate: parseFloat(e.target.value) || 0 })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  {(formData.accrualRate * 100).toFixed(2)}% of gross salary per month
-                  {formData.accrualRate > 0 && (
+                  {Number(formData.accrualRate || 0).toFixed(2)}% of gross salary per month
+                  {Number(formData.accrualRate || 0) > 0 && (
                     <span className="block mt-1">
-                      Example: For 500,000 MWK salary, {(500000 * formData.accrualRate).toLocaleString()} MWK will accumulate each month
+                      Example: For 500,000 MWK salary, {(500000 * (Number(formData.accrualRate || 0) / 100)).toLocaleString()} MWK will accumulate each month
                     </span>
                   )}
                 </p>
@@ -368,7 +376,7 @@ export default function GratuityManagement() {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  setFormData({ employeeId: '', accrualRate: 0.05, notes: '' });
+                  setFormData({ employeeId: '', accrualRate: 5, notes: '' });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >
@@ -468,7 +476,7 @@ export default function GratuityManagement() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Accrual Rate</p>
-                  <p className="font-medium">{(selectedAccount.accrualRate * 100).toFixed(2)}% per month</p>
+                  <p className="font-medium">{toPercentPoints(selectedAccount.accrualRate).toFixed(2)}% per month</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Total Accrued</p>

@@ -186,8 +186,9 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       setDeductions(availableDeductions);
 
       if (!employee) {
-        const statutoryDeductions = availableDeductions.filter(d => d.isStatutory);
-        setSelectedDeductions(statutoryDeductions);
+        // IMPORTANT: Statutory deductions (PAYE, NPS) are OPTIONAL and must NOT be applied by default.
+        // Users explicitly enable them per employee.
+        setSelectedDeductions([]);
       }
     } catch (error) {
       console.error('Error fetching deductions:', error);
@@ -725,6 +726,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                             <div className="text-xs text-gray-600">
                               {deduction.name && deduction.name.toLowerCase().includes('paye') ? (
                                 <span className="text-blue-600 font-medium">Auto-calculated</span>
+                              ) : deduction.name && (deduction.name.toLowerCase().includes('nps') || deduction.name.toLowerCase().includes('pension')) ? (
+                                <span className="text-blue-600 font-medium">Auto-calculated (5% + 5%)</span>
                               ) : deduction.percentage !== null && deduction.percentage !== undefined
                                 ? `${deduction.percentage}%`
                                 : deduction.amount !== null && deduction.amount !== undefined

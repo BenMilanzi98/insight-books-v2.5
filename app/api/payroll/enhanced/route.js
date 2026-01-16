@@ -86,6 +86,27 @@ export async function POST(request) {
       }
     });
 
+    // Tenant-level NPS rates (percentage points). Defaults to 5%/5% if not set.
+    // Use raw SQL so payroll processing still works even if Prisma Client is stale.
+    let npsRates = { employeeRatePercent: 5, employerRatePercent: 5 };
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row) {
+        npsRates = {
+          employeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
+          employerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
+        };
+      }
+    } catch (e) {
+      console.warn('Payroll raw NPS rate read failed, falling back to defaults:', e?.message || e);
+    }
+
     if (employees.length === 0) {
       return NextResponse.json(
         { error: 'No active employees found' },
@@ -237,7 +258,7 @@ export async function POST(request) {
       let otherDeductions = {};
       let deductionNames = {}; // Store deduction names for payslip display
       let applyPAYE = false;
-      let applyNPS = true; // NPS is applied by default, but can be made optional too
+      let applyNPS = false; // NPS is optional (only apply when selected for the employee)
       
       if (employee.selectedDeductions) {
         let deductionIds = [];
@@ -326,10 +347,13 @@ export async function POST(request) {
       if (gratuityAccount) {
         // Calculate gratuity accrual based on accrual rate
         // Gratuity accumulates as a percentage of salary each month - NOT deducted from salary
-        // Monthly accrual = baseSalary * accrualRate
-        // Default accrualRate is 0.05 (5% per month)
-        // Example: If salary is 500,000 MWK and rate is 0.05, monthly accrual = 25,000 MWK
-        gratuityAccrualAmount = baseSalary * (gratuityAccount.accrualRate || 0.05);
+        // Monthly accrual = baseSalary * (accrualRatePercent / 100)
+        // accrualRate is stored as percentage points (e.g. 5 = 5%).
+        // Backward compatibility: if an old record has 0.05, treat it as 5%.
+        const rawRate = gratuityAccount.accrualRate ?? 5;
+        const ratePercent = rawRate > 0 && rawRate <= 1 ? rawRate * 100 : rawRate;
+        const rateFraction = (Number(ratePercent) || 5) / 100;
+        gratuityAccrualAmount = baseSalary * rateFraction;
       }
 
       // Fetch unpaid leave requests for this employee during the payroll period
@@ -409,8 +433,8 @@ export async function POST(request) {
         overtimeRate: overtimeRate
       };
 
-      // Calculate payroll with optional PAYE and NPS
-      const payrollCalculation = calculateMalawiPayroll(payrollData, applyPAYE, applyNPS);
+      // Calculate payroll with optional PAYE and NPS (NPS rates are configurable)
+      const payrollCalculation = calculateMalawiPayroll(payrollData, applyPAYE, applyNPS, npsRates);
 
       // Ensure all values are properly calculated
       const payeAmount = Number(payrollCalculation.payeAmount) || 0;
@@ -467,6 +491,9 @@ export async function POST(request) {
         gratuityAccrualAmount: gratuityAccrualAmount,
         npsEmployeeAmount,
         npsEmployerAmount,
+        // Store the NPS rates actually used for this payroll run (percentage points)
+        npsEmployeeRatePercent: npsRates.employeeRatePercent,
+        npsEmployerRatePercent: npsRates.employerRatePercent,
         hoursWorked: totalHoursWorked,
         overtimeHours: totalOvertimeHours,
         overtimePay: Number(payrollCalculation.overtimePay) || 0,

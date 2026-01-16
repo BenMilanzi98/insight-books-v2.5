@@ -49,8 +49,18 @@ export async function POST(request) {
       });
     }
 
+    // Fetch tenant pension rates (percentage points)
+    const tenantSettings = await prisma.tenantSettings.findUnique({
+      where: { tenantId: user.tenantId },
+      select: { npsEmployeeRatePercent: true, npsEmployerRatePercent: true }
+    });
+    const npsOptions = {
+      npsEmployeeRatePercent: Number(tenantSettings?.npsEmployeeRatePercent ?? 5) || 5,
+      npsEmployerRatePercent: Number(tenantSettings?.npsEmployerRatePercent ?? 5) || 5
+    };
+
     // Calculate payroll
-    const payrollCalculation = calculatePayroll(parseFloat(grossSalary), deductions);
+    const payrollCalculation = calculatePayroll(parseFloat(grossSalary), deductions, npsOptions);
 
     return NextResponse.json({
       calculation: payrollCalculation,

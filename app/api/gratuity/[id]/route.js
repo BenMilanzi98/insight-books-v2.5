@@ -3,6 +3,15 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function normalizeGratuityRatePercent(rawRate) {
+  const n = Number(rawRate);
+  if (!Number.isFinite(n)) return null;
+  if (n <= 0) return null;
+  // Backward compat: treat 0 < n <= 1 as fraction (0.05 => 5)
+  if (n > 0 && n <= 1) return n * 100;
+  return n;
+}
+
 /**
  * GET - Get specific gratuity account
  */
@@ -84,10 +93,13 @@ export async function PUT(request, { params }) {
       );
     }
 
+    const normalizedRate =
+      body.accrualRate !== undefined ? normalizeGratuityRatePercent(body.accrualRate) : undefined;
+
     const updated = await prisma.gratuityAccount.update({
       where: { id },
       data: {
-        accrualRate: body.accrualRate !== undefined ? body.accrualRate : gratuityAccount.accrualRate,
+        accrualRate: normalizedRate !== undefined ? (normalizedRate ?? gratuityAccount.accrualRate) : gratuityAccount.accrualRate,
         notes: body.notes !== undefined ? body.notes : gratuityAccount.notes
       },
       include: {

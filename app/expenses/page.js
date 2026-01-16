@@ -204,7 +204,8 @@ const ExpensesPage = () => {
     "Advertising",
     "Rent",
     "Equipment",
-    "Professional Services"
+    "Professional Services",
+    "Pension"
   ];
   useEffect(() => {
     if (isScanning) {
@@ -2986,7 +2987,8 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
     "Advertising",
     "Rent",
     "Equipment",
-    "Professional Services"
+    "Professional Services",
+    "Pension"
   ];
   // Initialize form data when receipt data changes
   useEffect(() => {

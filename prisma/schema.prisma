@@ -95,6 +95,8 @@ model TenantSettings {
   invoiceReminders   Boolean  @default(true)
   lowStockAlerts     Boolean  @default(true)
   paymentReceipts    Boolean  @default(true)
+  npsEmployeeRatePercent Float @default(5) // NPS employee contribution rate (%)
+  npsEmployerRatePercent Float @default(5) // NPS employer contribution rate (%)
   buildingName       String?
   businessAddress    String?
   businessCity       String?
@@ -1109,7 +1111,7 @@ model GratuityAccount {
   id                String            @id @default(cuid())
   employeeId        String            @unique
   tenantId          String
-  accrualRate       Float             @default(0.05) // Default 5% of monthly salary per month
+  accrualRate       Float             @default(5) // Default 5% per month (percentage points)
   totalAccrued      Float             @default(0)
   totalPaid         Float             @default(0)
   outstandingAmount Float             @default(0)

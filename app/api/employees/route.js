@@ -170,7 +170,6 @@ export async function POST(request) {
       emergencyContact: data.emergencyContact || null,
       reportingManager: data.reportingManager || null,
       selectedDeductions: data.selectedDeductions || null,
-      gratuityAccountId: data.gratuityAccountId || null,
       
       tenantId: user.tenantId
     };
@@ -190,8 +189,17 @@ export async function POST(request) {
           }
         });
 
+        const tenantSettings = await prisma.tenantSettings.findUnique({
+          where: { tenantId: user.tenantId },
+          select: { npsEmployeeRatePercent: true, npsEmployerRatePercent: true }
+        });
+        const npsOptions = {
+          npsEmployeeRatePercent: Number(tenantSettings?.npsEmployeeRatePercent ?? 5) || 5,
+          npsEmployerRatePercent: Number(tenantSettings?.npsEmployerRatePercent ?? 5) || 5
+        };
+
         // Calculate payroll
-        salaryCalculation = calculatePayroll(parseFloat(data.grossSalary), deductions);
+        salaryCalculation = calculatePayroll(parseFloat(data.grossSalary), deductions, npsOptions);
         
         // Update employee data with calculated salary
         employeeData.salary = salaryCalculation.netPay;

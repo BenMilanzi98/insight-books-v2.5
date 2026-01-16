@@ -65,6 +65,32 @@ export async function GET(request) {
       });
     }
 
+    // Ensure default NPS deduction exists (Malawi National Pension Scheme)
+    const existingNPS = await prisma.deduction.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        OR: [
+          { name: { contains: 'NPS', mode: 'insensitive' } },
+          { name: { contains: 'Pension', mode: 'insensitive' } }
+        ],
+        isStatutory: true
+      }
+    });
+
+    if (!existingNPS) {
+      await prisma.deduction.create({
+        data: {
+          name: 'NPS (Pension) - 5% Employee + 5% Employer',
+          description: 'National Pension Scheme (NPS) contributions.\n\n- Employee contribution: 5% of gross salary\n- Employer contribution: 5% of gross salary\n\nThis deduction is OPTIONAL and can be enabled/disabled for each employee.\nWhen enabled, NPS is automatically calculated based on gross salary.',
+          amount: null,
+          percentage: null, // NPS is calculated automatically, not a fixed amount or percentage
+          isStatutory: true,
+          isActive: true,
+          tenantId: user.tenantId
+        }
+      });
+    }
+
     // Fetch deductions
     const deductions = await prisma.deduction.findMany({
       where,

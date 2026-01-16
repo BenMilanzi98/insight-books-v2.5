@@ -240,8 +240,17 @@ export async function PUT(request, { params }) {
           }
         });
 
+        const tenantSettings = await prisma.tenantSettings.findUnique({
+          where: { tenantId: user.tenantId },
+          select: { npsEmployeeRatePercent: true, npsEmployerRatePercent: true }
+        });
+        const npsOptions = {
+          npsEmployeeRatePercent: Number(tenantSettings?.npsEmployeeRatePercent ?? 5) || 5,
+          npsEmployerRatePercent: Number(tenantSettings?.npsEmployerRatePercent ?? 5) || 5
+        };
+
         // Calculate payroll
-        const salaryCalculation = calculatePayroll(parseFloat(body.grossSalary), deductions);
+        const salaryCalculation = calculatePayroll(parseFloat(body.grossSalary), deductions, npsOptions);
         
         // Update salary data
         updateData.salary = salaryCalculation.netPay;

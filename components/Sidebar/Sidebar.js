@@ -95,6 +95,7 @@ const navigationByPermission = {
             { href: "/hr/attendance", text: "Attendance Tracking" },
             { href: "/hr/performance", text: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing" },
+            { href: "/hr/pension", text: "Pension (NPS)" },
             { href: "/hr/gratuity", text: "Gratuity Management" },
             { href: "/hr/advances", text: "Salary Advances" },
             { href: "/hr/reports", text: "HR Reports" }
@@ -475,6 +476,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/hr/attendance", text: "Attendance Tracking" },
           { href: "/hr/performance", text: "Performance Management" },
           { href: "/hr/payroll", text: "Payroll Processing" },
+          { href: "/hr/pension", text: "Pension (NPS)" },
           { href: "/hr/gratuity", text: "Gratuity Management" },
           { href: "/hr/advances", text: "Salary Advances" },
           { href: "/hr/reports", text: "HR Reports" }
