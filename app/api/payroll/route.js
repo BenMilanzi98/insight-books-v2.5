@@ -131,11 +131,12 @@ export async function POST(request) {
       );
     }
     
-    // Get all active employees
+    // Get all active employees (enforce isActive to avoid processing inactive employees)
     const employees = await prisma.employee.findMany({
       where: {
         tenantId: user.tenantId,
-        status: 'Active'
+        status: 'Active',
+        isActive: true
       }
     });
     

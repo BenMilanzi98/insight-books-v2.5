@@ -240,14 +240,26 @@ export async function PUT(request, { params }) {
           }
         });
 
-        const tenantSettings = await prisma.tenantSettings.findUnique({
-          where: { tenantId: user.tenantId },
-          select: { npsEmployeeRatePercent: true, npsEmployerRatePercent: true }
-        });
-        const npsOptions = {
-          npsEmployeeRatePercent: Number(tenantSettings?.npsEmployeeRatePercent ?? 5) || 5,
-          npsEmployerRatePercent: Number(tenantSettings?.npsEmployerRatePercent ?? 5) || 5
-        };
+        // Fetch tenant pension rates (percentage points)
+        // Use raw SQL so this works even if Prisma Client is stale.
+        let npsOptions = { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 };
+        try {
+          const rows = await prisma.$queryRaw`
+            SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+            FROM "TenantSettings"
+            WHERE "tenantId" = ${user.tenantId}
+            LIMIT 1
+          `;
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (row) {
+            npsOptions = {
+              npsEmployeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
+              npsEmployerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
+            };
+          }
+        } catch (e) {
+          console.warn('[Employee Update] Raw NPS rate read failed, using defaults:', e?.message || e);
+        }
 
         // Calculate payroll
         const salaryCalculation = calculatePayroll(parseFloat(body.grossSalary), deductions, npsOptions);
@@ -359,21 +371,93 @@ export async function PUT(request, { params }) {
 }
 export async function DELETE(request, { params }) {
   try {
-    const { id } = await params;
+    // Get the user first
+    const user = await getUserFromSession(request);
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
 
-    // Delete the employee
-    await prisma.employee.delete({
-      where: { id }
+    // Check permission
+    const hasPermission = await requirePermission(request, 'employees.delete');
+    if (!hasPermission) {
+      return NextResponse.json(
+        { error: 'You do not have permission to delete employees' },
+        { status: 403 }
+      );
+    }
+
+    const { id: employeeId } = await params;
+
+    // Check if employee exists and belongs to this tenant
+    const existingEmployee = await prisma.employee.findFirst({
+      where: {
+        id: employeeId,
+        tenantId: user.tenantId
+      },
+      select: {
+        id: true,
+        name: true,
+        position: true,
+        department: true,
+        isActive: true,
+        status: true
+      }
     });
 
-    return NextResponse.json({ 
-      message: 'Employee deleted successfully' 
+    if (!existingEmployee) {
+      return NextResponse.json(
+        { error: 'Employee not found' },
+        { status: 404 }
+      );
+    }
+
+    // IMPORTANT: We do a soft delete (deactivate) to preserve payroll/attendance history.
+    // Hard deleting will often fail due to foreign key constraints (Payroll, Attendance, Advances, etc).
+    if (existingEmployee.isActive === false) {
+      return NextResponse.json({ message: 'Employee already deactivated' });
+    }
+
+    await prisma.employee.update({
+      where: { id: employeeId },
+      data: {
+        isActive: false,
+        status: existingEmployee.status === 'Inactive' ? existingEmployee.status : 'Inactive',
+        terminationDate: new Date(),
+        terminationReason: 'Deleted by admin'
+      }
     });
+
+    // Audit log entry
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'EMPLOYEE_DEACTIVATED',
+          entityType: 'EMPLOYEE',
+          entityId: employeeId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            name: existingEmployee.name,
+            position: existingEmployee.position,
+            department: existingEmployee.department,
+            reason: 'Deleted by admin'
+          })
+        }
+      });
+    } catch (e) {
+      // Don't fail the operation if audit logging fails
+      console.warn('Audit log failed for employee deactivation:', e?.message || e);
+    }
+
+    return NextResponse.json({ message: 'Employee deleted successfully' });
 
   } catch (error) {
     console.error('Error deleting employee:', error);
     return NextResponse.json(
-      { message: 'Failed to delete employee', error: error.message },
+      { error: 'Failed to delete employee', details: error.message },
       { status: 500 }
     );
   }

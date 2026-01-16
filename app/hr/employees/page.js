@@ -67,6 +67,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   const [uploadingDocuments, setUploadingDocuments] = useState(false);
   const [contractUrl, setContractUrl] = useState(null);
   const [idUrl, setIdUrl] = useState(null);
+  const [stepNotice, setStepNotice] = useState({ visible: false, type: "success", message: "" });
 
   const steps = [
     {
@@ -109,6 +110,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
   useEffect(() => {
     setCurrentStep(0);
+    setStepNotice({ visible: false, type: "success", message: "" });
     if (employee) {
       const emergencyContact =
         (employee.emergencyContact && typeof employee.emergencyContact === 'object')
@@ -156,6 +158,13 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       setSalaryCalculation(null);
     }
   }, [employee]);
+
+  const showStepNotice = (type, message) => {
+    setStepNotice({ visible: true, type, message });
+    setTimeout(() => {
+      setStepNotice((prev) => ({ ...prev, visible: false }));
+    }, 3500);
+  };
 
   // Fetch deductions when employment type changes
   useEffect(() => {
@@ -263,26 +272,12 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Only allow submission on the final step
-    if (currentStep !== steps.length - 1) {
-      return;
-    }
-
-    const {
-      nextOfKinName,
-      nextOfKinRelationship,
-      nextOfKinPhone,
-      nextOfKinAddress,
-      ...formWithoutKin
-    } = formData;
-
+  const buildEmergencyContact = () => {
+    const { nextOfKinName, nextOfKinRelationship, nextOfKinPhone, nextOfKinAddress } = formData;
     const hasNextOfKin = [nextOfKinName, nextOfKinRelationship, nextOfKinPhone, nextOfKinAddress]
       .some(value => value && value.toString().trim() !== "");
 
-    const emergencyContact = hasNextOfKin
+    return hasNextOfKin
       ? {
           name: nextOfKinName || undefined,
           relationship: nextOfKinRelationship || undefined,
@@ -290,93 +285,183 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
           address: nextOfKinAddress || undefined
         }
       : null;
+  };
 
-    // Upload documents if provided
-    let documents = {};
-    if (contractUrl) {
-      documents.contract = contractUrl;
-    }
-    if (idUrl) {
-      documents.nationalId = idUrl;
+  const uploadDocumentsIfNeeded = async () => {
+    // Start with already-known URLs (existing documents)
+    const documents = {};
+    if (contractUrl) documents.contract = contractUrl;
+    if (idUrl) documents.nationalId = idUrl;
+
+    if (!contractFile && !idFile) {
+      return documents;
     }
 
-    // Upload new files if selected
-    if (contractFile || idFile) {
-      setUploadingDocuments(true);
-      try {
-        const uploadPromises = [];
-        
-        if (contractFile) {
-          const contractFormData = new FormData();
-          contractFormData.append('file', contractFile);
-          contractFormData.append('type', 'contract');
-          uploadPromises.push(
-            fetch('/api/employees/upload-document', {
-              method: 'POST',
-              body: contractFormData
-            }).then(async (res) => {
-              const data = await res.json();
-              if (!res.ok) {
-                throw new Error(data.error || data.details || 'Failed to upload contract');
-              }
-              if (data.url) {
-                documents.contract = data.url;
-              } else {
-                throw new Error('No URL returned from upload');
-              }
-            })
-          );
-        }
-        
-        if (idFile) {
-          const idFormData = new FormData();
-          idFormData.append('file', idFile);
-          idFormData.append('type', 'nationalId');
-          uploadPromises.push(
-            fetch('/api/employees/upload-document', {
-              method: 'POST',
-              body: idFormData
-            }).then(async (res) => {
-              const data = await res.json();
-              if (!res.ok) {
-                throw new Error(data.error || data.details || 'Failed to upload ID document');
-              }
-              if (data.url) {
-                documents.nationalId = data.url;
-              } else {
-                throw new Error('No URL returned from upload');
-              }
-            })
-          );
-        }
-        
-        await Promise.all(uploadPromises);
-      } catch (error) {
-        console.error('Error uploading documents:', error);
-        alert('Failed to upload documents. Please try again.');
-        setUploadingDocuments(false);
-        return;
-      } finally {
-        setUploadingDocuments(false);
+    setUploadingDocuments(true);
+    try {
+      const uploadPromises = [];
+
+      if (contractFile) {
+        const contractFormData = new FormData();
+        contractFormData.append('file', contractFile);
+        contractFormData.append('type', 'contract');
+        uploadPromises.push(
+          fetch('/api/employees/upload-document', {
+            method: 'POST',
+            body: contractFormData
+          }).then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || data.details || 'Failed to upload contract');
+            }
+            if (data.url) {
+              documents.contract = data.url;
+            } else {
+              throw new Error('No URL returned from upload');
+            }
+          })
+        );
       }
+
+      if (idFile) {
+        const idFormData = new FormData();
+        idFormData.append('file', idFile);
+        idFormData.append('type', 'nationalId');
+        uploadPromises.push(
+          fetch('/api/employees/upload-document', {
+            method: 'POST',
+            body: idFormData
+          }).then(async (res) => {
+            const data = await res.json();
+            if (!res.ok) {
+              throw new Error(data.error || data.details || 'Failed to upload ID document');
+            }
+            if (data.url) {
+              documents.nationalId = data.url;
+            } else {
+              throw new Error('No URL returned from upload');
+            }
+          })
+        );
+      }
+
+      await Promise.all(uploadPromises);
+      return documents;
+    } finally {
+      setUploadingDocuments(false);
+    }
+  };
+
+  const buildStepSubmitData = async ({ stepIndex, keepOpen, formEvent }) => {
+    const emergencyContact = buildEmergencyContact();
+    const isDocumentsStep = stepIndex === steps.length - 1;
+
+    let documents;
+    if (isDocumentsStep) {
+      documents = await uploadDocumentsIfNeeded();
     }
 
-    // Get email notification preference from form
-    const sendEmailCheckbox = e.target.querySelector('input[name="sendEmail"]');
-    const sendEmail = sendEmailCheckbox ? sendEmailCheckbox.checked : false;
+    // CREATE flow: always submit the full payload on the final step.
+    // (Per-tab partial submit is for EDIT mode only.)
+    if (!employee) {
+      const {
+        nextOfKinName,
+        nextOfKinRelationship,
+        nextOfKinPhone,
+        nextOfKinAddress,
+        ...formWithoutKin
+      } = formData;
 
-    const submitData = {
-      ...formWithoutKin,
-      grossSalary: formData.grossSalary,
-      selectedDeductions: selectedDeductions.map(d => d.id),
-      gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
-      salaryCalculation: salaryCalculation,
-      emergencyContact,
-      documents: Object.keys(documents).length > 0 ? documents : undefined,
-      sendEmail: !employee && sendEmail // Only send email for new employees
-    };
-    
-    onSubmit(submitData);
+      const sendEmailCheckbox = formEvent?.target?.querySelector?.('input[name="sendEmail"]');
+      const sendEmail = sendEmailCheckbox ? sendEmailCheckbox.checked : false;
+
+      const submitData = {
+        ...formWithoutKin,
+        grossSalary: formData.grossSalary,
+        selectedDeductions: selectedDeductions.map(d => d.id),
+        gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
+        salaryCalculation: salaryCalculation,
+        emergencyContact,
+        documents: documents && Object.keys(documents).length > 0 ? documents : undefined,
+        sendEmail
+      };
+
+      await onSubmit(submitData, keepOpen ? { keepOpen: true } : undefined);
+      return;
+    }
+
+    // EDIT flow: only send the fields for the current tab/step (prevents overwriting other sections)
+    const base = {};
+
+    if (stepIndex === 0) {
+      Object.assign(base, {
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        idNumber: formData.idNumber,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        maritalStatus: formData.maritalStatus,
+        nationality: formData.nationality,
+        address: formData.address,
+      });
+    } else if (stepIndex === 1) {
+      Object.assign(base, {
+        jobTitle: formData.jobTitle,
+        department: formData.department,
+        employmentType: formData.employmentType,
+        startDate: formData.startDate,
+        workLocation: formData.workLocation,
+        isActive: formData.isActive,
+      });
+    } else if (stepIndex === 2) {
+      Object.assign(base, {
+        grossSalary: formData.grossSalary,
+        selectedDeductions: selectedDeductions.map(d => d.id),
+        gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
+      });
+    } else if (stepIndex === 3) {
+      Object.assign(base, {
+        emergencyContact,
+      });
+    } else if (stepIndex === 4) {
+      Object.assign(base, {
+        documents: documents && Object.keys(documents).length > 0 ? documents : undefined,
+      });
+    }
+
+    await onSubmit(base, keepOpen ? { keepOpen: true } : undefined);
+  };
+
+  const handleSaveCurrentStep = async () => {
+    try {
+      if (!validateStep(currentStep)) return;
+      await buildStepSubmitData({ stepIndex: currentStep, keepOpen: true });
+      showStepNotice("success", "Saved successfully");
+    } catch (error) {
+      console.error('Error saving current step:', error);
+      showStepNotice("error", error.message || "Failed to save");
+      alert(error.message || 'Failed to save. Please try again.');
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // For create mode, only allow submission on the final step
+    if (!employee && currentStep !== steps.length - 1) {
+      return;
+    }
+
+    try {
+      if (!validateStep(currentStep)) return;
+      // Final submit closes the modal by default
+      await buildStepSubmitData({ stepIndex: currentStep, keepOpen: false, formEvent: e });
+    } catch (error) {
+      console.error('Error submitting employee form:', error);
+      showStepNotice("error", error.message || "Failed to save");
+      alert(error.message || 'Failed to save. Please try again.');
+    }
   };
 
   const validateStep = (stepIndex) => {
@@ -423,6 +508,18 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
           <X size={20} />
         </button>
       </div>
+
+      {stepNotice.visible && (
+        <div
+          className={`mb-4 rounded-md border p-3 text-sm ${
+            stepNotice.type === "success"
+              ? "bg-green-50 border-green-200 text-green-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          {stepNotice.message}
+        </div>
+      )}
 
       <div className="mb-6">
         <ol className="flex items-center">
@@ -685,19 +782,6 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                     onChange={handleChange}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="500000"
-                    step="0.01"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Hourly Rate (MWK)</label>
-                  <input
-                    type="number"
-                    name="hourlyRate"
-                    value={formData.hourlyRate}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="5000"
                     step="0.01"
                   />
                 </div>
@@ -1126,6 +1210,21 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
               >
                 Back
+              </button>
+            )}
+
+            {/* Save Button - Available on every tab when editing (keeps modal open) */}
+            {employee && (
+              <button
+                type="button"
+                onClick={handleSaveCurrentStep}
+                disabled={isSubmitting || uploadingDocuments}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              >
+                {(isSubmitting || uploadingDocuments) && (
+                  <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                )}
+                Save
               </button>
             )}
             
@@ -1782,7 +1881,7 @@ const EmployeeManagement = () => {
     }
   };
 
-  const handleFormSubmit = async (formData) => {
+  const handleFormSubmit = async (formData, options = {}) => {
     setIsSubmitting(true);
     
     try {
@@ -1833,7 +1932,10 @@ const EmployeeManagement = () => {
         setSuccessMessage('Employee created successfully');
       }
       
-      setIsFormOpen(false);
+      // If saving a single tab while editing, keep the form open.
+      if (!options.keepOpen) {
+        setIsFormOpen(false);
+      }
       setTimeout(() => setSuccessMessage(''), 3000);
       loadEmployees(); // Refresh statistics
     } catch (error) {

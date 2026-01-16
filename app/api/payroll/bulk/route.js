@@ -42,6 +42,8 @@ export async function POST(request) {
     // Fetch the selected employees
     const employees = await prisma.employee.findMany({
       where: {
+        tenantId: user.tenantId,
+        isActive: true,
         id: {
           in: body.employeeIds
         }
@@ -85,6 +87,7 @@ export async function POST(request) {
         const payroll = await prisma.payroll.create({
           data: {
             employeeId: employee.id,
+            tenantId: user.tenantId,
             periodStart,
             periodEnd,
             basicSalary,

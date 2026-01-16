@@ -189,14 +189,26 @@ export async function POST(request) {
           }
         });
 
-        const tenantSettings = await prisma.tenantSettings.findUnique({
-          where: { tenantId: user.tenantId },
-          select: { npsEmployeeRatePercent: true, npsEmployerRatePercent: true }
-        });
-        const npsOptions = {
-          npsEmployeeRatePercent: Number(tenantSettings?.npsEmployeeRatePercent ?? 5) || 5,
-          npsEmployerRatePercent: Number(tenantSettings?.npsEmployerRatePercent ?? 5) || 5
-        };
+        // Fetch tenant pension rates (percentage points)
+        // Use raw SQL so this works even if Prisma Client is stale.
+        let npsOptions = { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 };
+        try {
+          const rows = await prisma.$queryRaw`
+            SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+            FROM "TenantSettings"
+            WHERE "tenantId" = ${user.tenantId}
+            LIMIT 1
+          `;
+          const row = Array.isArray(rows) ? rows[0] : null;
+          if (row) {
+            npsOptions = {
+              npsEmployeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
+              npsEmployerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
+            };
+          }
+        } catch (e) {
+          console.warn('[Employee Create] Raw NPS rate read failed, using defaults:', e?.message || e);
+        }
 
         // Calculate payroll
         salaryCalculation = calculatePayroll(parseFloat(data.grossSalary), deductions, npsOptions);
