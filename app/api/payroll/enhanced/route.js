@@ -291,9 +291,11 @@ export async function POST(request) {
             );
             
             // Check if this is NPS deduction
+            // IMPORTANT: Only treat statutory NPS as NPS; don't trigger NPS for custom deductions
+            // that happen to include the word "pension".
             const isNPS = deduction.name && (
               deduction.name.toLowerCase().includes('nps') || 
-              deduction.name.toLowerCase().includes('pension')
+              (deduction.isStatutory && deduction.name.toLowerCase().includes('pension'))
             );
             
             if (isPAYE) {

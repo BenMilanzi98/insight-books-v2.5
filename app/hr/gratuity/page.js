@@ -24,6 +24,7 @@ export default function GratuityManagement() {
   const [paymentData, setPaymentData] = useState({
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'cash',
     reference: '',
     notes: ''
   });
@@ -116,6 +117,7 @@ export default function GratuityManagement() {
           gratuityAccountId: selectedAccount.id,
           amount: parseFloat(paymentData.amount),
           paymentDate: paymentData.paymentDate,
+          paymentMethod: paymentData.paymentMethod,
           reference: paymentData.reference,
           notes: paymentData.notes
         })
@@ -128,7 +130,7 @@ export default function GratuityManagement() {
 
       setNotification({ type: 'success', message: 'Payment recorded successfully' });
       setShowPaymentModal(false);
-      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], reference: '', notes: '' });
+      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'cash', reference: '', notes: '' });
       fetchGratuityAccounts();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -409,6 +411,20 @@ export default function GratuityManagement() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <select
+                  value={paymentData.paymentMethod}
+                  onChange={(e) => setPaymentData({ ...paymentData, paymentMethod: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                >
+                  <option value="cash">Cash</option>
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Airtel Money">Airtel Money</option>
+                  <option value="Mpamba">Mpamba</option>
+                  <option value="PayChangu">PayChangu</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Date *</label>
                 <input
                   type="date"
@@ -448,7 +464,7 @@ export default function GratuityManagement() {
                 onClick={() => {
                   setShowPaymentModal(false);
                   setSelectedAccount(null);
-                  setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], reference: '', notes: '' });
+                  setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'cash', reference: '', notes: '' });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >

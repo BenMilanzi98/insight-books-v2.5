@@ -72,14 +72,15 @@ export async function middleware(request) {
         console.log(`🔍 Checking subscription for path: ${pathname}`);
 
         try {
-          // Build the API URL using APP_URL from environment variables
-          // FIXED: Use APP_URL from .env for consistent URL construction
-          const baseUrl = process.env.APP_URL || request.nextUrl.origin;
-          const apiUrl = `${baseUrl}/api/subscription/status`;
-          console.log(`📡 Calling API: ${apiUrl}`);
+          // IMPORTANT:
+          // Always call the subscription status endpoint on the SAME ORIGIN as the request.
+          // Using APP_URL can point to an unreachable host (e.g. a public IP) in dev / some deployments,
+          // causing /admin to fail even for valid subscribers.
+          const apiUrl = new URL('/api/subscription/status', request.nextUrl.origin);
+          console.log(`📡 Calling API: ${apiUrl.toString()}`);
 
           // Call your status API
-          const statusRes = await fetch(apiUrl, {
+          const statusRes = await fetch(apiUrl.toString(), {
             method: 'GET',
             headers: {
               cookie: `session=${sessionCookie}`
@@ -120,13 +121,13 @@ export async function middleware(request) {
 
           console.log(`✅ Access granted, continuing to ${pathname}`);
         } catch (error) {
-          // If subscription check fails, redirect to subscription page as a safety measure
-          console.error(`⚠️ Subscription check error, redirecting to subscription page:`, error);
-          const url = request.nextUrl.clone();
-          url.pathname = '/subscription';
-          url.search = '?redirected=true&reason=check_error';
-          return NextResponse.redirect(url, {
-            request: { headers: requestHeaders }
+          // Fail-open: if the subscription API is temporarily unreachable, don't break access to /admin.
+          // This avoids locking users out due to transient network/DNS issues.
+          console.error(`⚠️ Subscription check error, allowing request to continue:`, error);
+          return NextResponse.next({
+            request: {
+              headers: requestHeaders,
+            },
           });
         }
       }
