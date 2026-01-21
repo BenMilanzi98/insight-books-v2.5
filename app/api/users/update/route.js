@@ -76,6 +76,7 @@ export async function PUT(request) {
     }
     if (updateData.department !== undefined) dataToUpdate.department = updateData.department;
     if (updateData.status !== undefined) dataToUpdate.status = updateData.status;
+    if (updateData.defaultBranchId !== undefined) dataToUpdate.defaultBranchId = updateData.defaultBranchId || null;
 
     // Hash password if provided
     if (updateData.password) {

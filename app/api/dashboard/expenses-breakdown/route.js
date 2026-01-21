@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -127,7 +132,7 @@ export async function GET(request) {
     // Exclude deleted expenses
     const expenses = await prisma.expense.groupBy({
       by: ['category'],
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         date: {
           gte: startDate,
@@ -135,7 +140,7 @@ export async function GET(request) {
         },
         status: { in: ['Approved', 'Pending'] },
         isDeleted: false
-      },
+      }),
       _sum: {
         amount: true
       }

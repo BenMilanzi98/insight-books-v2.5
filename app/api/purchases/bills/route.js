@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { generateReferenceNumber } from '@/lib/journalService';
+import { createFifoBatch } from '@/lib/fifoCosting';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense'];
@@ -354,38 +355,26 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
     if (!item.productId) continue;
 
     const product = await tx.product.findUnique({
-      where: { id: item.productId }
+      where: { id: item.productId },
+      select: { id: true, tenantId: true, branchId: true }
     });
 
     if (!product) continue;
 
     const quantity = Number(item.quantity || 0);
     const unitCost = Number(item.unitCost || 0);
-    const purchaseValue = quantity * unitCost;
 
-    // Calculate new average cost using weighted average
-    const currentQty = Number(product.stockLevel || 0);
-    const currentAvgCost = Number(product.averageCost || 0);
-    const currentValue = currentQty * currentAvgCost;
-
-    let newAvgCost = unitCost; // If no existing stock, use purchase cost
-    if (currentQty > 0) {
-      newAvgCost = (currentValue + purchaseValue) / (currentQty + quantity);
-    }
-
-    const newQty = currentQty + quantity;
-    const newValue = newQty * newAvgCost;
-
-    // Update product inventory
-    await tx.product.update({
-      where: { id: product.id },
-      data: {
-        stockLevel: newQty,
-        averageCost: newAvgCost,
-        lastPurchaseCost: unitCost,
-        lastPurchaseDate: bill.billDate,
-        totalStockValue: newValue
-      }
+    // FIFO batch creation is the source of truth for cost (system-generated)
+    await createFifoBatch({
+      tenantId,
+      branchId: product.branchId || null,
+      productId: product.id,
+      quantityPurchased: quantity,
+      unitCost,
+      purchaseDate: bill.billDate,
+      sourceType: 'SupplierBill',
+      sourceId: bill.id,
+      tx,
     });
 
     // Create inventory transaction record
@@ -396,7 +385,8 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
         quantity: quantity,
         notes: `Purchase Bill ${bill.billNumber}`,
         userId: userId,
-        tenantId: tenantId
+        tenantId: tenantId,
+        branchId: product.branchId || null
       }
     });
   }

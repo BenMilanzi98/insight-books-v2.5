@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -195,19 +200,19 @@ export async function GET(request) {
       const [invoices, expenses] = await Promise.all([
         // Revenue should only include actual payments received, not pending invoices
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: { in: ['invoice', 'sale'] },
             status: 'Completed',
             paymentDate: { gte: filterStartDate, lte: filterEndDate }
-          },
+          }),
           _sum: { amount: true }
         }),
         // Only count actual payments made for expenses, not pending expenses
         // Include both regular expenses and loan payments (principal and interest)
         // Exclude payments linked to deleted expenses
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
             status: 'Completed',
@@ -216,7 +221,7 @@ export async function GET(request) {
               { expense: { isDeleted: false } },
               { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
             ]
-          },
+          }),
           _sum: { amount: true }
         })
       ]);

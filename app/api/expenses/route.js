@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
+import { resolveBranchId } from '@/lib/branchHelpers';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -46,6 +47,12 @@ export async function GET(request) {
       tenantId: user.tenantId,
       isDeleted: includeDeleted === 'true' ? undefined : false // Exclude deleted by default
     };
+    
+    // Add branch filter if provided
+    const branchId = searchParams.get('branchId');
+    if (branchId) {
+      whereClause.branchId = branchId;
+    }
     
     // Add status filter if provided
     if (status && status !== 'all') {
@@ -213,6 +220,9 @@ export async function POST(request) {
     const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || amount) : amount;
     const expenseDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.date);
     
+    // Resolve branchId from request or user's default branch
+    const branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    
     // Create the expense in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the expense
@@ -229,6 +239,7 @@ export async function POST(request) {
           notes: body.notes || null,
           submittedById: user.id,
           tenantId: user.tenantId,
+          branchId: branchId,
           // Payment status fields
           paymentStatus: paymentStatus,
           paidAmount: body.paidAmount || null,
@@ -257,6 +268,7 @@ export async function POST(request) {
             reference: body.paymentReference || body.description || null,
             status: 'Completed',
             tenantId: user.tenantId,
+            branchId: branchId,
             type: "expense",
             sourceAccount: paymentMethod || null
           }

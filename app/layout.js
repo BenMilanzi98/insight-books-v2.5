@@ -7,6 +7,7 @@ import Sidebar from "@/components/Sidebar/Sidebar";
 import AppBar from "@/components/AppBar";
 import Footer from "@/components/Footer";
 import FloatingWhatsApp from "@/components/FloatingWhatsApp";
+import AIAssistant from "@/components/AIAssistant";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -137,6 +138,9 @@ export default function RootLayout({ children }) {
 
         {/* Floating WhatsApp Support Button */}
         <FloatingWhatsApp />
+        
+        {/* AI Assistant */}
+        {!shouldHideLayout && <AIAssistant />}
       </body>
     </html>
   );

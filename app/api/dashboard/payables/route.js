@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -66,11 +71,11 @@ export async function GET(request) {
     
     // Get all Expenses with Pending or Partially paid status
     const expenses = await prisma.expense.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         paymentStatus: { in: ['Pending', 'Partially'] },
         isDeleted: false
-      },
+      }),
       select: {
         id: true,
         amount: true,

@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -209,19 +214,19 @@ export async function GET(request) {
     const [todaySales, todayInvoices] = await Promise.all([
       // Revenue from sales created today
       prisma.sale.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           saleDate: { 
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           },
           status: 'completed'
-        },
+        }),
         _sum: { total: true }
       }),
       // Revenue from invoice payments received today
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: 'invoice',
           status: 'Completed',
@@ -229,7 +234,7 @@ export async function GET(request) {
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           }
-        },
+        }),
         _sum: { amount: true }
       })
     ]);
@@ -238,7 +243,7 @@ export async function GET(request) {
     const [yesterdayInvoices, yesterdaySales] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: { in: ['invoice', 'sale'] },
           status: 'Completed',
@@ -246,18 +251,18 @@ export async function GET(request) {
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           }
-        },
+        }),
         _sum: { amount: true }
       }),
       prisma.sale.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           saleDate: { 
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           },
           status: 'completed'
-        },
+        }),
         _sum: { total: true }
       })
     ]);
@@ -265,23 +270,23 @@ export async function GET(request) {
     // Get current period's transactions count (invoices + sales)
     const [todayInvoiceCount, todaySaleCount] = await Promise.all([
       prisma.invoice.count({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           issueDate: { 
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           }
-        }
+        })
       }),
       prisma.sale.count({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           saleDate: { 
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           },
           status: 'completed'
-        }
+        })
       })
     ]);
 
@@ -293,12 +298,12 @@ export async function GET(request) {
         const [invoices] = await Promise.all([
           // Revenue should only include actual payments received, not pending invoices
           prisma.payment.aggregate({
-            where: {
+            where: addBranchFilter(user, {
               tenantId,
               type: { in: ['invoice', 'sale'] },
               status: 'Completed',
               paymentDate: { gte: date, lt: nextDay }
-            },
+            }),
             _sum: { amount: true }
           })
         ]);
@@ -312,14 +317,14 @@ export async function GET(request) {
     const [todayExpenses] = await Promise.all([
       // Expenses created today
       prisma.expense.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           date: {
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           },
           isDeleted: false
-        },
+        }),
         _sum: { amount: true }
       })
     ]);
@@ -327,14 +332,14 @@ export async function GET(request) {
     const [yesterdayExpenses] = await Promise.all([
       // Expenses created yesterday
       prisma.expense.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           date: {
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           },
           isDeleted: false
-        },
+        }),
         _sum: { amount: true }
       })
     ]);
@@ -347,14 +352,14 @@ export async function GET(request) {
         const [expenses] = await Promise.all([
           // Expenses created on this date
           prisma.expense.aggregate({
-            where: {
+            where: addBranchFilter(user, {
               tenantId,
               date: {
                 gte: date,
                 lt: nextDay
               },
               isDeleted: false
-            },
+            }),
             _sum: { amount: true }
           })
         ]);

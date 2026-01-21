@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
+import { permissionModules } from '@/lib/permissionsMap';
 
 export async function GET() {
   try {
@@ -32,6 +33,7 @@ export async function GET() {
           email: true,
           role: true,
           tenantId: true,
+          defaultBranchId: true,
           isActive: true,
           tenant: sessionData.tenantId ? {
             select: {
@@ -41,7 +43,15 @@ export async function GET() {
               status: true,
               logoUrl: true
             }
-          } : undefined
+          } : undefined,
+          defaultBranch: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              isActive: true
+            }
+          }
         }
       });
      
@@ -52,6 +62,44 @@ export async function GET() {
       if (!user) {
         throw new Error('User not found');
       }
+
+      // Backfill permissions for existing tenants that were created before newer modules existed.
+      // We only auto-add for the built-in "Admin" role to avoid unintentionally changing custom roles.
+      try {
+        if (user?.role?.name === 'Admin') {
+          const existingPerms = user?.role?.permissions || {};
+          const nextPerms = { ...existingPerms };
+
+          const ensureModule = (moduleKey) => {
+            if (nextPerms[moduleKey]) return;
+            const actions = permissionModules?.[moduleKey]?.actions || [];
+            nextPerms[moduleKey] = actions.reduce((acc, action) => {
+              acc[action] = true;
+              return acc;
+            }, {});
+          };
+
+          ensureModule('budgets');
+          ensureModule('branches');
+          ensureModule('journalEntries');
+          ensureModule('trialBalance');
+          ensureModule('generalLedger');
+
+          // Only write if something actually changed
+          const changed = JSON.stringify(nextPerms) !== JSON.stringify(existingPerms);
+          if (changed) {
+            const updatedRole = await prisma.role.update({
+              where: { id: user.role.id },
+              data: { permissions: nextPerms },
+            });
+            // Update response payload so client gets the new permissions immediately
+            user.role = updatedRole;
+          }
+        }
+      } catch (e) {
+        // Non-fatal: do not block /api/auth/me
+        console.error('Budget permissions backfill failed:', e?.message || e);
+      }
      
       return NextResponse.json({
         id: user.id,
@@ -59,6 +107,8 @@ export async function GET() {
         email: user.email,
         role: user.role,
         tenantId: user.tenantId,
+        defaultBranchId: user.defaultBranchId,
+        defaultBranch: user.defaultBranch,
         tenant: user.tenant
       });
      

@@ -86,7 +86,7 @@ export default function TenantSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute mt-1 w-full bg-gray-900 border border-gray-700 rounded shadow-lg z-10">
+        <div className="absolute mt-1 w-full bg-gray-900 border border-gray-700 rounded shadow-sm z-10">
           {tenants.map((tenant) => (
             <div
               key={tenant.id}

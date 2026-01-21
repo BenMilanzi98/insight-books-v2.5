@@ -98,6 +98,7 @@ export const createSale = async (saleData) => {
     
     const payload = {
       clientId: saleData.clientId || null,
+      branchId: saleData.branchId || null,
       items: saleData.items.map(item => ({
         productId: item.isCustom ? null : (item.productId || null),
         description: String(item.description),

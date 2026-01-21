@@ -7,7 +7,7 @@ import { createObjectCsvStringifier } from '@/lib/csv-writer';
 export async function GET(request) {
   try {
     // Check for authentication and permissions
-    const permissionCheck = await requirePermission(request, "accounting.view");
+    const permissionCheck = await requirePermission(request, "generalLedger.export");
     if (permissionCheck) {
       return permissionCheck; // Returns 401 or 403 response if not authorized
     }
@@ -29,97 +29,91 @@ export async function GET(request) {
     const accountId = searchParams.get('accountId');
     const search = searchParams.get('search');
     
-    // Build filter conditions
+    const branchIdParam = searchParams.get('branchId');
+    const branchId =
+      branchIdParam === 'all' || branchIdParam === '' ? null :
+      (branchIdParam ?? user.currentBranchId ?? null);
+
     const whereConditions = {
-      tenantId,
+      journalEntry: {
+        tenantId,
+        status: 'Posted',
+        ...(branchId ? { branchId } : {}),
+      },
     };
-    
-    // Add date range filter if provided
-    if (startDate && endDate) {
-      whereConditions.transaction = {
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      };
+
+    if (startDate || endDate) {
+      whereConditions.journalEntry.entryDate = {};
+      if (startDate) whereConditions.journalEntry.entryDate.gte = new Date(startDate);
+      if (endDate) whereConditions.journalEntry.entryDate.lte = new Date(endDate);
     }
-    
-    // Add account filter if provided
+
     if (accountId && accountId !== 'all') {
       whereConditions.accountId = accountId;
     }
-    
-    // Add search filter if provided
+
     if (search) {
       whereConditions.OR = [
-        { 
-          transaction: { 
-            description: { 
-              contains: search, 
-              mode: 'insensitive' 
-            } 
-          }
-        },
-        { 
-          account: { 
-            name: { 
-              contains: search, 
-              mode: 'insensitive' 
-            } 
-          }
-        },
-        { 
-          account: { 
-            code: { 
-              contains: search, 
-              mode: 'insensitive' 
-            } 
-          }
-        }
+        { journalEntry: { description: { contains: search, mode: 'insensitive' } } },
+        { journalEntry: { referenceNumber: { contains: search, mode: 'insensitive' } } },
+        { account: { accountName: { contains: search, mode: 'insensitive' } } },
+        { account: { accountCode: { contains: search, mode: 'insensitive' } } },
       ];
     }
-    
-    // Fetch all journal entries matching the criteria without pagination
-    const journalEntries = await prisma.journalEntry.findMany({
+
+    const lines = await prisma.journalEntryLine.findMany({
       where: whereConditions,
       include: {
-        account: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-            type: true
-          }
-        },
-        transaction: {
-          select: {
-            id: true,
-            date: true,
-            description: true,
-            reference: true
-          }
-        }
+        account: { select: { accountCode: true, accountName: true, accountType: true, normalBalance: true } },
+        journalEntry: { select: { entryDate: true, referenceNumber: true, description: true } },
       },
-      orderBy: {
-        'transaction.date': 'asc'
-      }
+      orderBy: { journalEntry: { entryDate: 'asc' } },
     });
 
-    // Transform the data for export
-    const exportData = journalEntries.map(entry => {
-      const balance = entry.debit - entry.credit;
-      const formattedDate = entry.transaction.date ? new Date(entry.transaction.date).toISOString().split('T')[0] : '';
-      
+    let running = 0;
+    let openingBalance = null;
+    if (accountId && accountId !== 'all' && startDate) {
+      const opening = await prisma.journalEntryLine.aggregate({
+        where: {
+          ...whereConditions,
+          accountId,
+          journalEntry: { ...(whereConditions.journalEntry || {}), entryDate: { lt: new Date(startDate) } },
+        },
+        _sum: { debitAmount: true, creditAmount: true },
+      });
+      const acc = await prisma.account.findUnique({
+        where: { id: accountId },
+        select: { accountType: true, normalBalance: true },
+      });
+      const normal = (acc?.normalBalance || ((acc?.accountType || '').toLowerCase() === 'asset' || (acc?.accountType || '').toLowerCase() === 'expense' ? 'Debit' : 'Credit')).toLowerCase();
+      const deb = opening._sum.debitAmount || 0;
+      const cre = opening._sum.creditAmount || 0;
+      openingBalance = normal === 'debit' ? (deb - cre) : (cre - deb);
+      running = openingBalance;
+    }
+
+    const exportData = lines.map((l) => {
+      const debit = l.debitAmount || 0;
+      const credit = l.creditAmount || 0;
+      let balance = '';
+      if (accountId && accountId !== 'all') {
+        const normal = (l.account?.normalBalance || ((l.account?.accountType || '').toLowerCase() === 'asset' || (l.account?.accountType || '').toLowerCase() === 'expense' ? 'Debit' : 'Credit')).toLowerCase();
+        const delta = normal === 'debit' ? (debit - credit) : (credit - debit);
+        running += delta;
+        balance = running.toFixed(2);
+      }
+
+      const formattedDate = l.journalEntry?.entryDate ? new Date(l.journalEntry.entryDate).toISOString().split('T')[0] : '';
       return {
         Date: formattedDate,
-        Reference: entry.transaction.reference || '',
-        Description: entry.transaction.description,
-        'Account Code': entry.account.code,
-        'Account Name': entry.account.name,
-        'Account Type': entry.account.type,
-        Debit: entry.debit > 0 ? entry.debit.toFixed(2) : '',
-        Credit: entry.credit > 0 ? entry.credit.toFixed(2) : '',
-        Balance: balance.toFixed(2)
+        Reference: l.journalEntry?.referenceNumber || '',
+        Description: l.journalEntry?.description || l.description || '',
+        'Account Code': l.account?.accountCode || '',
+        'Account Name': l.account?.accountName || '',
+        'Account Type': l.account?.accountType || '',
+        Debit: debit > 0 ? debit.toFixed(2) : '',
+        Credit: credit > 0 ? credit.toFixed(2) : '',
+        Balance: balance,
       };
     });
     

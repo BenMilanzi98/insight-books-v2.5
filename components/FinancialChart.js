@@ -190,14 +190,14 @@ const FinancialChart = ({
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+    <div className="bg-white rounded-lg border border-gray-200 p-4">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-medium text-gray-800">{title}</h3>
         
         {onTimeframeChange && (
           <div className="relative">
             <select 
-              className="appearance-none px-3 py-1 border border-gray-300 rounded-md bg-white pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="appearance-none px-3 py-1.5 border border-gray-300 rounded-md bg-white pr-8 text-sm text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               value={activeTimeframe}
               onChange={handleTimeframeChange}
             >

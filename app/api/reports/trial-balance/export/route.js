@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { downloadPDF, generateCSV, downloadExcel } from '@/lib/exportUtils';
 import { formatCurrency } from '@/lib/currencyUtils';
+import { buildTrialBalance } from '@/lib/trialBalanceReport';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * GET - Export trial balance data in requested format
@@ -31,72 +35,21 @@ export async function GET(request) {
       );
     }
     
-    // Define date parameters for the query
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
-    
-    // Fetch accounts and their balances
-    const accountsWithTransactions = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true
-      },
-      include: {
-        journalEntryLines: {
-          where: {
-            journalEntry: {
-              entryDate: {
-                gte: startDateTime,
-                lte: endDateTime
-              },
-              status: 'Posted'
-            }
-          }
-        }
-      },
-      orderBy: {
-        accountCode: 'asc'
-      }
+    const branchIdParam = searchParams.get('branchId');
+    const includeZero = (searchParams.get('includeZero') || 'false').toLowerCase() === 'true';
+    const branchId =
+      branchIdParam === 'all' || branchIdParam === '' ? null :
+      (branchIdParam ?? user.currentBranchId ?? null);
+
+    const report = await buildTrialBalance({
+      tenantId: user.tenantId,
+      branchId,
+      startDate,
+      endDate,
+      includeZero,
     });
-    
-    // Process the accounts to calculate debit and credit balances
-    const accounts = accountsWithTransactions.map(account => {
-      // Calculate total debits and credits from journal entry lines
-      const totalDebits = account.journalEntryLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
-      const totalCredits = account.journalEntryLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
-      
-      // Calculate balance based on normal balance
-      let debitBalance = 0;
-      let creditBalance = 0;
-      
-      if (account.normalBalance === 'Debit') {
-        const balance = totalDebits - totalCredits;
-        if (balance > 0) {
-          debitBalance = balance;
-        } else if (balance < 0) {
-          creditBalance = Math.abs(balance);
-        }
-      } else {
-        const balance = totalCredits - totalDebits;
-        if (balance > 0) {
-          creditBalance = balance;
-        } else if (balance < 0) {
-          debitBalance = Math.abs(balance);
-        }
-      }
-      
-      return {
-        id: account.id,
-        code: account.accountCode || account.code || 'N/A',
-        name: account.accountName || account.name || 'Unnamed Account',
-        type: account.accountType || account.type || 'N/A',
-        debit: debitBalance,
-        credit: creditBalance
-      };
-    });
+
+    const accounts = report.accounts;
     
     // Get tenant details for the report heading
     const tenant = await prisma.tenant.findUnique({
@@ -104,13 +57,13 @@ export async function GET(request) {
       select: { name: true, logoUrl: true }
     });
     
-    // Calculate totals
-    const totalDebits = accounts.reduce((sum, account) => sum + account.debit, 0);
-    const totalCredits = accounts.reduce((sum, account) => sum + account.credit, 0);
-    const isBalanced = Math.abs(totalDebits - totalCredits) < 0.01;
+    // Totals
+    const totalDebits = report.summary.totalDebits;
+    const totalCredits = report.summary.totalCredits;
+    const isBalanced = report.summary.isBalanced;
     
-    // Filter out zero-balance accounts to clean up the report
-    const filteredAccounts = accounts.filter(account => account.debit > 0 || account.credit > 0);
+    // API already hides zeros by default; keep additional safety filter for export
+    const filteredAccounts = accounts.filter(account => (account.debit || 0) > 0 || (account.credit || 0) > 0);
     
     // Prepare data for export
     const exportData = {

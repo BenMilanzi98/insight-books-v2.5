@@ -3,9 +3,67 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Menu, User, ChevronDown, HelpCircle, LifeBuoy, X, ChevronRight } from "lucide-react";
+import {
+  User,
+  ChevronDown,
+  HelpCircle,
+  LifeBuoy,
+  ChevronRight,
+  LayoutDashboard,
+  Users,
+  Building2,
+  Settings,
+  Handshake,
+  Landmark,
+  BookOpen,
+  BookText,
+  Scale,
+  Wallet,
+  Receipt,
+  FileText,
+  ScrollText,
+  CreditCard,
+  BarChart3,
+  Package,
+  ShoppingCart,
+} from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
+import BranchSwitcher from "./BranchSwitcher";
+
+const iconMap = {
+  dashboard: LayoutDashboard,
+  tenants: Building2,
+  settings: Settings,
+  affiliate: Handshake,
+  users: Users,
+  coa: BookText,
+  journal: BookOpen,
+  trialBalance: Scale,
+  capital: Wallet,
+  pos: Receipt,
+  quotations: FileText,
+  invoicing: ScrollText,
+  expenses: Receipt,
+  payments: CreditCard,
+  reports: BarChart3,
+  stock: Package,
+  purchases: ShoppingCart,
+  businessModule: Landmark,
+};
+
+const NavIcon = ({ name, active }) => {
+  const Icon = iconMap[name] || LayoutDashboard;
+  return (
+    <Icon
+      size={18}
+      style={{
+        flexShrink: 0,
+        color: active ? "white" : "rgba(255,255,255,0.7)",
+      }}
+    />
+  );
+};
 
 // Define navigation sections with permissions
 const navigationByPermission = {
@@ -14,13 +72,13 @@ const navigationByPermission = {
     {
       label: "Administration",
       items: [
-        { href: "/admin/dashboard", icon: "📊", text: "Dashboard" },
-        { href: "/admin/tenant-management", icon: "🏢", text: "Tenant Management" },
-        { href: "/admin/global-settings", icon: "⚙️", text: "Global Settings" },
-        { href: "/admin/affiliate-system", icon: "🤝", text: "Affiliate Management" },
+        { href: "/admin/dashboard", icon: "dashboard", text: "Dashboard" },
+        { href: "/admin/tenant-management", icon: "tenants", text: "Tenant Management" },
+        { href: "/admin/global-settings", icon: "settings", text: "Global Settings" },
+        { href: "/admin/affiliate-system", icon: "affiliate", text: "Affiliate Management" },
         { 
           href: "/admin/internal-business", 
-          icon: "🏛️", 
+          icon: "businessModule", 
           text: "Business Owner Module", 
           expandable: true,
           subItems: [
@@ -37,11 +95,11 @@ const navigationByPermission = {
     {
       label: "Business Owner Controls",
       items: [
-        { href: "/tenants/dashboard", icon: "🏠", text: "Business Owner Dashboard" },
-        { href: "/users", icon: "👥", text: "User & Role Management" },
-        { href: "/customization", icon: "🎨", text: "System Customization" },
-        { href: "/admin/billing", icon: "💰", text: "Billing & Subscriptions" },
-        { href: "/admin/audit-logs", icon: "📜", text: "Audit Logs" },
+        { href: "/tenants/dashboard", icon: "dashboard", text: "Business Owner Dashboard" },
+        { href: "/users", icon: "users", text: "User & Role Management" },
+        { href: "/customization", icon: "settings", text: "System Customization" },
+        { href: "/admin/billing", icon: "payments", text: "Billing & Subscriptions" },
+        { href: "/admin/audit-logs", icon: "reports", text: "Audit Logs" },
       ],
     },
     {
@@ -56,37 +114,37 @@ const navigationByPermission = {
         //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
         //   ]
         // },
-        { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts" },
-        { href: "/journal-entries", icon: "✏️", text: "Journal Entries" },
-        { href: "/trial-balance", icon: "⚖️", text: "Trial Balance" },
-        { href: "/capital-account", icon: "💰", text: "Capital Account" },
+        { href: "/chart-of-accounts", icon: "coa", text: "Chart of Accounts" },
+        { href: "/journal-entries", icon: "journal", text: "Journal Entries" },
+        { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance" },
+        { href: "/capital-account", icon: "capital", text: "Capital Account" },
       ],
     },
     {
       label: "Core Features",
       items: [
-        { href: "/pos", icon: "🧾", text: "POS" },
-        { href: "/quotations", icon: "📄", text: "Quotations" },
-        { href: "/invoice", icon: "📝", text: "Invoicing", badge: "3" },
-        { href: "/expenses", icon: "💸", text: "Expense Tracking" },
-        { href: "/payments", icon: "💳", text: "Payment Processing" },
-        { href: "/reports", icon: "📊", text: "Financial Reporting" },
-        { href: "/clients", icon: "🤵", text: "Client Management" },
+        { href: "/pos", icon: "pos", text: "POS" },
+        { href: "/quotations", icon: "quotations", text: "Quotations" },
+        { href: "/invoice", icon: "invoicing", text: "Invoicing", badge: "3" },
+        { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
+        { href: "/payments", icon: "payments", text: "Payment Processing" },
+        { href: "/reports", icon: "reports", text: "Financial Reporting" },
+        { href: "/clients", icon: "users", text: "Client Management" },
       ],
     },
       {
         label: "Additional Modules",
         items: [
-          { href: "/stock", icon: "📦", text: "Stock Management" },
+          { href: "/stock", icon: "stock", text: "Stock Management" },
           {
             href: "/purchases/suppliers",
-            icon: "🛒",
+            icon: "purchases",
             text: "Purchases",
           },
         // HR Module temporarily commented out
         { 
           href: "/hr", 
-          icon: "👨‍💼", 
+          icon: "users", 
           text: "HR & Payroll",
           expandable: true,
           subItems: [
@@ -102,8 +160,8 @@ const navigationByPermission = {
           ]
         },
         // { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
-        { href: "/affiliate", icon: "🔗", text: "Affiliate System" },
-        { href: "/tax-management", icon: "📑", text: "Tax Management" },
+        { href: "/affiliate", icon: "affiliate", text: "Affiliate System" },
+        { href: "/tax-management", icon: "reports", text: "Tax Management" },
       ],
     },
     {
@@ -118,7 +176,7 @@ const navigationByPermission = {
         //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
         //   ]
         // },
-        { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts" },
+        { href: "/chart-of-accounts", icon: "coa", text: "Chart of Accounts" },
       ],
     },
   ],
@@ -126,39 +184,39 @@ const navigationByPermission = {
   userManagement: {
     label: "User Management",
     items: [
-      { href: "/users", icon: "👥", text: "User & Role Management", permission: "users.view" },
+      { href: "/users", icon: "users", text: "User & Role Management", permission: "users.view" },
     ]
   },
   // Core features
   invoices: {
     label: "Invoicing",
     items: [
-      { href: "/invoice", icon: "📝", text: "Invoicing", permission: "invoices.view" },
-      { href: "/quotations", icon: "📄", text: "Quotations", permission: "invoices.view" },
+      { href: "/invoice", icon: "invoicing", text: "Invoicing", permission: "invoices.view" },
+      { href: "/quotations", icon: "quotations", text: "Quotations", permission: "invoices.view" },
     ]
   },
   clients: {
     label: "Clients",
     items: [
-      { href: "/clients", icon: "🤵", text: "Client Management", permission: "clients.view" },
+      { href: "/clients", icon: "users", text: "Client Management", permission: "clients.view" },
     ]
   },
   expenses: {
     label: "Expenses",
     items: [
-      { href: "/expenses", icon: "💸", text: "Expense Tracking", permission: "expenses.view" },
+      { href: "/expenses", icon: "expenses", text: "Expense Tracking", permission: "expenses.view" },
     ]
   },
   payments: {
     label: "Payments",
     items: [
-      { href: "/payments", icon: "💳", text: "Payment Processing", permission: "payments.view" },
+      { href: "/payments", icon: "payments", text: "Payment Processing", permission: "payments.view" },
     ]
   },
   reports: {
     label: "Reports",
     items: [
-      { href: "/reports", icon: "📊", text: "Financial Reporting", permission: "reports.view" },
+      { href: "/reports", icon: "reports", text: "Financial Reporting", permission: "reports.view" },
     ]
   },
   accounting: {
@@ -173,27 +231,28 @@ const navigationByPermission = {
       //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
       //   ]
       // },
-      { href: "/capital-account", icon: "💰", text: "Capital Account" },
-      { href: "/trial-balance", icon: "⚖️", text: "Trial Balance", permission: "reports.view" },
+      { href: "/journal-entries", icon: "journal", text: "Journal Entries", permission: "journalEntries.view" },
+      { href: "/capital-account", icon: "capital", text: "Capital Account", permission: "reports.view" },
+      { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance", permission: "trialBalance.view" },
     ]
   },
   // Additional modules
   stock: {
     label: "Stock",
     items: [
-      { href: "/stock", icon: "📦", text: "Stock Management", permission: "inventory.view" },
+      { href: "/stock", icon: "stock", text: "Stock Management", permission: "inventory.view" },
     ]
   },
   assets: {
     label: "Asset Management",
     items: [
-      { href: "/asset-management", icon: "🏗️", text: "Asset Management", permission: "assets.view" },
+      { href: "/asset-management", icon: "reports", text: "Asset Management", permission: "assets.view" },
     ]
   },
   hr: {
     label: "HR & Payroll",
     items: [
-      { href: "/hr", icon: "👨‍💼", text: "HR & Payroll", permission: "hr.view" },
+      { href: "/hr", icon: "users", text: "HR & Payroll", permission: "hr.view" },
     ]
   },
   // Accounting
@@ -210,17 +269,17 @@ const navigationByPermission = {
   dashboard: {
     label: "Dashboard",
     items: [
-      { href: "/dashboard", icon: "📊", text: "Dashboard" },
+      { href: "/dashboard", icon: "dashboard", text: "Dashboard" },
     ]
   },
   // Client portal items
   clientPortal: {
     label: "Client Portal",
     items: [
-      { href: "/dashboard", icon: "📊", text: "Dashboard" },
-      { href: "/invoices", icon: "📝", text: "My Invoices" },
-      { href: "/payments", icon: "💳", text: "Payment History" },
-      { href: "/quotes", icon: "📄", text: "My Quotes" },
+      { href: "/dashboard", icon: "dashboard", text: "Dashboard" },
+      { href: "/invoices", icon: "invoicing", text: "My Invoices" },
+      { href: "/payments", icon: "payments", text: "Payment History" },
+      { href: "/quotes", icon: "quotations", text: "My Quotes" },
     ]
   }
 };
@@ -403,7 +462,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
       coreItems.push({
         href: "/pos",
-        icon: "🧾",
+        icon: "pos",
         text: "POS"
       });
     }
@@ -411,7 +470,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
       coreItems.push({
         href: "/quotations",
-        icon: "📄",
+        icon: "quotations",
         text: "Quotations"
       });
     }
@@ -419,7 +478,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
       coreItems.push({
         href: "/invoice",
-        icon: "📝",
+        icon: "invoicing",
         text: "Invoicing",
         badge: ""
       });
@@ -428,7 +487,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "expenses.view")) {
       coreItems.push({
         href: "/expenses",
-        icon: "💸",
+        icon: "expenses",
         text: "Expense Tracking"
       });
     }
@@ -436,7 +495,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "payments.view")) {
       coreItems.push({
         href: "/payments",
-        icon: "💳",
+        icon: "payments",
         text: "Payment Processing"
       });
     }
@@ -444,7 +503,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "reports.view")) {
       coreItems.push({
         href: "/reports",
-        icon: "📊",
+        icon: "reports",
         text: "Financial Reporting"
       });
     }
@@ -452,7 +511,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "clients.view")) {
       coreItems.push({
         href: "/clients",
-        icon: "🤵",
+        icon: "users",
         text: "Client Management"
       });
     }
@@ -460,14 +519,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Always show Asset & Liability Management (no permission check for now)
     coreItems.push({
       href: "/asset-management",
-      icon: "🏗️",
+      icon: "reports",
       text: "Assets & Liabilities"
     });
 
     if (hasPermission(user.role.permissions, "hr.view")) {
       coreItems.push({
         href: "/hr",
-        icon: "👨‍💼",
+        icon: "users",
         text: "HR & Payroll",
         expandable: true,
         subItems: [
@@ -498,18 +557,33 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "inventory.view")) {
       additionalItems.push({
         href: "/stock",
-        icon: "📦",
+        icon: "stock",
         text: "Stock Management"
       });
     }
 
+    if (hasPermission(user.role.permissions, "budgets.view")) {
+      additionalItems.push({
+        href: "/budget",
+        icon: "reports",
+        text: "Budgeting",
+      });
+    }
+
+    if (hasPermission(user.role.permissions, "branches.view")) {
+      additionalItems.push({
+        href: "/branches",
+        icon: "tenants",
+        text: "Branches",
+      });
+    }
     
     // Add Purchases if user has inventory or purchases permission
     const canViewPurchases = hasPermission(user.role.permissions, "purchases.view") || hasPermission(user.role.permissions, "inventory.view");
     if (canViewPurchases) {
       additionalItems.push({
         href: "/purchases/suppliers",
-        icon: "🛒",
+        icon: "purchases",
         text: "Purchases",
       });
     }
@@ -533,7 +607,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
    
       additionalItems.push({
         href: "/tax-management",
-        icon: "📑",
+        icon: "reports",
         text: "Tax Management"
       });
     }
@@ -559,7 +633,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (hasPermission(user.role.permissions, "users.view")) {
       businessItems.push({
         href: "/users",
-        icon: "👥",
+        icon: "users",
         text: "User & Role Management"
       });
     }
@@ -824,8 +898,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         style={{
           width: collapsed ? "80px" : "280px",
           height: "100vh",
-          backgroundColor: "#1a202c",
-          background: "linear-gradient(180deg, #1a202c 0%, #2d3748 100%)",
+          backgroundColor: "#0f172a",
+          background: "linear-gradient(180deg, #0f172a 0%, #111827 100%)",
           color: "white",
           display: "flex",
           flexDirection: "column",
@@ -835,10 +909,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           left: 0,
           zIndex: 100,
           overflow: "hidden",
-          boxShadow: collapsed
-            ? "2px 0 8px rgba(0, 0, 0, 0.1)"
-            : "4px 0 24px rgba(0, 0, 0, 0.15)",
-          borderRight: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "none",
+          borderRight: "1px solid rgba(255, 255, 255, 0.08)",
           animation: "slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
         }}
       >
@@ -856,42 +928,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           </div>
         )}
 
-        {/* Sidebar Toggle Button */}
-        <button
-          onClick={toggleSidebar}
-          className="sidebar-toggle-btn"
-          style={{
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
-            border: "1px solid rgba(255, 255, 255, 0.2)",
-            borderRadius: "8px",
-            padding: "8px",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.2s ease",
-            color: "white",
-            minWidth: "36px",
-            minHeight: "36px"
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.backgroundColor = "rgba(49, 130, 206, 0.2)";
-            e.target.style.borderColor = "rgba(49, 130, 206, 0.4)";
-            e.target.style.transform = "scale(1.05)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.backgroundColor = "rgba(255, 255, 255, 0.1)";
-            e.target.style.borderColor = "rgba(255, 255, 255, 0.2)";
-            e.target.style.transform = "scale(1)";
-          }}
-          title={collapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {collapsed ? (
-            <Menu size={18} />
-          ) : (
-            <X size={18} />
-          )}
-        </button>
       </div>
 
       {/* Business Name Display */}
@@ -908,23 +944,21 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
             textDecoration: "none",
             color: "inherit",
             cursor: "pointer",
-            transition: "all 0.2s ease",
+            transition: "background-color 0.2s ease, border-color 0.2s ease",
             borderRadius: "12px",
             margin: "8px 8px 0 8px",
             background: "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)",
             border: "1px solid rgba(107, 114, 128, 0.15)"
           }}
           onMouseEnter={(e) => {
-            e.target.style.backgroundColor = "rgba(107, 114, 128, 0.15)";
-            e.target.style.transform = "translateY(-2px) scale(1.02)";
-            e.target.style.boxShadow = "0 6px 20px rgba(107, 114, 128, 0.25)";
-            e.target.style.borderColor = "rgba(107, 114, 128, 0.3)";
+            const el = e.currentTarget;
+            el.style.backgroundColor = "rgba(107, 114, 128, 0.15)";
+            el.style.borderColor = "rgba(107, 114, 128, 0.3)";
           }}
           onMouseLeave={(e) => {
-            e.target.style.backgroundColor = "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)";
-            e.target.style.transform = "translateY(0) scale(1)";
-            e.target.style.boxShadow = "none";
-            e.target.style.borderColor = "rgba(107, 114, 128, 0.15)";
+            const el = e.currentTarget;
+            el.style.backgroundColor = "linear-gradient(135deg, rgba(107, 114, 128, 0.1) 0%, rgba(75, 85, 99, 0.05) 100%)";
+            el.style.borderColor = "rgba(107, 114, 128, 0.15)";
           }}
         >
           {/* Business Icon */}
@@ -938,8 +972,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
             alignItems: "center",
             justifyContent: "center",
             fontSize: "18px",
-            boxShadow: "0 2px 8px rgba(107, 114, 128, 0.3)",
-            transition: "all 0.2s ease"
+            boxShadow: "none",
+            transition: "background-color 0.2s ease"
           }}>
             🏢
           </div>
@@ -962,6 +996,16 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         </Link>
       )}
 
+      {/* Branch Switcher */}
+      {!collapsed && user?.tenant && (
+        <div style={{
+          padding: "8px",
+          borderBottom: "1px solid rgba(255,255,255,0.1)"
+        }}>
+          <BranchSwitcher />
+        </div>
+      )}
+
       <Link
         href="/subscription"
         className="user-section-link"
@@ -974,7 +1018,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           textDecoration: "none",
           color: "inherit",
           cursor: "pointer",
-          transition: "all 0.2s ease",
+          transition: "background-color 0.2s ease, border-color 0.2s ease",
           borderRadius: "12px",
           margin: "8px 8px 0 8px",
           background: subscription?.isTrial
@@ -985,24 +1029,20 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
             : "1px solid rgba(49, 130, 206, 0.15)"
         }}
         onMouseEnter={(e) => {
-          e.target.style.backgroundColor = subscription?.isTrial
+          const el = e.currentTarget;
+          el.style.backgroundColor = subscription?.isTrial
             ? "rgba(251, 191, 36, 0.15)"
             : "rgba(49, 130, 206, 0.15)";
-          e.target.style.transform = "translateY(-2px) scale(1.02)";
-          e.target.style.boxShadow = subscription?.isTrial
-            ? "0 6px 20px rgba(251, 191, 36, 0.25)"
-            : "0 6px 20px rgba(49, 130, 206, 0.25)";
-          e.target.style.borderColor = subscription?.isTrial
+          el.style.borderColor = subscription?.isTrial
             ? "rgba(251, 191, 36, 0.4)"
             : "rgba(49, 130, 206, 0.3)";
         }}
         onMouseLeave={(e) => {
-          e.target.style.backgroundColor = subscription?.isTrial
+          const el = e.currentTarget;
+          el.style.backgroundColor = subscription?.isTrial
             ? "linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(245, 158, 11, 0.05) 100%)"
             : "linear-gradient(135deg, rgba(49, 130, 206, 0.08) 0%, rgba(59, 130, 246, 0.05) 100%)";
-          e.target.style.transform = "translateY(0) scale(1)";
-          e.target.style.boxShadow = "none";
-          e.target.style.borderColor = subscription?.isTrial
+          el.style.borderColor = subscription?.isTrial
             ? "rgba(251, 191, 36, 0.2)"
             : "rgba(49, 130, 206, 0.15)";
         }}
@@ -1018,10 +1058,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           alignItems: "center",
           justifyContent: "center",
           fontSize: "18px",
-          boxShadow: subscription?.isTrial
-            ? "0 2px 8px rgba(245, 158, 11, 0.3)"
-            : "0 2px 8px rgba(59, 130, 246, 0.3)",
-          transition: "all 0.2s ease"
+          boxShadow: "none",
+          transition: "background-color 0.2s ease"
         }}>
           {subscription?.isTrial ? "⏰" : "👑"}
         </div>
@@ -1179,22 +1217,22 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                         }}
                         onMouseEnter={(e) => {
                           if (!isActive(item.href)) {
-                            e.target.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
-                            e.target.style.borderColor = "rgba(49, 130, 206, 0.2)";
-                            e.target.style.transform = "translateX(4px)";
+                            const el = e.currentTarget;
+                            el.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
+                            el.style.borderColor = "rgba(49, 130, 206, 0.2)";
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isActive(item.href)) {
-                            e.target.style.backgroundColor = "transparent";
-                            e.target.style.borderColor = "transparent";
-                            e.target.style.transform = "translateX(0)";
+                            const el = e.currentTarget;
+                            el.style.backgroundColor = "transparent";
+                            el.style.borderColor = "transparent";
                           }
                         }}
                       >
-                        <span className="nav-icon" style={{
-                          fontSize: "16px"
-                        }}>{item.icon}</span>
+                        <span className="nav-icon" style={{ display: "inline-flex" }}>
+                          <NavIcon name={item.icon} active={isActive(item.href)} />
+                        </span>
                         {!collapsed && (
                           <>
                             <span className="nav-text" style={{
@@ -1257,22 +1295,22 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive(item.href)) {
-                          e.target.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
-                          e.target.style.borderColor = "rgba(49, 130, 206, 0.2)";
-                          e.target.style.transform = "translateX(4px)";
+                          const el = e.currentTarget;
+                          el.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
+                          el.style.borderColor = "rgba(49, 130, 206, 0.2)";
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (!isActive(item.href)) {
-                          e.target.style.backgroundColor = "transparent";
-                          e.target.style.borderColor = "transparent";
-                          e.target.style.transform = "translateX(0)";
+                          const el = e.currentTarget;
+                          el.style.backgroundColor = "transparent";
+                          el.style.borderColor = "transparent";
                         }
                       }}
                     >
-                      <span className="nav-icon" style={{
-                        fontSize: "16px"
-                      }}>{item.icon}</span>
+                      <span className="nav-icon" style={{ display: "inline-flex" }}>
+                        <NavIcon name={item.icon} active={isActive(item.href)} />
+                      </span>
                       {!collapsed && (
                         <>
                           <span className="nav-text" style={{

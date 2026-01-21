@@ -35,6 +35,7 @@ export async function GET(request) {
     const category = searchParams.get('category');
     const status = searchParams.get('status');
     const location = searchParams.get('location');
+    const branchIdParam = searchParams.get('branchId');
     
     // Calculate pagination (only if limit is specified and > 0)
     const skip = limit > 0 ? (page - 1) * limit : 0;
@@ -44,6 +45,18 @@ export async function GET(request) {
       tenantId: user.tenantId,
       isDeleted: false, // Exclude soft-deleted products by default
     };
+    
+    // Branch scoping: Priority: query param > session branch > user default branch
+    const desiredBranchId = branchIdParam || user.currentBranchId || user.defaultBranchId || null;
+    if (desiredBranchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
+        select: { id: true }
+      });
+      if (branch) {
+        where.branchId = desiredBranchId;
+      }
+    }
     
     // Add search filter if provided
     if (search) {
@@ -169,6 +182,17 @@ export async function POST(request) {
     }
     
     const body = await request.json();
+
+    // Resolve branch for the new product (optional)
+    const desiredBranchId = body.branchId || user.defaultBranchId || null;
+    let branchIdToSet = null;
+    if (desiredBranchId) {
+      const branch = await prisma.branch.findFirst({
+        where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
+        select: { id: true }
+      });
+      if (branch) branchIdToSet = desiredBranchId;
+    }
     
     // Validate required fields
     if (!body.name || !body.sku) {
@@ -255,6 +279,7 @@ export async function POST(request) {
         cost: parseFloat(body.costPrice || body.cost || 0),
         image: imagePath,
         isService: !!body.isService,
+        branchId: branchIdToSet,
         tenant: {
           connect: {
             id: user.tenantId

@@ -140,7 +140,7 @@ export const UniversalDateRangeFilter = ({
 
   // Variant classes
   const variantClasses = {
-    default: 'bg-white border border-gray-300 shadow-sm',
+    default: 'bg-white border border-gray-300',
     compact: 'bg-gray-50 border border-gray-200',
     minimal: 'bg-transparent border-none'
   };
@@ -171,7 +171,7 @@ export const UniversalDateRangeFilter = ({
 
         {/* Dropdown Menu */}
         {isDropdownOpen && (
-          <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+          <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-md shadow-sm z-50">
             <div className="p-2">
               <div className="text-xs font-medium text-gray-500 uppercase mb-2 px-2">Quick Select</div>
               
@@ -253,7 +253,7 @@ export const UniversalDateRangeFilter = ({
       {/* Comparison Toggle */}
       {showComparison && (
         <button
-          className={`flex items-center px-3 py-2 border rounded-md text-sm shadow-sm transition-all ${sizeClasses[size]} ${
+          className={`flex items-center px-3 py-2 border rounded-md text-sm transition-colors ${sizeClasses[size]} ${
             comparisonEnabled 
               ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700' 
               : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
@@ -268,7 +268,7 @@ export const UniversalDateRangeFilter = ({
       {/* Refresh Button */}
       {showRefresh && onRefresh && (
         <button 
-          className={`flex items-center border border-gray-300 bg-white rounded-md shadow-sm hover:bg-gray-50 text-gray-700 transition-all disabled:opacity-50 ${sizeClasses[size]}`}
+          className={`flex items-center border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors disabled:opacity-50 ${sizeClasses[size]}`}
           onClick={onRefresh}
           disabled={loading}
         >

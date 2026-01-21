@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -144,7 +149,7 @@ export async function GET(request) {
     // Include invoices that are Pending or Partial (these represent money owed by customers)
     // Calculate actual remaining balance from payments to ensure accuracy
     const invoices = await prisma.invoice.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         // Exclude voided and refunded invoices
         voidedAt: null,
@@ -154,7 +159,7 @@ export async function GET(request) {
           { status: { in: ['Pending', 'Partial', 'pending', 'partial'] } },
           { remainingBalance: { gt: 0 } }
         ]
-      },
+      }),
       select: {
         id: true,
         total: true,

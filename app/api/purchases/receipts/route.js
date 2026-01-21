@@ -4,7 +4,8 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { updateAverageCost } from '@/lib/inventoryCosting';
+import { createFifoBatch } from '@/lib/fifoCosting';
+import { resolveBranchId } from '@/lib/branchHelpers';
 import { createPurchaseReceiptJournalEntry } from '@/lib/purchaseAccounting';
 
 async function generateReceiptNumber(tenantId) {
@@ -331,12 +332,17 @@ export async function POST(request) {
       }
 
       for (const item of goodsReceipt.items) {
-        await updateAverageCost({
-          productId: item.productId,
+        const branchId = await resolveBranchId(request, user, null);
+        await createFifoBatch({
           tenantId: user.tenantId,
-          quantityReceived: item.quantityReceived,
+          branchId,
+          productId: item.productId,
+          quantityPurchased: item.quantityReceived,
           unitCost: item.unitCost,
-          tx: trx
+          purchaseDate: goodsReceipt.receiptDate || goodsReceipt.createdAt || new Date(),
+          sourceType: 'GoodsReceipt',
+          sourceId: goodsReceipt.id,
+          tx: trx,
         });
 
         await trx.inventoryTransaction.create({
@@ -346,6 +352,7 @@ export async function POST(request) {
             userId: user.id,
             type: 'goods_receipt',
             quantity: Number(item.quantityReceived),
+            branchId: await resolveBranchId(request, user, null),
             notes: `Receipt ${goodsReceipt.receiptNumber}`
           }
         });

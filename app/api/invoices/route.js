@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { createInvoiceJournalEntry, createInvoicePaymentJournalEntry } from '@/lib/transactionJournalHelpers';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { calculateCOGS } from '@/lib/inventoryCosting';
+import { resolveBranchId } from '@/lib/branchHelpers';
 
 // Enhanced helper function to calculate invoice totals with discounts
 function calculateInvoiceTotals(items, globalDiscount = 0) {
@@ -102,6 +103,12 @@ export async function GET(request) {
     const where = {
       tenantId: user.tenantId
     };
+    
+    // Add branch filter if provided
+    const branchId = searchParams.get('branchId');
+    if (branchId) {
+      where.branchId = branchId;
+    }
     
     // Add status filter if provided
     if (status) {
@@ -360,6 +367,9 @@ export async function POST(request) {
     const invoiceStatus = body.status || 'Draft';
     const issueDate = new Date(body.issueDate || today);
     
+    // Resolve branchId from request or user's default branch
+    const branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    
     // Check if invoice has service items
     const hasServices = calculations.processedItems.some(item => {
       if (!item.productId) return true; // Custom items are considered services
@@ -401,6 +411,7 @@ export async function POST(request) {
           status: invoiceStatus,
           notes: body.notes,
           tenantId: user.tenantId,
+          branchId: branchId,
           items: {
             create: calculations.processedItems.map(item => ({
               description: item.description,

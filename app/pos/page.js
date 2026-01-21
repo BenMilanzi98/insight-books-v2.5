@@ -108,6 +108,9 @@ const POSPage = () => {
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [selectedBranchId, setSelectedBranchId] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSuccess, setSaleSuccess] = useState(false);
   const [saleError, setSaleError] = useState(null);
@@ -172,12 +175,51 @@ const POSPage = () => {
   
     fetchPermissions();
   }, []);
+  // Load branches and user's default branch
+  const loadBranches = async () => {
+    try {
+      setIsLoadingBranches(true);
+      const [branchesRes, userRes] = await Promise.all([
+        fetch('/api/branches?includeInactive=false', { cache: 'no-store' }),
+        fetch('/api/auth/me', { cache: 'no-store' })
+      ]);
+      
+      if (branchesRes.ok) {
+        const branchesJson = await branchesRes.json();
+        if (branchesJson.branches) {
+          setBranches(branchesJson.branches);
+          
+          // Get user's default branch
+          let defaultBranchId = null;
+          if (userRes.ok) {
+            const userJson = await userRes.json();
+            defaultBranchId = userJson.defaultBranchId;
+          }
+          
+          // Auto-select user's default branch, or first branch if no default
+          if (!selectedBranchId) {
+            if (defaultBranchId && branchesJson.branches.find(b => b.id === defaultBranchId)) {
+              setSelectedBranchId(defaultBranchId);
+            } else if (branchesJson.branches.length > 0) {
+              setSelectedBranchId(branchesJson.branches[0].id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load branches:', e);
+    } finally {
+      setIsLoadingBranches(false);
+    }
+  };
+
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
     loadRecentSales();
     loadProducts();
     loadClients();
     loadStatistics();
+    loadBranches();
     
     // Set default tax rate from tenant settings
     // This would typically come from your API, but we'll hard-code it for now
@@ -981,6 +1023,7 @@ const POSPage = () => {
       // Prepare sale data
       const saleData = {
         clientId: (activeTab === "registered" || activeTab === "historical") && selectedCustomer ? selectedCustomer : null,
+        branchId: selectedBranchId || null,
         items: selectedProducts.map(product => {
           const itemData = {
           productId: product.isCustom ? null : product.id,
@@ -1794,6 +1837,25 @@ const POSPage = () => {
 
         {/* Right Column - Payment Method & Action Buttons */}
         <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+          {/* Branch Selection */}
+          {branches.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
+              <select
+                value={selectedBranchId || ''}
+                onChange={(e) => setSelectedBranchId(e.target.value || null)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">-- Select Branch --</option>
+                {branches.map(branch => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name} {branch.code ? `(${branch.code})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
           <div className="mb-6">
             <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3">

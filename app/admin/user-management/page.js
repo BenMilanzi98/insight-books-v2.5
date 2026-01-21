@@ -44,6 +44,7 @@ export default function UserManagementPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [tenants, setTenants] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   // Fetch users from API
   const fetchUsers = async (page = 1, search = '', role = '', status = '') => {
@@ -112,6 +113,20 @@ export default function UserManagementPage() {
       }
     } catch (error) {
       console.error('Error fetching tenants:', error);
+    }
+  };
+
+  // Fetch branches for a tenant
+  const fetchBranches = async (tenantId) => {
+    if (!tenantId) return;
+    try {
+      const response = await fetch(`/api/branches?includeInactive=false`, { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
     }
   };
 
@@ -846,6 +861,8 @@ export default function UserManagementPage() {
           loading={actionLoading}
           tenants={tenants}
           roles={roles}
+          branches={branches}
+          onTenantChange={fetchBranches}
         />
       )}
 
@@ -1040,10 +1057,11 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
 }
 
 // Edit User Modal Component
-function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles }) {
+function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branches, onTenantChange }) {
   console.log('EditUserModal received user:', user);
   console.log('EditUserModal received tenants:', tenants);
   console.log('EditUserModal received roles:', roles);
+  console.log('EditUserModal received branches:', branches);
   
   // Find the tenant ID for the current user
   const findTenantId = (tenantName) => {
@@ -1067,8 +1085,16 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles }) {
     phone: user.phone || '',
     role: findRoleId(user.role),
     status: user.status,
-    tenantId: findTenantId(user.tenant)
+    tenantId: findTenantId(user.tenant),
+    defaultBranchId: user.defaultBranchId || null
   });
+
+  // Load branches when tenant changes
+  useEffect(() => {
+    if (formData.tenantId && onTenantChange) {
+      onTenantChange(formData.tenantId);
+    }
+  }, [formData.tenantId, onTenantChange]);
 
   console.log('EditUserModal initial formData:', formData);
 
@@ -1157,7 +1183,10 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles }) {
               <label className="block text-sm font-medium text-gray-700">Tenant</label>
               <select
                 value={formData.tenantId}
-                onChange={(e) => setFormData({...formData, tenantId: e.target.value})}
+                onChange={(e) => {
+                  setFormData({...formData, tenantId: e.target.value, defaultBranchId: null});
+                  if (onTenantChange) onTenantChange(e.target.value);
+                }}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               >
@@ -1169,6 +1198,25 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles }) {
                 ))}
               </select>
             </div>
+            
+            {formData.tenantId && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
+                <select
+                  value={formData.defaultBranchId || ''}
+                  onChange={(e) => setFormData({...formData, defaultBranchId: e.target.value || null})}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">-- No Default Branch --</option>
+                  {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name} {branch.code ? `(${branch.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Transactions will default to this branch if not specified</p>
+              </div>
+            )}
             
             <div className="flex justify-end space-x-3 pt-4">
               <button

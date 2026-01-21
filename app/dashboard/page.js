@@ -481,6 +481,34 @@ const BusinessOwnerDashboard = () => {
   const [stockAlertsPage, setStockAlertsPage] = useState(1);
   const stockAlertsPageSize = 3;
   
+  // State for current branch (to trigger refetch on branch change)
+  const [currentBranchId, setCurrentBranchId] = useState(null);
+  
+  // Fetch current branch on mount and when it changes
+  useEffect(() => {
+    const fetchCurrentBranch = async () => {
+      try {
+        const branchRes = await fetch('/api/branches/switch', { cache: 'no-store' });
+        if (branchRes.ok) {
+          const branchData = await branchRes.json();
+          setCurrentBranchId(branchData.branchId);
+        }
+      } catch (e) {
+        console.error('Failed to get current branch:', e);
+      }
+    };
+    fetchCurrentBranch();
+
+    // Listen for branch changes triggered in another tab/window (no polling).
+    const handleStorage = (event) => {
+      if (event.key === 'insightbooks:branch-switch') {
+        fetchCurrentBranch();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+  
   useEffect(() => {
     const fetchPermissions = async () => {
       const canViewDashboard = await getPermission("dashboard.view");
@@ -573,10 +601,10 @@ const BusinessOwnerDashboard = () => {
     fetchUserTenants();
   }, []);
 
-  // Fetch dashboard data
+  // Fetch dashboard data when date range or branch changes
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedDateRange]);
+  }, [selectedDateRange, currentBranchId]);
 
   // Enhanced data fetching with date range filtering
   const fetchDashboardData = async () => {
@@ -599,10 +627,20 @@ const BusinessOwnerDashboard = () => {
       setDateRange({ start: startDate, end: endDate });
       }
 
-      // Helper function to safely fetch data
+      // Helper function to safely fetch data with cache-busting
       const safeFetch = async (url) => {
         try {
-          const response = await fetch(url);
+          // Add cache-busting to ensure fresh data on branch switch
+          const urlWithCache = url.includes('?') 
+            ? `${url}&_cb=${Date.now()}` 
+            : `${url}?_cb=${Date.now()}`;
+          
+          const response = await fetch(urlWithCache, {
+            cache: 'no-store', // Prevent caching
+            headers: {
+              'Cache-Control': 'no-cache'
+            }
+          });
           if (response.ok) {
             return await response.json();
           } else {
@@ -616,12 +654,24 @@ const BusinessOwnerDashboard = () => {
       };
 
       // Build query parameters for custom date ranges
+      // Note: Branch filtering is handled server-side via session (user.currentBranchId)
+      // Add cache-busting to ensure fresh data when branch changes
       const buildApiUrl = (endpoint) => {
+        let url = endpoint;
+        const params = new URLSearchParams();
+        
         if (selectedDateRange === 'custom') {
-          return `${endpoint}?dateRange=custom&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`;
+          params.append('dateRange', 'custom');
+          params.append('startDate', startDate.toISOString().split('T')[0]);
+          params.append('endDate', endDate.toISOString().split('T')[0]);
         } else {
-          return `${endpoint}?dateRange=${mapDateRangeToAPI(selectedDateRange)}`;
+          params.append('dateRange', mapDateRangeToAPI(selectedDateRange));
         }
+        
+        // Add cache-busting parameter to ensure fresh data on branch switch
+        params.append('_t', Date.now());
+        
+        return `${url}?${params.toString()}`;
       };
 
       // Fetch all dashboard data using actual API endpoints
@@ -765,14 +815,15 @@ const BusinessOwnerDashboard = () => {
 
   if(pagePermissions.canViewDashboard){
   return (
-    <div className="p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 via-purple-50 to-pink-50 min-h-screen">
-      {/* Dashboard Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Welcome back!</h1>
-        <p className="text-gray-600 mt-1">
-          
-        </p>
-      </div>
+    <div className="min-h-screen bg-gray-50">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6">
+        {/* Dashboard Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-600 mt-1">
+            Overview of performance, cash position, receivables, payables, and inventory.
+          </p>
+        </div>
 
       {/* Trial Countdown */}
       {!subscriptionLoading && userSubscription && (
@@ -806,28 +857,30 @@ const BusinessOwnerDashboard = () => {
 
       {/* Business Overview Card */}
       <div className="mb-6">
-        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl shadow-lg border border-blue-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl border border-blue-200/80 hover:border-blue-300 transition-colors duration-200">
           <div className="p-6">
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center ring-1 ring-white/40">
                   <Building className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  <h3 className="text-xl font-semibold text-gray-900">
                     {tenantInfo?.name || 'Loading...'}
                   </h3>
-                  <p className="text-sm text-gray-600">
-                    {hasMultipleBusinesses ? 'Multi-business account' : 'Your business dashboard'}
-                  </p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                    <span>Your business dashboard</span>
+                    <span className="text-gray-300">•</span>
+                    <span>{hasMultipleBusinesses ? 'Multi-business account' : 'Single business account'}</span>
+                  </div>
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={handleDataExport}
                   disabled={isExporting}
-                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white transition-all duration-200 transform hover:scale-105 ${
-                    isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-md hover:shadow-lg'
+                  className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium text-white transition-colors duration-200 ${
+                    isExporting ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700'
                   }`}
                 >
                   {isExporting ? (
@@ -854,7 +907,7 @@ const BusinessOwnerDashboard = () => {
                 <button
                   onClick={refreshDashboard}
                   disabled={isLoading}
-                  className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/70 rounded-lg transition-all duration-200 transform hover:scale-110 hover:shadow-md"
+                  className="p-2 text-gray-600 hover:text-gray-700 hover:bg-white/70 rounded-lg transition-colors duration-200"
                   title="Refresh dashboard data"
                 >
                   <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
@@ -862,7 +915,7 @@ const BusinessOwnerDashboard = () => {
                 {hasMultipleBusinesses && (
                   <button
                     onClick={() => window.location.href = '/switch-tenant'}
-                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
+                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-colors duration-200"
                   >
                     <ArrowRight className="h-4 w-4 mr-2" />
                     Switch Business
@@ -871,7 +924,7 @@ const BusinessOwnerDashboard = () => {
                 {!hasMultipleBusinesses && tenantInfo && (
                   <button
                     onClick={() => window.location.href = '/auth/business-setup'}
-                    className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-lg hover:from-gray-200 hover:to-gray-300 transition-all duration-200 transform hover:scale-105 shadow-sm hover:shadow-md"
+                    className="inline-flex items-center px-4 py-2 bg-white text-gray-700 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors duration-200"
                   >
                     <Settings className="h-4 w-4 mr-2" />
                     Manage Business
@@ -967,7 +1020,7 @@ const BusinessOwnerDashboard = () => {
       {/* Daily Metrics Section */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+          <h2 className="text-lg font-semibold text-gray-900 flex items-center">
             <Clock size={18} className="mr-2 text-indigo-500" />
             Today's Performance
           </h2>
@@ -987,7 +1040,7 @@ const BusinessOwnerDashboard = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Today's Revenue Card */}
-          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200/80 rounded-lg p-5 hover:border-green-300 transition-colors duration-200">
             <div className="flex justify-between mb-2">
               <div className="flex items-center text-sm font-medium text-gray-600">
                 <TrendingUp size={16} className="mr-1 text-green-500" />
@@ -1018,7 +1071,7 @@ const BusinessOwnerDashboard = () => {
           </div>
           
           {/* Today's Expenses Card */}
-          <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
+          <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-200/80 rounded-lg p-5 hover:border-red-300 transition-colors duration-200">
             <div className="flex justify-between mb-2">
               <div className="flex items-center text-sm font-medium text-gray-600">
                 <TrendingDown size={16} className="mr-1 text-red-500" />
@@ -1052,14 +1105,14 @@ const BusinessOwnerDashboard = () => {
       
       {/* Financial Summary Cards */}
       <div className="mb-6">
-        <h2 className="text-lg font-semibold text-gray-800 flex items-center mb-4">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center mb-4">
           <BarChart3 size={18} className="mr-2 text-indigo-500" />
           Financial Summary
         </h2>
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
           {/* Total Revenue Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/80 rounded-lg p-5 hover:border-blue-300 transition-colors duration-200">
             <div className="flex justify-between mb-4">
               <div className="text-sm font-medium text-gray-600">Total Revenue</div>
               <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
@@ -1081,7 +1134,7 @@ const BusinessOwnerDashboard = () => {
           </div>
           
           {/* Total Expenses Card */}
-          <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-100 rounded-lg shadow hover:shadow-xl transition-all duration-300 p-5 transform hover:-translate-y-1">
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-200/80 rounded-lg p-5 hover:border-orange-300 transition-colors duration-200">
             <div className="flex justify-between mb-4">
               <div className="text-sm font-medium text-gray-600">Total Expenses</div>
               <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
@@ -1108,8 +1161,8 @@ const BusinessOwnerDashboard = () => {
       {/* Main Dashboard Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Income & Expenses Bar Chart */}
-        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <div className="bg-white/80 backdrop-blur rounded-xl border border-white/60 shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-5 border-b border-gray-100/70 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Income & Expense Overview</h2>
             <a href="/reports/" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
               Detailed Report <ChevronRight size={16} className="ml-1" />
@@ -1124,8 +1177,8 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Expense Breakdown Pie Chart */}
-        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <div className="bg-white/80 backdrop-blur rounded-xl border border-white/60 shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-5 border-b border-gray-100/70 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Expenses Breakdown</h2>
             <a href="/expenses" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
               View Details <ChevronRight size={16} className="ml-1" />
@@ -1140,8 +1193,8 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Accounts Receivable */}
-        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
-          <div className="p-5 border-b border-gray-100 flex justify-between items-center">
+        <div className="bg-white/80 backdrop-blur rounded-xl border border-white/60 shadow-sm hover:shadow-md transition-shadow">
+          <div className="p-5 border-b border-gray-100/70 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Receivable</h2>
             <a href="/accounting/receivables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
               View More <ChevronRight size={16} className="ml-1" />
@@ -1240,7 +1293,7 @@ const BusinessOwnerDashboard = () => {
         </div>
 
         {/* Accounts Payable */}
-        <div className="bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
+        <div className="bg-white rounded-lg border border-gray-200/80">
           <div className="p-5 border-b border-gray-100 flex justify-between items-center">
             <h2 className="font-semibold text-gray-800">Accounts Payable</h2>
             <a href="/accounting/payables" className="text-sm text-indigo-600 flex items-center hover:text-indigo-800">
@@ -1342,7 +1395,7 @@ const BusinessOwnerDashboard = () => {
       </div>
 
       {/* Stock Alerts Section */}
-      <div className="mt-6 bg-white rounded-lg shadow hover:shadow-xl transition-shadow duration-300">
+      <div className="mt-6 bg-white rounded-lg border border-gray-200/80">
         <div className="p-5 border-b border-gray-100 flex justify-between items-center">
           <h2 className="font-semibold text-gray-800">Stock Alerts</h2>
           <button
@@ -1365,7 +1418,7 @@ const BusinessOwnerDashboard = () => {
                   const paginatedAlerts = stockAlerts.slice(startIndex, endIndex);
                   
                   return paginatedAlerts.map((alert, index) => (
-                    <div key={index} className={`p-4 rounded-lg border-l-4 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1 ${
+                    <div key={index} className={`p-4 rounded-lg border-l-4 transition-colors duration-200 ${
                       alert.type === 'low_stock' ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-400 hover:border-red-500' :
                       alert.type === 'out_of_stock' ? 'bg-gradient-to-r from-red-50 to-rose-50 border-red-500 hover:border-red-600' :
                       'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-400 hover:border-yellow-500'
@@ -1418,14 +1471,14 @@ const BusinessOwnerDashboard = () => {
                     <button
                       onClick={() => setStockAlertsPage(prev => Math.max(1, prev - 1))}
                       disabled={stockAlertsPage === 1}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 hover:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       ← Back
                     </button>
                     <button
                       onClick={() => setStockAlertsPage(prev => Math.min(Math.ceil(stockAlerts.length / stockAlertsPageSize), prev + 1))}
                       disabled={stockAlertsPage === Math.ceil(stockAlerts.length / stockAlertsPageSize)}
-                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 hover:shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105"
+                      className="px-3 py-1 text-sm bg-white border border-gray-300 rounded hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Next →
                     </button>
@@ -1443,27 +1496,29 @@ const BusinessOwnerDashboard = () => {
         </div>
       </div>
 
+        </div>
     </div>
   );
-}
-return(
-  <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
-    <div className="text-center">
-      <div className="mb-6">
-        <div className="inline-block">
-          <div className="relative w-16 h-16 mb-4">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+  }
+
+  // Loading state when user doesn't have permission yet
+  return (
+    <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="mb-6">
+          <div className="inline-block">
+            <div className="relative w-16 h-16 mb-4">
+              <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
+              <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+            </div>
           </div>
         </div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Dashboard</h2>
+        <p className="text-gray-600 mb-2">Please wait while we prepare your dashboard</p>
+        <p className="text-sm text-gray-500">Verifying permissions and loading your data...</p>
       </div>
-      <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Dashboard</h2>
-      <p className="text-gray-600 mb-2">Please wait while we prepare your dashboard</p>
-      <p className="text-sm text-gray-500">Verifying permissions and loading your data...</p>
     </div>
-  </div>
-)
-
+  );
 };
 
 export default BusinessOwnerDashboard;

@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -17,11 +22,11 @@ export async function GET(request) {
     
     // Get all products for this tenant that are not services and not deleted
     const allProducts = await prisma.product.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         isService: false, // Only physical products, not services
         isDeleted: false // Exclude soft-deleted products
-      },
+      }),
       select: {
         id: true,
         name: true,

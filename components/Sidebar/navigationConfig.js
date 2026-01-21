@@ -55,6 +55,7 @@ export const navigationByPermission = {
           // { href: "/hr", icon: "👨‍💼", text: "HR & Payroll" },
           { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
           { href: "/affiliate", icon: "🔗", text: "Affiliate System" },
+          { href: "/budget", icon: "🧮", text: "Budgeting" },
           { href: "/tax-management", icon: "📑", text: "Tax Management" },
         ],
       },
@@ -109,6 +110,12 @@ export const navigationByPermission = {
         { href: "/reports", icon: "📊", text: "Financial Reporting", permission: "reports.view" },
       ]
     },
+    budgets: {
+      label: "Budgeting",
+      items: [
+        { href: "/budget", icon: "🧮", text: "Budgets", permission: "budgets.view" },
+      ]
+    },
     // Additional modules
     inventory: {
       label: "Inventory",
@@ -127,8 +134,7 @@ export const navigationByPermission = {
     accounting: {
       label: "Accounting",
       items: [
-        // { href: "/general-ledger", icon: "📕", text: "General Ledger", permission: "reports.view" },
-        { href: "/journal-entries", icon: "✏️", text: "Journal Entries", permission: "reports.view" },
+        { href: "/journal-entries", icon: "✏️", text: "Journal Entries", permission: "journalEntries.view" },
         { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts", permission: "reports.view" },
         { href: "/capital-account", icon: "💰", text: "Capital Account", permission: "reports.view" },
         { href: "/capital-account/transfers", icon: "🔄", text: "Capital Transfers", permission: "reports.view" },
@@ -295,6 +301,14 @@ export const navigationByPermission = {
         href: "/stock", 
         icon: "📦", 
         text: "Stock Management" 
+      });
+    }
+
+    if (hasPermission(user.role.permissions, "budgets.view")) {
+      additionalItems.push({
+        href: "/budget",
+        icon: "🧮",
+        text: "Budgeting"
       });
     }
     

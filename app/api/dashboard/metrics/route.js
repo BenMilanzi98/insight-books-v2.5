@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -220,7 +225,7 @@ export async function GET(request) {
     const [currentInvoices, currentSales, currentExpensesData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: { in: ['invoice', 'sale'] },
           status: 'Completed',
@@ -228,24 +233,24 @@ export async function GET(request) {
             gte: currentPeriodStart,
             lte: currentPeriodEndDate
           }
-        },
+        }),
         _sum: { amount: true }
       }),
       prisma.sale.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           saleDate: { 
             gte: currentPeriodStart,
             lte: currentPeriodEndDate
           },
           status: 'completed'
-        },
+        }),
         _sum: { total: true }
       }),
       // Only count actual payments made for expenses, not pending expenses
       // Exclude payments linked to deleted expenses
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: 'expense',
           status: 'Completed',
@@ -256,7 +261,7 @@ export async function GET(request) {
           expense: {
             isDeleted: false
           }
-        },
+        }),
         _sum: { amount: true }
       })
     ]);
@@ -265,7 +270,7 @@ export async function GET(request) {
     const [previousInvoices, previousSales, previousExpensesData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: { in: ['invoice', 'sale'] },
           status: 'Completed',
@@ -273,24 +278,24 @@ export async function GET(request) {
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           }
-        },
+        }),
         _sum: { amount: true }
       }),
       prisma.sale.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           saleDate: { 
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           },
           status: 'completed'
-        },
+        }),
         _sum: { total: true }
       }),
       // Only count actual payments made for expenses, not pending expenses
       // Exclude payments linked to deleted expenses
       prisma.payment.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: 'expense',
           status: 'Completed',
@@ -301,7 +306,7 @@ export async function GET(request) {
           expense: {
             isDeleted: false
           }
-        },
+        }),
         _sum: { amount: true }
       })
     ]);
@@ -309,21 +314,21 @@ export async function GET(request) {
     // Get outstanding invoices (Accounts Receivable)
     const [outstandingInvoicesData, previousOutstandingInvoicesData] = await Promise.all([
       prisma.invoice.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partially Paid'] }
-        },
+        }),
         _sum: { total: true }
       }),
       prisma.invoice.aggregate({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partially Paid'] },
           issueDate: { 
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           }
-        },
+        }),
         _sum: { total: true }
       })
     ]);
@@ -340,10 +345,10 @@ export async function GET(request) {
     const [currentReceivables, previousReceivables] = await Promise.all([
       // Current receivables - sum of remaining balances
       prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partially Paid'] }
-        },
+        }),
         select: {
           total: true,
           totalPaid: true
@@ -356,14 +361,14 @@ export async function GET(request) {
       ),
       // Previous receivables
       prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partially Paid'] },
           issueDate: { 
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           }
-        },
+        }),
         select: {
           total: true,
           totalPaid: true
@@ -385,22 +390,22 @@ export async function GET(request) {
       Promise.all([
         // Cash in (invoice and sales payments)
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: { in: ['invoice', 'sale'] },
             status: 'Completed',
             paymentDate: { gte: currentPeriodStart, lte: currentPeriodEnd }
-          },
+          }),
           _sum: { amount: true }
         }),
         // Cash out (expense payments)
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: 'expense',
             status: 'Completed',
             paymentDate: { gte: currentPeriodStart, lte: currentPeriodEnd }
-          },
+          }),
           _sum: { amount: true }
         })
       ]),
@@ -408,22 +413,22 @@ export async function GET(request) {
       Promise.all([
         // Cash in (invoice and sales payments)
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: { in: ['invoice', 'sale'] },
             status: 'Completed',
             paymentDate: { gte: previousPeriodStart, lte: previousPeriodEnd }
-          },
+          }),
           _sum: { amount: true }
         }),
         // Cash out (expense payments)
         prisma.payment.aggregate({
-          where: {
+          where: addBranchFilter(user, {
             tenantId,
             type: 'expense',
             status: 'Completed',
             paymentDate: { gte: previousPeriodStart, lte: previousPeriodEnd }
-          },
+          }),
           _sum: { amount: true }
         })
       ])

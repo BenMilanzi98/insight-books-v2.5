@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
-import { calculateCOGS } from '@/lib/inventoryCosting';
+import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 
 // Helper function to format currency
@@ -408,6 +408,17 @@ export async function POST(request) {
           }
         }
         
+        // Validate branchId if provided (must belong to user's tenant)
+        let branchId = data.branchId || null;
+        if (branchId) {
+          const branch = await tx.branch.findFirst({
+            where: { id: branchId, tenantId: user.tenantId, isActive: true }
+          });
+          if (!branch) {
+            throw new Error('Invalid or inactive branch selected');
+          }
+        }
+
         // Create the sale with enhanced fields
         const sale = await tx.sale.create({
           data: {
@@ -429,6 +440,12 @@ export async function POST(request) {
             historicalDate: data.isHistorical && data.historicalDate ? new Date(data.historicalDate) : null,
             migrationBatch: data.migrationBatch || null,
             originalReference: data.originalReference || null,
+            // Connect to branch if provided
+            ...(branchId ? {
+              branch: {
+                connect: { id: branchId }
+              }
+            } : {}),
             // Connect to client if provided
             ...(data.clientId ? {
               client: {
@@ -629,37 +646,41 @@ export async function POST(request) {
                       id: true, 
                       isService: true,
                       name: true,
-                      averageCost: true,
-                      cost: true,
-                      stockLevel: true
+                      stockLevel: true,
+                      branchId: true
                     }
                   });
                   
                   // Only calculate COGS for non-service products
                   if (product && !product.isService) {
-                    // Check if product has cost information
-                    const avgCost = product.averageCost ? parseFloat(product.averageCost) : 0;
-                    const productCost = product.cost ? parseFloat(product.cost) : 0;
-                    
-                    if (avgCost === 0 && productCost === 0) {
-                      console.warn(`⚠️ Product "${product.name}" (${item.productId}) has no cost information. COGS will be 0.`);
-                    }
-                    
-                    const cogsData = await calculateCOGS({
-                      productId: item.productId,
+                    const fifo = await consumeFifoForSale({
                       tenantId: user.tenantId,
+                      branchId: sale.branchId || product.branchId || null,
+                      productId: item.productId,
                       quantitySold: item.quantity,
+                      saleId: sale.id,
+                      saleItemId: item.id || null,
                       tx,
                     });
-                    
-                    console.log(`💰 COGS for product "${product.name}":`, {
-                      productId: item.productId,
-                      quantity: item.quantity,
-                      averageCost: avgCost,
-                      cogsAmount: cogsData.cogsAmount
-                    });
-                    
-                    totalCOGS += cogsData.cogsAmount;
+
+                    // Persist read-only COGS details on the SaleItem payload (system-only)
+                    // Uses existing JSON field to avoid schema changes on SaleItem.
+                    if (item.id) {
+                      await tx.saleItem.update({
+                        where: { id: item.id },
+                        data: {
+                          customProductData: {
+                            ...(item.customProductData || {}),
+                            fifoCogs: {
+                              cogsAmount: fifo.cogsAmount,
+                              allocations: fifo.allocations,
+                            },
+                          },
+                        },
+                      });
+                    }
+
+                    totalCOGS += fifo.cogsAmount;
                   }
                 } catch (cogsError) {
                   console.error(`❌ Error calculating COGS for product ${item.productId}:`, cogsError);

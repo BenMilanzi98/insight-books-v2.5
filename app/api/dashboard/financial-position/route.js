@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+
+// Prevent caching to ensure fresh data on branch switch
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET(request) {
   try {
@@ -128,13 +133,13 @@ export async function GET(request) {
     ] = await Promise.all([
       // Outstanding receivables (invoices)
       prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partial'] },
           NOT: { 
             status: { in: ['void', 'refunded', 'partially_refunded'] }
           }
-        },
+        }),
         select: {
           id: true,
           invoiceNumber: true,
@@ -156,6 +161,7 @@ export async function GET(request) {
       }),
       
       // Pending quotations (potential receivables)
+      // Note: Quotation model may not have branchId field
       prisma.quotation.findMany({
         where: {
           tenantId,
@@ -179,11 +185,11 @@ export async function GET(request) {
       
       // Outstanding payables (expenses)
       prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           paymentStatus: { in: ['Pending', 'Partially'] },
           isDeleted: false
-        },
+        }),
         select: {
           id: true,
           description: true,
@@ -199,6 +205,7 @@ export async function GET(request) {
       }),
       
       // Outstanding supplier bills
+      // Note: SupplierBill model doesn't have branchId field
       prisma.supplierBill.findMany({
         where: {
           tenantId,
@@ -225,14 +232,14 @@ export async function GET(request) {
       
       // Recent payments (cash flow)
       prisma.payment.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: 'Completed',
           paymentDate: {
             gte: startDate,
             lte: endDate
           }
-        },
+        }),
         select: {
           id: true,
           amount: true,
@@ -271,18 +278,48 @@ export async function GET(request) {
       }),
       
       // Inventory value (if inventory module exists)
-      prisma.product.aggregate({
-        where: {
+      // Calculate inventory value using totalStockValue or cost * stockLevel
+      prisma.product.findMany({
+        where: addBranchFilter(user, {
           tenantId,
           isDeleted: false
-        },
-        _sum: {
-          costPrice: true
-        },
-        _count: {
-          id: true
+        }),
+        select: {
+          totalStockValue: true,
+          cost: true,
+          averageCost: true,
+          stockLevel: true
         }
-      }).catch(() => ({ _sum: { costPrice: 0 }, _count: { id: 0 } })) // Fallback if inventory doesn't exist
+      }).then(products => {
+        try {
+          // Calculate total inventory value
+          const totalValue = products.reduce((sum, product) => {
+            try {
+              // Prefer totalStockValue if available, otherwise calculate from cost/stockLevel
+              if (product.totalStockValue != null && !isNaN(Number(product.totalStockValue))) {
+                return sum + Number(product.totalStockValue);
+              } else if (product.cost != null && product.stockLevel != null && 
+                         !isNaN(Number(product.cost)) && !isNaN(Number(product.stockLevel))) {
+                return sum + (Number(product.cost) * Number(product.stockLevel));
+              } else if (product.averageCost != null && product.stockLevel != null &&
+                         !isNaN(Number(product.averageCost)) && !isNaN(Number(product.stockLevel))) {
+                return sum + (Number(product.averageCost) * Number(product.stockLevel));
+              }
+              return sum;
+            } catch (e) {
+              console.warn('Error calculating inventory value for product:', e);
+              return sum;
+            }
+          }, 0);
+          return { totalValue, count: products.length };
+        } catch (e) {
+          console.error('Error processing inventory products:', e);
+          return { totalValue: 0, count: 0 };
+        }
+      }).catch((err) => {
+        console.error('Error fetching inventory products:', err);
+        return { totalValue: 0, count: 0 };
+      }) // Fallback if inventory doesn't exist
     ]);
     
     // Calculate totals
@@ -406,7 +443,7 @@ export async function GET(request) {
           totalCashOut,
           netCashFlow,
           totalAccountBalances,
-          inventoryValue: inventoryValue._sum.costPrice || 0
+          inventoryValue: inventoryValue.totalValue || 0
         },
         receivables: {
           total: totalReceivables,
@@ -490,8 +527,13 @@ export async function GET(request) {
     
   } catch (error) {
     console.error('Error getting financial position:', error);
+    console.error('Error stack:', error.stack);
     return NextResponse.json(
-      { error: 'Failed to fetch financial position data' },
+      { 
+        error: 'Failed to fetch financial position data',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

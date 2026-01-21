@@ -110,16 +110,21 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
       display: "flex", 
       justifyContent: "space-between", 
       alignItems: "center", 
-      height: "64px", 
-      padding: "0 16px", 
-      backgroundColor: "white", 
-      boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)", 
-      zIndex: 50
+      height: "72px", 
+      padding: "0 24px", 
+      backgroundColor: "#ffffff", 
+      borderBottom: "1px solid #e5e7eb",
+      boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)", 
+      zIndex: 50,
+      backdropFilter: "blur(8px)",
+      WebkitBackdropFilter: "blur(8px)"
     }}>
       <div className="app-bar-left" style={{ 
         display: "flex", 
         alignItems: "center", 
-        gap: "16px" 
+        gap: "20px",
+        flex: 1,
+        minWidth: 0
       }}>
         {isMobile && (
           <button
@@ -129,10 +134,24 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
               background: "none",
               border: "none",
               cursor: "pointer",
-              display: "flex"
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "8px",
+              borderRadius: "8px",
+              color: "#4b5563",
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f3f4f6";
+              e.currentTarget.style.color = "#111827";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "#4b5563";
             }}
           >
-            <Menu size={24} />
+            <Menu size={22} />
           </button>
         )}
 
@@ -141,68 +160,89 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             onClick={toggleSidebar}
             title={sidebarOpen ? "Close Sidebar (Ctrl+B)" : "Open Sidebar (Ctrl+B)"}
             style={{
-              backgroundColor: sidebarOpen ? "#6b7280" : "#2563eb",
-              color: "white",
+              backgroundColor: sidebarOpen ? "#f3f4f6" : "#3b82f6",
+              color: sidebarOpen ? "#4b5563" : "white",
               border: "none",
-              borderRadius: "6px",
-              padding: "8px 12px",
+              borderRadius: "8px",
+              padding: "8px 14px",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "6px",
-              fontSize: "14px",
+              gap: "8px",
+              fontSize: "13px",
               fontWeight: "500",
-              boxShadow: "0 2px 4px rgba(37, 99, 235, 0.2)",
-              transition: "all 0.2s ease"
+              boxShadow: sidebarOpen ? "none" : "0 1px 2px 0 rgba(59, 130, 246, 0.3)",
+              transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
             }}
             onMouseEnter={(e) => {
-              e.target.style.backgroundColor = sidebarOpen ? "#4b5563" : "#1d4ed8";
-              e.target.style.transform = "translateY(-1px)";
-              e.target.style.boxShadow = "0 4px 8px rgba(37, 99, 235, 0.3)";
+              if (sidebarOpen) {
+                e.currentTarget.style.backgroundColor = "#e5e7eb";
+              } else {
+                e.currentTarget.style.backgroundColor = "#2563eb";
+                e.currentTarget.style.boxShadow = "0 2px 4px 0 rgba(59, 130, 246, 0.4)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.target.style.backgroundColor = sidebarOpen ? "#6b7280" : "#2563eb";
-              e.target.style.transform = "translateY(0)";
-              e.target.style.boxShadow = "0 2px 4px rgba(37, 99, 235, 0.2)";
+              if (sidebarOpen) {
+                e.currentTarget.style.backgroundColor = "#f3f4f6";
+              } else {
+                e.currentTarget.style.backgroundColor = "#3b82f6";
+                e.currentTarget.style.boxShadow = "0 1px 2px 0 rgba(59, 130, 246, 0.3)";
+              }
             }}
           >
             <Menu size={16} />
-            <span>{sidebarOpen ? "Close" : "Open"} Sidebar</span>
+            <span>{sidebarOpen ? "Close" : "Open"}</span>
           </button>
         )}
 
-        <h1 className="page-title" style={{
-          fontSize: isMobile ? "16px" : "20px",
-          fontWeight: 600,
-          margin: 0,
-          color: "#333"
-        }}>
-          {getPageTitle()}
-        </h1>
-
-        {!isMobile && (
-          <nav className="breadcrumbs" style={{ 
-            display: "flex", 
-            alignItems: "center", 
-            gap: "8px", 
-            fontSize: "14px", 
-            color: "#666" 
+        <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+          <h1 className="page-title" style={{
+            fontSize: isMobile ? "18px" : "22px",
+            fontWeight: 700,
+            margin: 0,
+            color: "#111827",
+            letterSpacing: "-0.01em",
+            lineHeight: "1.2"
           }}>
-            <Link href="/dashboard" style={{ color: "#2563eb", textDecoration: "none" }}>Home</Link> 
-            {pathname !== "/" && pathname !== "/dashboard" && (
-              <>
-                <span>/</span>
-                <span>{getPageTitle()}</span>
-              </>
-            )}
-          </nav>
-        )}
+            {getPageTitle()}
+          </h1>
+          {!isMobile && (
+            <nav className="breadcrumbs" style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "6px", 
+              fontSize: "13px", 
+              color: "#6b7280",
+              fontWeight: 400
+            }}>
+              <Link 
+                href="/dashboard" 
+                style={{ 
+                  color: "#3b82f6", 
+                  textDecoration: "none",
+                  transition: "color 0.2s ease"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.color = "#2563eb"}
+                onMouseLeave={(e) => e.currentTarget.style.color = "#3b82f6"}
+              >
+                Home
+              </Link> 
+              {pathname !== "/" && pathname !== "/dashboard" && (
+                <>
+                  <span style={{ color: "#d1d5db" }}>/</span>
+                  <span style={{ color: "#6b7280" }}>{getPageTitle()}</span>
+                </>
+              )}
+            </nav>
+          )}
+        </div>
       </div>
       
       <div className="app-bar-right" style={{ 
         display: "flex", 
         alignItems: "center", 
-        gap: "12px" 
+        gap: "16px" 
       }}>
         {/* Mobile Search Icon */}
         {isMobile && !showSearch && (
@@ -213,7 +253,21 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
               background: "none",
               border: "none",
               cursor: "pointer",
-              display: "flex"
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "8px",
+              borderRadius: "8px",
+              color: "#6b7280",
+              transition: "all 0.2s ease"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#f3f4f6";
+              e.currentTarget.style.color = "#111827";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.color = "#6b7280";
             }}
           >
             <Search size={20} />
@@ -227,26 +281,53 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             top: 0,
             left: 0,
             right: 0,
-            height: "64px",
-            backgroundColor: "white",
+            height: "72px",
+            backgroundColor: "#ffffff",
+            borderBottom: "1px solid #e5e7eb",
             display: "flex",
             alignItems: "center",
-            padding: "0 16px",
-            zIndex: 51
+            padding: "0 20px",
+            gap: "12px",
+            zIndex: 51,
+            boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
           }}>
-            <input 
-              type="text" 
-              placeholder="Search..." 
-              style={{
-                flex: 1,
-                padding: "8px",
-                border: "1px solid #e0e0e0",
-                borderRadius: "4px",
-                fontSize: "14px",
-                outline: "none"
-              }}
-              autoFocus
-            />
+            <div style={{ position: "relative", flex: 1 }}>
+              <input 
+                type="text" 
+                placeholder="Search..." 
+                style={{
+                  width: "100%",
+                  padding: "10px 16px 10px 40px",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "10px",
+                  fontSize: "14px",
+                  outline: "none",
+                  backgroundColor: "#f9fafb",
+                  transition: "all 0.2s ease"
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = "#3b82f6";
+                  e.target.style.backgroundColor = "#ffffff";
+                  e.target.style.boxShadow = "0 0 0 3px rgba(59, 130, 246, 0.1)";
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = "#e5e7eb";
+                  e.target.style.backgroundColor = "#f9fafb";
+                  e.target.style.boxShadow = "none";
+                }}
+                autoFocus
+              />
+              <Search style={{ 
+                position: "absolute", 
+                left: "14px", 
+                top: "50%", 
+                transform: "translateY(-50%)", 
+                color: "#9ca3af",
+                width: "18px",
+                height: "18px",
+                pointerEvents: "none" 
+              }} />
+            </div>
             <button
               onClick={toggleSearch}
               aria-label="Close search"
@@ -254,7 +335,21 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                marginLeft: "8px"
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "8px",
+                borderRadius: "8px",
+                color: "#6b7280",
+                transition: "all 0.2s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f3f4f6";
+                e.currentTarget.style.color = "#111827";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "#6b7280";
               }}
             >
               <X size={20} />
@@ -266,40 +361,44 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
         {!isMobile && (
           <div className={`search-container ${searchFocused ? "focused" : ""}`} style={{ 
             position: "relative", 
-            width: searchFocused ? "320px" : "240px", 
-            transition: "width 0.2s ease" 
+            width: searchFocused ? "360px" : "280px", 
+            transition: "width 0.3s cubic-bezier(0.4, 0, 0.2, 1)" 
           }}>
             <input 
               type="text" 
-              placeholder="Search..." 
+              placeholder="Search anything..." 
               className="search-input"
               style={{
                 width: "100%",
-                padding: "8px 16px 8px 36px",
-                border: `1px solid ${searchFocused ? "#2563eb" : "#e0e0e0"}`,
-                borderRadius: "20px",
+                padding: "10px 16px 10px 42px",
+                border: `1px solid ${searchFocused ? "#3b82f6" : "#e5e7eb"}`,
+                borderRadius: "12px",
                 fontSize: "14px",
                 outline: "none",
-                transition: "all 0.2s ease",
-                boxShadow: searchFocused ? "0 0 0 2px rgba(37, 99, 235, 0.1)" : "none"
+                backgroundColor: searchFocused ? "#ffffff" : "#f9fafb",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                boxShadow: searchFocused 
+                  ? "0 0 0 3px rgba(59, 130, 246, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.05)" 
+                  : "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
               }}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
             />
             <Search style={{ 
               position: "absolute", 
-              left: "12px", 
+              left: "14px", 
               top: "50%", 
               transform: "translateY(-50%)", 
-              color: "#888",
-              width: "16px",
-              height: "16px",
-              pointerEvents: "none" 
+              color: searchFocused ? "#3b82f6" : "#9ca3af",
+              width: "18px",
+              height: "18px",
+              pointerEvents: "none",
+              transition: "color 0.2s ease"
             }} />
           </div>
         )}
         
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {/* Notifications Button and Dropdown */}
           <div ref={notificationRef} style={{ position: "relative" }}>
             <button 
@@ -313,21 +412,30 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "8px",
-                borderRadius: "50%",
-                transition: "background-color 0.2s"
+                padding: "10px",
+                borderRadius: "10px",
+                color: "#6b7280",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = "#f3f4f6";
+                e.currentTarget.style.color = "#111827";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = "transparent";
+                e.currentTarget.style.color = "#6b7280";
               }}
             >
-              <Bell size={20} />
+              <Bell size={20} strokeWidth={2} />
               {/* Only show badge if there are unread notifications */}
               {0 > 0 && (
                 <span style={{
                   position: "absolute",
-                  top: "2px",
-                  right: "2px",
+                  top: "6px",
+                  right: "6px",
                   backgroundColor: "#ef4444",
                   color: "white",
-                  fontSize: "12px",
+                  fontSize: "11px",
                   fontWeight: "600",
                   minWidth: "18px",
                   height: "18px",
@@ -335,7 +443,9 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: "0 4px"
+                  padding: "0 5px",
+                  border: "2px solid #ffffff",
+                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.1)"
                 }}>0</span>
               )}
             </button>
@@ -343,85 +453,145 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             {notificationsOpen && (
               <div style={{
                 position: "absolute",
-                top: "calc(100% + 8px)",
+                top: "calc(100% + 12px)",
                 right: 0,
-                width: isMobile ? "calc(100vw - 32px)" : "320px",
+                width: isMobile ? "calc(100vw - 32px)" : "380px",
                 maxWidth: "calc(100vw - 32px)",
-                backgroundColor: "white",
-                borderRadius: "8px",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                backgroundColor: "#ffffff",
+                borderRadius: "12px",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                border: "1px solid #e5e7eb",
                 overflow: "hidden",
-                zIndex: 200
+                zIndex: 200,
+                animation: "slideDown 0.2s ease-out"
               }}>
                 <div style={{
-                  padding: "16px",
-                  borderBottom: "1px solid #e0e0e0",
+                  padding: "16px 20px",
+                  borderBottom: "1px solid #f3f4f6",
                   display: "flex",
                   justifyContent: "space-between",
-                  alignItems: "center"
+                  alignItems: "center",
+                  backgroundColor: "#fafafa"
                 }}>
-                  <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600" }}>Notifications</h3>
-                  <button style={{
-                    background: "none",
-                    border: "none",
-                    color: "#2563eb",
-                    fontSize: "12px",
-                    cursor: "pointer"
-                  }}>Mark all as read</button>
+                  <h3 style={{ margin: "0", fontSize: "16px", fontWeight: "600", color: "#111827" }}>Notifications</h3>
+                  <button 
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#3b82f6",
+                      fontSize: "13px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                      padding: "4px 8px",
+                      borderRadius: "6px",
+                      transition: "all 0.2s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#eff6ff";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
+                  >
+                    Mark all as read
+                  </button>
                 </div>
-                <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+                <div style={{ maxHeight: "400px", overflowY: "auto" }}>
                   {notifications.length === 0 ? (
                     <div style={{
                       display: "flex",
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      height: "120px",
-                      color: "#888",
-                      fontSize: "15px",
+                      padding: "48px 24px",
+                      color: "#9ca3af",
+                      fontSize: "14px",
                       textAlign: "center"
                     }}>
-                      <span style={{ fontSize: "32px", marginBottom: "8px" }}>🔔</span>
-                      <span>You do not have any notifications at this time.</span>
+                      <div style={{
+                        width: "64px",
+                        height: "64px",
+                        borderRadius: "50%",
+                        backgroundColor: "#f3f4f6",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginBottom: "16px"
+                      }}>
+                        <Bell size={28} color="#9ca3af" strokeWidth={1.5} />
+                      </div>
+                      <span style={{ fontWeight: "500", color: "#6b7280", marginBottom: "4px" }}>No notifications</span>
+                      <span style={{ fontSize: "13px" }}>You're all caught up!</span>
                     </div>
                   ) : (
                     notifications.map(notification => (
                       <div 
                         key={notification.id} 
                         style={{
-                          padding: "12px 16px",
+                          padding: "14px 20px",
                           display: "flex",
-                          gap: "12px",
-                          borderBottom: "1px solid #f0f0f0",
-                          backgroundColor: notification.read ? "transparent" : "#f0f7ff",
-                          transition: "background-color 0.2s"
+                          gap: "14px",
+                          borderBottom: "1px solid #f3f4f6",
+                          backgroundColor: notification.read ? "transparent" : "#eff6ff",
+                          transition: "background-color 0.15s ease",
+                          cursor: "pointer"
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = notification.read ? "#f9fafb" : "#dbeafe";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = notification.read ? "transparent" : "#eff6ff";
                         }}
                       >
-                        <div style={{ fontSize: "18px" }}>
+                        <div style={{ 
+                          fontSize: "20px",
+                          flexShrink: 0,
+                          marginTop: "2px"
+                        }}>
                           {notification.type === "invoice" && "📝"}
                           {notification.type === "system" && "⚙️"}
                           {notification.type === "user" && "👤"}
                           {notification.type === "payment" && "💰"}
                         </div>
-                        <div style={{ flex: "1" }}>
-                          <div style={{ fontSize: "14px", marginBottom: "4px" }}>{notification.text}</div>
-                          <div style={{ fontSize: "12px", color: "#666" }}>{notification.time}</div>
+                        <div style={{ flex: "1", minWidth: 0 }}>
+                          <div style={{ 
+                            fontSize: "14px", 
+                            fontWeight: notification.read ? "400" : "500",
+                            marginBottom: "4px",
+                            color: "#111827",
+                            lineHeight: "1.4"
+                          }}>
+                            {notification.text}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#6b7280" }}>{notification.time}</div>
                         </div>
                       </div>
                     ))
                   )}
                 </div>
-                <div style={{
-                  padding: "12px 16px",
-                  borderTop: "1px solid #e0e0e0",
-                  textAlign: "center"
-                }}>
-                  <Link href="/notifications" style={{
-                    color: "#2563eb",
-                    fontSize: "14px",
-                    textDecoration: "none"
-                  }}>View all notifications</Link>
-                </div>
+                {notifications.length > 0 && (
+                  <div style={{
+                    padding: "12px 20px",
+                    borderTop: "1px solid #f3f4f6",
+                    textAlign: "center",
+                    backgroundColor: "#fafafa"
+                  }}>
+                    <Link 
+                      href="/notifications" 
+                      style={{
+                        color: "#3b82f6",
+                        fontSize: "13px",
+                        fontWeight: "500",
+                        textDecoration: "none",
+                        transition: "color 0.2s ease"
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.color = "#2563eb"}
+                      onMouseLeave={(e) => e.currentTarget.style.color = "#3b82f6"}
+                    >
+                      View all notifications
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -433,27 +603,35 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
               aria-label="Profile"
               style={{
                 background: "none",
-                border: "none",
+                border: "2px solid transparent",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "8px",
+                padding: "2px",
                 borderRadius: "50%",
-                transition: "background-color 0.2s"
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = "#e5e7eb";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = "transparent";
               }}
             >
               <div style={{
-                width: "32px",
-                height: "32px",
+                width: "36px",
+                height: "36px",
                 borderRadius: "50%",
-                backgroundColor: "#2563eb",
+                backgroundColor: "#3b82f6",
                 color: "white",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontWeight: "600",
-                fontSize: "14px"
+                fontSize: "14px",
+                boxShadow: "0 2px 4px 0 rgba(59, 130, 246, 0.2)",
+                border: "2px solid #ffffff"
               }}>
                 {/* {isUserLoading ? (
                   <div style={{
@@ -499,34 +677,40 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
             {profileOpen && (
               <div style={{
                 position: "absolute",
-                top: "calc(100% + 8px)",
+                top: "calc(100% + 12px)",
                 right: 0,
                 width: isMobile ? "calc(100vw - 32px)" : "320px",
                 maxWidth: "calc(100vw - 32px)",
-                backgroundColor: "white",
-                borderRadius: "8px",
-                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+                backgroundColor: "#ffffff",
+                borderRadius: "12px",
+                boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
+                border: "1px solid #e5e7eb",
                 overflow: "hidden",
-                zIndex: 200
+                zIndex: 200,
+                animation: "slideDown 0.2s ease-out"
               }}>
                 <div style={{
-                  padding: "16px",
-                  borderBottom: "1px solid #e0e0e0",
+                  padding: "20px",
+                  borderBottom: "1px solid #f3f4f6",
                   display: "flex",
                   alignItems: "center",
-                  gap: "12px"
+                  gap: "14px",
+                  backgroundColor: "#fafafa"
                 }}>
                   <div style={{
-                    width: "40px",
-                    height: "40px",
+                    width: "48px",
+                    height: "48px",
                     borderRadius: "50%",
-                    backgroundColor: "#2563eb",
+                    backgroundColor: "#3b82f6",
                     color: "white",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontWeight: "600",
-                    fontSize: "16px"
+                    fontSize: "18px",
+                    boxShadow: "0 2px 4px 0 rgba(59, 130, 246, 0.2)",
+                    border: "2px solid #ffffff",
+                    flexShrink: 0
                   }}>
                     {/* {isUserLoading ? (
                       <div style={{
@@ -567,49 +751,76 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                         getInitials(user?.name)
                       )}
                   </div>
-                  <div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     {isUserLoading ? (
                       /* Show loading skeleton for name */
                       <>
                         <div style={{ 
                           width: "150px", 
-                          height: "16px", 
+                          height: "18px", 
                           backgroundColor: "#e5e7eb",
-                          borderRadius: "4px",
+                          borderRadius: "6px",
                           marginBottom: "8px",
                           animation: "pulse 1.5s infinite ease-in-out"
                         }}></div>
                         <div style={{ 
                           width: "120px", 
-                          height: "12px", 
+                          height: "14px", 
                           backgroundColor: "#e5e7eb",
-                          borderRadius: "4px",
+                          borderRadius: "6px",
                           animation: "pulse 1.5s infinite ease-in-out"
                         }}></div>
                       </>
                     ) : (
                       <>
-                        <h3 style={{ margin: "0 0 4px 0", fontSize: "16px" }}>{user?.name}</h3>
-                        <div style={{ fontSize: "12px", color: "#666" }}>{user?.email}</div>
+                        <h3 style={{ 
+                          margin: "0 0 6px 0", 
+                          fontSize: "16px", 
+                          fontWeight: "600",
+                          color: "#111827",
+                          lineHeight: "1.2"
+                        }}>
+                          {user?.name || "User"}
+                        </h3>
+                        <div style={{ 
+                          fontSize: "13px", 
+                          color: "#6b7280",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {user?.email || "user@example.com"}
+                        </div>
                       </>
                     )}
                   </div>
                 </div>
                 
-                <div style={{ padding: "8px 0" }}>
+                <div style={{ padding: "8px" }}>
                   <Link 
                     href="/profile" 
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#374151",
                       textDecoration: "none",
-                      transition: "background-color 0.2s"
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.color = "#111827";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#374151";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>👤</span>
+                    <span style={{ fontSize: "18px" }}>👤</span>
                     <span>My Profile</span>
                   </Link>
                   <Link 
@@ -618,13 +829,24 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#374151",
                       textDecoration: "none",
-                      transition: "background-color 0.2s"
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.color = "#111827";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#374151";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>⚙️</span>
+                    <span style={{ fontSize: "18px" }}>⚙️</span>
                     <span>Settings</span>
                   </Link>
                   <Link 
@@ -633,17 +855,28 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#374151",
                       textDecoration: "none",
-                      transition: "background-color 0.2s"
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.color = "#111827";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#374151";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>🏢</span>
+                    <span style={{ fontSize: "18px" }}>🏢</span>
                     <span>Switch Or Add Business</span>
                   </Link>
                   
-                  <div style={{ height: "1px", backgroundColor: "#e0e0e0", margin: "8px 0" }}></div>
+                  <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
 
                   <Link
                     href="/terms"
@@ -651,13 +884,24 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#374151",
                       textDecoration: "none",
-                      transition: "background-color 0.2s"
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.color = "#111827";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#374151";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>📄</span>
+                    <span style={{ fontSize: "18px" }}>📄</span>
                     <span>Terms of Service</span>
                   </Link>
                   <Link
@@ -666,35 +910,62 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#374151",
                       textDecoration: "none",
-                      transition: "background-color 0.2s"
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#f3f4f6";
+                      e.currentTarget.style.color = "#111827";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#374151";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>🔒</span>
+                    <span style={{ fontSize: "18px" }}>🔒</span>
                     <span>Privacy Policy</span>
                   </Link>
+
+                  <div style={{ height: "1px", backgroundColor: "#e5e7eb", margin: "8px 0" }}></div>
 
                   <button
                     onClick={async() => {
                         await fetch("/api/auth/logout", {
                           method: "POST",
                         });
-                        window.location.href = "/auth/login"; // or "/" if you want
+                        window.location.href = "/auth/login";
                       }}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       gap: "12px",
-                      padding: "10px 16px",
-                      color: "#333",
+                      padding: "10px 14px",
+                      color: "#dc2626",
                       background: "none",
                       border: "none",
-                      cursor: "pointer"
+                      cursor: "pointer",
+                      width: "100%",
+                      borderRadius: "8px",
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      transition: "all 0.15s ease",
+                      textAlign: "left"
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = "#fef2f2";
+                      e.currentTarget.style.color = "#b91c1c";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "#dc2626";
                     }}
                   >
-                    <span style={{ fontSize: "16px", opacity: "0.8" }}>🚪</span>
+                    <span style={{ fontSize: "18px" }}>🚪</span>
                     <span>Logout</span>
                   </button>
                 </div>
@@ -715,6 +986,17 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes slideDown {
+          0% {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
         }
       `}</style>
     </header>

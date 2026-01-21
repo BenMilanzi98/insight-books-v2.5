@@ -11,6 +11,7 @@ import {
 } from '@/lib/transactionJournalHelpers';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
+import { resolveBranchId } from '@/lib/branchHelpers';
 
 // Helper function to format payment data
 const formatPaymentResponse = (payment) => {
@@ -206,6 +207,12 @@ export async function GET(request) {
       tenantId: user.tenantId
     };
     
+    // Add branch filter if provided
+    const branchId = searchParams.get('branchId');
+    if (branchId) {
+      where.branchId = branchId;
+    }
+    
     // Add status filter if provided
     if (status) {
       where.status = status;
@@ -353,6 +360,15 @@ export async function POST(request) {
       }
     });
 
+    // Resolve branchId from request or user's default branch
+    // For invoice payments, use invoice's branchId if available
+    let branchId = null;
+    if (invoice?.branchId) {
+      branchId = invoice.branchId;
+    } else {
+      branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    }
+
     // 🔐 Create payment
     const newPayment = await prisma.payment.create({
       data: {
@@ -364,6 +380,7 @@ export async function POST(request) {
         notes: notes || null,
         status: 'Completed',
         tenantId: user.tenantId,
+        branchId: branchId,
         type,
         sourceAccount: sourceAccount || null,
         destinationAccount: destinationAccount || null
