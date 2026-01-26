@@ -110,7 +110,16 @@ export default function BranchesPage() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to save branch");
+      
+      if (!res.ok) {
+        // Check if subscription is required
+        if (json?.code === 'SUBSCRIPTION_REQUIRED' || res.status === 403) {
+          // Redirect to subscription page
+          window.location.href = '/subscription?redirected=true&reason=subscription_required';
+          return;
+        }
+        throw new Error(json?.error || "Failed to save branch");
+      }
 
       closeModal();
       await loadBranches();

@@ -50,8 +50,6 @@ export default function BudgetDetailsPage() {
   });
   const [showEdit, setShowEdit] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const [accountOptions, setAccountOptions] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [editForm, setEditForm] = useState({
@@ -104,18 +102,6 @@ export default function BudgetDetailsPage() {
     fetchPermissions();
   }, []);
 
-  const loadAccounts = async () => {
-    try {
-      setAccountsLoading(true);
-      const res = await fetch("/api/payments/method-mappings", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to load payment accounts");
-      setAccountOptions(json?.mappings || []);
-    } finally {
-      setAccountsLoading(false);
-    }
-  };
-
   const loadCategories = async () => {
     try {
       setCategoriesLoading(true);
@@ -132,7 +118,6 @@ export default function BudgetDetailsPage() {
 
   const openEdit = async () => {
     setError(null);
-    if (accountOptions.length === 0) await loadAccounts();
     if (categoryOptions.length === 0) await loadCategories();
     const source = comparison?.budget || budget;
     setEditForm({
@@ -143,14 +128,13 @@ export default function BudgetDetailsPage() {
       endDate: safeDate(source?.endDate),
       items: (source?.items || []).map((it) => ({
         id: it.id,
-        accountId: it.accountId || "",
         category: it.category || "",
         budgetedAmount: String(it.budgetedAmount ?? ""),
         notes: it.notes || "",
       })),
     });
     if ((source?.items || []).length === 0) {
-      setEditForm((p) => ({ ...p, items: [{ accountId: "", category: "", budgetedAmount: "", notes: "" }] }));
+      setEditForm((p) => ({ ...p, items: [{ category: "", budgetedAmount: "", notes: "" }] }));
     }
     setShowEdit(true);
   };
@@ -165,7 +149,7 @@ export default function BudgetDetailsPage() {
   const addEditItem = () => {
     setEditForm((prev) => ({
       ...prev,
-      items: [...prev.items, { accountId: "", category: "", budgetedAmount: "", notes: "" }],
+      items: [...prev.items, { category: "", budgetedAmount: "", notes: "" }],
     }));
   };
 
@@ -185,15 +169,14 @@ export default function BudgetDetailsPage() {
         throw new Error("Budget Name, Start Date, and End Date are required.");
       }
       const items = (editForm.items || [])
-        .filter((i) => (i.accountId || i.category) && i.budgetedAmount !== "")
+        .filter((i) => i.category && i.budgetedAmount !== "")
         .map((i) => ({
-          accountId: i.accountId || null,
           category: i.category || null,
           period: editForm.startDate,
           budgetedAmount: Number(i.budgetedAmount),
           notes: i.notes || null,
         }));
-      if (items.length === 0) throw new Error("Add at least one budget line (account or category).");
+      if (items.length === 0) throw new Error("Add at least one budget line (category).");
 
       const res = await fetch(`/api/budgets/${id}`, {
         method: "PUT",
@@ -240,13 +223,8 @@ export default function BudgetDetailsPage() {
     const items = comparison?.budget?.items || budget?.items || [];
     return items.map((it) => {
       // For category-based budgets, use category name; otherwise use account name
-      const displayName = it?.category || 
-        it?.account?.accountName ||
-        it?.accountName ||
-        "Unknown";
-      const accountType =
-        it?.account?.accountType ||
-        (it?.category ? "Expense" : "");
+      const displayName = it?.category || "Unknown";
+      const accountType = "Expense";
       const budgeted = Number(it?.budgetedAmount || 0);
       const actual = Number(it?.actualAmount || 0);
       const variance = Number(it?.variance ?? (budgeted - actual));
@@ -495,7 +473,7 @@ export default function BudgetDetailsPage() {
                 <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>
-                      <th className="text-left px-4 py-3 font-medium">Category/Account</th>
+                      <th className="text-left px-4 py-3 font-medium">Category</th>
                       <th className="text-left px-4 py-3 font-medium">Type</th>
                       <th className="text-right px-4 py-3 font-medium">Budgeted</th>
                       <th className="text-right px-4 py-3 font-medium">Actual</th>
@@ -615,7 +593,7 @@ export default function BudgetDetailsPage() {
                       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                         <div>
                           <h3 className="font-semibold text-gray-900">Budget Lines</h3>
-                          <p className="text-xs text-gray-500">Create budgets by account or by expense category (e.g., "Rent Expense").</p>
+                          <p className="text-xs text-gray-500">Create budgets by expense category (e.g., "Rent", "Utilities").</p>
                         </div>
                         <button
                           type="button"
@@ -626,7 +604,7 @@ export default function BudgetDetailsPage() {
                         </button>
                       </div>
 
-                      {(accountsLoading || categoriesLoading) ? (
+                      {categoriesLoading ? (
                         <div className="p-6 text-gray-600 flex items-center">
                           <Loader2 size={18} className="animate-spin mr-2 text-blue-600" />
                           Loading options...
@@ -637,44 +615,25 @@ export default function BudgetDetailsPage() {
                             <div key={idx} className="p-4 grid grid-cols-1 md:grid-cols-12 gap-3">
                               <div className="md:col-span-5">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Account or Category *
+                                  Category *
                                 </label>
-                                <div className="space-y-2">
-                                  <select
-                                    value={it.accountId || ""}
-                                    onChange={(e) => {
-                                      const accountId = e.target.value;
-                                      updateEditItem(idx, { accountId, category: accountId ? "" : it.category });
-                                    }}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  >
-                                    <option value="">Select account (optional)...</option>
-                                    {accountOptions.map((m) => (
-                                      <option key={m.paymentMethod} value={m.accountId || ""} disabled={!m.accountId}>
-                                        {m.paymentMethodName}
-                                        {m.accountCode ? ` (${m.accountCode})` : ""}
-                                        {!m.isConfigured ? " (not configured)" : ""}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {!it.accountId && (
-                                    <select
-                                      value={it.category || ""}
-                                      onChange={(e) => updateEditItem(idx, { category: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                      <option value="">Select category...</option>
-                                      {categoryOptions.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                          {cat}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {it.accountId ? "Using account-based budget" : it.category ? `Using category-based budget: ${it.category}` : "Select either an account or a category"}
-                                </p>
+                                <select
+                                  value={it.category || ""}
+                                  onChange={(e) => updateEditItem(idx, { category: e.target.value })}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                  <option value="">Select category...</option>
+                                  {categoryOptions.map((cat) => (
+                                    <option key={cat} value={cat}>
+                                      {cat}
+                                    </option>
+                                  ))}
+                                </select>
+                                {it.category && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Category: {it.category}
+                                  </p>
+                                )}
                               </div>
 
                               <div className="md:col-span-3">

@@ -161,7 +161,7 @@ const navigationByPermission = {
         },
         // { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
         { href: "/affiliate", icon: "affiliate", text: "Affiliate System" },
-        { href: "/tax-management", icon: "reports", text: "Tax Management" },
+        { href: "/tax-types", icon: "reports", text: "Tax Types" },
       ],
     },
     {
@@ -603,12 +603,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     //   });
     // }
     
-    if (hasPermission(user.role.permissions, "tax.view")) {
-   
+    // Tax Types - allow if user has accounting or reports view permission
+    if (hasPermission(user.role.permissions, "accounting.view") || 
+        hasPermission(user.role.permissions, "reports.view") ||
+        hasPermission(user.role.permissions, "tax.view")) {
       additionalItems.push({
-        href: "/tax-management",
+        href: "/tax-types",
         icon: "reports",
-        text: "Tax Management"
+        text: "Tax Types"
       });
     }
     

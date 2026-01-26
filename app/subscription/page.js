@@ -187,6 +187,8 @@ function SubscriptionContent() {
                       ? 'Your free trial has ended or you don\'t have an active subscription. Please upgrade to continue accessing the application.'
                       : reason === 'api_error'
                       ? 'We encountered an issue checking your subscription status. Please upgrade to ensure uninterrupted access.'
+                      : reason === 'subscription_required'
+                      ? 'An active subscription is required to create additional branches. Please upgrade your subscription to continue.'
                       : 'Please upgrade your subscription to continue using the application.')
                   : 'Your free trial has ended or you don\'t have an active subscription. Please upgrade to continue accessing the application.'}
               </p>

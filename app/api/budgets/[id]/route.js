@@ -28,16 +28,6 @@ export async function GET(request, { params }) {
       },
       include: {
         items: {
-          include: {
-            account: {
-              select: {
-                id: true,
-                accountCode: true,
-                accountName: true,
-                accountType: true
-              }
-            }
-          },
           orderBy: {
             period: 'asc'
           }

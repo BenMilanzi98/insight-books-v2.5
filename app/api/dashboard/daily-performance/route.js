@@ -22,21 +22,20 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'today';
 
-    // Get current time in Africa/Blantyre timezone (UTC+2)
-    const utc = new Date();
-    const offset = 2 * 60 * 60 * 1000; // Africa/Blantyre is UTC+2
-    const now = new Date(utc.getTime() + offset);
+    // Get current time - use UTC for consistency with database
+    const now = new Date();
     
     // Calculate date ranges based on the selected timeframe
+    // Use UTC dates to match database storage
     let currentPeriodStart, currentPeriodEnd, previousPeriodStart, previousPeriodEnd;
 
     switch (dateRange) {
       case 'today': {
-        // Use local date to match database dates
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-        const yesterdayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
-        const yesterdayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+        // Use UTC dates to match database dates
+        const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+        const yesterdayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 0, 0, 0, 0));
+        const yesterdayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 23, 59, 59, 999));
         
         currentPeriodStart = todayStart;
         currentPeriodEnd = todayEnd;
@@ -201,12 +200,12 @@ export async function GET(request) {
       }
     }
     
-    const today = now; // Use Africa/Blantyre time
-    const yesterday = previousPeriodStart;
+    // Use UTC dates for consistency
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const yesterday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1));
     
     const pastWeek = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - i));
       return date;
     }).reverse();
 
@@ -292,8 +291,9 @@ export async function GET(request) {
 
     const weeklyRevenue = await Promise.all(
       pastWeek.map(async (date) => {
-        const nextDay = new Date(date);
-        nextDay.setDate(date.getDate() + 1);
+        // Create UTC date range for this day
+        const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+        const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
         
         const [invoices] = await Promise.all([
           // Revenue should only include actual payments received, not pending invoices
@@ -302,7 +302,7 @@ export async function GET(request) {
               tenantId,
               type: { in: ['invoice', 'sale'] },
               status: 'Completed',
-              paymentDate: { gte: date, lt: nextDay }
+              paymentDate: { gte: dayStart, lte: dayEnd }
             }),
             _sum: { amount: true }
           })
@@ -313,8 +313,27 @@ export async function GET(request) {
       })
     );
 
+    // Find COGS account(s) for this tenant
+    const cogsAccounts = await prisma.account.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        OR: [
+          { accountCode: '5000' },
+          { code: '5000' },
+          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+          { accountName: { contains: 'cogs', mode: 'insensitive' } },
+          { name: { contains: 'cost of goods', mode: 'insensitive' } },
+          { name: { contains: 'cogs', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true }
+    });
+    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+
     // Count expenses from expense records created today
-    const [todayExpenses] = await Promise.all([
+    const [todayExpenses, todayCOGS] = await Promise.all([
       // Expenses created today
       prisma.expense.aggregate({
         where: addBranchFilter(user, {
@@ -326,10 +345,27 @@ export async function GET(request) {
           isDeleted: false
         }),
         _sum: { amount: true }
-      })
+      }),
+      // Get COGS from transaction lines for today - filter by transaction branchId
+      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId,
+            ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+            date: {
+              gte: currentPeriodStart,
+              lte: currentPeriodEnd
+            },
+            status: 'posted'
+          }
+        },
+        _sum: { debitAmount: true }
+      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
-    const [yesterdayExpenses] = await Promise.all([
+    const [yesterdayExpenses, yesterdayCOGS] = await Promise.all([
       // Expenses created yesterday
       prisma.expense.aggregate({
         where: addBranchFilter(user, {
@@ -341,30 +377,67 @@ export async function GET(request) {
           isDeleted: false
         }),
         _sum: { amount: true }
-      })
+      }),
+      // Get COGS from transaction lines for yesterday - filter by transaction branchId
+      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId,
+            ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+            date: {
+              gte: previousPeriodStart,
+              lte: previousPeriodEnd
+            },
+            status: 'posted'
+          }
+        },
+        _sum: { debitAmount: true }
+      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
     const weeklyExpenses = await Promise.all(
       pastWeek.map(async (date) => {
-        const nextDay = new Date(date);
-        nextDay.setDate(date.getDate() + 1);
+        // Create UTC date range for this day
+        const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+        const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
         
-        const [expenses] = await Promise.all([
+        const [expenses, cogs] = await Promise.all([
           // Expenses created on this date
           prisma.expense.aggregate({
             where: addBranchFilter(user, {
               tenantId,
               date: {
-                gte: date,
-                lt: nextDay
+                gte: dayStart,
+                lte: dayEnd
               },
               isDeleted: false
             }),
             _sum: { amount: true }
-          })
+          }),
+          // Get COGS from transaction lines for this date - filter by transaction branchId
+          cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+            where: {
+              accountId: { in: cogsAccountIds },
+              debitAmount: { gt: 0 },
+              transaction: {
+                tenantId,
+                ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+                date: {
+                  gte: dayStart,
+                  lte: dayEnd
+                },
+                status: 'posted'
+              }
+            },
+            _sum: { debitAmount: true }
+          }) : Promise.resolve({ _sum: { debitAmount: 0 } })
         ]);
         
-        return (expenses._sum.amount || 0);
+        const expenseAmount = expenses._sum.amount || 0;
+        const cogsAmount = Number(cogs._sum.debitAmount || 0);
+        return expenseAmount + cogsAmount;
       })
     );
 
@@ -376,18 +449,21 @@ export async function GET(request) {
     
     const yesterdayRevenue = (yesterdayInvoices._sum.amount || 0);
 
+    const todayExpensesTotal = (todayExpenses._sum.amount || 0) + Number(todayCOGS._sum.debitAmount || 0);
+    const yesterdayExpensesTotal = (yesterdayExpenses._sum.amount || 0) + Number(yesterdayCOGS._sum.debitAmount || 0);
+
     return NextResponse.json({
       dailyMetrics: {
         today: {
           date: today.toISOString().split('T')[0],
           revenue: todayRevenue,
-          expenses: (todayExpenses._sum.amount || 0),
+          expenses: todayExpensesTotal,
           transactions: todayInvoiceCount + todaySaleCount
         },
         yesterday: {
           date: yesterday.toISOString().split('T')[0],
           revenue: yesterdayRevenue,
-          expenses: (yesterdayExpenses._sum.amount || 0),
+          expenses: yesterdayExpensesTotal,
           transactions: 0 // Add similar count if needed
         },
         weeklyTrend: {

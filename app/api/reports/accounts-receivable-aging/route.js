@@ -24,8 +24,8 @@ export async function GET(request) {
       select: { name: true }
     });
     
-    // Generate AR Aging using Phase 2 enhanced service
-    const arAging = await generateARAgingFromTransactions(user.tenantId, asOfDate);
+    // Generate AR Aging using Phase 2 enhanced service - filter by branch
+    const arAging = await generateARAgingFromTransactions(user.tenantId, asOfDate, user.currentBranchId || null);
     
     return NextResponse.json({
       companyName: tenant?.name || 'Company',

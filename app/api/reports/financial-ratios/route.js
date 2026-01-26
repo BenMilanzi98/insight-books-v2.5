@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -29,36 +30,55 @@ export async function GET(request) {
     
     // Calculate key financial metrics
     
-    // 1. Revenue
-    const revenue = await prisma.$queryRaw`
-      SELECT 
-        SUM(COALESCE((SELECT SUM(total) FROM "Invoice" WHERE "tenantId" = ${user.tenantId} AND "issueDate" BETWEEN ${startDate}::date AND ${endDate}::date), 0)) + 
-        SUM(COALESCE((SELECT SUM(total) FROM "Sale" WHERE "tenantId" = ${user.tenantId} AND "saleDate" BETWEEN ${startDate}::date AND ${endDate}::date), 0)) as total
-    `;
+    // 1. Revenue - filter by branch
+    const [invoiceRevenue, saleRevenue] = await Promise.all([
+      prisma.invoice.aggregate({
+        where: addBranchFilter(user, {
+          tenantId: user.tenantId,
+          issueDate: {
+            gte: new Date(startDate),
+            lte: new Date(endDate)
+          }
+        }),
+        _sum: { total: true }
+      }),
+      prisma.sale.aggregate({
+        where: addBranchFilter(user, {
+          tenantId: user.tenantId,
+          saleDate: {
+            gte: new Date(startDate),
+            lte: new Date(endDate)
+          }
+        }),
+        _sum: { total: true }
+      })
+    ]);
     
-    // 2. Expenses
+    const totalRevenue = (invoiceRevenue._sum.total || 0) + (saleRevenue._sum.total || 0);
+    
+    // 2. Expenses - filter by branch
     const expenses = await prisma.expense.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         date: {
           gte: new Date(startDate),
           lte: new Date(endDate)
         }
-      },
+      }),
       _sum: {
         amount: true
       }
     });
     
-    // 3. Accounts Receivable
+    // 3. Accounts Receivable - filter by branch
     const accountsReceivable = await prisma.invoice.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: 'Pending',
         issueDate: {
           lte: new Date(endDate)
         }
-      },
+      }),
       _sum: {
         total: true
       }
@@ -95,25 +115,25 @@ export async function GET(request) {
       });
     });
     
-    // Get inventory value
+    // Get inventory value - filter by branch
     const inventoryValue = await prisma.product.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         isService: false
-      },
+      }),
       _sum: {
         stockLevel: true
       }
     });
     
     const avgProductCost = await prisma.product.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         isService: false,
         cost: {
           not: null
         }
-      },
+      }),
       _avg: {
         cost: true
       }
@@ -160,7 +180,6 @@ export async function GET(request) {
     // Calculate financial ratios
     
     // 1. Gross Profit Margin
-    const totalRevenue = revenue[0]?.total || 0;
     const totalExpenses = expenses._sum.amount || 0;
     const grossProfit = totalRevenue - totalExpenses;
     const grossProfitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;

@@ -197,7 +197,26 @@ export async function GET(request) {
         return { income: 0, expenses: 0 };
       }
       
-      const [invoices, expenses] = await Promise.all([
+      // Find COGS account(s) for this tenant
+      const cogsAccounts = await prisma.account.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          accountType: 'Expense',
+          OR: [
+            { accountCode: '5000' },
+            { code: '5000' },
+            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+            { accountName: { contains: 'cogs', mode: 'insensitive' } },
+            { name: { contains: 'cost of goods', mode: 'insensitive' } },
+            { name: { contains: 'cogs', mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      });
+      const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+
+      const [invoices, expenses, cogsData] = await Promise.all([
         // Revenue should only include actual payments received, not pending invoices
         prisma.payment.aggregate({
           where: addBranchFilter(user, {
@@ -211,24 +230,69 @@ export async function GET(request) {
         // Only count actual payments made for expenses, not pending expenses
         // Include both regular expenses and loan payments (principal and interest)
         // Exclude payments linked to deleted expenses
+        // STRICT: Only show expenses from selected branch
+        // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
         prisma.payment.aggregate({
-          where: addBranchFilter(user, {
-            tenantId,
-            type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
-            status: 'Completed',
-            paymentDate: { gte: filterStartDate, lte: filterEndDate },
-            OR: [
-              { expense: { isDeleted: false } },
-              { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
-            ]
-          }),
+          where: (() => {
+            if (user?.currentBranchId) {
+              // When branch is selected, require expense to have matching branchId
+              // Payment branchId is optional (for legacy data compatibility)
+              return {
+                tenantId,
+                type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
+                status: 'Completed',
+                paymentDate: { gte: filterStartDate, lte: filterEndDate },
+                OR: [
+                  { 
+                    expense: { 
+                      isDeleted: false,
+                      branchId: user.currentBranchId // STRICT: Expense must have matching branchId
+                    } 
+                  },
+                  { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
+                ]
+              };
+            }
+            
+            // No branch selected, show all
+            return {
+              tenantId,
+              type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
+              status: 'Completed',
+              paymentDate: { gte: filterStartDate, lte: filterEndDate },
+              OR: [
+                { expense: { isDeleted: false } },
+                { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
+              ]
+            };
+          })(),
           _sum: { amount: true }
-        })
+        }),
+        // Get COGS from transaction lines that debit COGS accounts - filter by transaction branchId
+        cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+          where: {
+            accountId: { in: cogsAccountIds },
+            debitAmount: { gt: 0 },
+            transaction: {
+              tenantId,
+              ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+              date: {
+                gte: filterStartDate,
+                lte: filterEndDate
+              },
+              status: 'posted'
+            }
+          },
+          _sum: { debitAmount: true }
+        }) : Promise.resolve({ _sum: { debitAmount: 0 } })
       ]);
+
+      const cogsAmount = Number(cogsData._sum.debitAmount || 0);
+      const totalExpenses = (expenses._sum.amount || 0) + cogsAmount;
 
       return {
         income: (invoices._sum.amount || 0),
-        expenses: (expenses._sum.amount || 0)
+        expenses: totalExpenses
       };
     };
 

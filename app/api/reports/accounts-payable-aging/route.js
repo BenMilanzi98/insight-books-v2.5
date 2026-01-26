@@ -24,8 +24,8 @@ export async function GET(request) {
       select: { name: true }
     });
     
-    // Generate AP Aging using Phase 2 enhanced service
-    const apAging = await generateAPAgingFromTransactions(user.tenantId, asOfDate);
+    // Generate AP Aging using Phase 2 enhanced service - filter by branch
+    const apAging = await generateAPAgingFromTransactions(user.tenantId, asOfDate, user.currentBranchId || null);
     
     return NextResponse.json({
       companyName: tenant?.name || 'Company',

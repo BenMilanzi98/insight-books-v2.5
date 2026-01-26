@@ -84,19 +84,11 @@ export async function POST(request) {
       );
     }
 
-    // Validate all accounts exist and belong to tenant
-    const accountIds = items.map(item => item.accountId);
-    const accounts = await prisma.account.findMany({
-      where: {
-        id: { in: accountIds },
-        tenantId: user.tenantId,
-        isActive: true
-      }
-    });
-
-    if (accounts.length !== accountIds.length) {
+    // Validate all items have categories
+    const invalidItems = items.filter(item => !item.category || !item.budgetedAmount);
+    if (invalidItems.length > 0) {
       return NextResponse.json(
-        { error: 'One or more accounts not found or inactive' },
+        { error: 'All budget items must have a category and budgeted amount' },
         { status: 400 }
       );
     }

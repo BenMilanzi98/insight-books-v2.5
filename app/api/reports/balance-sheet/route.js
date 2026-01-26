@@ -48,7 +48,8 @@ export async function GET(request) {
       user.tenantId, 
       asOfDate, 
       tenant?.name || 'Company', 
-      tenant?.logoUrl || null
+      tenant?.logoUrl || null,
+      user.currentBranchId || null
     );
     
     // Generate previous year balance sheet if requested
@@ -61,7 +62,8 @@ export async function GET(request) {
         user.tenantId, 
         prevYearAsOfDate, 
         tenant?.name || 'Company', 
-        tenant?.logoUrl || null
+        tenant?.logoUrl || null,
+        user.currentBranchId || null
       );
     }
     

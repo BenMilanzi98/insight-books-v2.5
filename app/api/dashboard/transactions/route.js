@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -139,13 +140,13 @@ export async function GET(request) {
     
     // Get recent invoices (income transactions)
     const invoices = await prisma.invoice.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         issueDate: {
           gte: startDate,
           lte: endDate
         }
-      },
+      }),
       orderBy: {
         issueDate: 'desc'
       },
@@ -161,14 +162,14 @@ export async function GET(request) {
     
     // Get recent sales (including historical transactions)
     const sales = await prisma.sale.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         saleDate: {
           gte: startDate,
           lte: endDate
         },
         status: 'completed'
-      },
+      }),
       orderBy: {
         saleDate: 'desc'
       },
@@ -184,13 +185,14 @@ export async function GET(request) {
     
     // Get recent expenses (expense transactions)
     const expenses = await prisma.expense.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         date: {
           gte: startDate,
           lte: endDate
-        }
-      },
+        },
+        isDeleted: false
+      }),
       orderBy: {
         date: 'desc'
       },

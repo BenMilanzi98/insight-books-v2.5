@@ -22,11 +22,26 @@ export async function GET(request) {
     const now = new Date();
     
     // Get all Posted GoodsReceipt records (these represent inventory received that needs to be paid for)
+    // Filter by branch through goods receipt items -> products -> branchId
+    // Note: GoodsReceipt model doesn't have branchId, so we filter through product relationships
+    const goodsReceiptWhere = {
+      tenantId,
+      status: 'Posted'
+    };
+    
+    // If user has a branch selected, filter goods receipts by products in that branch
+    if (user?.currentBranchId) {
+      goodsReceiptWhere.items = {
+        some: {
+          product: {
+            branchId: user.currentBranchId
+          }
+        }
+      };
+    }
+    
     const postedReceipts = await prisma.goodsReceipt.findMany({
-      where: {
-        tenantId,
-        status: 'Posted'
-      },
+      where: goodsReceiptWhere,
       select: {
         id: true,
         receiptNumber: true,

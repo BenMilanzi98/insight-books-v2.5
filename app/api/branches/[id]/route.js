@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { requireStandardAccess } from '@/lib/accessControl';
 
+// Note: Branch management (GET, PUT, DELETE) doesn't require subscription check
+// Branches are part of the same tenant - only authentication is required
 export async function GET(request, { params }) {
   try {
-    const accessError = await requireStandardAccess(request);
-    if (accessError) return accessError;
-
+    // Only check authentication, not subscription
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -27,9 +26,7 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const accessError = await requireStandardAccess(request);
-    if (accessError) return accessError;
-
+    // Only check authentication, not subscription
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -63,9 +60,7 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const accessError = await requireStandardAccess(request);
-    if (accessError) return accessError;
-
+    // Only check authentication, not subscription
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

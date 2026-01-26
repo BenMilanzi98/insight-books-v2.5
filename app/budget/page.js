@@ -38,8 +38,6 @@ export default function BudgetPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [accountsLoading, setAccountsLoading] = useState(false);
-  const [accountOptions, setAccountOptions] = useState([]);
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [pagePermissions, setPagePermissions] = useState({
@@ -51,7 +49,6 @@ export default function BudgetPage() {
 
   const [form, setForm] = useState(DEFAULT_FORM);
   const [formErrors, setFormErrors] = useState({});
-  const [budgetTypeFilter, setBudgetTypeFilter] = useState("all"); // "all", "account", "category"
 
   const filteredBudgets = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -71,22 +68,6 @@ export default function BudgetPage() {
       setError(e.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadAccounts = async () => {
-    try {
-      setAccountsLoading(true);
-      setError(null);
-      // Align with Payment Processing "main accounts" (payment method mappings -> COA asset accounts)
-      const res = await fetch("/api/payments/method-mappings", { cache: "no-store" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to load payment accounts");
-      setAccountOptions(json?.mappings || []);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setAccountsLoading(false);
     }
   };
 
@@ -127,13 +108,12 @@ export default function BudgetPage() {
   const resetCreate = () => {
     setForm(DEFAULT_FORM);
     setFormErrors({});
-    setBudgetTypeFilter("all");
     setShowCreate(false);
   };
 
   const calculateTotalBudget = () => {
     return (form.items || [])
-      .filter((i) => (i.accountId || i.category) && i.budgetedAmount)
+      .filter((i) => i.category && i.budgetedAmount)
       .reduce((sum, i) => sum + (Number(i.budgetedAmount) || 0), 0);
   };
 
@@ -147,7 +127,6 @@ export default function BudgetPage() {
       items: [
         ...prev.items,
         ...toAdd.map(cat => ({
-          accountId: "",
           category: cat,
           budgetedAmount: "",
           notes: "",
@@ -162,7 +141,6 @@ export default function BudgetPage() {
       items: [
         ...prev.items,
         {
-          accountId: "",
           category: "",
           budgetedAmount: "",
           notes: "",
@@ -191,9 +169,6 @@ export default function BudgetPage() {
       return;
     }
     setShowCreate(true);
-    if (accountOptions.length === 0) {
-      await loadAccounts();
-    }
     if (categoryOptions.length === 0) {
       await loadCategories();
     }
@@ -220,7 +195,7 @@ export default function BudgetPage() {
     }
     
     const validItems = (form.items || []).filter((i) => 
-      (i.accountId || i.category) && 
+      i.category && 
       i.budgetedAmount !== "" && 
       i.budgetedAmount !== null && 
       i.budgetedAmount !== undefined &&
@@ -233,10 +208,10 @@ export default function BudgetPage() {
     
     // Validate individual items
     form.items?.forEach((item, idx) => {
-      if (!item.accountId && !item.category && (item.budgetedAmount || item.notes)) {
-        errors[`item_${idx}_selection`] = "Select either an account or category";
+      if (!item.category && (item.budgetedAmount || item.notes)) {
+        errors[`item_${idx}_selection`] = "Select a category";
       }
-      if ((item.accountId || item.category) && (!item.budgetedAmount || Number(item.budgetedAmount) <= 0)) {
+      if (item.category && (!item.budgetedAmount || Number(item.budgetedAmount) <= 0)) {
         errors[`item_${idx}_amount`] = "Enter a valid budgeted amount";
       }
     });
@@ -256,9 +231,8 @@ export default function BudgetPage() {
       }
 
       const cleanItems = (form.items || [])
-        .filter((i) => (i.accountId || i.category) && i.budgetedAmount !== "" && i.budgetedAmount !== null && i.budgetedAmount !== undefined)
+        .filter((i) => i.category && i.budgetedAmount !== "" && i.budgetedAmount !== null && i.budgetedAmount !== undefined)
         .map((i) => ({
-          accountId: i.accountId || null,
           category: i.category || null,
           // Backend expects a 'period' per item; for annual budgets we store at start date.
           period: form.startDate,
@@ -267,7 +241,7 @@ export default function BudgetPage() {
         }));
 
       if (cleanItems.length === 0) {
-        throw new Error("Add at least one budget line (account or category) with an amount.");
+        throw new Error("Add at least one budget line (category) with an amount.");
       }
 
       const res = await fetch("/api/budgets", {
@@ -445,22 +419,22 @@ export default function BudgetPage() {
         </div>
 
         {showCreate && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={resetCreate}>
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={resetCreate}>
             <div
-              className="bg-white rounded-lg border border-gray-200 shadow-xl w-full max-w-4xl mx-4 max-h-[85vh] overflow-hidden"
+              className="bg-white rounded-lg border border-gray-200 shadow-xl w-full max-w-4xl my-auto flex flex-col max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Create New Budget</h2>
-                  <p className="text-sm text-gray-600">Plan your finances by setting budgeted amounts for accounts or expense categories.</p>
+                  <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-start justify-between gap-3 flex-shrink-0">
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Create New Budget</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">Plan your finances by setting budgeted amounts for expense categories.</p>
                 </div>
-                <button className="text-gray-500 hover:text-gray-700 transition-colors" onClick={resetCreate}>
+                <button className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0" onClick={resetCreate}>
                   <X size={22} />
                 </button>
               </div>
 
-              <div className="p-5 overflow-y-auto max-h-[calc(85vh-140px)] space-y-6">
+              <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4 sm:space-y-6">
                 {/* Budget Summary Card */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
@@ -471,7 +445,7 @@ export default function BudgetPage() {
                     <span className="text-xl font-bold text-blue-700">{formatCurrency(calculateTotalBudget())}</span>
                   </div>
                   <div className="mt-2 text-xs text-gray-600">
-                    {form.items?.filter((i) => (i.accountId || i.category) && i.budgetedAmount).length || 0} budget line(s) configured
+                    {form.items?.filter((i) => i.category && i.budgetedAmount).length || 0} budget line(s) configured
                   </div>
                 </div>
 
@@ -570,13 +544,13 @@ export default function BudgetPage() {
 
                 <div className="bg-white border border-gray-200 rounded-lg">
                   <div className="p-4 border-b border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div>
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                           <TrendingUp size={18} className="text-blue-600" />
                           Budget Lines
                         </h3>
-                        <p className="text-xs text-gray-500 mt-1">Create budgets by account or by expense category (e.g., "Rent").</p>
+                        <p className="text-xs text-gray-500 mt-1">Create budgets by expense category (e.g., "Rent", "Utilities").</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
@@ -586,7 +560,7 @@ export default function BudgetPage() {
                           title="Add common expense categories"
                         >
                           <Plus size={14} />
-                          Quick Add
+                          <span className="hidden sm:inline">Quick Add</span>
                         </button>
                         <button
                           type="button"
@@ -594,50 +568,15 @@ export default function BudgetPage() {
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
                         >
                           <Plus size={16} />
-                          Add Line
+                          <span className="hidden sm:inline">Add Line</span>
+                          <span className="sm:hidden">Add</span>
                         </button>
                       </div>
                     </div>
                     
-                    {/* Filter Tabs */}
-                    <div className="flex gap-2 border-b border-gray-200 -mb-px">
-                      <button
-                        type="button"
-                        onClick={() => setBudgetTypeFilter("all")}
-                        className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                          budgetTypeFilter === "all"
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        All ({form.items?.length || 0})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBudgetTypeFilter("account")}
-                        className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                          budgetTypeFilter === "account"
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        By Account ({form.items?.filter(i => i.accountId).length || 0})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBudgetTypeFilter("category")}
-                        className={`px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
-                          budgetTypeFilter === "category"
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        By Category ({form.items?.filter(i => i.category).length || 0})
-                      </button>
-                    </div>
                   </div>
 
-                  {(accountsLoading || categoriesLoading) ? (
+                  {categoriesLoading ? (
                     <div className="p-6 text-gray-600 flex items-center">
                       <Loader2 size={18} className="animate-spin mr-2 text-blue-600" />
                       Loading options...
@@ -646,88 +585,47 @@ export default function BudgetPage() {
                     <div className="divide-y divide-gray-200">
                       {(form.items || [])
                         .map((it, idx) => {
-                          // Filter logic: show item if it matches the filter
-                          const shouldShow = 
-                            budgetTypeFilter === "all" ||
-                            (budgetTypeFilter === "account" && !!it.accountId) ||
-                            (budgetTypeFilter === "category" && !!it.category);
-                          
-                          if (!shouldShow) return null;
-                          
                           const hasError = formErrors[`item_${idx}_selection`] || formErrors[`item_${idx}_amount`];
                           
                           return (
-                            <div key={idx} className={`p-4 grid grid-cols-1 md:grid-cols-12 gap-3 ${hasError ? "bg-red-50/30" : ""}`}>
-                              <div className="md:col-span-5">
+                            <div key={idx} className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 ${hasError ? "bg-red-50/30" : ""}`}>
+                              <div className="sm:col-span-5">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Account or Category <span className="text-red-500">*</span>
+                                  Category <span className="text-red-500">*</span>
                                 </label>
-                                <div className="space-y-2">
-                                  <select
-                                    value={it.accountId || ""}
-                                    onChange={(e) => {
-                                      const accountId = e.target.value;
-                                      updateItem(idx, { accountId, category: accountId ? "" : it.category });
-                                      if (formErrors[`item_${idx}_selection`]) {
-                                        setFormErrors((prev) => ({ ...prev, [`item_${idx}_selection`]: null }));
-                                      }
-                                    }}
-                                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                      formErrors[`item_${idx}_selection`] ? "border-red-300 bg-red-50" : "border-gray-300"
-                                    }`}
-                                  >
-                                    <option value="">Select account (optional)...</option>
-                                    {accountOptions.map((m) => (
-                                      <option key={m.paymentMethod} value={m.accountId || ""} disabled={!m.accountId}>
-                                        {m.paymentMethodName}
-                                        {m.accountCode ? ` (${m.accountCode})` : ""}
-                                        {!m.isConfigured ? " (not configured)" : ""}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  {!it.accountId && (
-                                    <select
-                                      value={it.category || ""}
-                                      onChange={(e) => {
-                                        updateItem(idx, { category: e.target.value });
-                                        if (formErrors[`item_${idx}_selection`]) {
-                                          setFormErrors((prev) => ({ ...prev, [`item_${idx}_selection`]: null }));
-                                        }
-                                      }}
-                                      className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                        formErrors[`item_${idx}_selection`] ? "border-red-300 bg-red-50" : "border-gray-300"
-                                      }`}
-                                    >
-                                      <option value="">Select category...</option>
-                                      {categoryOptions.map((cat) => (
-                                        <option key={cat} value={cat}>
-                                          {cat}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  )}
-                                </div>
+                                <select
+                                  value={it.category || ""}
+                                  onChange={(e) => {
+                                    updateItem(idx, { category: e.target.value });
+                                    if (formErrors[`item_${idx}_selection`]) {
+                                      setFormErrors((prev) => ({ ...prev, [`item_${idx}_selection`]: null }));
+                                    }
+                                  }}
+                                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                    formErrors[`item_${idx}_selection`] ? "border-red-300 bg-red-50" : "border-gray-300"
+                                  }`}
+                                >
+                                  <option value="">Select category...</option>
+                                  {categoryOptions.map((cat) => (
+                                    <option key={cat} value={cat}>
+                                      {cat}
+                                    </option>
+                                  ))}
+                                </select>
                                 {formErrors[`item_${idx}_selection`] && (
                                   <p className="text-xs text-red-600 mt-1">{formErrors[`item_${idx}_selection`]}</p>
                                 )}
-                                <p className="text-xs text-gray-500 mt-1">
-                                  {it.accountId ? (
-                                    <span className="inline-flex items-center gap-1 text-blue-600">
-                                      <CheckCircle size={12} />
-                                      Account-based budget
-                                    </span>
-                                  ) : it.category ? (
+                                {it.category && (
+                                  <p className="text-xs text-gray-500 mt-1">
                                     <span className="inline-flex items-center gap-1 text-green-600">
                                       <CheckCircle size={12} />
-                                      Category-based: {it.category}
+                                      Category: {it.category}
                                     </span>
-                                  ) : (
-                                    "Select either an account or a category"
-                                  )}
-                                </p>
+                                  </p>
+                                )}
                               </div>
 
-                              <div className="md:col-span-3">
+                              <div className="sm:col-span-3">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                   Budgeted Amount <span className="text-red-500">*</span>
                                 </label>
@@ -756,7 +654,7 @@ export default function BudgetPage() {
                                 )}
                               </div>
 
-                              <div className="md:col-span-3">
+                              <div className="sm:col-span-3">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
                                 <input
                                   value={it.notes}
@@ -766,28 +664,23 @@ export default function BudgetPage() {
                                 />
                               </div>
 
-                              <div className="md:col-span-1 flex md:justify-end items-end">
+                              <div className="sm:col-span-1 flex sm:justify-end items-end">
                                 <button
                                   type="button"
                                   onClick={() => removeItem(idx)}
-                                  className="px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors"
+                                  className="w-full sm:w-auto px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors text-sm"
                                   title="Remove this budget line"
                                 >
-                                  <X size={16} />
+                                  <span className="sm:hidden">Remove</span>
+                                  <X size={16} className="hidden sm:inline" />
                                 </button>
                               </div>
                             </div>
                           );
-                        })
-                        .filter(Boolean)}
-                      {form.items?.filter((it) => {
-                        if (budgetTypeFilter === "all") return true;
-                        if (budgetTypeFilter === "account") return !!it.accountId;
-                        if (budgetTypeFilter === "category") return !!it.category;
-                        return true;
-                      }).length === 0 && (
+                        })}
+                      {form.items?.length === 0 && (
                         <div className="p-8 text-center text-gray-500">
-                          <p className="text-sm">No budget lines {budgetTypeFilter !== "all" ? `for ${budgetTypeFilter}-based budgets` : ""} yet.</p>
+                          <p className="text-sm">No budget lines yet.</p>
                           <button
                             type="button"
                             onClick={addItem}
@@ -810,21 +703,21 @@ export default function BudgetPage() {
                 </div>
               </div>
 
-              <div className="p-5 border-t border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between mb-3">
+              <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-3">
                   <div className="text-sm text-gray-600">
                     <span className="font-medium">Total Budgeted:</span>{" "}
                     <span className="text-lg font-bold text-blue-700">{formatCurrency(calculateTotalBudget())}</span>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {form.items?.filter((i) => (i.accountId || i.category) && i.budgetedAmount).length || 0} valid line(s)
+                    {form.items?.filter((i) => i.category && i.budgetedAmount).length || 0} valid line(s)
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-3">
+                <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
                   <button
                     type="button"
                     onClick={resetCreate}
-                    className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
+                    className="w-full sm:w-auto px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors"
                     disabled={creating}
                   >
                     Cancel
@@ -832,7 +725,7 @@ export default function BudgetPage() {
                   <button
                     type="button"
                     onClick={handleCreate}
-                    className="inline-flex items-center gap-2 px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-sm"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-sm"
                     disabled={creating || calculateTotalBudget() === 0}
                   >
                     {creating ? (

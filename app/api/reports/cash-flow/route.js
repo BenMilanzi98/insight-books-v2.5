@@ -42,7 +42,13 @@ export async function GET(request) {
     });
     
     // Generate cash flow statement using Phase 2 enhanced service
-    const cashFlow = await generateCashFlowFromAccounts(user.tenantId, startDate, endDate, tenant?.name || 'Company');
+    const cashFlow = await generateCashFlowFromAccounts(
+      user.tenantId, 
+      startDate, 
+      endDate, 
+      tenant?.name || 'Company',
+      user.currentBranchId || null
+    );
     
     return NextResponse.json(cashFlow);
   } catch (error) {

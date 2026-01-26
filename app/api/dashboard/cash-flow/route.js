@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -128,7 +129,7 @@ export async function GET(request) {
     ] = await Promise.all([
       // Invoice payments (cash in)
       prisma.payment.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: 'invoice',
           status: 'Completed',
@@ -136,7 +137,7 @@ export async function GET(request) {
             gte: startDate,
             lte: endDate
           }
-        },
+        }),
         select: {
           id: true,
           amount: true,
@@ -158,7 +159,7 @@ export async function GET(request) {
       
       // Sales payments (cash in)
       prisma.payment.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           type: 'sale',
           status: 'Completed',
@@ -166,7 +167,7 @@ export async function GET(request) {
             gte: startDate,
             lte: endDate
           }
-        },
+        }),
         select: {
           id: true,
           amount: true,
@@ -183,16 +184,38 @@ export async function GET(request) {
       }),
       
       // Expense payments (cash out)
+      // STRICT: Only show expenses from selected branch
+      // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
       prisma.payment.findMany({
-        where: {
-          tenantId,
-          type: 'expense',
-          status: 'Completed',
-          paymentDate: {
-            gte: startDate,
-            lte: endDate
+        where: (() => {
+          if (user?.currentBranchId) {
+            // When branch is selected, require expense to have matching branchId
+            // Payment branchId is optional (for legacy data compatibility)
+            return {
+              tenantId,
+              type: 'expense',
+              status: 'Completed',
+              paymentDate: {
+                gte: startDate,
+                lte: endDate
+              },
+              expense: {
+                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
+              }
+            };
           }
-        },
+          
+          // No branch selected, show all
+          return {
+            tenantId,
+            type: 'expense',
+            status: 'Completed',
+            paymentDate: {
+              gte: startDate,
+              lte: endDate
+            }
+          };
+        })(),
         select: {
           id: true,
           amount: true,
@@ -234,10 +257,10 @@ export async function GET(request) {
       
       // Outstanding receivables (money owed to us)
       prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           status: { in: ['Pending', 'Partial'] }
-        },
+        }),
         select: {
           id: true,
           invoiceNumber: true,
@@ -256,10 +279,10 @@ export async function GET(request) {
       
       // Outstanding payables (money we owe)
       prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId,
           paymentStatus: { in: ['Pending', 'Partially'] }
-        },
+        }),
         select: {
           id: true,
           description: true,

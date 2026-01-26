@@ -225,6 +225,34 @@ export async function POST(request) {
       );
     }
 
+    // Validate that no lines are posting to tax accounts (tax accounts should only be posted via tax service)
+    const accountIds = lines.map(line => line.accountId);
+    const taxTypes = await prisma.taxType.findMany({
+      where: {
+        tenantId: user.tenantId,
+        accountId: { in: accountIds },
+      },
+      include: {
+        account: {
+          select: {
+            id: true,
+            accountName: true,
+          },
+        },
+      },
+    });
+
+    if (taxTypes.length > 0) {
+      const taxAccountNames = taxTypes.map(tt => tt.account.accountName || 'Unknown').join(', ');
+      return NextResponse.json(
+        { 
+          error: 'Manual journal entries to tax accounts are not allowed. Tax accounts must be posted automatically via the tax system.',
+          details: `Tax accounts detected: ${taxAccountNames}. Please use the tax management system to post taxes.`
+        },
+        { status: 400 }
+      );
+    }
+
     // For now, create Transaction directly (we'll update journalService later)
     const entryDate = resolveEntryDate(body);
     const referenceNumber = await generateReferenceNumber(prisma, user.tenantId, entryDate);

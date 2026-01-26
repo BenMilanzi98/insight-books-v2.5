@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -74,16 +75,16 @@ export async function GET(request) {
     const groupByParam = searchParams.get('groupBy') || 'month';
     const groupBy = VALID_GROUPS.includes(groupByParam) ? groupByParam : 'month';
 
-    // Fetch data
+    // Fetch data - filter by branch
     const [invoices, sales, expenses] = await Promise.all([
       prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           status: { in: ['Paid', 'Completed'] },
           issueDate: { gte: startDate, lte: endDate },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         select: {
           total: true,
           issueDate: true,
@@ -92,13 +93,13 @@ export async function GET(request) {
         }
       }),
       prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           status: 'completed',
           saleDate: { gte: startDate, lte: endDate },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         select: {
           total: true,
           saleDate: true,
@@ -107,12 +108,12 @@ export async function GET(request) {
         }
       }),
       prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           status: 'Approved',
           isDeleted: false,
           date: { gte: startDate, lte: endDate }
-        },
+        }),
         select: {
           amount: true,
           date: true,

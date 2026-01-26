@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { calculateMalawiPayroll } from '@/lib/malawiTaxUtils';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { generateReferenceNumber } from '@/lib/journalService';
+import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -185,7 +186,16 @@ export async function POST(request) {
       selectedExpenseAccount || findAccountByName('Salaries Expense');
     const paymentAccount =
       selectedPaymentAccount || findAccountByName('Cash');
-    const payeAccount = findAccountByName('PAYE Liability');
+    
+    // Try to get PAYE tax type first, fallback to account if not found
+    let payeTaxType = null;
+    try {
+      payeTaxType = await getTaxType(user.tenantId, 'PAYE');
+    } catch (err) {
+      console.log('PAYE tax type not found, will use account directly');
+    }
+    
+    const payeAccount = payeTaxType?.account || findAccountByName('PAYE Liability');
     const npsEmployeeAccount = findAccountByName('NPS Employee Contribution Liability');
     const npsEmployerAccount = findAccountByName('NPS Employer Contribution Liability');
     const otherDeductionsAccount = findAccountByName('Payroll Deductions Liability');
@@ -644,7 +654,9 @@ export async function POST(request) {
         });
       }
 
-      if (payeAmount > 0) {
+      // PAYE will be auto-posted via tax service if tax type exists
+      // Otherwise, post directly to account (backward compatibility)
+      if (payeAmount > 0 && !payeTaxType) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: payeAccount.id,
@@ -728,6 +740,26 @@ export async function POST(request) {
               line.creditAmount,
               tx
             );
+          }
+
+          // Auto-post PAYE tax if tax type exists
+          if (payeAmount > 0 && payeTaxType) {
+            try {
+              await autoPostTaxEntry({
+                tenantId: user.tenantId,
+                userId: user.id,
+                taxTypeId: payeTaxType.id,
+                taxAmount: payeAmount,
+                transactionDate: paymentDate,
+                sourceType: 'Payroll',
+                sourceId: payrollEntry.id,
+                description: `PAYE for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
+                tx
+              });
+            } catch (taxError) {
+              console.error('Error auto-posting PAYE tax:', taxError);
+              // Don't fail the entire payroll if tax posting fails
+            }
           }
         });
       }

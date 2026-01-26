@@ -399,6 +399,7 @@ export async function POST(request, { params }) {
         const paymentRecord = await tx.payment.create({
           data: {
             tenantId: user.tenantId,
+            branchId: expenseRecord.branchId || null, // Inherit branchId from expense
             type: expenseRecord.category === 'Loan Principal' ? 'Loan Payment - Principal' : 'Loan Payment - Interest',
             expenseId: expenseRecord.id,
             amount: expenseRecord.amount,

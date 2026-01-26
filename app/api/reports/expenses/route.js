@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -28,14 +29,14 @@ export async function GET(request) {
       );
     }
     
-    // Build query filter
-    const filter = {
+    // Build query filter - filter by branch
+    const filter = addBranchFilter(user, {
       tenantId: user.tenantId,
       date: {
         gte: new Date(startDate),
         lte: new Date(endDate)
       }
-    };
+    });
     
     // Add category filter if provided
     if (category) {

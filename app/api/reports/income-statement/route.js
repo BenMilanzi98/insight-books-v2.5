@@ -74,7 +74,8 @@ export async function GET(request) {
       startDate,
       endDate,
       tenant?.name || 'Company',
-      tenant?.logoUrl || null
+      tenant?.logoUrl || null,
+      user.currentBranchId || null
     );
     
     // Generate comparison period if requested
@@ -85,7 +86,8 @@ export async function GET(request) {
         prevStartDate,
         prevEndDate,
         tenant?.name || 'Company',
-        tenant?.logoUrl || null
+        tenant?.logoUrl || null,
+        user.currentBranchId || null
       );
     } else if (compareYear && prevStartDate && prevEndDate) {
       previousPeriod = await generateIncomeStatementFromAccounts(
@@ -93,7 +95,8 @@ export async function GET(request) {
         prevStartDate,
         prevEndDate,
         tenant?.name || 'Company',
-        tenant?.logoUrl || null
+        tenant?.logoUrl || null,
+        user.currentBranchId || null
       );
     }
     

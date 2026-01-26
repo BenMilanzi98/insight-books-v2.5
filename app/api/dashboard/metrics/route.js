@@ -222,7 +222,26 @@ export async function GET(request) {
     // Get current period data with refund calculations
     const currentPeriodEndDate = currentPeriodEnd || new Date(); // Use currentPeriodEnd if defined, otherwise use now
     
-    const [currentInvoices, currentSales, currentExpensesData] = await Promise.all([
+    // First, find COGS account(s) for this tenant
+    const cogsAccounts = await prisma.account.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        OR: [
+          { accountCode: '5000' },
+          { code: '5000' },
+          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+          { accountName: { contains: 'cogs', mode: 'insensitive' } },
+          { name: { contains: 'cost of goods', mode: 'insensitive' } },
+          { name: { contains: 'cogs', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true }
+    });
+    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+
+    const [currentInvoices, currentSales, currentExpensesData, currentCOGSData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
         where: addBranchFilter(user, {
@@ -249,25 +268,66 @@ export async function GET(request) {
       }),
       // Only count actual payments made for expenses, not pending expenses
       // Exclude payments linked to deleted expenses
+      // STRICT: Only show expenses from selected branch
+      // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
       prisma.payment.aggregate({
-        where: addBranchFilter(user, {
-          tenantId,
-          type: 'expense',
-          status: 'Completed',
-          paymentDate: { 
-            gte: currentPeriodStart,
-            lte: currentPeriodEndDate
-          },
-          expense: {
-            isDeleted: false
+        where: (() => {
+          if (user?.currentBranchId) {
+            // When branch is selected, require expense to have matching branchId
+            // Payment branchId is optional (for legacy data compatibility)
+            return {
+              tenantId,
+              type: 'expense',
+              status: 'Completed',
+              paymentDate: { 
+                gte: currentPeriodStart,
+                lte: currentPeriodEndDate
+              },
+              expense: {
+                isDeleted: false,
+                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
+              }
+            };
           }
-        }),
+          
+          // No branch selected, show all
+          return {
+            tenantId,
+            type: 'expense',
+            status: 'Completed',
+            paymentDate: { 
+              gte: currentPeriodStart,
+              lte: currentPeriodEndDate
+            },
+            expense: {
+              isDeleted: false
+            }
+          };
+        })(),
         _sum: { amount: true }
-      })
+      }),
+      // Get COGS from transaction lines that debit COGS accounts
+      // Filter by transaction branchId
+      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId,
+            ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+            date: {
+              gte: currentPeriodStart,
+              lte: currentPeriodEndDate
+            },
+            status: 'posted'
+          }
+        },
+        _sum: { debitAmount: true }
+      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
     // Get previous period data with refund calculations
-    const [previousInvoices, previousSales, previousExpensesData] = await Promise.all([
+    const [previousInvoices, previousSales, previousExpensesData, previousCOGSData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
         where: addBranchFilter(user, {
@@ -294,21 +354,62 @@ export async function GET(request) {
       }),
       // Only count actual payments made for expenses, not pending expenses
       // Exclude payments linked to deleted expenses
+      // STRICT: Only show expenses from selected branch
+      // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
       prisma.payment.aggregate({
-        where: addBranchFilter(user, {
-          tenantId,
-          type: 'expense',
-          status: 'Completed',
-          paymentDate: { 
-            gte: previousPeriodStart,
-            lte: previousPeriodEnd
-          },
-          expense: {
-            isDeleted: false
+        where: (() => {
+          if (user?.currentBranchId) {
+            // When branch is selected, require expense to have matching branchId
+            // Payment branchId is optional (for legacy data compatibility)
+            return {
+              tenantId,
+              type: 'expense',
+              status: 'Completed',
+              paymentDate: { 
+                gte: previousPeriodStart,
+                lte: previousPeriodEnd
+              },
+              expense: {
+                isDeleted: false,
+                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
+              }
+            };
           }
-        }),
+          
+          // No branch selected, show all
+          return {
+            tenantId,
+            type: 'expense',
+            status: 'Completed',
+            paymentDate: { 
+              gte: previousPeriodStart,
+              lte: previousPeriodEnd
+            },
+            expense: {
+              isDeleted: false
+            }
+          };
+        })(),
         _sum: { amount: true }
-      })
+      }),
+      // Get COGS from transaction lines that debit COGS accounts for previous period
+      // Filter by transaction branchId
+      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId,
+            ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+            date: {
+              gte: previousPeriodStart,
+              lte: previousPeriodEnd
+            },
+            status: 'posted'
+          }
+        },
+        _sum: { debitAmount: true }
+      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
     // Get outstanding invoices (Accounts Receivable)
@@ -337,51 +438,83 @@ export async function GET(request) {
     const currentRevenue = (currentInvoices._sum.amount || 0);
     const previousRevenue = (previousInvoices._sum.amount || 0);
     
-    const currentExpenses = currentExpensesData._sum.amount || 0;
-    const previousExpenses = previousExpensesData._sum.amount || 0;
+    // Include COGS in expenses
+    const currentCOGS = Number(currentCOGSData._sum.debitAmount || 0);
+    const previousCOGS = Number(previousCOGSData._sum.debitAmount || 0);
+    const currentExpenses = (currentExpensesData._sum.amount || 0) + currentCOGS;
+    const previousExpenses = (previousExpensesData._sum.amount || 0) + previousCOGS;
     const currentProfit = currentRevenue - currentExpenses;
     const previousProfit = previousRevenue - previousExpenses;
     // Calculate actual receivables (remaining balances)
-    const [currentReceivables, previousReceivables] = await Promise.all([
-      // Current receivables - sum of remaining balances
+    // Include invoices with remaining balance > 0, regardless of status
+    // This ensures we capture all unpaid invoices even if status values vary
+    const [currentReceivablesData, previousReceivables] = await Promise.all([
+      // Current receivables - sum of remaining balances and count
       prisma.invoice.findMany({
         where: addBranchFilter(user, {
           tenantId,
-          status: { in: ['Pending', 'Partially Paid'] }
+          voidedAt: null,
+          refundedAt: null,
+          OR: [
+            { status: { in: ['Pending', 'Partially Paid', 'Partial', 'pending', 'partial'] } },
+            { remainingBalance: { gt: 0 } }
+          ]
         }),
         select: {
           total: true,
-          totalPaid: true
+          totalPaid: true,
+          remainingBalance: true
         }
-      }).then(invoices => 
-        invoices.reduce((sum, invoice) => {
-          const remaining = (invoice.total || 0) - (invoice.totalPaid || 0);
+      }).then(invoices => {
+        const total = invoices.reduce((sum, invoice) => {
+          // Use remainingBalance if available, otherwise calculate
+          const remaining = invoice.remainingBalance != null && invoice.remainingBalance > 0
+            ? invoice.remainingBalance 
+            : (invoice.total || 0) - (invoice.totalPaid || 0);
           return sum + Math.max(0, remaining);
-        }, 0)
-      ),
+        }, 0);
+        // Count invoices with actual remaining balance > 0
+        const count = invoices.filter(invoice => {
+          const remaining = invoice.remainingBalance != null && invoice.remainingBalance > 0
+            ? invoice.remainingBalance 
+            : (invoice.total || 0) - (invoice.totalPaid || 0);
+          return remaining > 0;
+        }).length;
+        return { total, count };
+      }),
       // Previous receivables
       prisma.invoice.findMany({
         where: addBranchFilter(user, {
           tenantId,
-          status: { in: ['Pending', 'Partially Paid'] },
+          voidedAt: null,
+          refundedAt: null,
           issueDate: { 
             gte: previousPeriodStart,
             lte: previousPeriodEnd
-          }
+          },
+          OR: [
+            { status: { in: ['Pending', 'Partially Paid', 'Partial', 'pending', 'partial'] } },
+            { remainingBalance: { gt: 0 } }
+          ]
         }),
         select: {
           total: true,
-          totalPaid: true
+          totalPaid: true,
+          remainingBalance: true
         }
       }).then(invoices => 
         invoices.reduce((sum, invoice) => {
-          const remaining = (invoice.total || 0) - (invoice.totalPaid || 0);
+          // Use remainingBalance if available, otherwise calculate
+          const remaining = invoice.remainingBalance != null && invoice.remainingBalance > 0
+            ? invoice.remainingBalance 
+            : (invoice.total || 0) - (invoice.totalPaid || 0);
           return sum + Math.max(0, remaining);
         }, 0)
       )
     ]);
     
-    const currentOutstandingInvoices = currentReceivables;
+    const currentOutstandingInvoices = currentReceivablesData.total;
+    const currentOutstandingInvoicesCount = currentReceivablesData.count;
     const previousOutstandingInvoices = previousReceivables;
 
     // Get cash flow data for current and previous periods
@@ -474,7 +607,8 @@ export async function GET(request) {
         outstandingInvoices: {
           current: currentOutstandingInvoices,
           previous: previousOutstandingInvoices,
-          change: parseFloat(outstandingInvoicesChange)
+          change: parseFloat(outstandingInvoicesChange),
+          count: currentOutstandingInvoicesCount
         },
         cashFlow: {
           current: {

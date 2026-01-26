@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -124,13 +125,13 @@ export async function GET(request) {
     
     // Get the 5 most recent invoices within the date range
     const invoices = await prisma.invoice.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId,
         issueDate: {
           gte: startDate,
           lte: endDate
         }
-      },
+      }),
       orderBy: {
         issueDate: 'desc'
       },

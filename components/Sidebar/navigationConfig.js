@@ -56,7 +56,7 @@ export const navigationByPermission = {
           { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
           { href: "/affiliate", icon: "🔗", text: "Affiliate System" },
           { href: "/budget", icon: "🧮", text: "Budgeting" },
-          { href: "/tax-management", icon: "📑", text: "Tax Management" },
+          { href: "/tax-types", icon: "📑", text: "Tax Types" },
         ],
       },
       {
@@ -332,9 +332,9 @@ export const navigationByPermission = {
     
     if (hasPermission(user.role.permissions, "reports.view")) {
       additionalItems.push({ 
-        href: "/tax-management", 
+        href: "/tax-types", 
         icon: "📑", 
-        text: "Tax Management" 
+        text: "Tax Types" 
       });
     }
     

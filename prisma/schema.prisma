@@ -76,6 +76,7 @@ model Tenant {
   gratuityAccounts           GratuityAccount[]
   salaryAdvances             SalaryAdvance[]
   branches                   Branch[]
+  taxTypes                   TaxType[]
 }
 
 model Branch {
@@ -1423,12 +1424,37 @@ model Account {
   bankAccounts      BankAccount[]
   equityAccounts    EquityAccount[]
   budgetItems       BudgetItem[]
+  taxTypes          TaxType[]        @relation("TaxTypeAccount")
 
   @@index([tenantId])
   @@index([accountType])
   @@index([isActive])
   @@index([parentAccountId])
   @@index([accountCode])
+}
+
+// Tax Types - User-defined tax configurations
+model TaxType {
+  id              String   @id @default(cuid())
+  taxId           String   // User-friendly ID like "TAX001"
+  taxName         String   // e.g., "PAYE", "VAT", "Withholding Tax"
+  taxCode         String   // e.g., "PAYE", "VAT16.5", "WHT"
+  taxRate         Float    // Percentage or fixed amount
+  calculationType String   @default("Percentage") // "Percentage" or "Fixed"
+  accountId       String   // Linked account (usually Liability, Asset for WHT)
+  status          String   @default("Active") // "Active" or "Inactive"
+  tenantId        String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  account         Account  @relation("TaxTypeAccount", fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, taxId])
+  @@unique([tenantId, taxCode])
+  @@index([tenantId])
+  @@index([status])
+  @@index([accountId])
 }
 
 // Journal Entry Header

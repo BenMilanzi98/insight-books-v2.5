@@ -67,7 +67,7 @@ export async function POST(request) {
       newPaymentStatus = 'Partially';
     }
 
-    // Create payment record
+    // Create payment record - inherit branchId from expense
     const payment = await prisma.payment.create({
       data: {
         expenseId: expenseId,
@@ -78,6 +78,7 @@ export async function POST(request) {
         notes: notes || null,
         status: 'Completed',
         tenantId: user.tenantId,
+        branchId: expense.branchId || null, // Inherit branchId from expense
         type: 'expense',
         sourceAccount: paymentMethod || null
       }

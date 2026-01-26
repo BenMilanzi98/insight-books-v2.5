@@ -205,30 +205,45 @@ export async function GET(request) {
       }),
       
       // Outstanding supplier bills
-      // Note: SupplierBill model doesn't have branchId field
-      prisma.supplierBill.findMany({
-        where: {
+      // Note: SupplierBill model doesn't have branchId field, so filter through items -> products -> branchId
+      (async () => {
+        const supplierBillWhere = {
           tenantId,
           status: { in: ['Unpaid', 'Partially Paid'] }
-        },
-        select: {
-          id: true,
-          billNumber: true,
-          supplierId: true,
-          totalAmount: true,
-          amountPaid: true,
-          status: true,
-          billDate: true,
-          dueDate: true,
-          notes: true,
-          supplier: {
-            select: {
-              supplierName: true
+        };
+        
+        // If user has a branch selected, filter supplier bills by products in that branch
+        if (user?.currentBranchId) {
+          supplierBillWhere.items = {
+            some: {
+              product: {
+                branchId: user.currentBranchId
+              }
             }
-          }
-        },
-        orderBy: { dueDate: 'asc' }
-      }),
+          };
+        }
+        
+        return await prisma.supplierBill.findMany({
+          where: supplierBillWhere,
+          select: {
+            id: true,
+            billNumber: true,
+            supplierId: true,
+            totalAmount: true,
+            amountPaid: true,
+            status: true,
+            billDate: true,
+            dueDate: true,
+            notes: true,
+            supplier: {
+              select: {
+                supplierName: true
+              }
+            }
+          },
+          orderBy: { dueDate: 'asc' }
+        });
+      })(),
       
       // Recent payments (cash flow)
       prisma.payment.findMany({
