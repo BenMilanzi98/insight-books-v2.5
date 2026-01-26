@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { createFifoBatch } from '@/lib/fifoCosting';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -47,15 +48,31 @@ export async function GET(request) {
     };
     
     // Branch scoping: Priority: query param > session branch > user default branch
-    const desiredBranchId = branchIdParam || user.currentBranchId || user.defaultBranchId || null;
-    if (desiredBranchId) {
+    // Use branchId from query param, session, or user default
+    // Ensure branchId is a string, not an object
+    let desiredBranchId = branchIdParam || user.currentBranchId || user.defaultBranchId || null;
+    if (desiredBranchId && typeof desiredBranchId !== 'string') {
+      // If it's an object, try to extract the id
+      if (desiredBranchId.id && typeof desiredBranchId.id === 'string') {
+        desiredBranchId = desiredBranchId.id;
+      } else {
+        console.warn('Invalid branchId type in GET, defaulting to null:', typeof desiredBranchId, desiredBranchId);
+        desiredBranchId = null;
+      }
+    }
+    
+    if (desiredBranchId && typeof desiredBranchId === 'string') {
       const branch = await prisma.branch.findFirst({
         where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
         select: { id: true }
       });
       if (branch) {
+        // Product model uses branchId field (not branch relation for filtering)
         where.branchId = desiredBranchId;
       }
+    } else if (user?.currentBranchId === null) {
+      // If explicitly set to null (All Branches), don't filter by branch
+      // This allows viewing all products across branches
     }
     
     // Add search filter if provided
@@ -180,13 +197,31 @@ export async function POST(request) {
         { status: 401 }
       );
     }
+
+    if (!user.tenantId) {
+      return NextResponse.json(
+        { error: 'User must be associated with a tenant' },
+        { status: 400 }
+      );
+    }
     
     const body = await request.json();
 
     // Resolve branch for the new product (optional)
-    const desiredBranchId = body.branchId || user.defaultBranchId || null;
+    // Ensure branchId is a string, not an object
+    let desiredBranchId = body.branchId || user.defaultBranchId || null;
+    if (desiredBranchId && typeof desiredBranchId !== 'string') {
+      // If it's an object, try to extract the id
+      if (desiredBranchId.id && typeof desiredBranchId.id === 'string') {
+        desiredBranchId = desiredBranchId.id;
+      } else {
+        console.warn('Invalid branchId type, defaulting to null:', typeof desiredBranchId, desiredBranchId);
+        desiredBranchId = null;
+      }
+    }
+    
     let branchIdToSet = null;
-    if (desiredBranchId) {
+    if (desiredBranchId && typeof desiredBranchId === 'string') {
       const branch = await prisma.branch.findFirst({
         where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
         select: { id: true }
@@ -195,17 +230,82 @@ export async function POST(request) {
     }
     
     // Validate required fields
-    if (!body.name || !body.sku) {
+    if (!body.name) {
       return NextResponse.json(
-        { error: 'Product name and SKU are required' },
+        { error: 'Product name is required' },
         { status: 400 }
       );
+    }
+    
+    // Auto-generate SKU if not provided
+    let finalSku = body.sku?.trim();
+    if (!finalSku || finalSku === '') {
+      // Generate SKU from product name
+      const cleanName = body.name.trim();
+      let skuBase = cleanName
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '')
+        .substring(0, 15); // Limit to 15 chars for base
+      
+      // Ensure SKU is not empty
+      if (!skuBase || skuBase.length === 0) {
+        skuBase = 'PROD';
+      }
+      
+      // Get the highest SKU number for this tenant to generate sequential SKU
+      const lastProduct = await prisma.product.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          sku: {
+            startsWith: skuBase
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        },
+        select: {
+          sku: true
+        }
+      });
+      
+      let skuCounter = 1;
+      if (lastProduct && lastProduct.sku) {
+        // Extract number from SKU like "PROD-001" or "PROD1"
+        const match = lastProduct.sku.match(/(\d+)$/);
+        if (match) {
+          skuCounter = parseInt(match[1], 10) + 1;
+        }
+      }
+      
+      // Format SKU with zero-padded counter (e.g., PROD-001, PROD-002)
+      finalSku = `${skuBase}-${String(skuCounter).padStart(3, '0')}`;
+      
+      // Check if generated SKU already exists and increment if needed
+      let existingSku = await prisma.product.findFirst({
+        where: {
+          sku: finalSku,
+          tenantId: user.tenantId,
+          isDeleted: false
+        }
+      });
+      
+      while (existingSku && skuCounter < 9999) {
+        skuCounter++;
+        finalSku = `${skuBase}-${String(skuCounter).padStart(3, '0')}`;
+        existingSku = await prisma.product.findFirst({
+          where: {
+            sku: finalSku,
+            tenantId: user.tenantId,
+            isDeleted: false
+          }
+        });
+      }
     }
     
     // Check if SKU is unique for this tenant (active products only)
     const existingActiveSku = await prisma.product.findFirst({
       where: {
-        sku: body.sku,
+        sku: finalSku,
         tenantId: user.tenantId,
         isDeleted: false
       }
@@ -221,7 +321,7 @@ export async function POST(request) {
     // Check if there's a soft-deleted product with the same SKU
     const deletedProductWithSku = await prisma.product.findFirst({
       where: {
-        sku: body.sku,
+        sku: finalSku,
         tenantId: user.tenantId,
         isDeleted: true
       },
@@ -265,60 +365,156 @@ export async function POST(request) {
       imagePath = body.image.url;
     }
     
+    // Get initial stock and cost BEFORE creating product
+    const initialStock = parseInt(body.quantityInStock || body.stockLevel || 0);
+    const productCost = parseFloat(body.costPrice || body.cost || 0);
+    
     // Create the product with all available fields in database
-    const product = await prisma.product.create({
-      data: {
-        name: body.name,
-        sku: body.sku,
-        description: body.description || null,
-        category: body.category || 'Uncategorized',
-        stockLevel: parseInt(body.quantityInStock || body.stockLevel || 0),
-        reorderPoint: parseInt(body.reorderPoint || 10),
-        location: body.location || 'Default Location',
-        price: parseFloat(body.unitPrice || body.price || 0),
-        cost: parseFloat(body.costPrice || body.cost || 0),
-        image: imagePath,
-        isService: !!body.isService,
-        branchId: branchIdToSet,
-        tenant: {
-          connect: {
-            id: user.tenantId
-          }
+    // IMPORTANT: Set stockLevel to 0 initially if we'll create a FIFO batch
+    // createFifoBatch will increment it, so we don't want to double-count
+    const productData = {
+      name: body.name,
+      sku: finalSku,
+      description: body.description || null,
+      category: body.category || 'Uncategorized',
+      stockLevel: (initialStock > 0 && productCost > 0) ? 0 : initialStock, // Set to 0 if FIFO batch will be created
+      reorderPoint: parseInt(body.reorderPoint || 10),
+      location: body.location || 'Default Location',
+      price: parseFloat(body.unitPrice || body.price || 0),
+      cost: productCost,
+      image: imagePath,
+      isService: !!body.isService,
+      tenant: {
+        connect: {
+          id: user.tenantId
         }
       }
+    };
+
+    // Add branch relation if branchId is set
+    if (branchIdToSet) {
+      productData.branch = {
+        connect: {
+          id: branchIdToSet
+        }
+      };
+    }
+
+    const product = await prisma.product.create({
+      data: productData
     });
 
     // Handle unit management if enabled
     if (body.unitManagementEnabled && body.selectedUnits && body.selectedUnits.length > 0) {
-      const productUnits = [];
-      
-      for (const unit of body.selectedUnits) {
-        const config = body.unitConfigurations[unit.id];
-        if (config) {
-          // Validate and cap numeric values to prevent database overflow
-          const maxValue = 999999999.999999; // Max value for precision 15, scale 6
-          const quantityInStock = Math.min(parseFloat(config.quantityInStock || 0), maxValue);
-          const reorderPoint = Math.min(parseFloat(config.reorderPoint || 0), maxValue);
-          const unitPrice = Math.min(parseFloat(config.unitPrice || 0), maxValue);
-          const costPrice = Math.min(parseFloat(config.costPrice || 0), maxValue);
+      try {
+        const productUnits = [];
+        
+        for (const unit of body.selectedUnits) {
+          if (!unit || !unit.id) {
+            console.warn('Skipping invalid unit:', unit);
+            continue;
+          }
           
-          productUnits.push({
-            productId: product.id,
-            unitId: unit.id,
-            isDefault: config.isDefault || false,
-            unitPrice: unitPrice,
-            costPrice: costPrice,
-            quantityInStock: quantityInStock,
-            reorderPoint: reorderPoint,
-            isActive: true
+          const config = body.unitConfigurations?.[unit.id];
+          if (config) {
+            // Validate and cap numeric values to prevent database overflow
+            const maxValue = 999999999.999999; // Max value for precision 15, scale 6
+            const quantityInStock = Math.min(parseFloat(config.quantityInStock || 0), maxValue);
+            const reorderPoint = Math.min(parseFloat(config.reorderPoint || 0), maxValue);
+            const unitPrice = Math.min(parseFloat(config.unitPrice || 0), maxValue);
+            const costPrice = Math.min(parseFloat(config.costPrice || 0), maxValue);
+            
+            // Validate unit exists
+            const unitExists = await prisma.unit.findUnique({
+              where: { id: unit.id },
+              select: { id: true }
+            });
+            
+            if (!unitExists) {
+              console.warn(`Unit ${unit.id} does not exist, skipping`);
+              continue;
+            }
+            
+            productUnits.push({
+              productId: product.id,
+              unitId: unit.id,
+              isDefault: config.isDefault || false,
+              unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
+              costPrice: isNaN(costPrice) ? 0 : costPrice,
+              quantityInStock: isNaN(quantityInStock) ? 0 : quantityInStock,
+              reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
+              isActive: true
+            });
+          }
+        }
+        
+        if (productUnits.length > 0) {
+          await prisma.productUnit.createMany({
+            data: productUnits
           });
         }
+      } catch (unitError) {
+        console.error('Error creating product units:', unitError);
+        // Don't fail the entire product creation if unit management fails
+        // The product is already created, we'll just log the unit error
       }
-      
-      if (productUnits.length > 0) {
-        await prisma.productUnit.createMany({
-          data: productUnits
+    }
+    
+    // Create FIFO batch if product has initial stock
+    // NOTE: Product was created with stockLevel = 0 if initialStock > 0 and productCost > 0
+    // If productCost is 0, product was created with stockLevel = initialStock, so we need to handle that
+    if (initialStock > 0) {
+      try {
+        // Use product cost, or default to 0 if not provided (FIFO will still work, just with 0 cost)
+        const costForFifo = productCost > 0 ? productCost : 0;
+        
+        // If product was created with stockLevel = initialStock (because cost was 0), 
+        // we need to reset it to 0 before creating the FIFO batch
+        if (productCost === 0 && product.stockLevel !== 0) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { stockLevel: 0 }
+          });
+          product.stockLevel = 0;
+          console.log(`[Product Creation] Reset stockLevel to 0 before creating FIFO batch (cost was 0)`);
+        }
+        
+        // Generate deterministic sourceId for product creation
+        const creationSourceId = `product-creation-${product.id}-${Date.now()}`;
+        
+        await createFifoBatch({
+          tenantId: user.tenantId,
+          branchId: branchIdToSet,
+          productId: product.id,
+          quantityPurchased: initialStock,
+          unitCost: costForFifo,
+          purchaseDate: new Date(),
+          sourceType: 'DirectCreation',
+          sourceId: creationSourceId,
+          tx: prisma,
         });
+        console.log(`[Product Creation] Created FIFO batch for product ${product.id}: ${initialStock} units at ${costForFifo} each`);
+        
+        // Refresh product to get updated stockLevel from createFifoBatch
+        const updatedProduct = await prisma.product.findUnique({
+          where: { id: product.id },
+          select: { stockLevel: true }
+        });
+        if (updatedProduct) {
+          product.stockLevel = updatedProduct.stockLevel;
+          console.log(`[Product Creation] Product ${product.id} stockLevel after FIFO batch: ${updatedProduct.stockLevel}`);
+        }
+      } catch (fifoError) {
+        console.error('[Product Creation] Error creating FIFO batch for new product:', fifoError);
+        // If FIFO fails, manually set stockLevel as fallback
+        if (initialStock > 0) {
+          await prisma.product.update({
+            where: { id: product.id },
+            data: { stockLevel: initialStock }
+          });
+          product.stockLevel = initialStock;
+          console.log(`[Product Creation] Fallback: Set stockLevel to ${initialStock} manually`);
+        }
       }
     }
     
@@ -368,8 +564,27 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating product:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      meta: error.meta
+    });
+    
+    // Return more detailed error information
+    const errorMessage = error.message || 'Failed to create product. Please try again.';
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
     return NextResponse.json(
-      { error: 'Failed to create product. Please try again.' },
+      { 
+        error: errorMessage,
+        ...(isDevelopment && {
+          details: error.message,
+          code: error.code,
+          meta: error.meta
+        })
+      },
       { status: 500 }
     );
   }

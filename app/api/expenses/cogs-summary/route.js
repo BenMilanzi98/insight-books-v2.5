@@ -62,12 +62,60 @@ export async function GET(request) {
     const cogsTransactionStats = await getCOGSTransactionStats(
       user.tenantId,
       defaultStartDate,
-      defaultEndDate
+      defaultEndDate,
+      user?.currentBranchId || null
     );
 
     // Calculate totals
     const totalCOGSExpenses = cogsExpenses.reduce((sum, expense) => sum + expense.amount, 0);
     const totalCOGSTransactions = cogsTransactionStats.totalAmount;
+
+    // Calculate productCount - count unique products that have COGS transactions in this period
+    // Get products from sales that have COGS transactions
+    const saleWhere = {
+      tenantId: user.tenantId,
+      status: 'completed',
+      saleDate: {
+        gte: defaultStartDate,
+        lte: defaultEndDate
+      }
+    };
+
+    // Add branch filtering if user has a branch selected
+    if (user?.currentBranchId) {
+      saleWhere.branchId = user.currentBranchId;
+    }
+
+    const saleItemsWithProducts = await prisma.saleItem.findMany({
+      where: {
+        sale: saleWhere,
+        product: {
+          isNot: null
+        },
+        isCustom: false // Exclude custom items
+      },
+      select: {
+        productId: true,
+        product: {
+          select: {
+            id: true,
+            cost: true,
+            isService: true
+          }
+        }
+      },
+      distinct: ['productId']
+    });
+
+    // Filter to only count products with cost > 0 and not services
+    const productsWithCOGS = saleItemsWithProducts.filter(item => 
+      item.product && 
+      !item.product.isService && 
+      item.product.cost && 
+      Number(item.product.cost) > 0
+    );
+
+    const productCount = productsWithCOGS.length;
 
     // Note: We use only transactions for totalCOGS to avoid double counting
     // COGS expenses are already included in the transaction entries
@@ -133,6 +181,7 @@ export async function GET(request) {
         totalCOGS: totalCOGSTransactions, // Use only transactions, not expenses + transactions
         expenseCount: cogsExpenses.length,
         transactionCount: cogsTransactionStats.transactionCount,
+        productCount: productCount, // Count of products with COGS in this period
         period: {
           startDate: defaultStartDate.toISOString().split('T')[0],
           endDate: defaultEndDate.toISOString().split('T')[0]

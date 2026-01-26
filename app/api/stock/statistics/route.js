@@ -18,10 +18,15 @@ export async function GET(request) {
     // Get total products count (excluding soft-deleted products if field exists)
     let whereClause = { tenantId: user.tenantId };
     
+    // Add branch filtering - Product model uses branch relation, not branchId
+    if (user?.currentBranchId) {
+      whereClause.branchId = user.currentBranchId;
+    }
+    
     // Check if isDeleted field exists by trying to query with it
     try {
       await prisma.product.findFirst({
-        where: { tenantId: user.tenantId, isDeleted: false },
+        where: { ...whereClause, isDeleted: false },
         select: { id: true }
       });
       // If no error, the field exists, so use it

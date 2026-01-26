@@ -388,6 +388,8 @@ const InventoryManagement = () => {
           // Only log unexpected errors (not 409 conflicts that we handle)
           if (!suppressExpectedErrors || response.status !== 409) {
             console.error('Error creating product:', error);
+            console.error('Error details:', errorData);
+            console.error('Response status:', response.status);
           }
           throw error;
         }
@@ -1418,6 +1420,12 @@ const InventoryManagement = () => {
   
   // Handle transaction form submission
   const handleTransactionSubmit = async (formData) => {
+    // Prevent double submission
+    if (isSubmitting) {
+      console.warn('Transaction already submitting, ignoring duplicate call');
+      return;
+    }
+    
     setIsSubmitting(true);
     
     // Get transaction type and quantity for better feedback
@@ -1433,6 +1441,7 @@ const InventoryManagement = () => {
         productId: selectedItem?.id,
         type: formData.type,
         quantity: formData.quantity,
+        unitCost: formData.unitCost || null, // Include unitCost for FIFO
         notes: formData.notes || null
       };
       const result = await inventoryService.recordTransaction(payload);
@@ -2430,7 +2439,13 @@ const InventoryManagement = () => {
                       <td className="px-4 py-4 text-sm">
                         <StatusBadge status={item.status} />
                       </td>
-                      <td className="px-4 py-4 text-sm text-gray-900 font-semibold">{formatCurrency(item.quantityInStock * item.costPrice)}</td>
+                      <td className="px-4 py-4 text-sm text-gray-900 font-semibold">
+                        {formatCurrency(
+                          item.totalStockValue != null && !isNaN(Number(item.totalStockValue))
+                            ? Number(item.totalStockValue)
+                            : (item.quantityInStock * (item.costPrice || 0))
+                        )}
+                      </td>
                       <td className="px-4 py-4 text-sm">
                         <div className="flex space-x-2" onClick={(e) => e.stopPropagation()}>
                           {showDeletedItems ? (
@@ -2971,7 +2986,13 @@ const InventoryManagement = () => {
                     </div>
                     <div>
                       <span className="text-sm text-gray-500">Stock Value</span>
-                      <div className="text-lg font-bold">{formatCurrency(selectedItem.quantityInStock * selectedItem.costPrice)}</div>
+                      <div className="text-lg font-bold">
+                        {formatCurrency(
+                          selectedItem.totalStockValue != null && !isNaN(Number(selectedItem.totalStockValue))
+                            ? Number(selectedItem.totalStockValue)
+                            : (selectedItem.quantityInStock * (selectedItem.costPrice || 0))
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -4536,22 +4557,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">SKU*</label>
-                  <input
-                    type="text"
-                    name="sku"
-                    value={formData.sku}
-                    onChange={handleChange}
-                    className={`w-full p-2 border ${errors.sku ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                    placeholder="Product SKU"
-                  />
-                  {errors.sku && <p className="mt-1 text-sm text-red-500">{errors.sku}</p>}
-                  <p className="mt-1 text-xs text-gray-500">
-                    Unique identifier (e.g., TECH-KB-001 for Technology/Keyboard)
-                  </p>
-                </div>
-                
-                <div>
                   <DynamicCategorySelect
                     value={formData.category}
                     onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
@@ -4911,6 +4916,7 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
   const [formData, setFormData] = useState({
     type: initialType || "Stock In", // Use initialType if provided, otherwise default to "Stock In"
     quantity: "",
+    unitCost: "", // For FIFO costing when adding stock
     notes: ""
   });
   
@@ -4918,9 +4924,12 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
   
   // Reset form when product or initialType changes
   useEffect(() => {
+    // Pre-fill unit cost with product's current cost for Stock In
+    const defaultCost = product?.costPrice || product?.cost || product?.lastPurchaseCost || "";
     setFormData({
       type: initialType || "Stock In", // Use initialType if provided
       quantity: "",
+      unitCost: initialType === "Stock In" ? (defaultCost || "") : "",
       notes: ""
     });
     setErrors({});
@@ -4933,7 +4942,12 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
     // For number fields, allow empty string or convert to number
     let processedValue;
     if (type === 'number') {
-      processedValue = value === '' ? '' : parseInt(value, 10) || '';
+      // For unitCost, allow decimals; for quantity, use integers
+      if (name === 'unitCost') {
+        processedValue = value === '' ? '' : (isNaN(parseFloat(value)) ? '' : value);
+      } else {
+        processedValue = value === '' ? '' : parseInt(value, 10) || '';
+      }
     } else {
       processedValue = value;
     }
@@ -4976,6 +4990,12 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
     
     if (!validateForm()) {
       return;
@@ -5095,6 +5115,31 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
                 />
                 {errors.quantity && <p className="mt-1 text-sm text-red-500">{errors.quantity}</p>}
               </div>
+              
+              {formData.type === "Stock In" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Unit Cost (MWK)
+                    <span className="text-gray-400 text-xs ml-1">(for FIFO costing)</span>
+                  </label>
+                  <input
+                    type="number"
+                    name="unitCost"
+                    value={formData.unitCost}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className={`w-full p-2 border ${errors.unitCost ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                    placeholder="Purchase cost per unit"
+                  />
+                  {errors.unitCost && <p className="mt-1 text-sm text-red-500">{errors.unitCost}</p>}
+                  <p className="mt-1 text-xs text-gray-500">
+                    {formData.unitCost ? 
+                      `Total: MWK ${(parseFloat(formData.quantity || 0) * parseFloat(formData.unitCost || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}` :
+                      `⚠️ Will use product's current cost (${product?.cost || product?.costPrice || 0}) - Enter cost for accurate FIFO tracking`}
+                  </p>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>

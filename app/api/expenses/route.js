@@ -48,10 +48,13 @@ export async function GET(request) {
       isDeleted: includeDeleted === 'true' ? undefined : false // Exclude deleted by default
     };
     
-    // Add branch filter if provided
+    // Add branch filter - use provided branchId or user's current branch
     const branchId = searchParams.get('branchId');
     if (branchId) {
       whereClause.branchId = branchId;
+    } else if (user?.currentBranchId) {
+      // Auto-filter by user's current branch if no branchId provided
+      whereClause.branchId = user.currentBranchId;
     }
     
     // Add status filter if provided

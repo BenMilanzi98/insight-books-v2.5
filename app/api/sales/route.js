@@ -121,6 +121,15 @@ export async function GET(request) {
       tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
     };
     
+    // Add branch filter - use provided branchId or user's current branch
+    const branchId = searchParams.get('branchId');
+    if (branchId) {
+      where.branchId = branchId;
+    } else if (user?.currentBranchId) {
+      // Auto-filter by user's current branch if no branchId provided
+      where.branchId = user.currentBranchId;
+    }
+    
     // Add status filter if provided
     if (status) {
       where.status = status;
@@ -633,15 +642,25 @@ export async function POST(request) {
           console.log('Total Amount:', finalTotal);
           try {
             // Calculate total COGS for all inventory items
+            // Use the created 'items' array (with database IDs) instead of 'data.items'
             let totalCOGS = 0;
-            const hasServices = data.items.some(item => item.isCustom || !item.productId);
+            const hasServices = items.some(item => item.isCustom || !item.productId);
 
-            for (const item of data.items) {
-              if (item.productId && !item.isCustom) {
+            // Match data.items with created items by index (they should be in the same order)
+            for (let i = 0; i < data.items.length; i++) {
+              const dataItem = data.items[i];
+              const saleItem = items[i];
+              
+              if (!saleItem) {
+                console.warn(`SaleItem not found at index ${i}`);
+                continue;
+              }
+
+              if (dataItem.productId && !dataItem.isCustom) {
                 try {
                   // Check if product is a service (services don't have COGS)
                   const product = await tx.product.findUnique({
-                    where: { id: item.productId },
+                    where: { id: dataItem.productId },
                     select: { 
                       id: true, 
                       isService: true,
@@ -653,37 +672,100 @@ export async function POST(request) {
                   
                   // Only calculate COGS for non-service products
                   if (product && !product.isService) {
-                    const fifo = await consumeFifoForSale({
-                      tenantId: user.tenantId,
-                      branchId: sale.branchId || product.branchId || null,
-                      productId: item.productId,
-                      quantitySold: item.quantity,
-                      saleId: sale.id,
-                      saleItemId: item.id || null,
-                      tx,
+                    // Get product cost at time of sale (to store for fallback if FIFO fails)
+                    const productAtSaleTime = await tx.product.findUnique({
+                      where: { id: dataItem.productId },
+                      select: { cost: true }
                     });
+                    const productCostAtSale = productAtSaleTime?.cost ? Number(productAtSaleTime.cost) : 0;
+                    
+                    // Try FIFO consumption - it will handle branch fallback internally
+                    let itemCOGS = 0;
+                    try {
+                      const fifo = await consumeFifoForSale({
+                        tenantId: user.tenantId,
+                        // IMPORTANT: batches are created with the product's branchId (when branch-scoped),
+                        // so prefer product.branchId for FIFO matching. Using sale.branchId first can cause
+                        // "no batches found" and silently fall back to productCostAtSale.
+                        branchId: product.branchId || sale.branchId || null,
+                        productId: dataItem.productId,
+                        quantitySold: dataItem.quantity,
+                        saleId: sale.id,
+                        saleItemId: saleItem.id, // Use the actual database ID from created sale item
+                        tx,
+                      });
 
-                    // Persist read-only COGS details on the SaleItem payload (system-only)
-                    // Uses existing JSON field to avoid schema changes on SaleItem.
-                    if (item.id) {
+                      // Persist read-only COGS details on the SaleItem payload (system-only)
+                      // Uses existing JSON field to avoid schema changes on SaleItem.
+                      // Ensure cogsAmount is stored as a plain number (not Decimal)
+                      const cogsAmountValue = typeof fifo.cogsAmount === 'object' && fifo.cogsAmount?.toNumber 
+                        ? fifo.cogsAmount.toNumber() 
+                        : Number(fifo.cogsAmount);
+                      
+                      itemCOGS = cogsAmountValue;
+                      console.log(`[FIFO Sale] ✅ Calculated FIFO COGS: ${cogsAmountValue} for ${dataItem.quantity} units`);
+                      console.log(`[FIFO Sale] Allocations:`, fifo.allocations.map(a => `${a.quantity} @ ${a.unitCost} = ${a.cogsAmount}`).join(', '));
+                      
                       await tx.saleItem.update({
-                        where: { id: item.id },
+                        where: { id: saleItem.id },
                         data: {
                           customProductData: {
-                            ...(item.customProductData || {}),
+                            ...(saleItem.customProductData || {}),
                             fifoCogs: {
-                              cogsAmount: fifo.cogsAmount,
-                              allocations: fifo.allocations,
+                              cogsAmount: cogsAmountValue,
+                              allocations: fifo.allocations.map(alloc => ({
+                                batchId: alloc.batchId,
+                                quantity: typeof alloc.quantity === 'object' && alloc.quantity?.toNumber 
+                                  ? alloc.quantity.toNumber() 
+                                  : Number(alloc.quantity),
+                                unitCost: typeof alloc.unitCost === 'object' && alloc.unitCost?.toNumber 
+                                  ? alloc.unitCost.toNumber() 
+                                  : Number(alloc.unitCost),
+                                cogsAmount: typeof alloc.cogsAmount === 'object' && alloc.cogsAmount?.toNumber
+                                  ? alloc.cogsAmount.toNumber() 
+                                  : Number(alloc.cogsAmount),
+                              })),
                             },
+                            // Store product cost at time of sale for fallback
+                            productCostAtSale: productCostAtSale,
                           },
                         },
                       });
+                      
+                      console.log(`[FIFO Sale] ✅ FIFO COGS stored in customProductData for SaleItem ${saleItem.id}: ${cogsAmountValue}`);
+                    } catch (fifoError) {
+                      console.error(`[FIFO Sale] ❌ Error calculating FIFO COGS for product ${dataItem.productId}:`, fifoError);
+                      console.error('[FIFO Sale] Error details:', {
+                        message: fifoError.message,
+                        stack: fifoError.stack,
+                        productId: dataItem.productId,
+                        quantity: dataItem.quantity,
+                        branchId: product.branchId || sale.branchId || null
+                      });
+                      
+                      // FIFO failed - use product cost at sale time as fallback
+                      itemCOGS = dataItem.quantity * productCostAtSale;
+                      console.warn(`[FIFO Sale] ⚠️ Using product cost at sale time as fallback: ${productCostAtSale} × ${dataItem.quantity} = ${itemCOGS}`);
+                      
+                      // Store product cost at sale time for fallback calculation
+                      await tx.saleItem.update({
+                        where: { id: saleItem.id },
+                        data: {
+                          customProductData: {
+                            ...(saleItem.customProductData || {}),
+                            productCostAtSale: productCostAtSale,
+                          },
+                        },
+                      });
+                      console.log(`[FIFO Sale] Stored product cost at sale time: ${productCostAtSale} for fallback COGS calculation`);
                     }
-
-                    totalCOGS += fifo.cogsAmount;
+                    
+                    // Add to total COGS (either from FIFO or fallback)
+                    totalCOGS += itemCOGS;
+                    console.log(`[FIFO Sale] Total COGS after this item: ${totalCOGS} (item COGS: ${itemCOGS})`);
                   }
                 } catch (cogsError) {
-                  console.error(`❌ Error calculating COGS for product ${item.productId}:`, cogsError);
+                  console.error(`❌ Error in COGS calculation block for product ${dataItem.productId}:`, cogsError);
                   console.error('COGS Error details:', {
                     message: cogsError.message,
                     stack: cogsError.stack

@@ -300,6 +300,12 @@ export async function POST(request) {
  * Finalize inventory purchase bill - update inventory and create journal entries
  */
 async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
+  // Fetch bill with goodsReceiptId to check if it's from a goods receipt
+  const billWithReceipt = await tx.supplierBill.findUnique({
+    where: { id: bill.id },
+    select: { id: true, goodsReceiptId: true, billNumber: true }
+  });
+  
   // Get or create inventory account
   let inventoryAccount = await tx.account.findFirst({
     where: {
@@ -351,6 +357,10 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
   }
 
   // Update inventory for each line item
+  // IMPORTANT: If this bill was created from a goods receipt, FIFO batches were already created
+  // when the goods receipt was created, so we skip FIFO batch creation here to avoid double counting
+  const isFromGoodsReceipt = !!billWithReceipt?.goodsReceiptId;
+  
   for (const item of bill.items) {
     if (!item.productId) continue;
 
@@ -364,18 +374,24 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
     const quantity = Number(item.quantity || 0);
     const unitCost = Number(item.unitCost || 0);
 
-    // FIFO batch creation is the source of truth for cost (system-generated)
-    await createFifoBatch({
-      tenantId,
-      branchId: product.branchId || null,
-      productId: product.id,
-      quantityPurchased: quantity,
-      unitCost,
-      purchaseDate: bill.billDate,
-      sourceType: 'SupplierBill',
-      sourceId: bill.id,
-      tx,
-    });
+    // Only create FIFO batch if this bill is NOT from a goods receipt
+    // (goods receipts already created the FIFO batches)
+    if (!isFromGoodsReceipt) {
+      // FIFO batch creation is the source of truth for cost (system-generated)
+      await createFifoBatch({
+        tenantId,
+        branchId: product.branchId || null,
+        productId: product.id,
+        quantityPurchased: quantity,
+        unitCost,
+        purchaseDate: bill.billDate,
+        sourceType: 'SupplierBill',
+        sourceId: bill.id,
+        tx,
+      });
+    } else {
+      console.log(`Skipping FIFO batch creation for bill ${bill.billNumber} - already created from goods receipt ${bill.goodsReceiptId}`);
+    }
 
     // Create inventory transaction record
     await tx.inventoryTransaction.create({

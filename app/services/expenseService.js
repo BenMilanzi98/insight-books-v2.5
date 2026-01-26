@@ -3,7 +3,7 @@
 // Fetch expenses with optional filters, sorting, and pagination
 export const fetchExpenses = async (params = {}) => {
     try {
-      const { page, limit, sortBy, sortOrder, status, category, search, dateFrom, dateTo } = params;
+      const { page, limit, sortBy, sortOrder, status, category, search, dateFrom, dateTo, branchId } = params;
       
       // Build query string from params
       const queryParams = new URLSearchParams();
@@ -16,6 +16,9 @@ export const fetchExpenses = async (params = {}) => {
       if (search) queryParams.append('search', search);
       if (dateFrom) queryParams.append('dateFrom', dateFrom);
       if (dateTo) queryParams.append('dateTo', dateTo);
+      // Note: branchId is handled automatically by API using user's currentBranchId
+      // Only pass branchId if explicitly provided (e.g., for "All Branches" view)
+      if (branchId) queryParams.append('branchId', branchId);
       
       const queryString = queryParams.toString();
       const url = `/api/expenses${queryString ? `?${queryString}` : ''}`;

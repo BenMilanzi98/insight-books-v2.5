@@ -2084,7 +2084,8 @@ model Budget {
 model BudgetItem {
   id             String   @id @default(cuid())
   budgetId       String
-  accountId      String
+  accountId      String?  // Optional: for account-based budgets
+  category       String?  // Optional: for category-based budgets (e.g., "Rent Expense")
   period         DateTime // Month/quarter for this budget item
   budgetedAmount Float
   actualAmount   Float    @default(0)
@@ -2093,11 +2094,12 @@ model BudgetItem {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   budget         Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  account        Account  @relation(fields: [accountId], references: [id])
+  account        Account? @relation(fields: [accountId], references: [id])
 
-  @@unique([budgetId, accountId, period])
+  @@unique([budgetId, accountId, category, period])
   @@index([budgetId])
   @@index([accountId])
+  @@index([category])
   @@index([period])
 }
 

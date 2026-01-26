@@ -15,10 +15,18 @@ export const fetchTrialBalance = async (timeframe = 'thisMonth') => {
     // Calculate date range based on timeframe
     const { startDate, endDate } = calculateDateRange(timeframe);
     
+    // Format dates as YYYY-MM-DD strings
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     // Build query parameters
     const queryParams = new URLSearchParams();
-    queryParams.append('startDate', startDate);
-    queryParams.append('endDate', endDate);
+    queryParams.append('startDate', formatDate(startDate));
+    queryParams.append('endDate', formatDate(endDate));
     
     const response = await fetch(`/api/reports/trial-balance?${queryParams.toString()}`);
     
@@ -45,10 +53,18 @@ export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf'
     // Calculate date range based on timeframe
     const { startDate, endDate } = calculateDateRange(timeframe);
     
+    // Format dates as YYYY-MM-DD strings
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    
     // Build query parameters
     const queryParams = new URLSearchParams();
-    queryParams.append('startDate', startDate);
-    queryParams.append('endDate', endDate);
+    queryParams.append('startDate', formatDate(startDate));
+    queryParams.append('endDate', formatDate(endDate));
     queryParams.append('format', format);
     
     const response = await fetch(`/api/reports/trial-balance/export?${queryParams.toString()}`);

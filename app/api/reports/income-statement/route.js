@@ -223,40 +223,116 @@ export async function generateIncomeStatement(tenantId, startDate, endDate, taxR
     details: []
   };
   
-  // Calculate COGS from sales
+  // Calculate COGS from sales using FIFO or stored cost at sale time
   for (const sale of sales) {
     for (const item of sale.items) {
-      if (item.productId && item.product && !item.product.isService && item.product.cost) {
-        const itemCOGS = item.quantity * item.product.cost;
-        cogs.costOfProductsSold += itemCOGS;
-        cogs.details.push({
-          saleId: sale.id,
-          saleNumber: sale.saleNumber,
-          productId: item.productId,
-          productName: item.product.name,
-          quantity: item.quantity,
-          cost: item.product.cost,
-          cogsAmount: itemCOGS
-        });
+      if (item.productId && item.product && !item.product.isService) {
+        let itemCOGS = 0;
+        let productCost = 0;
+        
+        // Priority 1: Use stored FIFO COGS from customProductData
+        if (item.customProductData) {
+          let customData = item.customProductData;
+          if (typeof customData === 'string') {
+            try {
+              customData = JSON.parse(customData);
+            } catch (e) {
+              customData = null;
+            }
+          }
+          
+          if (customData && typeof customData === 'object') {
+            // Try FIFO COGS first
+            if (customData.fifoCogs && customData.fifoCogs.cogsAmount !== undefined) {
+              const fifoCogs = customData.fifoCogs.cogsAmount;
+              itemCOGS = typeof fifoCogs === 'object' && fifoCogs?.toNumber 
+                ? fifoCogs.toNumber() 
+                : Number(fifoCogs);
+              productCost = itemCOGS / item.quantity; // Average cost per unit
+            }
+            // Fallback to stored cost at sale time
+            else if (customData.productCostAtSale !== undefined) {
+              productCost = Number(customData.productCostAtSale);
+              itemCOGS = item.quantity * productCost;
+            }
+          }
+        }
+        
+        // Priority 2: Use current product cost (last resort)
+        if (itemCOGS === 0 && item.product.cost) {
+          productCost = Number(item.product.cost);
+          itemCOGS = item.quantity * productCost;
+        }
+        
+        if (itemCOGS > 0) {
+          cogs.costOfProductsSold += itemCOGS;
+          cogs.details.push({
+            saleId: sale.id,
+            saleNumber: sale.saleNumber,
+            productId: item.productId,
+            productName: item.product.name,
+            quantity: item.quantity,
+            cost: productCost,
+            cogsAmount: itemCOGS
+          });
+        }
       }
     }
   }
   
-  // Calculate COGS from invoices
+  // Calculate COGS from invoices using stored cost at invoice time
   for (const invoice of invoices) {
     for (const item of invoice.items) {
-      if (item.productId && item.product && !item.product.isService && item.product.cost) {
-        const itemCOGS = item.quantity * item.product.cost;
-        cogs.costOfProductsSold += itemCOGS;
-        cogs.details.push({
-          invoiceId: invoice.id,
-          invoiceNumber: invoice.invoiceNumber,
-          productId: item.productId,
-          productName: item.product.name,
-          quantity: item.quantity,
-          cost: item.product.cost,
-          cogsAmount: itemCOGS
-        });
+      if (item.productId && item.product && !item.product.isService) {
+        let itemCOGS = 0;
+        let productCost = 0;
+        
+        // Try to get stored cost at invoice time from customProductData
+        if (item.customProductData) {
+          let customData = item.customProductData;
+          if (typeof customData === 'string') {
+            try {
+              customData = JSON.parse(customData);
+            } catch (e) {
+              customData = null;
+            }
+          }
+          
+          if (customData && typeof customData === 'object') {
+            // Try FIFO COGS first
+            if (customData.fifoCogs && customData.fifoCogs.cogsAmount !== undefined) {
+              const fifoCogs = customData.fifoCogs.cogsAmount;
+              itemCOGS = typeof fifoCogs === 'object' && fifoCogs?.toNumber 
+                ? fifoCogs.toNumber() 
+                : Number(fifoCogs);
+              productCost = itemCOGS / item.quantity;
+            }
+            // Fallback to stored cost at invoice time
+            else if (customData.productCostAtSale !== undefined) {
+              productCost = Number(customData.productCostAtSale);
+              itemCOGS = item.quantity * productCost;
+            }
+          }
+        }
+        
+        // Last resort: use current product cost
+        if (itemCOGS === 0 && item.product.cost) {
+          productCost = Number(item.product.cost);
+          itemCOGS = item.quantity * productCost;
+        }
+        
+        if (itemCOGS > 0) {
+          cogs.costOfProductsSold += itemCOGS;
+          cogs.details.push({
+            invoiceId: invoice.id,
+            invoiceNumber: invoice.invoiceNumber,
+            productId: item.productId,
+            productName: item.product.name,
+            quantity: item.quantity,
+            cost: productCost,
+            cogsAmount: itemCOGS
+          });
+        }
       }
     }
   }

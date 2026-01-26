@@ -159,11 +159,16 @@ const ExpensesPage = () => {
   const [cogsSettlementModalOpen, setCogsSettlementModalOpen] = useState(false);
   const [isSettlingCogs, setIsSettlingCogs] = useState(false);
   const [cogsSettlementSuccess, setCogsSettlementSuccess] = useState(false);
-  const [cogsActiveTab, setCogsActiveTab] = useState("summary"); // summary, expenses, settlement
+  const [cogsActiveTab, setCogsActiveTab] = useState("settlement"); // settlement, tracking
   const [recordedCogsAmount, setRecordedCogsAmount] = useState(0);
   const [lastRecordedCogsTotal, setLastRecordedCogsTotal] = useState(0);
   const [isRecordingCogs, setIsRecordingCogs] = useState(false);
   const [cogsRecordingSuccess, setCogsRecordingSuccess] = useState(false);
+  const [isLoadingCogs, setIsLoadingCogs] = useState(false);
+  const [cogsDateRange, setCogsDateRange] = useState({
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
+  });
   
   useEffect(() => {
     const fetchPermissions = async () => { 
@@ -1129,8 +1134,21 @@ const handleFileUpload = async (e) => {
   // Load COGS data
   const loadCogsData = async () => {
     try {
+      setIsLoadingCogs(true);
+      // Build query params with date range
+      const queryParams = new URLSearchParams();
+      if (cogsDateRange.startDate) {
+        queryParams.append('startDate', cogsDateRange.startDate);
+      }
+      if (cogsDateRange.endDate) {
+        queryParams.append('endDate', cogsDateRange.endDate);
+      }
+      
+      const queryString = queryParams.toString();
+      const summaryUrl = `/api/expenses/cogs-summary${queryString ? `?${queryString}` : ''}`;
+      
       const [summaryResponse, expensesResponse] = await Promise.all([
-        fetch('/api/expenses/cogs-summary'),
+        fetch(summaryUrl),
         fetch('/api/expenses/cogs-settlement')
       ]);
       
@@ -1145,6 +1163,8 @@ const handleFileUpload = async (e) => {
       }
     } catch (error) {
       console.error('Error loading COGS data:', error);
+    } finally {
+      setIsLoadingCogs(false);
     }
   };
 
@@ -1294,12 +1314,12 @@ const handleFileUpload = async (e) => {
     initializeData();
   }, []);
 
-  // Load COGS data when switching to COGS tab
+  // Load COGS data when switching to COGS tab or when date range changes
   useEffect(() => {
     if (mainTab === "cogs") {
       loadCogsData();
     }
-  }, [mainTab]);
+  }, [mainTab, cogsDateRange.startDate, cogsDateRange.endDate]);
 
   return (
     <PermissionGuard permission="expenses.view">    
@@ -2577,28 +2597,6 @@ const handleFileUpload = async (e) => {
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
               <button
-                onClick={() => setCogsActiveTab("summary")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
-                  cogsActiveTab === "summary"
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <BarChart className="h-4 w-4 mr-2" />
-                Summary
-              </button>
-              <button
-                onClick={() => setCogsActiveTab("expenses")}
-                className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
-                  cogsActiveTab === "expenses"
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <Receipt className="h-4 w-4 mr-2" />
-                COGS Expenses
-              </button>
-              <button
                 onClick={() => setCogsActiveTab("settlement")}
                 className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
                   cogsActiveTab === "settlement"
@@ -2623,180 +2621,112 @@ const handleFileUpload = async (e) => {
             </nav>
           </div>
 
-          {/* COGS Summary Tab */}
-          {cogsActiveTab === "summary" && (
-            <div className="space-y-6">
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center mb-4">
-                    <div className="rounded-full bg-blue-100 p-3 mr-4 flex-shrink-0">
-                      <DollarSign className="w-6 h-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold">
-                        MK {cogsSummary?.summary?.totalCOGS?.toLocaleString() || '0.00'}
-                      </div>
-                      <div className="text-sm text-gray-500">Total COGS</div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {cogsSummary?.summary?.expenseCount || 0} expenses recorded
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center mb-4">
-                    <div className="rounded-full bg-green-100 p-3 mr-4 flex-shrink-0">
-                      <TrendingUp className="w-6 h-6 text-green-600" />
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold">
-                        MK {cogsSummary?.summary?.totalCOGSExpenses?.toLocaleString() || '0.00'}
-                      </div>
-                      <div className="text-sm text-gray-500">COGS Expenses</div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Settlement expenses
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center mb-4">
-                    <div className="rounded-full bg-purple-100 p-3 mr-4 flex-shrink-0">
-                      <BarChart className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <div className="text-lg font-bold">
-                        {cogsSummary?.summary?.transactionCount || 0}
-                      </div>
-                      <div className="text-sm text-gray-500">COGS Transactions</div>
-                    </div>
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    From sales integration
-                  </div>
-                </div>
-              </div>
-
-              {/* COGS Trends Chart */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-semibold mb-4">COGS Trends (Last 6 Months)</h3>
-                <COGSSummaryChart data={cogsSummary?.trends || []} />
-              </div>
-
-              {/* COGS by Category */}
-              {cogsSummary?.cogsByCategory && cogsSummary.cogsByCategory.length > 0 && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h3 className="text-lg font-semibold mb-4">COGS by Category</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {cogsSummary.cogsByCategory.map((category, index) => (
-                      <div key={index} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex justify-between items-center mb-2">
-                          <span className="text-sm font-medium text-gray-900">{category.category}</span>
-                          <span className="text-sm text-gray-500">{category.count} items</span>
-                        </div>
-                        <div className="text-lg font-bold text-blue-600">
-                          MK {category.amount.toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* COGS Expenses Tab */}
-          {cogsActiveTab === "expenses" && (
-            <div className="space-y-6">
-
-              {/* Summary Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-xl p-6 shadow-sm border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-blue-600 text-sm font-medium">Total COGS Batches</p>
-                      <p className="text-3xl font-bold text-blue-900 mt-2">
-                        {cogsExpenses ? cogsExpenses.length : 0}
-                      </p>
-                    </div>
-                    <div className="bg-blue-500 p-3 rounded-full">
-                      <Receipt className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  <p className="text-blue-700 text-sm mt-2">Number of settlement batches</p>
-                </div>
-
-                <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-xl p-6 shadow-sm border border-green-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-green-600 text-sm font-medium">Total Amount Recorded</p>
-                      <p className="text-3xl font-bold text-green-900 mt-2">
-                        MK {cogsExpenses && cogsExpenses.length > 0 
-                          ? cogsExpenses.reduce((sum, expense) => {
-                              // Parse formatted amount string (e.g., "1,000.00" -> 1000)
-                              const amountStr = String(expense.amount || 0).replace(/,/g, '');
-                              return sum + (parseFloat(amountStr) || 0);
-                            }, 0).toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })
-                          : '0.00'}
-                      </p>
-                    </div>
-                    <div className="bg-green-500 p-3 rounded-full">
-                      <DollarSign className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  <p className="text-green-700 text-sm mt-2">Total COGS expenses recorded</p>
-                </div>
-
-                <div className="bg-gradient-to-r from-purple-50 to-purple-100 rounded-xl p-6 shadow-sm border border-purple-200">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-purple-600 text-sm font-medium">Average Batch</p>
-                      <p className="text-3xl font-bold text-purple-900 mt-2">
-                        MK {cogsExpenses && cogsExpenses.length > 0 
-                          ? (cogsExpenses.reduce((sum, expense) => {
-                              // Parse formatted amount string (e.g., "1,000.00" -> 1000)
-                              const amountStr = String(expense.amount || 0).replace(/,/g, '');
-                              return sum + (parseFloat(amountStr) || 0);
-                            }, 0) / cogsExpenses.length).toLocaleString(undefined, {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })
-                          : '0.00'}
-                      </p>
-                    </div>
-                    <div className="bg-purple-500 p-3 rounded-full">
-                      <BarChart className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  <p className="text-purple-700 text-sm mt-2">Average per batch</p>
-                </div>
-              </div>
-
-              {/* COGS Expenses Table */}
-            <div className="bg-white rounded-lg shadow">
-              <div className="p-6 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">COGS Settlement History</h3>
-                  <p className="text-gray-600 text-sm mt-1">View and manage your COGS settlement transactions</p>
-              </div>
-              <div className="p-6">
-                <COGSExpensesTable 
-                  expenses={cogsExpenses} 
-                />
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* COGS Total Tab */}
           {cogsActiveTab === "settlement" && (
             <div className="space-y-6">
-              {/* COGS Total Card */}
+              {/* Date Filter Section */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-100 p-6">
+                <div className="flex items-center mb-4">
+                  <div className="bg-blue-100 p-2 rounded-lg mr-3">
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Date Range Filter</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      Start Date
+                    </label>
+                    <input
+                      type="date"
+                      value={cogsDateRange.startDate}
+                      onChange={(e) => setCogsDateRange({ ...cogsDateRange, startDate: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                    />
+                  </div>
+                  <div className="md:col-span-1">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Calendar className="w-4 h-4 inline mr-1" />
+                      End Date
+                    </label>
+                    <input
+                      type="date"
+                      value={cogsDateRange.endDate}
+                      onChange={(e) => setCogsDateRange({ ...cogsDateRange, endDate: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex gap-2">
+                    <button
+                      onClick={loadCogsData}
+                      disabled={isLoadingCogs}
+                      className="flex-1 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md"
+                    >
+                      {isLoadingCogs ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <Filter className="w-4 h-4" />
+                          Apply Filter
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const now = new Date();
+                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                        setCogsDateRange({
+                          startDate: firstDay.toISOString().split('T')[0],
+                          endDate: lastDay.toISOString().split('T')[0]
+                        });
+                      }}
+                      className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-medium text-sm border border-gray-300"
+                      title="Reset to current month"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                {cogsSummary?.summary?.period && (
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">Showing data for:</span>{' '}
+                      {new Date(cogsSummary.summary.period.startDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}{' '}
+                      to{' '}
+                      {new Date(cogsSummary.summary.period.endDate).toLocaleDateString('en-US', { 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Loading State */}
+              {isLoadingCogs && (
+                <div className="bg-white rounded-lg shadow p-8 flex justify-center items-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading COGS data...</p>
+                  </div>
+                </div>
+              )}
+
+              {/* COGS Content - Only show when not loading */}
+              {!isLoadingCogs && (
+                <>
+                  {/* COGS Total Card */}
             <div className="bg-white rounded-lg shadow p-6">
                 <div className="text-center">
                   <div className="flex items-center justify-center mb-6">
@@ -2806,81 +2736,30 @@ const handleFileUpload = async (e) => {
                     <div>
                       <h3 className="text-2xl font-bold text-gray-900">Accumulative COGS Total</h3>
                       <p className="text-gray-600">Total Cost of Goods Sold from all products</p>
+                      {cogsSummary?.summary?.period && (
+                        <p className="text-sm text-gray-500 mt-1">
+                          {new Date(cogsSummary.summary.period.startDate).toLocaleDateString()} - {new Date(cogsSummary.summary.period.endDate).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   </div>
                   
-                  {/* New COGS Amount */}
+                  {/* Total COGS Amount */}
                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-8 mb-6">
                     <div className="text-4xl font-bold text-blue-600 mb-2">
-                      MK {((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal).toLocaleString()}
+                      MK {(cogsSummary?.summary?.totalCOGS || 0).toLocaleString()}
                     </div>
-                    <div className="text-lg text-gray-600 mb-4">New COGS Transactions</div>
+                    <div className="text-lg text-gray-600 mb-4">Total COGS</div>
                     <div className="text-sm text-gray-500">
-                      {cogsSummary?.summary?.transactionCount || 0} total COGS transactions
+                      {cogsSummary?.summary?.transactionCount || 0} sales with COGS
                     </div>
                     {lastRecordedCogsTotal > 0 && (
                       <div className="text-sm text-gray-500 mt-2">
-                        Last recorded total: MK {lastRecordedCogsTotal.toLocaleString()}
+                        Previously recorded: MK {lastRecordedCogsTotal.toLocaleString()}
                       </div>
                     )}
                   </div>
 
-                  {/* Record as Expense Button */}
-                  <button
-                    onClick={handleRecordCogsAsExpense}
-                    disabled={isRecordingCogs || ((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal) <= 0}
-                    className={`px-8 py-4 text-white text-lg font-semibold rounded-lg transition-colors shadow-lg hover:shadow-xl flex items-center justify-center mx-auto ${
-                      isRecordingCogs || ((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal) <= 0
-                        ? 'bg-gray-400 cursor-not-allowed'
-                        : 'bg-green-600 hover:bg-green-700'
-                    }`}
-                  >
-                    {isRecordingCogs ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Recording...
-                      </>
-                    ) : cogsRecordingSuccess ? (
-                      <>
-                        <CheckCircle className="w-5 h-5 mr-2 inline" />
-                        Recorded Successfully!
-                      </>
-                    ) : ((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal) <= 0 ? (
-                      <>
-                        <CheckCircle className="w-5 h-5 mr-2 inline" />
-                        No New Transactions
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="w-5 h-5 mr-2 inline" />
-                        Record COGS Batch
-                      </>
-                    )}
-                  </button>
-                  
-                  <p className="text-sm text-gray-500 mt-4">
-                    {((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal) > 0
-                      ? `Click to record MK ${((cogsSummary?.summary?.totalCOGS || 0) - lastRecordedCogsTotal).toLocaleString()} as a COGS batch in both expenses and COGS tab`
-                      : 'No new COGS transactions to record'
-                    }
-                  </p>
-                  
-                  {/* Success Message */}
-                  {cogsRecordingSuccess && (
-                    <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center">
-                        <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                        <div>
-                          <span className="text-green-800 font-medium">
-                            COGS batch recorded successfully!
-                          </span>
-                          <p className="text-green-700 text-sm mt-1">
-                            Recorded in both regular expenses and COGS Expenses tab
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* Reset Button (for administrators) */}
                   {recordedCogsAmount > 0 && (
@@ -2916,7 +2795,7 @@ const handleFileUpload = async (e) => {
               </div>
 
               {/* Additional COGS Information */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center mb-3">
                     <div className="bg-green-100 p-2 rounded-lg mr-3">
@@ -2942,22 +2821,9 @@ const handleFileUpload = async (e) => {
                   </div>
                   <div className="text-sm text-gray-500">Accumulated from all products</div>
                 </div>
-
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center mb-3">
-                    <div className="bg-purple-100 p-2 rounded-lg mr-3">
-                      <BarChart className="w-5 h-5 text-purple-600" />
-                    </div>
-                    <h4 className="font-semibold text-gray-900">Recorded Amount</h4>
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    MK {recordedCogsAmount.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {recordedCogsAmount > 0 ? 'Already recorded as expense' : 'Not yet recorded'}
-                  </div>
-                </div>
               </div>
+              </>
+              )}
             </div>
           )}
 

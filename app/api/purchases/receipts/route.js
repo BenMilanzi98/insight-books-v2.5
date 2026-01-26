@@ -331,35 +331,40 @@ export async function POST(request) {
         throw new Error('Failed to create goods receipt after maximum attempts');
       }
 
-      for (const item of goodsReceipt.items) {
-        const branchId = await resolveBranchId(request, user, null);
-        await createFifoBatch({
-          tenantId: user.tenantId,
-          branchId,
-          productId: item.productId,
-          quantityPurchased: item.quantityReceived,
-          unitCost: item.unitCost,
-          purchaseDate: goodsReceipt.receiptDate || goodsReceipt.createdAt || new Date(),
-          sourceType: 'GoodsReceipt',
-          sourceId: goodsReceipt.id,
-          tx: trx,
-        });
-
-        await trx.inventoryTransaction.create({
-          data: {
-            productId: item.productId,
-            tenantId: user.tenantId,
-            userId: user.id,
-            type: 'goods_receipt',
-            quantity: Number(item.quantityReceived),
-            branchId: await resolveBranchId(request, user, null),
-            notes: `Receipt ${goodsReceipt.receiptNumber}`
-          }
-        });
-      }
-
+      // Resolve branchId once for all items (from request body, session, or user default)
+      const requestBranchId = body.branchId || null;
+      const branchId = await resolveBranchId(user, requestBranchId, user.tenantId);
+      
+      // IMPORTANT: Only update inventory when goods receipt is Posted, not when it's Draft
+      // This ensures products only appear in inventory after receiving, not when ordering
       let journalEntryResult = null;
       if (goodsReceipt.status === 'Posted') {
+        // Create FIFO batches and update inventory only when Posted
+        for (const item of goodsReceipt.items) {
+          await createFifoBatch({
+            tenantId: user.tenantId,
+            branchId,
+            productId: item.productId,
+            quantityPurchased: item.quantityReceived,
+            unitCost: item.unitCost,
+            purchaseDate: goodsReceipt.receiptDate || goodsReceipt.createdAt || new Date(),
+            sourceType: 'GoodsReceipt',
+            sourceId: goodsReceipt.id,
+            tx: trx,
+          });
+
+          await trx.inventoryTransaction.create({
+            data: {
+              productId: item.productId,
+              tenantId: user.tenantId,
+              userId: user.id,
+              type: 'goods_receipt',
+              quantity: Number(item.quantityReceived),
+              branchId: branchId,
+              notes: `Receipt ${goodsReceipt.receiptNumber}`
+            }
+          });
+        }
         journalEntryResult = await createPurchaseReceiptJournalEntry({
           tenantId: user.tenantId,
           userId: user.id,

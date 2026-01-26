@@ -38,6 +38,11 @@ export async function GET(request) {
       isDeleted: false
     };
     
+    // Add branch filter - use user's current branch if available
+    if (user?.currentBranchId) {
+      baseFilter.branchId = user.currentBranchId;
+    }
+    
     // Only add date filter if there are actual date constraints
     if (Object.keys(dateFilter).length > 0) {
       baseFilter.date = dateFilter;

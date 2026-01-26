@@ -92,6 +92,11 @@ export async function GET(request) {
       saleDate: dateFilter
     };
     
+    // Add branch filter - use user's current branch if available
+    if (user?.currentBranchId) {
+      baseFilter.branchId = user.currentBranchId;
+    }
+    
     // Get total sales count and sum
     const totalSales = await prisma.sale.aggregate({
       where: {

@@ -175,13 +175,14 @@ const POSPage = () => {
   
     fetchPermissions();
   }, []);
-  // Load branches and user's default branch
+  // Load branches and auto-select user's current branch from session
   const loadBranches = async () => {
     try {
       setIsLoadingBranches(true);
-      const [branchesRes, userRes] = await Promise.all([
+      const [branchesRes, userRes, currentBranchRes] = await Promise.all([
         fetch('/api/branches?includeInactive=false', { cache: 'no-store' }),
-        fetch('/api/auth/me', { cache: 'no-store' })
+        fetch('/api/auth/me', { cache: 'no-store' }),
+        fetch('/api/branches/switch', { cache: 'no-store' }) // Get current branch from session
       ]);
       
       if (branchesRes.ok) {
@@ -189,19 +190,36 @@ const POSPage = () => {
         if (branchesJson.branches) {
           setBranches(branchesJson.branches);
           
-          // Get user's default branch
-          let defaultBranchId = null;
-          if (userRes.ok) {
-            const userJson = await userRes.json();
-            defaultBranchId = userJson.defaultBranchId;
+          // Priority 1: Use current branch from session (user's active branch)
+          let autoSelectBranchId = null;
+          if (currentBranchRes.ok) {
+            const currentBranchJson = await currentBranchRes.json();
+            autoSelectBranchId = currentBranchJson.branchId;
           }
           
-          // Auto-select user's default branch, or first branch if no default
-          if (!selectedBranchId) {
-            if (defaultBranchId && branchesJson.branches.find(b => b.id === defaultBranchId)) {
-              setSelectedBranchId(defaultBranchId);
+          // Priority 2: Fall back to user's default branch
+          if (!autoSelectBranchId && userRes.ok) {
+            const userJson = await userRes.json();
+            autoSelectBranchId = userJson.defaultBranchId;
+          }
+          
+          // Priority 3: Use first available branch
+          if (!autoSelectBranchId && branchesJson.branches.length > 0) {
+            autoSelectBranchId = branchesJson.branches[0].id;
+          }
+          
+          // Auto-select branch if not already selected
+          if (!selectedBranchId && autoSelectBranchId) {
+            // Verify branch exists and is active
+            const branchExists = branchesJson.branches.find(b => b.id === autoSelectBranchId && b.isActive);
+            if (branchExists) {
+              setSelectedBranchId(autoSelectBranchId);
             } else if (branchesJson.branches.length > 0) {
-              setSelectedBranchId(branchesJson.branches[0].id);
+              // Fallback to first active branch
+              const firstActiveBranch = branchesJson.branches.find(b => b.isActive);
+              if (firstActiveBranch) {
+                setSelectedBranchId(firstActiveBranch.id);
+              }
             }
           }
         }

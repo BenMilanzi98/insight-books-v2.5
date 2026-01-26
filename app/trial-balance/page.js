@@ -7,7 +7,9 @@ import {
   FileText, 
   Printer, 
   RefreshCw, 
-  Search 
+  Search,
+  X,
+  Clock
 } from "lucide-react";
 import Link from "next/link";
 import { fetchTrialBalance, exportTrialBalance } from "@/app/services/trialBalanceService";
@@ -33,6 +35,10 @@ const TrialBalance = () => {
     canExportReports:false,
     canExportTrial:false 
   });
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [accountHistory, setAccountHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   
   useEffect(() => {
     const fetchPermissions = async () => {   
@@ -67,17 +73,25 @@ const TrialBalance = () => {
   const normalizeAccountType = (type) => {
     if (!type) return "Other";
     
-    // Simple mappings for common account types
-    const typeMap = {
-      "ASSET": "Assets",
-      "LIABILITY": "Liabilities",
-      "EQUITY": "Equity",
-      "REVENUE": "Revenue",
-      "EXPENSE": "Expenses",
-      // Add more mappings as needed
-    };
+    const typeStr = String(type).trim();
+    const lower = typeStr.toLowerCase();
     
-    return typeMap[type] || type;
+    // Map API types to display types
+    if (lower === 'asset' || lower === 'assets') return "Assets";
+    if (lower === 'liability' || lower === 'liabilities') return "Liabilities";
+    if (lower === 'equity') return "Equity";
+    if (lower === 'income' || lower === 'revenue') return "Revenue";
+    if (lower === 'expense' || lower === 'expenses') return "Expenses";
+    
+    // Handle uppercase variants
+    if (typeStr === "ASSET" || typeStr === "ASSETS") return "Assets";
+    if (typeStr === "LIABILITY" || typeStr === "LIABILITIES") return "Liabilities";
+    if (typeStr === "EQUITY") return "Equity";
+    if (typeStr === "INCOME" || typeStr === "REVENUE") return "Revenue";
+    if (typeStr === "EXPENSE" || typeStr === "EXPENSES") return "Expenses";
+    
+    // Return as-is if no mapping found
+    return typeStr;
   };
 
   // Helper to format dates from API
@@ -174,6 +188,51 @@ const TrialBalance = () => {
     fetchData();
   };
 
+  // Fetch account history when an account is clicked
+  const fetchAccountHistory = async (account) => {
+    try {
+      setIsLoadingHistory(true);
+      setSelectedAccount(account);
+      setShowHistoryModal(true);
+
+      // Get date range for current timeframe
+      const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
+      const { calculateDateRange } = await import('@/lib/dateUtils');
+      const { startDate, endDate } = calculateDateRange(apiTimeframe);
+      
+      // Format dates as YYYY-MM-DD
+      const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      // Fetch account history from the new API endpoint
+      const queryParams = new URLSearchParams({
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+      });
+
+      const response = await fetch(`/api/accounts/${account.id}/history?${queryParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch account history');
+      }
+
+      const data = await response.json();
+      setAccountHistory(data.transactions || []);
+    } catch (err) {
+      console.error("Error fetching account history:", err);
+      setAccountHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const handleAccountClick = (account) => {
+    fetchAccountHistory(account);
+  };
+
   const handleSearchChange = (e) => {
     setSearchTerm(e.target.value);
   };
@@ -239,17 +298,6 @@ const TrialBalance = () => {
     "This Year",
     "Custom Range"
   ];
-
-  // Group accounts by type
-  const accountsByType = {
-    "Assets": filteredAccounts.filter(account => account.type === "Assets"),
-    "Liabilities": filteredAccounts.filter(account => account.type === "Liabilities"),
-    "Equity": filteredAccounts.filter(account => account.type === "Equity"),
-    "Revenue": filteredAccounts.filter(account => account.type === "Revenue"),
-    "Expenses": filteredAccounts.filter(account => account.type === "Expenses"),
-    "Other": filteredAccounts.filter(account => 
-      !["Assets", "Liabilities", "Equity", "Revenue", "Expenses"].includes(account.type))
-  };
 
   // Calculate totals
   const totalDebits = filteredAccounts.reduce((total, account) => total + (account.debit || 0), 0);
@@ -386,7 +434,11 @@ const TrialBalance = () => {
                 <tbody>
                   {filteredAccounts.length > 0 ? (
                     filteredAccounts.map((account, index) => (
-                      <tr key={`${account.code}-${account.id || index}`} className="border-t border-gray-200 hover:bg-gray-50">
+                      <tr 
+                        key={`${account.code}-${account.id || index}`} 
+                        className="border-t border-gray-200 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleAccountClick(account)}
+                      >
                         <td className="p-3">{account.code}</td>
                         <td className="p-3">{account.name}</td>
                         <td className="p-3">{account.type}</td>
@@ -433,82 +485,7 @@ const TrialBalance = () => {
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-medium">Summary by Account Type</h2>
-            <Link href="/chart-of-accounts" className="text-blue-600 text-sm">
-              View Chart of Accounts
-            </Link>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left">
-                  <th className="p-3 font-medium">Account Type</th>
-                  <th className="p-3 font-medium text-right">Debit</th>
-                  <th className="p-3 font-medium text-right">Credit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(accountsByType).map(([type, typedAccounts]) => {
-                  if (typedAccounts.length === 0) return null;
-                  
-                  const typeDebits = typedAccounts.reduce((total, account) => total + (account.debit || 0), 0);
-                  const typeCredits = typedAccounts.reduce((total, account) => total + (account.credit || 0), 0);
-                  
-                  return (
-                    <tr key={type} className="border-t border-gray-200 hover:bg-gray-50">
-                      <td className="p-3">{type}</td>
-                      <td className="p-3 text-right">
-                        {formatCurrency(typeDebits)}
-                      </td>
-                      <td className="p-3 text-right">
-                        {formatCurrency(typeCredits)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-medium mb-4">Actions</h2>
-          <div className="space-y-4">
-          {pagePermissions.canCreateJournal &&(<Link href="/journal-entries/new" >
-              <button style={{marginBottom: "20px"}} className="w-full p-3 border border-gray-200 rounded hover:bg-gray-50 text-left flex items-center">
-                <FileText size={18} className="mr-2 text-blue-600" />
-                <div>
-                  <div className="font-medium">Create Journal Entry</div>
-                  <div className="text-sm text-gray-500">Add a new journal entry to adjust accounts</div>
-                </div>
-              </button>
-            </Link>)}
-            
-            {pagePermissions.canExportReports &&( <Link href="/reports/financial-statements">
-              <button style={{marginBottom: "20px"}} className="w-full p-3 border border-gray-200 rounded hover:bg-gray-50 text-left flex items-center">
-                <FileText size={18} className="mr-2 text-green-600" />
-                <div>
-                  <div className="font-medium">Financial Statements</div>
-                  <div className="text-sm text-gray-500">Generate income statement and balance sheet</div>
-                </div>
-              </button>
-            </Link>)}
-            
-            <Link href="/account-reconciliation">
-              <button className="w-full p-3 border border-gray-200 rounded hover:bg-gray-50 text-left flex items-center">
-                <FileText size={18} className="mr-2 text-purple-600" />
-                <div>
-                  <div className="font-medium">Reconcile Accounts</div>
-                  <div className="text-sm text-gray-500">Match transactions with bank statements</div>
-                </div>
-              </button>
-            </Link>
-          </div>
-        </div>
-      </div>
+     
 
       {/* Hidden print iframe - only used when printing */}
       <iframe 
@@ -516,9 +493,95 @@ const TrialBalance = () => {
         style={{ display: 'none' }} 
         title="Print Frame"
       />
+
+      {/* Account History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowHistoryModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-xl font-bold">Account History</h2>
+                {selectedAccount && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedAccount.code} - {selectedAccount.name}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {isLoadingHistory ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : accountHistory.length > 0 ? (
+                <div className="space-y-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 text-left border-b">
+                        <th className="p-3 font-medium">Date</th>
+                        <th className="p-3 font-medium">Reference</th>
+                        <th className="p-3 font-medium">Description</th>
+                        <th className="p-3 font-medium text-right">Debit</th>
+                        <th className="p-3 font-medium text-right">Credit</th>
+                        <th className="p-3 font-medium">Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {accountHistory.map((transaction, idx) => (
+                        <tr key={`${transaction.id || idx}`} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="p-3">
+                            {transaction.date ? formatApiDate(transaction.date) : 'N/A'}
+                          </td>
+                          <td className="p-3">{transaction.reference || '-'}</td>
+                          <td className="p-3">{transaction.description || '-'}</td>
+                          <td className="p-3 text-right">
+                            {transaction.debit && transaction.debit > 0 ? formatCurrency(transaction.debit, "", 2) : '-'}
+                          </td>
+                          <td className="p-3 text-right">
+                            {transaction.credit && transaction.credit > 0 ? formatCurrency(transaction.credit, "", 2) : '-'}
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
+                              {transaction.source || 'Transaction'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-12 text-gray-500">
+                  <Clock size={48} className="mx-auto mb-4 text-gray-400" />
+                  <p>No transaction history found for this account in the selected period.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-gray-200 p-6">
+              <button
+                onClick={() => setShowHistoryModal(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
     </PermissionGuard>
   );
-};
+};                                                                                                                                                                                        
 
-export default TrialBalance;
+export default TrialBalance;                                                                                                                                                                                                                                                                                                                                                  
