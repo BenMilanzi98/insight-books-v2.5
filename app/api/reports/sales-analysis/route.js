@@ -30,10 +30,10 @@ export async function GET(request) {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
     
-    // Get tenant name
+    // Get tenant name and logo
     const tenant = await prisma.tenant.findUnique({
       where: { id: user.tenantId },
-      select: { name: true }
+      select: { name: true, logoUrl: true }
     });
     
     let reportData = {};
@@ -147,13 +147,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {
@@ -226,13 +226,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { id: true, name: true }
@@ -288,6 +288,7 @@ export async function GET(request) {
     
     return NextResponse.json({
       companyName: tenant?.name || 'Company',
+      logoUrl: tenant?.logoUrl || null,
       period: {
         startDate,
         endDate

@@ -35,7 +35,9 @@ import {
   UserPlus,
   Printer,
   CreditCard,
-  Smartphone
+  Smartphone,
+  TrendingUp,
+  BarChart
 
 } from 'lucide-react';
 import { 
@@ -1207,6 +1209,20 @@ const POSPage = () => {
           >
             <Calendar className="w-4 h-4 mr-2" />
             <span className="text-sm font-medium">Sales History</span>
+          </button>
+          <button 
+            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
+            onClick={() => router.push('/reports?report=sales-report')}
+          >
+            <BarChart className="w-4 h-4 mr-2" />
+            <span className="text-sm font-medium">Sales Report</span>
+          </button>
+          <button 
+            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
+            onClick={() => router.push('/reports?report=expense-report')}
+          >
+            <DollarSign className="w-4 h-4 mr-2" />
+            <span className="text-sm font-medium">Expenses Report</span>
           </button>
           {/* {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"

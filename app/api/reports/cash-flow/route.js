@@ -35,10 +35,10 @@ export async function GET(request) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     
-    // Get tenant name
+    // Get tenant name and logo
     const tenant = await prisma.tenant.findUnique({
       where: { id: user.tenantId },
-      select: { name: true }
+      select: { name: true, logoUrl: true }
     });
     
     // Generate cash flow statement using Phase 2 enhanced service
@@ -47,6 +47,7 @@ export async function GET(request) {
       startDate, 
       endDate, 
       tenant?.name || 'Company',
+      tenant?.logoUrl || null,
       user.currentBranchId || null
     );
     

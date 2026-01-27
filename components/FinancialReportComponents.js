@@ -339,35 +339,65 @@ export const ProfitLossReport = ({
                   </td>
                 </tr>
                 
-                <IncomeStatementRow
-                  label="Sales Revenue"
-                  value={data.revenue?.salesRevenue}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.revenue?.salesRevenue).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Sales Revenue', details: getDetails(data.revenue?.salesRevenue) })}
-                  previousValue={data.previous?.revenue?.salesRevenue}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Service Revenue"
-                  value={data.revenue?.serviceRevenue}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.revenue?.serviceRevenue).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Service Revenue', details: getDetails(data.revenue?.serviceRevenue) })}
-                  previousValue={data.previous?.revenue?.serviceRevenue}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Other Income"
-                  value={data.revenue?.otherIncome}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.revenue?.otherIncome).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Other Income', details: getDetails(data.revenue?.otherIncome) })}
-                  previousValue={data.previous?.revenue?.otherIncome}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {Array.isArray(data.revenue?.lineItems) && data.revenue.lineItems.length > 0 ? (
+                  data.revenue.lineItems.map((item) => {
+                    const prevItem = data.previous?.revenue?.lineItems?.find(
+                      p => (p.key && p.key === item.key) || p.label === item.label
+                    );
+                    return (
+                      <IncomeStatementRow
+                        key={item.key || item.label}
+                        label={item.label}
+                        value={{
+                          amount: item.amount || 0,
+                          percentage: item.percentage || 0,
+                          details: item.details || []
+                        }}
+                        totalRevenue={totalRevenue}
+                        hasDetails={(item.details || []).length > 0}
+                        onDrillDown={() => handleDrillDown({ type: item.label, details: item.details || [] })}
+                        previousValue={prevItem ? {
+                          amount: prevItem.amount || 0,
+                          percentage: prevItem.percentage || 0,
+                          details: prevItem.details || []
+                        } : undefined}
+                        showComparison={hasComparison && expandedSections.comparison}
+                      />
+                    );
+                  })
+                ) : (
+                  <>
+                    <IncomeStatementRow
+                      label="Sales Revenue"
+                      value={data.revenue?.salesRevenue}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.revenue?.salesRevenue).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Sales Revenue', details: getDetails(data.revenue?.salesRevenue) })}
+                      previousValue={data.previous?.revenue?.salesRevenue}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Service Revenue"
+                      value={data.revenue?.serviceRevenue}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.revenue?.serviceRevenue).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Service Revenue', details: getDetails(data.revenue?.serviceRevenue) })}
+                      previousValue={data.previous?.revenue?.serviceRevenue}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Other Income"
+                      value={data.revenue?.otherIncome}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.revenue?.otherIncome).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Other Income', details: getDetails(data.revenue?.otherIncome) })}
+                      previousValue={data.previous?.revenue?.otherIncome}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
                 
                 <tr className="border-t-2 border-gray-300 bg-gray-50">
                   <td className="py-3 px-5 font-semibold text-gray-900">Total Revenue</td>
@@ -394,25 +424,55 @@ export const ProfitLossReport = ({
                   </td>
                 </tr>
                 
-                <IncomeStatementRow
-                  label="Cost of Products Sold"
-                  value={data.cogs?.costOfProductsSold}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.cogs?.costOfProductsSold).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Cost of Products Sold', details: getDetails(data.cogs?.costOfProductsSold) })}
-                  previousValue={data.previous?.cogs?.costOfProductsSold}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Freight/Shipping Costs"
-                  value={data.cogs?.freightShippingCosts}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.cogs?.freightShippingCosts).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Freight/Shipping', details: getDetails(data.cogs?.freightShippingCosts) })}
-                  previousValue={data.previous?.cogs?.freightShippingCosts}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {Array.isArray(data.cogs?.lineItems) && data.cogs.lineItems.length > 0 ? (
+                  data.cogs.lineItems.map((item) => {
+                    const prevItem = data.previous?.cogs?.lineItems?.find(
+                      p => (p.key && p.key === item.key) || p.label === item.label
+                    );
+                    return (
+                      <IncomeStatementRow
+                        key={item.key || item.label}
+                        label={item.label}
+                        value={{
+                          amount: item.amount || 0,
+                          percentage: item.percentage || 0,
+                          details: item.details || []
+                        }}
+                        totalRevenue={totalRevenue}
+                        hasDetails={(item.details || []).length > 0}
+                        onDrillDown={() => handleDrillDown({ type: item.label, details: item.details || [] })}
+                        previousValue={prevItem ? {
+                          amount: prevItem.amount || 0,
+                          percentage: prevItem.percentage || 0,
+                          details: prevItem.details || []
+                        } : undefined}
+                        showComparison={hasComparison && expandedSections.comparison}
+                      />
+                    );
+                  })
+                ) : (
+                  <>
+                    <IncomeStatementRow
+                      label="Cost of Products Sold"
+                      value={data.cogs?.costOfProductsSold}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.cogs?.costOfProductsSold).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Cost of Products Sold', details: getDetails(data.cogs?.costOfProductsSold) })}
+                      previousValue={data.previous?.cogs?.costOfProductsSold}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Freight/Shipping Costs"
+                      value={data.cogs?.freightShippingCosts}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.cogs?.freightShippingCosts).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Freight/Shipping', details: getDetails(data.cogs?.freightShippingCosts) })}
+                      previousValue={data.previous?.cogs?.freightShippingCosts}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
                 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Cost of Goods Sold</td>
@@ -454,102 +514,139 @@ export const ProfitLossReport = ({
                   </td>
                 </tr>
 
-                {/* OPERATING EXPENSES SECTION */}
+                {/* OPERATING EXPENSES SECTION - DYNAMIC CATEGORIES */}
                 <tr className="bg-gray-100">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-5 font-bold text-gray-900 uppercase text-sm tracking-wide">
                     OPERATING EXPENSES
                   </td>
                 </tr>
                 
-                <IncomeStatementRow
-                  label="Salaries & Wages"
-                  value={data.operatingExpenses?.salariesWages}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.salariesWages).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Salaries & Wages', details: getDetails(data.operatingExpenses?.salariesWages) })}
-                  previousValue={data.previous?.operatingExpenses?.salariesWages}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Rent Expense"
-                  value={data.operatingExpenses?.rentExpense}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.rentExpense).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Rent Expense', details: getDetails(data.operatingExpenses?.rentExpense) })}
-                  previousValue={data.previous?.operatingExpenses?.rentExpense}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Utilities Expense"
-                  value={data.operatingExpenses?.utilitiesExpense}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.utilitiesExpense).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Utilities Expense', details: getDetails(data.operatingExpenses?.utilitiesExpense) })}
-                  previousValue={data.previous?.operatingExpenses?.utilitiesExpense}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Office Supplies"
-                  value={data.operatingExpenses?.officeSupplies}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.officeSupplies).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Office Supplies', details: getDetails(data.operatingExpenses?.officeSupplies) })}
-                  previousValue={data.previous?.operatingExpenses?.officeSupplies}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Marketing & Advertising"
-                  value={data.operatingExpenses?.marketingAdvertising}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.marketingAdvertising).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Marketing & Advertising', details: getDetails(data.operatingExpenses?.marketingAdvertising) })}
-                  previousValue={data.previous?.operatingExpenses?.marketingAdvertising}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Insurance"
-                  value={data.operatingExpenses?.insurance}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.insurance).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Insurance', details: getDetails(data.operatingExpenses?.insurance) })}
-                  previousValue={data.previous?.operatingExpenses?.insurance}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Depreciation"
-                  value={data.operatingExpenses?.depreciation}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.depreciation).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Depreciation', details: getDetails(data.operatingExpenses?.depreciation) })}
-                  previousValue={data.previous?.operatingExpenses?.depreciation}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Loan Payments"
-                  value={data.operatingExpenses?.loanPayments}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.loanPayments).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Loan Payments', details: getDetails(data.operatingExpenses?.loanPayments) })}
-                  previousValue={data.previous?.operatingExpenses?.loanPayments}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Other Operating Expenses"
-                  value={data.operatingExpenses?.otherOperatingExpenses}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.operatingExpenses?.otherOperatingExpenses).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Other Operating Expenses', details: getDetails(data.operatingExpenses?.otherOperatingExpenses) })}
-                  previousValue={data.previous?.operatingExpenses?.otherOperatingExpenses}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {/* Render dynamic expense categories */}
+                {data.operatingExpenses?.categories && data.operatingExpenses.categories.length > 0 ? (
+                  data.operatingExpenses.categories.map((category, index) => {
+                    // Find corresponding category in previous period for comparison
+                    const previousCategory = data.previous?.operatingExpenses?.categories?.find(
+                      cat => cat.category === category.category
+                    );
+                    
+                    return (
+                      <IncomeStatementRow
+                        key={`expense-category-${index}-${category.category}`}
+                        label={category.category}
+                        value={{
+                          amount: category.amount || 0,
+                          percentage: category.percentage || 0,
+                          details: category.details || []
+                        }}
+                        totalRevenue={totalRevenue}
+                        hasDetails={(category.details || []).length > 0}
+                        onDrillDown={() => handleDrillDown({ 
+                          type: category.category, 
+                          details: category.details || [] 
+                        })}
+                        previousValue={previousCategory ? {
+                          amount: previousCategory.amount || 0,
+                          percentage: previousCategory.percentage || 0,
+                          details: previousCategory.details || []
+                        } : undefined}
+                        showComparison={hasComparison && expandedSections.comparison}
+                      />
+                    );
+                  })
+                ) : (
+                  // Fallback to legacy hardcoded categories if dynamic categories not available
+                  <>
+                    <IncomeStatementRow
+                      label="Salaries & Wages"
+                      value={data.operatingExpenses?.salariesWages}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.salariesWages).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Salaries & Wages', details: getDetails(data.operatingExpenses?.salariesWages) })}
+                      previousValue={data.previous?.operatingExpenses?.salariesWages}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Rent Expense"
+                      value={data.operatingExpenses?.rentExpense}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.rentExpense).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Rent Expense', details: getDetails(data.operatingExpenses?.rentExpense) })}
+                      previousValue={data.previous?.operatingExpenses?.rentExpense}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Utilities Expense"
+                      value={data.operatingExpenses?.utilitiesExpense}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.utilitiesExpense).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Utilities Expense', details: getDetails(data.operatingExpenses?.utilitiesExpense) })}
+                      previousValue={data.previous?.operatingExpenses?.utilitiesExpense}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Office Supplies"
+                      value={data.operatingExpenses?.officeSupplies}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.officeSupplies).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Office Supplies', details: getDetails(data.operatingExpenses?.officeSupplies) })}
+                      previousValue={data.previous?.operatingExpenses?.officeSupplies}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Marketing & Advertising"
+                      value={data.operatingExpenses?.marketingAdvertising}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.marketingAdvertising).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Marketing & Advertising', details: getDetails(data.operatingExpenses?.marketingAdvertising) })}
+                      previousValue={data.previous?.operatingExpenses?.marketingAdvertising}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Insurance"
+                      value={data.operatingExpenses?.insurance}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.insurance).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Insurance', details: getDetails(data.operatingExpenses?.insurance) })}
+                      previousValue={data.previous?.operatingExpenses?.insurance}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Depreciation"
+                      value={data.operatingExpenses?.depreciation}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.depreciation).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Depreciation', details: getDetails(data.operatingExpenses?.depreciation) })}
+                      previousValue={data.previous?.operatingExpenses?.depreciation}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Loan Payments"
+                      value={data.operatingExpenses?.loanPayments}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.loanPayments).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Loan Payments', details: getDetails(data.operatingExpenses?.loanPayments) })}
+                      previousValue={data.previous?.operatingExpenses?.loanPayments}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                    
+                    <IncomeStatementRow
+                      label="Other Operating Expenses"
+                      value={data.operatingExpenses?.otherOperatingExpenses}
+                      totalRevenue={totalRevenue}
+                      hasDetails={getDetails(data.operatingExpenses?.otherOperatingExpenses).length > 0}
+                      onDrillDown={() => handleDrillDown({ type: 'Other Operating Expenses', details: getDetails(data.operatingExpenses?.otherOperatingExpenses) })}
+                      previousValue={data.previous?.operatingExpenses?.otherOperatingExpenses}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
                 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Operating Expenses</td>
@@ -865,8 +962,8 @@ export const BalanceSheetReport = ({
   const companyName = data.companyName || 'Company';
   const asOfDate = data.asOfDate || '';
   const hasComparison = data.previousYear && data.comparisonType;
-  const isBalanced = data.isBalanced;
-  const balanceDifference = Math.abs(data.balanceDifference || 0);
+  const isBalanced = data.isBalanced !== undefined ? data.isBalanced : Math.abs(data.difference || 0) < 0.01;
+  const balanceDifference = Math.abs(data.balanceDifference || data.difference || 0);
   
   return (
     <FinancialReport
@@ -883,6 +980,26 @@ export const BalanceSheetReport = ({
         <div className="space-y-6">
           {/* Company Header */}
           <div className="text-center mb-8">
+            {data.logoUrl && (
+              <div className="mb-4 flex justify-center">
+                <img 
+                  src={
+                    typeof data.logoUrl === 'string' && data.logoUrl.startsWith('/uploads/')
+                      ? `/api/uploads/${data.logoUrl.replace(/^\/+uploads\//, '')}`
+                      : typeof data.logoUrl === 'string' && (data.logoUrl.startsWith('http://') || data.logoUrl.startsWith('https://'))
+                      ? data.logoUrl
+                      : typeof data.logoUrl === 'string'
+                      ? data.logoUrl
+                      : ''
+                  }
+                  alt="Company Logo" 
+                  className="h-16 sm:h-20 object-contain max-w-xs"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
             <h1 className="text-2xl font-bold text-gray-900">{companyName}</h1>
             <h2 className="text-xl font-semibold text-gray-700 mt-2">Balance Sheet</h2>
             <p className="text-sm text-gray-600 mt-1">As of {asOfDate}</p>
@@ -935,47 +1052,72 @@ export const BalanceSheetReport = ({
                   </td>
                       </tr>
 
-                <BalanceSheetRow
-                  label="Cash and Cash Equivalents"
-                  value={data.assets?.currentAssets?.cashAndCashEquivalents || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.currentAssets?.cashAndCashEquivalents}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {Array.isArray(data.assets?.currentAssets?.lineItems) && data.assets.currentAssets.lineItems.length > 0 ? (
+                  data.assets.currentAssets.lineItems.map((li) => (
+                    <BalanceSheetRow
+                      key={li.key || li.label}
+                      label={li.label}
+                      value={li.value || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.lineItems?.find(p => (p.key && p.key === li.key) || p.label === li.label)?.value}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={!!(li.drillDown?.items?.length)}
+                      onDrillDown={li.drillDown ? () => handleDrillDown({ type: li.drillDown.type, items: li.drillDown.items }) : undefined}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <BalanceSheetRow
+                      label="Cash and Cash Equivalents"
+                      value={data.assets?.currentAssets?.cashAndCashEquivalents || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.cashAndCashEquivalents}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Accounts Receivable"
-                  value={data.assets?.currentAssets?.accountsReceivable?.total || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.currentAssets?.accountsReceivable?.total}
-                  showComparison={hasComparison && expandedSections.comparison}
-                  hasDetails={data.assets?.currentAssets?.accountsReceivable?.items?.length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Accounts Receivable', 
-                    items: data.assets?.currentAssets?.accountsReceivable?.items || [] 
-                  })}
-                />
+                    <BalanceSheetRow
+                      label="Accounts Receivable"
+                      value={data.assets?.currentAssets?.accountsReceivable?.total || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.accountsReceivable?.total}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={data.assets?.currentAssets?.accountsReceivable?.items?.length > 0}
+                      onDrillDown={() => handleDrillDown({ 
+                        type: 'Accounts Receivable', 
+                        items: data.assets?.currentAssets?.accountsReceivable?.items || [] 
+                      })}
+                    />
 
-                <BalanceSheetRow
-                  label="Inventory"
-                  value={data.assets?.currentAssets?.inventory?.total || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.currentAssets?.inventory?.total}
-                  showComparison={hasComparison && expandedSections.comparison}
-                  hasDetails={data.assets?.currentAssets?.inventory?.items?.length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Inventory', 
-                    items: data.assets?.currentAssets?.inventory?.items || [] 
-                  })}
-                />
+                    <BalanceSheetRow
+                      label="Inventory"
+                      value={data.assets?.currentAssets?.inventory?.total || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.inventory?.total}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={data.assets?.currentAssets?.inventory?.items?.length > 0}
+                      onDrillDown={() => handleDrillDown({ 
+                        type: 'Inventory', 
+                        items: data.assets?.currentAssets?.inventory?.items || [] 
+                      })}
+                    />
 
-                <BalanceSheetRow
-                  label="Prepaid Expenses"
-                  value={data.assets?.currentAssets?.prepaidExpenses || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.currentAssets?.prepaidExpenses}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Prepaid Expenses"
+                      value={data.assets?.currentAssets?.prepaidExpenses || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.prepaidExpenses}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+
+                    <BalanceSheetRow
+                      label="Other Current Assets"
+                      value={data.assets?.currentAssets?.otherCurrentAssets || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.currentAssets?.otherCurrentAssets}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Current Assets</td>
@@ -999,49 +1141,82 @@ export const BalanceSheetReport = ({
                   </td>
                 </tr>
 
-                <tr>
-                  <td className="py-2 px-4 pl-8 text-gray-700">Property, Plant & Equipment</td>
-                  {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right text-gray-700">
-                      {formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
-                    </td>
-                  )}
-                  <td className="py-2 px-4 text-right text-gray-900">
-                    {formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
-                  </td>
-                  <td className="py-2 px-4 text-right text-gray-700">
-                    {data.assets?.total > 0 ? ((data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0) / data.assets.total * 100).toFixed(1) : 0}%
-                  </td>
-                        </tr>
+                {Array.isArray(data.assets?.nonCurrentAssets?.lineItems) && data.assets.nonCurrentAssets.lineItems.length > 0 ? (
+                  data.assets.nonCurrentAssets.lineItems.map((li) => (
+                    <BalanceSheetRow
+                      key={li.key || li.label}
+                      label={li.label}
+                      value={li.value || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.nonCurrentAssets?.lineItems?.find(p => (p.key && p.key === li.key) || p.label === li.label)?.value}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={!!(li.drillDown?.items?.length)}
+                      onDrillDown={li.drillDown ? () => handleDrillDown({ type: li.drillDown.type, items: li.drillDown.items }) : undefined}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <tr>
+                      <td className="py-2 px-4 pl-8 text-gray-700">
+                        <div className="flex items-center">
+                          {(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.items?.length > 0) && (
+                            <button
+                              onClick={() => handleDrillDown({ 
+                                type: 'Property, Plant & Equipment', 
+                                items: data.assets?.nonCurrentAssets?.propertyPlantEquipment?.items || [] 
+                              })}
+                              className="mr-2 text-blue-600 hover:text-blue-800"
+                              title="Click to view details"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          )}
+                          Property, Plant & Equipment
+                        </div>
+                      </td>
+                      {hasComparison && expandedSections.comparison && (
+                        <td className="py-2 px-4 text-right text-gray-700">
+                          {formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
+                        </td>
+                      )}
+                      <td className="py-2 px-4 text-right text-gray-900">
+                        {formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
+                      </td>
+                      <td className="py-2 px-4 text-right text-gray-700">
+                        {data.assets?.total > 0 ? ((data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0) / data.assets.total * 100).toFixed(1) : 0}%
+                      </td>
+                            </tr>
 
-                <tr>
-                  <td className="py-2 px-4 pl-12 text-gray-600 text-sm">Less: Accumulated Depreciation</td>
-                  {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right text-gray-600 text-sm">
-                      ({formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
-                    </td>
-                  )}
-                  <td className="py-2 px-4 text-right text-gray-600 text-sm">
-                    ({formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
-                  </td>
-                  <td className="py-2 px-4 text-right text-gray-600 text-sm">-</td>
-                      </tr>
+                    <tr>
+                      <td className="py-2 px-4 pl-12 text-gray-600 text-sm">Less: Accumulated Depreciation</td>
+                      {hasComparison && expandedSections.comparison && (
+                        <td className="py-2 px-4 text-right text-gray-600 text-sm">
+                          ({formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
+                        </td>
+                      )}
+                      <td className="py-2 px-4 text-right text-gray-600 text-sm">
+                        ({formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
+                      </td>
+                      <td className="py-2 px-4 text-right text-gray-600 text-sm">-</td>
+                          </tr>
 
-                <BalanceSheetRow
-                  label="Intangible Assets"
-                  value={data.assets?.nonCurrentAssets?.intangibleAssets || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.nonCurrentAssets?.intangibleAssets}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Intangible Assets"
+                      value={data.assets?.nonCurrentAssets?.intangibleAssets || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.nonCurrentAssets?.intangibleAssets}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Other Non-Current Assets"
-                  value={data.assets?.nonCurrentAssets?.otherNonCurrentAssets || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.assets?.nonCurrentAssets?.otherNonCurrentAssets}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Other Non-Current Assets"
+                      value={data.assets?.nonCurrentAssets?.otherNonCurrentAssets || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.assets?.nonCurrentAssets?.otherNonCurrentAssets}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Non-Current Assets</td>
@@ -1085,34 +1260,69 @@ export const BalanceSheetReport = ({
                   </td>
                       </tr>
 
-                <BalanceSheetRow
-                  label="Accounts Payable"
-                  value={data.liabilities?.currentLiabilities?.accountsPayable?.total || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.currentLiabilities?.accountsPayable?.total}
-                  showComparison={hasComparison && expandedSections.comparison}
-                  hasDetails={data.liabilities?.currentLiabilities?.accountsPayable?.items?.length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Accounts Payable', 
-                    items: data.liabilities?.currentLiabilities?.accountsPayable?.items || [] 
-                  })}
-                />
+                {Array.isArray(data.liabilities?.currentLiabilities?.lineItems) && data.liabilities.currentLiabilities.lineItems.length > 0 ? (
+                  data.liabilities.currentLiabilities.lineItems
+                    .filter(li => (li.value || 0) > 0) // hide 0-value reference lines
+                    .map((li) => (
+                      <BalanceSheetRow
+                        key={li.key || li.label}
+                        label={li.label}
+                        value={li.value || 0}
+                        totalAssets={data.assets?.total || 0}
+                        previousValue={data.previousYear?.liabilities?.currentLiabilities?.lineItems?.find(p => (p.key && p.key === li.key) || p.label === li.label)?.value}
+                        showComparison={hasComparison && expandedSections.comparison}
+                        hasDetails={!!(li.drillDown?.items?.length)}
+                        onDrillDown={li.drillDown ? () => handleDrillDown({ type: li.drillDown.type, items: li.drillDown.items }) : undefined}
+                      />
+                    ))
+                ) : (
+                  <>
+                    <BalanceSheetRow
+                      label="Accounts Payable"
+                      value={data.liabilities?.currentLiabilities?.accountsPayable?.total || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.accountsPayable?.total}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={data.liabilities?.currentLiabilities?.accountsPayable?.items?.length > 0}
+                      onDrillDown={() => handleDrillDown({ 
+                        type: 'Accounts Payable', 
+                        items: data.liabilities?.currentLiabilities?.accountsPayable?.items || [] 
+                      })}
+                    />
 
-                <BalanceSheetRow
-                  label="Short-term Loans"
-                  value={data.liabilities?.currentLiabilities?.shortTermLoans || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.currentLiabilities?.shortTermLoans}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Short-term Loans"
+                      value={data.liabilities?.currentLiabilities?.shortTermLoans || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.shortTermLoans}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Accrued Expenses"
-                  value={data.liabilities?.currentLiabilities?.accruedExpenses || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.currentLiabilities?.accruedExpenses}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Tax Payable"
+                      value={data.liabilities?.currentLiabilities?.taxPayable || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.taxPayable}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+
+                    <BalanceSheetRow
+                      label="Accrued Expenses"
+                      value={data.liabilities?.currentLiabilities?.accruedExpenses || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.accruedExpenses}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+
+                    <BalanceSheetRow
+                      label="Other Current Liabilities"
+                      value={data.liabilities?.currentLiabilities?.otherCurrentLiabilities || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.otherCurrentLiabilities}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Current Liabilities</td>
@@ -1136,44 +1346,61 @@ export const BalanceSheetReport = ({
                   </td>
                         </tr>
 
-                <BalanceSheetRow
-                  label="Long-term Loans"
-                  value={data.liabilities?.nonCurrentLiabilities?.longTermLoans || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.longTermLoans}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {Array.isArray(data.liabilities?.nonCurrentLiabilities?.lineItems) && data.liabilities.nonCurrentLiabilities.lineItems.length > 0 ? (
+                  data.liabilities.nonCurrentLiabilities.lineItems.map((li) => (
+                    <BalanceSheetRow
+                      key={li.key || li.label}
+                      label={li.label}
+                      value={li.value || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.lineItems?.find(p => (p.key && p.key === li.key) || p.label === li.label)?.value}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={!!(li.drillDown?.items?.length)}
+                      onDrillDown={li.drillDown ? () => handleDrillDown({ type: li.drillDown.type, items: li.drillDown.items }) : undefined}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <BalanceSheetRow
+                      label="Long-term Loans"
+                      value={data.liabilities?.nonCurrentLiabilities?.longTermLoans || data.liabilities?.longTermLiabilities?.longTermLoans || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.longTermLoans || data.previousYear?.liabilities?.longTermLiabilities?.longTermLoans}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Bonds Payable"
-                  value={data.liabilities?.nonCurrentLiabilities?.bondsPayable || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.bondsPayable}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Bonds Payable"
+                      value={data.liabilities?.nonCurrentLiabilities?.bondsPayable || data.liabilities?.longTermLiabilities?.bondsPayable || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.bondsPayable || data.previousYear?.liabilities?.longTermLiabilities?.bondsPayable}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Other Non-Current Liabilities"
-                  value={data.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Other Non-Current Liabilities"
+                      value={data.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities || data.liabilities?.nonCurrentLiabilities?.otherLongTermLiabilities || data.liabilities?.longTermLiabilities?.otherLongTermLiabilities || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities || data.previousYear?.liabilities?.nonCurrentLiabilities?.otherLongTermLiabilities || data.previousYear?.liabilities?.longTermLiabilities?.otherLongTermLiabilities}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Non-Current Liabilities</td>
                   {hasComparison && expandedSections.comparison && (
                     <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                      {formatCurrency(data.previousYear?.liabilities?.nonCurrentLiabilities?.total || 0)}
+                      {formatCurrency(data.previousYear?.liabilities?.nonCurrentLiabilities?.total || data.previousYear?.liabilities?.longTermLiabilities?.total || 0)}
                     </td>
                   )}
                   <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {formatCurrency(data.liabilities?.nonCurrentLiabilities?.total || 0)}
+                    {formatCurrency(data.liabilities?.nonCurrentLiabilities?.total || data.liabilities?.longTermLiabilities?.total || 0)}
                   </td>
                   <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {data.assets?.total > 0 ? ((data.liabilities?.nonCurrentLiabilities?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
+                    {data.assets?.total > 0 ? ((data.liabilities?.nonCurrentLiabilities?.total || data.liabilities?.longTermLiabilities?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
-                        </tr>
+                      </tr>
 
                 <tr className="border-t-2 border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">TOTAL LIABILITIES</td>
@@ -1217,29 +1444,46 @@ export const BalanceSheetReport = ({
                   </td>
                       </tr>
 
-                <BalanceSheetRow
-                  label="Owner's Capital/Share Capital"
-                  value={data.equity?.ownersCapital || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.equity?.ownersCapital}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                {Array.isArray(data.equity?.lineItems) && data.equity.lineItems.length > 0 ? (
+                  data.equity.lineItems.map((li) => (
+                    <BalanceSheetRow
+                      key={li.key || li.label}
+                      label={li.label}
+                      value={li.value || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.equity?.lineItems?.find(p => (p.key && p.key === li.key) || p.label === li.label)?.value}
+                      showComparison={hasComparison && expandedSections.comparison}
+                      hasDetails={!!(li.drillDown?.items?.length)}
+                      onDrillDown={li.drillDown ? () => handleDrillDown({ type: li.drillDown.type, items: li.drillDown.items }) : undefined}
+                    />
+                  ))
+                ) : (
+                  <>
+                    <BalanceSheetRow
+                      label="Owner's Capital/Share Capital"
+                      value={data.equity?.ownersCapital || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.equity?.ownersCapital}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Retained Earnings"
-                  value={data.equity?.retainedEarnings || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.equity?.retainedEarnings}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Retained Earnings"
+                      value={data.equity?.retainedEarnings || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.equity?.retainedEarnings}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
 
-                <BalanceSheetRow
-                  label="Current Year Profit/Loss"
-                  value={data.equity?.currentYearProfitLoss || 0}
-                  totalAssets={data.assets?.total || 0}
-                  previousValue={data.previousYear?.equity?.currentYearProfitLoss}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
+                    <BalanceSheetRow
+                      label="Current Year Profit/Loss"
+                      value={data.equity?.currentYearProfitLoss || 0}
+                      totalAssets={data.assets?.total || 0}
+                      previousValue={data.previousYear?.equity?.currentYearProfitLoss}
+                      showComparison={hasComparison && expandedSections.comparison}
+                    />
+                  </>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">TOTAL EQUITY</td>
@@ -1433,12 +1677,47 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance Due</th>
                   </>
                 )}
+                {data.type === 'Property, Plant & Equipment' && (
+                  <>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Asset Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Purchase Date</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Original Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Accum. Depreciation</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net Book Value</th>
+                  </>
+                )}
+                {data.type === 'Inventory' && (
+                  <>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product Name</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost per Unit</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Value</th>
+                  </>
+                )}
+                {data.type === 'Property, Plant & Equipment' && (
+                  <>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Asset Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Purchase Date</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Original Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Accum. Depreciation</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net Book Value</th>
+                  </>
+                )}
                 {data.type === 'Inventory' && (
                   <>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
                     <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Value</th>
+                  </>
+                )}
+                {!['Accounts Receivable', 'Accounts Payable', 'Property, Plant & Equipment', 'Inventory'].includes(data.type) && (
+                  <>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Code</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
                   </>
                 )}
               </tr>
@@ -1482,6 +1761,24 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                       <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.balanceDue || 0)}</td>
                     </>
                   )}
+                  {data.type === 'Property, Plant & Equipment' && (
+                    <>
+                      <td className="px-4 py-2 text-sm text-gray-900">{item.name || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900">{item.category || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900">
+                        {item.purchaseDate ? (() => {
+                          const date = new Date(item.purchaseDate);
+                          const day = String(date.getDate()).padStart(2, '0');
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const year = date.getFullYear();
+                          return `${day}-${month}-${year}`;
+                        })() : 'N/A'}
+                      </td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.originalCost || item.gross || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.accumulatedDepreciation || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.netBookValue || item.net || 0)}</td>
+                    </>
+                  )}
                   {data.type === 'Inventory' && (
                     <>
                       <td className="px-4 py-2 text-sm text-gray-900">{item.name || 'N/A'}</td>
@@ -1490,18 +1787,33 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                       <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.value || 0)}</td>
                     </>
                   )}
+                  {!['Accounts Receivable', 'Accounts Payable', 'Property, Plant & Equipment', 'Inventory'].includes(data.type) && (
+                    <>
+                      <td className="px-4 py-2 text-sm text-gray-900">{item.accountCode || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900">{item.accountName || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.balance || 0)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr className="bg-gray-50 font-semibold">
-                <td colSpan={data.type === 'Inventory' ? 3 : 5} className="px-4 py-2 text-sm text-gray-900">Total</td>
+                <td colSpan={
+                  data.type === 'Inventory' ? 3 : 
+                  data.type === 'Property, Plant & Equipment' ? 5 :
+                  data.type === 'Accounts Receivable' || data.type === 'Accounts Payable' ? 5 : 2
+                } className="px-4 py-2 text-sm text-gray-900">Total</td>
                 <td className="px-4 py-2 text-sm text-gray-900 text-right">
                   {formatCurrency(data.items.reduce((sum, item) => {
                     if (data.type === 'Accounts Receivable' || data.type === 'Accounts Payable') {
                       return sum + (item.balanceDue || 0);
-                    } else {
+                    } else if (data.type === 'Property, Plant & Equipment') {
+                      return sum + (item.netBookValue || item.net || 0);
+                    } else if (data.type === 'Inventory') {
                       return sum + (item.value || 0);
+                    } else {
+                      return sum + (item.balance || 0);
                     }
                   }, 0))}
                 </td>
@@ -2048,9 +2360,89 @@ export const CashFlowReport = ({
 
   const companyName = data.companyName || 'Company';
   const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
-  const netCashFlow = data.netCashFlow || 0;
-  const openingBalance = data.openingCashBalance || 0;
-  const closingBalance = data.closingCashBalance || 0;
+  const netCashFlow = data.netCashFlow || data.summary?.netIncreaseDecrease || 0;
+  const openingBalance = data.openingCashBalance || data.summary?.openingCashBalance || data.cashBalances?.openingBalance || 0;
+  const closingBalance = data.closingCashBalance || data.summary?.closingCashBalance || data.cashBalances?.closingBalance || 0;
+  
+  // Use dynamic line items if available, otherwise fall back to legacy structure
+  const cashInflows = data.cashInflows || {};
+  const cashOutflows = data.cashOutflows || {};
+  const inflowsLineItems = cashInflows.lineItems || [];
+  const outflowsLineItems = cashOutflows.lineItems || [];
+  
+  // Legacy fallback: create line items from old structure
+  const legacyInflows = [];
+  if (data.cashInflows?.customerPayments > 0) {
+    legacyInflows.push({
+      key: 'inflow-customer-payments',
+      label: 'Customer Payments',
+      value: data.cashInflows.customerPayments,
+      details: data.cashInflows.details?.filter(d => d.type === 'customer_payment' || d.type === 'sale_payment') || []
+    });
+  }
+  if (data.cashInflows?.otherCashReceipts > 0) {
+    legacyInflows.push({
+      key: 'inflow-other-receipts',
+      label: 'Other Cash Receipts',
+      value: data.cashInflows.otherCashReceipts,
+      details: data.cashInflows.details?.filter(d => d.type === 'other_receipt') || []
+    });
+  }
+  
+  const legacyOutflows = [];
+  if (data.cashOutflows?.supplierPayments > 0) {
+    legacyOutflows.push({
+      key: 'outflow-supplier-payments',
+      label: 'Payments to Suppliers',
+      value: data.cashOutflows.supplierPayments,
+      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('supplier') || d.category?.toLowerCase().includes('vendor'))) || []
+    });
+  }
+  if (data.cashOutflows?.salaryPayments > 0) {
+    legacyOutflows.push({
+      key: 'outflow-salary-payments',
+      label: 'Salary Payments',
+      value: data.cashOutflows.salaryPayments,
+      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('salary') || d.category?.toLowerCase().includes('wage') || d.category?.toLowerCase().includes('payroll'))) || []
+    });
+  }
+  if (data.cashOutflows?.rentPayments > 0) {
+    legacyOutflows.push({
+      key: 'outflow-rent-payments',
+      label: 'Rent Payments',
+      value: data.cashOutflows.rentPayments,
+      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && d.category?.toLowerCase().includes('rent')) || []
+    });
+  }
+  if (data.cashOutflows?.otherExpensePayments > 0) {
+    legacyOutflows.push({
+      key: 'outflow-other-expenses',
+      label: 'Other Expense Payments',
+      value: data.cashOutflows.otherExpensePayments,
+      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && !d.category?.toLowerCase().includes('supplier') && !d.category?.toLowerCase().includes('vendor') && !d.category?.toLowerCase().includes('salary') && !d.category?.toLowerCase().includes('wage') && !d.category?.toLowerCase().includes('payroll') && !d.category?.toLowerCase().includes('rent')) || []
+    });
+  }
+  if (data.cashOutflows?.assetPurchases > 0) {
+    legacyOutflows.push({
+      key: 'outflow-asset-purchases',
+      label: 'Asset Purchases',
+      value: data.cashOutflows.assetPurchases,
+      details: data.cashOutflows.details?.filter(d => d.type === 'asset_purchase') || []
+    });
+  }
+  if (data.cashOutflows?.loanPayments > 0) {
+    legacyOutflows.push({
+      key: 'outflow-loan-payments',
+      label: 'Loan Payments',
+      value: data.cashOutflows.loanPayments,
+      details: data.cashOutflows.details?.filter(d => d.type === 'loan_payment') || []
+    });
+  }
+  
+  const finalInflows = inflowsLineItems.length > 0 ? inflowsLineItems : legacyInflows;
+  const finalOutflows = outflowsLineItems.length > 0 ? outflowsLineItems : legacyOutflows;
+  const totalInflows = cashInflows.total || data.cashInflows?.total || finalInflows.reduce((sum, item) => sum + (item.value || 0), 0);
+  const totalOutflows = cashOutflows.total || data.cashOutflows?.total || finalOutflows.reduce((sum, item) => sum + (item.value || 0), 0);
   
   return (
     <FinancialReport
@@ -2065,150 +2457,121 @@ export const CashFlowReport = ({
     >
       {data && (
         <div className="space-y-6">
-          {/* Company Header */}
+          {/* Company Header with Logo */}
           <div className="text-center mb-8">
+            {data.logoUrl && (
+              <div className="mb-4 flex justify-center">
+                <img
+                  src={
+                    typeof data.logoUrl === 'string' && data.logoUrl.startsWith('/uploads/')
+                      ? `/api/uploads/${data.logoUrl.replace(/^\/+uploads\//, '')}`
+                      : typeof data.logoUrl === 'string' && (data.logoUrl.startsWith('http://') || data.logoUrl.startsWith('https://'))
+                      ? data.logoUrl
+                      : typeof data.logoUrl === 'string'
+                      ? data.logoUrl
+                      : data.logoUrl
+                  }
+                  alt={`${companyName} Logo`}
+                  className="h-16 w-auto object-contain"
+                />
+              </div>
+            )}
             <h1 className="text-2xl font-bold text-gray-900">{companyName}</h1>
             <h2 className="text-xl font-semibold text-gray-700 mt-2">Cash Flow Summary</h2>
             <p className="text-sm text-gray-600 mt-1">For the Period: {periodLabel}</p>
-            </div>
+          </div>
             
           {/* Cash Flow Statement Table */}
-              <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
             <table className="min-w-full border-collapse">
-                  <thead>
+              <thead>
                 <tr>
                   <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300"></th>
                   <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
                 {/* CASH INFLOWS SECTION */}
                 <tr className="bg-gray-50">
                   <td colSpan="2" className="py-2 px-4 font-bold text-gray-900 uppercase">
                     CASH INFLOWS
-                        </td>
-                      </tr>
+                  </td>
+                </tr>
 
-                <CashFlowRow
-                  label="Cash from Customer Payments"
-                  value={data.cashInflows?.customerPayments || 0}
-                  hasDetails={data.cashInflows?.details?.filter(d => d.type === 'customer_payment' || d.type === 'sale_payment').length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Cash from Customer Payments', 
-                    items: data.cashInflows?.details?.filter(d => d.type === 'customer_payment' || d.type === 'sale_payment') || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Other Cash Receipts"
-                  value={data.cashInflows?.otherCashReceipts || 0}
-                  hasDetails={data.cashInflows?.details?.filter(d => d.type === 'other_receipt').length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Other Cash Receipts', 
-                    items: data.cashInflows?.details?.filter(d => d.type === 'other_receipt') || [] 
-                  })}
-                />
+                {finalInflows.length > 0 ? (
+                  finalInflows.map((item) => (
+                    <CashFlowRow
+                      key={item.key}
+                      label={item.label}
+                      value={item.value || 0}
+                      isNegative={false}
+                      hasDetails={item.details && item.details.length > 0}
+                      onDrillDown={() => handleDrillDown({ 
+                        type: item.label, 
+                        items: item.details || [] 
+                      })}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="2" className="py-2 px-4 text-gray-500 text-center italic">No cash inflows recorded</td>
+                  </tr>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Cash Inflows</td>
                   <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {formatCurrency(data.cashInflows?.total || 0)}
-                      </td>
-                    </tr>
+                    {formatCurrency(totalInflows)}
+                  </td>
+                </tr>
 
                 {/* CASH OUTFLOWS SECTION */}
-                    <tr className="bg-gray-50">
+                <tr className="bg-gray-50">
                   <td colSpan="2" className="py-2 px-4 font-bold text-gray-900 uppercase">
                     CASH OUTFLOWS
                   </td>
-                    </tr>
+                </tr>
 
-                <CashFlowRow
-                  label="Payments to Suppliers"
-                  value={data.cashOutflows?.supplierPayments || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('supplier') || d.category?.toLowerCase().includes('vendor'))).length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Payments to Suppliers', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('supplier') || d.category?.toLowerCase().includes('vendor'))) || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Salary Payments"
-                  value={data.cashOutflows?.salaryPayments || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('salary') || d.category?.toLowerCase().includes('wage') || d.category?.toLowerCase().includes('payroll'))).length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Salary Payments', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('salary') || d.category?.toLowerCase().includes('wage') || d.category?.toLowerCase().includes('payroll'))) || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Rent Payments"
-                  value={data.cashOutflows?.rentPayments || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && d.category?.toLowerCase().includes('rent')).length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Rent Payments', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && d.category?.toLowerCase().includes('rent')) || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Other Expense Payments"
-                  value={data.cashOutflows?.otherExpensePayments || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && !d.category?.toLowerCase().includes('supplier') && !d.category?.toLowerCase().includes('vendor') && !d.category?.toLowerCase().includes('salary') && !d.category?.toLowerCase().includes('wage') && !d.category?.toLowerCase().includes('payroll') && !d.category?.toLowerCase().includes('rent')).length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Other Expense Payments', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'expense_payment' && !d.category?.toLowerCase().includes('supplier') && !d.category?.toLowerCase().includes('vendor') && !d.category?.toLowerCase().includes('salary') && !d.category?.toLowerCase().includes('wage') && !d.category?.toLowerCase().includes('payroll') && !d.category?.toLowerCase().includes('rent')) || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Asset Purchases"
-                  value={data.cashOutflows?.assetPurchases || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'asset_purchase').length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Asset Purchases', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'asset_purchase') || [] 
-                  })}
-                />
-
-                <CashFlowRow
-                  label="Loan Payments"
-                  value={data.cashOutflows?.loanPayments || 0}
-                  isNegative={true}
-                  hasDetails={data.cashOutflows?.details?.filter(d => d.type === 'loan_payment').length > 0}
-                  onDrillDown={() => handleDrillDown({ 
-                    type: 'Loan Payments', 
-                    items: data.cashOutflows?.details?.filter(d => d.type === 'loan_payment') || [] 
-                  })}
-                />
+                {finalOutflows.length > 0 ? (
+                  finalOutflows.map((item) => (
+                    <CashFlowRow
+                      key={item.key}
+                      label={item.label}
+                      value={item.value || 0}
+                      isNegative={true}
+                      hasDetails={item.details && item.details.length > 0}
+                      onDrillDown={() => handleDrillDown({ 
+                        type: item.label, 
+                        items: item.details || [] 
+                      })}
+                    />
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="2" className="py-2 px-4 text-gray-500 text-center italic">No cash outflows recorded</td>
+                  </tr>
+                )}
 
                 <tr className="border-t border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">Total Cash Outflows</td>
                   <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {formatCurrency(data.cashOutflows?.total || 0)}
-                        </td>
-                      </tr>
+                    {formatCurrency(totalOutflows)}
+                  </td>
+                </tr>
 
                 <tr className="border-t-2 border-gray-300">
                   <td className="py-2 px-4 font-semibold text-gray-900">NET CASH FLOW</td>
                   <td className={`py-2 px-4 text-right font-semibold text-gray-900 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(netCashFlow)}
-                      </td>
-                    </tr>
+                  </td>
+                </tr>
 
                 <tr className="border-t-2 border-gray-400">
                   <td className="py-3 px-4 font-semibold text-gray-900">Opening Cash Balance</td>
                   <td className="py-3 px-4 text-right font-semibold text-gray-900">
                     {formatCurrency(openingBalance)}
-                        </td>
-                      </tr>
+                  </td>
+                </tr>
 
                 <tr>
                   <td className="py-2 px-4 text-gray-700">Add: Net Cash Flow</td>
@@ -2221,11 +2584,11 @@ export const CashFlowReport = ({
                   <td className="py-3 px-4 font-bold text-lg text-gray-900">Closing Cash Balance</td>
                   <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
                     {formatCurrency(closingBalance)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           {/* Drill-down Modal */}
           {drillDownData && (

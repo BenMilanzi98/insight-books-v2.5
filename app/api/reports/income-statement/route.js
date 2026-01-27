@@ -104,54 +104,76 @@ export async function GET(request) {
     const transformResponse = (data) => {
       if (!data) return null;
       
+      const totalRevenue = data.totalRevenue || 0;
+      
       return {
         ...data,
+        totalRevenue,
         revenue: {
           ...data.revenue,
-          total: data.totalRevenue || 0,
+          total: totalRevenue,
+          // Dynamic revenue lines (per revenue account)
+          lineItems: (data.revenue?.lineItems || []).map(li => ({
+            ...li,
+            percentage: totalRevenue > 0 ? ((li.amount || 0) / totalRevenue) * 100 : 0
+          })),
+          // Legacy buckets (for fallback views)
           salesRevenue: {
             amount: data.revenue?.salesRevenue || 0,
-            percentage: data.totalRevenue > 0 ? ((data.revenue?.salesRevenue || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.revenue?.salesRevenue || 0) / totalRevenue) * 100 : 0
           },
           serviceRevenue: {
             amount: data.revenue?.serviceRevenue || 0,
-            percentage: data.totalRevenue > 0 ? ((data.revenue?.serviceRevenue || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.revenue?.serviceRevenue || 0) / totalRevenue) * 100 : 0
           },
           otherIncome: {
             amount: data.revenue?.otherIncome || 0,
-            percentage: data.totalRevenue > 0 ? ((data.revenue?.otherIncome || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.revenue?.otherIncome || 0) / totalRevenue) * 100 : 0
           }
         },
         cogs: {
           ...data.cogs,
           total: (data.cogs?.costOfProductsSold || 0) + (data.cogs?.freightShippingCosts || 0),
+          // Dynamic COGS lines
+          lineItems: (data.cogs?.lineItems || []).map(li => ({
+            ...li,
+            percentage: totalRevenue > 0 ? ((li.amount || 0) / totalRevenue) * 100 : 0
+          })),
           costOfProductsSold: {
             amount: data.cogs?.costOfProductsSold || 0,
-            percentage: data.totalRevenue > 0 ? ((data.cogs?.costOfProductsSold || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.cogs?.costOfProductsSold || 0) / totalRevenue) * 100 : 0
           },
           freightShippingCosts: {
             amount: data.cogs?.freightShippingCosts || 0,
-            percentage: data.totalRevenue > 0 ? ((data.cogs?.freightShippingCosts || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.cogs?.freightShippingCosts || 0) / totalRevenue) * 100 : 0
           }
         },
         grossProfit: {
           amount: data.grossProfit || 0,
-          percentage: data.totalRevenue > 0 ? ((data.grossProfit || 0) / data.totalRevenue) * 100 : 0
+          percentage: totalRevenue > 0 ? ((data.grossProfit || 0) / totalRevenue) * 100 : 0
         },
         operatingExpenses: {
           ...data.operatingExpenses,
-          total: data.totalOperatingExpenses || 0,
+          total: data.totalOperatingExpenses || data.operatingExpenses?.total || 0,
+          // Dynamic categories from Expense table
+          categories: (data.operatingExpenses?.categories || []).map(cat => ({
+            category: cat.category,
+            amount: cat.amount,
+            percentage: totalRevenue > 0 ? (cat.amount / totalRevenue) * 100 : 0,
+            details: cat.details || []
+          })),
+          // Keep legacy fields for backward compatibility (will be empty if using dynamic categories)
           salariesWages: {
             amount: data.operatingExpenses?.salaries || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.salaries || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.salaries || 0) / totalRevenue) * 100 : 0
           },
           rentExpense: {
             amount: data.operatingExpenses?.rent || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.rent || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.rent || 0) / totalRevenue) * 100 : 0
           },
           utilitiesExpense: {
             amount: data.operatingExpenses?.utilities || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.utilities || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.utilities || 0) / totalRevenue) * 100 : 0
           },
           officeSupplies: {
             amount: 0,
@@ -159,7 +181,7 @@ export async function GET(request) {
           },
           marketingAdvertising: {
             amount: data.operatingExpenses?.marketing || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.marketing || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.marketing || 0) / totalRevenue) * 100 : 0
           },
           insurance: {
             amount: 0,
@@ -167,7 +189,7 @@ export async function GET(request) {
           },
           depreciation: {
             amount: data.operatingExpenses?.depreciation || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.depreciation || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.depreciation || 0) / totalRevenue) * 100 : 0
           },
           loanPayments: {
             amount: 0,
@@ -175,40 +197,40 @@ export async function GET(request) {
           },
           otherOperatingExpenses: {
             amount: data.operatingExpenses?.otherOperatingExpenses || 0,
-            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.otherOperatingExpenses || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.operatingExpenses?.otherOperatingExpenses || 0) / totalRevenue) * 100 : 0
           }
         },
         operatingIncome: {
           amount: data.operatingIncome || 0,
-          percentage: data.totalRevenue > 0 ? ((data.operatingIncome || 0) / data.totalRevenue) * 100 : 0
+          percentage: totalRevenue > 0 ? ((data.operatingIncome || 0) / totalRevenue) * 100 : 0
         },
         otherIncomeExpenses: {
           interestIncome: {
             amount: data.otherIncomeExpenses?.interestIncome || 0,
-            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestIncome || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestIncome || 0) / totalRevenue) * 100 : 0
           },
           interestExpense: {
             amount: data.otherIncomeExpenses?.interestExpense || 0,
-            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestExpense || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestExpense || 0) / totalRevenue) * 100 : 0
           },
           gainLossOnAssetSales: {
             amount: data.otherIncomeExpenses?.otherIncome || 0,
-            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.otherIncome || 0) / data.totalRevenue) * 100 : 0
+            percentage: totalRevenue > 0 ? ((data.otherIncomeExpenses?.otherIncome || 0) / totalRevenue) * 100 : 0
           },
           total: data.otherIncomeExpenses?.total || 0
         },
         netIncomeBeforeTax: {
           amount: data.incomeBeforeTax || 0,
-          percentage: data.totalRevenue > 0 ? ((data.incomeBeforeTax || 0) / data.totalRevenue) * 100 : 0
+          percentage: totalRevenue > 0 ? ((data.incomeBeforeTax || 0) / totalRevenue) * 100 : 0
         },
         incomeTaxExpense: {
           rate: 0,
           amount: data.taxExpense || 0,
-          percentage: data.totalRevenue > 0 ? ((data.taxExpense || 0) / data.totalRevenue) * 100 : 0
+          percentage: totalRevenue > 0 ? ((data.taxExpense || 0) / totalRevenue) * 100 : 0
         },
         netIncome: {
           amount: data.netIncome || 0,
-          percentage: data.totalRevenue > 0 ? ((data.netIncome || 0) / data.totalRevenue) * 100 : 0
+          percentage: totalRevenue > 0 ? ((data.netIncome || 0) / totalRevenue) * 100 : 0
         }
       };
     };

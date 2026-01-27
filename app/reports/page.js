@@ -1,5 +1,6 @@
 "use client";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, Suspense } from "react";
+import { useSearchParams } from 'next/navigation';
 import { 
   BarChart as BarChartIcon, 
   FileText, 
@@ -85,6 +86,8 @@ import {
 } from "recharts";
 
 const FinancialReportingPage = () => {
+  const searchParams = useSearchParams();
+  
   // State management for reports and UI
   const [timeframe, setTimeframe] = useState("thisMonth");
   const [activeReport, setActiveReport] = useState('summary');
@@ -94,6 +97,19 @@ const FinancialReportingPage = () => {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [availableReports, setAvailableReports] = useState([]);
+  
+  // Check for report query parameter on mount
+  useEffect(() => {
+    const reportParam = searchParams?.get('report');
+    if (reportParam) {
+      setSelectedReport(reportParam);
+      setActiveReport(reportParam);
+      // Clean up URL parameter
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({}, '', '/reports');
+      }
+    }
+  }, [searchParams]);
   
   // NEW: Custom date range state
   const [customDateRange, setCustomDateRange] = useState({
@@ -1377,4 +1393,13 @@ const FinancialReportingPage = () => {
   );
 };
 
-export default FinancialReportingPage;
+// Wrap component in Suspense for useSearchParams
+function FinancialReportingPageWrapper() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin h-8 w-8 text-blue-600" /></div>}>
+      <FinancialReportingPage />
+    </Suspense>
+  );
+}
+
+export default FinancialReportingPageWrapper;
