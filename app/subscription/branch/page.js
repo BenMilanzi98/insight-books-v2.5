@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { SUBSCRIPTION_PLANS_ARRAY } from "@/lib/subscriptionConfig";
 
-export default function BranchSubscriptionPage() {
+function BranchSubscriptionContent() {
   const searchParams = useSearchParams();
   const branchId = searchParams.get("branchId");
 
@@ -169,4 +169,17 @@ export default function BranchSubscriptionPage() {
   );
 }
 
+export default function BranchSubscriptionPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-6">
+          <div className="text-gray-600">Loading...</div>
+        </div>
+      </div>
+    }>
+      <BranchSubscriptionContent />
+    </Suspense>
+  );
+}
 
