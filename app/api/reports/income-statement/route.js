@@ -100,9 +100,122 @@ export async function GET(request) {
       );
     }
     
+    // Transform response to match frontend expectations
+    const transformResponse = (data) => {
+      if (!data) return null;
+      
+      return {
+        ...data,
+        revenue: {
+          ...data.revenue,
+          total: data.totalRevenue || 0,
+          salesRevenue: {
+            amount: data.revenue?.salesRevenue || 0,
+            percentage: data.totalRevenue > 0 ? ((data.revenue?.salesRevenue || 0) / data.totalRevenue) * 100 : 0
+          },
+          serviceRevenue: {
+            amount: data.revenue?.serviceRevenue || 0,
+            percentage: data.totalRevenue > 0 ? ((data.revenue?.serviceRevenue || 0) / data.totalRevenue) * 100 : 0
+          },
+          otherIncome: {
+            amount: data.revenue?.otherIncome || 0,
+            percentage: data.totalRevenue > 0 ? ((data.revenue?.otherIncome || 0) / data.totalRevenue) * 100 : 0
+          }
+        },
+        cogs: {
+          ...data.cogs,
+          total: (data.cogs?.costOfProductsSold || 0) + (data.cogs?.freightShippingCosts || 0),
+          costOfProductsSold: {
+            amount: data.cogs?.costOfProductsSold || 0,
+            percentage: data.totalRevenue > 0 ? ((data.cogs?.costOfProductsSold || 0) / data.totalRevenue) * 100 : 0
+          },
+          freightShippingCosts: {
+            amount: data.cogs?.freightShippingCosts || 0,
+            percentage: data.totalRevenue > 0 ? ((data.cogs?.freightShippingCosts || 0) / data.totalRevenue) * 100 : 0
+          }
+        },
+        grossProfit: {
+          amount: data.grossProfit || 0,
+          percentage: data.totalRevenue > 0 ? ((data.grossProfit || 0) / data.totalRevenue) * 100 : 0
+        },
+        operatingExpenses: {
+          ...data.operatingExpenses,
+          total: data.totalOperatingExpenses || 0,
+          salariesWages: {
+            amount: data.operatingExpenses?.salaries || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.salaries || 0) / data.totalRevenue) * 100 : 0
+          },
+          rentExpense: {
+            amount: data.operatingExpenses?.rent || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.rent || 0) / data.totalRevenue) * 100 : 0
+          },
+          utilitiesExpense: {
+            amount: data.operatingExpenses?.utilities || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.utilities || 0) / data.totalRevenue) * 100 : 0
+          },
+          officeSupplies: {
+            amount: 0,
+            percentage: 0
+          },
+          marketingAdvertising: {
+            amount: data.operatingExpenses?.marketing || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.marketing || 0) / data.totalRevenue) * 100 : 0
+          },
+          insurance: {
+            amount: 0,
+            percentage: 0
+          },
+          depreciation: {
+            amount: data.operatingExpenses?.depreciation || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.depreciation || 0) / data.totalRevenue) * 100 : 0
+          },
+          loanPayments: {
+            amount: 0,
+            percentage: 0
+          },
+          otherOperatingExpenses: {
+            amount: data.operatingExpenses?.otherOperatingExpenses || 0,
+            percentage: data.totalRevenue > 0 ? ((data.operatingExpenses?.otherOperatingExpenses || 0) / data.totalRevenue) * 100 : 0
+          }
+        },
+        operatingIncome: {
+          amount: data.operatingIncome || 0,
+          percentage: data.totalRevenue > 0 ? ((data.operatingIncome || 0) / data.totalRevenue) * 100 : 0
+        },
+        otherIncomeExpenses: {
+          interestIncome: {
+            amount: data.otherIncomeExpenses?.interestIncome || 0,
+            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestIncome || 0) / data.totalRevenue) * 100 : 0
+          },
+          interestExpense: {
+            amount: data.otherIncomeExpenses?.interestExpense || 0,
+            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.interestExpense || 0) / data.totalRevenue) * 100 : 0
+          },
+          gainLossOnAssetSales: {
+            amount: data.otherIncomeExpenses?.otherIncome || 0,
+            percentage: data.totalRevenue > 0 ? ((data.otherIncomeExpenses?.otherIncome || 0) / data.totalRevenue) * 100 : 0
+          },
+          total: data.otherIncomeExpenses?.total || 0
+        },
+        netIncomeBeforeTax: {
+          amount: data.incomeBeforeTax || 0,
+          percentage: data.totalRevenue > 0 ? ((data.incomeBeforeTax || 0) / data.totalRevenue) * 100 : 0
+        },
+        incomeTaxExpense: {
+          rate: 0,
+          amount: data.taxExpense || 0,
+          percentage: data.totalRevenue > 0 ? ((data.taxExpense || 0) / data.totalRevenue) * 100 : 0
+        },
+        netIncome: {
+          amount: data.netIncome || 0,
+          percentage: data.totalRevenue > 0 ? ((data.netIncome || 0) / data.totalRevenue) * 100 : 0
+        }
+      };
+    };
+
     return NextResponse.json({
-      ...currentPeriod,
-      previous: previousPeriod,
+      ...transformResponse(currentPeriod),
+      previous: transformResponse(previousPeriod),
       comparisonType: compare ? 'previousPeriod' : compareYear ? 'previousYear' : null
     });
   } catch (error) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -26,16 +27,16 @@ export async function GET(request) {
       );
     }
     
-    // Get invoice items with tax data
+    // Get invoice items with tax data - filter by branch
     const invoiceItems = await prisma.invoiceItem.findMany({
       where: {
-        invoice: {
+        invoice: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: {
             gte: new Date(startDate),
             lte: new Date(endDate)
           }
-        }
+        })
       },
       include: {
         invoice: {
@@ -53,16 +54,16 @@ export async function GET(request) {
       }
     });
     
-    // Get sale items with tax data
+    // Get sale items with tax data - filter by branch
     const saleItems = await prisma.saleItem.findMany({
       where: {
-        sale: {
+        sale: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: {
             gte: new Date(startDate),
             lte: new Date(endDate)
           }
-        }
+        })
       },
       include: {
         sale: {
@@ -81,9 +82,9 @@ export async function GET(request) {
       }
     });
     
-    // Get tax-related expenses (exclude deleted ones)
+    // Get tax-related expenses (exclude deleted ones) - filter by branch
     const taxExpenses = await prisma.expense.findMany({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         category: {
           contains: 'Tax' // This assumes tax expenses are categorized with "Tax" in the name
@@ -93,7 +94,7 @@ export async function GET(request) {
           lte: new Date(endDate)
         },
         isDeleted: false // Exclude deleted expenses
-      },
+      }),
       select: {
         id: true,
         description: true,

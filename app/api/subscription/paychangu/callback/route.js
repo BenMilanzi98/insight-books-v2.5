@@ -34,53 +34,99 @@ export async function GET(request) {
       ? new Date(payment.authorization.completed_at)
       : new Date();
 
-    // Get the subscription to find the plan
-    const existing = await prisma.accountSubscription.findFirst({
-      where: { txRef: tx_ref }
+    // Try tenant subscription first
+    const existingTenantSub = await prisma.accountSubscription.findFirst({
+      where: { txRef: tx_ref },
     });
 
-    if (!existing) {
+    // If not a tenant subscription, try branch subscription
+    const existingBranchSub = existingTenantSub
+      ? null
+      : await prisma.branchSubscription.findFirst({
+          where: { txRef: tx_ref },
+        });
+
+    if (!existingTenantSub && !existingBranchSub) {
       console.error('Subscription not found for tx_ref:', tx_ref);
       return NextResponse.redirect(`${process.env.APP_URL}/subscription/error?msg=Subscription not found`);
     }
 
-    // Calculate expiry date based on the plan
-    const plan = existing.plan || '1month'; // Default to 1month if plan is missing
+    if (existingBranchSub) {
+      const plan = existingBranchSub.plan || '1month';
+      const expiresAt = calculateSubscriptionExpiry(plan, completedAt);
+
+      // Deactivate any other active subscriptions for this branch
+      await prisma.branchSubscription.updateMany({
+        where: {
+          branchId: existingBranchSub.branchId,
+          isActive: true,
+          id: { not: existingBranchSub.id },
+        },
+        data: { isActive: false, status: 'Expired' },
+      });
+
+      // Activate the branch subscription
+      await prisma.branchSubscription.update({
+        where: { id: existingBranchSub.id },
+        data: {
+          status: 'Completed',
+          isActive: true,
+          paymentDate: completedAt,
+          startedAt: completedAt,
+          expiresAt,
+          amount: Number(payment.amount),
+          currency: payment.currency,
+          paymentMethod: payment.authorization?.channel || 'Unknown',
+          gatewayResponse: data,
+        },
+      });
+
+      // Activate the branch itself (so it becomes selectable/usable)
+      await prisma.branch.update({
+        where: { id: existingBranchSub.branchId },
+        data: { isActive: true },
+      });
+
+      return NextResponse.redirect(`${process.env.APP_URL}/branches?success=true&scope=branch`);
+    }
+
+    // Tenant subscription flow
+    const plan = existingTenantSub.plan || '1month'; // Default to 1month if plan is missing
     const expiresAt = calculateSubscriptionExpiry(plan, completedAt);
 
     // Deactivate any other active subscriptions for the tenant (to prevent duplicates)
-    if (existing?.tenantId) {
+    if (existingTenantSub?.tenantId) {
       await prisma.accountSubscription.updateMany({
         where: {
-          tenantId: existing.tenantId,
+          tenantId: existingTenantSub.tenantId,
           isActive: true,
-          id: { not: existing.id } // Exclude the current subscription
+          id: { not: existingTenantSub.id }, // Exclude the current subscription
         },
-        data: { 
+        data: {
           isActive: false,
-          status: 'Expired' // Mark other subscriptions as expired
-        }
+          status: 'Expired', // Mark other subscriptions as expired
+        },
       });
     }
 
     // Update the existing subscription record (not creating a new one)
     await prisma.accountSubscription.update({
-      where: { id: existing.id },
+      where: { id: existingTenantSub.id },
       data: {
         status: 'Completed',
         isActive: true,
         isTrial: false, // Ensure it's marked as paid, not trial
         paymentDate: completedAt,
         startedAt: completedAt,
-        expiresAt: expiresAt,
+        expiresAt,
         amount: Number(payment.amount),
         currency: payment.currency,
         paymentMethod: payment.authorization?.channel || 'Unknown',
-        gatewayResponse: data
-      }
+        gatewayResponse: data,
+      },
     });
 
-    return NextResponse.redirect(`${process.env.APP_URL}/subscription`);
+    return NextResponse.redirect(`${process.env.APP_URL}/subscription?success=true`);
 
   } catch (error) {
     console.error('Error in PayChangu callback:', error);

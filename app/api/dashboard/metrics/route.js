@@ -18,6 +18,11 @@ export async function GET(request) {
       );
     }
     
+    // Debug: Log branch filtering status
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[dashboard/metrics] tenantId=${user.tenantId}, currentBranchId=${user.currentBranchId || 'null'}`);
+    }
+    
     const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'month';
@@ -243,16 +248,33 @@ export async function GET(request) {
 
     const [currentInvoices, currentSales, currentExpensesData, currentCOGSData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
+      // Filter by payment.branchId OR invoice.branchId OR sale.branchId for proper branch isolation
       prisma.payment.aggregate({
-        where: addBranchFilter(user, {
-          tenantId,
-          type: { in: ['invoice', 'sale'] },
-          status: 'Completed',
-          paymentDate: { 
-            gte: currentPeriodStart,
-            lte: currentPeriodEndDate
+        where: (() => {
+          const baseFilter = {
+            tenantId,
+            type: { in: ['invoice', 'sale'] },
+            status: 'Completed',
+            paymentDate: { 
+              gte: currentPeriodStart,
+              lte: currentPeriodEndDate
+            }
+          };
+          
+          if (user?.currentBranchId) {
+            // Filter by payment.branchId OR related invoice/sale branchId
+            return {
+              ...baseFilter,
+              OR: [
+                { branchId: user.currentBranchId },
+                { invoice: { branchId: user.currentBranchId } },
+                { sale: { branchId: user.currentBranchId } }
+              ]
+            };
           }
-        }),
+          
+          return baseFilter;
+        })(),
         _sum: { amount: true }
       }),
       prisma.sale.aggregate({
@@ -329,16 +351,33 @@ export async function GET(request) {
     // Get previous period data with refund calculations
     const [previousInvoices, previousSales, previousExpensesData, previousCOGSData] = await Promise.all([
       // Revenue should only include actual payments received, not pending invoices
+      // Filter by payment.branchId OR invoice.branchId OR sale.branchId for proper branch isolation
       prisma.payment.aggregate({
-        where: addBranchFilter(user, {
-          tenantId,
-          type: { in: ['invoice', 'sale'] },
-          status: 'Completed',
-          paymentDate: { 
-            gte: previousPeriodStart,
-            lte: previousPeriodEnd
+        where: (() => {
+          const baseFilter = {
+            tenantId,
+            type: { in: ['invoice', 'sale'] },
+            status: 'Completed',
+            paymentDate: { 
+              gte: previousPeriodStart,
+              lte: previousPeriodEnd
+            }
+          };
+          
+          if (user?.currentBranchId) {
+            // Filter by payment.branchId OR related invoice/sale branchId
+            return {
+              ...baseFilter,
+              OR: [
+                { branchId: user.currentBranchId },
+                { invoice: { branchId: user.currentBranchId } },
+                { sale: { branchId: user.currentBranchId } }
+              ]
+            };
           }
-        }),
+          
+          return baseFilter;
+        })(),
         _sum: { amount: true }
       }),
       prisma.sale.aggregate({

@@ -76,6 +76,7 @@ model Tenant {
   gratuityAccounts           GratuityAccount[]
   salaryAdvances             SalaryAdvance[]
   branches                   Branch[]
+  branchSubscriptions         BranchSubscription[]
   taxTypes                   TaxType[]
 }
 
@@ -99,6 +100,7 @@ model Branch {
   products     Product[]
   inventoryTransactions InventoryTransaction[]
   inventoryBatches       InventoryBatch[]
+  branchSubscriptions BranchSubscription[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1659,6 +1661,35 @@ model AccountSubscription {
   @@index([expiresAt])
   @@index([isTrial])
   @@index([trialEndDate])
+}
+
+model BranchSubscription {
+  id              String    @id @default(cuid())
+  tenantId        String
+  branchId        String
+  plan            String
+  txRef           String    @unique
+  amount          Float
+  currency        String
+  status          String    @default("Pending")
+  paymentMethod   String?
+  notes           String?
+  isActive        Boolean   @default(false)
+  startedAt       DateTime?
+  expiresAt       DateTime?
+  paymentDate     DateTime?
+  gatewayResponse Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([branchId])
+  @@index([status])
+  @@index([isActive])
+  @@index([expiresAt])
 }
 
 model BaseUnit {

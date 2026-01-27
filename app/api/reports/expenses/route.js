@@ -65,12 +65,16 @@ export async function GET(request) {
       }
     });
     
-    // Get expense categories
+    // Get expense categories - filter by branch
     const categories = await prisma.expense.groupBy({
       by: ['category'],
-      where: {
-        tenantId: user.tenantId
-      },
+      where: addBranchFilter(user, {
+        tenantId: user.tenantId,
+        date: {
+          gte: new Date(startDate),
+          lte: new Date(endDate)
+        }
+      }),
       _sum: {
         amount: true
       },

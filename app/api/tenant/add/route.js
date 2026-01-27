@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { requirePremiumAccess } from '@/lib/accessControl';
 
 export async function POST(request) {
   try {
@@ -10,6 +11,18 @@ export async function POST(request) {
 
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Require active paid subscription to create a new business
+    const accessError = await requirePremiumAccess(request);
+    if (accessError) {
+      return NextResponse.json(
+        { 
+          error: 'Active subscription required to create a new business. Please subscribe first.',
+          code: 'SUBSCRIPTION_REQUIRED'
+        },
+        { status: 403 }
+      );
+    }
 
     // Create the tenant first
     const tenant = await prisma.tenant.create({

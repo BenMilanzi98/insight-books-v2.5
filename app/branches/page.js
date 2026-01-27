@@ -113,8 +113,13 @@ export default function BranchesPage() {
       
       if (!res.ok) {
         // Check if subscription is required
+        if (json?.code === 'BRANCH_SUBSCRIPTION_REQUIRED' && json?.branchId) {
+          // Redirect to branch subscription page
+          window.location.href = `/subscription/branch?branchId=${encodeURIComponent(json.branchId)}&redirected=true&reason=branch_subscription_required`;
+          return;
+        }
         if (json?.code === 'SUBSCRIPTION_REQUIRED' || res.status === 403) {
-          // Redirect to subscription page
+          // Redirect to tenant subscription page
           window.location.href = '/subscription?redirected=true&reason=subscription_required';
           return;
         }
@@ -139,6 +144,12 @@ export default function BranchesPage() {
         body: JSON.stringify({ isActive: !branch.isActive }),
       });
       const json = await res.json();
+      if (!res.ok && json?.code === "BRANCH_SUBSCRIPTION_REQUIRED" && json?.branchId) {
+        window.location.href = `/subscription/branch?branchId=${encodeURIComponent(
+          json.branchId
+        )}&redirected=true&reason=branch_subscription_required`;
+        return;
+      }
       if (!res.ok) throw new Error(json?.error || "Failed to update status");
       await loadBranches();
     } catch (e) {

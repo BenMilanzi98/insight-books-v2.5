@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -38,15 +39,15 @@ export async function GET(request) {
     let reportData = {};
     
     if (groupBy === 'time') {
-      // Group by month
+      // Group by month - filter by branch
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { name: true }
@@ -55,13 +56,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { name: true }
@@ -122,13 +123,13 @@ export async function GET(request) {
     } else if (groupBy === 'product' || groupBy === 'category') {
       // Group by product or category
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {
@@ -210,13 +211,13 @@ export async function GET(request) {
     } else if (groupBy === 'customer') {
       // Group by customer
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { id: true, name: true }

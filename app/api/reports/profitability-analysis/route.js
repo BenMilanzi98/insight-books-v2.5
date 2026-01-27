@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -40,13 +41,13 @@ export async function GET(request) {
     if (groupBy === 'product') {
       // Get invoices and sales with items
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {
@@ -64,13 +65,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {
@@ -145,13 +146,13 @@ export async function GET(request) {
     } else if (groupBy === 'customer') {
       // Get invoices and sales grouped by customer
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { id: true, name: true }
@@ -170,13 +171,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           client: {
             select: { id: true, name: true }
@@ -247,13 +248,13 @@ export async function GET(request) {
     } else if (groupBy === 'time') {
       // Group by month
       const invoices = await prisma.invoice.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: { gte: start, lte: end },
           status: { in: ['Paid', 'Completed', 'Pending', 'Partially Paid'] },
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {
@@ -269,13 +270,13 @@ export async function GET(request) {
       });
       
       const sales = await prisma.sale.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: { gte: start, lte: end },
           status: 'completed',
           voidedAt: null,
           refundedAt: null
-        },
+        }),
         include: {
           items: {
             include: {

@@ -224,6 +224,7 @@ export async function POST(request) {
     });
     
     // Initialize trial subscription for the new tenant
+    // Note: While a trial is created, subscription payment is required for full business functionality
     const trialSubscription = await initializeTenantTrial(result.tenant.id);
     
     // Send OTP email

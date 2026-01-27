@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -40,11 +41,11 @@ export async function GET(request) {
     if (groupBy === 'category') {
       // Get expenses for current period
       const currentExpenses = await prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           date: { gte: start, lte: end },
           isDeleted: false
-        }
+        })
       });
       
       // Calculate period before (for comparison)
@@ -53,11 +54,11 @@ export async function GET(request) {
       const previousEnd = new Date(start.getTime() - 1);
       
       const previousExpenses = await prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           date: { gte: previousStart, lte: previousEnd },
           isDeleted: false
-        }
+        })
       });
       
       // Group by category
@@ -120,11 +121,11 @@ export async function GET(request) {
     } else if (groupBy === 'month') {
       // Group by month
       const expenses = await prisma.expense.findMany({
-        where: {
+        where: addBranchFilter(user, {
           tenantId: user.tenantId,
           date: { gte: start, lte: end },
           isDeleted: false
-        }
+        })
       });
       
       // Get all unique categories

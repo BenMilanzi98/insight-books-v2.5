@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 
 export async function GET(request) {
   try {
@@ -27,73 +28,73 @@ export async function GET(request) {
       );
     }
     
-    // Get revenue (from paid invoices and sales)
+    // Get revenue (from paid invoices and sales) - filter by branch
     const invoiceRevenue = await prisma.invoice.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: 'Paid',
         issueDate: {
           gte: new Date(startDate),
           lte: new Date(endDate)
         }
-      },
+      }),
       _sum: {
         total: true
       }
     });
     
     const salesRevenue = await prisma.sale.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: 'completed',
         saleDate: {
           gte: new Date(startDate),
           lte: new Date(endDate)
         }
-      },
+      }),
       _sum: {
         total: true
       }
     });
     
-    // Get expenses
+    // Get expenses - filter by branch
     const expenses = await prisma.expense.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: 'Approved',
         date: {
           gte: new Date(startDate),
           lte: new Date(endDate)
         }
-      },
+      }),
       _sum: {
         amount: true
       }
     });
     
-    // Count outstanding invoices
+    // Count outstanding invoices - filter by branch
     const outstandingInvoices = await prisma.invoice.aggregate({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: 'Pending',
         dueDate: {
           lt: new Date() // Due date has passed
         }
-      },
+      }),
       _count: true,
       _sum: {
         total: true
       }
     });
     
-    // Count recent sales
+    // Count recent sales - filter by branch
     const recentSales = await prisma.sale.count({
-      where: {
+      where: addBranchFilter(user, {
         tenantId: user.tenantId,
         saleDate: {
           gte: new Date(new Date().setDate(new Date().getDate() - 7)) // Last 7 days
         }
-      }
+      })
     });
     
     // Get low stock products - Simplified logic to match stock alerts API

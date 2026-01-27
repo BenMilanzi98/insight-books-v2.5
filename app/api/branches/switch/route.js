@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { getFreeBranchId, hasActiveBranchSubscription, syncBranchActiveStatus } from '@/lib/branchSubscriptionService';
 
 export async function POST(request) {
   try {
@@ -16,6 +17,10 @@ export async function POST(request) {
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+    // Keep branch activeness in sync with subscription expiry.
+    // This ensures expired branches auto-deactivate.
+    await syncBranchActiveStatus(user.tenantId);
+
     // If branchId is provided, validate it belongs to user's tenant
     if (branchId) {
       const branch = await prisma.branch.findFirst({
@@ -27,6 +32,26 @@ export async function POST(request) {
       });
       if (!branch) {
         return NextResponse.json({ error: 'Branch not found or inactive' }, { status: 404 });
+      }
+
+      // Enforce branch subscription for non-free branch (even if it isActive=true due to stale state)
+      const freeBranchId = await getFreeBranchId(user.tenantId);
+      const isFreeBranch = freeBranchId && freeBranchId === branchId;
+      if (!isFreeBranch) {
+        const ok = await hasActiveBranchSubscription(user.tenantId, branchId);
+        if (!ok) {
+          // Make sure it's inactive in DB
+          await prisma.branch.update({ where: { id: branchId }, data: { isActive: false } });
+          return NextResponse.json(
+            {
+              error: 'Branch subscription required to use this branch.',
+              code: 'BRANCH_SUBSCRIPTION_REQUIRED',
+              scope: 'branch',
+              branchId,
+            },
+            { status: 403 }
+          );
+        }
       }
     }
 
