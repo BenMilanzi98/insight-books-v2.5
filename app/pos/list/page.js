@@ -34,6 +34,7 @@ import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 const SalesListPage = () => {
   const router = useRouter();
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   
   // State for sales data
   const [sales, setSales] = useState([]);
