@@ -20,7 +20,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:production": "prisma db push --accept-data-loss=false && prisma generate",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "migrate:payment-accounts": "node scripts/migrate-payment-accounts.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
