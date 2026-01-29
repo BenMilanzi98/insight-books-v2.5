@@ -53,6 +53,22 @@ async function getProductWithValidation(id, tenantId) {
             }
           }
         }
+      },
+      // Include product taxes
+      productTaxes: {
+        include: {
+          taxType: {
+            select: {
+              id: true,
+              taxId: true,
+              taxName: true,
+              taxCode: true,
+              taxRate: true,
+              calculationType: true,
+              status: true
+            }
+          }
+        }
       }
     }
   });
@@ -103,6 +119,17 @@ async function getProductWithValidation(id, tenantId) {
       imageUrl: product.image || `/api/placeholder/80/80`, // Add imageUrl for consistency
       lastUpdated: product.updatedAt.toISOString(),
       transactions,
+      // Include taxes data for the frontend
+      taxes: (product.productTaxes || [])
+        .filter(pt => pt.taxType.status === 'Active')
+        .map(pt => ({
+          id: pt.taxType.id,
+          taxId: pt.taxType.taxId,
+          taxName: pt.taxType.taxName,
+          taxCode: pt.taxType.taxCode,
+          taxRate: pt.taxType.taxRate,
+          calculationType: pt.taxType.calculationType
+        })),
       // Include units data for the frontend - transform productUnits to expected format
       // Calculate individual unit stocks from main product stock for consistency
       units: (product.productUnits || []).map(pu => {

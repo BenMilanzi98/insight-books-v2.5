@@ -1230,6 +1230,25 @@ const InventoryManagement = () => {
         resultProduct = updated.product;
         productId = resultProduct.id;
         
+        // Save product taxes (always save, even if empty array)
+        try {
+          const taxResponse = await fetch(`/api/products/${productId}/taxes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taxTypeIds: formData.selectedTaxIds || [] })
+          });
+          
+          if (!taxResponse.ok) {
+            const errorData = await taxResponse.json();
+            throw new Error(errorData.error || 'Failed to save taxes');
+          }
+          
+          console.log('Taxes saved successfully:', formData.selectedTaxIds);
+        } catch (error) {
+          console.error('Error saving product taxes:', error);
+          showToast("error", "Taxes not saved", error.message || "Product updated but tax assignment failed. Please try assigning taxes again.");
+        }
+        
         // Update inventory list with the product data (without image yet)
         // For products with units, use the original stock level for display, not the calculated total
         const updatedProduct = {
@@ -1260,6 +1279,25 @@ const InventoryManagement = () => {
         
         resultProduct = created.product;
         productId = resultProduct.id;
+        
+        // Save product taxes (always save, even if empty array)
+        try {
+          const taxResponse = await fetch(`/api/products/${productId}/taxes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taxTypeIds: formData.selectedTaxIds || [] })
+          });
+          
+          if (!taxResponse.ok) {
+            const errorData = await taxResponse.json();
+            throw new Error(errorData.error || 'Failed to save taxes');
+          }
+          
+          console.log('Taxes saved successfully:', formData.selectedTaxIds);
+        } catch (error) {
+          console.error('Error saving product taxes:', error);
+          showToast("error", "Taxes not saved", error.message || "Product created but tax assignment failed. Please try assigning taxes again.");
+        }
         
         // Add to inventory list (without image yet)
         setInventory([resultProduct, ...inventory]);
@@ -4155,7 +4193,9 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     unitManagementEnabled: false,
     selectedBaseUnit: null,
     selectedUnits: [],
-    unitConfigurations: {}
+    unitConfigurations: {},
+    // Tax assignment fields
+    selectedTaxIds: []
   });
   
   const [imageFile, setImageFile] = useState(null);
@@ -4168,6 +4208,10 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
   const [baseUnits, setBaseUnits] = useState([]);
   const [units, setUnits] = useState([]);
   const [unitsLoading, setUnitsLoading] = useState(false);
+  
+  // Tax management state
+  const [taxTypes, setTaxTypes] = useState([]);
+  const [taxesLoading, setTaxesLoading] = useState(false);
 
   // Fetch base units and units when component mounts
   useEffect(() => {
@@ -4197,6 +4241,65 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       fetchUnits();
     }
   }, [isOpen, showToast]);
+
+  // Fetch tax types when component mounts
+  useEffect(() => {
+    const fetchTaxTypes = async () => {
+      setTaxesLoading(true);
+      try {
+        const response = await fetch('/api/tax-types?status=Active');
+        if (response.ok) {
+          const data = await response.json();
+          setTaxTypes(data);
+        }
+      } catch (error) {
+        console.error('Error fetching tax types:', error);
+        showToast('error', 'Error', 'Failed to load tax types');
+      } finally {
+        setTaxesLoading(false);
+      }
+    };
+
+    if (isOpen) {
+      fetchTaxTypes();
+    }
+  }, [isOpen, showToast]);
+
+  // Fetch product taxes when editing
+  useEffect(() => {
+    const fetchProductTaxes = async () => {
+      if (product && product.id) {
+        try {
+          console.log('Fetching taxes for product:', product.id);
+          const response = await fetch(`/api/products/${product.id}/taxes`);
+          console.log('Tax fetch response status:', response.status);
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log('Fetched tax data:', data);
+            const taxIds = data.map(pt => pt.taxTypeId);
+            console.log('Setting selectedTaxIds to:', taxIds);
+            setFormData(prev => ({ ...prev, selectedTaxIds: taxIds }));
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.error('Error fetching taxes:', errorData);
+            setFormData(prev => ({ ...prev, selectedTaxIds: [] }));
+          }
+        } catch (error) {
+          console.error('Error fetching product taxes:', error);
+          setFormData(prev => ({ ...prev, selectedTaxIds: [] }));
+        }
+      } else {
+        setFormData(prev => ({ ...prev, selectedTaxIds: [] }));
+      }
+    };
+
+    if (isOpen && product) {
+      fetchProductTaxes();
+    } else if (isOpen && !product) {
+      setFormData(prev => ({ ...prev, selectedTaxIds: [] }));
+    }
+  }, [isOpen, product]);
 
   // Stable callbacks for unit management
   const handleUnitConfigurationChange = useCallback((configs) => {
@@ -4693,6 +4796,63 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   required={false}
                   label="Location"
                 />
+              </div>
+              
+              {/* Tax Assignment Section */}
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Taxes
+                  <span className="text-gray-400 text-xs ml-1">(Applied automatically in POS)</span>
+                </label>
+                {taxesLoading ? (
+                  <div className="text-sm text-gray-500">Loading taxes...</div>
+                ) : taxTypes.length === 0 ? (
+                  <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
+                    No active tax types available. <a href="/tax-types" className="text-blue-600 hover:underline">Create tax types</a> first.
+                  </div>
+                ) : (
+                  <div className="space-y-2 p-3 border border-gray-300 rounded-md bg-gray-50 max-h-48 overflow-y-auto">
+                    {taxTypes.map((tax) => (
+                      <label key={tax.id} className="flex items-center space-x-2 cursor-pointer hover:bg-white p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={formData.selectedTaxIds?.includes(tax.id) || false}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            console.log(`Tax ${tax.taxName} ${isChecked ? 'checked' : 'unchecked'}`);
+                            
+                            if (isChecked) {
+                              const newIds = [...(formData.selectedTaxIds || []), tax.id];
+                              console.log('New selectedTaxIds:', newIds);
+                              setFormData(prev => ({
+                                ...prev,
+                                selectedTaxIds: newIds
+                              }));
+                            } else {
+                              const newIds = (formData.selectedTaxIds || []).filter(id => id !== tax.id);
+                              console.log('New selectedTaxIds:', newIds);
+                              setFormData(prev => ({
+                                ...prev,
+                                selectedTaxIds: newIds
+                              }));
+                            }
+                          }}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700 flex-1">
+                          <span className="font-medium">{tax.taxName}</span>
+                          {tax.taxCode && <span className="text-gray-500 ml-1">({tax.taxCode})</span>}
+                          <span className="text-gray-500 ml-2">
+                            - {tax.calculationType === 'Fixed' ? `${tax.taxRate} MWK` : `${tax.taxRate}%`}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Select one or more taxes to apply to this product. Taxes are calculated automatically during sales.
+                </p>
               </div>
               
               {/* Enhanced Stock Management Fields */}

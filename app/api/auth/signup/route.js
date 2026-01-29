@@ -203,6 +203,10 @@ export async function POST(request) {
         });
       }
      
+      // Initialize default payment accounts
+      const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
+      await initializeDefaultPaymentAccounts(tenant.id, tx);
+
       // Log the signup
       await tx.auditLog.create({
         data: {

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { X, Calendar, DollarSign, FileText, Building, CreditCard, Hash, StickyNote, History } from 'lucide-react';
+import { X, Calendar, DollarSign, FileText, Building, CreditCard, Hash, StickyNote, History, Loader } from 'lucide-react';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
 const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = false }) => {
   const [formData, setFormData] = useState({
@@ -22,6 +23,9 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
   const [errors, setErrors] = useState({});
   const [availableCategories, setAvailableCategories] = useState([]);
 
+  // Load payment accounts dynamically
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+
   // Sample expense categories
   const expenseCategories = [
     "Office Supplies",
@@ -39,16 +43,6 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
     "Marketing",
     "Training & Education",
     "Telecommunications"
-  ];
-
-  const paymentMethods = [
-    "Cash",
-    "Credit Card",
-    "Debit Card", 
-    "Bank Transfer",
-    "Check",
-    "PayPal",
-    "Other"
   ];
 
   // Load categories from API
@@ -370,9 +364,11 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                   }`}
                   disabled={isSubmitting}
                 >
-                  <option value="">Select payment method</option>
-                  {paymentMethods.map(method => (
-                    <option key={method} value={method}>{method}</option>
+                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    </option>
                   ))}
                 </select>
                 {errors.paymentMethod && (

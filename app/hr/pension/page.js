@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download, FileSpreadsheet, Search, User } from "lucide-react";
+import { Download, FileSpreadsheet, Search, User, Loader } from "lucide-react";
 import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 function formatCurrency(amount) {
   return `MWK ${Number(amount || 0).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
@@ -18,6 +19,7 @@ function formatDate(date) {
 }
 
 export default function PensionManagementPage() {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [employees, setEmployees] = useState([]);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
@@ -25,8 +27,18 @@ export default function PensionManagementPage() {
 
   const [selectedClearEmployeeIds, setSelectedClearEmployeeIds] = useState([]);
   const [clearModalOpen, setClearModalOpen] = useState(false);
-  const [clearPaymentMethod, setClearPaymentMethod] = useState("cash");
+  const [clearPaymentMethod, setClearPaymentMethod] = useState("");
   const [clearingPension, setClearingPension] = useState(false);
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !clearPaymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      if (defaultAccount) {
+        setClearPaymentMethod(defaultAccount.id);
+      }
+    }
+  }, [paymentAccounts]);
 
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -627,13 +639,14 @@ export default function PensionManagementPage() {
                     value={clearPaymentMethod}
                     onChange={(e) => setClearPaymentMethod(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md"
-                    disabled={clearingPension}
+                    disabled={clearingPension || isLoadingPaymentAccounts}
                   >
-                    <option value="cash">Cash</option>
-                    <option value="Bank Transfer">Bank Transfer</option>
-                    <option value="Airtel Money">Airtel Money</option>
-                    <option value="Mpamba">Mpamba</option>
-                    <option value="PayChangu">PayChangu</option>
+                    <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                    {paymentAccounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

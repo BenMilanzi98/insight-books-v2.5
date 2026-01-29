@@ -1,30 +1,34 @@
 // components/COGSSettlementModal.js
 "use client";
 import { useState, useEffect } from 'react';
-import { X, DollarSign, Calendar, CreditCard, FileText, AlertCircle } from 'lucide-react';
+import { X, DollarSign, Calendar, CreditCard, FileText, AlertCircle, Loader } from 'lucide-react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
 const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS = 0 }) => {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [formData, setFormData] = useState({
     amount: totalCOGS > 0 ? totalCOGS.toString() : '',
     description: totalCOGS > 0 ? `Total COGS Settlement - MK ${totalCOGS.toLocaleString()}` : '',
     date: new Date().toISOString().split('T')[0],
-    paymentMethod: 'cash',
+    paymentMethod: '',
     notes: ''
   });
   const [errors, setErrors] = useState({});
 
   // Update form data when modal opens or totalCOGS changes
   useEffect(() => {
-    if (isOpen && totalCOGS > 0) {
+    if (isOpen && totalCOGS > 0 && paymentAccounts.length > 0) {
+      // Set default payment method to first available account (prefer Cash)
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
       setFormData({
         amount: totalCOGS.toString(),
         description: `Total COGS Settlement - MK ${totalCOGS.toLocaleString()}`,
         date: new Date().toISOString().split('T')[0],
-        paymentMethod: 'cash',
+        paymentMethod: defaultAccount?.id || '',
         notes: ''
       });
     }
-  }, [isOpen, totalCOGS]);
+  }, [isOpen, totalCOGS, paymentAccounts]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -206,13 +210,14 @@ const COGSSettlementModal = ({ isOpen, onClose, onSettle, isLoading, totalCOGS =
                 className={`block w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                   errors.paymentMethod ? 'border-red-300' : 'border-gray-300'
                 }`}
-                disabled={isLoading}
+                disabled={isLoading || isLoadingPaymentAccounts}
               >
-                <option value="cash">Cash</option>
-                <option value="bank">Bank Transfer</option>
-                <option value="mobile_money">Mobile Money</option>
-                <option value="check">Check</option>
-                <option value="other">Other</option>
+                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                  </option>
+                ))}
               </select>
             </div>
             {errors.paymentMethod && (

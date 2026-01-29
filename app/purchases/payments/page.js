@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 async function fetchPayments(params = {}) {
   const searchParams = new URLSearchParams();
@@ -45,16 +46,29 @@ function PaymentFormSection({ title, description, children }) {
 }
 
 function PaymentForm({ suppliers, bills, onSave, onCancel }) {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [form, setForm] = useState({
     supplierId: "",
     paymentDate: format(new Date(), "yyyy-MM-dd"),
-    paymentMethod: "Bank Transfer",
+    paymentMethod: "",
     referenceNumber: "",
     notes: "",
   });
   const [allocations, setAllocations] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !form.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Bank' && acc.isActive) 
+        || paymentAccounts.find(acc => acc.isActive) 
+        || paymentAccounts[0];
+      if (defaultAccount) {
+        setForm(prev => ({ ...prev, paymentMethod: defaultAccount.id }));
+      }
+    }
+  }, [paymentAccounts]);
 
   const supplierBills = useMemo(() => {
     if (!form.supplierId) return [];
@@ -146,13 +160,15 @@ function PaymentForm({ suppliers, bills, onSave, onCancel }) {
               name="paymentMethod"
               value={form.paymentMethod}
               onChange={(e) => setForm((prev) => ({ ...prev, paymentMethod: e.target.value }))}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+              disabled={isLoadingPaymentAccounts}
             >
-              <option value="Cash">Cash</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Cheque">Cheque</option>
-              <option value="Mobile Money">Mobile Money</option>
-              <option value="Other">Other</option>
+              <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+              {paymentAccounts.map(account => (
+                <option key={account.id} value={account.id}>
+                  {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div>

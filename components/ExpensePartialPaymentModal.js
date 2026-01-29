@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle } from 'lucide-react';
+import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
 const ExpensePartialPaymentModal = ({ 
   isOpen, 
@@ -18,20 +19,12 @@ const ExpensePartialPaymentModal = ({
   const [error, setError] = useState('');
   const [remainingBalance, setRemainingBalance] = useState(0);
 
-  // Payment methods for expenses
-  const paymentMethods = [
-    { key: 'cash', name: 'Cash' },
-    { key: 'credit_card', name: 'Credit Card' },
-    { key: 'debit_card', name: 'Debit Card' },
-    { key: 'bank_transfer', name: 'Bank Transfer' },
-    { key: 'check', name: 'Check' },
-    { key: 'paypal', name: 'PayPal' },
-    { key: 'other', name: 'Other' }
-  ];
+  // Load payment accounts dynamically
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
   // Reset form when modal opens/closes or expense changes
   useEffect(() => {
-    if (isOpen && expense) {
+    if (isOpen && expense && paymentAccounts.length > 0) {
       console.log('ExpensePartialPaymentModal - expense data:', expense);
       
       // Parse amounts more robustly
@@ -66,16 +59,18 @@ const ExpensePartialPaymentModal = ({
       // If fully paid, remaining should be 0
       
       setRemainingBalance(remaining);
+      // Set default payment method to first available account (prefer Cash)
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
       setFormData({
         amount: '',
-        paymentMethod: 'cash',
+        paymentMethod: defaultAccount?.id || '',
         paymentDate: new Date().toISOString().split('T')[0],
         reference: '',
         notes: ''
       });
       setError('');
     }
-  }, [isOpen, expense]);
+  }, [isOpen, expense, paymentAccounts]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -270,11 +265,12 @@ const ExpensePartialPaymentModal = ({
                 onChange={handleInputChange}
                 className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 required
-                disabled={isSubmitting}
+                disabled={isSubmitting || isLoadingPaymentAccounts}
               >
-                {paymentMethods.map(method => (
-                  <option key={method.key} value={method.key}>
-                    {method.name}
+                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
                   </option>
                 ))}
               </select>

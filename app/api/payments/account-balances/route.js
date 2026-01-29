@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { paymentMethods } from '@/lib/paymentMethods';
 
 export async function GET(request) {
   try {
@@ -15,6 +14,14 @@ export async function GET(request) {
       );
     }
 
+    // Fetch payment accounts for the tenant
+    const paymentAccounts = await prisma.paymentAccount.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true
+      }
+    });
+
     // Fetch account balances for the current tenant
     const balances = await prisma.accountBalance.findMany({
       where: { tenantId: user.tenantId },
@@ -24,39 +31,38 @@ export async function GET(request) {
       }
     });
 
-    // Helper to normalize payment method names
-    const normalizePaymentMethod = (method) => {
-      if (!method) return '';
-      const methodStr = method.toString().trim();
-      if (methodStr.includes('_')) {
-        return methodStr.toLowerCase();
-      }
-      return methodStr.toLowerCase().replace(/\s+/g, '_');
+    // Helper to normalize account names for matching
+    const normalizeName = (name) => {
+      if (!name) return '';
+      return name.toLowerCase().trim().replace(/\s+/g, '_');
     };
 
-    // Normalize payment method names in balances and merge duplicates
-    const normalizedBalances = new Map();
-    for (const balance of balances) {
-      const accountKey = balance.account;
-      // Check if it's already a normalized payment method key
-      if (paymentMethods.some(pm => pm.key === accountKey)) {
-        normalizedBalances.set(accountKey, balance.balance);
-      } else {
-        // Try normalizing it
-        const normalized = normalizePaymentMethod(accountKey);
-        if (paymentMethods.some(pm => pm.key === normalized)) {
-          // If normalized version exists, merge with existing balance or set new
-          const existingBalance = normalizedBalances.get(normalized) || 0;
-          normalizedBalances.set(normalized, existingBalance + parseFloat(balance.balance || 0));
-        } else {
-          // Not a payment method, keep as is (might be an account ID)
-          normalizedBalances.set(accountKey, balance.balance);
+    // Map balances to payment accounts by matching account names
+    const accountBalancesMap = new Map();
+    
+    // First, try to match by payment account names
+    for (const account of paymentAccounts) {
+      const normalizedAccountName = normalizeName(account.name);
+      let accountBalance = 0;
+      
+      // Find matching balances
+      for (const balance of balances) {
+        const normalizedBalanceName = normalizeName(balance.account);
+        if (normalizedBalanceName === normalizedAccountName || 
+            normalizedBalanceName.includes(normalizedAccountName) ||
+            normalizedAccountName.includes(normalizedBalanceName)) {
+          accountBalance += parseFloat(balance.balance || 0);
         }
       }
+      
+      // Use account ID as key for consistency
+      accountBalancesMap.set(account.id, accountBalance);
+      // Also keep account name for backward compatibility
+      accountBalancesMap.set(account.name, accountBalance);
     }
 
     // Convert back to array format
-    const result = Array.from(normalizedBalances, ([account, balance]) => ({
+    const result = Array.from(accountBalancesMap, ([account, balance]) => ({
       account,
       balance
     }));

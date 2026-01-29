@@ -78,6 +78,35 @@ export async function GET(request) {
               }
             }
           }
+        },
+        itemTaxes: {
+          select: {
+            taxTypeId: true,
+            taxName: true,
+            taxCode: true,
+            taxRate: true,
+            taxAmount: true
+          }
+        },
+        product: {
+          select: {
+            id: true,
+            name: true,
+            productTaxes: {
+              include: {
+                taxType: {
+                  select: {
+                    id: true,
+                    taxName: true,
+                    taxCode: true,
+                    taxRate: true,
+                    calculationType: true,
+                    status: true
+                  }
+                }
+              }
+            }
+          }
         }
       }
     });
@@ -143,7 +172,47 @@ export async function GET(request) {
       });
     });
     
-    // Process sale items (Development branch approach - prioritized)
+    // Get all product IDs from sale items for batch querying ProductTax if needed
+    const productIds = saleItems
+      .filter(item => item.productId)
+      .map(item => item.productId)
+      .filter((id, index, self) => self.indexOf(id) === index); // Unique IDs
+    
+    // Batch fetch ProductTax records for products that don't have the relation loaded
+    let productTaxesMap = {};
+    if (productIds.length > 0) {
+      try {
+        const productTaxes = await prisma.productTax.findMany({
+          where: {
+            productId: { in: productIds },
+          },
+          include: {
+            taxType: {
+              select: {
+                id: true,
+                taxName: true,
+                taxCode: true,
+                taxRate: true,
+                calculationType: true,
+                status: true,
+              },
+            },
+          },
+        });
+        
+        // Map by productId
+        productTaxes.forEach(pt => {
+          if (!productTaxesMap[pt.productId]) {
+            productTaxesMap[pt.productId] = [];
+          }
+          productTaxesMap[pt.productId].push(pt);
+        });
+      } catch (error) {
+        console.warn('Error fetching ProductTax records:', error.message);
+      }
+    }
+    
+    // Process sale items - prioritize SaleItemTax records if available
     saleItems.forEach(item => {
       const sale = item.sale;
       if (!sale) {
@@ -151,58 +220,150 @@ export async function GET(request) {
         return; // Skip this item
       }
       
-      // Get tax rate from the sale item first, then fall back to sale (Development approach)
-      let taxRateValue = 0;
-      
-      // Check if tax rate is on the item (preferred)
-      if (typeof item.taxRate === 'number') {
-        taxRateValue = item.taxRate;
-      } 
-      // Fall back to sale-level tax rate
-      else if (sale && typeof sale.taxRate === 'number') {
-        taxRateValue = sale.taxRate;
-      } 
-      else {
-        console.warn(`Sale item ${item.id} has no valid tax rate`);
-        return; // Skip this item
-      }
-      
-      // Skip items with no tax
-      if (taxRateValue === 0) {
-        return;
-      }
-      
-      const taxRate = taxRateValue.toString();
-      
-      if (!collectedTaxesByRate[taxRate]) {
-        collectedTaxesByRate[taxRate] = {
-          rate: parseFloat(taxRate),
-          taxableAmount: 0,
-          taxAmount: 0,
-          items: []
-        };
-      }
-      
       const taxableAmount = item.quantity * item.unitPrice;
       
-      // Use individual item tax data if available, otherwise calculate from rate (Combined approach)
-      const itemTaxAmount = item.taxAmount || 0;
-      const finalTaxAmount = itemTaxAmount > 0 ? itemTaxAmount : (taxableAmount * (taxRateValue / 100));
-      
-      collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-      collectedTaxesByRate[taxRate].taxAmount += finalTaxAmount;
-      
-      collectedTaxesByRate[taxRate].items.push({
-        type: 'sale',
-        id: item.id,
-        description: item.description,
-        saleNumber: sale.saleNumber,
-        date: sale.saleDate,
-        client: sale.client?.name || 'Direct Sale',
-        status: sale.status,
-        taxableAmount,
-        taxAmount: finalTaxAmount
-      });
+      // If SaleItemTax records exist, use them (more accurate)
+      if (item.itemTaxes && item.itemTaxes.length > 0) {
+        item.itemTaxes.forEach(tax => {
+          const taxRate = tax.taxRate.toString();
+          
+          if (!collectedTaxesByRate[taxRate]) {
+            collectedTaxesByRate[taxRate] = {
+              rate: tax.taxRate,
+              taxableAmount: 0,
+              taxAmount: 0,
+              items: []
+            };
+          }
+          
+          collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
+          collectedTaxesByRate[taxRate].taxAmount += tax.taxAmount;
+          
+          collectedTaxesByRate[taxRate].items.push({
+            type: 'sale',
+            id: item.id,
+            description: item.description,
+            saleNumber: sale.saleNumber,
+            date: sale.saleDate,
+            client: sale.client?.name || 'Direct Sale',
+            status: sale.status,
+            taxableAmount,
+            taxAmount: tax.taxAmount
+          });
+        });
+      } else {
+        // Fallback: Check if product has taxes assigned via ProductTax
+        // Try to get productTaxes from loaded relation first, then from batch query
+        let productTaxes = null;
+        if (item.product && item.product.productTaxes && item.product.productTaxes.length > 0) {
+          productTaxes = item.product.productTaxes;
+        } else if (item.productId && productTaxesMap[item.productId]) {
+          productTaxes = productTaxesMap[item.productId];
+        }
+        
+        // First check if product exists and has productId
+        if (item.productId && productTaxes && productTaxes.length > 0) {
+          // Calculate tax from product's assigned taxes
+          item.product.productTaxes.forEach(productTax => {
+            const taxType = productTax.taxType;
+            if (!taxType) {
+              console.warn(`ProductTax ${productTax.id} has no taxType`);
+              return;
+            }
+            
+            // Check if tax type is active
+            if (taxType.status !== 'Active') {
+              return;
+            }
+            
+            const taxRate = taxType.taxRate.toString();
+            
+            if (!collectedTaxesByRate[taxRate]) {
+              collectedTaxesByRate[taxRate] = {
+                rate: taxType.taxRate,
+                taxableAmount: 0,
+                taxAmount: 0,
+                items: []
+              };
+            }
+            
+            // Calculate tax amount based on calculation type
+            let calculatedTaxAmount = 0;
+            if (taxType.calculationType === 'Fixed') {
+              calculatedTaxAmount = taxType.taxRate;
+            } else {
+              // Percentage calculation - apply to taxable amount after discount
+              const discountedAmount = taxableAmount - (item.discountAmount || 0);
+              calculatedTaxAmount = discountedAmount * (taxType.taxRate / 100);
+            }
+            
+            collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
+            collectedTaxesByRate[taxRate].taxAmount += calculatedTaxAmount;
+            
+            collectedTaxesByRate[taxRate].items.push({
+              type: 'sale',
+              id: item.id,
+              description: item.description,
+              saleNumber: sale.saleNumber,
+              date: sale.saleDate,
+              client: sale.client?.name || 'Direct Sale',
+              status: sale.status,
+              taxableAmount,
+              taxAmount: calculatedTaxAmount
+            });
+          });
+        } else if (!item.productId) {
+          // Custom product or no product - skip tax calculation
+          // (Could add custom product tax handling here if needed)
+          return;
+        } else {
+          // Fallback to legacy tax calculation from taxRate/taxAmount fields
+          let taxRateValue = 0;
+          
+          // Check if tax rate is on the item (preferred)
+          if (typeof item.taxRate === 'number' && item.taxRate > 0) {
+            taxRateValue = item.taxRate;
+          } 
+          // Fall back to sale-level tax rate
+          else if (sale && typeof sale.taxRate === 'number' && sale.taxRate > 0) {
+            taxRateValue = sale.taxRate;
+          } 
+          else {
+            // No tax data available, skip this item
+            return;
+          }
+          
+          const taxRate = taxRateValue.toString();
+          
+          if (!collectedTaxesByRate[taxRate]) {
+            collectedTaxesByRate[taxRate] = {
+              rate: parseFloat(taxRate),
+              taxableAmount: 0,
+              taxAmount: 0,
+              items: []
+            };
+          }
+          
+          // Use individual item tax data if available, otherwise calculate from rate
+          const itemTaxAmount = item.taxAmount || 0;
+          const finalTaxAmount = itemTaxAmount > 0 ? itemTaxAmount : (taxableAmount * (taxRateValue / 100));
+          
+          collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
+          collectedTaxesByRate[taxRate].taxAmount += finalTaxAmount;
+          
+          collectedTaxesByRate[taxRate].items.push({
+            type: 'sale',
+            id: item.id,
+            description: item.description,
+            saleNumber: sale.saleNumber,
+            date: sale.saleDate,
+            client: sale.client?.name || 'Direct Sale',
+            status: sale.status,
+            taxableAmount,
+            taxAmount: finalTaxAmount
+          });
+        }
+      }
     });
     
     // Calculate totals

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Plus, Trash2, Info } from "lucide-react";
+import { X, Plus, Trash2, Info, Loader } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations";
 import ClientModal from "../ClientModal";
-import { paymentMethods } from "@/lib/paymentMethods";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 const SalesModal = ({
   isOpen,
@@ -13,11 +13,14 @@ const SalesModal = ({
   sale,
   onSubmit
 }) => {
+  // Load payment accounts dynamically
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+  
   const [formData, setFormData] = useState({
     clientId: "",
     items: [{ description: "", quantity: 1, unitPrice: "", taxRate: "" }],
     saleDate: new Date().toISOString().split("T")[0],
-    paymentMethod: "cash",
+    paymentMethod: "",
     notes: ""
   });
   
@@ -26,10 +29,30 @@ const SalesModal = ({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showClientModal, setShowClientModal] = useState(false);
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !formData.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      if (defaultAccount) {
+        setFormData(prev => ({ ...prev, paymentMethod: defaultAccount.id }));
+      }
+    }
+  }, [paymentAccounts]);
   
   // Initialize form data when editing an existing sale
   useEffect(() => {
-    if (mode === "edit" && sale) {
+    if (mode === "edit" && sale && paymentAccounts.length > 0) {
+      // Try to find payment account by name if paymentMethod is a string
+      let paymentMethodId = sale.paymentMethod;
+      if (sale.paymentMethod && typeof sale.paymentMethod === 'string' && !sale.paymentMethod.includes('-')) {
+        // Looks like a payment method name, try to find account
+        const account = paymentAccounts.find(acc => acc.name === sale.paymentMethod || acc.name.toLowerCase() === sale.paymentMethod.toLowerCase());
+        if (account) {
+          paymentMethodId = account.id;
+        }
+      }
+      
       setFormData({
         clientId: sale.clientId,
         items: sale.items?.map(item => ({
@@ -40,11 +63,11 @@ const SalesModal = ({
           productId: item.productId
         })) || [{ description: "", quantity: 1, unitPrice: "", taxRate: "" }],
         saleDate: new Date(sale.saleDate).toISOString().split("T")[0],
-        paymentMethod: sale.paymentMethod || "cash",
+        paymentMethod: paymentMethodId || "",
         notes: sale.notes || ""
       });
     }
-  }, [sale, mode]);
+  }, [sale, mode, paymentAccounts]);
   
   // Load clients and products on component mount
   useEffect(() => {
@@ -300,9 +323,13 @@ const SalesModal = ({
                   className="w-full p-2 border border-gray-300 rounded-md"
                   value={formData.paymentMethod}
                   onChange={handleChange}
+                  disabled={isLoadingPaymentAccounts}
                 >
-                {paymentMethods.map(method => (
-                  <option key={method.key} value={method.key}>{method.name}</option>
+                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    </option>
                   ))}
                   {/* <option value="cash">Cash</option>
                   <option value="card">Card</option>

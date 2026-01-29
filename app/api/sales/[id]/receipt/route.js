@@ -6,7 +6,8 @@ import { getPaymentMethodName } from '@/lib/paymentMethods';
 
 export async function GET(request, { params }) {
   try {
-    const { id: saleId } = await params;
+    const resolvedParams = await params;
+    const { id: saleId } = resolvedParams;
     
     // Get user from session
     const user = await getUserFromSession(request);
@@ -57,6 +58,25 @@ export async function GET(request, { params }) {
           orderBy: {
             id: 'asc'
           }
+        },
+        payments: {
+          include: {
+            allocations: {
+              include: {
+                paymentAccount: {
+                  select: {
+                    id: true,
+                    name: true,
+                    accountType: true
+                  }
+                }
+              }
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          take: 1 // Get the most recent payment
         }
       }
     });
@@ -78,6 +98,43 @@ export async function GET(request, { params }) {
     
     // Get tenant settings
     const tenantSettings = sale.tenant.settings;
+    
+    // Fetch item taxes if table exists
+    let itemTaxesMap = {};
+    try {
+      const itemTaxes = await prisma.saleItemTax.findMany({
+        where: {
+          saleItemId: { in: sale.items.map(item => item.id) }
+        },
+        select: {
+          id: true,
+          saleItemId: true,
+          taxName: true,
+          taxCode: true,
+          taxRate: true,
+          taxAmount: true
+        }
+      });
+      
+      // Group by saleItemId
+      itemTaxes.forEach(tax => {
+        if (!itemTaxesMap[tax.saleItemId]) {
+          itemTaxesMap[tax.saleItemId] = [];
+        }
+        itemTaxesMap[tax.saleItemId].push(tax);
+      });
+      
+      // Attach to items
+      sale.items = sale.items.map(item => ({
+        ...item,
+        itemTaxes: itemTaxesMap[item.id] || []
+      }));
+    } catch (error) {
+      // If table doesn't exist, items won't have itemTaxes - that's okay
+      if (!error.message?.includes('does not exist') && !error.message?.includes('Unknown model')) {
+        console.error('Error fetching item taxes:', error);
+      }
+    }
     
     // Debug: Log the logo URL
     console.log('Receipt API - Logo URL:', sale.tenant.logoUrl);
@@ -392,10 +449,47 @@ export async function GET(request, { params }) {
           </div>
           ` : ''}
           ${sale.totalTaxAmount > 0 ? `
-          <div class="total-row">
-            <span class="total-label">Total Tax:</span>
-            <span class="total-amount">${formatCurrency(sale.totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-          </div>
+          ${(() => {
+            // Group taxes by name across all items
+            const taxGroups = {};
+            sale.items.forEach(item => {
+              if (item.itemTaxes && item.itemTaxes.length > 0) {
+                item.itemTaxes.forEach(tax => {
+                  if (!taxGroups[tax.taxName]) {
+                    taxGroups[tax.taxName] = {
+                      taxName: tax.taxName,
+                      taxCode: tax.taxCode,
+                      totalAmount: 0
+                    };
+                  }
+                  taxGroups[tax.taxName].totalAmount += tax.taxAmount || 0;
+                });
+              }
+            });
+            
+            // If no individual taxes, show total tax
+            if (Object.keys(taxGroups).length === 0) {
+              return `
+              <div class="total-row">
+                <span class="total-label">Total Tax:</span>
+                <span class="total-amount">${formatCurrency(sale.totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+              `;
+            }
+            
+            // Show individual tax breakdown
+            return Object.values(taxGroups).map(tax => `
+              <div class="total-row">
+                <span class="total-label">${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
+                <span class="total-amount">${formatCurrency(tax.totalAmount, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+            `).join('') + `
+              <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;">
+                <span class="total-label"><strong>Total Tax:</strong></span>
+                <span class="total-amount"><strong>${formatCurrency(sale.totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</strong></span>
+              </div>
+            `;
+          })()}
           ` : ''}
           <div class="total-row grand-total">
             <span class="total-label">TOTAL:</span>
@@ -405,7 +499,19 @@ export async function GET(request, { params }) {
         
         <!-- Payment information -->
         <div class="payment-info">
-          <strong>Payment Method: ${getPaymentMethodName(sale.paymentMethod)}</strong>
+          ${sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 0 ? `
+            <strong>Payment Breakdown:</strong>
+            ${sale.payments[0].allocations.map(alloc => `
+              <div style="margin-top: 2px; font-size: 9px;">
+                ${alloc.paymentAccount.name}: ${formatCurrency(alloc.amount, tenantSettings?.currencyCode || 'MWK')}
+              </div>
+            `).join('')}
+            <div style="margin-top: 4px; font-size: 8px; border-top: 1px dashed #ccc; padding-top: 4px;">
+              <strong>Total Paid: ${formatCurrency(sale.payments[0].amount, tenantSettings?.currencyCode || 'MWK')}</strong>
+            </div>
+          ` : `
+            <strong>Payment Method: ${sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</strong>
+          `}
           ${sale.notes ? `<div style="margin-top: 4px; font-size: 8px;">Notes: ${sale.notes}</div>` : ''}
         </div>
         
@@ -462,7 +568,7 @@ export async function GET(request, { params }) {
       }
     });
   } catch (error) {
-    console.error(`Error generating receipt for sale ${params.id}:`, error);
+    console.error(`Error generating receipt for sale ${saleId}:`, error);
     return NextResponse.json(
       { error: 'Failed to generate receipt. Please try again.' },
       { status: 500 }

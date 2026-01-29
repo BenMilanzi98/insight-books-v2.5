@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { X, AlertCircle } from "lucide-react";
-import { paymentMethods } from "@/lib/paymentMethods";
 
 const PaymentModal = ({
   isOpen,
@@ -15,12 +14,13 @@ const PaymentModal = ({
     invoiceId: "",
     amount: "",
     paymentDate: new Date().toISOString().split("T")[0],
-    paymentMethod: "Bank Transfer",
+    paymentMethod: "",
     reference: "",
     notes: "",
   });
   
   const [invoices, setInvoices] = useState([]);
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   
@@ -55,9 +55,28 @@ const PaymentModal = ({
         console.error("Error loading unpaid invoices:", error);
       }
     };
+
+    const fetchPaymentAccounts = async () => {
+      try {
+        const response = await fetch('/api/payment-accounts?activeOnly=true');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.paymentAccounts) {
+            setPaymentAccounts(data.paymentAccounts);
+            // Set default payment method to first account if not set
+            if (!formData.paymentMethod && data.paymentAccounts.length > 0) {
+              setFormData(prev => ({ ...prev, paymentMethod: data.paymentAccounts[0].id }));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading payment accounts:", error);
+      }
+    };
     
     if (isOpen) {
       fetchUnpaidInvoices();
+      fetchPaymentAccounts();
     }
   }, [isOpen]);
   
@@ -261,15 +280,10 @@ const PaymentModal = ({
                 value={formData.paymentMethod}
                 onChange={handleChange}
               >
-                {paymentMethods.map(method => (
-                  <option key={method.key} value={method.key}>{method.name}</option>
-                  ))}
-                {/* <option value="Bank Transfer">Bank Transfer</option>
-                <option value="Card Payment">Card Payment</option>
-                <option value="Mobile Money">Mobile Money</option>
-                <option value="PayChangu">PayChangu</option>
-                <option value="Cash">Cash</option>
-                <option value="Check">Check</option> */}
+                <option value="">Select payment method</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
+                ))}
               </select>
               {errors.paymentMethod && (
                 <p className="text-red-500 text-xs mt-1">{errors.paymentMethod}</p>

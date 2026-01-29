@@ -3,8 +3,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
+import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
+import { postTaxPayment } from '@/lib/taxCalculationService';
 
-// POST - Settle tax liability by creating an expense record
+// POST - Settle tax liability by creating an expense record and journal entries
 export async function POST(request) {
   try {
     // Get user from session
@@ -40,6 +42,13 @@ export async function POST(request) {
 
     // Use database transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
+      // Get payment account using payment method mapping
+      const paymentAccount = await getAccountForPaymentMethod(
+        user.tenantId,
+        body.paymentMethod,
+        tx
+      );
+
       // Create the tax settlement expense
       const expense = await tx.expense.create({
         data: {
@@ -48,7 +57,7 @@ export async function POST(request) {
           date: new Date(body.date),
           category: 'Tax Settlement',
           paymentMethod: body.paymentMethod,
-          sourceAccountId: body.sourceAccountId || null,
+          sourceAccountId: paymentAccount.id,
           merchant: body.merchant || 'Tax Authority',
           status: 'Approved', // Tax settlements are automatically approved
           notes: body.notes || 'Automated tax settlement',
@@ -71,6 +80,52 @@ export async function POST(request) {
         }
       });
 
+      // Create journal entries for tax payment if taxTypeId is provided
+      let taxTransaction = null;
+      if (body.taxTypeId) {
+        try {
+          console.log('Creating tax payment journal entry:', {
+            taxTypeId: body.taxTypeId,
+            paymentAmount: amount,
+            paymentAccountId: paymentAccount.id,
+            paymentDate: body.date
+          });
+          
+          taxTransaction = await postTaxPayment({
+            tenantId: user.tenantId,
+            userId: user.id,
+            taxTypeId: body.taxTypeId,
+            paymentAmount: amount,
+            paymentAccountId: paymentAccount.id,
+            paymentDate: new Date(body.date),
+            description: body.description || `Tax Settlement - ${expense.id}`,
+            tx,
+          });
+          
+          console.log('✅ Tax payment journal entry created:', {
+            transactionId: taxTransaction.id,
+            sourceType: taxTransaction.sourceType,
+            lines: taxTransaction.lines?.length || 0
+          });
+        } catch (taxError) {
+          console.error('❌ Error creating tax payment journal entry:', taxError);
+          console.error('Tax payment error details:', {
+            taxTypeId: body.taxTypeId,
+            paymentAmount: amount,
+            paymentAccountId: paymentAccount.id,
+            error: taxError.message,
+            stack: taxError.stack
+          });
+          // Re-throw the error so the transaction rolls back
+          throw new Error(`Failed to create tax payment journal entry: ${taxError.message}`);
+        }
+      } else {
+        console.warn('⚠️ No taxTypeId provided, skipping journal entry creation');
+        // If no taxTypeId, we should still create a transaction for accounting purposes
+        // But for now, we'll require taxTypeId
+        throw new Error('taxTypeId is required to create tax payment journal entries');
+      }
+
       // Update account balance
       await updateAccountBalance(user.tenantId, body.paymentMethod, amount, "subtract");
 
@@ -88,12 +143,13 @@ export async function POST(request) {
             paymentMethod: body.paymentMethod,
             settlementDate: body.date,
             taxPeriod: body.taxPeriod || null,
+            taxTypeId: body.taxTypeId || null,
             automaticSettlement: true
           })
         }
       });
 
-      return { expense, payment };
+      return { expense, payment, taxTransaction };
     });
 
     // Format response

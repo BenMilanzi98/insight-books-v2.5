@@ -120,7 +120,7 @@ const PrintableReceipt = ({ receiptData }) => {
             </div>
 
             <div className="mb-4">
-              <h4 className="font-semibold mb-2">Payment Method: {getPaymentMethodName(payment?.paymentMethod)}</h4>
+              <h4 className="font-semibold mb-2">Payment Method: {payment?.paymentMethod || payment?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</h4>
               <p>Payment Date: {formatDateTime(payment?.paymentDate)}</p>
               {payment?.reference && <p>Reference: {payment.reference}</p>}
               {payment?.notes && <p>Notes: {payment.notes}</p>}

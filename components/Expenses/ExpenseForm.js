@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { X, Save, AlertCircle } from 'lucide-react';
-import { paymentMethods } from '@/lib/paymentMethods';
+import { X, Save, AlertCircle, Loader } from 'lucide-react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
 
 // Expense Form Component used for both creating and editing expenses
@@ -49,6 +49,9 @@ const ExpenseForm = ({
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [availableCategories, setAvailableCategories] = useState(categories.length > 0 ? categories : defaultCategories);
+
+  // Load payment accounts dynamically
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
   // NEW: Load categories from API
   const loadCategories = async () => {
@@ -389,16 +392,14 @@ const ExpenseForm = ({
                 onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-md"
                 required
+                disabled={isLoadingPaymentAccounts}
               >
-                <option value="">Select an account</option>
-                {paymentMethods.map(m => (
-                  <option key={m.key} value={m.key}>{m.name}</option>
-                ))}
-                {/* {sourceAccounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
-                    {acc.name} ({acc.type}) — Balance: {acc.balance}
+                <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
                   </option>
-                ))} */}
+                ))}
               </select>
               {errors.paymentMethod && (
                   <p className="mt-1 text-sm text-red-600 flex items-center">

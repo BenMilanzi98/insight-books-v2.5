@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { fetchSales, exportSales } from "@/app/services/salesService";
 import { getPermission, getCurrentUser } from "@/lib/permissions";
-import { paymentMethods } from "@/lib/paymentMethods";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 const SalesListPage = () => {
   const router = useRouter();
@@ -404,14 +404,12 @@ const SalesListPage = () => {
                 className="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-md bg-white"
                 value={filters.paymentMethod}
                 onChange={(e) => handleFilterChange('paymentMethod', e.target.value)}
+                disabled={isLoadingPaymentAccounts}
               >
                 <option value="all">All Payment Methods</option>
-                {paymentMethods.map(method => (
-                  <option key={method.key} value={method.key}>{method.name}</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
-                {/* <option value="cash">Cash</option>
-                <option value="card">Card</option>
-                <option value="mobile_money">Mobile Money</option> */}
               </select>
               <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                 <ChevronDown className="w-4 h-4 text-gray-500" />

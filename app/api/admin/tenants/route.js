@@ -141,6 +141,10 @@ export async function POST(request) {
       }
     });
 
+    // Initialize default payment accounts
+    const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
+    await initializeDefaultPaymentAccounts(newTenant.id);
+
     // Get tenant settings for business email
     const tenantSettings = await prisma.tenantSettings.findUnique({
       where: { tenantId: newTenant.id }

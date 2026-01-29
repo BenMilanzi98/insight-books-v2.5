@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, Plus, Eye, Edit, Trash2, Calendar, User, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { DollarSign, Plus, Eye, Edit, Trash2, Calendar, User, RefreshCw, AlertCircle, CheckCircle, Loader } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate } from "@/lib/dateUtils";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 export default function SalaryAdvancesManagement() {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [advances, setAdvances] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -21,10 +23,20 @@ export default function SalaryAdvancesManagement() {
     repaymentMonths: 1,
     reference: '',
     notes: '',
-    paymentMethod: 'Cash'
+    paymentMethod: ''
   });
   const [filterStatus, setFilterStatus] = useState('all');
   const [notification, setNotification] = useState(null);
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !formData.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      if (defaultAccount) {
+        setFormData(prev => ({ ...prev, paymentMethod: defaultAccount.id }));
+      }
+    }
+  }, [paymentAccounts]);
 
   useEffect(() => {
     fetchAdvances();
@@ -413,11 +425,14 @@ export default function SalaryAdvancesManagement() {
                   value={formData.paymentMethod}
                   onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  disabled={isLoadingPaymentAccounts}
                 >
-                  <option value="Cash">Cash</option>
-                  <option value="Bank">Bank Transfer</option>
-                  <option value="Check">Check</option>
-                  <option value="Mobile Money">Mobile Money</option>
+                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    </option>
+                  ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   This will create an expense entry in your accounting records

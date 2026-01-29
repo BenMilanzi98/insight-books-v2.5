@@ -51,6 +51,7 @@ import {
   voidSale,
   refundSale
 } from "@/app/services/salesService";
+import { calculateSaleItemTaxes } from "@/lib/productTaxCalculations";
 import ClientModal from "@/components/ClientModal";
 import ClientSearchCombobox from "@/components/ClientSearchCombobox";
 import PermissionGuard from "@/components/PermissionGuard";
@@ -109,7 +110,11 @@ const POSPage = () => {
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentMethod, setPaymentMethod] = useState(""); // Start empty, will be set when accounts load
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
+  const [isLoadingPaymentAccounts, setIsLoadingPaymentAccounts] = useState(true);
+  const [paymentAllocations, setPaymentAllocations] = useState([]); // [{ paymentAccountId, amount }]
+  const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [branches, setBranches] = useState([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(true);
@@ -233,6 +238,31 @@ const POSPage = () => {
     }
   };
 
+  // Load payment accounts
+  const loadPaymentAccounts = async () => {
+    try {
+      setIsLoadingPaymentAccounts(true);
+      const response = await fetch('/api/payment-accounts?activeOnly=true', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.paymentAccounts) {
+          setPaymentAccounts(data.paymentAccounts);
+          // Set default to first active account (prefer Cash if exists)
+          const cashAccount = data.paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+          const defaultAccount = cashAccount || data.paymentAccounts.find(acc => acc.isActive) || data.paymentAccounts[0];
+          if (defaultAccount) {
+            setPaymentMethod(defaultAccount.id); // Use account ID
+            setPaymentAllocations([{ paymentAccountId: defaultAccount.id, amount: 0 }]);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load payment accounts:', error);
+    } finally {
+      setIsLoadingPaymentAccounts(false);
+    }
+  };
+
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
     loadRecentSales();
@@ -240,6 +270,7 @@ const POSPage = () => {
     loadClients();
     loadStatistics();
     loadBranches();
+    loadPaymentAccounts();
     
     // Set default tax rate from tenant settings
     // This would typically come from your API, but we'll hard-code it for now
@@ -456,17 +487,26 @@ const POSPage = () => {
           
           // The API now returns units in the correct format
           const units = Array.isArray(productData.units) ? productData.units : [];
+          const taxes = Array.isArray(productData.taxes) ? productData.taxes : [];
           console.log("Units found:", units.length);
           console.log("Units data:", units);
+          console.log("=== TAXES DEBUG ===");
+          console.log("Taxes found:", taxes.length);
+          console.log("Taxes data:", JSON.stringify(taxes, null, 2));
           console.log("================================");
 
           detailedProduct = {
             ...product,
             ...productData,
-            units: units
+            units: units,
+            taxes: taxes // Ensure taxes are included
           };
           
-          console.log("Detailed product with units:", detailedProduct);
+          console.log("Detailed product with units and taxes:", {
+            name: detailedProduct.name,
+            taxes: detailedProduct.taxes,
+            taxesCount: detailedProduct.taxes?.length || 0
+          });
         } else {
           console.log("No product data in API response");
         }
@@ -504,22 +544,52 @@ const POSPage = () => {
     const existingProduct = selectedProducts.find(p => p.id === detailedProduct.id);
     
     if (existingProduct) {
+      // Recalculate taxes when updating existing product
+      const productTaxes = detailedProduct.taxes || existingProduct.taxes || [];
+      const newQuantity = isUnitManaged ? parsedQty : (existingProduct.quantity + parsedQty);
+      const newSubtotal = existingProduct.price * newQuantity;
+      const newDiscountAmount = (parseFloat(existingProduct.discount) || 0) * newQuantity;
+      
+      const taxCalculation = calculateSaleItemTaxes({
+        quantity: newQuantity,
+        unitPrice: existingProduct.price,
+        discountAmount: newDiscountAmount,
+        taxes: productTaxes
+      });
+      
       if (isUnitManaged) {
         setSelectedProducts(selectedProducts.map(p =>
           p.id === detailedProduct.id
-            ? { ...p, ...detailedProduct, quantity: parsedQty, subtotal: p.price * parsedQty }
+            ? { 
+                ...p, 
+                ...detailedProduct, 
+                quantity: parsedQty, 
+                subtotal: p.price * parsedQty,
+                taxes: productTaxes,
+                taxAmount: taxCalculation.totalTaxAmount,
+                taxBreakdown: taxCalculation.taxBreakdown,
+                taxDescription: productTaxes.map(t => t.taxName).join(', ') || ''
+              }
             : p
         ));
       } else {
         if (detailedProduct.stockLevel !== null && existingProduct.quantity + parsedQty > detailedProduct.stockLevel) {
           setSaleError(`Cannot add ${parsedQty} more units of ${detailedProduct.name}. Only ${detailedProduct.stockLevel - existingProduct.quantity} units available.`);
-        return;
-      }
-      setSelectedProducts(selectedProducts.map(p => 
+          return;
+        }
+        setSelectedProducts(selectedProducts.map(p => 
           p.id === detailedProduct.id
-            ? { ...p, quantity: p.quantity + parsedQty, subtotal: p.price * (p.quantity + parsedQty) }
-          : p
-      ));
+            ? { 
+                ...p, 
+                quantity: p.quantity + parsedQty, 
+                subtotal: p.price * (p.quantity + parsedQty),
+                taxes: productTaxes,
+                taxAmount: taxCalculation.totalTaxAmount,
+                taxBreakdown: taxCalculation.taxBreakdown,
+                taxDescription: productTaxes.map(t => t.taxName).join(', ') || ''
+              }
+            : p
+        ));
       }
     } else {
       // Determine initial price (base unit price for unit-managed)
@@ -531,14 +601,37 @@ const POSPage = () => {
         }
       }
 
+      // Calculate taxes for the product
+      const productTaxes = detailedProduct.taxes || [];
+      console.log("=== TAX CALCULATION DEBUG ===");
+      console.log("Product:", detailedProduct.name);
+      console.log("Product taxes:", productTaxes);
+      console.log("Taxes count:", productTaxes.length);
+      console.log("Quantity:", parsedQty);
+      console.log("Unit price:", initialPrice);
+      
+      const taxCalculation = calculateSaleItemTaxes({
+        quantity: parsedQty,
+        unitPrice: initialPrice,
+        discountAmount: 0,
+        taxes: productTaxes
+      });
+      
+      console.log("Tax calculation result:", taxCalculation);
+      console.log("Total tax amount:", taxCalculation.totalTaxAmount);
+      console.log("Tax breakdown:", taxCalculation.taxBreakdown);
+      console.log("==============================");
+
       setSelectedProducts([...selectedProducts, {
         ...detailedProduct,
         quantity: parsedQty,
         subtotal: initialPrice * parsedQty,
         price: initialPrice,
-        taxRate: 0,
-        taxAmount: 0,
-        taxDescription: '',
+        taxes: productTaxes, // Store taxes array
+        taxRate: 0, // Legacy field for backward compatibility
+        taxAmount: taxCalculation.totalTaxAmount,
+        taxBreakdown: taxCalculation.taxBreakdown, // Store individual tax breakdown
+        taxDescription: productTaxes.map(t => t.taxName).join(', ') || '',
         discount: 0,
         discountAmount: 0,
         isCustom: false
@@ -614,19 +707,32 @@ const POSPage = () => {
         // Treat entered discount as per-unit discount; total discount scales with quantity
         const perUnitDiscount = parseFloat(discount) || 0;
         const newDiscountAmount = perUnitDiscount * (product.quantity || 1);
+        
+        // Recalculate taxes after discount change
+        const productTaxes = product.taxes || [];
+        const taxCalculation = calculateSaleItemTaxes({
+          quantity: product.quantity || 1,
+          unitPrice: product.price,
+          discountAmount: newDiscountAmount,
+          taxes: productTaxes
+        });
+        
         console.log('💰 Product Discount Update:', {
           productName: product.name,
           productSubtotal: product.subtotal,
           perUnitDiscount,
           discountAmount: newDiscountAmount,
-          newTotal: product.subtotal + (product.taxAmount || 0) - newDiscountAmount
+          taxAmount: taxCalculation.totalTaxAmount,
+          newTotal: product.subtotal + taxCalculation.totalTaxAmount - newDiscountAmount
         });
         
         return {
           ...product,
           // Store per-unit discount entered by user
           discount: perUnitDiscount,
-          discountAmount: newDiscountAmount
+          discountAmount: newDiscountAmount,
+          taxAmount: taxCalculation.totalTaxAmount,
+          taxBreakdown: taxCalculation.taxBreakdown
         };
       }
       return product;
@@ -706,17 +812,31 @@ const POSPage = () => {
       return;
     }
     
-    setSelectedProducts(selectedProducts.map(p => 
-      p.id === productId
-        ? {
-            ...p,
-            quantity: parsedQty,
-            subtotal: p.price * parsedQty,
-            // Recalculate total discount based on per-unit discount and new quantity
-            discountAmount: (parseFloat(p.discount) || 0) * parsedQty
-          }
-        : p
-    ));
+    setSelectedProducts(selectedProducts.map(p => {
+      if (p.id === productId) {
+        const newSubtotal = p.price * parsedQty;
+        const newDiscountAmount = (parseFloat(p.discount) || 0) * parsedQty;
+        
+        // Recalculate taxes after quantity change
+        const productTaxes = p.taxes || [];
+        const taxCalculation = calculateSaleItemTaxes({
+          quantity: parsedQty,
+          unitPrice: p.price,
+          discountAmount: newDiscountAmount,
+          taxes: productTaxes
+        });
+        
+        return {
+          ...p,
+          quantity: parsedQty,
+          subtotal: newSubtotal,
+          discountAmount: newDiscountAmount,
+          taxAmount: taxCalculation.totalTaxAmount,
+          taxBreakdown: taxCalculation.taxBreakdown
+        };
+      }
+      return p;
+    }));
   };
 
   // Update product quantity for unit-managed products
@@ -845,7 +965,16 @@ const POSPage = () => {
     setActiveTab("walkIn");
     setSelectedCustomer("");
     setSaleNotes("");
-    setPaymentMethod("cash");
+        // Reset payment to first available account (prefer Cash if exists)
+        const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+        const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+        if (defaultAccount) {
+          setPaymentMethod(defaultAccount.id);
+          setPaymentAllocations([]); // Will be set when sale is completed
+        } else {
+          setPaymentMethod("");
+          setPaymentAllocations([]);
+        }
     setQuantity(1);
     setProductSearchQuery("");
     setGlobalDiscount(0); // Clear global discount
@@ -975,6 +1104,7 @@ const POSPage = () => {
           taxRate: product.taxRate || 0,
           taxAmount: product.taxAmount || 0,
           taxDescription: product.taxDescription || "",
+          taxBreakdown: product.taxBreakdown || [], // Include tax breakdown for multiple taxes
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false
@@ -1040,6 +1170,87 @@ const POSPage = () => {
     setSaleError(null);
     
     try {
+      // Ensure payment allocation is set if using single payment account
+      let finalPaymentAllocations = [...paymentAllocations];
+      const total = calculateTotal();
+      
+      // Always prioritize the selected payment method
+      // If paymentMethod is set, use it regardless of allocations
+      console.log('🔍 POS: completeSale - paymentMethod:', paymentMethod);
+      console.log('🔍 POS: completeSale - paymentAllocations:', paymentAllocations);
+      console.log('🔍 POS: completeSale - paymentAccounts:', paymentAccounts.map(acc => ({ id: acc.id, name: acc.name })));
+      
+      if (paymentMethod && paymentAccounts.length > 0) {
+        // Try to find account by ID first (current format)
+        let selectedAccount = paymentAccounts.find(acc => acc.id === paymentMethod);
+        if (!selectedAccount) {
+          // Fallback: try to find by name (legacy format)
+          selectedAccount = paymentAccounts.find(acc => acc.name === paymentMethod);
+        }
+        
+        if (selectedAccount) {
+          // Check if we have split payments that should be preserved
+          const allocatedTotal = finalPaymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+          const hasValidSplit = finalPaymentAllocations.length > 1 && Math.abs(allocatedTotal - total) < 0.01;
+          
+          if (hasValidSplit) {
+            // Keep split payments but ensure selected account is included
+            const hasSelectedAccount = finalPaymentAllocations.some(alloc => alloc.paymentAccountId === selectedAccount.id);
+            if (!hasSelectedAccount) {
+              // Selected account not in split, replace first allocation with selected account
+              finalPaymentAllocations[0] = { paymentAccountId: selectedAccount.id, amount: finalPaymentAllocations[0].amount };
+            }
+            // Recalculate to match total exactly
+            const currentTotal = finalPaymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+            if (Math.abs(currentTotal - total) > 0.01) {
+              const ratio = total / currentTotal;
+              finalPaymentAllocations = finalPaymentAllocations.map(alloc => ({
+                ...alloc,
+                amount: alloc.amount * ratio
+              }));
+            }
+          } else {
+            // Single payment - use selected account with full total
+            console.log('🔍 POS: Setting finalPaymentAllocations with account:', selectedAccount.id, selectedAccount.name);
+            finalPaymentAllocations = [{ paymentAccountId: selectedAccount.id, amount: total }];
+          }
+        } else {
+          console.warn('Selected payment method not found:', paymentMethod);
+          // Fallback: use first available account (prefer Cash)
+          const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+          const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+          if (defaultAccount) {
+            finalPaymentAllocations = [{ paymentAccountId: defaultAccount.id, amount: total }];
+          }
+        }
+      } else {
+        // No payment method selected, check allocations
+        const allocatedTotal = finalPaymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+        if (finalPaymentAllocations.length === 0 || Math.abs(allocatedTotal - total) > 0.01) {
+          // No valid allocations, use first available account (prefer Cash)
+          const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+          const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+          if (defaultAccount) {
+            finalPaymentAllocations = [{ paymentAccountId: defaultAccount.id, amount: total }];
+          }
+        } else {
+          // Allocations exist and match total, ensure they use correct account IDs
+          finalPaymentAllocations = finalPaymentAllocations.map(alloc => {
+            if (alloc.paymentAccountId) {
+              const account = paymentAccounts.find(acc => acc.id === alloc.paymentAccountId);
+              if (!account) {
+                // Might be a name, try to find by name
+                const accountByName = paymentAccounts.find(acc => acc.name === alloc.paymentAccountId);
+                if (accountByName) {
+                  return { ...alloc, paymentAccountId: accountByName.id };
+                }
+              }
+            }
+            return alloc;
+          });
+        }
+      }
+      
       // Prepare sale data
       const saleData = {
         clientId: (activeTab === "registered" || activeTab === "historical") && selectedCustomer ? selectedCustomer : null,
@@ -1053,6 +1264,7 @@ const POSPage = () => {
           taxRate: product.taxRate || 0,
           taxAmount: product.taxAmount || 0,
           taxDescription: product.taxDescription || "",
+          taxBreakdown: product.taxBreakdown || [], // Include tax breakdown for multiple taxes
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false
@@ -1080,7 +1292,24 @@ const POSPage = () => {
           
           return itemData;
         }),
-        paymentMethod: paymentMethod,
+        // Always send paymentAllocations if we have them, otherwise send paymentMethod
+        // Note: paymentAllocations should always be set by the logic above
+        ...(finalPaymentAllocations.length > 0
+          ? (() => {
+              console.log('🔍 POS: Sending paymentAllocations:', finalPaymentAllocations);
+              return {
+                paymentAllocations: finalPaymentAllocations.map(alloc => ({
+                  paymentAccountId: alloc.paymentAccountId,
+                  amount: alloc.amount
+                }))
+              };
+            })()
+          : paymentMethod 
+            ? (() => {
+                console.log('🔍 POS: No allocations, sending paymentMethod:', paymentMethod);
+                return { paymentMethod: paymentMethod }; // Fallback: send account ID if no allocations
+              })()
+            : {}),
         notes: saleNotes,
         status: 'completed',
         subtotal: calculateSubtotal(),
@@ -1723,28 +1952,29 @@ const POSPage = () => {
                             />
                           </td>
                         )}
-                        <td className="px-4 py-3 text-sm">
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-end">
-                              <input
-                                type="number"
-                                className="w-16 p-1.5 text-right border-2 border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                                min="0"
-                                step="0.1"
-                                value={product.taxRate || ''}
-                                onChange={(e) => updateProductTax(product.id, e.target.value, product.taxDescription)}
-                                placeholder="0"
-                              />
-                              <span className="text-xs ml-1 text-gray-600">%</span>
+                        <td className="px-4 py-3 text-sm text-right">
+                          {product.taxBreakdown && product.taxBreakdown.length > 0 ? (
+                            <div className="space-y-1">
+                              {product.taxBreakdown.map((tax, idx) => (
+                                <div key={idx} className="text-xs text-gray-700">
+                                  <span className="font-medium">{tax.taxName}</span>
+                                  <span className="text-gray-500 ml-1">
+                                    ({tax.calculationType === 'Fixed' ? `${tax.taxRate} MWK` : `${tax.taxRate}%`})
+                                  </span>
+                                  <div className="font-semibold text-gray-900">
+                                    {formatCurrency(tax.taxAmount)}
+                                  </div>
+                                </div>
+                              ))}
+                              <div className="pt-1 border-t border-gray-200 mt-1">
+                                <div className="font-bold text-gray-900">
+                                  {formatCurrency(product.taxAmount || 0)}
+                                </div>
+                              </div>
                             </div>
-                            <input
-                              type="text"
-                              placeholder="Tax type"
-                              className="w-full p-1.5 border-2 border-gray-200 rounded-lg text-xs focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
-                              value={product.taxDescription || ""}
-                              onChange={(e) => updateProductTax(product.id, product.taxRate, e.target.value)}
-                            />
-                          </div>
+                          ) : (
+                            <div className="text-gray-400 text-xs">No tax</div>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <div className="flex items-center justify-end">
@@ -1819,10 +2049,52 @@ const POSPage = () => {
                   <span className="font-semibold text-gray-700">Subtotal:</span>
                   <span className="font-bold text-gray-900">{formatCurrency(calculateSubtotal())}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="font-semibold text-gray-700">Total Tax:</span>
-                  <span className="font-bold text-gray-900">{formatCurrency(calculateTaxAmount())}</span>
-                </div>
+                {(() => {
+                  // Group all taxes from all products
+                  const allTaxes = {};
+                  selectedProducts.forEach(product => {
+                    if (product.taxBreakdown && product.taxBreakdown.length > 0) {
+                      product.taxBreakdown.forEach(tax => {
+                        if (!allTaxes[tax.taxName]) {
+                          allTaxes[tax.taxName] = {
+                            taxName: tax.taxName,
+                            taxCode: tax.taxCode,
+                            totalAmount: 0
+                          };
+                        }
+                        allTaxes[tax.taxName].totalAmount += tax.taxAmount || 0;
+                      });
+                    }
+                  });
+                  
+                  const totalTax = calculateTaxAmount();
+                  
+                  if (Object.keys(allTaxes).length > 0) {
+                    return (
+                      <>
+                        {Object.values(allTaxes).map((tax, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">
+                              {tax.taxName}{tax.taxCode ? ` (${tax.taxCode})` : ''}:
+                            </span>
+                            <span className="font-semibold text-gray-800">{formatCurrency(tax.totalAmount)}</span>
+                          </div>
+                        ))}
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                          <span className="font-semibold text-gray-700">Total Tax:</span>
+                          <span className="font-bold text-gray-900">{formatCurrency(totalTax)}</span>
+                        </div>
+                      </>
+                    );
+                  } else {
+                    return (
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold text-gray-700">Total Tax:</span>
+                        <span className="font-bold text-gray-900">{formatCurrency(totalTax)}</span>
+                      </div>
+                    );
+                  }
+                })()}
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-700">Total Discount:</span>
                   <span className="font-bold text-red-600">-{formatCurrency(calculateDiscountAmount())}</span>
@@ -1892,22 +2164,86 @@ const POSPage = () => {
 
           <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Payment Method</h2>
           <div className="mb-6">
-            <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3">
-              {paymentMethods.map(method => (
-                <button
-                  key={method.key}
-                  onClick={() => setPaymentMethod(method.key)}
-                  className={`p-4 border-2 rounded-xl flex flex-col justify-center items-center transition-all ${
-                    paymentMethod === method.key
-                      ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-md scale-105'
-                      : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  <span className="text-2xl mb-2">{method.icon}</span>
-                  <span className="text-sm font-semibold">{method.name}</span>
-                </button>
-              ))}
-            </div>
+            {isLoadingPaymentAccounts ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader className="animate-spin h-6 w-6 text-gray-400" />
+                <span className="ml-2 text-gray-500">Loading payment accounts...</span>
+              </div>
+            ) : paymentAccounts.length === 0 ? (
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+                No payment accounts available. Please configure payment accounts in Settings.
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+                  {paymentAccounts.map(account => (
+                    <button
+                      key={account.id}
+                      onClick={() => {
+                        setPaymentMethod(account.id);
+                        // Update allocation when account is selected - always use current total
+                        const currentTotal = calculateTotal();
+                        if (currentTotal > 0) {
+                          setPaymentAllocations([{ paymentAccountId: account.id, amount: currentTotal }]);
+                        } else {
+                          // If total is 0, still set allocation but with 0 amount (will be updated when products are added)
+                          setPaymentAllocations([{ paymentAccountId: account.id, amount: 0 }]);
+                        }
+                        setShowSplitPaymentModal(false); // Close split modal if open
+                      }}
+                      className={`p-4 border-2 rounded-xl flex flex-col justify-center items-center transition-all ${
+                        paymentMethod === account.id || (paymentAllocations.length === 1 && paymentAllocations[0].paymentAccountId === account.id)
+                          ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-md scale-105'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="text-2xl mb-2">
+                        {account.accountType === 'Cash' && <DollarSign className="w-6 h-6" />}
+                        {account.accountType === 'Bank' && <DollarSign className="w-6 h-6" />}
+                        {account.accountType === 'Mobile Money' && <Smartphone className="w-6 h-6" />}
+                        {account.accountType === 'Wallet' && <CreditCard className="w-6 h-6" />}
+                        {account.accountType === 'POS Terminal' && <CreditCard className="w-6 h-6" />}
+                        {!['Cash', 'Bank', 'Mobile Money', 'Wallet', 'POS Terminal'].includes(account.accountType) && <DollarSign className="w-6 h-6" />}
+                      </span>
+                      <span className="text-sm font-semibold">{account.name}</span>
+                      {account.reference && (
+                        <span className="text-xs text-gray-500 mt-1">{account.reference}</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+                {paymentAllocations.length > 1 && (
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-sm font-semibold text-blue-900 mb-2">Split Payment:</div>
+                    {paymentAllocations.map((alloc, idx) => {
+                      const account = paymentAccounts.find(a => a.id === alloc.paymentAccountId);
+                      return (
+                        <div key={idx} className="text-xs text-blue-700">
+                          {account?.name}: {formatCurrency(alloc.amount)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+            <button
+              onClick={() => {
+                // Initialize split payment with current total if no allocations exist
+                if (paymentAllocations.length === 0) {
+                  const total = calculateTotal();
+                  const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+                  const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+                  if (defaultAccount) {
+                    setPaymentAllocations([{ paymentAccountId: defaultAccount.id, amount: total }]);
+                  }
+                }
+                setShowSplitPaymentModal(true);
+              }}
+              className="mt-2 w-full px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+            >
+              Split Payment
+            </button>
+              </>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -2104,9 +2440,28 @@ const POSPage = () => {
             <div className="bg-gray-50 rounded-md p-4 mb-6">
               <p className="text-sm text-gray-600 mb-2">Sale Details:</p>
               <p className="text-lg font-bold mb-1">Total: {currentReceipt ? currentReceipt.total : formatCurrency(calculateTotal())}</p>
-              <p className="text-sm text-gray-600">
-                Payment Method: {getPaymentMethodName(paymentMethod)}
-              </p>
+              {/* Payment Method - Show split payments if available */}
+              {currentReceipt?.payments && currentReceipt.payments.length > 0 && currentReceipt.payments[0].allocations && currentReceipt.payments[0].allocations.length > 1 ? (
+                <div className="text-sm text-gray-600">
+                  <div className="font-semibold mb-1">Payment (Split):</div>
+                  {currentReceipt.payments[0].allocations.map((alloc, idx) => (
+                    <div key={idx} className="flex justify-between text-xs mb-0.5">
+                      <span>{alloc.paymentAccount?.name || 'N/A'}:</span>
+                      <span className="font-medium">{formatCurrency(alloc.amount || 0)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-xs mt-1 pt-1 border-t border-gray-200 font-semibold">
+                    <span>Total:</span>
+                    <span>{formatCurrency(currentReceipt.payments[0].amount || currentReceipt.total || 0)}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Payment Method: {currentReceipt?.payments && currentReceipt.payments.length > 0 && currentReceipt.payments[0].allocations && currentReceipt.payments[0].allocations.length > 0
+                    ? currentReceipt.payments[0].allocations.map(alloc => alloc.paymentAccount?.name || 'N/A').join(', ')
+                    : currentReceipt?.paymentMethod || (paymentMethod ? (paymentAccounts.find(acc => acc.id === paymentMethod)?.name || paymentMethod) : 'N/A')}
+                </p>
+              )}
               {calculateTaxAmount() > 0 && (
                 <p className="text-sm text-gray-600">
                   Total Tax: {formatCurrency(calculateTaxAmount())}
@@ -2313,6 +2668,133 @@ const POSPage = () => {
                     Void Sale
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Split Payment Modal */}
+      {showSplitPaymentModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Split Payment</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Total Amount: <span className="font-bold">{formatCurrency(calculateTotal())}</span>
+            </p>
+            
+            <div className="space-y-3 mb-4">
+              {paymentAllocations.map((alloc, idx) => {
+                const account = paymentAccounts.find(a => a.id === alloc.paymentAccountId);
+                return (
+                  <div key={idx} className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg">
+                    <select
+                      value={alloc.paymentAccountId}
+                      onChange={(e) => {
+                        const newAllocations = [...paymentAllocations];
+                        newAllocations[idx].paymentAccountId = e.target.value;
+                        setPaymentAllocations(newAllocations);
+                      }}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      {paymentAccounts.map(acc => (
+                        <option key={acc.id} value={acc.id}>{acc.name}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={alloc.amount}
+                      onChange={(e) => {
+                        const newAllocations = [...paymentAllocations];
+                        newAllocations[idx].amount = parseFloat(e.target.value) || 0;
+                        setPaymentAllocations(newAllocations);
+                      }}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                      placeholder="Amount"
+                      min="0"
+                      step="0.01"
+                    />
+                    <button
+                      onClick={() => {
+                        const newAllocations = paymentAllocations.filter((_, i) => i !== idx);
+                        setPaymentAllocations(newAllocations);
+                      }}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded"
+                      disabled={paymentAllocations.length === 1}
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => {
+                const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
+                const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
+                if (defaultAccount) {
+                  setPaymentAllocations([...paymentAllocations, { paymentAccountId: defaultAccount.id, amount: 0 }]);
+                }
+              }}
+              className="mb-4 px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              + Add Payment Account
+            </button>
+            
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span>Allocated:</span>
+                <span className="font-semibold">{formatCurrency(paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0))}</span>
+              </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span>Total:</span>
+                <span className="font-semibold">{formatCurrency(calculateTotal())}</span>
+              </div>
+              <div className="flex justify-between text-sm mt-1 font-bold">
+                <span>Remaining:</span>
+                <span className={Math.abs(calculateTotal() - paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0)) < 0.01 ? 'text-green-600' : 'text-red-600'}>
+                  {formatCurrency(calculateTotal() - paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0))}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  // Auto-allocate remaining amount to first account
+                  const total = calculateTotal();
+                  const allocated = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+                  const remaining = total - allocated;
+                  if (remaining > 0 && paymentAllocations.length > 0) {
+                    const newAllocations = [...paymentAllocations];
+                    newAllocations[0].amount = (newAllocations[0].amount || 0) + remaining;
+                    setPaymentAllocations(newAllocations);
+                  }
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Auto-Allocate Remaining
+              </button>
+              <button
+                onClick={() => setShowSplitPaymentModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  const total = calculateTotal();
+                  const allocated = paymentAllocations.reduce((sum, a) => sum + (a.amount || 0), 0);
+                  if (Math.abs(total - allocated) < 0.01) {
+                    setShowSplitPaymentModal(false);
+                  } else {
+                    alert(`Payment allocations must equal the total amount. Remaining: ${formatCurrency(total - allocated)}`);
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Confirm
               </button>
             </div>
           </div>

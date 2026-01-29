@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle } from 'lucide-react';
+import { X, CreditCard, DollarSign, Calendar, FileText, AlertCircle, Loader } from 'lucide-react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
 const PartialPaymentModal = ({ 
   isOpen, 
@@ -18,21 +19,26 @@ const PartialPaymentModal = ({
   const [error, setError] = useState('');
   const [remainingBalance, setRemainingBalance] = useState(0);
 
+  // Load payment accounts dynamically
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
+
   // Reset form when modal opens/closes or invoice changes
   useEffect(() => {
-    if (isOpen && invoice) {
+    if (isOpen && invoice && paymentAccounts.length > 0) {
       const remaining = invoice.total - (invoice.totalPaid || 0);
       setRemainingBalance(remaining);
+      // Set default payment method to first available account (prefer Cash)
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
       setFormData({
         amount: '',
-        paymentMethod: 'cash',
+        paymentMethod: defaultAccount?.id || '',
         paymentDate: new Date().toISOString().split('T')[0],
         reference: '',
         notes: ''
       });
       setError('');
     }
-  }, [isOpen, invoice]);
+  }, [isOpen, invoice, paymentAccounts]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -209,8 +215,14 @@ const PartialPaymentModal = ({
               onChange={handleInputChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               required
+              disabled={isLoadingPaymentAccounts}
             >
-              <option value="cash">Cash</option>
+              <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+              {paymentAccounts.map(account => (
+                <option key={account.id} value={account.id}>
+                  {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                </option>
+              ))}
               <option value="bank_transfer">Bank Transfer</option>
               <option value="mobile_money">Mobile Money</option>
               <option value="check">Check</option>

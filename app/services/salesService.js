@@ -83,6 +83,8 @@ export const fetchSaleById = async (saleId) => {
 export const createSale = async (saleData) => {
   console.log('🚀 CREATE SALE FUNCTION CALLED');
   console.log('🚀 Sale data received:', JSON.stringify(saleData, null, 2));
+  console.log('🚀 paymentAllocations in saleData:', saleData.paymentAllocations);
+  console.log('🚀 paymentMethod in saleData:', saleData.paymentMethod);
   
   try {
     // Validate required fields
@@ -123,7 +125,14 @@ export const createSale = async (saleData) => {
       totalDiscountAmount: Number(saleData.totalDiscountAmount || 0),
       globalDiscount: Number(saleData.globalDiscount || 0),
       total: Number(saleData.total || 0),
-      paymentMethod: String(saleData.paymentMethod || 'cash'),
+      // Only include paymentMethod if paymentAllocations is not present (legacy support)
+      ...(saleData.paymentAllocations && saleData.paymentAllocations.length > 0 
+        ? {} 
+        : { paymentMethod: String(saleData.paymentMethod || 'cash') }),
+      // Always include paymentAllocations if present
+      ...(saleData.paymentAllocations && saleData.paymentAllocations.length > 0 
+        ? { paymentAllocations: saleData.paymentAllocations }
+        : {}),
       notes: String(saleData.notes || ''),
       status: String(saleData.status || 'completed'),
       // Historical transaction fields

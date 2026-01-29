@@ -252,10 +252,33 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                   <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{sale.client.name}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Payment:</span>
-                <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{getPaymentMethodName(sale.paymentMethod)}</span>
-              </div>
+              {/* Payment Method - Show split payments if available */}
+              {sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 1 ? (
+                <div style={{ margin: '4px 0' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Payment (Split):</div>
+                  {sale.payments[0].allocations.map((alloc, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '9px' }}>
+                      <span style={{ minWidth: '30%' }}>{alloc.paymentAccount?.name || 'N/A'}:</span>
+                      <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
+                        MK {Number(alloc.amount || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px', borderTop: '1px dashed #ccc', paddingTop: '2px', fontWeight: 'bold' }}>
+                    <span>Total:</span>
+                    <span style={{ textAlign: 'right' }}>MK {Number(sale.payments[0].amount || sale.total || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                  <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Payment:</span>
+                  <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
+                    {sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 0
+                      ? sale.payments[0].allocations.map(alloc => alloc.paymentAccount?.name || 'N/A').join(', ')
+                      : getPaymentMethodName(sale.paymentMethod)}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Items */}
@@ -315,7 +338,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
 
             {/* Payment Information */}
             <div style={{ margin: '6px 0', fontSize: '10px', textAlign: 'center' }}>
-              <div style={{ fontWeight: 'bold' }}>Payment Method: {getPaymentMethodName(sale.paymentMethod)}</div>
+              <div style={{ fontWeight: 'bold' }}>Payment Method: {sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</div>
               <div style={{ fontWeight: 'bold' }}>Amount Paid: MK {Number(sale.total || 0).toFixed(2)}</div>
               <div style={{ fontWeight: 'bold' }}>Change: MK 0.00</div>
             </div>

@@ -2,7 +2,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { paymentMethods } from '@/lib/paymentMethods';
 
 // GET - Fetch payment statistics
 export async function GET(request) {
@@ -221,69 +220,46 @@ export async function GET(request) {
       }
     });
 
-    // Create account code to payment method mapping
-    const accountCodeToPaymentMethod = {
-      '1000': 'cash',
-      '1010': 'cash',
-      '1020': 'bank_transfer',
-      '1030': 'airtel_money',
-      '1040': 'mpamba',
-      '1050': 'paychangu',
+    // Fetch payment accounts for the tenant
+    const paymentAccounts = await prisma.paymentAccount.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true
+      }
+    });
+
+    // Helper to normalize account names for matching
+    const normalizeName = (name) => {
+      if (!name) return '';
+      return name.toLowerCase().trim().replace(/\s+/g, '_');
     };
     
-    // Create a combined balance map that includes both account IDs and account codes
-    const combinedBalanceMap = { ...balanceMap };
-    
-    // Add account code balances to the combined map using the account code to payment method mapping
-    for (const account of accountBalances) {
-      if (account.accountCode && accountCodeToPaymentMethod[account.accountCode]) {
-        const paymentMethodKey = accountCodeToPaymentMethod[account.accountCode];
-        // Only set if not already set in combinedBalanceMap
-        if (!combinedBalanceMap.hasOwnProperty(paymentMethodKey)) {
-          combinedBalanceMap[paymentMethodKey] = account.balance;
+    // Map balances to payment accounts
+    const combinedBalanceMap = {};
+    for (const account of paymentAccounts) {
+      const normalizedAccountName = normalizeName(account.name);
+      let accountBalance = 0;
+      
+      // Find matching balances from accountBalance records
+      for (const record of accountBalanceRecords) {
+        const normalizedBalanceName = normalizeName(record.account);
+        if (normalizedBalanceName === normalizedAccountName || 
+            normalizedBalanceName.includes(normalizedAccountName) ||
+            normalizedAccountName.includes(normalizedBalanceName)) {
+          accountBalance += parseFloat(record.balance || 0);
         }
       }
-    }
-    
-    // Additionally, ensure all payment methods have a balance value (even if 0)
-    for (const [accountCode, paymentMethodKey] of Object.entries(accountCodeToPaymentMethod)) {
-      const account = accountBalances.find(acc => acc.accountCode === accountCode);
-      if (account && !combinedBalanceMap.hasOwnProperty(paymentMethodKey)) {
-        combinedBalanceMap[paymentMethodKey] = account.balance;
-      }
-    }
-    
-    // Also check AccountBalance records for payment method balances
-    // This handles cases where the account field in AccountBalance might be the payment method key directly
-    // Helper to normalize payment method names
-    const normalizePaymentMethod = (method) => {
-      if (!method) return '';
-      const methodStr = method.toString().trim();
-      if (methodStr.includes('_')) {
-        return methodStr.toLowerCase();
-      }
-      return methodStr.toLowerCase().replace(/\s+/g, '_');
-    };
-    
-    for (const record of accountBalanceRecords) {
-      const accountKey = record.account;
-      // Check if it matches a payment method key directly
-      if (paymentMethods.some(pm => pm.key === accountKey)) {
-        combinedBalanceMap[accountKey] = record.balance;
-      } else {
-        // Try normalizing it to see if it matches a payment method
-        const normalized = normalizePaymentMethod(accountKey);
-        if (paymentMethods.some(pm => pm.key === normalized)) {
-          combinedBalanceMap[normalized] = record.balance;
-        }
-      }
+      
+      combinedBalanceMap[normalizedAccountName] = accountBalance;
+      combinedBalanceMap[account.id] = accountBalance;
     }
     
     // Filtered and formatted method statistics with only availableBalance
-    const methodStatsBalance = paymentMethods.reduce((acc, method) => {
-      const methodKey = method.key;
-      acc[methodKey] = {
-        availableBalance: combinedBalanceMap[methodKey] || 0
+    const methodStatsBalance = paymentAccounts.reduce((acc, account) => {
+      const accountKey = normalizeName(account.name);
+      acc[accountKey] = {
+        name: account.name,
+        availableBalance: combinedBalanceMap[accountKey] || 0
       };
       return acc;
     }, {});

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download, Trash2, X } from "lucide-react";
+import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download, Trash2, X, Loader } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { formatDate } from "@/lib/dateUtils";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 export default function GratuityManagement() {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [gratuityAccounts, setGratuityAccounts] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,10 +26,20 @@ export default function GratuityManagement() {
   const [paymentData, setPaymentData] = useState({
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
-    paymentMethod: 'cash',
+    paymentMethod: '',
     reference: '',
     notes: ''
   });
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !paymentData.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      if (defaultAccount) {
+        setPaymentData(prev => ({ ...prev, paymentMethod: defaultAccount.id }));
+      }
+    }
+  }, [paymentAccounts]);
   const [notification, setNotification] = useState(null);
 
   const toPercentPoints = (rate) => {
@@ -130,7 +142,8 @@ export default function GratuityManagement() {
 
       setNotification({ type: 'success', message: 'Payment recorded successfully' });
       setShowPaymentModal(false);
-      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'cash', reference: '', notes: '' });
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
       fetchGratuityAccounts();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -416,12 +429,14 @@ export default function GratuityManagement() {
                   value={paymentData.paymentMethod}
                   onChange={(e) => setPaymentData({ ...paymentData, paymentMethod: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  disabled={isLoadingPaymentAccounts}
                 >
-                  <option value="cash">Cash</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                  <option value="Airtel Money">Airtel Money</option>
-                  <option value="Mpamba">Mpamba</option>
-                  <option value="PayChangu">PayChangu</option>
+                  <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -464,7 +479,8 @@ export default function GratuityManagement() {
                 onClick={() => {
                   setShowPaymentModal(false);
                   setSelectedAccount(null);
-                  setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: 'cash', reference: '', notes: '' });
+                  const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >

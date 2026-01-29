@@ -1,7 +1,9 @@
 // components/TaxSettlementModal.js
 import React, { useState, useEffect } from 'react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
-const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0 }) => {
+const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTypeId = null }) => {
+  const { paymentAccounts, isLoading: loadingPaymentMethods } = usePaymentAccounts();
   const [formData, setFormData] = useState({
     amount: '',
     date: new Date().toISOString().split('T')[0],
@@ -12,30 +14,42 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0 }) => 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Payment method options
-  const paymentMethods = [
-    'Bank Transfer',
-    'Cash',
-    'Check',
-    'Credit Card',
-    'Debit Card',
-    'Online Payment',
-    'Mobile Payment'
-  ];
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (isOpen && paymentAccounts.length > 0 && !formData.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      setFormData(prev => ({ ...prev, paymentMethod: defaultAccount?.id || '' }));
+    }
+  }, [isOpen, paymentAccounts]);
+              label: acc.name
+            }));
+            setPaymentMethods(methods);
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback payment methods load failed:', fallbackError);
+        setPaymentMethods([]); // Empty array if all fails
+      }
+    } finally {
+      setLoadingPaymentMethods(false);
+    }
+  };
 
   // Reset form when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && paymentAccounts.length > 0) {
+      // Set default payment method to first available account (prefer Cash)
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
       setFormData({
         amount: taxLiability > 0 ? taxLiability.toString() : '',
         date: new Date().toISOString().split('T')[0],
-        paymentMethod: '',
+        paymentMethod: defaultAccount?.id || '',
         description: `Tax Settlement - ${new Date().toLocaleDateString()}`,
         notes: ''
       });
       setErrors({});
     }
-  }, [isOpen, taxLiability]);
+  }, [isOpen, taxLiability, paymentAccounts]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -176,11 +190,15 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0 }) => 
                 className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                   errors.paymentMethod ? 'border-red-500' : 'border-gray-300'
                 }`}
-                disabled={isSubmitting}
+                disabled={isSubmitting || loadingPaymentMethods}
               >
-                <option value="">Select payment method</option>
-                {paymentMethods.map(method => (
-                  <option key={method} value={method}>{method}</option>
+                <option value="">
+                  {loadingPaymentMethods ? 'Loading accounts...' : 'Select an account'}
+                </option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                  </option>
                 ))}
               </select>
               {errors.paymentMethod && (

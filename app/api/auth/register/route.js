@@ -115,6 +115,10 @@ export async function POST(request) {
         }
       });
 
+      // Initialize default payment accounts
+      const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
+      await initializeDefaultPaymentAccounts(newTenant.id, tx);
+
       // Handle affiliate tracking if referral code is provided
       let affiliateReferral = null;
       if (referralCode) {

@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
+import { autoPostTaxEntry } from '@/lib/taxCalculationService';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -386,6 +387,145 @@ export async function POST(request) {
       console.log('Status from request:', data.status);
       console.log('Full data object:', JSON.stringify(data, null, 2));
       
+      // Process payment method/allocations first to get paymentMethodInput
+      let paymentAllocations = [];
+      let paymentMethodInput = 'cash';
+      
+      console.log('🔍 Processing payment method/allocations...');
+      console.log('🔍 data.paymentAllocations:', data.paymentAllocations);
+      console.log('🔍 data.paymentMethod:', data.paymentMethod);
+      
+      if (data.paymentAllocations && Array.isArray(data.paymentAllocations) && data.paymentAllocations.length > 0) {
+        // New format: split payments across multiple accounts
+        paymentAllocations = data.paymentAllocations;
+        
+        // Validate allocations sum equals total
+        const allocationsSum = paymentAllocations.reduce((sum, alloc) => sum + (alloc.amount || 0), 0);
+        if (Math.abs(allocationsSum - finalTotal) > 0.01) {
+          return NextResponse.json({ 
+            error: `Payment allocations sum (${allocationsSum}) does not match sale total (${finalTotal})` 
+          }, { status: 400 });
+        }
+        
+        // Validate all payment accounts exist and are active
+        for (const alloc of paymentAllocations) {
+          if (!alloc.paymentAccountId || !alloc.amount) {
+            return NextResponse.json({ 
+              error: 'Each payment allocation must have paymentAccountId and amount' 
+            }, { status: 400 });
+          }
+          
+          const account = await prisma.paymentAccount.findFirst({
+            where: {
+              id: alloc.paymentAccountId,
+              tenantId: user.tenantId,
+              isActive: true
+            }
+          });
+          
+          if (!account) {
+            return NextResponse.json({ 
+              error: `Payment account ${alloc.paymentAccountId} not found or inactive` 
+            }, { status: 400 });
+          }
+        }
+        
+        // Get account name(s) from allocations for backward compatibility
+        // For split payments, show all account names
+        if (paymentAllocations.length > 1) {
+          // Multiple allocations - get all account names
+          const accountNames = await Promise.all(
+            paymentAllocations.map(alloc => 
+              prisma.paymentAccount.findUnique({
+                where: { id: alloc.paymentAccountId },
+                select: { name: true }
+              })
+            )
+          );
+          paymentMethodInput = accountNames
+            .filter(acc => acc)
+            .map((acc, idx) => `${acc.name} (${formatCurrency(paymentAllocations[idx].amount)})`)
+            .join(', ') || 'Split Payment';
+          console.log('🔍 Set paymentMethodInput from split allocations:', paymentMethodInput);
+        } else {
+          // Single allocation - use account name
+          const firstAllocationAccount = await prisma.paymentAccount.findUnique({
+            where: { id: paymentAllocations[0].paymentAccountId }
+          });
+          paymentMethodInput = firstAllocationAccount?.name || 'Cash';
+          console.log('🔍 Set paymentMethodInput from single allocation:', paymentMethodInput);
+        }
+      } else {
+        // Legacy format: single paymentMethod string (could be account ID or name)
+        paymentMethodInput = data.paymentMethod;
+        
+        // Try to resolve payment account by ID first, then by name
+        let paymentAccount = null;
+        if (paymentMethodInput) {
+          // First try as account ID (if it looks like an ID - long alphanumeric string)
+          if (paymentMethodInput.length > 20 && /^[a-z0-9-]+$/i.test(paymentMethodInput)) {
+            paymentAccount = await prisma.paymentAccount.findFirst({
+              where: {
+                id: paymentMethodInput,
+                tenantId: user.tenantId,
+                isActive: true
+              }
+            });
+          }
+          
+          // If not found as ID, try as name
+          if (!paymentAccount) {
+            paymentAccount = await prisma.paymentAccount.findFirst({
+              where: {
+                name: { equals: paymentMethodInput, mode: 'insensitive' },
+                tenantId: user.tenantId,
+                isActive: true
+              }
+            });
+          }
+        }
+        
+        // If account found, create allocation with it
+        if (paymentAccount) {
+          paymentAllocations = [{ paymentAccountId: paymentAccount.id, amount: finalTotal }];
+          paymentMethodInput = paymentAccount.name; // Use account name for backward compatibility
+        } else {
+          // No account found - fallback to Cash account
+          const cashAccount = await prisma.paymentAccount.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              isActive: true,
+              accountType: 'Cash'
+            }
+          });
+          
+          if (cashAccount) {
+            paymentAllocations = [{ paymentAccountId: cashAccount.id, amount: finalTotal }];
+            paymentMethodInput = cashAccount.name;
+          } else {
+            // Last resort: get first active account
+            const firstAccount = await prisma.paymentAccount.findFirst({
+              where: {
+                tenantId: user.tenantId,
+                isActive: true
+              },
+              orderBy: {
+                isSystem: 'desc'
+              }
+            });
+            
+            if (firstAccount) {
+              paymentAllocations = [{ paymentAccountId: firstAccount.id, amount: finalTotal }];
+              paymentMethodInput = firstAccount.name;
+            } else {
+              return NextResponse.json({ 
+                error: 'No payment accounts configured. Please create a payment account first.' 
+              }, { status: 400 });
+            }
+          }
+        }
+      }
+
       // Create the sale in a transaction
       const result = await prisma.$transaction(async (tx) => {
         // Determine the actual status (default to 'completed' if not specified)
@@ -439,7 +579,7 @@ export async function POST(request) {
             totalDiscountAmount: totalDiscountAmount + globalDiscount,
             total: finalTotal,
             status: saleStatus,
-            paymentMethod: data.paymentMethod || 'cash',
+            paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
             notes: data.notes,
             // Backward compatibility: keep legacy taxRate and taxAmount
             taxRate: legacyTaxRate,
@@ -503,9 +643,39 @@ export async function POST(request) {
               };
             }
             
-            return tx.saleItem.create({
+            // Create sale item first
+            const saleItem = await tx.saleItem.create({
               data: saleItemData
             });
+            
+            // Create individual tax records if taxBreakdown is provided
+            if (item.taxBreakdown && Array.isArray(item.taxBreakdown) && item.taxBreakdown.length > 0) {
+              try {
+                await Promise.all(
+                  item.taxBreakdown.map(tax => 
+                    tx.saleItemTax.create({
+                      data: {
+                        saleItemId: saleItem.id,
+                        taxTypeId: tax.taxTypeId,
+                        taxName: tax.taxName,
+                        taxCode: tax.taxCode,
+                        taxRate: tax.taxRate,
+                        taxAmount: tax.taxAmount
+                      }
+                    })
+                  )
+                );
+              } catch (error) {
+                // If table doesn't exist, log warning but don't fail the sale
+                if (error.message?.includes('does not exist') || error.message?.includes('Unknown model')) {
+                  console.warn('SaleItemTax table does not exist. Run migration to enable detailed tax tracking.');
+                } else {
+                  throw error;
+                }
+              }
+            }
+            
+            return saleItem;
           })
         );
         
@@ -605,33 +775,48 @@ export async function POST(request) {
           // This ensures historical sales are recorded with their actual sale date
           const paymentDate = sale.historicalDate || sale.saleDate;
           
-          const paymentMethodInput = data.paymentMethod || 'cash';
+          // paymentAllocations and paymentMethodInput are already set before the transaction
+          // Just use them here to create the payment record
           
           const newPayment = await tx.payment.create({
             data: {
               saleId: sale.id,
               amount: finalTotal,
-              paymentDate: paymentDate, // Use sale date instead of current date
-              paymentMethod: paymentMethodInput,
+              paymentDate: paymentDate,
+              paymentMethod: paymentMethodInput, // Keep for backward compatibility
               reference: `Sale ${saleNumber}`,
               notes: data.notes || `Payment for sale ${saleNumber}`,
               status: 'Completed',
               tenantId: user.tenantId,
               type: 'sale',
-              sourceAccount: paymentMethodInput
+              sourceAccount: paymentMethodInput,
+              allocations: {
+                create: paymentAllocations.map(alloc => ({
+                  paymentAccountId: alloc.paymentAccountId,
+                  amount: alloc.amount
+                }))
+              }
             }
           });
 
-          // Update account balance for the payment method
-          // Normalize payment method to match AccountBalance format (e.g., "Mpamba" -> "mpamba", "Airtel Money" -> "airtel_money")
-          const normalizedPaymentMethod = normalizePaymentMethod(paymentMethodInput);
-          await updateAccountBalance(
-            user.tenantId,
-            normalizedPaymentMethod,
-            Number(finalTotal),
-            'add',
-            tx
-          );
+          // Update account balances for each payment allocation
+          for (const alloc of paymentAllocations) {
+            const account = await tx.paymentAccount.findUnique({
+              where: { id: alloc.paymentAccountId }
+            });
+            
+            if (account) {
+              // Normalize payment method name for AccountBalance
+              const normalizedPaymentMethod = normalizePaymentMethod(account.name);
+              await updateAccountBalance(
+                user.tenantId,
+                normalizedPaymentMethod,
+                Number(alloc.amount),
+                'add',
+                tx
+              );
+            }
+          }
 
           // Create journal entries for sale (Revenue + COGS)
           // Note: Account balances are updated automatically when transactions are created
@@ -789,12 +974,71 @@ export async function POST(request) {
               saleNumber,
               saleDate: paymentDate,
               totalAmount: finalTotal,
-              paymentMethod: data.paymentMethod || 'cash',
+              paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
               hasServices,
               cogsAmount: totalCOGS,
               tx,
             });
             console.log('✅ Journal entries created successfully:', journalEntries.length);
+
+            // Auto-post taxes from SaleItemTax records
+            try {
+              const saleItemTaxes = await tx.saleItemTax.findMany({
+                where: {
+                  saleItem: {
+                    saleId: sale.id,
+                  },
+                },
+                select: {
+                  taxTypeId: true,
+                  taxAmount: true,
+                  taxName: true,
+                },
+              });
+
+              // Group by taxTypeId and sum amounts
+              const taxesByType = {};
+              saleItemTaxes.forEach(tax => {
+                if (!taxesByType[tax.taxTypeId]) {
+                  taxesByType[tax.taxTypeId] = {
+                    taxTypeId: tax.taxTypeId,
+                    taxAmount: 0,
+                    taxName: tax.taxName,
+                  };
+                }
+                taxesByType[tax.taxTypeId].taxAmount += tax.taxAmount;
+              });
+
+              // Post each tax type separately
+              for (const taxData of Object.values(taxesByType)) {
+                if (taxData.taxAmount > 0) {
+                  try {
+                    const { autoPostTaxEntry } = await import('@/lib/taxCalculationService');
+                    await autoPostTaxEntry({
+                      tenantId: user.tenantId,
+                      userId: user.id,
+                      taxTypeId: taxData.taxTypeId,
+                      taxAmount: taxData.taxAmount,
+                      transactionDate: paymentDate,
+                      sourceType: 'Sale',
+                      sourceId: sale.id,
+                      description: `${taxData.taxName} for sale ${saleNumber}`,
+                      tx,
+                    });
+                    console.log(`✅ Auto-posted ${taxData.taxName}: ${taxData.taxAmount}`);
+                  } catch (taxError) {
+                    console.error(`Error auto-posting tax ${taxData.taxName}:`, taxError);
+                    // Don't fail the sale if tax posting fails
+                  }
+                }
+              }
+            } catch (taxPostingError) {
+              // SaleItemTax table might not exist, that's okay
+              if (!taxPostingError.message?.includes('does not exist') && 
+                  !taxPostingError.message?.includes('Unknown model')) {
+                console.error('Error fetching SaleItemTax records:', taxPostingError);
+              }
+            }
             if (totalCOGS > 0) {
               console.log('✅ COGS should have been recorded:', totalCOGS);
             } else {
@@ -856,7 +1100,36 @@ export async function POST(request) {
         return { sale, items };
       });
       
+      // Fetch the sale with payments and allocations for the response
+      const saleWithPayments = await prisma.sale.findUnique({
+        where: { id: result.sale.id },
+        include: {
+          payments: {
+            include: {
+              allocations: {
+                include: {
+                  paymentAccount: {
+                    select: {
+                      id: true,
+                      name: true,
+                      accountType: true
+                    }
+                  }
+                }
+              }
+            },
+            orderBy: {
+              createdAt: 'desc'
+            },
+            take: 1
+          }
+        }
+      });
+      
       // Return the created sale with formatted data
+      console.log('🔍 Returning sale with paymentMethod:', paymentMethodInput);
+      console.log('🔍 Sale record paymentMethod:', result.sale.paymentMethod);
+      console.log('🔍 Sale payments with allocations:', saleWithPayments?.payments);
       return NextResponse.json({
         message: 'Sale created successfully',
         sale: {
@@ -869,7 +1142,8 @@ export async function POST(request) {
           tax: formatCurrency(result.sale.totalTaxAmount || result.sale.taxAmount), // Backward compatibility
           total: formatCurrency(result.sale.total),
           status: result.sale.status,
-          paymentMethod: result.sale.paymentMethod,
+          paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
+          payments: saleWithPayments?.payments || [], // Include payments with allocations
           itemCount: result.items.length,
           customItemCount: data.items.filter(item => item.isCustom).length
         }

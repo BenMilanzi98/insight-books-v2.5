@@ -8,10 +8,13 @@ import {
   AlertCircle,
   Search,
   Filter,
-  Eye
+  Eye,
+  Loader
 } from 'lucide-react';
+import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 
 export default function SubscriptionPaymentPage() {
+  const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
   const [subscriptions, setSubscriptions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -20,10 +23,22 @@ export default function SubscriptionPaymentPage() {
   const [paymentData, setPaymentData] = useState({
     amount: '',
     currency: 'MWK',
-    paymentMethod: 'bank',
+    paymentMethod: '',
     txRef: '',
     status: 'completed'
   });
+
+  // Set default payment method when accounts load
+  useEffect(() => {
+    if (paymentAccounts.length > 0 && !paymentData.paymentMethod) {
+      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Bank' && acc.isActive) 
+        || paymentAccounts.find(acc => acc.isActive) 
+        || paymentAccounts[0];
+      if (defaultAccount) {
+        setPaymentData(prev => ({ ...prev, paymentMethod: defaultAccount.id }));
+      }
+    }
+  }, [paymentAccounts]);
 
   useEffect(() => {
     fetchSubscriptions();
@@ -312,11 +327,14 @@ export default function SubscriptionPaymentPage() {
                     value={paymentData.paymentMethod}
                     onChange={(e) => setPaymentData(prev => ({ ...prev, paymentMethod: e.target.value }))}
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    disabled={isLoadingPaymentAccounts}
                   >
-                    <option value="bank">Bank Transfer</option>
-                    <option value="mobile_money">Mobile Money</option>
-                    <option value="card">Credit/Debit Card</option>
-                    <option value="cash">Cash</option>
+                    <option value="">{isLoadingPaymentAccounts ? 'Loading accounts...' : 'Select an account'}</option>
+                    {paymentAccounts.map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} {account.accountType ? `(${account.accountType})` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 

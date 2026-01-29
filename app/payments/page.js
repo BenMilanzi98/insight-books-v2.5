@@ -16,16 +16,23 @@ import {
   Landmark,
   Smartphone,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Plus,
+  X,
+  Building2,
+  Loader
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import PaymentModal from "@/components/PaymentModal";
 import { syncPayments, fetchPayments, getPaymentStatistics, exportPayments, updatePaymentStatus } from "../services/paymentService";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
-import { getPaymentMethodColor, getPaymentMethodIcon, getPaymentMethodName, paymentMethods } from "@/lib/paymentMethods";
+import { getPaymentMethodColor, getPaymentMethodIcon, getPaymentMethodName } from "@/lib/paymentMethods";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
 const PaymentProcessingPage = () => {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("recent");
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -41,6 +48,8 @@ const PaymentProcessingPage = () => {
     },
     byMethod: {}
   });
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
+  const [accountBalances, setAccountBalances] = useState({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -51,6 +60,14 @@ const PaymentProcessingPage = () => {
     canDeletePayments:false, 
     canExportPayments:false,  
     canUpdatePayments:false, 
+  });
+  const [showAccountModal, setShowAccountModal] = useState(false);
+  const [isSavingAccount, setIsSavingAccount] = useState(false);
+  const [accountFormData, setAccountFormData] = useState({
+    name: '',
+    accountType: 'Cash',
+    reference: '',
+    isActive: true
   });       
   
   useEffect(() => {
@@ -70,10 +87,49 @@ const PaymentProcessingPage = () => {
   
     fetchPermissions();
   }, []);
+  // Load payment accounts and balances
+  const loadPaymentAccounts = async () => {
+    try {
+      // Load payment accounts with balances in one call
+      const response = await fetch('/api/payment-accounts/balances');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.accounts) {
+          setPaymentAccounts(data.accounts);
+          
+          // Create balances map
+          const balancesMap = {};
+          data.accounts.forEach(account => {
+            balancesMap[account.id] = account.balance || 0;
+          });
+          setAccountBalances(balancesMap);
+        }
+      } else {
+        // Fallback: load accounts separately
+        const accountsResponse = await fetch('/api/payment-accounts?activeOnly=true');
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          if (accountsData.success) {
+            setPaymentAccounts(accountsData.paymentAccounts || []);
+            // Initialize balances to 0
+            const balancesMap = {};
+            accountsData.paymentAccounts.forEach(account => {
+              balancesMap[account.id] = 0;
+            });
+            setAccountBalances(balancesMap);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading payment accounts:', error);
+    }
+  };
+
   // Load payments and statistics on initial render and when filters change
   useEffect(() => {
     loadPayments();
     loadStatistics();
+    loadPaymentAccounts();
   }, [activeTab, selectedPaymentMethod, currentPage]);
   
   // Load payments from the API
@@ -87,24 +143,12 @@ const PaymentProcessingPage = () => {
       if (activeTab === "completed") status = "Completed";
       if (activeTab === "failed") status = "Failed";
       
-      // Map payment method
+      // Map payment method - selectedPaymentMethod is now an account ID
       let method = null;
       if (selectedPaymentMethod !== "all") {
-        method=selectedPaymentMethod
-        // switch (selectedPaymentMethod) {
-        //   case "bank":
-        //     method = "Bank Transfer";
-        //     break;
-        //   case "card":
-        //     method = "Card Payment";
-        //     break;
-        //   case "mobile":
-        //     method = "Mobile Money";
-        //     break;
-        //   case "paychangu":
-        //     method = "PayChangu";
-        //     break;
-        // }
+        // Find the account name from the account ID
+        const selectedAccount = paymentAccounts.find(acc => acc.id === selectedPaymentMethod);
+        method = selectedAccount ? selectedAccount.name : selectedPaymentMethod;
       }
       
       // Fetch payments with filters
@@ -157,24 +201,12 @@ const PaymentProcessingPage = () => {
       if (activeTab === "completed") status = "Completed";
       if (activeTab === "failed") status = "Failed";
       
-      // Map payment method
+      // Map payment method - selectedPaymentMethod is now an account ID
       let method = null;
       if (selectedPaymentMethod !== "all") {
-        method=selectedPaymentMethod
-        // switch (selectedPaymentMethod) {
-        //   case "bank":
-        //     method = "Bank Transfer";
-        //     break;
-        //   case "card":
-        //     method = "Card Payment";
-        //     break;
-        //   case "mobile":
-        //     method = "Mobile Money";
-        //     break;
-        //   case "paychangu":
-        //     method = "PayChangu";
-        //     break;
-        // }
+        // Find the account name from the account ID
+        const selectedAccount = paymentAccounts.find(acc => acc.id === selectedPaymentMethod);
+        method = selectedAccount ? selectedAccount.name : selectedPaymentMethod;
       }
       
       await exportPayments({
@@ -205,6 +237,7 @@ const PaymentProcessingPage = () => {
       // Reload payments and statistics
       await loadPayments();
       await loadStatistics();
+      await loadPaymentAccounts();
     } catch (error) {
       console.error("Error syncing payments:", error);
       showNotification("Error syncing payments. Please try again.", "error");
@@ -239,6 +272,7 @@ const PaymentProcessingPage = () => {
       // Reload payments and statistics
       await loadPayments();
       await loadStatistics();
+      await loadPaymentAccounts();
     } catch (error) {
       console.error("Error creating payment:", error);
       showNotification(error.message || "Error recording payment", "error");
@@ -250,6 +284,55 @@ const PaymentProcessingPage = () => {
   const showNotification = (message, type = "info") => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  // Account types for the modal
+  const ACCOUNT_TYPES = [
+    { value: 'Cash', label: 'Cash', icon: DollarSign },
+    { value: 'Bank', label: 'Bank', icon: Building2 },
+    { value: 'Mobile Money', label: 'Mobile Money', icon: Smartphone },
+    { value: 'Wallet', label: 'Wallet', icon: CreditCard },
+    { value: 'POS Terminal', label: 'POS Terminal', icon: CreditCard }
+  ];
+
+  // Handle account form submission
+  const handleAccountSubmit = async (e) => {
+    e.preventDefault();
+    setIsSavingAccount(true);
+    setNotification(null);
+
+    try {
+      const response = await fetch('/api/payment-accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(accountFormData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create payment account');
+      }
+
+      showNotification('Payment account created successfully', 'success');
+      setShowAccountModal(false);
+      resetAccountForm();
+      await loadPaymentAccounts();
+    } catch (err) {
+      showNotification(err.message || 'Error creating payment account', 'error');
+    } finally {
+      setIsSavingAccount(false);
+    }
+  };
+
+  // Reset account form
+  const resetAccountForm = () => {
+    setAccountFormData({
+      name: '',
+      accountType: 'Cash',
+      reference: '',
+      isActive: true
+    });
   };
   
   // Format currency
@@ -335,6 +418,13 @@ const PaymentProcessingPage = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Payment Processing</h1>
         <div className="flex space-x-2">
+          <button 
+            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center hover:bg-gray-50"
+            onClick={() => router.push('/payments/management')}
+          >
+            <Settings size={16} className="mr-2" />
+            Manage Payment Accounts
+          </button>
         {pagePermissions.canCreatePayments &&(   <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700"
             onClick={() => setIsModalOpen(true)}
@@ -488,13 +578,9 @@ const PaymentProcessingPage = () => {
                 onChange={handleMethodFilterChange}
               >
                 <option value="all">All Payment Methods</option>
-                {paymentMethods.map(method => (
-                  <option key={method.key} value={method.key}>{method.name}</option>
+                {paymentAccounts.map(account => (
+                  <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
-                {/* <option value="bank">Bank Transfer</option>
-                <option value="card">Card Payment</option>
-                <option value="mobile">Mobile Money</option>
-                <option value="paychangu">PayChangu</option> */}
               </select>
               <div className="absolute right-3 top-2.5 pointer-events-none">
                 <ChevronDown size={16} className="text-gray-500" />
@@ -583,14 +669,26 @@ const PaymentProcessingPage = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
-                        {React.cloneElement(getPaymentMethodIcon(payment.paymentMethod), { className: `w-4 h-4 mr-2 text-${getPaymentMethodColor(payment.paymentMethod)}-500` })}
-                        {getPaymentMethodName(payment.paymentMethod)}
+                        {payment.paymentMethod ? (
+                          <>
+                            {React.cloneElement(getPaymentMethodIcon(payment.paymentMethod), { className: `w-4 h-4 mr-2 text-${getPaymentMethodColor(payment.paymentMethod)}-500` })}
+                            {payment.paymentMethod}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center text-sm text-gray-900">
-                        {React.cloneElement(getPaymentMethodIcon(payment.destinationAccount), { className: `w-4 h-4 mr-2 text-${getPaymentMethodColor(payment.destinationAccount)}-500` })}
-                        {getPaymentMethodName(payment.destinationAccount)}
+                        {payment.destinationAccount ? (
+                          <>
+                            {React.cloneElement(getPaymentMethodIcon(payment.destinationAccount), { className: `w-4 h-4 mr-2 text-${getPaymentMethodColor(payment.destinationAccount)}-500` })}
+                            {payment.destinationAccount}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">N/A</span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
@@ -670,34 +768,62 @@ const PaymentProcessingPage = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-lg font-bold mb-4">Payment Method Distribution</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-bold">Payment Method Distribution</h2>
+          <button
+            onClick={() => setShowAccountModal(true)}
+            className="px-3 py-1.5 bg-blue-600 text-white rounded-md flex items-center hover:bg-blue-700 text-sm"
+          >
+            <Plus size={16} className="mr-1.5" />
+            Add Account
+          </button>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {paymentMethods.map(method => {
-            const methodStats = statistics.byMethodBalance?.[method.key] || { amount: 0, count: 0,availableBalance: 0 };
-            const bgColor = `bg-${method.color}-50`;
-            const textColor = `text-${method.color}-500`;
-            return (
-              <div key={method.key} className={`${bgColor} p-4 rounded-lg`}>
-                <div className="flex items-center mb-2">
-                  {React.cloneElement(method.icon, { className: `w-4 h-4 mr-2 ${textColor}` })}
-                  <span className="font-medium">{method.name}</span>
+          {paymentAccounts.length > 0 ? (
+            paymentAccounts.map(account => {
+              const balance = accountBalances[account.id] || 0;
+              
+              // Get icon based on account type
+              let Icon = DollarSign;
+              let bgColor = 'bg-gray-50';
+              let textColor = 'text-gray-500';
+              
+              if (account.accountType === 'Cash') {
+                Icon = DollarSign;
+                bgColor = 'bg-green-50';
+                textColor = 'text-green-500';
+              } else if (account.accountType === 'Bank') {
+                Icon = Landmark;
+                bgColor = 'bg-blue-50';
+                textColor = 'text-blue-500';
+              } else if (account.accountType === 'Mobile Money') {
+                Icon = Smartphone;
+                bgColor = 'bg-purple-50';
+                textColor = 'text-purple-500';
+              } else if (account.accountType === 'Wallet' || account.accountType === 'POS Terminal') {
+                Icon = CreditCard;
+                bgColor = 'bg-orange-50';
+                textColor = 'text-orange-500';
+              }
+              
+              return (
+                <div key={account.id} className={`${bgColor} p-4 rounded-lg`}>
+                  <div className="flex items-center mb-2">
+                    <Icon size={18} className={`mr-2 ${textColor}`} />
+                    <span className="font-medium">{account.name}</span>
+                  </div>
+                  <div className="text-xs text-gray-500 mb-1">Available Balance</div>
+                  <div className={`text-xl font-bold ${textColor}`}>
+                    {formatCurrency(balance)}
+                  </div>
                 </div>
-                {/* <div className="text-xl font-bold">
-                  {formatCurrency(methodStats.amount)}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {methodStats.count} transaction{methodStats.count !== 1 ? 's' : ''}
-                </div> */}
-                Available Balance
-                <div className="text-xl font-bold">
-                  {formatCurrency(methodStats.availableBalance)}
-                </div>
-                {/* <div className="text-sm text-green-600 mt-1">
-                  Available Balance: {formatCurrency(methodStats.availableBalance)}
-                </div> */}
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="col-span-full text-center text-gray-500 py-8">
+              No payment accounts found. <a href="/payments/management" className="text-blue-600 hover:underline">Create one</a>
+            </div>
+          )}
           {/*<div className="bg-blue-50 p-4 rounded-lg">
             <div className="flex items-center mb-2">
               <Landmark size={18} className="text-blue-500 mr-2" />
@@ -759,6 +885,119 @@ const PaymentProcessingPage = () => {
         onSubmit={handlePaymentSubmit}
         mode="create"
       />
+
+      {/* Add Account Modal */}
+      {showAccountModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">
+                Create Payment Account
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAccountModal(false);
+                  resetAccountForm();
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAccountSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Account Name *
+                </label>
+                <input
+                  type="text"
+                  value={accountFormData.name}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                  placeholder="e.g., Bank Transfer, Airtel Money, Mpamba"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Account Type *
+                </label>
+                <select
+                  value={accountFormData.accountType}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, accountType: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                >
+                  {ACCOUNT_TYPES.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Reference (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={accountFormData.reference}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, reference: e.target.value })}
+                  placeholder="Account number, wallet ID, etc."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="isActive"
+                  checked={accountFormData.isActive}
+                  onChange={(e) => setAccountFormData({ ...accountFormData, isActive: e.target.checked })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">
+                  Active
+                </label>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAccountModal(false);
+                    resetAccountForm();
+                  }}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  disabled={isSavingAccount}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center justify-center"
+                  disabled={isSavingAccount}
+                >
+                  {isSavingAccount ? (
+                    <>
+                      <Loader className="animate-spin w-4 h-4 mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Plus size={16} className="mr-2" />
+                      Create Account
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
     </PermissionGuard>
   );

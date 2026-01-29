@@ -218,11 +218,6 @@ export async function GET(request) {
       where.status = status;
     }
     
-    // Add payment method filter if provided
-    if (method) {
-      where.paymentMethod = method;
-    }
-    
     // Add date range filters if provided
     if (dateFrom) {
       where.paymentDate = {
@@ -238,9 +233,24 @@ export async function GET(request) {
       };
     }
     
-    // Add search filter if provided
-    if (search) {
-      where.OR = [
+    // Build method and search filters
+    const methodFilter = method ? {
+      OR: [
+        { paymentMethod: { equals: method, mode: 'insensitive' } },
+        {
+          allocations: {
+            some: {
+              paymentAccount: {
+                name: { equals: method, mode: 'insensitive' }
+              }
+            }
+          }
+        }
+      ]
+    } : null;
+    
+    const searchFilter = search ? {
+      OR: [
         { reference: { contains: search, mode: 'insensitive' } },
         { notes: { contains: search, mode: 'insensitive' } },
         {
@@ -251,7 +261,19 @@ export async function GET(request) {
             ]
           }
         }
+      ]
+    } : null;
+    
+    // Combine filters using AND if both exist
+    if (methodFilter && searchFilter) {
+      where.AND = [
+        methodFilter,
+        searchFilter
       ];
+    } else if (methodFilter) {
+      Object.assign(where, methodFilter);
+    } else if (searchFilter) {
+      Object.assign(where, searchFilter);
     }
     
     // Get total count for pagination
@@ -275,6 +297,17 @@ export async function GET(request) {
               select: {
                 id: true,
                 name: true
+              }
+            }
+          }
+        },
+        allocations: {
+          include: {
+            paymentAccount: {
+              select: {
+                id: true,
+                name: true,
+                accountType: true
               }
             }
           }
@@ -317,21 +350,130 @@ export async function POST(request) {
       notes,
       type,
       sourceAccount,
-      destinationAccount
+      destinationAccount,
+      paymentAllocations // New: array of { paymentAccountId, amount }
     } = body;
 
-    if (!amount || !paymentDate || !sourceAccount || !type) {
-      return NextResponse.json({ error: 'Amount, payment date, type, and payment method are required' }, { status: 400 });
+    if (!amount || !paymentDate || !type) {
+      return NextResponse.json({ error: 'Amount, payment date, and type are required' }, { status: 400 });
     }
 
-    // Validate accounts
-    if (type === "expense" && !sourceAccount) {
+    // Support both new payment allocations format and legacy sourceAccount
+    let paymentAllocationsList = [];
+    let paymentMethod = sourceAccount || 'cash';
+    
+    if (paymentAllocations && Array.isArray(paymentAllocations) && paymentAllocations.length > 0) {
+      // New format: split payments across multiple accounts
+      paymentAllocationsList = paymentAllocations;
+      
+      // Validate allocations sum equals amount
+      const allocationsSum = paymentAllocationsList.reduce((sum, alloc) => sum + (alloc.amount || 0), 0);
+      if (Math.abs(allocationsSum - amount) > 0.01) {
+        return NextResponse.json({ 
+          error: `Payment allocations sum (${allocationsSum}) does not match payment amount (${amount})` 
+        }, { status: 400 });
+      }
+      
+      // Validate all payment accounts exist and are active
+      for (const alloc of paymentAllocationsList) {
+        if (!alloc.paymentAccountId || !alloc.amount) {
+          return NextResponse.json({ 
+            error: 'Each payment allocation must have paymentAccountId and amount' 
+          }, { status: 400 });
+        }
+        
+        const account = await prisma.paymentAccount.findFirst({
+          where: {
+            id: alloc.paymentAccountId,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        });
+        
+        if (!account) {
+          return NextResponse.json({ 
+            error: `Payment account ${alloc.paymentAccountId} not found or inactive` 
+          }, { status: 400 });
+        }
+      }
+      
+      // Use first account name as paymentMethod for backward compatibility
+      const firstAccount = await prisma.paymentAccount.findUnique({
+        where: { id: paymentAllocationsList[0].paymentAccountId }
+      });
+      paymentMethod = firstAccount?.name || 'cash';
+    } else {
+      // Legacy format: single sourceAccount
+      if (!sourceAccount) {
+        return NextResponse.json({ error: 'Source account or payment allocations are required' }, { status: 400 });
+      }
+      
+      // Try to resolve payment account by name or ID
+      let paymentAccount = null;
+      if (sourceAccount.length > 20 && /^[a-z0-9]+$/i.test(sourceAccount)) {
+        // Looks like an account ID
+        paymentAccount = await prisma.paymentAccount.findFirst({
+          where: {
+            id: sourceAccount,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        });
+      } else {
+        // Try to find by name
+        paymentAccount = await prisma.paymentAccount.findFirst({
+          where: {
+            name: { equals: sourceAccount, mode: 'insensitive' },
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        });
+      }
+      
+      if (paymentAccount) {
+        paymentAllocationsList = [{ paymentAccountId: paymentAccount.id, amount: amount }];
+        paymentMethod = paymentAccount.name;
+      } else {
+        // Fallback: find first active payment account (prefer Cash if exists, otherwise first available)
+        let fallbackAccount = await prisma.paymentAccount.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            isActive: true,
+            accountType: 'Cash'
+          }
+        });
+        
+        if (!fallbackAccount) {
+          // If no Cash account, get first active account
+          fallbackAccount = await prisma.paymentAccount.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              isActive: true
+            },
+            orderBy: {
+              isSystem: 'desc' // Prefer system accounts
+            }
+          });
+        }
+        
+        if (!fallbackAccount) {
+          return NextResponse.json({ 
+            error: 'No payment accounts configured. Please create a payment account first.' 
+          }, { status: 400 });
+        }
+        
+        paymentAllocationsList = [{ paymentAccountId: fallbackAccount.id, amount: amount }];
+        paymentMethod = fallbackAccount.name;
+      }
+    }
+
+    // Validate accounts for expense and transfer types
+    if (type === "expense" && paymentAllocationsList.length === 0) {
       return NextResponse.json({ error: 'Source account is required for expense' }, { status: 400 });
     }
     if (type === "transfer" && (!sourceAccount || !destinationAccount)) {
       return NextResponse.json({ error: 'Both source and destination accounts are required for transfer' }, { status: 400 });
     }
-    const paymentMethod = sourceAccount;
     // Special handling for invoices
     let invoice = null;
     if (type === "invoice") {
@@ -375,15 +517,21 @@ export async function POST(request) {
         invoiceId: invoice?.id || null,
         amount,
         paymentDate: new Date(paymentDate),
-        paymentMethod,
+        paymentMethod, // Keep for backward compatibility
         reference: reference || null,
         notes: notes || null,
         status: 'Completed',
         tenantId: user.tenantId,
         branchId: branchId,
         type,
-        sourceAccount: sourceAccount || null,
-        destinationAccount: destinationAccount || null
+        sourceAccount: paymentMethod, // Keep for backward compatibility
+        destinationAccount: destinationAccount || null,
+        allocations: {
+          create: paymentAllocationsList.map(alloc => ({
+            paymentAccountId: alloc.paymentAccountId,
+            amount: alloc.amount
+          }))
+        }
       },
       include: {
         invoice: {
@@ -444,16 +592,33 @@ export async function POST(request) {
       return methodStr.toLowerCase().replace(/\s+/g, '_') || 'cash';
     };
 
-    // 🔄 Handle balance updates
-    if (["invoice", "sale"].includes(type)) {
+    // 🔄 Handle balance updates - use payment allocations if available
+    if (paymentAllocationsList.length > 0) {
+      for (const alloc of paymentAllocationsList) {
+        const account = await prisma.paymentAccount.findUnique({
+          where: { id: alloc.paymentAccountId }
+        });
+        
+        if (account) {
+          const normalizedMethod = normalizePaymentMethod(account.name);
+          if (["invoice", "sale"].includes(type)) {
+            await updateAccountBalance(user.tenantId, normalizedMethod, alloc.amount, "add");
+          } else if (type === "expense") {
+            await updateAccountBalance(user.tenantId, normalizedMethod, alloc.amount, "subtract");
+          }
+        }
+      }
+    } else if (["invoice", "sale"].includes(type)) {
+      // Fallback to legacy method
       const normalizedMethod = normalizePaymentMethod(paymentMethod);
       await updateAccountBalance(user.tenantId, normalizedMethod, amount, "add");
     } else if (type === "expense") {
-      // For expenses, sourceAccount might be a payment method key or account ID
-      // Try to normalize it if it looks like a payment method name
+      // Fallback to legacy method
       const normalizedSource = normalizePaymentMethod(sourceAccount);
       await updateAccountBalance(user.tenantId, normalizedSource, amount, "subtract");
-    } else if (type === "transfer") {
+    }
+    
+    if (type === "transfer") {
       // Check if this is a capital account transfer
       const isCapitalAccountTransfer = sourceAccount === capitalAccount?.id;
       

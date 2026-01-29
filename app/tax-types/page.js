@@ -11,7 +11,12 @@ import {
   CheckCircle,
   Search,
   Filter,
-  Info
+  Info,
+  Eye,
+  Calendar,
+  TrendingUp,
+  Package,
+  ShoppingCart
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 import PermissionGuard from "@/components/PermissionGuard";
@@ -20,6 +25,7 @@ import { getPermission } from "@/lib/permissions";
 export default function TaxTypesPage() {
   const [taxTypes, setTaxTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
+  const [taxBalances, setTaxBalances] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -40,10 +46,23 @@ export default function TaxTypesPage() {
   const [canCreate, setCanCreate] = useState(false);
   const [canUpdate, setCanUpdate] = useState(false);
   const [canDelete, setCanDelete] = useState(false);
+  const [showReportsModal, setShowReportsModal] = useState(false);
+  const [selectedTaxType, setSelectedTaxType] = useState(null);
+  const [taxReports, setTaxReports] = useState(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
 
   useEffect(() => {
     checkPermissions();
     loadData();
+    
+    // Set default date range (last 30 days)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    setReportEndDate(endDate.toISOString().split('T')[0]);
+    setReportStartDate(startDate.toISOString().split('T')[0]);
   }, []);
 
   const checkPermissions = async () => {
@@ -66,9 +85,10 @@ export default function TaxTypesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [taxTypesRes, accountsRes] = await Promise.all([
+      const [taxTypesRes, accountsRes, balancesRes] = await Promise.all([
         fetch("/api/tax-types"),
-        fetch("/api/chart-of-accounts")
+        fetch("/api/chart-of-accounts"),
+        fetch("/api/tax-accounts/balances").catch(() => null) // Optional, don't fail if it errors
       ]);
 
       if (!taxTypesRes.ok) throw new Error("Failed to load tax types");
@@ -83,6 +103,21 @@ export default function TaxTypesPage() {
         acc => acc.accountType === "Liability" || acc.accountType === "Asset"
       );
       setAccounts(filteredAccounts);
+
+      // Load balances if available
+      if (balancesRes && balancesRes.ok) {
+        const balancesData = await balancesRes.json();
+        const balancesMap = {};
+        balancesData.taxAccounts?.forEach(acc => {
+          balancesMap[acc.taxType.id] = {
+            totalCollected: acc.totalCollected,
+            totalPaid: acc.totalPaid,
+            netPayable: acc.netPayable,
+            currentBalance: acc.currentBalance,
+          };
+        });
+        setTaxBalances(balancesMap);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -171,6 +206,29 @@ export default function TaxTypesPage() {
     });
   };
 
+  const handleViewReports = async (tax) => {
+    setSelectedTaxType(tax);
+    setShowReportsModal(true);
+    setLoadingReports(true);
+    setTaxReports(null);
+    
+    try {
+      const params = new URLSearchParams();
+      if (reportStartDate) params.append('startDate', reportStartDate);
+      if (reportEndDate) params.append('endDate', reportEndDate);
+      
+      const response = await fetch(`/api/tax-types/${tax.id}/reports?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to load tax reports');
+      
+      const data = await response.json();
+      setTaxReports(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
   const filteredTaxTypes = taxTypes.filter(tax => {
     const matchesSearch = 
       tax.taxName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -212,19 +270,28 @@ export default function TaxTypesPage() {
               Create and manage tax types linked to accounts for automatic tax posting
             </p>
           </div>
-        {canCreate && (
-          <button
-            onClick={() => {
-              resetForm();
-              setEditingId(null);
-              setShowAddModal(true);
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+        <div className="flex gap-2">
+          <a
+            href="/tax-accounts"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
           >
-            <Plus size={20} />
-            Add Tax Type
-          </button>
-        )}
+            <TrendingUp size={20} />
+            Tax Accounts Dashboard
+          </a>
+          {canCreate && (
+            <button
+              onClick={() => {
+                resetForm();
+                setEditingId(null);
+                setShowAddModal(true);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+            >
+              <Plus size={20} />
+              Add Tax Type
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
@@ -300,6 +367,12 @@ export default function TaxTypesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Account
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Balance
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Net Payable
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
@@ -311,63 +384,87 @@ export default function TaxTypesPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredTaxTypes.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
                     No tax types found. Create your first tax type to get started.
                   </td>
                 </tr>
               ) : (
-                filteredTaxTypes.map((tax) => (
-                  <tr key={tax.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {tax.taxId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {tax.taxName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {tax.taxCode}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {tax.calculationType === "Percentage" 
-                        ? `${tax.taxRate}%`
-                        : formatCurrency(tax.taxRate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {tax.account?.accountName || "N/A"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        tax.status === "Active"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-800"
-                      }`}>
-                        {tax.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end gap-2">
-                        {canUpdate && (
+                filteredTaxTypes.map((tax) => {
+                  const balance = taxBalances[tax.id] || {};
+                  return (
+                    <tr key={tax.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {tax.taxId}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {tax.taxName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {tax.taxCode}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {tax.calculationType === "Percentage" 
+                          ? `${tax.taxRate}%`
+                          : formatCurrency(tax.taxRate)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {tax.account?.accountName || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                        {balance.currentBalance !== undefined 
+                          ? formatCurrency(balance.currentBalance)
+                          : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        {balance.netPayable !== undefined ? (
+                          <span className={`font-semibold ${
+                            balance.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(balance.netPayable)}
+                          </span>
+                        ) : 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          tax.status === "Active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                        }`}>
+                          {tax.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex justify-end gap-2">
                           <button
-                            onClick={() => handleEdit(tax)}
-                            className="text-blue-600 hover:text-blue-900"
-                            title="Edit"
+                            onClick={() => handleViewReports(tax)}
+                            className="text-green-600 hover:text-green-900"
+                            title="View Reports"
                           >
-                            <Edit size={18} />
+                            <Eye size={18} />
                           </button>
-                        )}
-                        {canDelete && (
-                          <button
-                            onClick={() => handleDelete(tax.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {canUpdate && (
+                            <button
+                              onClick={() => handleEdit(tax)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Edit"
+                            >
+                              <Edit size={18} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              onClick={() => handleDelete(tax.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -532,6 +629,189 @@ export default function TaxTypesPage() {
               </form>
             </div>
           </div>
+      )}
+
+      {/* Tax Reports Modal */}
+      {showReportsModal && selectedTaxType && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b sticky top-0 bg-white z-10">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-xl font-bold">Tax Reports: {selectedTaxType.taxName}</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tax Code: {selectedTaxType.taxCode} | Rate: {selectedTaxType.calculationType === "Percentage" ? `${selectedTaxType.taxRate}%` : formatCurrency(selectedTaxType.taxRate)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowReportsModal(false);
+                    setSelectedTaxType(null);
+                    setTaxReports(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              {/* Date Range Filter */}
+              <div className="flex gap-4 items-end">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={() => handleViewReports(selectedTaxType)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                  disabled={loadingReports}
+                >
+                  <Search size={18} />
+                  {loadingReports ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              {loadingReports ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+              ) : taxReports ? (
+                <div className="space-y-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Package className="text-blue-600" size={20} />
+                        <h3 className="text-sm font-medium text-gray-700">Products</h3>
+                      </div>
+                      <p className="text-2xl font-bold text-blue-600">{taxReports.summary.productCount}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <ShoppingCart className="text-green-600" size={20} />
+                        <h3 className="text-sm font-medium text-gray-700">Sales</h3>
+                      </div>
+                      <p className="text-2xl font-bold text-green-600">{taxReports.summary.saleCount}</p>
+                    </div>
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <TrendingUp className="text-purple-600" size={20} />
+                        <h3 className="text-sm font-medium text-gray-700">Tax Collected</h3>
+                      </div>
+                      <p className="text-2xl font-bold text-purple-600">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
+                    </div>
+                  </div>
+
+                  {/* Products Using This Tax */}
+                  {taxReports.products.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        <Package size={20} />
+                        Products Using This Tax ({taxReports.products.length})
+                      </h3>
+                      <div className="bg-white border rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product Name</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {taxReports.products.map((product) => (
+                              <tr key={product.id}>
+                                <td className="px-4 py-3 text-sm text-gray-900">{product.name}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{product.sku || 'N/A'}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{formatCurrency(product.price)}</td>
+                                <td className="px-4 py-3 text-sm">
+                                  <span className={`px-2 py-1 text-xs rounded-full ${
+                                    !product.isDeleted ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    {product.isDeleted ? 'Deleted' : 'Active'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sales Using This Tax */}
+                  {taxReports.sales.length > 0 && (
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                        <ShoppingCart size={20} />
+                        Sales Using This Tax ({taxReports.sales.length})
+                      </h3>
+                      <div className="bg-white border rounded-lg overflow-hidden">
+                        <table className="min-w-full divide-y divide-gray-200">
+                          <thead className="bg-gray-50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale #</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxable Amount</th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white divide-y divide-gray-200">
+                            {taxReports.sales.map((sale) => (
+                              <tr key={sale.id}>
+                                <td className="px-4 py-3 text-sm text-gray-900">{sale.saleNumber}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{sale.clientName}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{sale.productName}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500">{formatCurrency(sale.taxableAmount)}</td>
+                                <td className="px-4 py-3 text-sm font-medium text-purple-600">{formatCurrency(sale.taxAmount)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {taxReports.products.length === 0 && taxReports.sales.length === 0 && (
+                    <div className="text-center py-12">
+                      <Info className="mx-auto text-gray-400 mb-4" size={48} />
+                      <p className="text-gray-500">No data found for this tax type in the selected period.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">Click "Refresh" to load reports</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

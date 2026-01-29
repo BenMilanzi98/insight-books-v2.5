@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { paymentMethods } from "@/lib/paymentMethods";
 
 const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = null }) => {
   const [formData, setFormData] = useState({
@@ -18,6 +17,7 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
 
   const [balances, setBalances] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -31,9 +31,22 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
     }
   };
 
+  const fetchPaymentAccounts = async () => {
+    try {
+      const res = await fetch("/api/payment-accounts?activeOnly=true");
+      const data = await res.json();
+      if (data.success && data.paymentAccounts) {
+        setPaymentAccounts(data.paymentAccounts);
+      }
+    } catch (err) {
+      console.error("Failed to fetch payment accounts", err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       fetchBalances();
+      fetchPaymentAccounts();
     }
   }, [isOpen]);
 
@@ -74,7 +87,18 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
     }));
   };
 
-  const getBalance = (key) => balances.find((b) => b.account === key)?.balance ?? 0;
+  const getBalance = (accountIdOrName) => {
+    // Try to find by account ID first
+    const account = paymentAccounts.find(acc => acc.id === accountIdOrName || acc.name === accountIdOrName);
+    if (!account) return 0;
+    
+    // Find balance by account name (normalized)
+    const normalizedName = account.name.toLowerCase().trim().replace(/\s+/g, '_');
+    return balances.find((b) => {
+      const balanceName = (b.account || '').toLowerCase().trim().replace(/\s+/g, '_');
+      return balanceName === normalizedName || balanceName === account.name.toLowerCase();
+    })?.balance ?? 0;
+  };
   const amount = parseFloat(formData.amount || "0");
 
   const validateForm = () => {
@@ -186,9 +210,9 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
                 <label className="block text-sm font-medium text-gray-700">Source Account</label>
                 <select name="sourceAccount" value={formData.sourceAccount} onChange={handleChange} className="w-full p-2 border rounded-md">
                   <option value="">Select source account</option>
-                  {paymentMethods.map(method => (
-                    <option key={method.key} value={method.key}>
-                      {method.name} - Balance: MWK {formatCurrency(getBalance(method.key))}
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} - Balance: MWK {formatCurrency(getBalance(account.id))}
                     </option>
                   ))}
                 </select>
@@ -207,11 +231,11 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
                 <label className="block text-sm font-medium text-gray-700">Destination Account</label>
                 <select name="destinationAccount" value={formData.destinationAccount} onChange={handleChange} className="w-full p-2 border rounded-md">
                   <option value="">Select destination account</option>
-                  {paymentMethods
-                    .filter(method => method.key !== formData.sourceAccount)
-                    .map(method => (
-                      <option key={method.key} value={method.key}>
-                        {method.name} - Balance: MWK {formatCurrency(getBalance(method.key))}
+                  {paymentAccounts
+                    .filter(account => account.id !== formData.sourceAccount)
+                    .map(account => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} - Balance: MWK {formatCurrency(getBalance(account.id))}
                       </option>
                     ))
                   }
@@ -255,13 +279,13 @@ const PaymentModal = ({ isOpen, onClose, onSubmit, mode = "create", payment = nu
                 <label className="block text-sm font-medium text-gray-700">Payment Method</label>
                 <select name="sourceAccount" value={formData.sourceAccount} onChange={handleChange} className="w-full p-2 border rounded-md">
                   <option value="">Select payment method</option>
-                  {paymentMethods.map(m => (
-                    <option key={m.key} value={m.key}>{m.name}</option>
+                  {paymentAccounts.map(account => (
+                    <option key={account.id} value={account.id}>{account.name}</option>
                   ))}
                 </select>
                 {formData.sourceAccount && (
                   <p className="text-sm text-gray-500 mt-1">
-                    New Balance: MWK {getBalance(formData.sourceAccount) + amount}
+                    New Balance: MWK {formatCurrency(getBalance(formData.sourceAccount) + amount)}
                   </p>
                 )}
                 {errors.sourceAccount && <p className="text-red-500 text-sm">{errors.sourceAccount}</p>}

@@ -115,7 +115,9 @@ export async function GET(request) {
       
       salesByDate[dateKey].sales += 1;
       salesByDate[dateKey].totalRevenue += sale.total;
-      salesByDate[dateKey].totalTax += sale.taxAmount;
+      // Use totalTaxAmount if available, otherwise fallback to taxAmount or calculate from items
+      const saleTax = sale.totalTaxAmount || sale.taxAmount || sale.items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
+      salesByDate[dateKey].totalTax += saleTax;
     });
     
     // Process invoices
@@ -229,7 +231,20 @@ export async function GET(request) {
     const totalSalesCount = sales.length;
     const totalInvoiceCount = invoices.length;
     const totalRevenue = [...sales, ...invoices].reduce((sum, item) => sum + item.total, 0);
-    const totalTax = [...sales, ...invoices].reduce((sum, item) => sum + item.taxAmount, 0);
+    // Calculate total tax: use totalTaxAmount for sales, taxAmount for invoices, or sum item taxes
+    const totalTax = [...sales, ...invoices].reduce((sum, item) => {
+      if (item.totalTaxAmount !== undefined && item.totalTaxAmount !== null) {
+        // Sale with totalTaxAmount
+        return sum + (item.totalTaxAmount || 0);
+      } else if (item.taxAmount !== undefined && item.taxAmount !== null) {
+        // Invoice or sale with taxAmount
+        return sum + (item.taxAmount || 0);
+      } else if (item.items && Array.isArray(item.items)) {
+        // Fallback: sum tax from items
+        return sum + item.items.reduce((itemSum, saleItem) => itemSum + (saleItem.taxAmount || 0), 0);
+      }
+      return sum;
+    }, 0);
     
     // Sort the salesByDate array by date
     const salesByDateArray = Object.values(salesByDate).sort((a, b) => 
