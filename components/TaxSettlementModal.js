@@ -21,19 +21,6 @@ const TaxSettlementModal = ({ isOpen, onClose, onSubmit, taxLiability = 0, taxTy
       setFormData(prev => ({ ...prev, paymentMethod: defaultAccount?.id || '' }));
     }
   }, [isOpen, paymentAccounts]);
-              label: acc.name
-            }));
-            setPaymentMethods(methods);
-          }
-        }
-      } catch (fallbackError) {
-        console.error('Fallback payment methods load failed:', fallbackError);
-        setPaymentMethods([]); // Empty array if all fails
-      }
-    } finally {
-      setLoadingPaymentMethods(false);
-    }
-  };
 
   // Reset form when modal opens
   useEffect(() => {
