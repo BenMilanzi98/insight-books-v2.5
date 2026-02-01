@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus } from 'lucide-react';
+import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain } from 'lucide-react';
 import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
 
 export default function LandingPage() {
@@ -333,6 +333,38 @@ function HeroSection() {
 function FeaturesSection() {
   const features = [
     {
+      icon: Brain,
+      color: "bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600",
+      title: "AI Assistant",
+      description: "Intelligent chatbot to help with accounting, payroll, and business queries.",
+      isNew: true,
+      isHighlighted: true
+    },
+    {
+      icon: UserPlus,
+      color: "bg-gradient-to-br from-indigo-500 to-purple-600",
+      title: "HR & Payroll",
+      description: "Employee records, salaries, deductions, and payroll processing.",
+      isNew: true,
+      isHighlighted: true
+    },
+    {
+      icon: BookOpen,
+      color: "bg-yellow-500",
+      title: "Accounting",
+      description: "Chart of Accounts, Journal Entries, and Trial Balance management.",
+      isNew: true,
+      isHighlighted: true
+    },
+    {
+      icon: Truck,
+      color: "bg-lime-500",
+      title: "Supplier Management",
+      description: "Manage suppliers, purchases, and transactions.",
+      isNew: true,
+      isHighlighted: true
+    },
+    {
       icon: LayoutDashboard,
       color: "bg-blue-500",
       title: "Dashboard",
@@ -387,14 +419,6 @@ function FeaturesSection() {
       description: "Track what the business owns and owes."
     },
     {
-      icon: UserPlus,
-      color: "bg-gradient-to-br from-indigo-500 to-purple-600",
-      title: "HR & Payroll",
-      description: "Employee records, salaries, deductions, and payroll processing.",
-      isNew: true,
-      isHighlighted: true
-    },
-    {
       icon: Banknote,
       color: "bg-teal-500",
       title: "Payment Processing",
@@ -413,26 +437,11 @@ function FeaturesSection() {
       description: "Track stock levels, movements, and availability."
     },
     {
-      icon: Truck,
-      color: "bg-lime-500",
-      title: "Supplier Management",
-      description: "Manage suppliers, purchases, and transactions.",
-      isNew: true
-    },
-    {
       icon: Calculator,
       color: "bg-violet-500",
       title: "Tax Management",
       description: "Calculate and track taxes in compliance with regulations."
-    },
-    {
-      icon: BookOpen,
-      color: "bg-yellow-500",
-      title: "Accounting (Coming Soon)",
-      description: "📋 Chart of Accounts\n✏️ Journal Entries\n⚖️ Trial Balance"
     }
-    // {
-    //   emoji: "🔄",
   ];
 
   return (
@@ -647,7 +656,7 @@ function TestimonialsSection() {
 function PricingSection() {
   const plans = SUBSCRIPTION_PLANS_ARRAY;
 
-  // Enhanced features list with HR & Payroll highlighted
+  // Enhanced features list with new features highlighted
   const allFeatures = [
     "POS (Point of Sale)",
     "Inventory Tracking",
@@ -656,6 +665,7 @@ function PricingSection() {
     "Quotations",
     "Customer Database",
     "Financial Reporting",
+    "AI Assistant",
     "HR & Payroll",
     "Supplier Management",
     "Tax Management",
@@ -705,19 +715,19 @@ function PricingSection() {
                 <h4 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">All Features Included:</h4>
                 <ul className="space-y-2.5">
                   {allFeatures.map((feature, fIndex) => {
-                    const isHRPayroll = feature === "HR & Payroll";
+                    const isNewFeature = ["AI Assistant", "HR & Payroll", "Accounting & Bookkeeping", "Supplier Management"].includes(feature);
                     return (
-                      <li key={fIndex} className={`flex items-center ${isHRPayroll ? 'bg-gradient-to-r from-indigo-50 to-purple-50 px-2 py-1.5 rounded-lg -mx-2' : ''}`}>
+                      <li key={fIndex} className={`flex items-center ${isNewFeature ? 'bg-gradient-to-r from-indigo-50 to-purple-50 px-2 py-1.5 rounded-lg -mx-2' : ''}`}>
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
-                          isHRPayroll 
+                          isNewFeature 
                             ? 'bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md' 
                             : 'bg-indigo-100'
                         }`}>
-                          <Check className={`w-3 h-3 ${isHRPayroll ? 'text-white' : 'text-indigo-600'}`} />
+                          <Check className={`w-3 h-3 ${isNewFeature ? 'text-white' : 'text-indigo-600'}`} />
                         </div>
-                        <span className={`text-slate-700 text-sm ${isHRPayroll ? 'font-semibold text-indigo-700' : ''}`}>
+                        <span className={`text-slate-700 text-sm ${isNewFeature ? 'font-semibold text-indigo-700' : ''}`}>
                           {feature}
-                          {isHRPayroll && (
+                          {isNewFeature && (
                             <span className="ml-2 inline-flex items-center gap-1">
                               <span className="relative">
                                 <span className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full blur opacity-50"></span>
