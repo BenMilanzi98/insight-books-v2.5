@@ -13,14 +13,16 @@ import {
   Filter,
   Info,
   Eye,
-  Calendar,
   TrendingUp,
-  Package,
-  ShoppingCart
+  Calculator,
+  Building2,
+  FileText,
+  RefreshCw,
+  ChevronRight,
+  Percent,
+  Link as LinkIcon
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
-import PermissionGuard from "@/components/PermissionGuard";
-import { getPermission } from "@/lib/permissions";
 
 export default function TaxTypesPage() {
   const [taxTypes, setTaxTypes] = useState([]);
@@ -42,10 +44,6 @@ export default function TaxTypesPage() {
     accountId: "",
     status: "Active"
   });
-  const [hasAccess, setHasAccess] = useState(false);
-  const [canCreate, setCanCreate] = useState(false);
-  const [canUpdate, setCanUpdate] = useState(false);
-  const [canDelete, setCanDelete] = useState(false);
   const [showReportsModal, setShowReportsModal] = useState(false);
   const [selectedTaxType, setSelectedTaxType] = useState(null);
   const [taxReports, setTaxReports] = useState(null);
@@ -54,7 +52,6 @@ export default function TaxTypesPage() {
   const [reportEndDate, setReportEndDate] = useState('');
 
   useEffect(() => {
-    checkPermissions();
     loadData();
     
     // Set default date range (last 30 days)
@@ -65,22 +62,6 @@ export default function TaxTypesPage() {
     setReportStartDate(startDate.toISOString().split('T')[0]);
   }, []);
 
-  const checkPermissions = async () => {
-    const [accountingView, reportsView, taxView, accountingCreate, accountingUpdate, accountingDelete] = await Promise.all([
-      getPermission("accounting.view"),
-      getPermission("reports.view"),
-      getPermission("tax.view"),
-      getPermission("accounting.create"),
-      getPermission("accounting.update"),
-      getPermission("accounting.delete"),
-    ]);
-    
-    setHasAccess(accountingView || reportsView || taxView);
-    setCanCreate(accountingCreate || accountingView || reportsView);
-    setCanUpdate(accountingUpdate || accountingView || reportsView);
-    setCanDelete(accountingDelete || accountingView || reportsView);
-  };
-
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
@@ -88,7 +69,7 @@ export default function TaxTypesPage() {
       const [taxTypesRes, accountsRes, balancesRes] = await Promise.all([
         fetch("/api/tax-types"),
         fetch("/api/chart-of-accounts"),
-        fetch("/api/tax-accounts/balances").catch(() => null) // Optional, don't fail if it errors
+        fetch("/api/tax-accounts/balances").catch(() => null)
       ]);
 
       if (!taxTypesRes.ok) throw new Error("Failed to load tax types");
@@ -104,7 +85,6 @@ export default function TaxTypesPage() {
       );
       setAccounts(filteredAccounts);
 
-      // Load balances if available
       if (balancesRes && balancesRes.ok) {
         const balancesData = await balancesRes.json();
         const balancesMap = {};
@@ -240,393 +220,413 @@ export default function TaxTypesPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const activeTaxCount = taxTypes.filter(t => t.status === "Active").length;
+  const totalTaxRate = taxTypes.reduce((sum, t) => sum + (t.taxRate || 0), 0);
+
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasAccess) {
-    return (
-      <div className="container mx-auto px-4 py-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
-          <p className="text-red-600">You don't have permission to access this feature.</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading tax types...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      {/* Header */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Tax Types Management</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Create and manage tax types linked to accounts for automatic tax posting
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg">
+                <Calculator className="text-white" size={24} />
+              </div>
+              Tax Management
+            </h1>
+            <p className="text-gray-500 mt-1">
+              Create and manage taxes linked to accounts for automatic tax posting
             </p>
           </div>
-        <div className="flex gap-2">
-          <a
-            href="/tax-accounts"
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <TrendingUp size={20} />
-            Tax Accounts Dashboard
-          </a>
-          {canCreate && (
+          <div className="flex flex-wrap gap-3">
+            <a
+              href="/tax-accounts"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all shadow-sm"
+            >
+              <TrendingUp size={18} />
+              Tax Accounts
+            </a>
             <button
               onClick={() => {
                 resetForm();
                 setEditingId(null);
                 setShowAddModal(true);
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all shadow-sm"
             >
-              <Plus size={20} />
+              <Plus size={18} />
               Add Tax Type
             </button>
-          )}
+          </div>
         </div>
       </div>
 
-      <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-          <div className="flex">
-            <Info className="text-blue-500 flex-shrink-0 mt-0.5" size={20} />
-            <div className="ml-3">
-              <p className="text-sm text-blue-700">
-                <strong>How it works:</strong> Each tax type is linked to an account (usually a Liability account). 
-                When taxes are calculated from transactions (payroll, sales, expenses), they are automatically posted 
-                to the linked account. Taxes are not income or expenses - they are liabilities (money owed) or assets (prepaid tax/WHT receivable).
-              </p>
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Total Tax Types</p>
+              <p className="text-2xl font-bold text-gray-900 mt-1">{taxTypes.length}</p>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-xl">
+              <Calculator className="text-blue-600" size={24} />
             </div>
           </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Active Taxes</p>
+              <p className="text-2xl font-bold text-green-600 mt-1">{activeTaxCount}</p>
+            </div>
+            <div className="p-3 bg-green-50 rounded-xl">
+              <CheckCircle className="text-green-600" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Avg Tax Rate</p>
+              <p className="text-2xl font-bold text-purple-600 mt-1">
+                {taxTypes.length > 0 ? (totalTaxRate / taxTypes.length).toFixed(2) : 0}%
+              </p>
+            </div>
+            <div className="p-3 bg-purple-50 rounded-xl">
+              <Percent className="text-purple-600" size={24} />
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* Info Card */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Info className="text-blue-600" size={20} />
+          </div>
+          <div>
+            <p className="text-sm text-blue-800 font-medium">How it works</p>
+            <p className="text-sm text-blue-600 mt-1">
+              Each tax type is linked to an account (usually a Liability account). When taxes are calculated from transactions, they are automatically posted to the linked account.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Notifications */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4 flex items-center gap-2">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 flex items-center gap-3">
           <AlertCircle size={20} />
           {error}
         </div>
       )}
 
       {success && (
-        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded mb-4 flex items-center gap-2">
+        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-xl mb-4 flex items-center gap-3">
           <CheckCircle size={20} />
           {success}
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search tax types..."
-                className="border border-gray-300 pl-10 pr-4 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="relative">
-              <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
-              <select
-                className="border border-gray-300 pl-10 pr-8 py-2 rounded appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="All">All Status</option>
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
+      {/* Filters */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+            <input
+              type="text"
+              placeholder="Search tax types..."
+              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
+          <div className="relative min-w-[160px]">
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <select
+              className="w-full pl-10 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="All">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tax ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tax Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tax Code
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rate
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Account
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Balance
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Net Payable
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredTaxTypes.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="px-6 py-8 text-center text-gray-500">
-                    No tax types found. Create your first tax type to get started.
-                  </td>
-                </tr>
-              ) : (
-                filteredTaxTypes.map((tax) => {
-                  const balance = taxBalances[tax.id] || {};
-                  return (
-                    <tr key={tax.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {tax.taxId}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tax.taxName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tax.taxCode}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tax.calculationType === "Percentage" 
-                          ? `${tax.taxRate}%`
-                          : formatCurrency(tax.taxRate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {tax.account?.accountName || "N/A"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                        {balance.currentBalance !== undefined 
-                          ? formatCurrency(balance.currentBalance)
-                          : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                        {balance.netPayable !== undefined ? (
-                          <span className={`font-semibold ${
-                            balance.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
-                          }`}>
-                            {formatCurrency(balance.netPayable)}
-                          </span>
-                        ) : 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
+      {/* Tax Types Grid */}
+      {filteredTaxTypes.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+          <div className="p-4 bg-gray-50 rounded-full inline-block mb-4">
+            <Calculator className="text-gray-400" size={48} />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">No tax types found</h3>
+          <p className="text-gray-500 mb-6">Create your first tax type to get started</p>
+          <button
+            onClick={() => {
+              resetForm();
+              setEditingId(null);
+              setShowAddModal(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus size={18} />
+            Add Tax Type
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredTaxTypes.map((tax) => {
+            const balance = taxBalances[tax.id] || {};
+            return (
+              <div key={tax.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                <div className="p-5">
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold text-gray-900">{tax.taxName}</h3>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
                           tax.status === "Active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-600"
                         }`}>
                           {tax.status}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleViewReports(tax)}
-                            className="text-green-600 hover:text-green-900"
-                            title="View Reports"
-                          >
-                            <Eye size={18} />
-                          </button>
-                          {canUpdate && (
-                            <button
-                              onClick={() => handleEdit(tax)}
-                              className="text-blue-600 hover:text-blue-900"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button
-                              onClick={() => handleDelete(tax.id)}
-                              className="text-red-600 hover:text-red-900"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-      </div>
+                      </div>
+                      <p className="text-sm text-gray-500">{tax.taxCode}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {tax.calculationType === "Percentage" 
+                          ? `${tax.taxRate}%`
+                          : formatCurrency(tax.taxRate)}
+                      </p>
+                      <p className="text-xs text-gray-500">Tax Rate</p>
+                    </div>
+                  </div>
 
+                  <div className="space-y-3 pt-4 border-t border-gray-100">
+                    {tax.account && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <LinkIcon size={14} className="text-gray-400" />
+                        <span className="text-gray-600">{tax.account.accountName}</span>
+                      </div>
+                    )}
+                    
+                    {balance.netPayable !== undefined && (
+                      <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                        <span className="text-sm text-gray-600">Net Payable</span>
+                        <span className={`font-semibold ${
+                          balance.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
+                        }`}>
+                          {formatCurrency(balance.netPayable)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 px-5 py-3 border-t border-gray-100">
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => handleViewReports(tax)}
+                      className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                      title="View Reports"
+                    >
+                      <FileText size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleEdit(tax)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Edit"
+                    >
+                      <Edit size={18} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(tax.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
       {showAddModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-bold">
-                    {editingId ? "Edit Tax Type" : "Add New Tax Type"}
-                  </h2>
-                  <button
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setEditingId(null);
-                      resetForm();
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b bg-gradient-to-r from-blue-500 to-blue-600 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">
+                  {editingId ? "Edit Tax Type" : "Add New Tax Type"}
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingId(null);
+                    resetForm();
+                  }}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                >
+                  <X size={20} className="text-white" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Tax ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  value={formData.taxId}
+                  onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
+                  placeholder="e.g., TAX001"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Tax Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                  value={formData.taxName}
+                  onChange={(e) => setFormData({ ...formData, taxName: e.target.value })}
+                  placeholder="e.g., PAYE, VAT, Withholding Tax"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Tax Rate <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    step="0.01"
+                    min="0"
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    value={formData.taxRate}
+                    onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
+                    placeholder="e.g., 30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    required
+                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                    value={formData.calculationType}
+                    onChange={(e) => setFormData({ ...formData, calculationType: e.target.value })}
                   >
-                    <X size={24} />
-                  </button>
+                    <option value="Percentage">Percentage</option>
+                    <option value="Fixed">Fixed Amount</option>
+                  </select>
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="p-6">
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tax ID *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.taxId}
-                        onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
-                        placeholder="e.g., TAX001"
-                      />
-                    </div>
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Linked Account
+                </label>
+                <select
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                  value={formData.accountId}
+                  onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
+                >
+                  <option value="">Select an account</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.accountCode || account.code} - {account.accountName || account.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1.5">
+                  Select a Liability account (default) or Asset account (for WHT)
+                </p>
+              </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Tax Name *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.taxName}
-                      onChange={(e) => setFormData({ ...formData, taxName: e.target.value })}
-                      placeholder="e.g., PAYE, VAT, Withholding Tax"
-                    />
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Status <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all cursor-pointer"
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tax Rate *
-                      </label>
-                      <input
-                        type="number"
-                        required
-                        step="0.01"
-                        min="0"
-                        className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.taxRate}
-                        onChange={(e) => setFormData({ ...formData, taxRate: e.target.value })}
-                        placeholder="e.g., 30 or 16.5"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Calculation Type *
-                      </label>
-                      <select
-                        required
-                        className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.calculationType}
-                        onChange={(e) => setFormData({ ...formData, calculationType: e.target.value })}
-                      >
-                        <option value="Percentage">Percentage</option>
-                        <option value="Fixed">Fixed Amount</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account (optional)
-                    </label>
-                    <select
-                      className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.accountId}
-                      onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                    >
-                      <option value="">Select an account</option>
-                      {accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.accountCode || account.code} - {account.accountName || account.name} ({account.accountType || account.type})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Select a Liability account (default) or Asset account (for WHT). You can leave this blank.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Status *
-                    </label>
-                    <select
-                      required
-                      className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                    >
-                      <option value="Active">Active</option>
-                      <option value="Inactive">Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="mt-6 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddModal(false);
-                      setEditingId(null);
-                      resetForm();
-                    }}
-                    className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <Save size={18} />
-                    {editingId ? "Update" : "Create"} Tax Type
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setEditingId(null);
+                    resetForm();
+                  }}
+                  className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <Save size={18} />
+                  {editingId ? "Update" : "Create"}
+                </button>
+              </div>
+            </form>
           </div>
+        </div>
       )}
 
-      {/* Tax Reports Modal */}
+      {/* Reports Modal */}
       {showReportsModal && selectedTaxType && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b sticky top-0 bg-white z-10">
-              <div className="flex justify-between items-center mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="p-6 border-b bg-gradient-to-r from-green-500 to-green-600 rounded-t-2xl">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-xl font-bold">Tax Reports: {selectedTaxType.taxName}</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Tax Code: {selectedTaxType.taxCode} | Rate: {selectedTaxType.calculationType === "Percentage" ? `${selectedTaxType.taxRate}%` : formatCurrency(selectedTaxType.taxRate)}
+                  <h2 className="text-xl font-bold text-white">Tax Reports: {selectedTaxType.taxName}</h2>
+                  <p className="text-green-100 mt-1">
+                    {selectedTaxType.taxCode} • {selectedTaxType.calculationType === "Percentage" ? `${selectedTaxType.taxRate}%` : formatCurrency(selectedTaxType.taxRate)}
                   </p>
                 </div>
                 <button
@@ -635,105 +635,92 @@ export default function TaxTypesPage() {
                     setSelectedTaxType(null);
                     setTaxReports(null);
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
                 >
-                  <X size={24} />
+                  <X size={20} className="text-white" />
                 </button>
               </div>
-              
-              {/* Date Range Filter */}
-              <div className="flex gap-4 items-end">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
+            </div>
+
+            <div className="p-4 border-b bg-gray-50">
+              <div className="flex flex-wrap gap-4 items-end">
+                <div className="flex-1 min-w-[150px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Start Date</label>
                   <input
                     type="date"
-                    className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     value={reportStartDate}
                     onChange={(e) => setReportStartDate(e.target.value)}
                   />
                 </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
+                <div className="flex-1 min-w-[150px]">
+                  <label className="block text-xs font-medium text-gray-600 mb-1">End Date</label>
                   <input
                     type="date"
-                    className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm"
                     value={reportEndDate}
                     onChange={(e) => setReportEndDate(e.target.value)}
                   />
                 </div>
                 <button
                   onClick={() => handleViewReports(selectedTaxType)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center gap-2"
+                  className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-2 text-sm"
                   disabled={loadingReports}
                 >
-                  <Search size={18} />
-                  {loadingReports ? 'Loading...' : 'Refresh'}
+                  <RefreshCw size={16} className={loadingReports ? "animate-spin" : ""} />
+                  Refresh
                 </button>
               </div>
             </div>
 
-            <div className="p-6">
+            <div className="flex-1 overflow-y-auto p-6">
               {loadingReports ? (
-                <div className="flex justify-center items-center h-64">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="flex justify-center items-center h-48">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-600"></div>
                 </div>
               ) : taxReports ? (
                 <div className="space-y-6">
                   {/* Summary Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-blue-50 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Package className="text-blue-600" size={20} />
-                        <h3 className="text-sm font-medium text-gray-700">Products</h3>
-                      </div>
-                      <p className="text-2xl font-bold text-blue-600">{taxReports.summary.productCount}</p>
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 text-white">
+                      <p className="text-blue-100 text-sm">Products</p>
+                      <p className="text-3xl font-bold mt-1">{taxReports.summary.productCount}</p>
                     </div>
-                    <div className="bg-green-50 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <ShoppingCart className="text-green-600" size={20} />
-                        <h3 className="text-sm font-medium text-gray-700">Sales</h3>
-                      </div>
-                      <p className="text-2xl font-bold text-green-600">{taxReports.summary.saleCount}</p>
+                    <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-xl p-5 text-white">
+                      <p className="text-green-100 text-sm">Sales</p>
+                      <p className="text-3xl font-bold mt-1">{taxReports.summary.saleCount}</p>
                     </div>
-                    <div className="bg-purple-50 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <TrendingUp className="text-purple-600" size={20} />
-                        <h3 className="text-sm font-medium text-gray-700">Tax Collected</h3>
-                      </div>
-                      <p className="text-2xl font-bold text-purple-600">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
+                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 text-white">
+                      <p className="text-purple-100 text-sm">Tax Collected</p>
+                      <p className="text-3xl font-bold mt-1">{formatCurrency(taxReports.summary.totalTaxCollected)}</p>
                     </div>
                   </div>
 
-                  {/* Products Using This Tax */}
+                  {/* Products Table */}
                   {taxReports.products.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <Package size={20} />
-                        Products Using This Tax ({taxReports.products.length})
-                      </h3>
-                      <div className="bg-white border rounded-lg overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
+                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="px-5 py-4 border-b bg-gray-50">
+                        <h3 className="font-semibold text-gray-900">Products Using This Tax ({taxReports.products.length})</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product Name</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody className="divide-y divide-gray-100">
                             {taxReports.products.map((product) => (
-                              <tr key={product.id}>
-                                <td className="px-4 py-3 text-sm text-gray-900">{product.name}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{product.sku || 'N/A'}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{formatCurrency(product.price)}</td>
-                                <td className="px-4 py-3 text-sm">
+                              <tr key={product.id} className="hover:bg-gray-50">
+                                <td className="px-5 py-3 text-sm text-gray-900 font-medium">{product.name}</td>
+                                <td className="px-5 py-3 text-sm text-gray-500">{product.sku || 'N/A'}</td>
+                                <td className="px-5 py-3 text-sm text-gray-500">{formatCurrency(product.price)}</td>
+                                <td className="px-5 py-3">
                                   <span className={`px-2 py-1 text-xs rounded-full ${
-                                    !product.isDeleted ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                                    !product.isDeleted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
                                   }`}>
                                     {product.isDeleted ? 'Deleted' : 'Active'}
                                   </span>
@@ -746,34 +733,31 @@ export default function TaxTypesPage() {
                     </div>
                   )}
 
-                  {/* Sales Using This Tax */}
+                  {/* Sales Table */}
                   {taxReports.sales.length > 0 && (
-                    <div>
-                      <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-                        <ShoppingCart size={20} />
-                        Sales Using This Tax ({taxReports.sales.length})
-                      </h3>
-                      <div className="bg-white border rounded-lg overflow-hidden">
-                        <table className="min-w-full divide-y divide-gray-200">
+                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                      <div className="px-5 py-4 border-b bg-gray-50">
+                        <h3 className="font-semibold text-gray-900">Sales Using This Tax ({taxReports.sales.length})</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
                           <thead className="bg-gray-50">
                             <tr>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale #</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxable Amount</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Amount</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Sale #</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Taxable</th>
+                              <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tax Amount</th>
                             </tr>
                           </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
+                          <tbody className="divide-y divide-gray-100">
                             {taxReports.sales.map((sale) => (
-                              <tr key={sale.id}>
-                                <td className="px-4 py-3 text-sm text-gray-900">{sale.saleNumber}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{sale.clientName}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{sale.productName}</td>
-                                <td className="px-4 py-3 text-sm text-gray-500">{formatCurrency(sale.taxableAmount)}</td>
-                                <td className="px-4 py-3 text-sm font-medium text-purple-600">{formatCurrency(sale.taxAmount)}</td>
+                              <tr key={sale.id} className="hover:bg-gray-50">
+                                <td className="px-5 py-3 text-sm text-gray-900 font-medium">{sale.saleNumber}</td>
+                                <td className="px-5 py-3 text-sm text-gray-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
+                                <td className="px-5 py-3 text-sm text-gray-500">{sale.clientName}</td>
+                                <td className="px-5 py-3 text-sm text-gray-500">{formatCurrency(sale.taxableAmount)}</td>
+                                <td className="px-5 py-3 text-sm font-semibold text-purple-600">{formatCurrency(sale.taxAmount)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -784,9 +768,9 @@ export default function TaxTypesPage() {
 
                   {/* Empty State */}
                   {taxReports.products.length === 0 && taxReports.sales.length === 0 && (
-                    <div className="text-center py-12">
-                      <Info className="mx-auto text-gray-400 mb-4" size={48} />
-                      <p className="text-gray-500">No data found for this tax type in the selected period.</p>
+                    <div className="text-center py-12 bg-gray-50 rounded-xl">
+                      <Info className="mx-auto text-gray-400 mb-3" size={48} />
+                      <p className="text-gray-500">No data found for this tax type in the selected period</p>
                     </div>
                   )}
                 </div>

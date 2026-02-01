@@ -643,7 +643,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       additionalItems.push({
         href: "/tax-types",
         icon: "reports",
-        text: "Tax Types"
+        text: "Tax Management"
       });
     }
     

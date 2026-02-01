@@ -18,6 +18,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const employeeId = searchParams.get('employeeId');
     const format = (searchParams.get('format') || 'json').toLowerCase();
 
     if (!startDate || !endDate) {
@@ -31,17 +32,25 @@ export async function GET(request) {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
 
+    // Build filter conditions
+    const whereClause = {
+      tenantId: user.tenantId,
+      periodStart: {
+        gte: start
+      },
+      periodEnd: {
+        lte: end
+      }
+    };
+    
+    // Add employee filter if provided
+    if (employeeId) {
+      whereClause.employeeId = employeeId;
+    }
+
     // Get payrolls for the period
     const payrolls = await prisma.payroll.findMany({
-      where: {
-        tenantId: user.tenantId,
-        periodStart: {
-          gte: start
-        },
-        periodEnd: {
-          lte: end
-        }
-      },
+      where: whereClause,
       include: {
         employee: {
           select: {
@@ -65,10 +74,30 @@ export async function GET(request) {
     });
 
     if (payrolls.length === 0) {
-      return NextResponse.json(
-        { error: 'No payroll records found for the specified period' },
-        { status: 404 }
-      );
+      // Return empty report instead of error for better UX
+      return NextResponse.json({
+        period: {
+          start: startDate,
+          end: endDate,
+          generatedAt: new Date()
+        },
+        summary: {
+          totalEmployees: 0,
+          totalPayrolls: 0,
+          totalBasicSalary: 0,
+          totalAdditions: 0,
+          totalGrossPay: 0,
+          totalDeductions: 0,
+          totalPAYE: 0,
+          totalNPSEmployee: 0,
+          totalNPSEmployer: 0,
+          totalNetPay: 0
+        },
+        departmentBreakdown: [],
+        employeePayrolls: [],
+        allPayrolls: [],
+        message: 'No payroll records found for the specified period'
+      });
     }
 
     // Calculate summary

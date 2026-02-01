@@ -53,7 +53,8 @@ export async function GET(request) {
               select: {
                 status: true,
                 hoursWorked: true
-              }
+              },
+              take: 100 // Limit attendance records per employee to prevent memory issues
             }
           }
         }

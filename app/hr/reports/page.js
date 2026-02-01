@@ -1167,6 +1167,78 @@ function ReportPreviewContent({ reportType, data }) {
                   <p className="text-2xl font-bold text-purple-600">{formatCurrency(data.summary.totalNetPay || 0)}</p>
                 </div>
               </div>
+              
+              {/* Show individual employee payrolls when available */}
+              {data.employeePayrolls && data.employeePayrolls.length > 0 && (
+                <div className="mt-6">
+                  <h4 className="font-semibold mb-3">Employee Payroll Details</h4>
+                  <div className="space-y-3">
+                    {data.employeePayrolls.map((empPayroll, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <h5 className="font-medium">{empPayroll.employee?.name || 'Employee'}</h5>
+                            <p className="text-sm text-gray-600">
+                              {empPayroll.employee?.employeeId || empPayroll.employee?.id} 
+                              {empPayroll.employee?.department && `• ${empPayroll.employee.department}`}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-green-600">
+                              {formatCurrency(empPayroll.totals?.netPay || 0)}
+                            </p>
+                            <p className="text-xs text-gray-500">Net Pay</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mt-3 pt-3 border-t border-gray-100">
+                          <div>
+                            <span className="text-gray-600">Basic Salary:</span>
+                            <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.basicSalary || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Additions:</span>
+                            <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.additions || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Gross Pay:</span>
+                            <span className="ml-2 font-medium">{formatCurrency(empPayroll.totals?.grossPay || 0)}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Deductions:</span>
+                            <span className="ml-2 font-medium text-red-600">{formatCurrency(empPayroll.totals?.deductions || 0)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* Show individual payroll records */}
+              {data.allPayrolls && data.allPayrolls.length > 0 && !data.employeePayrolls?.length && (
+                <div className="mt-6">
+                  <h4 className="font-semibold mb-3">Payroll Records</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {data.allPayrolls.map((payroll, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded p-3 text-sm">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <span className="font-medium">{payroll.employee?.name}</span>
+                            <span className="text-gray-500 ml-2">({payroll.employee?.employeeId || payroll.employee?.id})</span>
+                            {payroll.employee?.department && (
+                              <span className="text-gray-500 ml-2">• {payroll.employee.department}</span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="font-medium text-green-600">{formatCurrency(payroll.netPay || 0)}</span>
+                            <span className="text-gray-500 ml-2 text-xs">({payroll.periodEnd ? new Date(payroll.periodEnd).toLocaleDateString() : 'N/A'})</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

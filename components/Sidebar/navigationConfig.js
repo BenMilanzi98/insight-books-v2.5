@@ -334,7 +334,7 @@ export const navigationByPermission = {
       additionalItems.push({ 
         href: "/tax-types", 
         icon: "📑", 
-        text: "Tax Types" 
+        text: "Tax Management" 
       });
     }
     

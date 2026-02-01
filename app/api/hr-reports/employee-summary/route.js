@@ -28,48 +28,57 @@ export async function GET(request) {
       where.departmentId = departmentId;
     }
 
-    // Get all employees
-    const employees = await prisma.employee.findMany({
-      where,
-      include: {
-        departmentRef: {
-          select: {
-            id: true,
-            name: true,
-            color: true
+    // Get employees with pagination to prevent memory issues
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '100', 10); // Default 100 employees per page
+    const skip = (page - 1) * limit;
+
+    const [employees, totalCount] = await Promise.all([
+      prisma.employee.findMany({
+        where,
+        include: {
+          departmentRef: {
+            select: {
+              id: true,
+              name: true,
+              color: true
+            }
+          },
+          payrolls: {
+            orderBy: {
+              periodEnd: 'desc'
+            },
+            take: 12, // Last 12 payrolls
+            select: {
+              id: true,
+              periodStart: true,
+              periodEnd: true,
+              grossPay: true,
+              netPay: true,
+              status: true
+            }
+          },
+          attendanceRecords: {
+            orderBy: {
+              date: 'desc'
+            },
+            take: 30, // Last 30 attendance records
+            select: {
+              date: true,
+              status: true,
+              hoursWorked: true,
+              overtimeHours: true
+            }
           }
         },
-        payrolls: {
-          orderBy: {
-            periodEnd: 'desc'
-          },
-          take: 12, // Last 12 payrolls
-          select: {
-            id: true,
-            periodStart: true,
-            periodEnd: true,
-            grossPay: true,
-            netPay: true,
-            status: true
-          }
+        orderBy: {
+          name: 'asc'
         },
-        attendanceRecords: {
-          orderBy: {
-            date: 'desc'
-          },
-          take: 30, // Last 30 attendance records
-          select: {
-            date: true,
-            status: true,
-            hoursWorked: true,
-            overtimeHours: true
-          }
-        }
-      },
-      orderBy: {
-        name: 'asc'
-      }
-    });
+        skip,
+        take: limit
+      }),
+      prisma.employee.count({ where })
+    ]);
 
     // Calculate statistics for each employee
     const employeeSummaries = employees.map(employee => {
@@ -155,7 +164,13 @@ export async function GET(request) {
       generatedAt: new Date(),
       summary,
       departmentBreakdown: Object.values(departmentBreakdown),
-      employees: employeeSummaries
+      employees: employeeSummaries,
+      pagination: {
+        page,
+        limit,
+        totalCount,
+        totalPages: Math.ceil(totalCount / limit)
+      }
     };
 
     if (format === 'json') {

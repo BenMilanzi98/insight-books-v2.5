@@ -46,9 +46,40 @@ export async function GET(request) {
       where.employeeId = employeeId;
     }
 
-    // Get attendance records
+    // Build base where clause for aggregations
+    const baseWhere = { ...where };
+
+    // Get summary statistics using database aggregation
+    const [presentCount, absentCount, lateCount, leaveCount, totalRecords, totalHoursWorked, totalOvertimeHours] = await Promise.all([
+      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Present' } }),
+      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Absent' } }),
+      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Late' } }),
+      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Leave' } }),
+      prisma.attendanceRecord.count({ where: baseWhere }),
+      prisma.attendanceRecord.aggregate({
+        where: baseWhere,
+        _sum: { hoursWorked: true }
+      }).then(result => result._sum.hoursWorked || 0),
+      prisma.attendanceRecord.aggregate({
+        where: baseWhere,
+        _sum: { overtimeHours: true }
+      }).then(result => result._sum.overtimeHours || 0)
+    ]);
+
+    // Calculate summary statistics
+    const summary = {
+      totalRecords,
+      totalHoursWorked,
+      totalOvertimeHours,
+      presentCount,
+      absentCount,
+      lateCount,
+      leaveCount
+    };
+
+    // Get attendance records with employee info for detailed report
     const attendanceRecords = await prisma.attendanceRecord.findMany({
-      where,
+      where: baseWhere,
       include: {
         employee: {
           select: {
@@ -68,54 +99,43 @@ export async function GET(request) {
       },
       orderBy: {
         date: 'desc'
-      }
+      },
+      take: 1000 // Limit to prevent memory issues
     });
 
     // Filter by department if specified
     let filteredRecords = attendanceRecords;
     if (departmentId) {
-      filteredRecords = attendanceRecords.filter(record => 
-        record.employee.departmentRef?.id === departmentId || 
+      filteredRecords = attendanceRecords.filter(record =>
+        record.employee.departmentRef?.id === departmentId ||
         record.employee.departmentId === departmentId
       );
     }
 
-    // Calculate summary statistics
-    const summary = {
-      totalRecords: filteredRecords.length,
-      totalHoursWorked: filteredRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0),
-      totalOvertimeHours: filteredRecords.reduce((sum, r) => sum + (r.overtimeHours || 0), 0),
-      presentCount: filteredRecords.filter(r => r.status === 'Present').length,
-      absentCount: filteredRecords.filter(r => r.status === 'Absent').length,
-      lateCount: filteredRecords.filter(r => r.status === 'Late').length,
-      leaveCount: filteredRecords.filter(r => r.status === 'Leave').length
-    };
-
-    // Group by employee
+    // Group by employee using database queries for better performance
+    const employeeIds = [...new Set(filteredRecords.map(r => r.employeeId))];
     const employeeStats = {};
-    filteredRecords.forEach(record => {
-      const empId = record.employeeId;
-      if (!employeeStats[empId]) {
-        employeeStats[empId] = {
-          employee: record.employee,
-          totalDays: 0,
-          presentDays: 0,
-          absentDays: 0,
-          lateDays: 0,
-          leaveDays: 0,
-          totalHours: 0,
-          totalOvertime: 0
-        };
-      }
-      employeeStats[empId].totalDays++;
-      employeeStats[empId].totalHours += record.hoursWorked || 0;
-      employeeStats[empId].totalOvertime += record.overtimeHours || 0;
-      
-      if (record.status === 'Present') employeeStats[empId].presentDays++;
-      else if (record.status === 'Absent') employeeStats[empId].absentDays++;
-      else if (record.status === 'Late') employeeStats[empId].lateDays++;
-      else if (record.status === 'Leave') employeeStats[empId].leaveDays++;
-    });
+
+    for (const empId of employeeIds) {
+      const empRecords = filteredRecords.filter(r => r.employeeId === empId);
+      if (empRecords.length === 0) continue;
+
+      const employee = empRecords[0].employee;
+      const empStats = {
+        totalDays: empRecords.length,
+        presentDays: empRecords.filter(r => r.status === 'Present').length,
+        absentDays: empRecords.filter(r => r.status === 'Absent').length,
+        lateDays: empRecords.filter(r => r.status === 'Late').length,
+        leaveDays: empRecords.filter(r => r.status === 'Leave').length,
+        totalHours: empRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0),
+        totalOvertime: empRecords.reduce((sum, r) => sum + (r.overtimeHours || 0), 0)
+      };
+
+      employeeStats[empId] = {
+        employee,
+        ...empStats
+      };
+    }
 
     const report = {
       period: {
