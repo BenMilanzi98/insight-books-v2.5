@@ -102,7 +102,18 @@ export default function PayrollProcessing() {
   };
 
   const expenseAccountOptions = useMemo(() => {
-    return accounts.filter((account) => normalizeAccountType(account) === 'EXPENSE');
+    return accounts.filter((account) => {
+      const type = normalizeAccountType(account);
+      if (type !== 'EXPENSE') return false;
+      
+      // Exclude COGS accounts
+      const name = (account.accountName || account.name || '').toLowerCase();
+      if (name.includes('cost of goods') || name.includes('cogs')) {
+        return false;
+      }
+      
+      return true;
+    });
   }, [accounts]);
 
   const paymentAccountOptions = useMemo(() => {
@@ -130,13 +141,25 @@ export default function PayrollProcessing() {
       return name === 'salaries expense' || name === 'salary expense';
     });
     
-    // If not found, try partial match
+    // If not found, try partial match (but exclude COGS)
     if (!account) {
-      account = expenseAccountOptions.find((account) =>
-        (account.accountName || account.name || '').toLowerCase().includes('salar')
-      );
+      account = expenseAccountOptions.find((account) => {
+        const name = (account.accountName || account.name || '').toLowerCase();
+        const isSalary = name.includes('salar');
+        const isCogs = name.includes('cost of goods') || name.includes('cogs');
+        return isSalary && !isCogs;
+      });
     }
     
+    // If still not found, try any expense account that's NOT COGS
+    if (!account) {
+      account = expenseAccountOptions.find((account) => {
+        const name = (account.accountName || account.name || '').toLowerCase();
+        return !name.includes('cost of goods') && !name.includes('cogs');
+      });
+    }
+    
+    // Last resort: return first expense account (but this should rarely happen)
     return account || expenseAccountOptions[0];
   };
 

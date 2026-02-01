@@ -2,7 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateReferenceNumber, getPaymentAccount } from '@/lib/transactionJournalHelpers';
+import { generateReferenceNumber } from '@/lib/journalService';
+import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
 
 /**
  * GET - Get all salary advances for the tenant
@@ -140,50 +141,72 @@ export async function POST(request) {
         }
       });
 
-      // Get or create "Advance Salary" expense account
-      let expenseAccount = await tx.account.findFirst({
+      // Get or create "Salary Advance Receivable" asset account
+      // Salary advances are receivables (assets), not expenses
+      let receivableAccount = await tx.account.findFirst({
         where: {
           tenantId: user.tenantId,
-          accountName: { contains: 'Advance Salary', mode: 'insensitive' },
-          accountType: 'Expense',
+          OR: [
+            { accountName: { contains: 'Salary Advance Receivable', mode: 'insensitive' } },
+            { accountName: { contains: 'Advance Salary Receivable', mode: 'insensitive' } },
+            { accountName: { contains: 'Employee Advance Receivable', mode: 'insensitive' } }
+          ],
+          accountType: 'Asset',
           isActive: true
         }
       });
 
-      if (!expenseAccount) {
-        // Try to find any salary-related expense account
-        expenseAccount = await tx.account.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            accountName: { contains: 'Salary', mode: 'insensitive' },
-            accountType: 'Expense',
-            isActive: true
-          }
-        });
-      }
-
-      if (!expenseAccount) {
-        // Create "Advance Salary Expense" account
-        expenseAccount = await tx.account.create({
+      if (!receivableAccount) {
+        // Create "Salary Advance Receivable" account (Asset)
+        receivableAccount = await tx.account.create({
           data: {
             tenantId: user.tenantId,
-            accountCode: '6205',
-            accountName: 'Advance Salary Expense',
-            accountType: 'Expense',
+            accountCode: '1300',
+            accountName: 'Salary Advance Receivable',
+            accountType: 'Asset',
             isActive: true,
-            description: 'Expense account for salary advances given to employees'
+            description: 'Asset account for tracking salary advances given to employees (receivables)'
           }
         });
       }
 
-      // Get payment account using helper function
-      const paymentAccount = await getPaymentAccount(user.tenantId, selectedPaymentMethod, tx);
-
+      // Get payment account - handle both account ID and payment method name
+      let paymentAccount;
+      
+      // First, try to find account by ID (in case frontend sends account ID)
+      if (selectedPaymentMethod) {
+        try {
+          paymentAccount = await tx.account.findFirst({
+            where: {
+              id: selectedPaymentMethod,
+              tenantId: user.tenantId,
+              isActive: true,
+              accountType: 'Asset' // Payment accounts should be assets
+            }
+          });
+        } catch (error) {
+          // If lookup by ID fails, it's probably not an ID, continue to payment method lookup
+          console.log('Payment method is not an account ID, trying payment method lookup');
+        }
+      }
+      
+      // If not found by ID, try payment method name lookup
+      if (!paymentAccount) {
+        try {
+          paymentAccount = await getPaymentAccount(user.tenantId, selectedPaymentMethod, tx);
+        } catch (error) {
+          console.error('Error getting payment account:', error);
+          throw new Error(`Payment account not found for method "${selectedPaymentMethod}". Please ensure the account exists and is active in your chart of accounts.`);
+        }
+      }
+      
       if (!paymentAccount) {
         throw new Error('Payment account not found. Please set up your chart of accounts.');
       }
 
       // Create journal entry for the advance
+      // Debit: Salary Advance Receivable (Asset) - increases receivable
+      // Credit: Cash/Payment Account - decreases cash
       const entryDate = new Date(advanceDate);
       const referenceNumber = await generateReferenceNumber(tx, user.tenantId, entryDate);
 
@@ -204,10 +227,10 @@ export async function POST(request) {
             create: [
               {
                 lineNumber: 1,
-                accountId: expenseAccount.id,
+                accountId: receivableAccount.id,
                 debitAmount: advanceAmount,
                 creditAmount: 0,
-                description: `Advance Salary: ${employee.name}`,
+                description: `Salary Advance Receivable: ${employee.name}`,
               },
               {
                 lineNumber: 2,
@@ -221,12 +244,22 @@ export async function POST(request) {
         },
       });
 
-      // Update payment account balance
+      // Update payment account balance (credit = decrease)
       await tx.account.update({
         where: { id: paymentAccount.id },
         data: {
           balance: {
             decrement: advanceAmount
+          }
+        }
+      });
+
+      // Update receivable account balance (debit = increase)
+      await tx.account.update({
+        where: { id: receivableAccount.id },
+        data: {
+          balance: {
+            increment: advanceAmount
           }
         }
       });

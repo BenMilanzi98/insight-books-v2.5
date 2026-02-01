@@ -3,24 +3,59 @@
 import { useState, useRef } from 'react';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 
-const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToast }) => {
+const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToast, branches = [] }) => {
   const [uploadMode, setUploadMode] = useState('upload'); // 'upload' or 'export'
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [errors, setErrors] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const fileInputRef = useRef(null);
 
-  // Parse CSV content
+  // Parse CSV content with proper handling of quoted fields
   const parseCSV = (csvContent) => {
-    const lines = csvContent.split('\n');
+    const lines = csvContent.split(/\r?\n/);
     if (lines.length < 2) {
       throw new Error('CSV file must have at least a header row and one data row');
     }
 
+    // Helper function to parse a CSV line properly handling quoted fields
+    const parseCSVLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const nextChar = line[i + 1];
+        
+        if (char === '"') {
+          if (inQuotes && nextChar === '"') {
+            // Escaped quote inside quoted field
+            current += '"';
+            i++; // Skip next quote
+          } else {
+            // Toggle quote state
+            inQuotes = !inQuotes;
+          }
+        } else if (char === ',' && !inQuotes) {
+          // Field separator
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      
+      // Add the last field
+      result.push(current.trim());
+      
+      return result;
+    };
+
     // Parse header row
-    const headers = lines[0].split(',').map(header => 
-      header.trim().replace(/"/g, '').toLowerCase()
+    const headers = parseCSVLine(lines[0]).map(header => 
+      header.trim().replace(/^"|"$/g, '').toLowerCase()
     );
 
     // Parse data rows
@@ -29,19 +64,22 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
       const line = lines[i].trim();
       if (!line) continue; // Skip empty lines
 
-      // Simple CSV parsing (handles basic cases)
-      const values = line.split(',').map(value => 
-        value.trim().replace(/"/g, '')
+      // Parse CSV line properly
+      const values = parseCSVLine(line).map(value => 
+        value.replace(/^"|"$/g, '').trim()
       );
 
-      if (values.length !== headers.length) {
-        console.warn(`Row ${i + 1} has ${values.length} values but expected ${headers.length}`);
-        continue;
+      // Handle cases where row has more or fewer columns than headers
+      // Pad with empty strings if fewer, truncate if more
+      const paddedValues = [...values];
+      while (paddedValues.length < headers.length) {
+        paddedValues.push('');
       }
+      const finalValues = paddedValues.slice(0, headers.length);
 
       const row = {};
       headers.forEach((header, index) => {
-        let value = values[index];
+        let value = finalValues[index] || '';
         
         // Convert numeric values based on field type
         if (['price', 'cost', 'weight', 'discountamount'].includes(header)) {
@@ -287,11 +325,22 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
     try {
       setIsProcessing(true);
       
+      // Add branchId to each product if branch is selected
+      const productsWithBranch = previewData.map(product => ({
+        ...product,
+        ...(selectedBranchId && { branchId: selectedBranchId })
+      }));
+      
       // Call the parent component's upload handler
-      await onUpload(previewData);
+      await onUpload(productsWithBranch);
       
       showToast('success', 'Bulk upload completed', `${previewData.length} products uploaded successfully`);
       onClose();
+      // Reset form
+      setUploadedFile(null);
+      setPreviewData([]);
+      setSelectedBranchId('');
+      setErrors([]);
     } catch (error) {
       console.error('Error during bulk upload:', error);
       showToast('error', 'Upload failed', error.message);
@@ -413,6 +462,32 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
                   <li>• Download the template below for the correct format</li>
                 </ul>
               </div>
+
+              {/* Branch Selection */}
+              {branches.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Select Branch (Optional)
+                  </label>
+                  <select
+                    value={selectedBranchId}
+                    onChange={(e) => setSelectedBranchId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                  >
+                    <option value="">All Branches (No specific branch)</option>
+                    {branches
+                      .filter(branch => branch.isActive !== false)
+                      .map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name || branch.branchName || `Branch ${branch.id.substring(0, 8)}`}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Select a branch to assign all uploaded products to that branch. Leave unselected to create products without branch assignment.
+                  </p>
+                </div>
+              )}
 
               <div className="flex space-x-4">
                 <button

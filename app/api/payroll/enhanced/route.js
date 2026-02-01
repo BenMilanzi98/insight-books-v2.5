@@ -187,18 +187,173 @@ export async function POST(request) {
     const paymentAccount =
       selectedPaymentAccount || findAccountByName('Cash');
     
-    // Try to get PAYE tax type first, fallback to account if not found
+    // REQUIRE PAYE tax type - it must exist with a linked account for accurate tracking
     let payeTaxType = null;
     try {
       payeTaxType = await getTaxType(user.tenantId, 'PAYE');
+      
+      if (!payeTaxType) {
+        // PAYE tax type doesn't exist - create it immediately
+        console.log('⚠️ PAYE tax type not found - creating it now');
+        
+        // Check if PAYE deduction exists
+        const payeDeduction = await prisma.deduction.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            name: { contains: 'PAYE', mode: 'insensitive' },
+            isStatutory: true
+          }
+        });
+
+        if (!payeDeduction) {
+          return NextResponse.json(
+            { 
+              error: 'PAYE deduction not found. Please ensure PAYE deduction exists before processing payroll.',
+              details: 'PAYE tax type requires a PAYE deduction to be created first.'
+            },
+            { status: 400 }
+          );
+        }
+
+        // Find or create PAYE Liability account (MUST be Liability type)
+        let payeAccount = await prisma.account.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            OR: [
+              { name: { contains: 'PAYE', mode: 'insensitive' } },
+              { accountName: { contains: 'PAYE', mode: 'insensitive' } }
+            ],
+            accountType: 'Liability'
+          }
+        });
+
+        if (!payeAccount) {
+          payeAccount = await prisma.account.create({
+            data: {
+              code: '2100',
+              name: 'PAYE Liability',
+              type: 'LIABILITY',
+              accountCode: '2100',
+              accountName: 'PAYE Liability',
+              accountType: 'Liability',
+              accountSubtype: 'Tax Payable',
+              normalBalance: 'Credit',
+              balance: 0,
+              tenantId: user.tenantId
+            }
+          });
+          console.log('✅ Created PAYE Liability account:', payeAccount.id);
+        }
+
+        // Create PAYE tax type with account linked
+        payeTaxType = await prisma.taxType.create({
+          data: {
+            taxId: 'PAYE',
+            taxName: 'PAYE (Malawi Income Tax 2025/26)',
+            taxCode: 'PAYE-2025-26',
+            taxRate: 0, // PAYE is calculated dynamically based on brackets
+            calculationType: 'Percentage',
+            accountId: payeAccount.id, // REQUIRED: Always link to account
+            status: 'Active',
+            tenantId: user.tenantId
+          },
+          include: {
+            account: true
+          }
+        });
+        console.log('✅ PAYE tax type created with account:', {
+          taxTypeId: payeTaxType.id,
+          accountId: payeTaxType.account?.id,
+          accountName: payeTaxType.account?.accountName
+        });
+      } else {
+        // Verify tax type has account linked
+        if (!payeTaxType.account || !payeTaxType.accountId) {
+          console.error('❌ PAYE tax type exists but has no account linked');
+          return NextResponse.json(
+            { 
+              error: 'PAYE tax type is missing a linked account. Please update the PAYE tax type in Tax Types to link it to a Liability account.',
+              details: 'PAYE tax type must have a default tax liability account for accurate tracking.'
+            },
+            { status: 400 }
+          );
+        }
+
+        // Verify account is a Liability account
+        if (payeTaxType.account.accountType !== 'Liability') {
+          console.error('❌ PAYE tax type account is not a Liability account');
+          return NextResponse.json(
+            { 
+              error: 'PAYE tax type is linked to a non-Liability account. PAYE must be linked to a Liability account.',
+              details: `Current account type: ${payeTaxType.account.accountType}`
+            },
+            { status: 400 }
+          );
+        }
+
+        console.log('✅ PAYE tax type found with valid account:', {
+          id: payeTaxType.id,
+          taxId: payeTaxType.taxId,
+          taxName: payeTaxType.taxName,
+          accountId: payeTaxType.account.id,
+          accountName: payeTaxType.account.accountName,
+          accountType: payeTaxType.account.accountType
+        });
+      }
     } catch (err) {
-      console.log('PAYE tax type not found, will use account directly');
+      console.error('❌ Error fetching/creating PAYE tax type:', err);
+      return NextResponse.json(
+        { 
+          error: 'Failed to initialize PAYE tax tracking. Please ensure PAYE tax type exists in Tax Types.',
+          details: err.message
+        },
+        { status: 500 }
+      );
     }
-    
-    const payeAccount = payeTaxType?.account || findAccountByName('PAYE Liability');
+
+    // PAYE tax type is REQUIRED - use its account
+    if (!payeTaxType || !payeTaxType.account) {
+      return NextResponse.json(
+        { 
+          error: 'PAYE tax type is required but not properly configured. Please ensure PAYE tax type exists with a linked Liability account in Tax Types.',
+          details: 'PAYE must have a default tax liability account for accurate tracking and reconciliation.'
+        },
+        { status: 400 }
+      );
+    }
+
+    const payeAccount = payeTaxType.account;
     const npsEmployeeAccount = findAccountByName('NPS Employee Contribution Liability');
     const npsEmployerAccount = findAccountByName('NPS Employer Contribution Liability');
     const otherDeductionsAccount = findAccountByName('Payroll Deductions Liability');
+    
+    // Find or create Salary Advance Receivable account (Asset)
+    let advanceReceivableAccount = await prisma.account.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        OR: [
+          { accountName: { contains: 'Salary Advance Receivable', mode: 'insensitive' } },
+          { accountName: { contains: 'Advance Salary Receivable', mode: 'insensitive' } },
+          { accountName: { contains: 'Employee Advance Receivable', mode: 'insensitive' } }
+        ],
+        accountType: 'Asset',
+        isActive: true
+      }
+    });
+
+    if (!advanceReceivableAccount) {
+      advanceReceivableAccount = await prisma.account.create({
+        data: {
+          tenantId: user.tenantId,
+          accountCode: '1300',
+          accountName: 'Salary Advance Receivable',
+          accountType: 'Asset',
+          isActive: true,
+          description: 'Asset account for tracking salary advances given to employees (receivables)'
+        }
+      });
+      console.log('✅ Created Salary Advance Receivable account:', advanceReceivableAccount.id);
+    }
 
     // Validate expense account is actually an expense account and not COGS
     if (expenseAccount) {
@@ -457,6 +612,10 @@ export async function POST(request) {
         0
       );
       
+      // Separate advance deductions from other deductions for proper accounting
+      const totalAdvanceDeductions = advanceDeductions.reduce((sum, ad) => sum + ad.amount, 0);
+      const otherDeductionsExcludingAdvances = otherDeductionsTotal - totalAdvanceDeductions;
+      
       // Calculate total deductions by adding all deduction components
       // This ensures deductions are properly accumulated before subtracting
       const totalDeductions = payeAmount + npsEmployeeAmount + otherDeductionsTotal;
@@ -481,8 +640,7 @@ export async function POST(request) {
         calculation: `Net Pay = ${grossPay} - ${totalDeductions} = ${netPay}`
       });
 
-      // Calculate total advance deductions for display
-      const totalAdvanceDeductions = advanceDeductions.reduce((sum, ad) => sum + ad.amount, 0);
+      // Total advance deductions already calculated above for transaction lines
 
       const additionalInfo = {
         allowances: payrollCalculation.allowances || {},
@@ -644,27 +802,30 @@ export async function POST(request) {
       // Salary expense should include: gross pay (basic + allowances) + overtime + employer NPS contribution
       // This ensures all salary-related costs correctly hit expenses in accounts
 
+      // Calculate total credits to ensure transaction balances
+      // Note: netPay = grossPay - totalDeductions, so:
+      // totalCredits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + netPay
+      // = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + (grossPay - payeAmount - npsEmployeeAmount - otherDeductionsTotal)
+      // = grossPay + npsEmployerAmount
+      // But salaryExpenseAmount = grossPay + additions + npsEmployerAmount
+      // So we need to credit additions somewhere - it should be credited to cash/payment account
+      const totalCredits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + netPay + additions;
+      
+      // The expense amount should equal total credits for proper double-entry accounting
+      // Debit: Expense Account (increases expense)
+      // Credits: Various liability accounts + Cash (decreases cash or increases liabilities)
       if (salaryExpenseAmount > 0) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: expenseAccount.id,
           debitAmount: salaryExpenseAmount,
           creditAmount: 0,
-          description: `Payroll expense for ${employee.name}`
+          description: `Payroll expense for ${employee.name} - Gross: ${grossPay.toFixed(2)}, Additions: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
         });
       }
 
-      // PAYE will be auto-posted via tax service if tax type exists
-      // Otherwise, post directly to account (backward compatibility)
-      if (payeAmount > 0 && !payeTaxType) {
-        transactionLines.push({
-          lineNumber: transactionLines.length + 1,
-          accountId: payeAccount.id,
-          debitAmount: 0,
-          creditAmount: payeAmount,
-          description: 'PAYE withholding'
-        });
-      }
+      // PAYE is ALWAYS posted via tax service for accurate tracking
+      // Do NOT post directly to account - always use tax service
 
       if (npsEmployeeAmount > 0) {
         transactionLines.push({
@@ -686,23 +847,39 @@ export async function POST(request) {
         });
       }
 
-      if (otherDeductionsTotal > 0) {
+      // Credit Salary Advance Receivable (Asset) for advance deductions
+      // This reduces the receivable when advances are deducted from payroll
+      if (totalAdvanceDeductions > 0) {
+        transactionLines.push({
+          lineNumber: transactionLines.length + 1,
+          accountId: advanceReceivableAccount.id,
+          debitAmount: 0,
+          creditAmount: totalAdvanceDeductions,
+          description: `Salary advance deductions (reduces receivable)`
+        });
+      }
+
+      // Credit other deductions account only for non-advance deductions
+      if (otherDeductionsExcludingAdvances > 0) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: otherDeductionsAccount.id,
           debitAmount: 0,
-          creditAmount: otherDeductionsTotal,
-          description: 'Other payroll deductions payable'
+          creditAmount: otherDeductionsExcludingAdvances,
+          description: 'Other payroll deductions payable (excluding advances)'
         });
       }
 
-      if (netPay > 0) {
+      // Credit cash/payment account for net pay + additions (overtime)
+      // This accounts for all cash paid out: net pay to employee + overtime
+      const totalCashPaid = netPay + additions;
+      if (totalCashPaid > 0) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: paymentAccount.id,
           debitAmount: 0,
-          creditAmount: netPay,
-          description: `Net pay to employees (${getAccountDisplayName(paymentAccount)})`
+          creditAmount: totalCashPaid,
+          description: `Net pay + overtime to employees (${getAccountDisplayName(paymentAccount)})`
         });
       }
 
@@ -742,10 +919,16 @@ export async function POST(request) {
             );
           }
 
-          // Auto-post PAYE tax if tax type exists
-          if (payeAmount > 0 && payeTaxType) {
+          // ALWAYS post PAYE via tax service for accurate tracking and reconciliation
+          // PAYE tax type is required and validated above, so it should always exist
+          if (payeAmount > 0) {
+            if (!payeTaxType || !payeTaxType.account) {
+              throw new Error(`PAYE tax type is required but not available for employee ${employee.name}. Cannot proceed with payroll processing.`);
+            }
+
             try {
-              await autoPostTaxEntry({
+              console.log(`📝 Posting PAYE tax: ${payeAmount} for ${employee.name} via tax type ${payeTaxType.id}`);
+              const taxTransaction = await autoPostTaxEntry({
                 tenantId: user.tenantId,
                 userId: user.id,
                 taxTypeId: payeTaxType.id,
@@ -756,9 +939,24 @@ export async function POST(request) {
                 description: `PAYE for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
                 tx
               });
+              
+              if (taxTransaction) {
+                console.log(`✅ PAYE tax posted successfully: Transaction ${taxTransaction.id}, Amount: ${payeAmount}, Account: ${payeTaxType.account.accountName}`);
+              } else {
+                throw new Error(`PAYE tax posting returned null for ${employee.name}`);
+              }
             } catch (taxError) {
-              console.error('Error auto-posting PAYE tax:', taxError);
-              // Don't fail the entire payroll if tax posting fails
+              console.error('❌ CRITICAL: Error posting PAYE tax:', taxError);
+              console.error('Error details:', {
+                message: taxError.message,
+                stack: taxError.stack,
+                employee: employee.name,
+                payeAmount,
+                taxTypeId: payeTaxType.id,
+                accountId: payeTaxType.account?.id
+              });
+              // Fail the transaction if PAYE posting fails - this is critical for accurate tracking
+              throw new Error(`Failed to post PAYE tax for ${employee.name}: ${taxError.message}`);
             }
           }
         });

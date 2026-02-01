@@ -58,7 +58,13 @@ import ExpenseModal from "@/components/Expenses/ExpenseModal";
 import RecurringExpenseModal from "@/components/Expenses/RecurringExpenseModal";
 import HistoricalExpenseUpload from "@/components/Expenses/HistoricalExpenseUpload";
 import HistoricalExpenseModal from "@/components/Expenses/HistoricalExpenseModal";
-import { createRecurringExpense } from "@/app/services/recurringExpenseService";
+import { 
+  createRecurringExpense,
+  fetchRecurringExpenses,
+  fetchRecurringExpenseById,
+  updateRecurringExpense,
+  deleteRecurringExpense
+} from "@/app/services/recurringExpenseService";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import COGSManagement from "@/app/cogs/page";
@@ -74,6 +80,13 @@ const ExpensesPage = () => {
   const [expenses, setExpenses] = useState([]);
   const [recurringExpenseModalOpen, setRecurringExpenseModalOpen] = useState(false);
   const [isSubmittingRecurring, setIsSubmittingRecurring] = useState(false);
+  const [recurringExpenses, setRecurringExpenses] = useState([]);
+  const [isLoadingRecurringExpenses, setIsLoadingRecurringExpenses] = useState(false);
+  const [viewAllRecurringExpensesModalOpen, setViewAllRecurringExpensesModalOpen] = useState(false);
+  const [viewRecurringExpenseModalOpen, setViewRecurringExpenseModalOpen] = useState(false);
+  const [selectedRecurringExpense, setSelectedRecurringExpense] = useState(null);
+  const [editingRecurringExpense, setEditingRecurringExpense] = useState(null);
+  const [isLoadingRecurringExpenseDetails, setIsLoadingRecurringExpenseDetails] = useState(false);
   const [historicalExpenseModalOpen, setHistoricalExpenseModalOpen] = useState(false);
   const [isSubmittingHistorical, setIsSubmittingHistorical] = useState(false);
   
@@ -199,7 +212,7 @@ const ExpensesPage = () => {
       setLastRecordedCogsTotal(parseFloat(savedLastRecordedTotal));
     }
   }, []);
-  // Sample expense categories
+  // Sample expense categories - will be enhanced with API categories
   const expenseCategories = [
     "Office Supplies",
     "Travel",
@@ -210,8 +223,10 @@ const ExpensesPage = () => {
     "Rent",
     "Equipment",
     "Professional Services",
-    "Pension"
-    ,"Gratuity"
+    "Pension",
+    "Gratuity",
+    "Salary",
+    "Salary Advance"
   ];
   useEffect(() => {
     if (isScanning) {
@@ -248,6 +263,7 @@ const ExpensesPage = () => {
   useEffect(() => {
     loadExpenses();
     loadStatistics();
+    loadRecurringExpenses();
   }, [activeTab, selectedCategory, pagination.page, showDeletedExpenses]);
   
   // Handle search query changes with debounce
@@ -615,11 +631,38 @@ const handleFileUpload = async (e) => {
       setIsSubmitting(false);
     }
   };
+  // Load recurring expenses
+  const loadRecurringExpenses = async () => {
+    try {
+      setIsLoadingRecurringExpenses(true);
+      const response = await fetchRecurringExpenses({ 
+        page: 1, 
+        limit: 100, // Get all for the modal, we'll show first 3 in the list
+        sortBy: 'createdAt',
+        sortOrder: 'desc'
+      });
+      setRecurringExpenses(response.recurringExpenses || []);
+    } catch (error) {
+      console.error("Error loading recurring expenses:", error);
+      setRecurringExpenses([]);
+    } finally {
+      setIsLoadingRecurringExpenses(false);
+    }
+  };
+
   const handleRecurringExpenseSubmit = async (formData) => {
     setIsSubmittingRecurring(true);
     
     try {
-      const result = await createRecurringExpense(formData);
+      if (editingRecurringExpense) {
+        // Update existing
+        await updateRecurringExpense(editingRecurringExpense.id, formData);
+        alert("Recurring expense updated successfully!");
+      } else {
+        // Create new
+        await createRecurringExpense(formData);
+        alert("Recurring expense created successfully! It will automatically generate expenses according to your schedule.");
+      }
       
       // Show success message
       setUploadSuccess(true);
@@ -627,22 +670,94 @@ const handleFileUpload = async (e) => {
       
       // Close the modal
       setRecurringExpenseModalOpen(false);
+      setEditingRecurringExpense(null);
       
-      // You might want to redirect to a recurring expenses page or show a confirmation
-      console.log("Recurring expense created:", result);
-      
-      // Optional: Show a toast message or redirect
-      alert("Recurring expense created successfully! It will automatically generate expenses according to your schedule.");
+      // Reload the list
+      await loadRecurringExpenses();
       
     } catch (error) {
-      console.error("Error creating recurring expense:", error);
-      alert("Failed to create recurring expense. Please try again.");
+      console.error("Error saving recurring expense:", error);
+      alert(`Failed to ${editingRecurringExpense ? 'update' : 'create'} recurring expense. Please try again.`);
     } finally {
       setIsSubmittingRecurring(false);
     }
   };
+
   const handleRecurringExpense = () => {
+    setEditingRecurringExpense(null);
     setRecurringExpenseModalOpen(true);
+  };
+
+  const handleViewRecurringExpense = async (expense) => {
+    try {
+      setIsLoadingRecurringExpenseDetails(true);
+      // Fetch full details including history
+      const fullExpense = await fetchRecurringExpenseById(expense.id);
+      setSelectedRecurringExpense(fullExpense);
+      setViewRecurringExpenseModalOpen(true);
+    } catch (error) {
+      console.error("Error fetching recurring expense details:", error);
+      alert("Failed to load recurring expense details.");
+    } finally {
+      setIsLoadingRecurringExpenseDetails(false);
+    }
+  };
+
+  const handleEditRecurringExpense = async (expense) => {
+    try {
+      // Fetch full details
+      const fullExpense = await fetchRecurringExpenseById(expense.id);
+      setEditingRecurringExpense(fullExpense);
+      setRecurringExpenseModalOpen(true);
+    } catch (error) {
+      console.error("Error fetching recurring expense:", error);
+      alert("Failed to load recurring expense details.");
+    }
+  };
+
+  const handleDeleteRecurringExpense = async (expense) => {
+    if (!confirm(`Are you sure you want to delete the recurring expense "${expense.description}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteRecurringExpense(expense.id);
+      alert("Recurring expense deleted successfully!");
+      await loadRecurringExpenses();
+    } catch (error) {
+      console.error("Error deleting recurring expense:", error);
+      alert("Failed to delete recurring expense. Please try again.");
+    }
+  };
+
+  const handleExportRecurringExpenses = () => {
+    // Convert recurring expenses to CSV
+    const headers = ['Description', 'Amount', 'Category', 'Frequency', 'Start Date', 'End Date', 'Status', 'Next Run Date'];
+    const rows = recurringExpenses.map(exp => [
+      exp.description || '',
+      exp.amount || '0',
+      exp.category || '',
+      exp.frequency || '',
+      exp.startDate || '',
+      exp.endDate || '',
+      exp.status || '',
+      exp.nextRunDate || ''
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recurring-expenses-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   };
 
   // Handle historical expense submission
@@ -1085,18 +1200,28 @@ const handleFileUpload = async (e) => {
     );
   };
 
-  // NEW: Load categories from API
+  // NEW: Load categories from API and merge with default categories
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
       if (response.ok) {
         const data = await response.json();
         if (data.categories && data.categories.length > 0) {
-          setCategories(data.categories);
+          // Merge API categories with default categories and deduplicate
+          const allCategories = [...new Set([...expenseCategories, ...data.categories])];
+          setCategories(allCategories.sort());
+        } else {
+          // If API returns empty, use default categories
+          setCategories(expenseCategories);
         }
+      } else {
+        // If API fails, use default categories
+        setCategories(expenseCategories);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
+      // If API fails, use default categories
+      setCategories(expenseCategories);
     }
   };
 
@@ -1322,18 +1447,19 @@ const handleFileUpload = async (e) => {
   }, [mainTab, cogsDateRange.startDate, cogsDateRange.endDate]);
 
   return (
-    <PermissionGuard permission="expenses.view">    
-    <div className="p-4 sm:p-6">
+    <PermissionGuard permission="expenses.view">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Success notification */}
       {uploadSuccess && (
-        <div className="fixed top-6 right-6 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-lg z-50 flex items-center animate-fadeIn max-w-md">
-          <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+        <div className="fixed top-6 right-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-xl z-50 flex items-center animate-fadeIn max-w-md backdrop-blur-sm">
+          <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0 text-green-600" />
           <div className="mr-2 flex-grow">
-            <p className="font-medium">Receipts successfully attached!</p>
-            <p className="text-sm">{selectedExpense ? `Expense ID: ${selectedExpense.id}` : 'New expense created'}</p>
+            <p className="font-semibold text-sm">Receipts successfully attached!</p>
+            <p className="text-xs text-green-700 mt-0.5">{selectedExpense ? `Expense ID: ${selectedExpense.id}` : 'New expense created'}</p>
           </div>
           <button 
-            className="text-green-700 hover:text-green-800 flex-shrink-0"
+            className="text-green-700 hover:text-green-900 flex-shrink-0 transition-colors rounded-full p-1 hover:bg-green-100"
             onClick={() => setUploadSuccess(false)}
           >
             <X className="w-4 h-4" />
@@ -1341,52 +1467,65 @@ const handleFileUpload = async (e) => {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-bold">
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 lg:gap-6 mb-6">
+          <div>
+            <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent mb-2">
           {mainTab === "expenses" ? "Expense Tracking" : "Cost of Goods Sold (COGS) Management"}
         </h1>
-        <div className="flex flex-wrap gap-2">
-        {pagePermissions.canCreateExpenses && mainTab === "expenses" && (  <button 
-              className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
+            <p className="text-gray-600 text-sm sm:text-base">
+              {mainTab === "expenses" 
+                ? "Manage and track all your business expenses efficiently" 
+                : "Monitor and manage your cost of goods sold"}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {pagePermissions.canCreateExpenses && mainTab === "expenses" && (
+              <button 
+                className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg flex items-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 font-medium text-sm sm:text-base"
               onClick={handleCreateExpense}
             >
-              <PlusCircle className="w-4 h-4 mr-2" />
+                <PlusCircle className="w-5 h-5 mr-2" />
               <span className="whitespace-nowrap">Add Expense</span>
-            </button>)}
-            {pagePermissions.canExportExpenses && mainTab === "expenses" && (<button 
-            className="px-4 py-2 border border-gray-300 bg-white rounded-md flex items-center"
+              </button>
+            )}
+            {pagePermissions.canExportExpenses && mainTab === "expenses" && (
+              <button 
+                className="px-5 py-2.5 border-2 border-gray-300 bg-white hover:bg-gray-50 rounded-lg flex items-center shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200 font-medium text-sm sm:text-base text-gray-700"
             onClick={() => handleExport('csv')}
           >
-            <Download className="w-4 h-4 mr-2" />
+                <Download className="w-5 h-5 mr-2" />
             <span className="whitespace-nowrap">Export CSV</span>
-          </button>)}
+              </button>
+            )}
         </div>
       </div>
 
       {/* Main Tab Navigation */}
-      <div className="mb-6">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+        <div className="mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1 inline-flex">
+            <nav className="flex space-x-1">
             <button
               onClick={() => setMainTab("expenses")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                className={`px-6 py-3 rounded-lg font-semibold text-sm flex items-center transition-all duration-200 ${
                 mainTab === "expenses"
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg transform scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              <Receipt className="h-4 w-4 mr-2" />
+                <Receipt className="h-5 w-5 mr-2" />
               Expenses
             </button>
             <button
               onClick={() => setMainTab("cogs")}
-              className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${
+                className={`px-6 py-3 rounded-lg font-semibold text-sm flex items-center transition-all duration-200 ${
                 mainTab === "cogs"
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg transform scale-105'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
               }`}
             >
-              <Package className="h-4 w-4 mr-2" />
+                <Package className="h-5 w-5 mr-2" />
               Cost of Goods
             </button>
           </nav>
@@ -1396,138 +1535,188 @@ const handleFileUpload = async (e) => {
       {/* Tab Content */}
       {mainTab === "expenses" && (
         <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center mb-4">
-            <div className="rounded-full bg-blue-100 p-3 mr-4 flex-shrink-0">
-              <Receipt className="w-6 h-6 text-blue-600" />
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="rounded-xl bg-blue-500 p-3 shadow-md">
+                    <Receipt className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <div className="text-lg font-bold">MK {statistics.total.amount}</div>
-              <div className="text-sm text-gray-500">Total Expenses</div>
+                  <div className="text-right">
+                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.total.amount}</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Total Expenses</div>
             </div>
           </div>
-          <div className="text-sm text-gray-500">
-            {statistics.total.count} expenses recorded this month
+                <div className="text-xs sm:text-sm text-gray-600">
+                  <span className="font-semibold">{statistics.total.count}</span> expenses recorded this month
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center mb-4">
-            <div className="rounded-full bg-green-100 p-3 mr-4 flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 border border-green-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="rounded-xl bg-green-500 p-3 shadow-md">
+                    <CheckCircle className="w-6 h-6 text-white" />
             </div>
-            <div>
-              <div className="text-lg font-bold">MK {statistics.approved.amount}</div>
-              <div className="text-sm text-gray-500">Approved Expenses</div>
+                  <div className="text-right">
+                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.approved.amount}</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Approved</div>
             </div>
           </div>
-          <div className="text-sm text-gray-500">
-            {statistics.approved.count} approved expenses
+                <div className="text-xs sm:text-sm text-gray-600">
+                  <span className="font-semibold">{statistics.approved.count}</span> approved expenses
           </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-xl shadow-lg p-6 border border-yellow-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="rounded-xl bg-yellow-500 p-3 shadow-md">
+                    <Clock className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.pending.amount}</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Pending</div>
+                  </div>
+                </div>
+                <div className="text-xs sm:text-sm text-gray-600">
+                  <span className="font-semibold">{statistics.pending.count}</span> pending expenses
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
-        <div className="flex p-2 sm:p-4 border-b border-gray-200 overflow-x-auto">
+              <div className="bg-gradient-to-br from-red-50 to-rose-100 rounded-xl shadow-lg p-6 border border-red-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="rounded-xl bg-red-500 p-3 shadow-md">
+                    <XCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="text-right">
+                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.rejected.amount}</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Rejected</div>
+                  </div>
+                </div>
+                <div className="text-xs sm:text-sm text-gray-600">
+                  <span className="font-semibold">{statistics.rejected.count}</span> rejected expenses
+                </div>
+              </div>
+            </div>
+
+            {/* Main Content Card */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Sub Tab Navigation */}
+              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 sm:px-6 py-3 border-b border-gray-200">
+                <div className="flex gap-2 overflow-x-auto">
           <button 
-            className={`px-3 py-2 rounded-md mr-2 text-sm ${activeTab === "all" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100"}`}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
+                      activeTab === "all" 
+                        ? "bg-white text-blue-600 shadow-md border border-blue-200" 
+                        : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
+                    }`}
             onClick={() => setActiveTab("all")}
           >
             All Expenses
           </button>
           <button 
-            className={`px-3 py-2 rounded-md mr-2 text-sm ${activeTab === "historical" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100"}`}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
+                      activeTab === "historical" 
+                        ? "bg-white text-blue-600 shadow-md border border-blue-200" 
+                        : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
+                    }`}
             onClick={() => setActiveTab("historical")}
           >
             Historical Import
           </button>
+                </div>
         </div>
 
         {activeTab !== "historical" && (
-        <div className="p-4 border-b border-gray-200">
+                <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50/50">
           {/* Batch Operations Bar */}
           {selectedExpenses.length > 0 && (
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+                    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-blue-800">
+                        <div className="rounded-full bg-blue-500 p-2">
+                          <CheckCircle className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-blue-900 block">
                   {selectedExpenses.length} expense{selectedExpenses.length !== 1 ? 's' : ''} selected
                 </span>
                 <button
                   onClick={() => setSelectedExpenses([])}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                            className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-1"
                 >
                   Clear selection
                 </button>
+                        </div>
               </div>
               <div className="flex items-center gap-2">
                 {!showDeletedExpenses && pagePermissions.canDeleteExpenses && (
                   <button
                     onClick={handleBatchDelete}
-                    className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 flex items-center gap-1"
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
                   >
                     <Trash2 className="w-4 h-4" />
-                    Delete Selected ({selectedExpenses.length})
+                            Delete ({selectedExpenses.length})
                   </button>
                 )}
                 {showDeletedExpenses && (
                   <button
                     onClick={handleBatchRestore}
-                    className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 flex items-center gap-1"
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
                   >
                     <RefreshCw className="w-4 h-4" />
-                    Restore Selected ({selectedExpenses.length})
+                            Restore ({selectedExpenses.length})
                   </button>
                 )}
               </div>
             </div>
           )}
 
-          <div className="flex flex-wrap gap-4">
-            <div className="w-full md:w-1/3">
+                  {/* Filters Section */}
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1">
               <div className="relative">
                 <input 
                   type="text" 
                   placeholder="Search expenses..." 
-                  className="w-full p-2 pl-10 border border-gray-200 rounded-md"
+                          className="w-full p-3 pl-11 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all bg-white shadow-sm"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                  <Search className="w-4 h-4 text-gray-400" />
+                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
+                          <Search className="w-5 h-5 text-gray-400" />
                 </div>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2 sm:gap-3">
-              <div className="relative">
+                    <div className="flex flex-wrap gap-3">
+                      <div className="relative flex-1 min-w-[150px]">
                 <select 
-                  className="appearance-none bg-white border border-gray-200 rounded-md px-3 py-2 pr-8 text-sm"
+                          className="w-full appearance-none bg-white border-2 border-gray-200 rounded-lg px-4 py-3 pr-10 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
                   <option value="all">All Categories</option>
-                  {expenseCategories.map((category, index) => (
+                  {/* Use categories from API if available, otherwise use default expenseCategories */}
+                  {(categories.length > 0 ? categories : expenseCategories).map((category, index) => (
                     <option key={index} value={category}>{category}</option>
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                          <ChevronDown className="w-5 h-5 text-gray-500" />
                 </div>
               </div>
               <div className="flex gap-2">
                 <button 
-                  className="px-3 py-2 border border-gray-200 rounded-md bg-white text-sm flex items-center hover:bg-gray-50"
+                          className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-white text-sm flex items-center hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm font-medium"
                   onClick={() => setShowDeletedExpenses(!showDeletedExpenses)}
                 >
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  {showDeletedExpenses ? 'Show Active' : 'Show Deleted'}
+                          {showDeletedExpenses ? 'Active' : 'Deleted'}
                 </button>
                 {pagePermissions.canExportExpenses && (
                   <button 
-                    className="px-3 py-2 border border-gray-200 rounded-md bg-white flex items-center text-sm"
+                            className="px-4 py-3 border-2 border-gray-200 rounded-lg bg-white flex items-center text-sm hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm font-medium"
                     onClick={() => handleExport('csv')}
                   >
-                    <Download className="w-4 h-4 mr-2 text-gray-500" />
+                            <Download className="w-4 h-4 mr-2 text-gray-600" />
                     <span className="text-gray-700">Export</span>
                   </button>
                 )}
@@ -1591,43 +1780,43 @@ const handleFileUpload = async (e) => {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     ID
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Date
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Category
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Merchant
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Description
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Amount
                   </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Payment Status
                   </th>
                   {!showDeletedExpenses && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                       Status
                     </th>
                   )}
                   {showDeletedExpenses && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                       Deleted At
                     </th>
                   )}
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-center text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Receipts
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider border-b-2 border-gray-300">
                     Actions
                   </th>
                 </tr>
@@ -1636,14 +1825,14 @@ const handleFileUpload = async (e) => {
                 {(showDeletedExpenses ? deletedExpenses : expenses).map((expense) => (
                   <tr 
                     key={expense.id} 
-                    className={`cursor-pointer transition-colors ${
+                          className={`cursor-pointer transition-all duration-200 ${
                       selectedExpenses.includes(expense.id) 
-                        ? 'bg-blue-50 border-l-4 border-blue-500' 
-                        : 'hover:bg-gray-50'
+                              ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 shadow-sm' 
+                              : 'hover:bg-gray-50 hover:shadow-sm'
                     }`}
                     onClick={() => handleExpenseSelect(expense.id)}
                   >
-                    <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
                       <div className="flex items-center">
                         {expense.id}
                         {expense.isHistorical && (
@@ -1654,13 +1843,13 @@ const handleFileUpload = async (e) => {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                       <div className="flex flex-col">
-                        <span className={expense.isHistorical ? 'font-medium text-amber-700' : ''}>
+                              <span className={`font-medium ${expense.isHistorical ? 'text-amber-700' : 'text-gray-900'}`}>
                           {expense.date}
                         </span>
                         {expense.isHistorical && expense.historicalDate && expense.historicalDate !== expense.date && (
-                          <span className="text-xs text-gray-400">
+                                <span className="text-xs text-gray-500 mt-1">
                             Created: {(() => {
                               const date = new Date(expense.createdAt);
                               const day = String(date.getDate()).padStart(2, '0');
@@ -1672,19 +1861,21 @@ const handleFileUpload = async (e) => {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                       {expense.category}
+                            </span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-medium">
                       {expense.merchant || "-"}
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-500 max-w-xs truncate">
+                          <td className="px-4 sm:px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                       {expense.description}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      MK {expense.amount}
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
+                            <span className="text-sm font-bold text-gray-900">MK {expense.amount}</span>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                       <PaymentStatusBadge 
                         paymentStatus={expense.paymentStatus} 
                         paidAmount={expense.paidAmount}
@@ -1692,12 +1883,12 @@ const handleFileUpload = async (e) => {
                       />
                     </td>
                     {!showDeletedExpenses && (
-                      <td className="px-4 py-4 whitespace-nowrap text-center">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                         <StatusBadge status={expense.status} />
                       </td>
                     )}
                     {showDeletedExpenses && (
-                      <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center text-sm text-gray-600 font-medium">
                         {(() => {
                           const date = new Date(expense.deletedAt);
                           const day = String(date.getDate()).padStart(2, '0');
@@ -1707,20 +1898,21 @@ const handleFileUpload = async (e) => {
                         })()}
                       </td>
                     )}
-                    <td className="px-4 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-center items-center space-x-2">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-center items-center gap-2">
                         {expense.attachments && expense.attachments.length > 0 ? (
                           <>
                             <button 
-                              className="text-blue-600 hover:text-blue-800 flex items-center text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded-md p-1"
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 flex items-center text-sm transition-all rounded-lg px-2 py-1.5 font-medium"
                               onClick={() => viewReceipts(expense)}
                             >
                               <Eye className="w-4 h-4 mr-1" />
-                              <span>View ({expense.attachments.length})</span>
+                                    <span className="hidden sm:inline">View ({expense.attachments.length})</span>
+                                    <span className="sm:hidden">{expense.attachments.length}</span>
                             </button>
                             {!showDeletedExpenses && pagePermissions.canUpdateExpenses && (
                               <button 
-                                className="text-green-600 hover:text-green-800 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 rounded-md p-1"
+                                      className="text-green-600 hover:text-green-800 hover:bg-green-50 transition-all rounded-lg p-1.5"
                                 onClick={() => openUploadModal(expense)}
                                 title="Add more receipts"
                               >
@@ -1731,43 +1923,44 @@ const handleFileUpload = async (e) => {
                         ) : (
                           !showDeletedExpenses && pagePermissions.canUpdateExpenses && (
                             <button 
-                              className="text-blue-600 hover:text-blue-800 flex items-center text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded-md p-1"
+                                    className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 flex items-center text-sm transition-all rounded-lg px-2 py-1.5 font-medium"
                               onClick={() => openUploadModal(expense)}
                             >
                               <Upload className="w-4 h-4 mr-1" />
-                              <span>Add Receipt</span>
+                                    <span className="hidden sm:inline">Add Receipt</span>
+                                    <span className="sm:hidden">Add</span>
                             </button>
                           )
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end space-x-2">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-end gap-1 sm:gap-2">
                         {!showDeletedExpenses ? (
                           <>
                             {/* Partial Payment Button - Only for pending and partial expenses */}
                             {isEligibleForPartialPayment(expense) && pagePermissions.canUpdateExpenses && (
                               <button 
-                                className="text-green-500 hover:text-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 rounded-md p-1"
+                                  className="text-green-600 hover:text-green-700 hover:bg-green-50 transition-all rounded-lg p-2"
                                 title="Add Partial Payment"
                                 onClick={() => handlePartialPayment(expense)}
                               >
-                                <CreditCard size={16} />
+                                  <CreditCard size={18} />
                               </button>
                             )}
                             
                             {/* Payment History Button - Available for all expenses */}
                               <button 
-                                className="text-blue-500 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 rounded-md p-1"
+                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all rounded-lg p-2"
                               title="View Payment History"
                               onClick={() => togglePaymentHistory(expense)}
                             >
-                              <FileText size={16} />
+                                <FileText size={18} />
                             </button>
                             
                             {pagePermissions.canUpdateExpenses && (
                               <button 
-                                className="text-gray-500 hover:text-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-500 rounded-md p-1"
+                                  className="text-gray-600 hover:text-gray-700 hover:bg-gray-50 transition-all rounded-lg p-2"
                                 title="View Expense Details"
                                 onClick={() => handleViewExpense(expense)}
                               >
@@ -1776,30 +1969,30 @@ const handleFileUpload = async (e) => {
                             )}
                             {pagePermissions.canUpdateExpenses && (
                               <button 
-                                className="text-yellow-500 hover:text-yellow-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-yellow-500 rounded-md p-1"
+                                  className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 transition-all rounded-lg p-2"
                                 title="Edit Expense"
                                 onClick={() => handleEditExpense(expense)}
                               >
-                                <Edit className="w-4.5 h-4.5" />
+                                  <Edit className="w-4 h-4" />
                               </button>
                             )}
                             {pagePermissions.canDeleteExpenses && (
                               <button 
-                                className="text-red-500 hover:text-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-red-500 rounded-md p-1"
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all rounded-lg p-2"
                                 title="Delete Expense"
                                 onClick={() => handleDeleteExpense(expense.id)}
                               >
-                                <Trash2 className="w-4.5 h-4.5" />
+                                  <Trash2 className="w-4 h-4" />
                               </button>
                             )}
                           </>
                         ) : (
                           <button 
-                            className="text-green-500 hover:text-green-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-green-500 rounded-md p-1"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50 transition-all rounded-lg p-2"
                             title="Restore Expense"
                             onClick={() => handleRestoreExpense(expense.id)}
                           >
-                            <RefreshCw className="w-4.5 h-4.5" />
+                              <RefreshCw className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -1812,31 +2005,35 @@ const handleFileUpload = async (e) => {
         )}
 
         {!isLoading && !error && expenses.length > 0 && (
-          <div className="px-4 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 gap-4">
-            <div className="text-sm text-gray-700 order-2 sm:order-1">
-              Showing <span className="font-medium">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="font-medium">{pagination.totalCount}</span> expenses
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 gap-4">
+              <div className="text-sm text-gray-700 order-2 sm:order-1 font-medium">
+                Showing <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="text-gray-900">{pagination.totalCount}</span> expenses
             </div>
-            <div className="flex space-x-2 order-1 sm:order-2">
+              <div className="flex items-center gap-2 order-1 sm:order-2">
               <button 
-                className="px-3 py-1 border border-gray-200 rounded-md bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed" 
+                  className="px-4 py-2 border-2 border-gray-300 rounded-lg bg-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm" 
                 disabled={pagination.page === 1}
                 onClick={() => handlePageChange(pagination.page - 1)}
               >
                 Previous
               </button>
+                <div className="flex gap-1">
               {[...Array(pagination.totalPages).keys()].map(page => (
                 <button 
                   key={page + 1}
-                  className={`px-3 py-1 border border-gray-200 rounded-md bg-white text-sm ${
-                    pagination.page === page + 1 ? 'bg-blue-50 border-blue-200' : ''
+                      className={`px-3 py-2 border-2 rounded-lg text-sm font-medium transition-all ${
+                        pagination.page === page + 1 
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm'
                   }`}
                   onClick={() => handlePageChange(page + 1)}
                 >
                   {page + 1}
                 </button>
               ))}
+                </div>
               <button 
-                className="px-3 py-1 border border-gray-200 rounded-md bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed" 
+                  className="px-4 py-2 border-2 border-gray-300 rounded-lg bg-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm" 
                 disabled={pagination.page === pagination.totalPages}
                 onClick={() => handlePageChange(pagination.page + 1)}
               >
@@ -1847,11 +2044,14 @@ const handleFileUpload = async (e) => {
         )}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold flex items-center">
-              <BarChart className="w-5 h-5 mr-2 text-blue-600" />
+            {/* Statistics Section */}
+            <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold flex items-center text-gray-900">
+                    <div className="rounded-lg bg-blue-100 p-2 mr-3">
+                      <BarChart className="w-6 h-6 text-blue-600" />
+                    </div>
               Expense by Category
             </h2>
             {statistics.byCategory.length > categoryPagination.itemsPerPage && (
@@ -1878,14 +2078,14 @@ const handleFileUpload = async (e) => {
           </div>
           <div className="space-y-4">
             {getCurrentPageCategories().map(category => (
-              <div key={category.category}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span>{category.category}</span>
-                  <span>MK {category.amount} ({category.percentage}%)</span>
+                    <div key={category.category} className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                      <div className="flex justify-between text-sm mb-2">
+                        <span className="font-semibold text-gray-900">{category.category}</span>
+                        <span className="font-bold text-gray-700">MK {category.amount} <span className="text-gray-500 font-normal">({category.percentage}%)</span></span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                   <div 
-                    className="bg-blue-600 h-2.5 rounded-full" 
+                          className="bg-gradient-to-r from-blue-500 to-blue-600 h-full rounded-full transition-all duration-500" 
                     style={{ width: `${category.percentage}%` }}
                   ></div>
                 </div>
@@ -1901,79 +2101,125 @@ const handleFileUpload = async (e) => {
           </div>
         </div>
         
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-6 text-gray-900">Quick Actions</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {pagePermissions.canUpdateExpenses && (
-              <div 
-                className="group border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:bg-blue-50 hover:shadow-md cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-                onClick={() => {
-                  if (fileInputRef.current) {
-                    fileInputRef.current.click();
-                  }
-                }}
-              >
-                <div className="flex items-center mb-3">
-                  <div className="rounded-full bg-blue-100 p-3 mr-3 group-hover:bg-blue-200 transition-colors">
-                    <Camera className="w-5 h-5 text-blue-600" />
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                <h2 className="text-xl font-bold mb-6 text-gray-900 flex items-center">
+                  <div className="rounded-lg bg-green-100 p-2 mr-3">
+                    <RefreshCw className="w-6 h-6 text-green-600" />
                   </div>
-                  <h3 className="font-semibold text-gray-900">Scan Receipt</h3>
-                </div>
-                <p className="text-sm text-gray-600 group-hover:text-gray-700">Automatically extract details from receipts</p>
+                  Recurring Expenses
+                </h2>
+          
+                {/* Create Recurring Expense Button */}
+                {pagePermissions.canCreateExpenses && (
+                  <div className="mb-6">
+                    <button
+                      onClick={handleRecurringExpense}
+                      className="inline-flex items-center px-5 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 font-medium"
+                    >
+                      <RefreshCw className="w-5 h-5 mr-2" />
+                      Create Recurring Expense
+                    </button>
               </div>
             )}
             
-            {pagePermissions.canUpdateExpenses && (
-              <div 
-                className="group border border-gray-200 rounded-xl p-5 hover:border-purple-300 hover:bg-purple-50 hover:shadow-md cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
-                onClick={() => {
-                  setSelectedExpense(null);
-                  setUploadedFiles([]);
-                  setUploadModalOpen(true);
-                }}
-              >
-                <div className="flex items-center mb-3">
-                  <div className="rounded-full bg-purple-100 p-3 mr-3 group-hover:bg-purple-200 transition-colors">
-                    <Upload className="w-5 h-5 text-purple-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900">Upload Receipt</h3>
-                </div>
-                <p className="text-sm text-gray-600 group-hover:text-gray-700">Upload receipt images or PDFs</p>
+          {/* Recurring Expenses List */}
+          <div className="space-y-4">
+            {isLoadingRecurringExpenses ? (
+              <div className="text-center py-8 text-gray-500">
+                <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                <p>Loading recurring expenses...</p>
               </div>
-            )}
-            
-            {pagePermissions.canCreateExpenses && (
-              <div 
-                className="group border border-gray-200 rounded-xl p-5 hover:border-green-300 hover:bg-green-50 hover:shadow-md cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-                onClick={handleRecurringExpense}
-              >
-                <div className="flex items-center mb-3">
-                  <div className="rounded-full bg-green-100 p-3 mr-3 group-hover:bg-green-200 transition-colors">
-                    <RefreshCw className="w-5 h-5 text-green-600" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900">Recurring Expense</h3>
-                </div>
-                <p className="text-sm text-gray-600 group-hover:text-gray-700">Set up regular, scheduled expenses</p>
+            ) : recurringExpenses.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                <p>No recurring expenses found. Create one to get started.</p>
               </div>
-            )}
-            
-            {pagePermissions.canExportExpenses && (
-              <div 
-                className="group border border-gray-200 rounded-xl p-5 hover:border-orange-300 hover:bg-orange-50 hover:shadow-md cursor-pointer transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
-                onClick={() => handleExport('csv')}
-              >
-                <div className="flex items-center mb-3">
-                  <div className="rounded-full bg-orange-100 p-3 mr-3 group-hover:bg-orange-200 transition-colors">
-                    <BarChart className="w-5 h-5 text-orange-600" />
+            ) : (
+              <>
+                {/* Show first 3 recurring expenses */}
+                {recurringExpenses.slice(0, 3).map((expense) => (
+                  <div
+                    key={expense.id}
+                    className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center mb-2">
+                          <h3 className="font-semibold text-gray-900 mr-2">{expense.description}</h3>
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            expense.status === 'active' 
+                              ? 'bg-green-100 text-green-800' 
+                              : expense.status === 'paused'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {expense.status || 'active'}
+                          </span>
                   </div>
-                  <h3 className="font-semibold text-gray-900">Expense Report</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600">
+                          <div>
+                            <span className="font-medium">Amount:</span> {expense.amount}
                 </div>
-                <p className="text-sm text-gray-600 group-hover:text-gray-700">Generate detailed expense reports</p>
+                          <div>
+                            <span className="font-medium">Category:</span> {expense.category}
               </div>
+                          <div>
+                            <span className="font-medium">Frequency:</span> {expense.frequency}
+                  </div>
+                          <div>
+                            <span className="font-medium">Next Run:</span> {expense.nextRunDate || 'N/A'}
+                </div>
+              </div>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <button
+                          onClick={() => handleViewRecurringExpense(expense)}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="View"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {pagePermissions.canUpdateExpenses && (
+                          <button
+                            onClick={() => handleEditRecurringExpense(expense)}
+                            className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                            title="Edit"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        {pagePermissions.canDeleteExpenses && (
+                          <button
+                            onClick={() => handleDeleteRecurringExpense(expense)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                  </div>
+                </div>
+                  </div>
+                ))}
+
+                {/* View All Button if more than 3 */}
+                {recurringExpenses.length > 3 && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => setViewAllRecurringExpensesModalOpen(true)}
+                      className="w-full py-2 px-4 text-center text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                    >
+                      View All ({recurringExpenses.length} recurring expenses)
+                    </button>
+              </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
+        </>
+      )}
 
       {/* Hidden file input */}
       <input 
@@ -2330,6 +2576,7 @@ const handleFileUpload = async (e) => {
         </div>
       )}
 
+      {/* Modals - Outside mainTab sections but inside p-4 div */}
       {/* Expense Modal */}
       <ExpenseModal
         isOpen={expenseModalOpen}
@@ -2346,11 +2593,368 @@ const handleFileUpload = async (e) => {
       />
       <RecurringExpenseModal
         isOpen={recurringExpenseModalOpen}
-        onClose={() => setRecurringExpenseModalOpen(false)}
+        onClose={() => {
+          setRecurringExpenseModalOpen(false);
+          setEditingRecurringExpense(null);
+        }}
         onSubmit={handleRecurringExpenseSubmit}
         categories={categories}
         isLoading={isSubmittingRecurring}
+        initialData={editingRecurringExpense}
       />
+
+      {/* View All Recurring Expenses Modal */}
+      {viewAllRecurringExpensesModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-xl font-semibold flex items-center">
+                <RefreshCw className="w-5 h-5 mr-2 text-green-600" />
+                All Recurring Expenses ({recurringExpenses.length})
+              </h3>
+              <div className="flex items-center gap-2">
+                {pagePermissions.canExportExpenses && (
+                  <button
+                    onClick={handleExportRecurringExpenses}
+                    className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  >
+                    <Download className="w-4 h-4 mr-1" />
+                    Export
+                  </button>
+                )}
+                <button
+                  onClick={() => setViewAllRecurringExpensesModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-5">
+              {isLoadingRecurringExpenses ? (
+                <div className="text-center py-8 text-gray-500">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  <p>Loading recurring expenses...</p>
+                </div>
+              ) : recurringExpenses.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>No recurring expenses found.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {recurringExpenses.map((expense) => (
+                    <div
+                      key={expense.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-2">
+                            <h3 className="font-semibold text-gray-900 mr-2">{expense.description}</h3>
+                            <span className={`px-2 py-1 text-xs rounded-full ${
+                              expense.status === 'active' 
+                                ? 'bg-green-100 text-green-800' 
+                                : expense.status === 'paused'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}>
+                              {expense.status || 'active'}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-gray-600 mb-2">
+                            <div>
+                              <span className="font-medium">Amount:</span> {expense.amount}
+                            </div>
+                            <div>
+                              <span className="font-medium">Category:</span> {expense.category}
+                            </div>
+                            <div>
+                              <span className="font-medium">Frequency:</span> {expense.frequency}
+                            </div>
+                            <div>
+                              <span className="font-medium">Next Run:</span> {expense.nextRunDate || 'N/A'}
+                            </div>
+                          </div>
+                          {expense.notes && (
+                            <p className="text-sm text-gray-500 mt-2">{expense.notes}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          <button
+                            onClick={() => {
+                              handleViewRecurringExpense(expense);
+                              setViewAllRecurringExpensesModalOpen(false);
+                            }}
+                            className="px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center"
+                            title="View"
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            View
+                          </button>
+                          {pagePermissions.canUpdateExpenses && (
+                            <button
+                              onClick={() => {
+                                handleEditRecurringExpense(expense);
+                                setViewAllRecurringExpensesModalOpen(false);
+                              }}
+                              className="px-3 py-1.5 text-sm text-green-600 hover:bg-green-50 rounded-lg transition-colors flex items-center"
+                              title="Edit"
+                            >
+                              <Edit className="w-4 h-4 mr-1" />
+                              Edit
+                            </button>
+                          )}
+                          {pagePermissions.canDeleteExpenses && (
+                            <button
+                              onClick={() => handleDeleteRecurringExpense(expense)}
+                              className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4 mr-1" />
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Recurring Expense Details Modal */}
+      {viewRecurringExpenseModalOpen && selectedRecurringExpense && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+              <h3 className="text-xl font-semibold flex items-center">
+                <RefreshCw className="w-5 h-5 mr-2 text-green-600" />
+                Recurring Expense Details
+              </h3>
+              <button
+                onClick={() => {
+                  setViewRecurringExpenseModalOpen(false);
+                  setSelectedRecurringExpense(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-5">
+              {isLoadingRecurringExpenseDetails ? (
+                <div className="text-center py-8 text-gray-500">
+                  <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+                  <p>Loading details...</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-4">Basic Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Description</label>
+                        <p className="text-gray-900 mt-1">{selectedRecurringExpense.description}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Amount</label>
+                        <p className="text-gray-900 mt-1 font-semibold">
+                          {typeof selectedRecurringExpense.amount === 'string' 
+                            ? selectedRecurringExpense.amount 
+                            : selectedRecurringExpense.amount?.toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              }) || '0.00'} MWK
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Category</label>
+                        <p className="text-gray-900 mt-1">{selectedRecurringExpense.category}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Status</label>
+                        <p className="mt-1">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            selectedRecurringExpense.status === 'active' 
+                              ? 'bg-green-100 text-green-800' 
+                              : selectedRecurringExpense.status === 'paused'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {selectedRecurringExpense.status || 'active'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Schedule Information */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 mb-4">Schedule Information</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Frequency</label>
+                        <p className="text-gray-900 mt-1 capitalize">{selectedRecurringExpense.frequency}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Start Date</label>
+                        <p className="text-gray-900 mt-1">
+                          {selectedRecurringExpense.startDate 
+                            ? new Date(selectedRecurringExpense.startDate).toLocaleDateString()
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      {selectedRecurringExpense.endDate && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">End Date</label>
+                          <p className="text-gray-900 mt-1">
+                            {new Date(selectedRecurringExpense.endDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                      {selectedRecurringExpense.occurrences && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Total Occurrences</label>
+                          <p className="text-gray-900 mt-1">{selectedRecurringExpense.occurrences}</p>
+                        </div>
+                      )}
+                      {selectedRecurringExpense.remainingOccurrences !== null && selectedRecurringExpense.remainingOccurrences !== undefined && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Remaining Occurrences</label>
+                          <p className="text-gray-900 mt-1">{selectedRecurringExpense.remainingOccurrences}</p>
+                        </div>
+                      )}
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Next Run Date</label>
+                        <p className="text-gray-900 mt-1">
+                          {selectedRecurringExpense.nextRunDate 
+                            ? new Date(selectedRecurringExpense.nextRunDate).toLocaleDateString()
+                            : 'N/A'}
+                        </p>
+                      </div>
+                      {selectedRecurringExpense.lastRunDate && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Last Run Date</label>
+                          <p className="text-gray-900 mt-1">
+                            {new Date(selectedRecurringExpense.lastRunDate).toLocaleDateString()}
+                          </p>
+                        </div>
+                      )}
+                      {selectedRecurringExpense.frequency === 'monthly' && selectedRecurringExpense.dayOfMonth && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Day of Month</label>
+                          <p className="text-gray-900 mt-1">{selectedRecurringExpense.dayOfMonth}</p>
+                        </div>
+                      )}
+                      {selectedRecurringExpense.frequency === 'weekly' && selectedRecurringExpense.dayOfWeek !== null && selectedRecurringExpense.dayOfWeek !== undefined && (
+                        <div>
+                          <label className="text-sm font-medium text-gray-500">Day of Week</label>
+                          <p className="text-gray-900 mt-1">
+                            {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][selectedRecurringExpense.dayOfWeek]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {selectedRecurringExpense.notes && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Notes</h4>
+                      <p className="text-gray-700">{selectedRecurringExpense.notes}</p>
+                    </div>
+                  )}
+
+                  {/* History */}
+                  {selectedRecurringExpense.history && selectedRecurringExpense.history.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-4">Execution History</h4>
+                      <div className="space-y-2">
+                        {selectedRecurringExpense.history.map((entry, index) => (
+                          <div key={entry.id || index} className="bg-white rounded p-3 border border-gray-200">
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">
+                                  Scheduled: {new Date(entry.scheduledDate).toLocaleDateString()}
+                                </p>
+                                {entry.processedDate && (
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    Processed: {new Date(entry.processedDate).toLocaleDateString()}
+                                  </p>
+                                )}
+                              </div>
+                              <span className={`px-2 py-1 text-xs rounded-full ${
+                                entry.status === 'completed' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : entry.status === 'pending'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {entry.status || 'pending'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Created By */}
+                  {selectedRecurringExpense.createdBy && (
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-900 mb-2">Created By</h4>
+                      <p className="text-gray-700">{selectedRecurringExpense.createdBy.name}</p>
+                      {selectedRecurringExpense.createdAt && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Created: {new Date(selectedRecurringExpense.createdAt).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setViewRecurringExpenseModalOpen(false);
+                  setSelectedRecurringExpense(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Close
+              </button>
+              {pagePermissions.canUpdateExpenses && (
+                <button
+                  onClick={() => {
+                    setViewRecurringExpenseModalOpen(false);
+                    handleEditRecurringExpense(selectedRecurringExpense);
+                  }}
+                  className="px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <ReceiptVerificationModal
         isOpen={receiptVerifyModalOpen}
         onClose={() => {
@@ -2543,34 +3147,6 @@ const handleFileUpload = async (e) => {
             </div>
           </div>
         </div>
-      )}
-
-      <style jsx global>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translate3d(0, 20px, 0);
-          }
-          to {
-            opacity: 1;
-            transform: translate3d(0, 0, 0);
-          }
-        }
-        
-        .animate-fadeIn {
-          animation: fadeIn 0.3s ease-out;
-        }
-        
-        .animate-fadeInUp {
-          animation: fadeInUp 0.3s ease-out;
-        }
-      `}</style>
-        </>
       )}
 
       {/* COGS Tab Content */}
@@ -2833,7 +3409,9 @@ const handleFileUpload = async (e) => {
           )}
         </div>
       )}
-    </div>
+        </div>
+      </div>
+      </div>
     </PermissionGuard>
   );
 };

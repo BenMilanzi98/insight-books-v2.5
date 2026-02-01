@@ -16,7 +16,8 @@ const RecurringExpenseModal = ({
   onClose, 
   onSubmit, 
   categories = [],
-  isLoading = false 
+  isLoading = false,
+  initialData = null
 }) => {
   // Form state
   const [formData, setFormData] = useState({
@@ -39,29 +40,44 @@ const RecurringExpenseModal = ({
   // Reset form data when modal opens
   useEffect(() => {
     if (isOpen) {
-      // Set start date to today
-      const today = new Date().toISOString().split("T")[0];
-      
-      // Calculate default end date (1 year from now)
-      const oneYearFromNow = new Date();
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
-      
-      setFormData({
-        description: "",
-        amount: "",
-        category: categories.length > 0 ? categories[0] : "",
-        startDate: today,
-        frequency: "monthly",
-        dayOfMonth: new Date().getDate().toString(),
-        dayOfWeek: new Date().getDay().toString(),
-        endDate: oneYearFromNow.toISOString().split("T")[0],
-        occurrences: "12",
-        endType: "occurrences",
-        notes: ""
-      });
+      if (initialData) {
+        // Editing mode - populate with existing data
+        setFormData({
+          description: initialData.description || "",
+          amount: initialData.amount ? (typeof initialData.amount === 'string' ? initialData.amount.replace(/,/g, '') : initialData.amount.toString()) : "",
+          category: initialData.category || (categories.length > 0 ? categories[0] : ""),
+          startDate: initialData.startDate || new Date().toISOString().split("T")[0],
+          frequency: initialData.frequency || "monthly",
+          dayOfMonth: initialData.dayOfMonth ? initialData.dayOfMonth.toString() : new Date().getDate().toString(),
+          dayOfWeek: initialData.dayOfWeek ? initialData.dayOfWeek.toString() : new Date().getDay().toString(),
+          endDate: initialData.endDate || "",
+          occurrences: initialData.occurrences ? initialData.occurrences.toString() : "12",
+          endType: initialData.endDate ? "date" : "occurrences",
+          notes: initialData.notes || ""
+        });
+      } else {
+        // Create mode - use defaults
+        const today = new Date().toISOString().split("T")[0];
+        const oneYearFromNow = new Date();
+        oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+        
+        setFormData({
+          description: "",
+          amount: "",
+          category: categories.length > 0 ? categories[0] : "",
+          startDate: today,
+          frequency: "monthly",
+          dayOfMonth: new Date().getDate().toString(),
+          dayOfWeek: new Date().getDay().toString(),
+          endDate: oneYearFromNow.toISOString().split("T")[0],
+          occurrences: "12",
+          endType: "occurrences",
+          notes: ""
+        });
+      }
       setErrors({});
     }
-  }, [isOpen, categories]);
+  }, [isOpen, categories, initialData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -145,7 +161,7 @@ const RecurringExpenseModal = ({
           <div className="flex justify-between items-center">
             <h3 className="text-xl font-semibold flex items-center">
               <RefreshCw className="w-5 h-5 mr-2 text-green-600" />
-              Create Recurring Expense
+              {initialData ? 'Edit Recurring Expense' : 'Create Recurring Expense'}
             </h3>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
@@ -427,7 +443,7 @@ const RecurringExpenseModal = ({
               ) : (
                 <>
                   <RefreshCw className="w-4 h-4 mr-2" />
-                  <span>Create Recurring Expense</span>
+                  <span>{initialData ? 'Update Recurring Expense' : 'Create Recurring Expense'}</span>
                 </>
               )}
             </button>

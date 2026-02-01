@@ -165,24 +165,45 @@ export async function GET(request, { params }) {
     const salesTransactions = [];
     for (const sale of salesWithTax) {
       for (const item of sale.items) {
-        // Check if this item's tax belongs to this tax type
-        let shouldCount = false;
+        // Check if this item's tax belongs to this tax type and get the specific tax amount
+        // Priority: 1) SaleItemTax records (most accurate), 2) ProductTax link, 3) If only one tax type exists, assume it's this one
+        let taxAmountForThisType = 0;
         
         if (item.itemTaxes && item.itemTaxes.length > 0) {
-          shouldCount = item.itemTaxes.some(it => it.taxTypeId === taxType.id);
+          // Has SaleItemTax records - use the specific tax amount for this tax type
+          const taxForThisType = item.itemTaxes.find(it => it.taxTypeId === taxType.id);
+          if (taxForThisType) {
+            taxAmountForThisType = Number(taxForThisType.taxAmount || 0);
+          }
         } else if (item.product && item.product.productTaxes && item.product.productTaxes.length > 0) {
-          shouldCount = item.product.productTaxes.some(pt => pt.taxTypeId === taxType.id);
+          // Check ProductTax link - calculate tax amount proportionally
+          const productTaxForThisType = item.product.productTaxes.find(pt => pt.taxTypeId === taxType.id);
+          if (productTaxForThisType && productTaxForThisType.taxType) {
+            const taxTypeData = productTaxForThisType.taxType;
+            // Calculate tax amount based on calculation type
+            const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+            const itemBaseAmount = itemSubtotal - (item.discountAmount || 0);
+            
+            if (taxTypeData.calculationType === 'Fixed') {
+              taxAmountForThisType = Number(taxTypeData.taxRate || 0) * (item.quantity || 1);
+            } else {
+              // Percentage calculation
+              taxAmountForThisType = itemBaseAmount * (Number(taxTypeData.taxRate || 0) / 100);
+            }
+          }
         } else {
-          // Fallback: If there's only one active tax type, assume it's this one
-          shouldCount = activeTaxTypeCount === 1;
+          // Fallback: If there's only one active tax type, assume all tax belongs to this one
+          if (activeTaxTypeCount === 1 && item.taxAmount > 0) {
+            taxAmountForThisType = Number(item.taxAmount || 0);
+          }
         }
 
-        if (shouldCount && item.taxAmount > 0) {
-          totalCollected += item.taxAmount;
+        if (taxAmountForThisType > 0) {
+          totalCollected += taxAmountForThisType;
           
           // Create a virtual transaction entry for display
-          const debitAmt = isAsset ? item.taxAmount : 0;
-          const creditAmt = isLiability ? item.taxAmount : 0;
+          const debitAmt = isAsset ? taxAmountForThisType : 0;
+          const creditAmt = isLiability ? taxAmountForThisType : 0;
           salesTransactions.push({
             id: `sale-${sale.id}-${item.id}`,
             reference: sale.saleNumber || `SALE-${sale.id}`,

@@ -493,7 +493,7 @@ export default function TaxTypesPage() {
 
               <form onSubmit={handleSubmit} className="p-6">
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Tax ID *
@@ -505,19 +505,6 @@ export default function TaxTypesPage() {
                         value={formData.taxId}
                         onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
                         placeholder="e.g., TAX001"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Tax Code *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        value={formData.taxCode}
-                        onChange={(e) => setFormData({ ...formData, taxCode: e.target.value })}
-                        placeholder="e.g., PAYE, VAT16.5"
                       />
                     </div>
                   </div>
@@ -570,10 +557,9 @@ export default function TaxTypesPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account *
+                      Account (optional)
                     </label>
                     <select
-                      required
                       className="border border-gray-300 rounded-md px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
                       value={formData.accountId}
                       onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
@@ -586,7 +572,7 @@ export default function TaxTypesPage() {
                       ))}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      Select a Liability account (default) or Asset account (for WHT)
+                      Select a Liability account (default) or Asset account (for WHT). You can leave this blank.
                     </p>
                   </div>
 

@@ -48,6 +48,12 @@ import DynamicCategorySelect from "@/components/DynamicCategorySelect";
 import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
 import SkuConflictModal from "@/components/Stock/SkuConflictModal";
 import UnitManagement from "@/components/UnitManagement/UnitManagement";
+import BulkTaxApplicationModal from "@/components/BulkTaxApplicationModal";
+import {
+  StockTransferModal,
+  StockTransfersList,
+  StockPerBranch,
+} from "@/components/StockTransfer";
 
 // Main Stock Management Component
 const InventoryManagement = () => {
@@ -106,6 +112,12 @@ const InventoryManagement = () => {
   const [isTransactionFormOpen, setIsTransactionFormOpen] = useState(false);
   const [transactionType, setTransactionType] = useState(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  // Stock transfer states
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transfers, setTransfers] = useState([]);
+  const [stockByBranch, setStockByBranch] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [transfersLoading, setTransfersLoading] = useState(false);
   const [pagePermissions, setPagePermissions] = useState({  
     canCreateInventory: false,
     canDeleteInventory:false, 
@@ -117,7 +129,7 @@ const InventoryManagement = () => {
   // NEW: Pagination state
   const [pagination, setPagination] = useState({
     currentPage: 1,
-    pageSize: 10,
+    pageSize: 20,
     totalItems: 0,
     totalPages: 1
   });
@@ -163,6 +175,7 @@ const InventoryManagement = () => {
   // NEW: Enhanced features state
   const [isBulkOperationsOpen, setIsBulkOperationsOpen] = useState(false);
   const [isExpiryAlertsOpen, setIsExpiryAlertsOpen] = useState(false);
+  const [isBulkTaxModalOpen, setIsBulkTaxModalOpen] = useState(false);
   const [customCategories, setCustomCategories] = useState([]);
   const [customLocations, setCustomLocations] = useState([]);
   
@@ -256,6 +269,10 @@ const InventoryManagement = () => {
     loadLocations();
     loadCategories();
     loadRecentTransactions();
+    // Preload transfers/branch stock for transfers view
+    fetchTransfers();
+    fetchStockByBranch();
+    fetchBranches();
   }, []);
   
   // Handle search and filter changes
@@ -263,6 +280,9 @@ const InventoryManagement = () => {
     if (searchTimeout) {
       clearTimeout(searchTimeout);
     }
+    
+    // Reset to page 1 when filters change
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
     
     const timeout = setTimeout(() => {
       loadInventory();
@@ -273,7 +293,18 @@ const InventoryManagement = () => {
     return () => {
       if (searchTimeout) clearTimeout(searchTimeout);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, categoryFilter, statusFilter, locationFilter, sortField, sortDirection]);
+  
+  // Handle pagination changes (when user clicks next/previous page)
+  useEffect(() => {
+    // Skip initial mount - filters useEffect will handle initial load
+    const isInitialMount = pagination.totalItems === 0;
+    if (!isInitialMount) {
+      loadInventory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.currentPage, pagination.pageSize]);
   
   // Disable body scroll when modal is open
   useEffect(() => {
@@ -609,9 +640,9 @@ const InventoryManagement = () => {
         location: locationFilter,
         sort: sortField,
         order: sortDirection,
-        // Fetch all items by default (no pagination limit)
-        // Only use pagination if explicitly needed
-        limit: 0 // 0 means fetch all items
+        // Use server-side pagination with 20 items per page
+        page: pagination.currentPage,
+        limit: pagination.pageSize
       };
       
       const data = await inventoryService.fetchProducts(params).catch(() => {
@@ -651,7 +682,7 @@ const InventoryManagement = () => {
           }
         });
         
-        // Apply pagination
+        // Apply pagination for fallback data
         const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
         const endIndex = startIndex + pagination.pageSize;
         const paginatedInventory = sortedInventory.slice(startIndex, endIndex);
@@ -970,6 +1001,151 @@ const InventoryManagement = () => {
       console.error(`Error loading transactions for product ${productId}:`, error);
       setProductTransactions([]);
       // Don't show toast on every load to avoid spam
+    }
+  };
+
+  // Stock transfer API helpers
+  const fetchTransfers = async (opts = {}) => {
+    try {
+      setTransfersLoading(true);
+      const query = new URLSearchParams(opts).toString();
+      const res = await fetch(`/api/stock-transfers${query ? `?${query}` : ''}`);
+      if (!res.ok) return setTransfers([]);
+      const data = await res.json();
+      setTransfers(data.transfers || []);
+    } catch (err) {
+      console.error('Error fetching transfers:', err);
+      setTransfers([]);
+    } finally {
+      setTransfersLoading(false);
+    }
+  };
+
+  const fetchStockByBranch = async (opts = {}) => {
+    try {
+      const query = new URLSearchParams(opts).toString();
+      const res = await fetch(`/api/stock-by-branch${query ? `?${query}` : ''}`);
+      if (!res.ok) return setStockByBranch([]);
+      const data = await res.json();
+      setStockByBranch(data.branches || []);
+    } catch (err) {
+      console.error('Error fetching stock by branch:', err);
+      setStockByBranch([]);
+    }
+  };
+
+  const fetchBranches = async () => {
+    try {
+      const res = await fetch('/api/branches');
+      if (!res.ok) return setBranches([]);
+      const data = await res.json();
+      setBranches(data.branches || data || []);
+    } catch (err) {
+      console.error('Error fetching branches:', err);
+      setBranches([]);
+    }
+  };
+
+  const handleCreateTransfer = async (formData) => {
+    try {
+      setIsSubmitting(true);
+      console.log('[Frontend] Creating transfer with data:', formData);
+      const res = await fetch('/api/stock-transfers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...formData,
+          directTransfer: true // Auto-complete the transfer
+        }),
+      });
+      
+      const responseData = await res.json().catch(() => ({}));
+      
+      if (!res.ok) {
+        console.error('[Frontend] Transfer failed:', {
+          status: res.status,
+          error: responseData.error,
+          code: responseData.code,
+          details: responseData.details
+        });
+        showToast('error', responseData.error || `Failed to transfer stock (${res.status})`);
+        if (responseData.details) {
+          console.error('[Frontend] Error details:', responseData.details);
+        }
+        return false;
+      }
+      
+      const result = responseData;
+      await fetchTransfers();
+      await fetchStockByBranch();
+      await loadInventory(); // Refresh inventory to show updated stock
+      showToast('success', `Stock transferred successfully from ${result.transfer?.fromBranch?.name} to ${result.transfer?.toBranch?.name}`);
+      return true;
+    } catch (err) {
+      console.error('[Frontend] Error creating transfer:', err);
+      showToast('error', `Failed to transfer stock: ${err.message || 'Network error'}`);
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleApproveTransfer = async (transferId) => {
+    try {
+      const res = await fetch(`/api/stock-transfers/${transferId}?action=approve`, { method: 'PUT' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast('error', err.error || 'Failed to approve transfer');
+        return null;
+      }
+      await fetchTransfers();
+      showToast('success', 'Transfer approved');
+      return await res.json();
+    } catch (err) {
+      console.error('Error approving transfer:', err);
+      showToast('error', 'Failed to approve transfer');
+      return null;
+    }
+  };
+
+  const handleReceiveTransfer = async (transferId) => {
+    try {
+      const res = await fetch(`/api/stock-transfers/${transferId}?action=receive`, { method: 'PUT' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast('error', err.error || 'Failed to receive transfer');
+        return null;
+      }
+      await fetchTransfers();
+      await fetchStockByBranch();
+      showToast('success', 'Transfer received');
+      return await res.json();
+    } catch (err) {
+      console.error('Error receiving transfer:', err);
+      showToast('error', 'Failed to receive transfer');
+      return null;
+    }
+  };
+
+  const handleRejectTransfer = async (transferId, reason) => {
+    try {
+      const res = await fetch(`/api/stock-transfers/${transferId}?action=reject`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rejectionReason: reason }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast('error', err.error || 'Failed to reject transfer');
+        return null;
+      }
+      await fetchTransfers();
+      showToast('success', 'Transfer rejected');
+      return await res.json();
+    } catch (err) {
+      console.error('Error rejecting transfer:', err);
+      showToast('error', 'Failed to reject transfer');
+      return null;
     }
   };
   
@@ -2151,6 +2327,15 @@ const InventoryManagement = () => {
             <span>Bulk Operations</span>
           </button>
           
+          {/* NEW: Apply Taxes Button */}
+          <button 
+            className="px-4 py-2 bg-purple-600 text-white rounded-md flex items-center gap-2 hover:bg-purple-700"
+            onClick={() => setIsBulkTaxModalOpen(true)}
+          >
+            <Settings size={16} />
+            <span>Apply Taxes</span>
+          </button>
+          
           {/* NEW: Expiry Alerts Button */}
           <button 
             className="px-4 py-2 bg-orange-600 text-white rounded-md flex items-center gap-2 hover:bg-orange-700"
@@ -2315,6 +2500,19 @@ const InventoryManagement = () => {
             <Download size={18} className="text-gray-500" />
             <span>Export</span>
           </button>)}
+          {/* Stock Transfers View Toggle */}
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 transition-colors ${
+              view === 'transfers' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => {
+              setView('transfers');
+              setShowTransferModal(true);
+            }}
+          >
+            <Truck size={16} />
+            Stock Transfers
+          </button>
         </div>
       </div>
 
@@ -3348,6 +3546,7 @@ const InventoryManagement = () => {
           customCategories={customCategories}
           categoryOptions={categoryOptions}
           locations={locations}
+          branches={branches}
           onLocationAdd={(newLocation) => {
             setLocations(prev => {
               if (!prev.includes(newLocation)) {
@@ -3531,12 +3730,53 @@ const InventoryManagement = () => {
         }
       `}</style>
       
+      {/* Stock Transfers View */}
+      {view === 'transfers' && (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold">Stock Transfers</h2>
+            <button
+              onClick={() => { fetchTransfers(); fetchStockByBranch(); }}
+              className="px-3 py-2 bg-gray-100 rounded-md hover:bg-gray-200"
+              title="Refresh"
+            >
+              <RefreshCw size={16} />
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <StockPerBranch
+              branches={stockByBranch}
+              loading={transfersLoading}
+            />
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <StockTransfersList
+              transfers={transfers}
+              loading={transfersLoading}
+              onRefresh={() => fetchTransfers()}
+            />
+          </div>
+
+        </div>
+      )}
+      
       {/* NEW: Bulk Operations Modal */}
       <BulkInventoryOperations
         isOpen={isBulkOperationsOpen}
         onClose={() => setIsBulkOperationsOpen(false)}
         onUpload={handleBulkUpload}
         onExport={handleBulkExport}
+        showToast={showToast}
+        branches={branches}
+      />
+      
+      {/* NEW: Bulk Tax Application Modal */}
+      <BulkTaxApplicationModal
+        isOpen={isBulkTaxModalOpen}
+        onClose={() => setIsBulkTaxModalOpen(false)}
+        products={inventory}
         showToast={showToast}
       />
       
@@ -3558,6 +3798,20 @@ const InventoryManagement = () => {
         onCreateWithNewSku={handleCreateWithNewSku}
         onCancel={handleSkuConflictCancel}
         isProcessing={isSubmitting}
+      />
+
+      {/* Stock Transfer Modal */}
+      <StockTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        onSubmit={async (formData) => {
+          const success = await handleCreateTransfer(formData);
+          if (success) setShowTransferModal(false);
+          return success;
+        }}
+        branches={branches}
+        products={inventory}
+        loading={isSubmitting}
       />
 
       {/* NEW: Expiry Alerts Modal */}
@@ -4167,7 +4421,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   );
 }
 
-const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
+const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd, branches = [] }) => {
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -4179,6 +4433,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     costPrice: "",
     location: "",
     image: "", // This will store the URL, not the blob
+    branchId: "", // Branch assignment
     // New enhanced fields
     expiryDate: "",
     discountAmount: "",
@@ -4314,6 +4569,43 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     setFormData(prev => ({ ...prev, selectedUnits: units }));
   }, []);
 
+  // Reset form when opening for new product
+  useEffect(() => {
+    if (!product && isOpen) {
+      // Reset form to initial state when creating a new product
+      setFormData({
+        name: "",
+        sku: "",
+        category: "",
+        description: "",
+        quantityInStock: "",
+        reorderPoint: "",
+        unitPrice: "",
+        costPrice: "",
+        location: "",
+        image: "",
+        branchId: "",
+        expiryDate: "",
+        discountAmount: "",
+        isPerishable: false,
+        batchNumber: "",
+        supplier: "",
+        weight: "",
+        dimensions: "",
+        barcode: "",
+        tags: [],
+        unitManagementEnabled: false,
+        selectedBaseUnit: null,
+        selectedUnits: [],
+        unitConfigurations: {},
+        selectedTaxIds: []
+      });
+      setPreviewUrl(null);
+      setImageFile(null);
+      setErrors({});
+    }
+  }, [product, isOpen]);
+
   // If editing, populate the form with product data
   useEffect(() => {
     if (product) {
@@ -4407,6 +4699,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         costPrice: product.costPrice || "",
         location: product.location || "",
         image: product.image || "", // Use the stored URL
+        branchId: product.branchId || "", // Branch assignment
         // New enhanced fields
         expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : "",
         discountAmount: product.discountAmount || "",
@@ -4559,6 +4852,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         costPrice: formData.costPrice === '' ? null : parseFloat(formData.costPrice),
         discountAmount: formData.discountAmount === '' ? null : parseFloat(formData.discountAmount),
         weight: formData.weight === '' ? null : parseFloat(formData.weight),
+        // Branch assignment - only include if selected
+        branchId: formData.branchId || null,
         // Unit management data
         unitManagementEnabled: formData.unitManagementEnabled,
         selectedBaseUnit: formData.selectedBaseUnit,
@@ -4797,6 +5092,31 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   label="Location"
                 />
               </div>
+              
+              {/* Branch Selection */}
+              {branches.length > 0 && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch (Optional)</label>
+                  <select
+                    name="branchId"
+                    value={formData.branchId}
+                    onChange={handleChange}
+                    className="w-full p-2 border border-gray-300 rounded-md bg-white"
+                  >
+                    <option value="">All Branches (No specific branch)</option>
+                    {branches
+                      .filter(branch => branch.isActive !== false)
+                      .map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name || branch.branchName || `Branch ${branch.id.substring(0, 8)}`}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Select a branch to assign this product to. Leave unselected to create a product available across all branches.
+                  </p>
+                </div>
+              )}
               
               {/* Tax Assignment Section */}
               <div className="md:col-span-2">

@@ -86,18 +86,124 @@ export async function GET(request) {
       ];
     }
     
-    // Get total count for pagination
-    const totalCount = await prisma.expense.count({ where: whereClause });
+    // Find COGS account(s) for this tenant
+    const cogsAccounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        OR: [
+          { accountCode: '5000' },
+          { code: '5000' },
+          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+          { accountName: { contains: 'cogs', mode: 'insensitive' } },
+          { name: { contains: 'cost of goods', mode: 'insensitive' } },
+          { name: { contains: 'cogs', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true, accountName: true, name: true }
+    });
+    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+
+    // Build COGS transaction filter
+    const cogsTransactionFilter = {
+      accountId: { in: cogsAccountIds },
+      debitAmount: { gt: 0 },
+      transaction: {
+        tenantId: user.tenantId,
+        status: 'posted'
+      }
+    };
+
+    // Add branch filter to COGS transactions if applicable
+    if (branchId) {
+      cogsTransactionFilter.transaction.branchId = branchId;
+    } else if (user?.currentBranchId) {
+      cogsTransactionFilter.transaction.branchId = user.currentBranchId;
+    }
+
+    // Add date range filter to COGS transactions if provided
+    if (dateFrom || dateTo) {
+      cogsTransactionFilter.transaction.date = {};
+      if (dateFrom) {
+        cogsTransactionFilter.transaction.date.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        cogsTransactionFilter.transaction.date.lte = new Date(dateTo);
+      }
+    }
+
+    // Add search filter to COGS transactions if provided
+    if (search) {
+      cogsTransactionFilter.transaction.OR = [
+        { description: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    // Check if we should include COGS transactions
+    // If category filter is set and it's not "Cost of Goods Sold" or "COGS", exclude COGS
+    const includeCOGS = !category || 
+      category === 'all' || 
+      category.toLowerCase().includes('cost of goods') || 
+      category.toLowerCase().includes('cogs');
+
+    // Check if we should include salary advances
+    // Include salary advances when no category filter is applied or when specifically filtering for "Salary Advance"
+    const includeSalaryAdvances = !category ||
+      category === 'all' ||
+      category === '' ||
+      category === 'Salary Advance';
+    
+    console.log('🔍 Salary advances inclusion check:', {
+      category,
+      includeSalaryAdvances,
+      categoryType: typeof category
+    });
+
+    // Build salary advance filter
+    const salaryAdvanceFilter = {
+      tenantId: user.tenantId
+    };
+
+    // Add date range filter to salary advances if provided
+    if (dateFrom || dateTo) {
+      salaryAdvanceFilter.advanceDate = {};
+      if (dateFrom) {
+        salaryAdvanceFilter.advanceDate.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        salaryAdvanceFilter.advanceDate.lte = new Date(dateTo);
+      }
+    }
+
+    // Add search filter to salary advances if provided
+    if (search) {
+      salaryAdvanceFilter.OR = [
+        { reference: { contains: search, mode: 'insensitive' } },
+        { employee: { name: { contains: search, mode: 'insensitive' } } }
+      ];
+    }
+
+    // Get total count for pagination (expenses + COGS transactions + salary advances)
+    const [expenseCount, cogsCount, salaryAdvanceCount] = await Promise.all([
+      prisma.expense.count({ where: whereClause }),
+      (includeCOGS && cogsAccountIds.length > 0) 
+        ? prisma.transactionLine.count({ where: cogsTransactionFilter }) 
+        : Promise.resolve(0),
+      includeSalaryAdvances
+        ? prisma.salaryAdvance.count({ where: salaryAdvanceFilter })
+        : Promise.resolve(0)
+    ]);
+    const totalCount = expenseCount + cogsCount + salaryAdvanceCount;
     
     // Build sort object for Prisma
     const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
-    // Fetch expenses with user info
-    const expenses = await prisma.expense.findMany({
+    // Fetch ALL expenses (without pagination) so we can combine with COGS and re-paginate
+    const allExpensesFromDB = await prisma.expense.findMany({
       where: whereClause,
       orderBy,
-      skip,
-      take: limit,
       include: {
         submittedBy: {
           select: {
@@ -126,10 +232,116 @@ export async function GET(request) {
         }
       }
     });
+
+    // Fetch COGS transactions if there are COGS accounts and we should include them
+    let cogsTransactions = [];
+    if (includeCOGS && cogsAccountIds.length > 0) {
+      const cogsTransactionLines = await prisma.transactionLine.findMany({
+        where: cogsTransactionFilter,
+        include: {
+          transaction: {
+            select: {
+              id: true,
+              date: true,
+              description: true,
+              reference: true
+            }
+          },
+          account: {
+            select: {
+              id: true,
+              accountName: true,
+              name: true
+            }
+          }
+        },
+        orderBy: {
+          transaction: {
+            date: sortOrder === 'asc' ? 'asc' : 'desc'
+          }
+        }
+      });
+
+      // Convert COGS transactions to expense-like format
+      cogsTransactions = cogsTransactionLines.map(line => ({
+        id: `cogs-${line.transaction.id}-${line.id}`, // Unique ID for COGS entries
+        description: line.transaction.description || `COGS - ${line.transaction.reference || 'Sale'}`,
+        amount: Number(line.debitAmount),
+        date: line.transaction.date,
+        category: 'Cost of Goods Sold',
+        status: 'Approved', // COGS transactions are always approved
+        merchant: null,
+        notes: `Automated COGS entry from ${line.transaction.reference || 'sale'}`,
+        submittedBy: {
+          id: 'system',
+          name: 'System'
+        },
+        sourceAccount: {
+          id: line.account.id,
+          name: line.account.accountName || line.account.name
+        },
+        payments: [], // COGS doesn't have payments
+        attachments: [],
+        isCOGS: true, // Flag to identify COGS entries
+        transactionId: line.transaction.id,
+        transactionReference: line.transaction.reference
+      }));
+    }
+
+    // Fetch salary advances if we should include them
+    let salaryAdvanceExpenses = [];
+    if (includeSalaryAdvances) {
+      console.log('📋 Fetching salary advances with filter:', JSON.stringify(salaryAdvanceFilter, null, 2));
+      const salaryAdvances = await prisma.salaryAdvance.findMany({
+        where: salaryAdvanceFilter,
+        include: {
+          employee: {
+            select: {
+              id: true,
+              name: true,
+              employeeId: true
+            }
+          }
+        },
+        orderBy: {
+          advanceDate: sortOrder === 'asc' ? 'asc' : 'desc'
+        }
+      });
+      console.log(`✅ Found ${salaryAdvances.length} salary advances for tenant ${user.tenantId}`);
+
+      // Convert salary advances to expense-like format
+      salaryAdvanceExpenses = salaryAdvances.map(advance => ({
+        id: `salary-advance-${advance.id}`, // Unique ID for salary advance entries
+        description: `Salary Advance: ${advance.employee?.name || 'Employee'}${advance.reference ? ` (${advance.reference})` : ''}`,
+        amount: Number(advance.amount),
+        date: advance.advanceDate,
+        category: 'Salary Advance',
+        status: 'Approved', // Salary advances are always approved
+        merchant: null,
+        notes: advance.notes || `Salary advance for ${advance.employee?.name || 'employee'} - ${advance.repaymentMonths} month(s) repayment`,
+        submittedBy: {
+          id: 'system',
+          name: 'System'
+        },
+        sourceAccount: {
+          id: 'salary-advance-receivable',
+          name: 'Salary Advance Receivable'
+        },
+        payments: [], // Salary advances don't have separate payments
+        attachments: [],
+        isSalaryAdvance: true, // Flag to identify salary advance entries
+        salaryAdvanceId: advance.id,
+        employeeName: advance.employee?.name,
+        employeeId: advance.employee?.employeeId,
+        reference: advance.reference,
+        outstandingAmount: advance.outstandingAmount,
+        totalDeducted: advance.totalDeducted
+      }));
+    }
     
     // Fetch attachments for each expense
     const expensesWithAttachments = await Promise.all(
-      expenses.map(async (expense) => {
+      allExpensesFromDB.map(async (expense) => {
         // Query for attachments (assuming there's an Attachment model)
         const attachments = await prisma.expenseAttachment.findMany({
           where: {
@@ -161,14 +373,81 @@ export async function GET(request) {
             type: attachment.fileType,
             size: formatFileSize(attachment.fileSize),
             date: attachment.uploadedAt.toISOString().split('T')[0]
-          }))
+          })),
+          isCOGS: false // Flag to identify regular expenses
         };
       })
     );
+
+    // Combine expenses, COGS transactions, and salary advances
+    console.log(`📊 Combining expenses: ${expensesWithAttachments.length} regular, ${cogsTransactions.length} COGS, ${salaryAdvanceExpenses.length} salary advances`);
+    const allExpenses = [...expensesWithAttachments, ...cogsTransactions, ...salaryAdvanceExpenses];
+
+    // Sort combined list by date (or other sort field)
+    allExpenses.sort((a, b) => {
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      
+      if (sortBy === 'date') {
+        return sortOrder === 'asc' 
+          ? dateA - dateB 
+          : dateB - dateA;
+      } else if (sortBy === 'amount') {
+        const amountA = typeof a.amount === 'string' 
+          ? parseFloat(a.amount.replace(/,/g, '')) 
+          : a.amount;
+        const amountB = typeof b.amount === 'string' 
+          ? parseFloat(b.amount.replace(/,/g, '')) 
+          : b.amount;
+        return sortOrder === 'asc' 
+          ? amountA - amountB 
+          : amountB - amountA;
+      } else if (sortBy === 'description') {
+        return sortOrder === 'asc'
+          ? (a.description || '').localeCompare(b.description || '')
+          : (b.description || '').localeCompare(a.description || '');
+      }
+      return 0;
+    });
+
+    // Apply pagination to combined list
+    const paginatedExpenses = allExpenses.slice(skip, skip + limit);
+
+    // Format COGS transaction and salary advance amounts
+    const formattedExpenses = paginatedExpenses.map(expense => {
+      if (expense.isCOGS) {
+        // Format COGS amount
+        const formattedAmount = expense.amount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+        return {
+          ...expense,
+          amount: formattedAmount,
+          date: expense.date instanceof Date 
+            ? expense.date.toISOString().split('T')[0] 
+            : expense.date
+        };
+      } else if (expense.isSalaryAdvance) {
+        // Format salary advance amount
+        const formattedAmount = expense.amount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+        return {
+          ...expense,
+          amount: formattedAmount,
+          date: expense.date instanceof Date 
+            ? expense.date.toISOString().split('T')[0] 
+            : expense.date
+        };
+      }
+      return expense;
+    });
     
     // Return expenses with pagination metadata
     return NextResponse.json({
-      expenses: expensesWithAttachments,
+      expenses: formattedExpenses,
       pagination: {
         page,
         limit,

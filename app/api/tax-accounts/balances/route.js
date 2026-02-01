@@ -133,21 +133,39 @@ export async function GET(request) {
       for (const sale of salesWithTax) {
         for (const item of sale.items) {
           // Check if this item's tax belongs to this tax type
-          // Priority: 1) SaleItemTax records, 2) ProductTax link, 3) If only one tax type exists, assume it's this one
-          let shouldCount = false;
+          // Priority: 1) SaleItemTax records (most accurate), 2) ProductTax link, 3) If only one tax type exists, assume it's this one
+          let taxAmountForThisType = 0;
           
           if (item.itemTaxes && item.itemTaxes.length > 0) {
-            // Has SaleItemTax records - use those
-            shouldCount = item.itemTaxes.some(it => it.taxTypeId === taxType.id);
+            // Has SaleItemTax records - use the specific tax amount for this tax type
+            const taxForThisType = item.itemTaxes.find(it => it.taxTypeId === taxType.id);
+            if (taxForThisType) {
+              taxAmountForThisType = Number(taxForThisType.taxAmount || 0);
+            }
           } else if (item.product && item.product.productTaxes && item.product.productTaxes.length > 0) {
-            // Check ProductTax link
-            shouldCount = item.product.productTaxes.some(pt => pt.taxTypeId === taxType.id);
+            // Check ProductTax link - calculate tax amount proportionally
+            const productTaxForThisType = item.product.productTaxes.find(pt => pt.taxTypeId === taxType.id);
+            if (productTaxForThisType && productTaxForThisType.taxType) {
+              const taxTypeData = productTaxForThisType.taxType;
+              // Calculate tax amount based on calculation type
+              const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
+              const itemBaseAmount = itemSubtotal - (item.discountAmount || 0);
+              
+              if (taxTypeData.calculationType === 'Fixed') {
+                taxAmountForThisType = Number(taxTypeData.taxRate || 0) * (item.quantity || 1);
+              } else {
+                // Percentage calculation
+                taxAmountForThisType = itemBaseAmount * (Number(taxTypeData.taxRate || 0) / 100);
+              }
+            }
           } else {
-            // Fallback: If there's only one active tax type, assume it's this one
-            shouldCount = activeTaxTypeCount === 1;
+            // Fallback: If there's only one active tax type, assume all tax belongs to this one
+            if (activeTaxTypeCount === 1 && item.taxAmount > 0) {
+              taxAmountForThisType = Number(item.taxAmount || 0);
+            }
           }
 
-          if (shouldCount && item.taxAmount > 0) {
+          if (taxAmountForThisType > 0) {
             const saleDate = sale.saleDate instanceof Date ? sale.saleDate : new Date(sale.saleDate);
             const dateKey = groupBy === 'day' 
               ? saleDate.toISOString().split('T')[0]
@@ -162,8 +180,8 @@ export async function GET(request) {
                 net: 0,
               });
             }
-            breakdownMap.get(dateKey).collected += item.taxAmount;
-            totalCollected += item.taxAmount;
+            breakdownMap.get(dateKey).collected += taxAmountForThisType;
+            totalCollected += taxAmountForThisType;
           }
         }
       }
@@ -231,6 +249,7 @@ export async function GET(request) {
         const periodData = breakdownMap.get(dateKey);
 
         if (tx.sourceType?.startsWith('Tax-')) {
+          // Tax transactions from tax service (Tax-Payroll, Tax-Sale, etc.)
           if (isLiability) {
             if (creditAmount > 0) {
               totalCollected += creditAmount;
@@ -247,6 +266,15 @@ export async function GET(request) {
               totalRefunded += creditAmount;
               periodData.refunded += creditAmount;
             }
+          }
+        } else if (tx.sourceType === 'Payroll' && isLiability && creditAmount > 0) {
+          // Payroll transactions that credit tax liability accounts (PAYE, NPS, etc.)
+          // This handles cases where tax was posted directly in payroll transaction
+          // Check if this is a PAYE account by name
+          const accountName = (taxType.account.accountName || taxType.account.name || '').toLowerCase();
+          if (accountName.includes('paye') || taxType.taxName?.toLowerCase().includes('paye')) {
+            totalCollected += creditAmount;
+            periodData.collected += creditAmount;
           }
         } else if (tx.sourceType === 'TaxPayment') {
           const paymentAmount = isLiability ? debitAmount : creditAmount;

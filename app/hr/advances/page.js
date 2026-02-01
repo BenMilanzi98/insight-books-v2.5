@@ -16,12 +16,20 @@ export default function SalaryAdvancesManagement() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState(null);
+  // Generate reference number
+  const generateReference = (date, employeeId) => {
+    const dateStr = date ? new Date(date).toISOString().split('T')[0].replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const employeeSuffix = employeeId ? employeeId.substring(0, 4).toUpperCase() : 'EMP';
+    return `SAV-${dateStr}-${employeeSuffix}-${randomSuffix}`;
+  };
+
   const [formData, setFormData] = useState({
     employeeId: '',
     amount: '',
     advanceDate: new Date().toISOString().split('T')[0],
     repaymentMonths: 1,
-    reference: '',
+    reference: generateReference(new Date().toISOString().split('T')[0], ''),
     notes: '',
     paymentMethod: ''
   });
@@ -37,6 +45,14 @@ export default function SalaryAdvancesManagement() {
       }
     }
   }, [paymentAccounts]);
+
+  // Auto-generate reference when employee or date changes
+  useEffect(() => {
+    if (showCreateModal) {
+      const newReference = generateReference(formData.advanceDate, formData.employeeId);
+      setFormData(prev => ({ ...prev, reference: newReference }));
+    }
+  }, [formData.employeeId, formData.advanceDate, showCreateModal]);
 
   useEffect(() => {
     fetchAdvances();
@@ -89,7 +105,8 @@ export default function SalaryAdvancesManagement() {
           advanceDate: formData.advanceDate,
           repaymentMonths: parseInt(formData.repaymentMonths) || 1,
           reference: formData.reference,
-          notes: formData.notes
+          notes: formData.notes,
+          paymentMethod: formData.paymentMethod
         })
       });
 
@@ -100,12 +117,13 @@ export default function SalaryAdvancesManagement() {
 
       setNotification({ type: 'success', message: 'Salary advance created successfully' });
       setShowCreateModal(false);
+      const newDate = new Date().toISOString().split('T')[0];
       setFormData({
         employeeId: '',
         amount: '',
-        advanceDate: new Date().toISOString().split('T')[0],
+        advanceDate: newDate,
         repaymentMonths: 1,
-        reference: '',
+        reference: generateReference(newDate, ''),
         notes: '',
         paymentMethod: 'Cash'
       });
@@ -248,7 +266,15 @@ export default function SalaryAdvancesManagement() {
       {/* Actions and Filters */}
       <div className="mb-6 flex gap-3 items-center">
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            const newDate = new Date().toISOString().split('T')[0];
+            setFormData(prev => ({
+              ...prev,
+              advanceDate: newDate,
+              reference: generateReference(newDate, prev.employeeId || '')
+            }));
+            setShowCreateModal(true);
+          }}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
         >
           <Plus size={20} />
@@ -461,10 +487,13 @@ export default function SalaryAdvancesManagement() {
                 <input
                   type="text"
                   value={formData.reference}
-                  onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
-                  placeholder="Advance reference number"
+                  readOnly
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 cursor-not-allowed"
+                  placeholder="Auto-generated reference"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Reference number is automatically generated
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
@@ -486,12 +515,13 @@ export default function SalaryAdvancesManagement() {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
+                  const newDate = new Date().toISOString().split('T')[0];
                   setFormData({
                     employeeId: '',
                     amount: '',
-                    advanceDate: new Date().toISOString().split('T')[0],
+                    advanceDate: newDate,
                     repaymentMonths: 1,
-                    reference: '',
+                    reference: generateReference(newDate, ''),
                     notes: '',
                     paymentMethod: 'Cash'
                   });

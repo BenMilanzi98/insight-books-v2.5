@@ -49,8 +49,22 @@ export async function GET(request) {
         distinct: ['category']
       });
 
+      // Get unique categories from salary advances (they have category "Salary Advance")
+      const salaryAdvanceCount = await prisma.salaryAdvance.count({
+        where: {
+          tenantId: user.tenantId,
+          status: { not: 'Cancelled' }
+        }
+      });
+
       // Extract unique categories and add default ones
       const existingCategories = expenseCategories.map(e => e.category).filter(Boolean);
+      
+      // Add "Salary Advance" if there are any salary advances
+      if (salaryAdvanceCount > 0) {
+        existingCategories.push('Salary Advance');
+      }
+      
       const defaultCategories = [
         "Office Supplies",
         "Travel",
@@ -64,7 +78,11 @@ export async function GET(request) {
         "Marketing",
         "Training",
         "Insurance",
-        "Legal"
+        "Legal",
+        "Salary",
+        "Salary Advance",
+        "Pension",
+        "Gratuity"
       ];
 
       // Combine and deduplicate

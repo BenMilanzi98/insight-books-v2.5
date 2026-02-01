@@ -264,55 +264,55 @@ export async function GET(request) {
         // First check if product exists and has productId
         if (item.productId && productTaxes && productTaxes.length > 0) {
           // Calculate tax from product's assigned taxes
-          item.product.productTaxes.forEach(productTax => {
-            const taxType = productTax.taxType;
-            if (!taxType) {
-              console.warn(`ProductTax ${productTax.id} has no taxType`);
-              return;
-            }
-            
-            // Check if tax type is active
-            if (taxType.status !== 'Active') {
-              return;
-            }
-            
-            const taxRate = taxType.taxRate.toString();
-            
-            if (!collectedTaxesByRate[taxRate]) {
-              collectedTaxesByRate[taxRate] = {
-                rate: taxType.taxRate,
-                taxableAmount: 0,
-                taxAmount: 0,
-                items: []
-              };
-            }
-            
-            // Calculate tax amount based on calculation type
-            let calculatedTaxAmount = 0;
-            if (taxType.calculationType === 'Fixed') {
-              calculatedTaxAmount = taxType.taxRate;
-            } else {
-              // Percentage calculation - apply to taxable amount after discount
-              const discountedAmount = taxableAmount - (item.discountAmount || 0);
-              calculatedTaxAmount = discountedAmount * (taxType.taxRate / 100);
-            }
-            
-            collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
-            collectedTaxesByRate[taxRate].taxAmount += calculatedTaxAmount;
-            
-            collectedTaxesByRate[taxRate].items.push({
-              type: 'sale',
-              id: item.id,
-              description: item.description,
-              saleNumber: sale.saleNumber,
-              date: sale.saleDate,
-              client: sale.client?.name || 'Direct Sale',
-              status: sale.status,
-              taxableAmount,
-              taxAmount: calculatedTaxAmount
+          productTaxes.forEach(productTax => {
+              const taxType = productTax.taxType;
+              if (!taxType) {
+                console.warn(`ProductTax ${productTax.id} has no taxType`);
+                return;
+              }
+              
+              // Check if tax type is active
+              if (taxType.status !== 'Active') {
+                return;
+              }
+              
+              const taxRate = taxType.taxRate.toString();
+              
+              if (!collectedTaxesByRate[taxRate]) {
+                collectedTaxesByRate[taxRate] = {
+                  rate: taxType.taxRate,
+                  taxableAmount: 0,
+                  taxAmount: 0,
+                  items: []
+                };
+              }
+              
+              // Calculate tax amount based on calculation type
+              let calculatedTaxAmount = 0;
+              if (taxType.calculationType === 'Fixed') {
+                calculatedTaxAmount = taxType.taxRate * (item.quantity || 1);
+              } else {
+                // Percentage calculation - apply to taxable amount after discount
+                const discountedAmount = taxableAmount - (item.discountAmount || 0);
+                calculatedTaxAmount = discountedAmount * (taxType.taxRate / 100);
+              }
+              
+              collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
+              collectedTaxesByRate[taxRate].taxAmount += calculatedTaxAmount;
+              
+              collectedTaxesByRate[taxRate].items.push({
+                type: 'sale',
+                id: item.id,
+                description: item.description,
+                saleNumber: sale.saleNumber,
+                date: sale.saleDate,
+                client: sale.client?.name || 'Direct Sale',
+                status: sale.status,
+                taxableAmount,
+                taxAmount: calculatedTaxAmount
+              });
             });
-          });
-        } else if (!item.productId) {
+          } else if (!item.productId) {
           // Custom product or no product - skip tax calculation
           // (Could add custom product tax handling here if needed)
           return;

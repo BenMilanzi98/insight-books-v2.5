@@ -93,40 +93,70 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // If accountId is being updated, validate it
-    if (accountId && accountId !== existingTax.accountId) {
-      const account = await prisma.account.findFirst({
-        where: {
-          id: accountId,
-          tenantId: user.tenantId,
-        },
-      });
+    // Check if this is PAYE tax type
+    const isPAYE = existingTax.taxId === 'PAYE' || existingTax.taxName?.toLowerCase().includes('paye');
+    
+    // PAYE tax type REQUIRES an account - cannot remove it
+    if (isPAYE && accountId === null) {
+      return NextResponse.json(
+        { error: 'PAYE tax type requires a linked tax liability account for accurate tracking. Cannot remove the account link.' },
+        { status: 400 }
+      );
+    }
 
-      if (!account) {
+    // If accountId is being updated, validate it (if provided)
+    if (accountId !== undefined && accountId !== existingTax.accountId) {
+      // PAYE must always have an account
+      if (isPAYE && !accountId) {
         return NextResponse.json(
-          { error: 'Account not found or does not belong to tenant' },
+          { error: 'PAYE tax type requires a linked tax liability account. Cannot remove the account link.' },
           { status: 400 }
         );
       }
 
-      if (account.accountType !== 'Liability' && account.accountType !== 'Asset') {
-        return NextResponse.json(
-          { error: 'Tax account must be a Liability or Asset account' },
-          { status: 400 }
-        );
+      if (accountId) {
+        const account = await prisma.account.findFirst({
+          where: {
+            id: accountId,
+            tenantId: user.tenantId,
+          },
+        });
+
+        if (!account) {
+          return NextResponse.json(
+            { error: 'Account not found or does not belong to tenant' },
+            { status: 400 }
+          );
+        }
+
+        if (account.accountType !== 'Liability' && account.accountType !== 'Asset') {
+          return NextResponse.json(
+            { error: 'Tax account must be a Liability or Asset account' },
+            { status: 400 }
+          );
+        }
+
+        // PAYE MUST be linked to a Liability account
+        if (isPAYE && account.accountType !== 'Liability') {
+          return NextResponse.json(
+            { error: 'PAYE tax type must be linked to a Liability account, not an Asset account.' },
+            { status: 400 }
+          );
+        }
       }
     }
 
     // Check for duplicate taxId or taxCode (excluding current record)
-    if (taxId || taxCode) {
+    const or = [];
+    if (taxId) or.push({ taxId });
+    if (taxCode) or.push({ taxCode });
+
+    if (or.length > 0) {
       const duplicateTax = await prisma.taxType.findFirst({
         where: {
           tenantId: user.tenantId,
           id: { not: id },
-          OR: [
-            taxId ? { taxId } : {},
-            taxCode ? { taxCode } : {},
-          ],
+          OR: or,
         },
       });
 
@@ -142,10 +172,19 @@ export async function PUT(request, { params }) {
     const updateData = {};
     if (taxId !== undefined) updateData.taxId = taxId;
     if (taxName !== undefined) updateData.taxName = taxName;
-    if (taxCode !== undefined) updateData.taxCode = taxCode;
-    if (taxRate !== undefined) updateData.taxRate = parseFloat(taxRate);
+    if (taxCode !== undefined) updateData.taxCode = taxCode || null;
+    if (taxRate !== undefined) {
+      if (taxRate === '' || taxRate === null) {
+        return NextResponse.json({ error: 'taxRate is required' }, { status: 400 });
+      }
+      const parsedRate = parseFloat(taxRate);
+      if (Number.isNaN(parsedRate)) {
+        return NextResponse.json({ error: 'taxRate must be a valid number' }, { status: 400 });
+      }
+      updateData.taxRate = parsedRate;
+    }
     if (calculationType !== undefined) updateData.calculationType = calculationType;
-    if (accountId !== undefined) updateData.accountId = accountId;
+    if (accountId !== undefined) updateData.accountId = accountId || null;
     if (status !== undefined) updateData.status = status;
 
     const taxType = await prisma.taxType.update({

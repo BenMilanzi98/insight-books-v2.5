@@ -65,6 +65,123 @@ export async function GET(request) {
       });
     }
 
+    // Always ensure PAYE tax type exists (even if deduction already existed)
+    // This ensures the tax type is created for existing tenants
+    try {
+      // Check if PAYE tax type already exists
+      const existingPAYETaxType = await prisma.taxType.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          OR: [
+            { taxId: 'PAYE' },
+            { taxName: { contains: 'PAYE', mode: 'insensitive' } }
+          ]
+        }
+      });
+
+      if (!existingPAYETaxType) {
+        // Find or create PAYE Liability account (MUST be Liability type)
+        let payeAccount = await prisma.account.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            OR: [
+              { name: { contains: 'PAYE', mode: 'insensitive' } },
+              { accountName: { contains: 'PAYE', mode: 'insensitive' } }
+            ],
+            accountType: 'Liability'
+          }
+        });
+
+        // If PAYE account doesn't exist, create it
+        if (!payeAccount) {
+          payeAccount = await prisma.account.create({
+            data: {
+              code: '2100',
+              name: 'PAYE Liability',
+              type: 'LIABILITY',
+              accountCode: '2100',
+              accountName: 'PAYE Liability',
+              accountType: 'Liability',
+              accountSubtype: 'Tax Payable',
+              normalBalance: 'Credit',
+              balance: 0,
+              tenantId: user.tenantId
+            }
+          });
+          console.log('✅ Created PAYE Liability account:', payeAccount.id);
+        }
+
+        // Create PAYE tax type with account linked (REQUIRED for tracking)
+        const createdTaxType = await prisma.taxType.create({
+          data: {
+            taxId: 'PAYE',
+            taxName: 'PAYE (Malawi Income Tax 2025/26)',
+            taxCode: 'PAYE-2025-26',
+            taxRate: 0, // PAYE is calculated dynamically based on brackets, not a fixed rate
+            calculationType: 'Percentage',
+            accountId: payeAccount.id, // REQUIRED: Always link to account for accurate tracking
+            status: 'Active',
+            tenantId: user.tenantId
+          },
+          include: {
+            account: true
+          }
+        });
+        
+        console.log('✅ PAYE tax type created with default account:', {
+          taxTypeId: createdTaxType.id,
+          accountId: createdTaxType.account?.id,
+          accountName: createdTaxType.account?.accountName,
+          accountType: createdTaxType.account?.accountType
+        });
+      } else {
+        // Verify existing tax type has account linked
+        if (!existingPAYETaxType.accountId || !existingPAYETaxType.account) {
+          console.warn('⚠️ PAYE tax type exists but has no account linked - attempting to fix');
+          
+          // Find or create PAYE account
+          let payeAccount = await prisma.account.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              OR: [
+                { name: { contains: 'PAYE', mode: 'insensitive' } },
+                { accountName: { contains: 'PAYE', mode: 'insensitive' } }
+              ],
+              accountType: 'Liability'
+            }
+          });
+
+          if (!payeAccount) {
+            payeAccount = await prisma.account.create({
+              data: {
+                code: '2100',
+                name: 'PAYE Liability',
+                type: 'LIABILITY',
+                accountCode: '2100',
+                accountName: 'PAYE Liability',
+                accountType: 'Liability',
+                accountSubtype: 'Tax Payable',
+                normalBalance: 'Credit',
+                balance: 0,
+                tenantId: user.tenantId
+              }
+            });
+          }
+
+          // Update tax type to link account
+          await prisma.taxType.update({
+            where: { id: existingPAYETaxType.id },
+            data: { accountId: payeAccount.id }
+          });
+          
+          console.log('✅ Fixed PAYE tax type - linked to account:', payeAccount.id);
+        }
+      }
+    } catch (taxTypeError) {
+      // Log error but don't fail the deduction fetch
+      console.error('Error ensuring PAYE tax type exists:', taxTypeError);
+    }
+
     // Ensure default NPS deduction exists (Malawi National Pension Scheme)
     const existingNPS = await prisma.deduction.findFirst({
       where: {

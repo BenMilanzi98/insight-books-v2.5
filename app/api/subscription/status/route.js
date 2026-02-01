@@ -10,10 +10,40 @@ export async function GET() {
     const sessionCookie = cookieStore.get('session');
    
     if (!sessionCookie) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      );
+      // Return a valid response with default values instead of 401
+      // This allows the subscription page to load and show appropriate message
+      return NextResponse.json({
+        user: null,
+        subscription: {
+          hasActiveSubscription: false,
+          isActive: false,
+          plan: 'FREE',
+          status: 'inactive',
+          startedAt: null,
+          expiresAt: null,
+          trialEndDate: null,
+          isExpired: false,
+          daysRemaining: 0,
+          isTrial: false,
+          amount: 0,
+          currency: 'MWK'
+        },
+        paymentHistory: [],
+        subscriptionStatus: {
+          hasActiveSubscription: false,
+          isActive: false,
+          plan: 'FREE',
+          status: 'inactive',
+          startedAt: null,
+          expiresAt: null,
+          trialEndDate: null,
+          isExpired: false,
+          daysRemaining: 0
+        },
+        remainingTrialDays: 0,
+        isTrialActive: false,
+        error: 'Not authenticated. Please log in.'
+      }, { status: 200 }); // Return 200 with error message instead of 401
     }
    
     try {
@@ -51,40 +81,62 @@ export async function GET() {
       }
 
       // Get subscription details using subscription service
-      const currentSubscription = await getTenantSubscription(user.tenantId);
-      const isTrialActive = await isTenantTrialActive(user.tenantId);
-      const remainingTrialDays = await getRemainingTrialDays(user.tenantId);
+      // Wrap in try-catch to handle any errors gracefully
+      let currentSubscription = null;
+      let isTrialActive = false;
+      let remainingTrialDays = 0;
+      
+      try {
+        currentSubscription = await getTenantSubscription(user.tenantId);
+        isTrialActive = await isTenantTrialActive(user.tenantId);
+        remainingTrialDays = await getRemainingTrialDays(user.tenantId);
+      } catch (subscriptionError) {
+        console.error('Error fetching subscription details:', subscriptionError);
+        // Continue with default values if subscription service fails
+      }
 
       // Get subscription details (for backward compatibility)
-      const subscription = await prisma.accountSubscription.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          isActive: true
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      });
+      let subscription = null;
+      try {
+        subscription = await prisma.accountSubscription.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            isActive: true
+          },
+          orderBy: {
+            createdAt: 'desc'
+          }
+        });
+      } catch (dbError) {
+        console.error('Error fetching subscription from database:', dbError);
+        // Continue with null subscription
+      }
 
       // Get payment history for this tenant
-      const paymentHistory = await prisma.accountSubscription.findMany({
-        where: {
-          tenantId: user.tenantId
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        select: {
-          id: true,
-          txRef: true,
-          amount: true,
-          currency: true,
-          status: true,
-          paymentDate: true,
-          createdAt: true,
-          plan: true
-        }
-      });
+      let paymentHistory = [];
+      try {
+        paymentHistory = await prisma.accountSubscription.findMany({
+          where: {
+            tenantId: user.tenantId
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          select: {
+            id: true,
+            txRef: true,
+            amount: true,
+            currency: true,
+            status: true,
+            paymentDate: true,
+            createdAt: true,
+            plan: true
+          }
+        });
+      } catch (historyError) {
+        console.error('Error fetching payment history:', historyError);
+        // Continue with empty array
+      }
 
       // Check subscription status
       let subscriptionStatus = {
@@ -96,29 +148,39 @@ export async function GET() {
         expiresAt: null,
         trialEndDate: null,
         isExpired: false,
-        daysRemaining: 0
+        daysRemaining: 0,
+        isTrial: false,
+        amount: 0,
+        currency: 'MWK'
       };
 
       if (currentSubscription) {
-        const now = new Date();
-        const expiresAt = currentSubscription.isTrial ? currentSubscription.trialEndDate : currentSubscription.expiresAt;
-        const isExpired = expiresAt ? now > expiresAt : false;
-        const daysRemaining = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : 0;
+        try {
+          const now = new Date();
+          const expiresAt = currentSubscription.isTrial 
+            ? (currentSubscription.trialEndDate ? new Date(currentSubscription.trialEndDate) : null)
+            : (currentSubscription.expiresAt ? new Date(currentSubscription.expiresAt) : null);
+          const isExpired = expiresAt ? now > expiresAt : false;
+          const daysRemaining = expiresAt ? Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24)) : 0;
 
-        subscriptionStatus = {
-          hasActiveSubscription: currentSubscription.isActive && !isExpired,
-          isActive: currentSubscription.isActive && !isExpired,
-          plan: currentSubscription.plan || 'TRIAL',
-          status: currentSubscription.status || 'active',
-          startedAt: currentSubscription.startedAt ?? null,
-          expiresAt: currentSubscription.isTrial ? null : (currentSubscription.expiresAt ?? null),
-          trialEndDate: currentSubscription.isTrial ? (currentSubscription.trialEndDate ?? null) : null,
-          isTrial: currentSubscription.isTrial || false,
-          isExpired: isExpired,
-          daysRemaining: Math.max(0, daysRemaining),
-          amount: currentSubscription.amount,
-          currency: currentSubscription.currency
-        };
+          subscriptionStatus = {
+            hasActiveSubscription: currentSubscription.isActive && !isExpired,
+            isActive: currentSubscription.isActive && !isExpired,
+            plan: currentSubscription.plan || 'TRIAL',
+            status: currentSubscription.status || 'active',
+            startedAt: currentSubscription.startedAt ?? null,
+            expiresAt: currentSubscription.isTrial ? null : (currentSubscription.expiresAt ?? null),
+            trialEndDate: currentSubscription.isTrial ? (currentSubscription.trialEndDate ?? null) : null,
+            isTrial: currentSubscription.isTrial || false,
+            isExpired: isExpired,
+            daysRemaining: Math.max(0, daysRemaining),
+            amount: currentSubscription.amount || 0,
+            currency: currentSubscription.currency || 'MWK'
+          };
+        } catch (statusError) {
+          console.error('Error calculating subscription status:', statusError);
+          // Use default status if calculation fails
+        }
       }
 
       return NextResponse.json({
@@ -138,17 +200,77 @@ export async function GET() {
       });
      
     } catch (error) {
-      console.error('Error parsing session:', error);
-      return NextResponse.json(
-        { error: 'Invalid session' },
-        { status: 401 }
-      );
+      console.error('Error parsing session or fetching data:', error);
+      // Return a valid response with default values instead of 401
+      // This allows the subscription page to load and show appropriate message
+      return NextResponse.json({
+        user: null,
+        subscription: {
+          hasActiveSubscription: false,
+          isActive: false,
+          plan: 'FREE',
+          status: 'inactive',
+          startedAt: null,
+          expiresAt: null,
+          trialEndDate: null,
+          isExpired: false,
+          daysRemaining: 0,
+          isTrial: false,
+          amount: 0,
+          currency: 'MWK'
+        },
+        paymentHistory: [],
+        subscriptionStatus: {
+          hasActiveSubscription: false,
+          isActive: false,
+          plan: 'FREE',
+          status: 'inactive',
+          startedAt: null,
+          expiresAt: null,
+          trialEndDate: null,
+          isExpired: false,
+          daysRemaining: 0
+        },
+        remainingTrialDays: 0,
+        isTrialActive: false,
+        error: 'Session expired or invalid. Please log in again.'
+      }, { status: 200 }); // Return 200 with error message instead of 401
     }
   } catch (error) {
     console.error('Error fetching subscription status:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch subscription status' },
-      { status: 500 }
-    );
+    // Return a valid response with default values instead of 500 error
+    // This prevents redirect loops and allows the page to load
+    return NextResponse.json({
+      user: null,
+      subscription: {
+        hasActiveSubscription: false,
+        isActive: false,
+        plan: 'FREE',
+        status: 'inactive',
+        startedAt: null,
+        expiresAt: null,
+        trialEndDate: null,
+        isExpired: false,
+        daysRemaining: 0,
+        isTrial: false,
+        amount: 0,
+        currency: 'MWK'
+      },
+      paymentHistory: [],
+      subscriptionStatus: {
+        hasActiveSubscription: false,
+        isActive: false,
+        plan: 'FREE',
+        status: 'inactive',
+        startedAt: null,
+        expiresAt: null,
+        trialEndDate: null,
+        isExpired: false,
+        daysRemaining: 0
+      },
+      remainingTrialDays: 0,
+      isTrialActive: false,
+      error: 'Failed to fetch subscription status. Please try again.'
+    }, { status: 200 }); // Return 200 with error message instead of 500
   }
 }

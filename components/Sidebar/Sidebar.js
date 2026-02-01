@@ -50,16 +50,49 @@ const iconMap = {
   stock: Package,
   purchases: ShoppingCart,
   businessModule: Landmark,
+  hr: Users,
+  gratuity: Wallet,
+  advances: CreditCard,
+  pension: Landmark,
 };
 
 const NavIcon = ({ name, active }) => {
   const Icon = iconMap[name] || LayoutDashboard;
+
+  // Define colorful icons for specific modules
+  const colorfulIcons = {
+    dashboard: "#3B82F6", // Blue
+    tenants: "#10B981", // Green
+    settings: "#F59E0B", // Yellow
+    affiliate: "#EF4444", // Red
+    users: "#8B5CF6", // Purple
+    coa: "#06B6D4", // Cyan
+    journal: "#84CC16", // Lime
+    trialBalance: "#F97316", // Orange
+    capital: "#EC4899", // Pink
+    pos: "#6366F1", // Indigo
+    quotations: "#14B8A6", // Teal
+    invoicing: "#A855F7", // Violet
+    expenses: "#F43F5E", // Rose
+    payments: "#22C55E", // Green
+    reports: "#3B82F6", // Blue
+    stock: "#EAB308", // Yellow
+    purchases: "#EF4444", // Red
+    businessModule: "#8B5CF6", // Purple
+    hr: "#06B6D4", // Cyan
+    gratuity: "#84CC16", // Lime
+    advances: "#F97316", // Orange
+    pension: "#EC4899", // Pink
+  };
+
+  const iconColor = colorfulIcons[name] || (active ? "white" : "rgba(255,255,255,0.7)");
+
   return (
     <Icon
       size={18}
       style={{
         flexShrink: 0,
-        color: active ? "white" : "rgba(255,255,255,0.7)",
+        color: iconColor,
       }}
     />
   );
@@ -142,9 +175,9 @@ const navigationByPermission = {
             text: "Purchases",
           },
         // HR Module temporarily commented out
-        { 
-          href: "/hr", 
-          icon: "users", 
+        {
+          href: "/hr",
+          icon: "hr",
           text: "HR & Payroll",
           expandable: true,
           subItems: [
@@ -153,9 +186,9 @@ const navigationByPermission = {
             { href: "/hr/attendance", text: "Attendance Tracking" },
             { href: "/hr/performance", text: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing" },
-            { href: "/hr/pension", text: "Pension (NPS)" },
-            { href: "/hr/gratuity", text: "Gratuity Management" },
-            { href: "/hr/advances", text: "Salary Advances" },
+            { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
+            { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
+            { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
             { href: "/hr/reports", text: "HR Reports" }
           ]
         },
@@ -535,9 +568,9 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/hr/attendance", text: "Attendance Tracking" },
           { href: "/hr/performance", text: "Performance Management" },
           { href: "/hr/payroll", text: "Payroll Processing" },
-          { href: "/hr/pension", text: "Pension (NPS)" },
-          { href: "/hr/gratuity", text: "Gratuity Management" },
-          { href: "/hr/advances", text: "Salary Advances" },
+          { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
+          { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
+          { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
           { href: "/hr/reports", text: "HR Reports" }
         ]
       });
