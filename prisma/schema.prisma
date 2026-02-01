@@ -76,7 +76,6 @@ model Tenant {
   supplierPaymentAllocations SupplierPaymentAllocation[]
   taxTypes                   TaxType[]
   settings                   TenantSettings?
-  stockTransfers             StockTransfer[]
   transactions               Transaction[]
   users                      User[]
   members                    User[]                      @relation("UserTenants")
@@ -100,8 +99,6 @@ model Branch {
   payments              Payment[]
   products              Product[]
   sales                 Sale[]
-  stockTransfersFrom    StockTransfer[]       @relation("StockTransferFromBranch")
-  stockTransfersTo      StockTransfer[]       @relation("StockTransferToBranch")
   transactions          Transaction[]
   defaultUsers          User[]                 @relation("UserDefaultBranch")
 
@@ -230,10 +227,6 @@ model User {
   supplierPaymentsCreated        SupplierPayment[]
   createdTransactions            Transaction[]          @relation("TransactionCreatedBy")
   postedTransactions             Transaction[]          @relation("TransactionPostedBy")
-  stockTransfersCreated          StockTransfer[]        @relation("StockTransferCreatedBy")
-  stockTransfersApproved         StockTransfer[]        @relation("StockTransferApprovedBy")
-  stockTransfersReceived         StockTransfer[]        @relation("StockTransferReceivedBy")
-  stockTransfersRejected         StockTransfer[]        @relation("StockTransferRejectedBy")
   defaultBranch                  Branch?                @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
   role                           Role                   @relation(fields: [roleId], references: [id])
   tenant                         Tenant?                @relation(fields: [tenantId], references: [id])
@@ -731,12 +724,11 @@ model Product {
   preferredSupplier     Supplier?              @relation(fields: [preferredSupplierId], references: [id])
   tenant                Tenant                 @relation(fields: [tenantId], references: [id])
   productTaxes          ProductTax[]
-  productUnits          ProductUnit[]
   purchaseOrderItems    PurchaseOrderItem[]
-  stockTransfers        StockTransfer[]
   quotationItems        QuotationItem[]
   saleItems             SaleItem[]             @relation("ProductSales")
   supplierBillItems     SupplierBillItem[]
+  productUnits          ProductUnit[]
 
   @@index([categoryId])
   @@index([locationId])
@@ -1134,42 +1126,6 @@ model InventoryBatchConsumption {
   @@index([batchId])
   @@index([saleId])
   @@index([saleItemId])
-}
-
-model StockTransfer {
-  id              String    @id @default(cuid())
-  tenantId        String
-  fromBranchId    String
-  toBranchId      String
-  productId       String
-  quantity        Decimal   @db.Decimal(15, 6)
-  status          String    @default("pending") // pending, approved, received, rejected
-  notes           String?
-  rejectionReason String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  createdById     String
-  approvedById    String?
-  approvedAt      DateTime?
-  receivedById    String?
-  receivedAt      DateTime?
-  rejectedById    String?
-  rejectedAt      DateTime?
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fromBranch      Branch    @relation("StockTransferFromBranch", fields: [fromBranchId], references: [id])
-  toBranch        Branch    @relation("StockTransferToBranch", fields: [toBranchId], references: [id])
-  product         Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  createdBy       User      @relation("StockTransferCreatedBy", fields: [createdById], references: [id])
-  approvedBy      User?      @relation("StockTransferApprovedBy", fields: [approvedById], references: [id])
-  receivedBy      User?      @relation("StockTransferReceivedBy", fields: [receivedById], references: [id])
-  rejectedBy      User?      @relation("StockTransferRejectedBy", fields: [rejectedById], references: [id])
-
-  @@index([tenantId])
-  @@index([fromBranchId])
-  @@index([toBranchId])
-  @@index([productId])
-  @@index([status])
-  @@index([createdAt])
 }
 
 model Employee {
