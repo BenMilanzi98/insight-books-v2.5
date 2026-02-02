@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Eye } from "lucide-react"; // Added Eye icon for preview
-import QuotationTemplatePreview from "@/components/QuotationTemplatePreview"; // Enhanced preview from Project B
+import { useState, useEffect, useRef } from "react";
+import { Eye } from "lucide-react";
+import QuotationTemplatePreview from "@/components/QuotationTemplatePreview";
 import { 
   PlusCircle, 
   Search, 
@@ -25,7 +25,10 @@ import {
   X,
   CheckSquare,
   Calendar,
-  DollarSign
+  DollarSign,
+  RefreshCw,
+  Ban,
+  FileCheck
 } from "lucide-react";
 import QuotationModal from "@/components/QuotationModal";
 import { 
@@ -44,6 +47,63 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import QuotationTemplateCapture from "@/components/QuotationTemplateCapture";
 import { formatDate } from "@/lib/dateUtils";
+
+// Statistics card component
+const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => (
+  <div className={`${bgColor} border ${borderColor} rounded-xl p-5 transition-all duration-200 hover:shadow-md`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
+        <p className="text-2xl font-bold text-gray-900">MWK {parseFloat(amount || 0).toLocaleString()}</p>
+        <p className="text-xs text-gray-500 mt-1">{count || 0} quotation{count !== 1 ? 's' : ''}</p>
+      </div>
+      <div className={`p-3 rounded-full ${color === 'green' ? 'bg-emerald-100' : color === 'yellow' ? 'bg-amber-100' : color === 'red' ? 'bg-red-100' : color === 'blue' ? 'bg-blue-100' : 'bg-purple-100'}`}>
+        <Icon className={`w-6 h-6 ${color === 'green' ? 'text-emerald-600' : color === 'yellow' ? 'text-amber-600' : color === 'red' ? 'text-red-600' : color === 'blue' ? 'text-blue-600' : 'text-purple-600'}`} />
+      </div>
+    </div>
+  </div>
+);
+
+// Status badge component with improved styling
+const StatusBadge = ({ status }) => {
+  const statusConfig = {
+    "Approved": { class: "bg-emerald-50 text-emerald-700 border border-emerald-200", icon: CheckCircle, iconClass: "text-emerald-500" },
+    "Pending": { class: "bg-amber-50 text-amber-700 border border-amber-200", icon: Clock, iconClass: "text-amber-500" },
+    "Expired": { class: "bg-slate-50 text-slate-700 border border-slate-200", icon: AlertCircle, iconClass: "text-slate-500" },
+    "Rejected": { class: "bg-red-50 text-red-700 border border-red-200", icon: Ban, iconClass: "text-red-500" },
+    "Converted": { class: "bg-blue-50 text-blue-700 border border-blue-200", icon: CornerDownRight, iconClass: "text-blue-500" },
+    "Draft": { class: "bg-purple-50 text-purple-700 border border-purple-200", icon: FileText, iconClass: "text-purple-500" },
+  };
+
+  const config = statusConfig[status] || statusConfig["Pending"];
+  const Icon = config.icon;
+
+  return (
+    <span className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 ${config.class}`}>
+      <Icon size={14} className={config.iconClass} />
+      {status}
+    </span>
+  );
+};
+
+// Tab button component
+const TabButton = ({ active, onClick, label, count }) => (
+  <button
+    onClick={onClick}
+    className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+      active 
+        ? "bg-blue-600 text-white shadow-sm" 
+        : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
+    }`}
+  >
+    {label}
+    {count !== undefined && (
+      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${active ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600"}`}>
+        {count}
+      </span>
+    )}
+  </button>
+);
 
 const QuotationsPage = () => {
   const [activeTab, setActiveTab] = useState("all");
@@ -481,440 +541,543 @@ const QuotationsPage = () => {
   // Format currency
   const formatCurrency = (amount) => {
     if (typeof amount === 'string') {
-      // If it's already a string with formatting, return as is
       return `MK ${amount}`;
     }
     return `MK ${parseFloat(amount).toLocaleString()}`;
   };
-  
-  // Status badge component
-  const StatusBadge = ({ status }) => {
-    let badgeClass = "";
-    let icon = null;
-    
-    switch (status) {
-      case "Approved":
-        badgeClass = "bg-green-100 text-green-800";
-        icon = <CheckCircle size={14} className="mr-1" />;
-        break;
-      case "Pending":
-        badgeClass = "bg-yellow-100 text-yellow-800";
-        icon = <Clock size={14} className="mr-1" />;
-        break;
-      case "Expired":
-        badgeClass = "bg-gray-100 text-gray-800";
-        icon = <Clock size={14} className="mr-1" />;
-        break;
-      case "Rejected":
-        badgeClass = "bg-red-100 text-red-800";
-        icon = <XCircle size={14} className="mr-1" />;
-        break;
-      case "Converted":
-        badgeClass = "bg-blue-100 text-blue-800";
-        icon = <CornerDownRight size={14} className="mr-1" />;
-        break;
-      case "Draft":
-        badgeClass = "bg-purple-100 text-purple-800";
-        icon = <FileText size={14} className="mr-1" />;
-        break;
-      default:
-        badgeClass = "bg-gray-100 text-gray-800";
+
+  // Statistics cards configuration
+  const statCards = [
+    { key: 'pending', label: 'Pending', icon: Clock, color: 'yellow', bgColor: 'bg-white', borderColor: 'border-amber-200' },
+    { key: 'approved', label: 'Approved', icon: CheckCircle, color: 'green', bgColor: 'bg-white', borderColor: 'border-emerald-200' },
+    { key: 'converted', label: 'Converted', icon: CornerDownRight, color: 'blue', bgColor: 'bg-white', borderColor: 'border-blue-200' },
+    { key: 'expired', label: 'Expired', icon: AlertCircle, color: 'red', bgColor: 'bg-white', borderColor: 'border-red-200' }
+  ];
+
+  // Filter refs for click outside handling
+  const filterRef = useRef(null);
+  const sortRef = useRef(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [clients, setClients] = useState([]);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  // Handle click outside to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filterRef.current && !filterRef.current.contains(event.target)) setFilterOpen(false);
+      if (sortRef.current && !sortRef.current.contains(event.target)) setSortOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Clear success message after timeout
+  useEffect(() => {
+    if (successMessage) {
+      const timeout = setTimeout(() => setSuccessMessage(null), 3000);
+      return () => clearTimeout(timeout);
     }
-    
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs flex items-center ${badgeClass}`}>
-        {icon}
-        {status}
-      </span>
-    );
+  }, [successMessage]);
+
+  // Load client data for filtering
+  const loadClients = async () => {
+    try {
+      const response = await fetch('/api/clients');
+      if (response.ok) {
+        const data = await response.json();
+        setClients(data.clients || []);
+      }
+    } catch (error) {
+      console.error("Error loading clients:", error);
+    }
+  };
+
+  // Load clients on component mount
+  useEffect(() => {
+    loadClients();
+  }, []);
+
+  // Handle filter change
+  const handleFilterChange = (field, value) => {
+    setFilterConfig(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Apply filters
+  const applyFilters = () => {
+    setFilterOpen(false);
+    loadQuotations();
+  };
+
+  // Reset filters
+  const resetFilters = () => {
+    setFilterConfig({ dateFrom: null, dateTo: null, clientId: null });
+    setFilterOpen(false);
+    loadQuotations();
+  };
+
+  // Handle sort change
+  const handleSortChange = (field) => {
+    setSortOpen(false);
+    if (sortConfig.field === field) {
+      setSortConfig({ field, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' });
+    } else {
+      setSortConfig({ field, direction: 'desc' });
+    }
+  };
+
+  // Map frontend field names to API field names
+  const getApiSortField = (field) => {
+    const fieldMapping = { 'date': 'date', 'validUntil': 'validUntil', 'amount': 'amount', 'clientName': 'clientName' };
+    return fieldMapping[field] || field;
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+  };
+
+  // Show success notification
+  const showSuccessNotification = (message) => {
+    setSuccessMessage(message);
   };
 
   return (
     <PermissionGuard permission="quotations.view">   
-    <div>
-      {/* Success notification */}
-      {notification && (
-        <div className={`fixed top-6 right-6 ${
-          notification.type === 'success' ? 'bg-green-100 border-green-500 text-green-700' : 
-          'bg-red-100 border-red-500 text-red-700'
-        } border-l-4 p-4 rounded shadow-lg z-50 animate-slideIn`}>
-          <div className="flex items-center">
-            {notification.type === 'success' ? (
-              <CheckCircle size={20} className="mr-2" />
-            ) : (
-              <AlertCircle size={20} className="mr-2" />
-            )}
-            <div>
-              <p className="font-medium">{notification.message}</p>
-              {notification.invoiceId && (
-                <p className="text-sm">
-                  <a 
-                    href={`/invoices/${notification.invoiceId}`}
-                    className="underline hover:text-blue-600"
-                  >
-                    View invoice
-                  </a>
-                </p>
-              )}
-            </div>
-            <button 
-              className={`ml-6 ${notification.type === 'success' ? 'text-green-500 hover:text-green-700' : 'text-red-500 hover:text-red-700'}`}
-              onClick={() => setNotification(null)}
-            >
-              <X size={16} />
+      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+        {/* Success notification */}
+        {successMessage && (
+          <div className="fixed top-6 right-6 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 p-4 rounded-lg shadow-lg z-50 flex items-center animate-fadeIn max-w-md">
+            <CheckCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+            <p className="font-medium flex-grow">{successMessage}</p>
+            <button className="text-emerald-600 hover:text-emerald-800 flex-shrink-0" onClick={() => setSuccessMessage(null)}>
+              <X className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Quotations</h1>
-        <div className="flex space-x-2">
-        {pagePermissions.canCreateQuotations &&(  <button 
-            className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
-            onClick={handleCreateQuotation}
-          >
-            <PlusCircle size={16} className="mr-2" />
-            New Quotation
-          </button>)}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow mb-6">
-        <div className="flex p-4 border-b border-gray-200 overflow-x-auto">
-          <button 
-            className={`px-4 py-2 rounded-md mr-2 ${activeTab === "all" ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100"}`}
-            onClick={() => setActiveTab("all")}
-          >
-            All
-          </button>
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Quotations</h1>
+            <p className="text-gray-500 mt-1">Manage and track all your quotations</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            {pagePermissions.canCreateQuotations && (
+              <button 
+                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium flex items-center hover:bg-blue-700 transition-colors shadow-sm"
+                onClick={handleCreateQuotation}
+              >
+                <PlusCircle size={18} className="mr-2" />
+                New Quotation
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center">
-          <div className="w-1/3">
-            <div className="relative">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {statCards.map((stat) => (
+            <StatCard
+              key={stat.key}
+              label={stat.label}
+              amount={statistics[stat.key]?.total || '0'}
+              count={statistics[stat.key]?.count || 0}
+              icon={stat.icon}
+              color={stat.color}
+              bgColor={stat.bgColor}
+              borderColor={stat.borderColor}
+            />
+          ))}
+        </div>
+
+        {/* Main Content Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Tabs */}
+          <div className="flex flex-wrap gap-2 p-4 border-b border-gray-100 bg-gray-50/50">
+            <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All" count={quotations.length} />
+            <TabButton active={activeTab === "pending"} onClick={() => setActiveTab("pending")} label="Pending" />
+            <TabButton active={activeTab === "approved"} onClick={() => setActiveTab("approved")} label="Approved" />
+            <TabButton active={activeTab === "draft"} onClick={() => setActiveTab("draft")} label="Drafts" />
+            <TabButton active={activeTab === "converted"} onClick={() => setActiveTab("converted")} label="Converted" />
+            <TabButton active={activeTab === "expired"} onClick={() => setActiveTab("expired")} label="Expired" />
+          </div>
+
+          {/* Search and Filters */}
+          <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+            <div className="w-full md:w-96 relative">
               <input 
                 type="text" 
-                placeholder="Search quotations..." 
-                className="w-full p-2 pl-10 border border-gray-200 rounded-md"
+                placeholder="Search by quotation number or client..." 
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 value={searchQuery}
                 onChange={handleSearchChange}
               />
-              <div className="absolute left-3 top-2.5">
-                <Search size={16} className="text-gray-400" />
+              <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {/* Filter dropdown */}
+              <div className="relative" ref={filterRef}>
+                <button 
+                  className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => setFilterOpen(!filterOpen)}
+                >
+                  <Filter size={16} className="mr-2 text-gray-500" />
+                  Filter
+                  <ChevronDown size={16} className="ml-2 text-gray-500" />
+                </button>
+                
+                {filterOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-10 p-5">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-semibold text-gray-900">Filter Quotations</h3>
+                      <button className="text-gray-400 hover:text-gray-600" onClick={() => setFilterOpen(false)}>
+                        <X size={18} />
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Client</label>
+                        <select 
+                          className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          value={filterConfig.clientId || ""}
+                          onChange={(e) => handleFilterChange('clientId', e.target.value || null)}
+                        >
+                          <option value="">All Clients</option>
+                          {clients.map(client => (
+                            <option key={client.id} value={client.id}>{client.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">From Date</label>
+                          <input 
+                            type="date"
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={filterConfig.dateFrom || ""}
+                            onChange={(e) => handleFilterChange('dateFrom', e.target.value || null)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">To Date</label>
+                          <input 
+                            type="date"
+                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value={filterConfig.dateTo || ""}
+                            onChange={(e) => handleFilterChange('dateTo', e.target.value || null)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
+                      <button 
+                        className="px-4 py-2 text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                        onClick={resetFilters}
+                      >
+                        Reset
+                      </button>
+                      <button 
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={applyFilters}
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <button className="px-4 py-2 border border-gray-200 rounded-md bg-white flex items-center">
-                <Filter size={16} className="mr-2 text-gray-500" />
-                <span className="text-sm text-gray-700">Filter</span>
-                <ChevronDown size={16} className="ml-2 text-gray-500" />
-              </button>
-              {/* Filter dropdown would go here */}
-            </div>
-            <div className="relative">
-              <button className="px-4 py-2 border border-gray-200 rounded-md bg-white flex items-center">
-                <ArrowUpDown size={16} className="mr-2 text-gray-500" />
-                <span className="text-sm text-gray-700">Sort</span>
-                <ChevronDown size={16} className="ml-2 text-gray-500" />
-              </button>
-              {/* Sort dropdown would go here */}
-            </div>
-            <div>
-            {pagePermissions.canExportQuotations &&(   <button 
-                className="px-4 py-2 border border-gray-200 rounded-md bg-white flex items-center"
-                onClick={handleExportQuotations}
-              >
-                <Download size={16} className="mr-2 text-gray-500" />
-                <span className="text-sm text-gray-700">Export</span>
-              </button>)}
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quotation #
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Valid Until
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Client
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Prepared By
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan="9" className="px-6 py-4 text-center text-gray-500">
-                    Loading quotations...
-                  </td>
-                </tr>
-              ) : filteredQuotations.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="px-6 py-4 text-center text-gray-500">
-                    No quotations found
-                  </td>
-                </tr>
-              ) : (
-                filteredQuotations.map((quotation) => (
-                  <tr key={quotation.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                      {quotation.quotationNumber}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {quotation.date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {quotation.validUntil}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {quotation.client}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
-                        {quotation.createdBy?.name || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {formatDate(quotation.createdAt || quotation.date)}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="max-w-xs truncate">{quotation.title}</div>
-                      {quotation.notes && (
-                        <div className="text-xs text-gray-500 mt-1 truncate">{quotation.notes}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {formatCurrency(quotation.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <StatusBadge status={quotation.status} />
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex justify-end space-x-2">
-                        <button 
-                          className="text-green-500 hover:text-green-700"
-                          title="Preview Quotation"
-                          onClick={() => {
-                            setQuotationForPreview(quotation);
-                            fetchQuotationForPreview(quotation);
-                          }}
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button 
-                          className="text-gray-500 hover:text-gray-700"
-                          title="Print Quotation"
-                          onClick={() => handleDownloadQuotation(quotation.id)}
-                        >
-                          <Printer size={18} />
-                        </button>
-                        {pagePermissions.canCreateQuotations &&(   <button 
-                          className={`text-blue-500 hover:text-blue-700 ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          title={isCapturingPdf ? "Sending quotation..." : "Send Quotation"}
-                          onClick={() => handleSendQuotation(quotation.id)}
-                          disabled={isCapturingPdf}
-                        >
-                          <Send size={18} />
-                        </button>)}
-                        {quotation.status === "Approved" && pagePermissions.canConvertQuotations &&(
-                          <button 
-                            className="text-green-500 hover:text-green-700"
-                            title="Convert to Invoice"
-                            onClick={() => handleConvertToInvoice(quotation)}
-                          >
-                            <CornerDownRight size={18} />
-                          </button>
-                        )}
-                        {quotation.status !== "Converted" && pagePermissions.canUpdateQuotations &&(
-                          <>
-                            <button 
-                              className="text-yellow-500 hover:text-yellow-700"
-                              title="Edit Quotation"
-                              onClick={() => handleEditQuotation(quotation)}
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button 
-                              className="text-purple-500 hover:text-purple-700"
-                              title="Duplicate Quotation"
-                              onClick={() => handleDuplicateQuotation(quotation.id)}
-                            >
-                              <Copy size={18} />
-                            </button>
-                          </>
-                        )}
-                        {quotation.status === "Draft" && pagePermissions.canDeleteQuotations &&(
-                          <button 
-                            className="text-red-500 hover:text-red-700"
-                            title="Delete Quotation"
-                            onClick={() => handleDeleteQuotation(quotation.id)}
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
-          <div className="text-sm text-gray-700">
-            Showing <span className="font-medium">{filteredQuotations.length > 0 ? ((currentPage - 1) * 10) + 1 : 0}</span> to <span className="font-medium">{Math.min(currentPage * 10, filteredQuotations.length)}</span> of <span className="font-medium">{filteredQuotations.length}</span> quotations
-          </div>
-          <div className="flex space-x-2">
-            <button 
-              className="px-3 py-1 border border-gray-200 rounded-md bg-white text-sm disabled:opacity-50"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage(currentPage - 1)}
-            >
-              Previous
-            </button>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-              <button 
-                key={page}
-                className={`px-3 py-1 border border-gray-200 rounded-md text-sm ${currentPage === page ? 'bg-blue-50' : 'bg-white'}`}
-                onClick={() => setCurrentPage(page)}
-              >
-                {page}
-              </button>
-            ))}
-            <button 
-              className="px-3 py-1 border border-gray-200 rounded-md bg-white text-sm disabled:opacity-50"
-              disabled={currentPage === totalPages}
-              onClick={() => setCurrentPage(currentPage + 1)}
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center mb-4">
-            <div className="rounded-full bg-gray-100 p-3 mr-4">
-              <FileText size={24} className="text-gray-600" />
-            </div>
-            <div>
-              <div className="text-lg font-bold">{formatCurrency(statistics.summary?.totalValue || 0)}</div>
-              <div className="text-sm text-gray-500">All Quotations</div>
-            </div>
-          </div>
-          <div className="text-sm text-gray-500">
-            {statistics.summary?.totalQuotations || 0} quotation{(statistics.summary?.totalQuotations || 0) !== 1 ? 's' : ''} in total
-          </div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="flex items-center mb-4">
-            <div className="rounded-full bg-blue-100 p-3 mr-4">
-              <CornerDownRight size={24} className="text-blue-600" />
-            </div>
-            <div>
-              <div className="text-lg font-bold">{formatCurrency(statistics.converted?.total || 0)}</div>
-              <div className="text-sm text-gray-500">Converted to Invoice</div>
-            </div>
-          </div>
-          <div className="text-sm text-gray-500">
-            {statistics.converted?.count || 0} quotation{statistics.converted?.count !== 1 ? 's' : ''} converted to invoice
-          </div>
-        </div>
-      </div>
-
-      {/* Quotation Modal */}
-      {showQuotationModal && (
-        <QuotationModal
-          isOpen={showQuotationModal}
-          onClose={() => setShowQuotationModal(false)}
-          mode={modalMode}
-          quotation={selectedQuotation}
-          onSubmit={handleSubmitQuotation}
-        />
-      )}
-
-      {/* Conversion Confirmation Modal */}
-      {showConversionModal && selectedQuotation && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
-            <div className="flex items-center mb-4">
-              <div className="rounded-full bg-blue-100 p-2 mr-3">
-                <CornerDownRight size={20} className="text-blue-600" />
-              </div>
-              <h3 className="text-lg font-semibold">Convert to Invoice</h3>
-            </div>
-            
-            <div className="mb-6">
-              <p className="text-gray-700 mb-4">
-                You are about to convert quotation <span className="font-medium">{selectedQuotation.quotationNumber}</span> to an invoice. 
-                This will create a new invoice and mark the quotation as converted.
-              </p>
               
-              <div className="bg-gray-50 p-4 rounded-md mb-4">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="text-gray-500">Client:</div>
-                  <div className="font-medium">{selectedQuotation.client}</div>
-                  
-                  <div className="text-gray-500">Description:</div>
-                  <div className="font-medium">{selectedQuotation.title}</div>
-                  
-                  <div className="text-gray-500">Amount:</div>
-                  <div className="font-medium">{formatCurrency(selectedQuotation.amount)}</div>
+              {/* Sort dropdown */}
+              <div className="relative" ref={sortRef}>
+                <button 
+                  className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => setSortOpen(!sortOpen)}
+                >
+                  <ArrowUpDown size={16} className="mr-2 text-gray-500" />
+                  Sort
+                  <ChevronDown size={16} className="ml-2 text-gray-500" />
+                </button>
+                
+                {sortOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-100 z-10 p-2">
+                    {[
+                      { field: 'date', label: 'Date' },
+                      { field: 'validUntil', label: 'Valid Until' },
+                      { field: 'amount', label: 'Amount' },
+                      { field: 'clientName', label: 'Client' }
+                    ].map((option) => (
+                      <button 
+                        key={option.field}
+                        className={`w-full text-left px-3 py-2.5 text-sm rounded-md hover:bg-gray-50 flex items-center justify-between ${sortConfig.field === option.field ? 'bg-blue-50 text-blue-600' : ''}`}
+                        onClick={() => handleSortChange(option.field)}
+                      >
+                        <span>{option.label}</span>
+                        {sortConfig.field === option.field && (
+                          <span className="text-xs font-medium">{sortConfig.direction === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              {/* Export button */}
+              {pagePermissions.canExportQuotations && (
+                <button 
+                  className="px-4 py-2.5 border border-gray-200 rounded-lg bg-white flex items-center text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={handleExportQuotations}
+                >
+                  <Download size={16} className="mr-2 text-gray-500" />
+                  Export
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quotations Table */}
+          {isLoading ? (
+            <div className="p-12 text-center">
+              <div className="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+              <p className="text-gray-500">Loading quotations...</p>
+            </div>
+          ) : quotations.length === 0 ? (
+            <div className="p-12 text-center">
+              <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No quotations found</h3>
+              <p className="text-gray-500 mb-6">
+                {activeTab !== "all" || searchQuery 
+                  ? "Try adjusting your filters or search query"
+                  : "Get started by creating your first quotation"}
+              </p>
+              {pagePermissions.canCreateQuotations && (
+                <button 
+                  className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium inline-flex items-center hover:bg-blue-700 transition-colors"
+                  onClick={handleCreateQuotation}
+                >
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Create Quotation
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quotation #</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Valid Until</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Client</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Amount</th>
+                      <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Status</th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-100">
+                    {quotations.map((quotation) => (
+                      <tr key={quotation.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <span className="text-sm font-semibold text-blue-600">{quotation.quotationNumber}</span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 hidden md:table-cell">{quotation.date}</td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 hidden lg:table-cell">{quotation.validUntil}</td>
+                        <td className="px-4 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{quotation.client}</div>
+                          <div className="text-xs text-gray-500">{quotation.createdBy?.name || 'N/A'}</div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-gray-900 hidden md:table-cell">
+                          {formatCurrency(quotation.amount)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center hidden sm:table-cell">
+                          <StatusBadge status={quotation.status} />
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button 
+                              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                              title="Preview"
+                              onClick={() => fetchQuotationForPreview(quotation)}
+                            >
+                              <Eye size={16} />
+                            </button>
+                            <button 
+                              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+                              title="Download"
+                              onClick={() => handleDownloadQuotation(quotation.id)}
+                            >
+                              <Printer size={16} />
+                            </button>
+                            <button
+                              className={`p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              title={isCapturingPdf ? "Sending..." : "Send Quotation"}
+                              onClick={() => handleSendQuotation(quotation.id)}
+                              disabled={isCapturingPdf}
+                            >
+                              <Send size={16} />
+                            </button>
+                            {quotation.status === "Approved" && pagePermissions.canConvertQuotations && (
+                              <button 
+                                className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                title="Convert to Invoice"
+                                onClick={() => handleConvertToInvoice(quotation)}
+                              >
+                                <CornerDownRight size={16} />
+                              </button>
+                            )}
+                            {quotation.status !== "Converted" && pagePermissions.canUpdateQuotations && (
+                              <>
+                                <button 
+                                  className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                                  title="Edit"
+                                  onClick={() => handleEditQuotation(quotation)}
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button 
+                                  className="p-2 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-all"
+                                  title="Duplicate"
+                                  onClick={() => handleDuplicateQuotation(quotation.id)}
+                                >
+                                  <Copy size={16} />
+                                </button>
+                              </>
+                            )}
+                            {quotation.status === "Draft" && pagePermissions.canDeleteQuotations && (
+                              <button 
+                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                title="Delete"
+                                onClick={() => handleDeleteQuotation(quotation.id)}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {!isLoading && quotations.length > 0 && (
+                <div className="px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-gray-100">
+                  <div className="text-sm text-gray-600 order-2 sm:order-1">
+                    Showing <span className="font-semibold">{(currentPage - 1) * 10 + 1}</span> to <span className="font-semibold">{Math.min(currentPage * 10, quotations.length)}</span> of <span className="font-semibold">{quotations.length}</span> quotations
+                  </div>
+                  <div className="flex items-center gap-2 order-1 sm:order-2">
+                    <button 
+                      className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                    >
+                      Previous
+                    </button>
+                    
+                    {[...Array(Math.min(totalPages, 5))].map((_, i) => {
+                      const pageNum = i + 1;
+                      return (
+                        <button 
+                          key={pageNum}
+                          className={`px-3 py-2 border rounded-lg text-sm transition-colors ${
+                            currentPage === pageNum 
+                              ? "bg-blue-600 text-white border-blue-600" 
+                              : "bg-white border-gray-200 hover:bg-gray-50"
+                          }`}
+                          onClick={() => handlePageChange(pageNum)}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    
+                    {totalPages > 5 && (
+                      <span className="px-2 text-gray-500">...</span>
+                    )}
+                    
+                    <button 
+                      className="px-3 py-2 border border-gray-200 rounded-lg bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                      disabled={currentPage === totalPages}
+                      onClick={() => handlePageChange(currentPage + 1)}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Quotation Modal */}
+        {showQuotationModal && (
+          <QuotationModal
+            isOpen={showQuotationModal}
+            onClose={() => setShowQuotationModal(false)}
+            mode={modalMode}
+            quotation={selectedQuotation}
+            onSubmit={handleSubmitQuotation}
+          />
+        )}
+
+        {/* Conversion Confirmation Modal */}
+        {showConversionModal && selectedQuotation && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-blue-100">
+                    <CornerDownRight size={20} className="text-blue-600" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900">Convert to Invoice</h3>
                 </div>
               </div>
               
-              <div className="flex items-center text-sm bg-yellow-50 text-yellow-800 p-3 rounded">
-                <AlertCircle size={16} className="mr-2 flex-shrink-0" />
-                <span>This action cannot be undone. The invoice will need to be deleted separately if created in error.</span>
+              <div className="p-6">
+                <p className="text-gray-600 mb-4">
+                  You are about to convert quotation <span className="font-medium text-gray-900">{selectedQuotation.quotationNumber}</span> to an invoice.
+                </p>
+                
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="text-gray-500">Client:</div>
+                    <div className="font-medium text-gray-900">{selectedQuotation.client}</div>
+                    
+                    <div className="text-gray-500">Description:</div>
+                    <div className="font-medium text-gray-900">{selectedQuotation.title}</div>
+                    
+                    <div className="text-gray-500">Amount:</div>
+                    <div className="font-medium text-gray-900">{formatCurrency(selectedQuotation.amount)}</div>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-3 text-sm bg-amber-50 text-amber-800 p-4 rounded-lg">
+                  <AlertCircle size={18} className="flex-shrink-0 mt-0.5" />
+                  <span>This action cannot be undone. The invoice will need to be deleted separately if created in error.</span>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex justify-between space-x-4">
-              <div className="flex-1">
+              
+              <div className="p-6 border-t border-gray-100 flex justify-end gap-3">
                 <button 
-                  className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300"
+                  className="px-4 py-2.5 text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium"
                   onClick={cancelConversion}
                 >
                   Cancel
                 </button>
-              </div>
-              <div className="flex-1">
                 <button 
-                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center justify-center"
+                  className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center"
                   onClick={confirmConversion}
                   disabled={conversionLoading}
                 >
                   {conversionLoading ? (
                     <>
-                      <span className="animate-spin mr-2">⌛</span>
+                      <RefreshCw size={16} className="mr-2 animate-spin" />
                       Converting...
                     </>
                   ) : (
@@ -927,94 +1090,92 @@ const QuotationsPage = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
-      {captureInvoiceData && (
-        <QuotationTemplateCapture
-          quotation={captureInvoiceData.quotation}
-          template={captureInvoiceData.template}
-          branding={captureInvoiceData.branding}
-          type={captureInvoiceType}
-          onSuccess={handleCaptureSuccess}
-          onError={handleCaptureError}
-        />
-      )}
+        )}
 
+        {/* Quotation Template Capture */}
+        {captureInvoiceData && (
+          <QuotationTemplateCapture
+            quotation={captureInvoiceData.quotation}
+            template={captureInvoiceData.template}
+            branding={captureInvoiceData.branding}
+            type={captureInvoiceType}
+            onSuccess={handleCaptureSuccess}
+            onError={handleCaptureError}
+          />
+        )}
 
-      {/* Enhanced: Quotation Preview Modal from Project B */}
-      {previewModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b border-gray-200">
-              <h2 className="text-xl font-semibold">Quotation Preview</h2>
-              <div className="flex items-center space-x-3">
-                {previewQuotationData && (
-                  <button
-                    className="px-3 py-2 bg-blue-600 text-white rounded-md flex items-center text-sm"
-                    onClick={() => handleDownloadQuotation(quotationForPreview.id)}
-                  >
-                    <Download size={16} className="mr-2" />
-                    Download
-                  </button>
-                )}
-                <button
-                  className="text-gray-400 hover:text-gray-600"
-                  onClick={() => {
-                    setPreviewModalOpen(false);
-                    setPreviewQuotationData(null);
-                  }}
-                >
-                  <X size={24} />
-                </button>
+        {/* Capturing PDF loader */}
+        {isCapturingPdf && !captureInvoiceData && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-2xl shadow-xl">
+              <div className="flex items-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-4"></div>
+                <div>
+                  <p className="font-medium text-gray-900">Preparing quotation...</p>
+                  <p className="text-sm text-gray-500">This may take a few seconds</p>
+                </div>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4">
-              {previewQuotationData ? (
-                <QuotationTemplatePreview
-                  quotation={previewQuotationData.quotation}
-                  branding={previewQuotationData.branding}
-                  currency="MWK"
-                  isPrint={false}
-                />
-              ) : (
-                <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-                  <p>Loading quotation preview...</p>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {isCapturingPdf && !captureInvoiceData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <div className="flex items-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
-              <p>Preparing quotation for download...</p>
+        {/* Quotation Preview Modal */}
+        {previewModalOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center p-5 border-b border-gray-100">
+                <h2 className="text-xl font-bold text-gray-900">Quotation Preview</h2>
+                <div className="flex items-center gap-3">
+                  {previewQuotationData && (
+                    <button
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-flex items-center hover:bg-blue-700 transition-colors"
+                      onClick={() => handleDownloadQuotation(quotationForPreview.id)}
+                    >
+                      <Download size={16} className="mr-2" />
+                      Download
+                    </button>
+                  )}
+                  <button
+                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                    onClick={() => {
+                      setPreviewModalOpen(false);
+                      setPreviewQuotationData(null);
+                    }}
+                  >
+                    <X size={22} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6">
+                {previewQuotationData ? (
+                  <QuotationTemplatePreview
+                    quotation={previewQuotationData.quotation}
+                    branding={previewQuotationData.branding}
+                    currency="MWK"
+                    isPrint={false}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-64">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+                    <p>Loading quotation preview...</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-      {/* CSS for animations */}
-      <style jsx global>{`
-        @keyframes slideIn {
-          from { 
-            opacity: 0; 
-            transform: translateX(100%); 
+        )}
+
+        {/* CSS for animations */}
+        <style jsx global>{`
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
           }
-          to { 
-            opacity: 1; 
-            transform: translateX(0); 
+          .animate-fadeIn {
+            animation: fadeIn 0.3s ease-out;
           }
-        }
-        
-        .animate-slideIn {
-          animation: slideIn 0.3s ease-out;
-        }
-      `}</style>
-    </div>
+        `}</style>
+      </div>
     </PermissionGuard>
   );
 };

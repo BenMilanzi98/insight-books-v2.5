@@ -107,11 +107,71 @@ export async function GET(request) {
       }
     });
     
+    // Find COGS account(s) for this tenant to include in statistics
+    const cogsAccounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        OR: [
+          { accountCode: '5000' },
+          { code: '5000' },
+          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+          { accountName: { contains: 'cogs', mode: 'insensitive' } },
+          { name: { contains: 'cost of goods', mode: 'insensitive' } },
+          { name: { contains: 'cogs', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true }
+    });
+    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    
+    // Get COGS transactions for the period
+    let cogsTotal = 0;
+    let cogsTransactionCount = 0;
+    if (cogsAccountIds.length > 0) {
+      // Build date filter for transactions
+      const transactionDateFilter = {};
+      if (dateFrom) {
+        transactionDateFilter.gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        transactionDateFilter.lte = new Date(dateTo);
+      }
+      
+      const cogsFilter = {
+        accountId: { in: cogsAccountIds },
+        debitAmount: { gt: 0 },
+        transaction: {
+          tenantId: user.tenantId,
+          status: 'posted',
+          ...(Object.keys(transactionDateFilter).length > 0 ? { date: transactionDateFilter } : {})
+        }
+      };
+      
+      // Add branch filter if user has a branch selected
+      if (user?.currentBranchId) {
+        cogsFilter.transaction.branchId = user.currentBranchId;
+      }
+      
+      const cogsData = await prisma.transactionLine.aggregate({
+        where: cogsFilter,
+        _sum: { debitAmount: true },
+        _count: true
+      });
+      
+      cogsTotal = Number(cogsData._sum.debitAmount || 0);
+      cogsTransactionCount = cogsData._count || 0;
+    }
+    
+    // Calculate total expenses including COGS
+    const totalExpenseAmount = (totalExpenses._sum.amount || 0) + cogsTotal;
+    const approvedAmount = approvedExpenses._sum.amount || 0;
+    
     // Calculate percentages for categories
-    const totalAmount = totalExpenses._sum.amount || 0;
     const formattedCategoryStats = expensesByCategory.map(category => {
       const amount = category._sum.amount || 0;
-      const percentage = totalAmount > 0 ? Math.round((amount / totalAmount) * 100) : 0;
+      const percentage = totalExpenseAmount > 0 ? Math.round((amount / totalExpenseAmount) * 100) : 0;
       
       return {
         category: category.category,
@@ -123,18 +183,40 @@ export async function GET(request) {
       };
     });
     
+    // Add COGS as a separate category if there are COGS transactions
+    if (cogsTotal > 0) {
+      const cogsPercentage = totalExpenseAmount > 0 ? Math.round((cogsTotal / totalExpenseAmount) * 100) : 0;
+      formattedCategoryStats.push({
+        category: 'Cost of Goods Sold',
+        amount: cogsTotal.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }),
+        percentage: cogsPercentage
+      });
+    }
+    
+    // Sort by amount descending
+    formattedCategoryStats.sort((a, b) => {
+      const amountA = parseFloat(a.amount.replace(/,/g, ''));
+      const amountB = parseFloat(b.amount.replace(/,/g, ''));
+      return amountB - amountA;
+    });
+    
     // Return statistics
     return NextResponse.json({
       total: {
-        count: totalExpenses._count || 0,
-        amount: (totalExpenses._sum.amount || 0).toLocaleString(undefined, {
+        count: (totalExpenses._count || 0) + cogsTransactionCount,
+        amount: totalExpenseAmount.toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
-        })
+        }),
+        cogsIncluded: cogsTotal > 0,
+        cogsAmount: cogsTotal
       },
       approved: {
         count: approvedExpenses._count || 0,
-        amount: (approvedExpenses._sum.amount || 0).toLocaleString(undefined, {
+        amount: approvedAmount.toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         })

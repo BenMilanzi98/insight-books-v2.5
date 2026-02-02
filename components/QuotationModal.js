@@ -284,9 +284,9 @@ const QuotationModal = ({
       if (product) {
         updatedItems[index].description = product.name;
         updatedItems[index].unitPrice = product.price;
-        // Set default tax rate if product doesn't have one
-        if (!updatedItems[index].taxRate) {
-          updatedItems[index].taxRate = 0;
+        // Apply product's tax rate if available
+        if (product.taxRate !== undefined && product.taxRate !== null) {
+          updatedItems[index].taxRate = product.taxRate;
         }
       }
     }
@@ -563,8 +563,8 @@ const QuotationModal = ({
           description: productData.name, // Set description from product name
           unitPrice: productData.price || productData.unitPrice || "",
           productId: productData.id,
-          // Set default tax rate if not already set
-          taxRate: updatedItems[index].taxRate || "0",
+          // Apply product's tax rate if available
+          taxRate: productData.taxRate !== undefined && productData.taxRate !== null ? productData.taxRate : (updatedItems[index].taxRate || 0),
           // Store full product data including units
           product: productData
         };
@@ -590,7 +590,8 @@ const QuotationModal = ({
           description: product.name,
           unitPrice: product.price || product.unitPrice || "",
           productId: product.id,
-          taxRate: updatedItems[index].taxRate || "0"
+          // Apply product's tax rate if available
+          taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0)
         };
         setFormData({ ...formData, items: updatedItems });
       }
@@ -603,7 +604,8 @@ const QuotationModal = ({
         description: product.name,
         unitPrice: product.price || product.unitPrice || "",
         productId: product.id,
-        taxRate: updatedItems[index].taxRate || "0"
+        // Apply product's tax rate if available
+        taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0)
       };
       setFormData({ ...formData, items: updatedItems });
     }

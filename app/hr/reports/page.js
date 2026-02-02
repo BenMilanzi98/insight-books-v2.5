@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
+import Sidebar from "@/components/Sidebar/Sidebar";
+import {  
   FileText, 
   Download, 
   DollarSign, 
@@ -545,11 +546,13 @@ export default function HRReports() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">HR Reports</h1>
-        <p className="text-gray-600 mt-1">Generate comprehensive HR and payroll reports</p>
-      </div>
+    <div className="flex min-h-screen bg-gray-50">
+      <Sidebar />
+      <main className="flex-1 p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">HR Reports</h1>
+          <p className="text-gray-600 mt-1">Generate comprehensive HR and payroll reports</p>
+        </div>
 
       {/* Payslip Generation Section */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -1024,10 +1027,15 @@ export default function HRReports() {
                 <span className="mr-2 text-teal-600">•</span>
                 <span><strong>Department Report:</strong> Department-wise employee and payroll analysis</span>
               </li>
+              <li className="flex items-start">
+                <span className="mr-2 text-yellow-600">•</span>
+                <span><strong>PAYE Summary (MRA):</strong> Detailed PAYE breakdown by employee for MRA settlement - <a href="/hr/payroll/paye-summary" className="text-blue-600 underline hover:text-blue-800">View Here</a></span>
+              </li>
             </ul>
           </div>
         </div>
       </div>
+      </main>
     </div>
   );
 }

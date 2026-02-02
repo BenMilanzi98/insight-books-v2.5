@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt } from "lucide-react";
+import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt, FileBarChart } from "lucide-react";
+import Link from "next/link";
 
 export default function PayrollProcessing() {
   const [payrollRuns, setPayrollRuns] = useState([]);
@@ -718,13 +719,22 @@ export default function PayrollProcessing() {
           <h1 className="text-2xl font-bold">Payroll Processing</h1>
           <p className="text-gray-600">Process payroll with Malawi tax compliance (PAYE & NPS)</p>
         </div>
-        <button
-          onClick={() => setShowProcessModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
-        >
-          <Play size={20} />
-          Process Payroll
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/hr/payroll/paye-summary"
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-purple-700"
+          >
+            <FileBarChart size={20} />
+            PAYE Summary
+          </Link>
+          <button
+            onClick={() => setShowProcessModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
+          >
+            <Play size={20} />
+            Process Payroll
+          </button>
+        </div>
       </div>
 
       {/* Statistics Cards */}

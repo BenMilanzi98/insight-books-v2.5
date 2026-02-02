@@ -52,7 +52,8 @@ export const navigationByPermission = {
         label: "Additional Modules",
         items: [
           { href: "/stock", icon: "📦", text: "Stock Management" },
-          // { href: "/hr", icon: "👨‍💼", text: "HR & Payroll" },
+          { href: "/hr/payroll/paye-summary", icon: "📊", text: "PAYE Summary (MRA)" },
+          { href: "/hr", icon: "👨‍💼", text: "HR & Payroll" },
           { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
           { href: "/affiliate", icon: "🔗", text: "Affiliate System" },
           { href: "/budget", icon: "🧮", text: "Budgeting" },
@@ -123,13 +124,14 @@ export const navigationByPermission = {
         { href: "/stock", icon: "📦", text: "Stock Management", permission: "inventory.view" },
       ]
     },
-    // HR Module temporarily commented out
-    // hr: {
-    //   label: "HR & Payroll",
-    //   items: [
-    //     { href: "/hr", icon: "👨‍💼", text: "HR & Payroll", permission: "hr.view" },
-    //   ]
-    // },
+    // HR Module
+    hr: {
+      label: "HR & Payroll",
+      items: [
+        { href: "/hr/payroll/paye-summary", icon: "📊", text: "PAYE Summary (MRA)", permission: "hr.view" },
+        { href: "/hr", icon: "👨‍💼", text: "HR & Payroll", permission: "hr.view" },
+      ]
+    },
     // Accounting
     accounting: {
       label: "Accounting",
@@ -312,14 +314,16 @@ export const navigationByPermission = {
       });
     }
     
-    // HR Module temporarily commented out
-    // if (hasPermission(user.role.permissions, "hr.view")) {
-    //   additionalItems.push({ 
-    //     href: "/hr", 
-    //     icon: "👨‍💼", 
-    //     text: "HR & Payroll" 
-    //   });
-    // }
+    // Enable HR Module if user has hr.view permission
+    if (hasPermission(user.role.permissions, "hr.view")) {
+      sections.push({
+        label: "HR & Payroll",
+        items: [
+          { href: "/hr/payroll/paye-summary", icon: "📊", text: "PAYE Summary (MRA)" },
+          { href: "/hr", icon: "👨‍💼", text: "HR & Payroll" },
+        ]
+      });
+    }
     
     // Add more additional modules based on permissions
     if (hasPermission(user.role.permissions, "invoices.view")) {

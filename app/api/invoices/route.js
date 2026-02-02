@@ -444,6 +444,7 @@ export async function POST(request) {
         try {
           // Calculate total COGS for all inventory items
           let totalCOGS = 0;
+          let productsWithoutCost = [];
           
           for (const item of calculations.processedItems) {
             if (item.productId) {
@@ -451,7 +452,7 @@ export async function POST(request) {
                 // Check if product is a service (services don't have COGS)
                 const product = await tx.product.findUnique({
                   where: { id: item.productId },
-                  select: { id: true, isService: true }
+                  select: { id: true, isService: true, cost: true, averageCost: true }
                 });
                 
                 // Only calculate COGS for non-service products
@@ -462,13 +463,37 @@ export async function POST(request) {
                     quantitySold: item.quantity,
                     tx,
                   });
+                  
+                  console.log(`📊 COGS Calculation for product ${item.productId}:`, {
+                    quantitySold: item.quantity,
+                    unitCost: cogsData.unitCost,
+                    cogsAmount: cogsData.cogsAmount,
+                    remainingQuantity: cogsData.remainingQuantity
+                  });
+                  
                   totalCOGS += cogsData.cogsAmount;
+                  
+                  if (cogsData.cogsAmount === 0 && item.quantity > 0) {
+                    productsWithoutCost.push({
+                      productId: item.productId,
+                      description: item.description,
+                      quantity: item.quantity,
+                      unitPrice: item.unitPrice
+                    });
+                  }
                 }
               } catch (cogsError) {
                 console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);
                 // Continue with other items
               }
             }
+          }
+
+          console.log(`📊 Total COGS for invoice ${invoiceNumber}: MK ${totalCOGS}`);
+          
+          // Log warning if there are products without cost
+          if (productsWithoutCost.length > 0) {
+            console.warn(`⚠️ ${productsWithoutCost.length} products have no cost information:`, productsWithoutCost);
           }
 
           await createInvoiceJournalEntry({
@@ -482,6 +507,8 @@ export async function POST(request) {
             cogsAmount: totalCOGS,
             tx,
           });
+          
+          console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}`);
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
           // Don't fail the invoice creation if journal entry creation fails

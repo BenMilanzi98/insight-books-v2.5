@@ -759,68 +759,144 @@ export async function POST(request) {
         }
       }
 
-      // Create expense record for this payroll entry
-      // Use periodEnd date so expenses appear in the correct month
-      const expenseDate = periodEnd;
-      const salaryExpenseAmount = grossPay + additions + npsEmployerAmount;
+      // Create separate expense records for each payroll component
+      // This provides better breakdown for dashboard expenses
       
-      if (salaryExpenseAmount > 0) {
-        // Create expense record with Salary category
-        const expense = await prisma.expense.create({
+      // Use periodEnd date for expense records
+      const expenseDate = periodEnd;
+      
+      // 1. Net Pay expense (actual payment to employee)
+      if (netPay > 0) {
+        const netPayExpense = await prisma.expense.create({
           data: {
-            description: `Payroll for ${employee.name} - ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`,
-            amount: salaryExpenseAmount,
-            date: expenseDate, // Use periodEnd so it appears in the correct month
+            description: `Net Pay - ${employee.name}`,
+            amount: netPay,
+            date: expenseDate,
             category: 'Salary',
             paymentMethod: getAccountDisplayName(paymentAccount),
             sourceAccountId: paymentAccount.id,
-            status: 'Approved', // Payroll expenses are automatically approved when posted
+            status: 'Approved',
             paymentStatus: 'Fully paid',
-            paidAmount: salaryExpenseAmount,
+            paidAmount: netPay,
             submittedById: user.id,
             tenantId: user.tenantId,
-            notes: `Payroll expense: Gross Pay: ${grossPay.toFixed(2)}, Overtime: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
+            notes: `Net Pay for ${employee.name} after all deductions`
           }
         });
 
-        // Create payment record linked to the expense
         await prisma.payment.create({
           data: {
             tenantId: user.tenantId,
-            amount: salaryExpenseAmount,
+            amount: netPay,
             paymentDate: paymentDate,
             paymentMethod: getAccountDisplayName(paymentAccount),
             type: 'expense',
             status: 'Completed',
-            expenseId: expense.id,
-            notes: `Payroll payment for ${employee.name} - Period: ${periodStart.toLocaleDateString()} to ${periodEnd.toLocaleDateString()}`
+            expenseId: netPayExpense.id,
+            notes: `Net Pay for ${employee.name}`
+          }
+        });
+      }
+
+      // 2. PAYE expense (employer's tax expense - different from withholding)
+      if (payeAmount > 0) {
+        const payeExpense = await prisma.expense.create({
+          data: {
+            description: `PAYE Tax - ${employee.name}`,
+            amount: payeAmount,
+            date: expenseDate,
+            category: 'Tax',
+            employeeId: employee.id,
+            paymentMethod: 'N/A - Tax Liability',
+            status: 'Approved',
+            paymentStatus: 'Pending',
+            paidAmount: 0,
+            submittedById: user.id,
+            tenantId: user.tenantId,
+            notes: `PAYE for ${employee.name} | Gross: ${grossPay.toFixed(2)} | PAYE: ${payeAmount.toFixed(2)} | Period: ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()} | For MRA Settlement`
+          }
+        });
+
+        // Note: PAYE payment will be recorded when the tax is actually paid
+      }
+
+      // 3. Employer NPS expense (employer's pension contribution)
+      if (npsEmployerAmount > 0) {
+        const npsExpense = await prisma.expense.create({
+          data: {
+            description: `Employer NPS - ${employee.name}`,
+            amount: npsEmployerAmount,
+            date: expenseDate,
+            category: 'Pension',
+            paymentMethod: 'N/A - Pension Liability',
+            status: 'Approved',
+            paymentStatus: 'Pending',
+            paidAmount: 0,
+            submittedById: user.id,
+            tenantId: user.tenantId,
+            notes: `Employer pension contribution (${npsRates.employerRatePercent}%) for ${employee.name} - This amount is owed to NPS`
+          }
+        });
+      }
+
+      // 4. Overtime expense (if any)
+      if (additions > 0) {
+        const overtimeExpense = await prisma.expense.create({
+          data: {
+            description: `Overtime - ${employee.name}`,
+            amount: additions,
+            date: expenseDate,
+            category: 'Salary',
+            paymentMethod: getAccountDisplayName(paymentAccount),
+            sourceAccountId: paymentAccount.id,
+            status: 'Approved',
+            paymentStatus: 'Fully paid',
+            paidAmount: additions,
+            submittedById: user.id,
+            tenantId: user.tenantId,
+            notes: `Overtime payment for ${employee.name}`
+          }
+        });
+
+        await prisma.payment.create({
+          data: {
+            tenantId: user.tenantId,
+            amount: additions,
+            paymentDate: paymentDate,
+            paymentMethod: getAccountDisplayName(paymentAccount),
+            type: 'expense',
+            status: 'Completed',
+            expenseId: overtimeExpense.id,
+            notes: `Overtime payment for ${employee.name}`
           }
         });
       }
 
       const transactionLines = [];
-      // Salary expense should include: gross pay (basic + allowances) + overtime + employer NPS contribution
-      // This ensures all salary-related costs correctly hit expenses in accounts
-
+      
+      // Calculate total expense amount for accounting (net pay + overtime + employer NPS)
+      const totalExpenseAmount = netPay + additions + npsEmployerAmount;
+      
       // Calculate total credits to ensure transaction balances
       // Note: netPay = grossPay - totalDeductions, so:
       // totalCredits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + netPay
       // = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + (grossPay - payeAmount - npsEmployeeAmount - otherDeductionsTotal)
       // = grossPay + npsEmployerAmount
-      // But salaryExpenseAmount = grossPay + additions + npsEmployerAmount
-      // So we need to credit additions somewhere - it should be credited to cash/payment account
+      // totalExpenseAmount = netPay + additions + npsEmployerAmount
+      // = (grossPay - payeAmount - npsEmployeeAmount - otherDeductionsTotal) + additions + npsEmployerAmount
+      // = grossPay + additions + npsEmployerAmount - payeAmount - npsEmployeeAmount - otherDeductionsTotal
       const totalCredits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsTotal + netPay + additions;
       
       // The expense amount should equal total credits for proper double-entry accounting
       // Debit: Expense Account (increases expense)
       // Credits: Various liability accounts + Cash (decreases cash or increases liabilities)
-      if (salaryExpenseAmount > 0) {
+      if (totalExpenseAmount > 0) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: expenseAccount.id,
-          debitAmount: salaryExpenseAmount,
+          debitAmount: totalExpenseAmount,
           creditAmount: 0,
-          description: `Payroll expense for ${employee.name} - Gross: ${grossPay.toFixed(2)}, Additions: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
+          description: `Payroll expense for ${employee.name} - Net Pay: ${netPay.toFixed(2)}, Overtime: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
         });
       }
 

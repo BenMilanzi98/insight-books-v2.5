@@ -24,6 +24,7 @@ async function getProductWithValidation(id, tenantId) {
       image: true,
       price: true,
       cost: true,
+      taxRate: true,
       isService: true,
       createdAt: true,
       updatedAt: true,
@@ -104,6 +105,25 @@ async function getProductWithValidation(id, tenantId) {
 
   // Return product with additional computed fields
   // Use actual values from database or fallbacks if they're null
+  // Compute taxRate from productTaxes if the field is null/0
+  const computedTaxRate = product.taxRate || (product.productTaxes || [])
+    .filter(pt => pt.taxType.status === 'Active')
+    .reduce(function(sum, pt) { return sum + (parseFloat(pt.taxType.taxRate) || 0); }, 0);
+  
+  // Format taxes for frontend
+  const formattedTaxes = (product.productTaxes || [])
+    .filter(function(pt) { return pt.taxType.status === 'Active'; })
+    .map(function(pt) {
+      return {
+        id: pt.taxType.id,
+        taxId: pt.taxType.taxId,
+        taxName: pt.taxType.taxName,
+        taxCode: pt.taxType.taxCode,
+        taxRate: pt.taxType.taxRate,
+        calculationType: pt.taxType.calculationType
+      };
+    });
+  
   return {
     product: {
       ...product,
@@ -119,17 +139,10 @@ async function getProductWithValidation(id, tenantId) {
       imageUrl: product.image || `/api/placeholder/80/80`, // Add imageUrl for consistency
       lastUpdated: product.updatedAt.toISOString(),
       transactions,
+      // Include computed taxRate
+      taxRate: computedTaxRate,
       // Include taxes data for the frontend
-      taxes: (product.productTaxes || [])
-        .filter(pt => pt.taxType.status === 'Active')
-        .map(pt => ({
-          id: pt.taxType.id,
-          taxId: pt.taxType.taxId,
-          taxName: pt.taxType.taxName,
-          taxCode: pt.taxType.taxCode,
-          taxRate: pt.taxType.taxRate,
-          calculationType: pt.taxType.calculationType
-        })),
+      taxes: formattedTaxes,
       // Include units data for the frontend - transform productUnits to expected format
       // Calculate individual unit stocks from main product stock for consistency
       units: (product.productUnits || []).map(pu => {
@@ -271,6 +284,30 @@ export async function PUT(request, { params }) {
       imagePath = result.product.image || `/api/placeholder/80/80`;
     }
     
+    // Compute taxRate from selectedTaxIds if provided, otherwise use body.taxRate
+    let computedTaxRate;
+    if (body.selectedTaxIds && Array.isArray(body.selectedTaxIds) && body.selectedTaxIds.length > 0) {
+      try {
+        const taxTypes = await prisma.taxType.findMany({
+          where: {
+            id: { in: body.selectedTaxIds },
+            tenantId: user.tenantId,
+            status: 'Active',
+          },
+          select: { taxRate: true }
+        });
+        // Sum up all tax rates
+        computedTaxRate = taxTypes.reduce((sum, tax) => sum + (parseFloat(tax.taxRate) || 0), 0);
+        console.log(`[Product Update] Computed taxRate from ${taxTypes.length} tax types: ${computedTaxRate}`);
+      } catch (taxError) {
+        console.error('[Product Update] Error computing tax rate from selectedTaxIds:', taxError);
+        // Fall back to body.taxRate or existing taxRate
+        computedTaxRate = body.taxRate !== undefined ? body.taxRate : result.product.taxRate;
+      }
+    } else {
+      computedTaxRate = body.taxRate !== undefined ? body.taxRate : result.product.taxRate;
+    }
+    
     // Prepare update data with all available fields
     const updateData = {
       name: body.name !== undefined ? body.name : result.product.name,
@@ -282,6 +319,7 @@ export async function PUT(request, { params }) {
       location: body.location !== undefined ? body.location : result.product.location,
       price: body.unitPrice !== undefined ? body.unitPrice : (body.price !== undefined ? body.price : result.product.price),
       cost: body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost),
+      taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
       image: imagePath
     };
@@ -433,8 +471,8 @@ export async function PUT(request, { params }) {
       status = 'In Stock';
     }
     
-    // Fetch the updated product with units to return complete data
-    const updatedProductWithUnits = await prisma.product.findUnique({
+    // Fetch the updated product with units and taxes to return complete data
+    const updatedProductWithDetails = await prisma.product.findUnique({
       where: { id: productId },
       include: {
         productUnits: {
@@ -457,22 +495,56 @@ export async function PUT(request, { params }) {
               }
             }
           }
+        },
+        productTaxes: {
+          include: {
+            taxType: {
+              select: {
+                id: true,
+                taxId: true,
+                taxName: true,
+                taxCode: true,
+                taxRate: true,
+                calculationType: true,
+                status: true
+              }
+            }
+          }
         }
       }
     });
     
     console.log("AFTER UPDATE:");
-    console.log(`  - Updated Database Stock: ${updatedProductWithUnits.stockLevel}`);
-    console.log(`  - Updated Effective Stock: ${updatedProductWithUnits.productUnits?.reduce((total, pu) => total + parseFloat(pu.quantityInStock || 0), 0) || 0}`);
+    console.log(`  - Updated Database Stock: ${updatedProductWithDetails.stockLevel}`);
+    console.log(`  - Updated Effective Stock: ${updatedProductWithDetails.productUnits?.reduce((total, pu) => total + parseFloat(pu.quantityInStock || 0), 0) || 0}`);
     console.log("=============================");
 
     // Calculate effective stock level from units if available
     let effectiveStockLevel = updated.stockLevel;
-    if (updatedProductWithUnits.productUnits && updatedProductWithUnits.productUnits.length > 0) {
-      effectiveStockLevel = updatedProductWithUnits.productUnits.reduce((total, pu) => {
+    if (updatedProductWithDetails.productUnits && updatedProductWithDetails.productUnits.length > 0) {
+      effectiveStockLevel = updatedProductWithDetails.productUnits.reduce((total, pu) => {
         return total + parseFloat(pu.quantityInStock || 0);
       }, 0);
     }
+    
+    // Compute taxRate from productTaxes if the field is null/0
+    const finalTaxRate = updated.taxRate || (updatedProductWithDetails.productTaxes || [])
+      .filter(pt => pt.taxType && pt.taxType.status === 'Active')
+      .reduce(function(sum, pt) { return sum + (parseFloat(pt.taxType.taxRate) || 0); }, 0);
+    
+    // Format taxes for frontend
+    const formattedTaxes = (updatedProductWithDetails.productTaxes || [])
+      .filter(function(pt) { return pt.taxType && pt.taxType.status === 'Active'; })
+      .map(function(pt) {
+        return {
+          id: pt.taxType.id,
+          taxId: pt.taxType.taxId,
+          taxName: pt.taxType.taxName,
+          taxCode: pt.taxType.taxCode,
+          taxRate: pt.taxType.taxRate,
+          calculationType: pt.taxType.calculationType
+        };
+      });
 
     // Return updated product with computed fields
     return NextResponse.json({
@@ -482,6 +554,10 @@ export async function PUT(request, { params }) {
         category: updated.category || 'Uncategorized',
         reorderPoint: updated.reorderPoint || 10,
         location: updated.location || 'Default Location',
+        // Use computed taxRate from productTaxes
+        taxRate: finalTaxRate,
+        // Include taxes data for the frontend
+        taxes: formattedTaxes,
         quantityInStock: effectiveStockLevel, // For display purposes (total of all units)
         originalStockLevel: updated.stockLevel, // Original database stock level for editing
         unitPrice: updated.price,
@@ -491,7 +567,7 @@ export async function PUT(request, { params }) {
         imageUrl: updated.image || `/api/placeholder/80/80`,
         lastUpdated: updated.updatedAt.toISOString(),
         // Include units data for the frontend - transform productUnits to expected format
-        units: (updatedProductWithUnits.productUnits || []).map(pu => ({
+        units: (updatedProductWithDetails.productUnits || []).map(pu => ({
           id: pu.unit?.id || pu.id,
           name: pu.unit?.name,
           symbol: pu.unit?.symbol,

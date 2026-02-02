@@ -560,8 +560,10 @@ model Expense {
   paymentReference        String?
   paymentStatus           String                    @default("Fully paid")
   branchId                String?
+  employeeId              String?
   branch                  Branch?                   @relation(fields: [branchId], references: [id])
   deletedBy               User?                     @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
+  employee                Employee?                 @relation(fields: [employeeId], references: [id])
   sourceAccount           Account?                  @relation(fields: [sourceAccountId], references: [id])
   submittedBy             User                      @relation(fields: [submittedById], references: [id])
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
@@ -576,6 +578,7 @@ model Expense {
   @@index([tenantId, isHistorical])
   @@index([paymentStatus])
   @@index([branchId])
+  @@index([employeeId])
 }
 
 model ExpenseAttachment {
@@ -1168,6 +1171,7 @@ model Employee {
   attendanceRecords           AttendanceRecord[]
   departmentRef               Department?           @relation(fields: [departmentId], references: [id])
   tenant                      Tenant                @relation(fields: [tenantId], references: [id])
+  expenses                    Expense[]
   gratuityAccount             GratuityAccount?
   leaveBalances               LeaveBalance[]
   leaveRequests               LeaveRequest[]

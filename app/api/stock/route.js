@@ -117,7 +117,16 @@ export async function GET(request) {
     const products = await prisma.product.findMany({
       where,
       orderBy,
-      ...(limit > 0 ? { skip, take: limit } : {}) // Only apply pagination if limit > 0
+      ...(limit > 0 ? { skip, take: limit } : {}), // Only apply pagination if limit > 0
+      include: {
+        productTaxes: {
+          include: {
+            taxType: {
+              select: { id: true, taxRate: true, taxName: true, taxCode: true, calculationType: true, status: true }
+            }
+          }
+        }
+      }
     });
     
     // Process products to enhance with derived fields
@@ -136,6 +145,25 @@ export async function GET(request) {
         status = 'In Stock';
       }
       
+      // Compute taxRate from productTaxes relation if the field is null/0
+      const computedTaxRate = product.taxRate || (product.productTaxes || [])
+        .filter(pt => pt.taxType && pt.taxType.status === 'Active')
+        .reduce(function(sum, pt) { return sum + (parseFloat(pt.taxType.taxRate) || 0); }, 0);
+      
+      // Format taxes for frontend
+      const formattedTaxes = (product.productTaxes || [])
+        .filter(function(pt) { return pt.taxType && pt.taxType.status === 'Active'; })
+        .map(function(pt) {
+          return {
+            id: pt.taxType.id,
+            taxId: pt.taxType.taxId,
+            taxName: pt.taxType.taxName,
+            taxCode: pt.taxType.taxCode,
+            taxRate: pt.taxType.taxRate,
+            calculationType: pt.taxType.calculationType
+          };
+        });
+      
       // Return product with additional fields
       return {
         ...product,
@@ -143,6 +171,10 @@ export async function GET(request) {
         category: product.category || 'Uncategorized',
         reorderPoint: reorderPoint,
         location: product.location || 'Default Location',
+        // Use computed taxRate from productTaxes
+        taxRate: computedTaxRate,
+        // Include taxes data for the frontend
+        taxes: formattedTaxes,
         // Computed fields
         quantityInStock: stockLevel,
         unitPrice: product.price,
@@ -369,6 +401,27 @@ export async function POST(request) {
     const initialStock = parseInt(body.quantityInStock || body.stockLevel || 0);
     const productCost = parseFloat(body.costPrice || body.cost || 0);
     
+    // Compute taxRate from selectedTaxIds if provided, otherwise use body.taxRate
+    let computedTaxRate = parseFloat(body.taxRate || 0);
+    if (body.selectedTaxIds && Array.isArray(body.selectedTaxIds) && body.selectedTaxIds.length > 0) {
+      try {
+        const taxTypes = await prisma.taxType.findMany({
+          where: {
+            id: { in: body.selectedTaxIds },
+            tenantId: user.tenantId,
+            status: 'Active',
+          },
+          select: { taxRate: true }
+        });
+        // Sum up all tax rates
+        computedTaxRate = taxTypes.reduce((sum, tax) => sum + (parseFloat(tax.taxRate) || 0), 0);
+        console.log(`[Product Creation] Computed taxRate from ${taxTypes.length} tax types: ${computedTaxRate}`);
+      } catch (taxError) {
+        console.error('[Product Creation] Error computing tax rate from selectedTaxIds:', taxError);
+        // Keep using body.taxRate as fallback
+      }
+    }
+    
     // Create the product with all available fields in database
     // IMPORTANT: Set stockLevel to 0 initially if we'll create a FIFO batch
     // createFifoBatch will increment it, so we don't want to double-count
@@ -382,6 +435,7 @@ export async function POST(request) {
       location: body.location || 'Default Location',
       price: parseFloat(body.unitPrice || body.price || 0),
       cost: productCost,
+      taxRate: computedTaxRate,
       image: imagePath,
       isService: !!body.isService,
       tenant: {
@@ -555,6 +609,7 @@ export async function POST(request) {
           quantityInStock: product.stockLevel,
           unitPrice: product.price,
           costPrice: product.cost || 0,
+          taxRate: product.taxRate || 0,
           status,
           imageUrl: product.image || `/api/placeholder/80/80`,
           lastUpdated: product.updatedAt.toISOString(),

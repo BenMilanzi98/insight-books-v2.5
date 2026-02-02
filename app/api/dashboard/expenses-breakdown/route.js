@@ -130,14 +130,24 @@ export async function GET(request) {
     // Get all expenses for the selected period, grouped by category
     // Include loan principal and interest as separate categories
     // Exclude deleted expenses
+    // Include historical expenses regardless of date filter
     const expenses = await prisma.expense.groupBy({
       by: ['category'],
       where: addBranchFilter(user, {
         tenantId,
-        date: {
-          gte: startDate,
-          lte: endDate
-        },
+        OR: [
+          // Include expenses within the selected date range
+          {
+            date: {
+              gte: startDate,
+              lte: endDate
+            }
+          },
+          // ALWAYS include historical expenses (they might have dates outside the range)
+          {
+            isHistorical: true
+          }
+        ],
         status: { in: ['Approved', 'Pending'] },
         isDeleted: false
       }),
@@ -146,8 +156,49 @@ export async function GET(request) {
       }
     });
     
-    // Calculate the total to get percentages
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense._sum.amount, 0);
+    // Find COGS account(s) for this tenant to include in expenses
+    const cogsAccounts = await prisma.account.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        OR: [
+          { accountCode: '5000' },
+          { code: '5000' },
+          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+          { accountName: { contains: 'cogs', mode: 'insensitive' } },
+          { name: { contains: 'cost of goods', mode: 'insensitive' } },
+          { name: { contains: 'cogs', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true, accountName: true, name: true }
+    });
+    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    
+    // Get COGS transactions for the selected period
+    let cogsTotal = 0;
+    if (cogsAccountIds.length > 0) {
+      const cogsData = await prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId,
+            ...addBranchFilter(user, {}),
+            date: {
+              gte: startDate,
+              lte: endDate
+            },
+            status: 'posted'
+          }
+        },
+        _sum: { debitAmount: true }
+      });
+      cogsTotal = Number(cogsData._sum.debitAmount || 0);
+    }
+    
+    // Calculate the total to get percentages (including COGS)
+    const totalExpenses = expenses.reduce((sum, expense) => sum + expense._sum.amount, 0) + cogsTotal;
     
     // Format the response
     const expensesBreakdown = expenses.map(expense => ({
@@ -155,6 +206,15 @@ export async function GET(request) {
       amount: expense._sum.amount,
       percentage: totalExpenses > 0 ? ((expense._sum.amount / totalExpenses) * 100).toFixed(1) : '0.0'
     }));
+    
+    // Add COGS as a separate category if there are COGS transactions
+    if (cogsTotal > 0) {
+      expensesBreakdown.push({
+        category: 'Cost of Goods Sold',
+        amount: cogsTotal,
+        percentage: totalExpenses > 0 ? ((cogsTotal / totalExpenses) * 100).toFixed(1) : '0.0'
+      });
+    }
     
     return NextResponse.json({
       expensesBreakdown

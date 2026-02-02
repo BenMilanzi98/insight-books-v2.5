@@ -214,6 +214,7 @@ const ExpensesPage = () => {
   }, []);
   // Sample expense categories - will be enhanced with API categories
   const expenseCategories = [
+    "Cost of Goods Sold",
     "Office Supplies",
     "Travel",
     "Meals & Entertainment",
@@ -1538,62 +1539,42 @@ const handleFileUpload = async (e) => {
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
               <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="rounded-xl bg-blue-500 p-3 shadow-md">
-                    <Receipt className="w-6 h-6 text-white" />
-            </div>
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.total.amount}</div>
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Total Expenses</div>
-            </div>
-          </div>
-                <div className="text-xs sm:text-sm text-gray-600">
-                  <span className="font-semibold">{statistics.total.count}</span> expenses recorded this month
-          </div>
-        </div>
-        
+                <div className="mb-3">
+                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Expenses</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                  <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses this month
+                </div>
+              </div>
+              
               <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 border border-green-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="rounded-xl bg-green-500 p-3 shadow-md">
-                    <CheckCircle className="w-6 h-6 text-white" />
-            </div>
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.approved.amount}</div>
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Approved</div>
-            </div>
-          </div>
-                <div className="text-xs sm:text-sm text-gray-600">
-                  <span className="font-semibold">{statistics.approved.count}</span> approved expenses
-          </div>
+                <div className="mb-3">
+                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Approved</div>
+                </div>
+                <div className="text-xl sm:text-2xl font-bold text-green-700 truncate" title={`MK ${statistics.approved.amount}`}>MK {statistics.approved.amount}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                  <span className="font-semibold text-gray-700">{statistics.approved.count}</span> approved
+                </div>
               </div>
 
               <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-xl shadow-lg p-6 border border-yellow-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="rounded-xl bg-yellow-500 p-3 shadow-md">
-                    <Clock className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.pending.amount}</div>
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Pending</div>
-                  </div>
+                <div className="mb-3">
+                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Pending</div>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-600">
-                  <span className="font-semibold">{statistics.pending.count}</span> pending expenses
-        </div>
-      </div>
+                <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending.amount}`}>MK {statistics.pending.amount}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                  <span className="font-semibold text-gray-700">{statistics.pending.count}</span> pending
+                </div>
+              </div>
 
               <div className="bg-gradient-to-br from-red-50 to-rose-100 rounded-xl shadow-lg p-6 border border-red-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="rounded-xl bg-red-500 p-3 shadow-md">
-                    <XCircle className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl font-bold text-gray-900">MK {statistics.rejected.amount}</div>
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mt-1">Rejected</div>
-                  </div>
+                <div className="mb-3">
+                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Rejected</div>
                 </div>
-                <div className="text-xs sm:text-sm text-gray-600">
-                  <span className="font-semibold">{statistics.rejected.count}</span> rejected expenses
+                <div className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={`MK ${statistics.rejected.amount}`}>MK {statistics.rejected.amount}</div>
+                <div className="text-xs text-gray-500 mt-2">
+                  <span className="font-semibold text-gray-700">{statistics.rejected.count}</span> rejected
                 </div>
               </div>
             </div>

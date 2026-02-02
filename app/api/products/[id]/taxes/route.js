@@ -147,7 +147,7 @@ export async function POST(request, { params }) {
       );
     }
 
-    // Use transaction to replace all taxes
+    // Use transaction to replace all taxes and update product taxRate
     try {
       const result = await prisma.$transaction(async (tx) => {
         // Delete existing taxes
@@ -166,6 +166,15 @@ export async function POST(request, { params }) {
             })),
           });
         }
+
+        // Compute effective taxRate from selected tax types (sum of all tax rates)
+        const totalTaxRate = taxTypes.reduce((sum, tax) => sum + (parseFloat(tax.taxRate) || 0), 0);
+        
+        // Update the product's taxRate field with the computed total
+        await tx.product.update({
+          where: { id },
+          data: { taxRate: totalTaxRate },
+        });
 
         // Return updated product taxes
         return await tx.productTax.findMany({
