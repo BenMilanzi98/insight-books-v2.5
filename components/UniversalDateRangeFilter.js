@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Calendar, ChevronDown, X, RefreshCw, Loader2, Clock } from 'lucide-react';
+import { Calendar, ChevronDown, X, RefreshCw, Loader2, Clock, X as XIcon } from 'lucide-react';
 import { 
   getAvailableTimeframes, 
   getTimeframeLabel, 
@@ -35,7 +35,7 @@ export const UniversalDateRangeFilter = ({
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [validationError, setValidationError] = useState('');
-  const dropdownRef = useRef(null);
+  const containerRef = useRef(null);
 
   const timeframes = getAvailableTimeframes();
 
@@ -55,8 +55,9 @@ export const UniversalDateRangeFilter = ({
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
+        setShowCustomRange(false);
       }
     };
 
@@ -70,7 +71,6 @@ export const UniversalDateRangeFilter = ({
   const handleTimeframeSelect = (selectedTimeframe) => {
     if (selectedTimeframe === 'custom') {
       setShowCustomRange(true);
-      setIsDropdownOpen(false);
     } else {
       setShowCustomRange(false);
       if (onTimeframeChange) {
@@ -101,6 +101,7 @@ export const UniversalDateRangeFilter = ({
       onTimeframeChange('custom');
     }
     setShowCustomRange(false);
+    setIsDropdownOpen(false);
   };
 
   // Handle custom date range reset
@@ -146,9 +147,9 @@ export const UniversalDateRangeFilter = ({
   };
 
   return (
-    <div className={`flex flex-wrap gap-2 ${className}`}>
+    <div className={`flex flex-wrap gap-2 ${className}`} ref={containerRef}>
       {/* Main Date Range Selector */}
-      <div className="relative" ref={dropdownRef}>
+      <div className="relative">
         <button
           className={`flex items-center justify-between rounded-md transition-all hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses[size]} ${variantClasses[variant]}`}
           onClick={() => !disabled && setIsDropdownOpen(!isDropdownOpen)}
@@ -165,88 +166,119 @@ export const UniversalDateRangeFilter = ({
           </div>
           <ChevronDown 
             size={size === 'small' ? 12 : 14} 
-            className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+            className={`text-gray-400 ml-2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
           />
         </button>
 
-        {/* Dropdown Menu */}
+        {/* Horizontal Dropdown Panel - Just Below Selector */}
         {isDropdownOpen && (
-          <div className="absolute top-full left-0 mt-1 w-80 bg-white border border-gray-200 rounded-md shadow-sm z-50">
-            <div className="p-2">
-              <div className="text-xs font-medium text-gray-500 uppercase mb-2 px-2">Quick Select</div>
+          <div className="absolute top-full left-0 mt-2 min-w-[400px] max-w-[500px] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden z-[99999] animate-in slide-in-from-top-2 duration-200">
+            {/* Gradient Top Border */}
+            <div className="h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-violet-500" />
+            
+            {/* Content */}
+            <div className="p-4 bg-gradient-to-br from-gray-50/50 to-white">
+              {showCustomRange ? (
+                <div className="flex items-end gap-3">
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => {
+                        setCustomStartDate(e.target.value);
+                        setValidationError('');
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                      max={customEndDate}
+                    />
+                  </div>
+                  <ChevronDown size={16} className="text-gray-400 mb-2 rotate-[-90deg]" />
+                  <div className="flex-1">
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => {
+                        setCustomEndDate(e.target.value);
+                        setValidationError('');
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                      min={customStartDate}
+                    />
+                  </div>
+                  <div className="flex gap-2 pb-0.5">
+                    <button
+                      onClick={handleCustomDateReset}
+                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition-colors"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={handleCustomDateApply}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 text-sm font-medium transition-colors"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {timeframes.map((tf) => (
+                    <button
+                      key={tf.value}
+                      className={`flex-shrink-0 px-4 py-2.5 rounded-lg transition-all duration-200 ${
+                        timeframe === tf.value 
+                          ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-md' 
+                          : 'bg-white border border-gray-200 text-gray-700 hover:border-indigo-300 hover:shadow-sm'
+                      }`}
+                      onClick={() => handleTimeframeSelect(tf.value)}
+                    >
+                      <span className={`text-sm font-medium ${timeframe === tf.value ? 'text-white' : 'text-gray-900'}`}>
+                        {tf.label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               
-              {/* Predefined timeframes */}
-              <div className="space-y-1">
-                {timeframes.map((tf) => (
-                  <button
-                    key={tf.value}
-                    className={`w-full text-left px-3 py-2 rounded-md text-sm hover:bg-gray-50 transition-colors ${
-                      timeframe === tf.value ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
-                    }`}
-                    onClick={() => handleTimeframeSelect(tf.value)}
-                  >
-                    <div className="font-medium">{tf.label}</div>
-                    <div className="text-xs text-gray-500">{tf.description}</div>
-                  </button>
-                ))}
-              </div>
+              {validationError && (
+                <p className="text-red-500 text-xs mt-2">{validationError}</p>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Custom Date Range Input */}
-      {showCustomRange && (
-        <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-md">
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={customStartDate}
-              onChange={(e) => {
-                setCustomStartDate(e.target.value);
-                setValidationError('');
-              }}
-              className={`px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${sizeClasses[size]}`}
-              max={customEndDate}
-            />
-            <span className="text-gray-500">to</span>
-            <input
-              type="date"
-              value={customEndDate}
-              onChange={(e) => {
-                setCustomEndDate(e.target.value);
-                setValidationError('');
-              }}
-              className={`px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${sizeClasses[size]}`}
-              min={customStartDate}
-            />
-          </div>
-          
-          <div className="flex items-center gap-1">
-            <button
-              onClick={handleCustomDateApply}
-              className={`px-3 py-1 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 ${sizeClasses[size]}`}
-            >
-              Apply
-            </button>
-            <button
-              onClick={handleCustomDateReset}
-              className={`px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 ${sizeClasses[size]}`}
-            >
-              Reset
-            </button>
-            <button
-              onClick={() => setShowCustomRange(false)}
-              className="p-1 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+      {/* Custom Date Range Input (when shown inline) */}
+      {showCustomRange && !isDropdownOpen && (
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={customStartDate}
+            onChange={(e) => {
+              setCustomStartDate(e.target.value);
+              setValidationError('');
+            }}
+            className={`px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 ${sizeClasses[size]}`}
+            max={customEndDate}
+          />
+          <span className="text-gray-500">to</span>
+          <input
+            type="date"
+            value={customEndDate}
+            onChange={(e) => {
+              setCustomEndDate(e.target.value);
+              setValidationError('');
+            }}
+            className={`px-3 py-1 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 ${sizeClasses[size]}`}
+            min={customStartDate}
+          />
         </div>
       )}
 
       {/* Validation Error */}
-      {validationError && (
+      {validationError && !isDropdownOpen && (
         <div className="text-red-500 text-xs mt-1">{validationError}</div>
       )}
 
@@ -284,4 +316,4 @@ export const UniversalDateRangeFilter = ({
   );
 };
 
-export default UniversalDateRangeFilter; 
+export default UniversalDateRangeFilter;

@@ -884,8 +884,8 @@ const BusinessOwnerDashboard = () => {
           )}
 
           {/* Business Overview Card */}
-          <div className="mb-8">
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300">
+          <div className="mb-8 relative">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
               <div className="p-6 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5 rounded-t-2xl border-b border-gray-100">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                   <div className="flex items-center space-x-4">
@@ -923,7 +923,7 @@ const BusinessOwnerDashboard = () => {
                         </>
                       )}
                     </button>
-                    <div className="bg-gray-50/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200/50">
+                    <div className="bg-gray-50/80 backdrop-blur-sm rounded-xl p-1 border border-gray-200/50 relative z-[1000]">
                       <UniversalDateRangeFilter
                         timeframe={selectedDateRange}
                         onTimeframeChange={handleDateRangeChange}
@@ -1146,7 +1146,7 @@ const BusinessOwnerDashboard = () => {
           {/* Main Dashboard Content */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Income & Expenses Bar Chart */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden relative">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-400 via-purple-500 to-violet-500"></div>
               <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
                 <div className="flex items-center gap-3">
@@ -1169,7 +1169,7 @@ const BusinessOwnerDashboard = () => {
             </div>
 
             {/* Expense Breakdown Pie Chart */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden relative">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-red-500 to-rose-500"></div>
               <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-orange-500/5 via-transparent to-red-500/5">
                 <div className="flex items-center gap-3">
@@ -1192,7 +1192,7 @@ const BusinessOwnerDashboard = () => {
             </div>
 
             {/* Accounts Receivable */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden relative">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
               <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-green-500/5 via-transparent to-emerald-500/5">
                 <div className="flex items-center gap-3">
@@ -1210,21 +1210,21 @@ const BusinessOwnerDashboard = () => {
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Receivables</p>
-                    <p className="text-xl font-bold text-gray-900">
+                    <div className="text-xl font-bold text-gray-900">
                       {receivables ? formatCurrency(receivables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
                     <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
-                    <p className="text-xl font-bold text-green-700">
+                    <div className="text-xl font-bold text-green-700">
                       {receivables ? formatCurrency(receivables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
                     <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
-                    <p className="text-xl font-bold text-red-700">
+                    <div className="text-xl font-bold text-red-700">
                       {receivables ? formatCurrency(receivables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1291,7 +1291,7 @@ const BusinessOwnerDashboard = () => {
             </div>
 
             {/* Accounts Payable */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden relative">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 via-rose-500 to-pink-500"></div>
               <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-red-500/5 via-transparent to-rose-500/5">
                 <div className="flex items-center gap-3">
@@ -1309,21 +1309,21 @@ const BusinessOwnerDashboard = () => {
                 <div className="grid grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Payables</p>
-                    <p className="text-xl font-bold text-gray-900">
+                    <div className="text-xl font-bold text-gray-900">
                       {payables ? formatCurrency(payables.current) : <SkeletonElement className="h-6 w-24 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 text-center border border-green-100">
                     <p className="text-xs text-green-600 mb-1 font-medium">Not Due</p>
-                    <p className="text-xl font-bold text-green-700">
+                    <div className="text-xl font-bold text-green-700">
                       {payables ? formatCurrency(payables.notDue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                   <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 text-center border border-red-100">
                     <p className="text-xs text-red-600 mb-1 font-medium">Overdue</p>
-                    <p className="text-xl font-bold text-red-700">
+                    <div className="text-xl font-bold text-red-700">
                       {payables ? formatCurrency(payables.overdue) : <SkeletonElement className="h-6 w-20 mx-auto" />}
-                    </p>
+                    </div>
                   </div>
                 </div>
 
@@ -1392,7 +1392,7 @@ const BusinessOwnerDashboard = () => {
           </div>
 
           {/* Stock Alerts Section */}
-          <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden">
+          <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
             <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
