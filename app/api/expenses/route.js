@@ -362,17 +362,22 @@ export async function GET(request) {
           maximumFractionDigits: 2
         });
         
+        // Safely format the date
+        const formattedDate = expense.date 
+          ? expense.date.toISOString().split('T')[0] 
+          : new Date().toISOString().split('T')[0]; // Fallback to today if date is null
+        
         return {
           ...expense,
           amount: formattedAmount,
           // Format the date as YYYY-MM-DD for consistent display
-          date: expense.date.toISOString().split('T')[0],
+          date: formattedDate,
           attachments: attachments.map(attachment => ({
             id: attachment.id,
             name: attachment.filename,
             type: attachment.fileType,
             size: formatFileSize(attachment.fileSize),
-            date: attachment.uploadedAt.toISOString().split('T')[0]
+            date: attachment.uploadedAt ? attachment.uploadedAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
           })),
           isCOGS: false // Flag to identify regular expenses
         };
@@ -385,8 +390,8 @@ export async function GET(request) {
 
     // Sort combined list by date (or other sort field)
     allExpenses.sort((a, b) => {
-      const dateA = new Date(a.date);
-      const dateB = new Date(b.date);
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
       
       if (sortBy === 'date') {
         return sortOrder === 'asc' 
@@ -415,34 +420,24 @@ export async function GET(request) {
 
     // Format COGS transaction and salary advance amounts
     const formattedExpenses = paginatedExpenses.map(expense => {
-      if (expense.isCOGS) {
-        // Format COGS amount
-        const formattedAmount = expense.amount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-        return {
-          ...expense,
-          amount: formattedAmount,
-          date: expense.date instanceof Date 
+      // Format amount
+      const formattedAmount = expense.amount.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      
+      // Safely format the date
+      const formattedDate = expense.date 
+        ? (expense.date instanceof Date 
             ? expense.date.toISOString().split('T')[0] 
-            : expense.date
-        };
-      } else if (expense.isSalaryAdvance) {
-        // Format salary advance amount
-        const formattedAmount = expense.amount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-        return {
-          ...expense,
-          amount: formattedAmount,
-          date: expense.date instanceof Date 
-            ? expense.date.toISOString().split('T')[0] 
-            : expense.date
-        };
-      }
-      return expense;
+            : expense.date)
+        : new Date().toISOString().split('T')[0];
+      
+      return {
+        ...expense,
+        amount: formattedAmount,
+        date: formattedDate
+      };
     });
     
     // Return expenses with pagination metadata
@@ -457,6 +452,11 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching expenses:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return NextResponse.json(
       { error: 'Failed to fetch expenses. Please try again.' },
       { status: 500 }
