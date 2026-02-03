@@ -143,10 +143,11 @@ export async function GET(request) {
 
     // Check if we should include COGS transactions
     // If category filter is set and it's not "Cost of Goods Sold" or "COGS", exclude COGS
+    const categoryLower = category?.toLowerCase() || '';
     const includeCOGS = !category || 
       category === 'all' || 
-      category.toLowerCase().includes('cost of goods') || 
-      category.toLowerCase().includes('cogs');
+      categoryLower.includes('cost of goods') || 
+      categoryLower.includes('cogs');
 
     // Check if we should include salary advances
     // Include salary advances when no category filter is applied or when specifically filtering for "Salary Advance"
@@ -186,15 +187,22 @@ export async function GET(request) {
     }
 
     // Get total count for pagination (expenses + COGS transactions + salary advances)
-    const [expenseCount, cogsCount, salaryAdvanceCount] = await Promise.all([
-      prisma.expense.count({ where: whereClause }),
-      (includeCOGS && cogsAccountIds.length > 0) 
-        ? prisma.transactionLine.count({ where: cogsTransactionFilter }) 
-        : Promise.resolve(0),
-      includeSalaryAdvances
-        ? prisma.salaryAdvance.count({ where: salaryAdvanceFilter })
-        : Promise.resolve(0)
-    ]);
+    let expenseCount = 0, cogsCount = 0, salaryAdvanceCount = 0;
+    try {
+      [expenseCount, cogsCount, salaryAdvanceCount] = await Promise.all([
+        prisma.expense.count({ where: whereClause }),
+        (includeCOGS && cogsAccountIds.length > 0) 
+          ? prisma.transactionLine.count({ where: cogsTransactionFilter }) 
+          : Promise.resolve(0),
+        includeSalaryAdvances
+          ? prisma.salaryAdvance.count({ where: salaryAdvanceFilter })
+          : Promise.resolve(0)
+      ]);
+    } catch (countError) {
+      console.error('Error counting records:', countError);
+      // Continue with 0 counts to allow the API to still return data
+      console.warn('Continuing with 0 counts due to counting error');
+    }
     const totalCount = expenseCount + cogsCount + salaryAdvanceCount;
     
     // Build sort object for Prisma
@@ -291,26 +299,27 @@ export async function GET(request) {
     // Fetch salary advances if we should include them
     let salaryAdvanceExpenses = [];
     if (includeSalaryAdvances) {
-      console.log('📋 Fetching salary advances with filter:', JSON.stringify(salaryAdvanceFilter, null, 2));
-      const salaryAdvances = await prisma.salaryAdvance.findMany({
-        where: salaryAdvanceFilter,
-        include: {
-          employee: {
-            select: {
-              id: true,
-              name: true,
-              employeeId: true
+      try {
+        console.log('📋 Fetching salary advances with filter:', JSON.stringify(salaryAdvanceFilter, null, 2));
+        const salaryAdvances = await prisma.salaryAdvance.findMany({
+          where: salaryAdvanceFilter,
+          include: {
+            employee: {
+              select: {
+                id: true,
+                name: true,
+                employeeId: true
+              }
             }
+          },
+          orderBy: {
+            advanceDate: sortOrder === 'asc' ? 'asc' : 'desc'
           }
-        },
-        orderBy: {
-          advanceDate: sortOrder === 'asc' ? 'asc' : 'desc'
-        }
-      });
-      console.log(`✅ Found ${salaryAdvances.length} salary advances for tenant ${user.tenantId}`);
+        });
+        console.log(`✅ Found ${salaryAdvances.length} salary advances for tenant ${user.tenantId}`);
 
-      // Convert salary advances to expense-like format
-      salaryAdvanceExpenses = salaryAdvances.map(advance => ({
+        // Convert salary advances to expense-like format
+        salaryAdvanceExpenses = salaryAdvances.map(advance => ({
         id: `salary-advance-${advance.id}`, // Unique ID for salary advance entries
         description: `Salary Advance: ${advance.employee?.name || 'Employee'}${advance.reference ? ` (${advance.reference})` : ''}`,
         amount: Number(advance.amount),
@@ -337,6 +346,11 @@ export async function GET(request) {
         outstandingAmount: advance.outstandingAmount,
         totalDeducted: advance.totalDeducted
       }));
+      } catch (salaryAdvanceError) {
+        console.error('Error fetching salary advances:', salaryAdvanceError);
+        // Continue with empty salary advances
+        salaryAdvanceExpenses = [];
+      }
     }
     
     // Fetch attachments for each expense
