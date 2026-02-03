@@ -1424,7 +1424,7 @@ const POSPage = () => {
 
   return (
     <PermissionGuard permission="sales.view">   
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 p-4 sm:p-6 lg:p-8">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
         <div>
@@ -1433,25 +1433,11 @@ const POSPage = () => {
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <button 
-            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
+            className="px-4 py-2.5 border border-gray-300 bg-white/80 backdrop-blur-sm rounded-lg flex items-center hover:bg-white hover:shadow-md transition-all"
             onClick={() => router.push('/pos/list')}
           >
             <Calendar className="w-4 h-4 mr-2" />
             <span className="text-sm font-medium">Sales History</span>
-          </button>
-          <button 
-            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
-            onClick={() => router.push('/reports?report=sales-report')}
-          >
-            <BarChart className="w-4 h-4 mr-2" />
-            <span className="text-sm font-medium">Sales Report</span>
-          </button>
-          <button 
-            className="px-4 py-2.5 border border-gray-300 bg-white rounded-lg flex items-center hover:bg-gray-50 transition-colors shadow-sm hover:shadow-md"
-            onClick={() => router.push('/reports?report=expense-report')}
-          >
-            <DollarSign className="w-4 h-4 mr-2" />
-            <span className="text-sm font-medium">Expenses Report</span>
           </button>
           {/* {pagePermissions.canCreateSales &&( <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center"
@@ -1465,7 +1451,7 @@ const POSPage = () => {
 
       {/* Success message */}
       {saleSuccess && (
-        <div className="mb-6 bg-green-50 border border-green-200 text-green-800 p-4 rounded-xl shadow-lg animated fadeIn">
+        <div className="mb-6 bg-white/80 backdrop-blur-sm border border-green-200 text-green-800 p-4 rounded-xl shadow-lg border-l-4 border-l-green-500">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <CheckCircle className="h-5 w-5 text-green-600" />
@@ -1479,7 +1465,7 @@ const POSPage = () => {
 
       {/* Error message */}
       {saleError && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-800 p-4 rounded-xl shadow-lg animated fadeIn">
+        <div className="mb-6 bg-white/80 backdrop-blur-sm border border-red-200 text-red-800 p-4 rounded-xl shadow-lg border-l-4 border-l-red-500">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <AlertCircle className="h-5 w-5 text-red-600" />
@@ -1494,7 +1480,8 @@ const POSPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
         {/* Left Column - New Sale Form */}
         {pagePermissions.canCreateSales && (
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+          <div className="lg:col-span-2 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
           <div>
             <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4">New Sale</h2>
             <div className="flex flex-wrap gap-2 mb-6 bg-gray-50 p-1 rounded-xl">
@@ -1911,7 +1898,7 @@ const POSPage = () => {
             {/* Custom Product Button */}
             <div className="mb-6">
               <button
-                className="w-full p-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium"
+                className="w-full p-3 border-2 border-dashed border-gray-300 bg-white/50 backdrop-blur-sm rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 flex items-center justify-center transition-all font-medium"
                 onClick={() => setShowCustomProduct(true)}
               >
                 <Plus className="w-5 h-5 mr-2" />
@@ -2043,7 +2030,7 @@ const POSPage = () => {
               </div>
             )}
 
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl mb-6 border-2 border-gray-200 shadow-sm">
+            <div className="bg-gradient-to-br from-white to-gray-50 p-6 rounded-2xl mb-6 border border-gray-200 shadow-lg shadow-gray-200/50">
               <div className="space-y-3 mb-4">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-700">Subtotal:</span>
@@ -2142,7 +2129,8 @@ const POSPage = () => {
         )}
 
         {/* Right Column - Payment Method & Action Buttons */}
-        <div className="bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
           {/* Branch Selection */}
           {branches.length > 0 && (
             <div className="mb-6">
@@ -2291,7 +2279,8 @@ const POSPage = () => {
       </div>
 
       {/* Recent Sales Section - Full Width at Bottom */}
-      <div className="mt-6 lg:mt-8 bg-white rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100">
+      <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500"></div>
         <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Recent Sales</h2>
           <div className="mb-6">
             <div className="relative">

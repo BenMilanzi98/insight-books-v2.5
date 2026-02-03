@@ -1449,8 +1449,8 @@ const handleFileUpload = async (e) => {
 
   return (
     <PermissionGuard permission="expenses.view">
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Success notification */}
       {uploadSuccess && (
         <div className="fixed top-6 right-6 bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-xl z-50 flex items-center animate-fadeIn max-w-md backdrop-blur-sm">
@@ -1538,51 +1538,63 @@ const handleFileUpload = async (e) => {
         <>
             {/* Statistics Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="mb-3">
-                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Expenses</div>
-                </div>
-                <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
-                <div className="text-xs text-gray-500 mt-2">
-                  <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses this month
+              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"></div>
+                <div className="p-6">
+                  <div className="mb-3">
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Expenses</div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses this month
+                  </div>
                 </div>
               </div>
               
-              <div className="bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl shadow-lg p-6 border border-green-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="mb-3">
-                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Approved</div>
-                </div>
-                <div className="text-xl sm:text-2xl font-bold text-green-700 truncate" title={`MK ${statistics.approved.amount}`}>MK {statistics.approved.amount}</div>
-                <div className="text-xs text-gray-500 mt-2">
-                  <span className="font-semibold text-gray-700">{statistics.approved.count}</span> approved
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-100 rounded-xl shadow-lg p-6 border border-yellow-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="mb-3">
-                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Pending</div>
-                </div>
-                <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending.amount}`}>MK {statistics.pending.amount}</div>
-                <div className="text-xs text-gray-500 mt-2">
-                  <span className="font-semibold text-gray-700">{statistics.pending.count}</span> pending
+              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-green-200/50 border border-white/50 hover:shadow-xl hover:shadow-green-200/60 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
+                <div className="p-6">
+                  <div className="mb-3">
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Approved</div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-green-700 truncate" title={`MK ${statistics.approved.amount}`}>MK {statistics.approved.amount}</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-semibold text-gray-700">{statistics.approved.count}</span> approved
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-red-50 to-rose-100 rounded-xl shadow-lg p-6 border border-red-200 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-                <div className="mb-3">
-                  <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Rejected</div>
+              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-yellow-200/50 border border-white/50 hover:shadow-xl hover:shadow-yellow-200/60 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500"></div>
+                <div className="p-6">
+                  <div className="mb-3">
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Pending</div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending.amount}`}>MK {statistics.pending.amount}</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-semibold text-gray-700">{statistics.pending.count}</span> pending
+                  </div>
                 </div>
-                <div className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={`MK ${statistics.rejected.amount}`}>MK {statistics.rejected.amount}</div>
-                <div className="text-xs text-gray-500 mt-2">
-                  <span className="font-semibold text-gray-700">{statistics.rejected.count}</span> rejected
+              </div>
+
+              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-red-200/50 border border-white/50 hover:shadow-xl hover:shadow-red-200/60 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 via-rose-500 to-pink-500"></div>
+                <div className="p-6">
+                  <div className="mb-3">
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Rejected</div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-red-700 truncate" title={`MK ${statistics.rejected.amount}`}>MK {statistics.rejected.amount}</div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-semibold text-gray-700">{statistics.rejected.count}</span> rejected
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Main Content Card */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-hidden">
               {/* Sub Tab Navigation */}
-              <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 sm:px-6 py-3 border-b border-gray-200">
+              <div className="px-4 sm:px-6 py-3 border-b border-gray-100/50 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
                 <div className="flex gap-2 overflow-x-auto">
           <button 
                     className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
@@ -1608,10 +1620,10 @@ const handleFileUpload = async (e) => {
         </div>
 
         {activeTab !== "historical" && (
-                <div className="p-4 sm:p-6 border-b border-gray-200 bg-gray-50/50">
+                <div className="p-4 sm:p-6 border-b border-gray-100/50 bg-gray-50/30">
           {/* Batch Operations Bar */}
           {selectedExpenses.length > 0 && (
-                    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+                    <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200/60 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md backdrop-blur-sm">
               <div className="flex items-center gap-4">
                         <div className="rounded-full bg-blue-500 p-2">
                           <CheckCircle className="w-5 h-5 text-white" />
@@ -1986,7 +1998,7 @@ const handleFileUpload = async (e) => {
         )}
 
         {!isLoading && !error && expenses.length > 0 && (
-            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 flex flex-col sm:flex-row items-center justify-between border-t border-gray-200 gap-4">
+            <div className="px-4 sm:px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100/50 flex flex-col sm:flex-row items-center justify-between border-t border-gray-100/50 gap-4">
               <div className="text-sm text-gray-700 order-2 sm:order-1 font-medium">
                 Showing <span className="text-gray-900">{(pagination.page - 1) * pagination.limit + 1}</span> to <span className="text-gray-900">{Math.min(pagination.page * pagination.limit, pagination.totalCount)}</span> of <span className="text-gray-900">{pagination.totalCount}</span> expenses
             </div>
@@ -2027,7 +2039,7 @@ const handleFileUpload = async (e) => {
 
             {/* Statistics Section */}
             <div className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 p-6">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-xl font-bold flex items-center text-gray-900">
                     <div className="rounded-lg bg-blue-100 p-2 mr-3">
@@ -2082,7 +2094,7 @@ const handleFileUpload = async (e) => {
           </div>
         </div>
         
-              <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 p-6">
                 <h2 className="text-xl font-bold mb-6 text-gray-900 flex items-center">
                   <div className="rounded-lg bg-green-100 p-2 mr-3">
                     <RefreshCw className="w-6 h-6 text-green-600" />
