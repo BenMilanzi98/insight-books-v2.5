@@ -2,7 +2,15 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { updateBudget, approveBudget } from '@/lib/budgetService';
+import {
+  getBudgetById,
+  updateRevenueBudget,
+  deleteRevenueBudget,
+  activateBudget,
+  approveBudget,
+  closeBudget,
+  isBudgetLocked
+} from '@/lib/budgetService';
 import prisma from '@/lib/prisma';
 
 // GET - Get budget details
@@ -21,26 +29,7 @@ export async function GET(request, { params }) {
       );
     }
 
-    const budget = await prisma.budget.findUnique({
-      where: {
-        id: params.id,
-        tenantId: user.tenantId
-      },
-      include: {
-        items: {
-          orderBy: {
-            period: 'asc'
-          }
-        },
-        approvedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
+    const budget = await getBudgetById(params.id, user.tenantId);
 
     if (!budget) {
       return NextResponse.json(
@@ -78,12 +67,9 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Check if budget exists and belongs to tenant
-    const existingBudget = await prisma.budget.findUnique({
-      where: {
-        id: params.id,
-        tenantId: user.tenantId
-      }
+    // Check if budget exists and is not locked
+    const existingBudget = await prisma.budget.findFirst({
+      where: { id: params.id, tenantId: user.tenantId }
     });
 
     if (!existingBudget) {
@@ -93,16 +79,23 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Can't update approved budgets
-    if (existingBudget.status === 'approved' || existingBudget.status === 'active') {
+    // Check if budget is locked
+    if (isBudgetLocked(existingBudget)) {
       return NextResponse.json(
-        { error: 'Cannot update approved or active budgets. Create a new version instead.' },
+        { error: 'Cannot update a locked budget. The budget period has ended and the budget is now read-only.' },
+        { status: 400 }
+      );
+    }
+
+    if (existingBudget.status === 'closed') {
+      return NextResponse.json(
+        { error: 'Cannot update a closed budget' },
         { status: 400 }
       );
     }
 
     const body = await request.json();
-    const budget = await updateBudget(params.id, user.tenantId, body);
+    const budget = await updateRevenueBudget(params.id, user.tenantId, user.id, body);
 
     return NextResponse.json({
       success: true,
@@ -134,37 +127,11 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const budget = await prisma.budget.findUnique({
-      where: {
-        id: params.id,
-        tenantId: user.tenantId
-      }
-    });
-
-    if (!budget) {
-      return NextResponse.json(
-        { error: 'Budget not found' },
-        { status: 404 }
-      );
-    }
-
-    // Can't delete approved budgets
-    if (budget.status === 'approved' || budget.status === 'active') {
-      return NextResponse.json(
-        { error: 'Cannot delete approved or active budgets. Archive them instead.' },
-        { status: 400 }
-      );
-    }
-
-    await prisma.budget.delete({
-      where: {
-        id: params.id
-      }
-    });
+    const result = await deleteRevenueBudget(params.id, user.tenantId);
 
     return NextResponse.json({
       success: true,
-      message: 'Budget deleted successfully'
+      message: result.message
     });
   } catch (error) {
     console.error('Error deleting budget:', error);
@@ -175,12 +142,94 @@ export async function DELETE(request, { params }) {
   }
 }
 
+// PATCH - Activate, approve, or close budget
+export async function PATCH(request, { params }) {
+  try {
+    const accessError = await requireStandardAccess(request);
+    if (accessError) {
+      return accessError;
+    }
 
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    const body = await request.json();
+    const { action } = body;
 
+    // Check if budget exists
+    const existingBudget = await prisma.budget.findFirst({
+      where: { id: params.id, tenantId: user.tenantId }
+    });
 
+    if (!existingBudget) {
+      return NextResponse.json(
+        { error: 'Budget not found' },
+        { status: 404 }
+      );
+    }
 
+    // Check if budget is locked for actions that modify it
+    if (['activate', 'approve', 'close'].includes(action) && isBudgetLocked(existingBudget)) {
+      return NextResponse.json(
+        { error: 'Cannot modify a locked budget' },
+        { status: 400 }
+      );
+    }
 
+    let result;
+    switch (action) {
+      case 'activate':
+        if (existingBudget.status !== 'draft') {
+          return NextResponse.json(
+            { error: 'Only draft budgets can be activated' },
+            { status: 400 }
+          );
+        }
+        result = await activateBudget(params.id, user.tenantId, user.id);
+        return NextResponse.json({
+          success: true,
+          message: 'Budget activated successfully',
+          data: result
+        });
 
+      case 'approve':
+        if (existingBudget.status !== 'active') {
+          return NextResponse.json(
+            { error: 'Only active budgets can be approved' },
+            { status: 400 }
+          );
+        }
+        result = await approveBudget(params.id, user.tenantId, user.id);
+        return NextResponse.json({
+          success: true,
+          message: 'Budget approved successfully',
+          data: result
+        });
 
+      case 'close':
+        result = await closeBudget(params.id, user.tenantId);
+        return NextResponse.json({
+          success: true,
+          message: 'Budget closed successfully',
+          data: result
+        });
 
+      default:
+        return NextResponse.json(
+          { error: 'Invalid action. Use activate, approve, or close' },
+          { status: 400 }
+        );
+    }
+  } catch (error) {
+    console.error('Error performing budget action:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to perform action' },
+      { status: 500 }
+    );
+  }
+}

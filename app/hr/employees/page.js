@@ -1020,7 +1020,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
           {currentStep === 4 && (
             <>
               <h3 className="text-lg font-medium text-gray-900 mb-4">Employee Documents</h3>
-              <p className="text-sm text-gray-600 mb-6">Upload employment contract and national ID documents (PDF, JPG, PNG - Max 10MB each)</p>
+              <p className="text-sm text-gray-600 mb-6">Upload employment contract and national ID documents (PDF, JPG, PNG - Max 20MB each)</p>
               
               <div className="space-y-6">
                 {/* Employment Contract Upload */}
@@ -1065,8 +1065,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           onChange={(e) => {
                             const file = e.target.files[0];
                             if (file) {
-                              if (file.size > 10 * 1024 * 1024) {
-                                alert('File size must be less than 10MB');
+                              if (file.size > 20 * 1024 * 1024) {
+                                alert('File size must be less than 20MB');
                                 return;
                               }
                               setContractFile(file);
@@ -1084,7 +1084,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <p className="text-sm text-gray-600 mb-1">
                             <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
                           </p>
-                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 10MB)</p>
+                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 20MB)</p>
                         </label>
                         {contractFile && (
                           <p className="mt-2 text-sm text-gray-700">{contractFile.name}</p>
@@ -1136,8 +1136,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           onChange={(e) => {
                             const file = e.target.files[0];
                             if (file) {
-                              if (file.size > 10 * 1024 * 1024) {
-                                alert('File size must be less than 10MB');
+                              if (file.size > 20 * 1024 * 1024) {
+                                alert('File size must be less than 20MB');
                                 return;
                               }
                               setIdFile(file);
@@ -1155,7 +1155,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <p className="text-sm text-gray-600 mb-1">
                             <span className="text-blue-600 font-medium">Click to upload</span> or drag and drop
                           </p>
-                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 10MB)</p>
+                          <p className="text-xs text-gray-500">PDF, JPG, PNG (MAX. 20MB)</p>
                         </label>
                         {idFile && (
                           <p className="mt-2 text-sm text-gray-700">{idFile.name}</p>

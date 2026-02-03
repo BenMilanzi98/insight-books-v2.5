@@ -1,12 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
- output: 'standalone',
+  output: 'standalone',
   images: {
     // Disable image optimization for uploaded files to prevent thumbnail generation
     // Allow images from uploads directory
     remotePatterns: [],
     // Don't optimize images that come from our own domain/uploads
     unoptimized: false,
+  },
+  // Increase body size limit for API routes (document uploads up to 20MB)
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb',
+    },
   },
   // Ensure static files are served correctly
   async headers() {
@@ -16,7 +22,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cache-Control',
-            value: 'public, max-age=3153600, immutable',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },

@@ -2,10 +2,17 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { createBudget, getBudgets } from '@/lib/budgetService';
+import {
+  getRevenueBudgets,
+  createRevenueBudget,
+  getBranchesForBudget,
+  getCategoriesForBudget,
+  autoCloseExpiredBudgets,
+  PERIOD_TYPES
+} from '@/lib/budgetService';
 import prisma from '@/lib/prisma';
 
-// GET - List all budgets
+// GET - List all revenue budgets
 export async function GET(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -24,15 +31,25 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const periodType = searchParams.get('periodType');
+    const startDateFrom = searchParams.get('startDateFrom');
+    const startDateTo = searchParams.get('startDateTo');
+    const includeLocked = searchParams.get('includeLocked') === 'true';
 
-    const budgets = await getBudgets(user.tenantId, {
+    // Auto-close expired budgets first
+    await autoCloseExpiredBudgets(user.tenantId);
+
+    const budgets = await getRevenueBudgets(user.tenantId, {
       status: status || undefined,
-      periodType: periodType || undefined
+      periodType: periodType || undefined,
+      startDateFrom: startDateFrom || undefined,
+      startDateTo: startDateTo || undefined,
+      includeLocked
     });
 
     return NextResponse.json({
       success: true,
-      data: budgets
+      data: budgets,
+      periodTypes: PERIOD_TYPES
     });
   } catch (error) {
     console.error('Error fetching budgets:', error);
@@ -43,7 +60,7 @@ export async function GET(request) {
   }
 }
 
-// POST - Create new budget
+// POST - Create new revenue budget
 export async function POST(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -63,48 +80,71 @@ export async function POST(request) {
     const {
       name,
       description,
-      periodType = 'annual',
+      periodType = 'monthly',
       startDate,
       endDate,
-      items = []
+      expectedRevenue,
+      currency,
+      breakdowns,
+      items
     } = body;
 
     // Validation
-    if (!name || !startDate || !endDate) {
+    if (!name || !startDate || !endDate || !expectedRevenue) {
       return NextResponse.json(
-        { error: 'Name, start date, and end date are required' },
+        { error: 'Name, start date, end date, and expected revenue are required' },
         { status: 400 }
       );
     }
 
-    if (items.length === 0) {
+    // Validate period type
+    if (!Object.values(PERIOD_TYPES).includes(periodType)) {
       return NextResponse.json(
-        { error: 'Budget must have at least one item' },
+        { error: 'Invalid period type. Must be monthly, quarterly, or yearly' },
         { status: 400 }
       );
     }
 
-    // Validate all items have categories
-    const invalidItems = items.filter(item => !item.category || !item.budgetedAmount);
-    if (invalidItems.length > 0) {
+    // Validate expected revenue is positive
+    if (expectedRevenue <= 0) {
       return NextResponse.json(
-        { error: 'All budget items must have a category and budgeted amount' },
+        { error: 'Expected revenue must be greater than zero' },
         { status: 400 }
       );
     }
 
-    const budget = await createBudget(user.tenantId, {
+    // Validate breakdowns total matches expected revenue
+    if (breakdowns && Array.isArray(breakdowns) && breakdowns.length > 0) {
+      const breakdownTotal = breakdowns.reduce(
+        (sum, item) => sum + (item.budgetedAmount || 0),
+        0
+      );
+      const tolerance = 0.01;
+      if (Math.abs(breakdownTotal - expectedRevenue) > tolerance) {
+        return NextResponse.json(
+          { 
+            error: `Breakdown total (${breakdownTotal.toFixed(2)}) must match expected revenue (${expectedRevenue.toFixed(2)})` 
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const budget = await createRevenueBudget(user.tenantId, user.id, {
       name,
       description,
       periodType,
       startDate,
       endDate,
+      expectedRevenue,
+      currency: currency || 'MWK',
+      breakdowns,
       items
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Budget created successfully',
+      message: 'Revenue budget created successfully',
       data: budget
     }, { status: 201 });
   } catch (error) {
@@ -116,12 +156,43 @@ export async function POST(request) {
   }
 }
 
+// GET /api/budgets/options - Get options for budget creation (branches, categories)
+export async function OPTIONS(request) {
+  try {
+    const accessError = await requireStandardAccess(request);
+    if (accessError) {
+      return accessError;
+    }
 
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
 
+    const [branches, categories] = await Promise.all([
+      getBranchesForBudget(user.tenantId),
+      getCategoriesForBudget(user.tenantId)
+    ]);
 
-
-
-
-
-
-
+    return NextResponse.json({
+      success: true,
+      data: {
+        branches,
+        categories,
+        periodTypes: Object.entries(PERIOD_TYPES).map(([key, value]) => ({
+          value,
+          label: key.charAt(0) + key.slice(1)
+        }))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching budget options:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch options' },
+      { status: 500 }
+    );
+  }
+}

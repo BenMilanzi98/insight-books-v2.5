@@ -100,6 +100,7 @@ model Branch {
   products              Product[]
   sales                 Sale[]
   transactions          Transaction[]
+  budgetItems           BudgetItem[]
   defaultUsers          User[]                 @relation("UserDefaultBranch")
 
   @@unique([tenantId, name])
@@ -2157,48 +2158,83 @@ model LiabilityPayment {
 }
 
 model Budget {
-  id           String       @id @default(cuid())
-  tenantId     String
-  name         String
-  description  String?
-  periodType   String       @default("annual")
-  startDate    DateTime
-  endDate      DateTime
-  status       String       @default("draft")
-  version      Int          @default(1)
-  approvedById String?
-  approvedAt   DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  approvedBy   User?        @relation("BudgetApprover", fields: [approvedById], references: [id])
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  items        BudgetItem[]
+  id              String       @id @default(cuid())
+  tenantId        String
+  name            String
+  description     String?
+  periodType      String       @default("annual") // monthly, quarterly, yearly
+  startDate       DateTime
+  endDate         DateTime
+  expectedRevenue Float        @default(0) // Expected revenue amount for this budget
+  status          String       @default("draft") // draft, active, closed
+  version         Int          @default(1)
+  approvedById    String?
+  approvedAt      DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  currency        String       @default("MWK")
+  isLocked        Boolean      @default(false)
+  lockedAt        DateTime?
+  activatedById   String?
+  activatedAt     DateTime?
+  approvedBy      User?        @relation("BudgetApprover", fields: [approvedById], references: [id])
+  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items           BudgetItem[]
+  breakdowns      RevenueBudgetBreakdown[]
 
   @@index([tenantId])
   @@index([status])
+  @@index([periodType])
   @@index([startDate, endDate])
+  @@index([isLocked])
+}
+
+model RevenueBudgetBreakdown {
+  id            String   @id @default(cuid())
+  budgetId      String
+  breakdownType String   // branch, product_category
+  referenceId   String   // branchId or categoryId
+  referenceName String   // branch name or category name
+  budgetedAmount Float
+  actualAmount   Float    @default(0)
+  variance       Float?
+  variancePercent Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  budget        Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, breakdownType, referenceId])
+  @@index([budgetId])
+  @@index([breakdownType])
+  @@index([referenceId])
 }
 
 model BudgetItem {
   id             String   @id @default(cuid())
   budgetId       String
   accountId      String?
+  branchId       String?
+  categoryId     String?
   period         DateTime
   budgetedAmount Float
   actualAmount   Float    @default(0)
   variance       Float?
+  variancePercent Float?
   notes          String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   category       String?
   account        Account? @relation(fields: [accountId], references: [id])
   budget         Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  branch         Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([budgetId, accountId, category, period])
   @@index([budgetId])
   @@index([accountId])
   @@index([category])
   @@index([period])
+  @@index([branchId])
+  @@index([categoryId])
 }
 
 model Currency {

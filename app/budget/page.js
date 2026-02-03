@@ -15,6 +15,12 @@ import {
   Info,
   DollarSign,
   TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Lock,
+  Unlock,
+  Filter,
+  RefreshCw
 } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import { formatCurrency } from "@/lib/currencyUtils";
@@ -23,22 +29,27 @@ import { getPermission } from "@/lib/permissions";
 const DEFAULT_FORM = {
   name: "",
   description: "",
-  periodType: "annual",
+  periodType: "monthly",
   startDate: "",
   endDate: "",
-  items: [],
+  expectedRevenue: "",
+  breakdowns: [],
 };
 
-export default function BudgetPage() {
+export default function RevenueBudgetPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
 
   const [budgets, setBudgets] = useState([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [periodFilter, setPeriodFilter] = useState("");
 
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [branchOptions, setBranchOptions] = useState([]);
   const [categoryOptions, setCategoryOptions] = useState([]);
   const [pagePermissions, setPagePermissions] = useState({
     canCreate: false,
@@ -50,17 +61,42 @@ export default function BudgetPage() {
   const [form, setForm] = useState(DEFAULT_FORM);
   const [formErrors, setFormErrors] = useState({});
 
+  // Filter and search
   const filteredBudgets = useMemo(() => {
+    let result = budgets;
+    
+    // Apply status filter
+    if (statusFilter) {
+      result = result.filter(b => b.status === statusFilter);
+    }
+    
+    // Apply period type filter
+    if (periodFilter) {
+      result = result.filter(b => b.periodType === periodFilter);
+    }
+    
+    // Apply search
     const q = search.trim().toLowerCase();
-    if (!q) return budgets;
-    return budgets.filter((b) => (b?.name || "").toLowerCase().includes(q));
-  }, [budgets, search]);
+    if (q) {
+      result = result.filter(b => 
+        (b?.name || "").toLowerCase().includes(q) ||
+        (b?.description || "").toLowerCase().includes(q)
+      );
+    }
+    
+    return result;
+  }, [budgets, search, statusFilter, periodFilter]);
 
+  // Load budgets
   const loadBudgets = async () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/budgets", { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (statusFilter) params.set('status', statusFilter);
+      if (periodFilter) params.set('periodType', periodFilter);
+      
+      const res = await fetch(`/api/budgets?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to load budgets");
       setBudgets(json?.data || []);
@@ -71,24 +107,29 @@ export default function BudgetPage() {
     }
   };
 
-  const loadCategories = async () => {
+  // Load options for budget creation
+  const loadOptions = async () => {
     try {
-      setCategoriesLoading(true);
-      setError(null);
-      const res = await fetch("/api/categories?type=expense", { cache: "no-store" });
+      setOptionsLoading(true);
+      const res = await fetch("/api/budgets", { 
+        method: "OPTIONS",
+        cache: "no-store" 
+      });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to load expense categories");
-      setCategoryOptions(json?.categories || []);
+      if (res.ok && json?.data) {
+        setBranchOptions(json.data.branches || []);
+        setCategoryOptions(json.data.categories || []);
+      }
     } catch (e) {
-      setError(e.message);
+      console.error("Error loading options:", e);
     } finally {
-      setCategoriesLoading(false);
+      setOptionsLoading(false);
     }
   };
 
   useEffect(() => {
     loadBudgets();
-  }, []);
+  }, [statusFilter, periodFilter]);
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -111,68 +152,67 @@ export default function BudgetPage() {
     setShowCreate(false);
   };
 
-  const calculateTotalBudget = () => {
-    return (form.items || [])
-      .filter((i) => i.category && i.budgetedAmount)
-      .reduce((sum, i) => sum + (Number(i.budgetedAmount) || 0), 0);
+  const calculateBreakdownTotal = () => {
+    return (form.breakdowns || [])
+      .reduce((sum, item) => sum + (Number(item.budgetedAmount) || 0), 0);
   };
 
-  const addCommonCategories = () => {
-    const commonCategories = ["Rent", "Utilities", "Office Supplies", "Professional Services", "Marketing"];
-    const existingCategories = form.items.map(i => i.category).filter(Boolean);
-    const toAdd = commonCategories.filter(cat => !existingCategories.includes(cat));
+  const addBreakdown = (type) => {
+    const options = type === 'branch' ? branchOptions : categoryOptions;
+    const existingIds = (form.breakdowns || [])
+      .filter(b => b.breakdownType === type)
+      .map(b => b.referenceId);
+
+    const available = options.filter(opt => !existingIds.includes(opt.id));
     
+    if (available.length === 0) return;
+
+    const newBreakdown = {
+      breakdownType: type,
+      referenceId: available[0].id,
+      referenceName: available[0].name,
+      budgetedAmount: ""
+    };
+
     setForm((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        ...toAdd.map(cat => ({
-          category: cat,
-          budgetedAmount: "",
-          notes: "",
-        }))
-      ],
+      breakdowns: [...(prev.breakdowns || []), newBreakdown]
     }));
   };
 
-  const addItem = () => {
+  const removeBreakdown = (idx) => {
     setForm((prev) => ({
       ...prev,
-      items: [
-        ...prev.items,
-        {
-          category: "",
-          budgetedAmount: "",
-          notes: "",
-        },
-      ],
+      breakdowns: prev.breakdowns.filter((_, i) => i !== idx)
     }));
   };
 
-  const removeItem = (idx) => {
+  const updateBreakdown = (idx, patch) => {
     setForm((prev) => ({
       ...prev,
-      items: prev.items.filter((_, i) => i !== idx),
-    }));
-  };
-
-  const updateItem = (idx, patch) => {
-    setForm((prev) => ({
-      ...prev,
-      items: prev.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
+      breakdowns: prev.breakdowns.map((item, i) => {
+        if (i === idx) {
+          if (patch.referenceId) {
+            const options = item.breakdownType === 'branch' ? branchOptions : categoryOptions;
+            const selected = options.find(opt => opt.id === patch.referenceId);
+            return { ...item, ...patch, referenceName: selected?.name || item.referenceName };
+          }
+          return { ...item, ...patch };
+        }
+        return item;
+      })
     }));
   };
 
   const handleOpenCreate = async () => {
     if (!pagePermissions.canCreate) {
-      setError("You don't have permission to create budgets. Please contact your administrator.");
+      setError("You don't have permission to create revenue budgets. Please contact your administrator.");
       return;
     }
     setShowCreate(true);
-    if (categoryOptions.length === 0) {
-      await loadCategories();
+    if (branchOptions.length === 0 || categoryOptions.length === 0) {
+      await loadOptions();
     }
-    if (form.items.length === 0) addItem();
   };
 
   const validateForm = () => {
@@ -194,27 +234,25 @@ export default function BudgetPage() {
       errors.endDate = "End date must be after start date";
     }
     
-    const validItems = (form.items || []).filter((i) => 
-      i.category && 
-      i.budgetedAmount !== "" && 
-      i.budgetedAmount !== null && 
-      i.budgetedAmount !== undefined &&
-      Number(i.budgetedAmount) > 0
-    );
-    
-    if (validItems.length === 0) {
-      errors.items = "Add at least one budget line with a valid amount";
+    if (!form.expectedRevenue || Number(form.expectedRevenue) <= 0) {
+      errors.expectedRevenue = "Expected revenue must be greater than zero";
     }
     
-    // Validate individual items
-    form.items?.forEach((item, idx) => {
-      if (!item.category && (item.budgetedAmount || item.notes)) {
-        errors[`item_${idx}_selection`] = "Select a category";
+    // Validate breakdowns
+    const breakdownTotal = calculateBreakdownTotal();
+    if (form.breakdowns && form.breakdowns.length > 0) {
+      const expected = Number(form.expectedRevenue) || 0;
+      const tolerance = 0.01;
+      if (Math.abs(breakdownTotal - expected) > tolerance) {
+        errors.breakdowns = `Breakdown total (${formatCurrency(breakdownTotal)}) must match expected revenue (${formatCurrency(expected)})`;
       }
-      if (item.category && (!item.budgetedAmount || Number(item.budgetedAmount) <= 0)) {
-        errors[`item_${idx}_amount`] = "Enter a valid budgeted amount";
-      }
-    });
+      
+      form.breakdowns.forEach((item, idx) => {
+        if (!item.budgetedAmount || Number(item.budgetedAmount) <= 0) {
+          errors[`breakdown_${idx}_amount`] = "Enter a valid amount";
+        }
+      });
+    }
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -230,19 +268,14 @@ export default function BudgetPage() {
         throw new Error("Please fix the form errors before submitting.");
       }
 
-      const cleanItems = (form.items || [])
-        .filter((i) => i.category && i.budgetedAmount !== "" && i.budgetedAmount !== null && i.budgetedAmount !== undefined)
-        .map((i) => ({
-          category: i.category || null,
-          // Backend expects a 'period' per item; for annual budgets we store at start date.
-          period: form.startDate,
-          budgetedAmount: Number(i.budgetedAmount),
-          notes: i.notes || null,
+      const breakdowns = (form.breakdowns || [])
+        .filter(item => item.budgetedAmount && Number(item.budgetedAmount) > 0)
+        .map(item => ({
+          breakdownType: item.breakdownType,
+          referenceId: item.referenceId,
+          referenceName: item.referenceName,
+          budgetedAmount: Number(item.budgetedAmount)
         }));
-
-      if (cleanItems.length === 0) {
-        throw new Error("Add at least one budget line (category) with an amount.");
-      }
 
       const res = await fetch("/api/budgets", {
         method: "POST",
@@ -250,15 +283,18 @@ export default function BudgetPage() {
         body: JSON.stringify({
           name: form.name,
           description: form.description || null,
-          periodType: form.periodType || "annual",
+          periodType: form.periodType,
           startDate: form.startDate,
           endDate: form.endDate,
-          items: cleanItems,
+          expectedRevenue: Number(form.expectedRevenue),
+          breakdowns: breakdowns.length > 0 ? breakdowns : undefined
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to create budget");
+      if (!res.ok) throw new Error(json?.error || "Failed to create revenue budget");
 
+      setSuccess("Revenue budget created successfully!");
+      setTimeout(() => setSuccess(null), 3000);
       resetCreate();
       await loadBudgets();
     } catch (e) {
@@ -271,18 +307,87 @@ export default function BudgetPage() {
   const handleDeleteBudget = async (budget) => {
     try {
       if (!pagePermissions.canDelete) return;
+      if (budget?.isLocked) {
+        throw new Error("Cannot delete a locked budget. The budget period has ended.");
+      }
       if (budget?.status === "approved" || budget?.status === "active") {
         throw new Error("Cannot delete approved/active budgets. Archive them instead.");
       }
-      const ok = window.confirm(`Delete budget "${budget?.name}"? This cannot be undone.`);
+      const ok = window.confirm(`Delete revenue budget "${budget?.name}"? This cannot be undone.`);
       if (!ok) return;
 
       const res = await fetch(`/api/budgets/${budget.id}`, { method: "DELETE" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || "Failed to delete budget");
+      
+      setSuccess("Budget deleted successfully!");
+      setTimeout(() => setSuccess(null), 3000);
       await loadBudgets();
     } catch (e) {
       setError(e.message);
+    }
+  };
+
+  const handleAction = async (budget, action) => {
+    try {
+      if (budget.isLocked) {
+        throw new Error("Cannot modify a locked budget");
+      }
+
+      const res = await fetch(`/api/budgets/${budget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action })
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || `Failed to ${action} budget`);
+      
+      setSuccess(`Budget ${action}d successfully!`);
+      setTimeout(() => setSuccess(null), 3000);
+      await loadBudgets();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  // Status badge helper
+  const getStatusBadge = (budget) => {
+    if (budget.isLocked) {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300">
+          <Lock size={12} />
+          Locked
+        </span>
+      );
+    }
+    
+    switch (budget.status) {
+      case 'approved':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
+            <CheckCircle size={12} />
+            Approved
+          </span>
+        );
+      case 'active':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+            <TrendingUp size={12} />
+            Active
+          </span>
+        );
+      case 'closed':
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300">
+            Closed
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
+            Draft
+          </span>
+        );
     }
   };
 
@@ -291,62 +396,117 @@ export default function BudgetPage() {
       <div className="p-6 bg-gray-50 min-h-screen">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Budgeting</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Revenue Budgets</h1>
             <p className="text-sm text-gray-600">
-              Plan, monitor, and control finances by comparing budgets with actual transactions.
+              Plan, track, and analyze expected revenue against actual performance.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            disabled={permissionsLoading || !pagePermissions.canCreate}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
-              permissionsLoading
-                ? "bg-gray-400 text-white cursor-wait"
-                : pagePermissions.canCreate
-                ? "bg-blue-600 text-white hover:bg-blue-700"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
-            }`}
-            title={
-              permissionsLoading
-                ? "Loading permissions..."
-                : !pagePermissions.canCreate
-                ? "You don't have permission to create budgets"
-                : ""
-            }
-          >
-            {permissionsLoading ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <Plus size={18} />
-            )}
-            Create New Budget
-          </button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/budget/reports"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              <BarChart3 size={18} />
+              Reports
+            </Link>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              disabled={permissionsLoading || !pagePermissions.canCreate}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+                permissionsLoading
+                  ? "bg-gray-400 text-white cursor-wait"
+                  : pagePermissions.canCreate
+                  ? "bg-green-600 text-white hover:bg-green-700"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
+              title={
+                permissionsLoading
+                  ? "Loading permissions..."
+                  : !pagePermissions.canCreate
+                  ? "You don't have permission to create budgets"
+                  : ""
+              }
+            >
+              {permissionsLoading ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <Plus size={18} />
+              )}
+              New Revenue Budget
+            </button>
+          </div>
         </div>
 
         {error && (
           <div className="mb-6 p-4 border border-red-200 bg-red-50 rounded-md text-red-700 flex items-center gap-2">
             <AlertCircle size={18} />
             <span>{error}</span>
+            <button 
+              onClick={() => setError(null)}
+              className="ml-auto text-red-700 hover:text-red-900"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 p-4 border border-green-200 bg-green-50 rounded-md text-green-700 flex items-center gap-2">
+            <CheckCircle size={18} />
+            <span>{success}</span>
+            <button 
+              onClick={() => setSuccess(null)}
+              className="ml-auto text-green-700 hover:text-green-900"
+            >
+              <X size={16} />
+            </button>
           </div>
         )}
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
           <div className="p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
-            <div className="relative w-full max-w-md">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search budgets..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="relative w-full max-w-xs">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search budgets..."
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Statuses</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="approved">Approved</option>
+                <option value="closed">Closed</option>
+              </select>
+
+              <select
+                value={periodFilter}
+                onChange={(e) => setPeriodFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Periods</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
             </div>
+            
             <button
               type="button"
               onClick={loadBudgets}
-              className="px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
             >
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
               Refresh
             </button>
           </div>
@@ -358,11 +518,11 @@ export default function BudgetPage() {
             </div>
           ) : filteredBudgets.length === 0 ? (
             <div className="p-10 text-center text-gray-600">
-              <div className="mx-auto w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
-                <Calendar size={22} className="text-blue-600" />
+              <div className="mx-auto w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
+                <DollarSign size={22} className="text-green-600" />
               </div>
-              <div className="font-medium text-gray-800">No budgets found</div>
-              <div className="text-sm text-gray-500 mt-1">Create your first budget to start tracking variance.</div>
+              <div className="font-medium text-gray-800">No revenue budgets found</div>
+              <div className="text-sm text-gray-500 mt-1">Create your first revenue budget to start forecasting.</div>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
@@ -370,29 +530,69 @@ export default function BudgetPage() {
                 <div key={b.id} className="p-4 hover:bg-gray-50 transition-colors">
                   <div className="flex items-center justify-between gap-3">
                     <Link href={`/budget/${b.id}`} className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{b.name}</span>
-                        {b.status === "approved" || b.status === "active" ? (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
-                            <CheckCircle size={14} />
-                            {b.status}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 border border-gray-200">
-                            <XCircle size={14} />
-                            {b.status || "draft"}
-                          </span>
-                        )}
+                        {getStatusBadge(b)}
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          {b.periodType}
+                        </span>
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {new Date(b.startDate).toISOString().slice(0, 10)} → {new Date(b.endDate).toISOString().slice(0, 10)}
-                        <span className="mx-2">•</span>
-                        {b.items?.length || 0} lines
+                        {new Date(b.startDate).toLocaleDateString()} → {new Date(b.endDate).toLocaleDateString()}
+                        {b.breakdowns?.length > 0 && (
+                          <>
+                            <span className="mx-2">•</span>
+                            {b.breakdowns.length} breakdown(s)
+                          </>
+                        )}
                       </div>
                     </Link>
 
                     <div className="flex items-center gap-2">
-                      {pagePermissions.canDelete && !(b.status === "approved" || b.status === "active") && (
+                      {b.isLocked ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-gray-500 px-2 py-1">
+                          <Lock size={12} />
+                          Read-only
+                        </span>
+                      ) : (
+                        <>
+                          {b.status === 'draft' && pagePermissions.canUpdate && (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(b, 'activate')}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                              title="Activate budget"
+                            >
+                              <Unlock size={12} />
+                              Activate
+                            </button>
+                          )}
+                          {b.status === 'active' && pagePermissions.canUpdate && (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(b, 'approve')}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100"
+                              title="Approve budget"
+                            >
+                              <CheckCircle size={12} />
+                              Approve
+                            </button>
+                          )}
+                          {b.status !== 'closed' && (
+                            <button
+                              type="button"
+                              onClick={() => handleAction(b, 'close')}
+                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-gray-200 text-gray-700 bg-gray-50 hover:bg-gray-100"
+                              title="Close budget"
+                            >
+                              <Lock size={12} />
+                              Close
+                            </button>
+                          )}
+                        </>
+                      )}
+                      
+                      {pagePermissions.canDelete && !b.isLocked && b.status === 'draft' && (
                         <button
                           type="button"
                           onClick={() => handleDeleteBudget(b)}
@@ -400,9 +600,9 @@ export default function BudgetPage() {
                           title="Delete budget"
                         >
                           <Trash2 size={16} />
-                          Delete
                         </button>
                       )}
+                      
                       <Link
                         href={`/budget/${b.id}`}
                         className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -412,22 +612,30 @@ export default function BudgetPage() {
                       </Link>
                     </div>
                   </div>
+                  
+                  {/* Budget amount preview */}
+                  <div className="mt-2 flex items-center gap-4 text-sm">
+                    <span className="text-gray-600">
+                      Budgeted: <span className="font-semibold text-gray-900">{formatCurrency(b.expectedRevenue || 0)}</span>
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
 
+        {/* Create Budget Modal */}
         {showCreate && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto" onClick={resetCreate}>
             <div
               className="bg-white rounded-lg border border-gray-200 shadow-xl w-full max-w-4xl my-auto flex flex-col max-h-[90vh] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-                  <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex items-start justify-between gap-3 flex-shrink-0">
+              <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex items-start justify-between gap-3 flex-shrink-0">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Create New Budget</h2>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">Plan your finances by setting budgeted amounts for expense categories.</p>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Create Revenue Budget</h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">Plan your expected revenue for a specific period.</p>
                 </div>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0" onClick={resetCreate}>
                   <X size={22} />
@@ -436,27 +644,46 @@ export default function BudgetPage() {
 
               <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4 sm:space-y-6">
                 {/* Budget Summary Card */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <DollarSign className="text-blue-600" size={20} />
-                      <span className="text-sm font-medium text-gray-700">Total Budgeted:</span>
+                      <DollarSign className="text-green-600" size={20} />
+                      <span className="text-sm font-medium text-gray-700">Expected Revenue:</span>
                     </div>
-                    <span className="text-xl font-bold text-blue-700">{formatCurrency(calculateTotalBudget())}</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={form.expectedRevenue}
+                      onChange={(e) => {
+                        setForm((p) => ({ ...p, expectedRevenue: e.target.value }));
+                        if (formErrors.expectedRevenue) setFormErrors((prev) => ({ ...prev, expectedRevenue: null }));
+                      }}
+                      className={`w-40 px-3 py-2 text-right border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg font-bold ${
+                        formErrors.expectedRevenue ? "border-red-300 bg-red-50" : "border-gray-300"
+                      }`}
+                      placeholder="0.00"
+                    />
                   </div>
-                  <div className="mt-2 text-xs text-gray-600">
-                    {form.items?.filter((i) => i.category && i.budgetedAmount).length || 0} budget line(s) configured
-                  </div>
+                  {formErrors.expectedRevenue && (
+                    <p className="text-xs text-red-600 mt-1">{formErrors.expectedRevenue}</p>
+                  )}
+                  {form.expectedRevenue && (
+                    <div className="mt-2 text-xl font-bold text-green-700">
+                      {formatCurrency(Number(form.expectedRevenue) || 0)}
+                    </div>
+                  )}
                 </div>
 
                 {/* Basic Information */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                    <Info size={16} className="text-blue-600" />
-                    Basic Information
+                    <Info size={16} className="text-green-600" />
+                    Budget Details
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Budget Name <span className="text-red-500">*</span>
                       </label>
@@ -466,8 +693,8 @@ export default function BudgetPage() {
                           setForm((p) => ({ ...p, name: e.target.value }));
                           if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: null }));
                         }}
-                        placeholder="e.g., 2026 Operating Budget"
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        placeholder="e.g., Q1 2026 Revenue Forecast"
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                           formErrors.name ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
                       />
@@ -475,21 +702,33 @@ export default function BudgetPage() {
                         <p className="text-xs text-red-600 mt-1">{formErrors.name}</p>
                       )}
                     </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Period Type</label>
                       <select
                         value={form.periodType}
                         onChange={(e) => setForm((p) => ({ ...p, periodType: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       >
-                        <option value="annual">Annual</option>
                         <option value="monthly">Monthly</option>
                         <option value="quarterly">Quarterly</option>
+                        <option value="yearly">Yearly</option>
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Budget amounts are for the entire period.
-                      </p>
                     </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                      <select
+                        value={form.currency || 'MWK'}
+                        onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="MWK">MWK - Malawian Kwacha</option>
+                        <option value="USD">USD - US Dollar</option>
+                        <option value="ZAR">ZAR - South African Rand</option>
+                      </select>
+                    </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Start Date <span className="text-red-500">*</span>
@@ -501,7 +740,7 @@ export default function BudgetPage() {
                           setForm((p) => ({ ...p, startDate: e.target.value }));
                           if (formErrors.startDate) setFormErrors((prev) => ({ ...prev, startDate: null, endDate: null }));
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                           formErrors.startDate ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
                       />
@@ -509,6 +748,7 @@ export default function BudgetPage() {
                         <p className="text-xs text-red-600 mt-1">{formErrors.startDate}</p>
                       )}
                     </div>
+                    
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         End Date <span className="text-red-500">*</span>
@@ -521,7 +761,7 @@ export default function BudgetPage() {
                           setForm((p) => ({ ...p, endDate: e.target.value }));
                           if (formErrors.endDate) setFormErrors((prev) => ({ ...prev, endDate: null }));
                         }}
-                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                           formErrors.endDate ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
                       />
@@ -529,103 +769,89 @@ export default function BudgetPage() {
                         <p className="text-xs text-red-600 mt-1">{formErrors.endDate}</p>
                       )}
                     </div>
+                    
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Notes / Description</label>
                       <textarea
                         rows={2}
                         value={form.description}
                         onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                        placeholder="Optional: budgeting assumptions, plan notes, etc."
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Optional: revenue assumptions, targets, etc."
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       />
                     </div>
                   </div>
                 </div>
 
+                {/* Optional Breakdown Section */}
                 <div className="bg-white border border-gray-200 rounded-lg">
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div>
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                          <TrendingUp size={18} className="text-blue-600" />
-                          Budget Lines
+                          <Filter size={18} className="text-green-600" />
+                          Optional Breakdown
                         </h3>
-                        <p className="text-xs text-gray-500 mt-1">Create budgets by expense category (e.g., "Rent", "Utilities").</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Break down revenue by branch or product category (optional).
+                        </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={addCommonCategories}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm"
-                          title="Add common expense categories"
+                          onClick={() => addBreakdown('branch')}
+                          disabled={optionsLoading || branchOptions.length === 0}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm disabled:opacity-50"
                         >
                           <Plus size={14} />
-                          <span className="hidden sm:inline">Quick Add</span>
+                          Add Branch
                         </button>
                         <button
                           type="button"
-                          onClick={addItem}
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                          onClick={() => addBreakdown('product_category')}
+                          disabled={optionsLoading || categoryOptions.length === 0}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 text-sm disabled:opacity-50"
                         >
-                          <Plus size={16} />
-                          <span className="hidden sm:inline">Add Line</span>
-                          <span className="sm:hidden">Add</span>
+                          <Plus size={14} />
+                          Add Category
                         </button>
                       </div>
                     </div>
-                    
                   </div>
 
-                  {categoriesLoading ? (
+                  {optionsLoading ? (
                     <div className="p-6 text-gray-600 flex items-center">
-                      <Loader2 size={18} className="animate-spin mr-2 text-blue-600" />
+                      <Loader2 size={18} className="animate-spin mr-2 text-green-600" />
                       Loading options...
                     </div>
                   ) : (
                     <div className="divide-y divide-gray-200">
-                      {(form.items || [])
-                        .map((it, idx) => {
-                          const hasError = formErrors[`item_${idx}_selection`] || formErrors[`item_${idx}_amount`];
+                      {(form.breakdowns || [])
+                        .map((item, idx) => {
+                          const hasAmountError = formErrors[`breakdown_${idx}_amount`];
+                          const options = item.breakdownType === 'branch' ? branchOptions : categoryOptions;
                           
                           return (
-                            <div key={idx} className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 ${hasError ? "bg-red-50/30" : ""}`}>
-                              <div className="sm:col-span-5">
+                            <div key={idx} className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 ${hasAmountError ? "bg-red-50/30" : ""}`}>
+                              <div className="sm:col-span-4">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  Category <span className="text-red-500">*</span>
+                                  {item.breakdownType === 'branch' ? 'Branch' : 'Product Category'}
                                 </label>
                                 <select
-                                  value={it.category || ""}
-                                  onChange={(e) => {
-                                    updateItem(idx, { category: e.target.value });
-                                    if (formErrors[`item_${idx}_selection`]) {
-                                      setFormErrors((prev) => ({ ...prev, [`item_${idx}_selection`]: null }));
-                                    }
-                                  }}
-                                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                    formErrors[`item_${idx}_selection`] ? "border-red-300 bg-red-50" : "border-gray-300"
-                                  }`}
+                                  value={item.referenceId || ""}
+                                  onChange={(e) => updateBreakdown(idx, { referenceId: e.target.value })}
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                 >
-                                  <option value="">Select category...</option>
-                                  {categoryOptions.map((cat) => (
-                                    <option key={cat} value={cat}>
-                                      {cat}
+                                  <option value="">Select...</option>
+                                  {options.map((opt) => (
+                                    <option key={opt.id} value={opt.id}>
+                                      {opt.name}
                                     </option>
                                   ))}
                                 </select>
-                                {formErrors[`item_${idx}_selection`] && (
-                                  <p className="text-xs text-red-600 mt-1">{formErrors[`item_${idx}_selection`]}</p>
-                                )}
-                                {it.category && (
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    <span className="inline-flex items-center gap-1 text-green-600">
-                                      <CheckCircle size={12} />
-                                      Category: {it.category}
-                                    </span>
-                                  </p>
-                                )}
                               </div>
 
-                              <div className="sm:col-span-3">
+                              <div className="sm:col-span-4">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
                                   Budgeted Amount <span className="text-red-500">*</span>
                                 </label>
@@ -634,85 +860,83 @@ export default function BudgetPage() {
                                   inputMode="decimal"
                                   min="0"
                                   step="0.01"
-                                  value={it.budgetedAmount}
+                                  value={item.budgetedAmount}
                                   onChange={(e) => {
-                                    updateItem(idx, { budgetedAmount: e.target.value });
-                                    if (formErrors[`item_${idx}_amount`]) {
-                                      setFormErrors((prev) => ({ ...prev, [`item_${idx}_amount`]: null }));
+                                    updateBreakdown(idx, { budgetedAmount: e.target.value });
+                                    if (formErrors[`breakdown_${idx}_amount`]) {
+                                      setFormErrors((prev) => ({ ...prev, [`breakdown_${idx}_amount`]: null }));
                                     }
                                   }}
-                                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                    formErrors[`item_${idx}_amount`] ? "border-red-300 bg-red-50" : "border-gray-300"
+                                  className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                                    hasAmountError ? "border-red-300 bg-red-50" : "border-gray-300"
                                   }`}
                                   placeholder="0.00"
                                 />
-                                {formErrors[`item_${idx}_amount`] && (
-                                  <p className="text-xs text-red-600 mt-1">{formErrors[`item_${idx}_amount`]}</p>
+                                {hasAmountError && (
+                                  <p className="text-xs text-red-600 mt-1">{hasAmountError}</p>
                                 )}
-                                {it.budgetedAmount !== "" && !Number.isNaN(Number(it.budgetedAmount)) && Number(it.budgetedAmount) > 0 && (
-                                  <div className="text-xs text-green-600 mt-1 font-medium">{formatCurrency(Number(it.budgetedAmount))}</div>
+                                {item.budgetedAmount && (
+                                  <div className="text-xs text-green-600 mt-1 font-medium">
+                                    {formatCurrency(Number(item.budgetedAmount) || 0)}
+                                  </div>
                                 )}
                               </div>
 
-                              <div className="sm:col-span-3">
-                                <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
-                                <input
-                                  value={it.notes}
-                                  onChange={(e) => updateItem(idx, { notes: e.target.value })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  placeholder="Optional notes"
-                                />
+                              <div className="sm:col-span-3 flex items-end">
+                                <div className="text-xs text-gray-500">
+                                  {item.breakdownType === 'branch' ? 'Branch' : 'Category'}
+                                </div>
                               </div>
 
                               <div className="sm:col-span-1 flex sm:justify-end items-end">
                                 <button
                                   type="button"
-                                  onClick={() => removeItem(idx)}
+                                  onClick={() => removeBreakdown(idx)}
                                   className="w-full sm:w-auto px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors text-sm"
-                                  title="Remove this budget line"
+                                  title="Remove breakdown"
                                 >
-                                  <span className="sm:hidden">Remove</span>
                                   <X size={16} className="hidden sm:inline" />
+                                  <span className="sm:hidden">Remove</span>
                                 </button>
                               </div>
                             </div>
                           );
                         })}
-                      {form.items?.length === 0 && (
+                      
+                      {form.breakdowns?.length === 0 && (
                         <div className="p-8 text-center text-gray-500">
-                          <p className="text-sm">No budget lines yet.</p>
-                          <button
-                            type="button"
-                            onClick={addItem}
-                            className="mt-2 text-blue-600 hover:text-blue-700 text-sm font-medium"
-                          >
-                            Add your first budget line
-                          </button>
+                          <p className="text-sm">No breakdowns configured.</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Adding breakdowns helps track revenue by branch or category.
+                          </p>
                         </div>
                       )}
                     </div>
                   )}
-                  {formErrors.items && (
-                    <div className="p-4 bg-red-50 border border-red-200 rounded-md">
-                      <p className="text-sm text-red-700 flex items-center gap-2">
-                        <AlertCircle size={16} />
-                        {formErrors.items}
-                      </p>
+                  
+                  {/* Breakdown total validation */}
+                  {form.breakdowns?.length > 0 && (
+                    <div className="p-4 bg-gray-50 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-gray-600">Breakdown Total:</span>
+                          <span className={`ml-2 font-semibold ${Math.abs(calculateBreakdownTotal() - Number(form.expectedRevenue || 0)) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+                            {formatCurrency(calculateBreakdownTotal())}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Expected: {formatCurrency(Number(form.expectedRevenue) || 0)}
+                        </div>
+                      </div>
+                      {formErrors.breakdowns && (
+                        <p className="text-xs text-red-600 mt-1">{formErrors.breakdowns}</p>
+                      )}
                     </div>
                   )}
                 </div>
               </div>
 
               <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 mb-3">
-                  <div className="text-sm text-gray-600">
-                    <span className="font-medium">Total Budgeted:</span>{" "}
-                    <span className="text-lg font-bold text-blue-700">{formatCurrency(calculateTotalBudget())}</span>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {form.items?.filter((i) => i.category && i.budgetedAmount).length || 0} valid line(s)
-                  </div>
-                </div>
                 <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
                   <button
                     type="button"
@@ -725,8 +949,8 @@ export default function BudgetPage() {
                   <button
                     type="button"
                     onClick={handleCreate}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 transition-colors shadow-sm"
-                    disabled={creating || calculateTotalBudget() === 0}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 transition-colors shadow-sm"
+                    disabled={creating}
                   >
                     {creating ? (
                       <>
@@ -749,5 +973,3 @@ export default function BudgetPage() {
     </PermissionGuard>
   );
 }
-
-

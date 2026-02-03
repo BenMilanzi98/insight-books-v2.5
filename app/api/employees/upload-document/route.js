@@ -44,8 +44,8 @@ export async function POST(request) {
       );
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    // Validate file size (max 20MB - matches Next.js bodyParser limit)
+    const maxSize = 20 * 1024 * 1024; // 20MB
     if (file.size === undefined || file.size === null) {
       console.error('File size is missing:', file);
       return NextResponse.json(
@@ -55,8 +55,8 @@ export async function POST(request) {
     }
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: 'File size too large. Maximum 10MB allowed.' },
-        { status: 400 }
+        { error: 'File size too large. Maximum 20MB allowed.' },
+        { status: 413 }
       );
     }
 
