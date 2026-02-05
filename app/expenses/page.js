@@ -38,7 +38,8 @@ import {
   History,
   Package,
   TrendingUp,
-  DollarSign
+  DollarSign,
+  RotateCcw
 } from "lucide-react";
 import { 
   fetchExpenses, 
@@ -71,6 +72,7 @@ import COGSManagement from "@/app/cogs/page";
 import COGSSettlementModal from "@/components/COGSSettlementModal";
 import COGSSummaryChart from "@/components/COGSSummaryChart";
 import COGSExpensesTable from "@/components/COGSExpensesTable";
+import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
 
 const ExpensesPage = () => {
   // State management
@@ -183,6 +185,8 @@ const ExpensesPage = () => {
     endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
   });
   
+  // Reversal modal states
+  
   useEffect(() => {
     const fetchPermissions = async () => { 
       const canApproveExpenses = await getPermission("expenses.approve");
@@ -212,23 +216,8 @@ const ExpensesPage = () => {
       setLastRecordedCogsTotal(parseFloat(savedLastRecordedTotal));
     }
   }, []);
-  // Sample expense categories - will be enhanced with API categories
-  const expenseCategories = [
-    "Cost of Goods Sold",
-    "Office Supplies",
-    "Travel",
-    "Meals & Entertainment",
-    "Utilities",
-    "Software Subscription",
-    "Advertising",
-    "Rent",
-    "Equipment",
-    "Professional Services",
-    "Pension",
-    "Gratuity",
-    "Salary",
-    "Salary Advance"
-  ];
+  // Expense categories are sourced from the Chart of Accounts
+  const expenseCategories = [];
   useEffect(() => {
     if (isScanning) {
       console.log("Setting up test progress updates");
@@ -348,7 +337,8 @@ const ExpensesPage = () => {
           sortBy: 'date',
           sortOrder: 'desc',
           status: statusFilter,
-          category: selectedCategory === 'all' ? null : selectedCategory,
+          accountId: selectedCategory !== 'all' && selectedCategory !== 'salary-advance' ? selectedCategory : null,
+          category: selectedCategory === 'salary-advance' ? 'Salary Advance' : null,
           search: searchQuery || null,
           includeDeleted: false // Explicitly exclude deleted expenses
         };
@@ -1018,11 +1008,13 @@ const handleFileUpload = async (e) => {
         const files = uploadedFiles.map(file => file.file);
         
         // Create a basic expense object with all REQUIRED fields
+        const defaultAccount = categories[0] || null;
         const newExpense = {
           description: "New expense from receipt", 
           amount: 0, 
           date: new Date().toISOString().split('T')[0], // Today's date - CRITICAL field
-          category: expenseCategories.length > 0 ? expenseCategories[0] : "", // Default to first category or empty
+          expenseAccountId: defaultAccount?.id || "",
+          category: defaultAccount?.name || "",
           status: "Pending" // Default status
         };
         
@@ -1114,7 +1106,8 @@ const handleFileUpload = async (e) => {
       // Create filter object based on current filters
       const filters = {
         status: activeTab === 'all' ? null : activeTab.charAt(0).toUpperCase() + activeTab.slice(1),
-        category: selectedCategory === 'all' ? null : selectedCategory,
+        accountId: selectedCategory !== 'all' && selectedCategory !== 'salary-advance' ? selectedCategory : null,
+        category: selectedCategory === 'salary-advance' ? 'Salary Advance' : null,
         search: searchQuery || null
       };
       
@@ -1201,28 +1194,23 @@ const handleFileUpload = async (e) => {
     );
   };
 
-  // NEW: Load categories from API and merge with default categories
+  // Load expense accounts from Chart of Accounts
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
       if (response.ok) {
         const data = await response.json();
         if (data.categories && data.categories.length > 0) {
-          // Merge API categories with default categories and deduplicate
-          const allCategories = [...new Set([...expenseCategories, ...data.categories])];
-          setCategories(allCategories.sort());
+          setCategories(data.categories);
         } else {
-          // If API returns empty, use default categories
-          setCategories(expenseCategories);
+          setCategories([]);
         }
       } else {
-        // If API fails, use default categories
-        setCategories(expenseCategories);
+        setCategories([]);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
-      // If API fails, use default categories
-      setCategories(expenseCategories);
+      setCategories([]);
     }
   };
 
@@ -1687,9 +1675,11 @@ const handleFileUpload = async (e) => {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                 >
                   <option value="all">All Categories</option>
-                  {/* Use categories from API if available, otherwise use default expenseCategories */}
-                  {(categories.length > 0 ? categories : expenseCategories).map((category, index) => (
-                    <option key={index} value={category}>{category}</option>
+                  <option value="salary-advance">Salary Advance</option>
+                  {categories.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.code ? `${account.code} - ${account.name}` : account.name}
+                    </option>
                   ))}
                 </select>
                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
@@ -1877,7 +1867,7 @@ const handleFileUpload = async (e) => {
                     </td>
                     {!showDeletedExpenses && (
                             <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
-                        <StatusBadge status={expense.status} />
+                        <ReversalStatusBadge status={expense.status} isReversed={expense.isReversed} reversedAt={expense.reversedAt} />
                       </td>
                     )}
                     {showDeletedExpenses && (
@@ -1931,17 +1921,6 @@ const handleFileUpload = async (e) => {
                             <div className="flex justify-end gap-1 sm:gap-2">
                         {!showDeletedExpenses ? (
                           <>
-                            {/* Partial Payment Button - Only for pending and partial expenses */}
-                            {isEligibleForPartialPayment(expense) && pagePermissions.canUpdateExpenses && (
-                              <button 
-                                  className="text-green-600 hover:text-green-700 hover:bg-green-50 transition-all rounded-lg p-2"
-                                title="Add Partial Payment"
-                                onClick={() => handlePartialPayment(expense)}
-                              >
-                                  <CreditCard size={18} />
-                              </button>
-                            )}
-                            
                             {/* Payment History Button - Available for all expenses */}
                               <button 
                                 className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 transition-all rounded-lg p-2"
@@ -3142,6 +3121,7 @@ const handleFileUpload = async (e) => {
         </div>
       )}
 
+      {/* Reversal Modal */}
       {/* COGS Tab Content */}
       {mainTab === "cogs" && (
         <div className="space-y-6">
@@ -3413,22 +3393,27 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
     description: "",
     amount: "",
     date: "",
-    category: "",
+    expenseAccountId: "",
     notes: ""
   });
-  const expenseCategories = [
-    "Office Supplies",
-    "Travel",
-    "Meals & Entertainment",
-    "Utilities",
-    "Software Subscription",
-    "Advertising",
-    "Rent",
-    "Equipment",
-    "Professional Services",
-    "Pension"
-    ,"Gratuity"
-  ];
+  const [availableAccounts, setAvailableAccounts] = useState([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const loadAccounts = async () => {
+      try {
+        const response = await fetch('/api/categories?type=expense');
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableAccounts(Array.isArray(data.categories) ? data.categories : []);
+        }
+      } catch (error) {
+        console.error('Error loading expense accounts:', error);
+        setAvailableAccounts([]);
+      }
+    };
+    loadAccounts();
+  }, [isOpen]);
   // Initialize form data when receipt data changes
   useEffect(() => {
     if (receiptData) {
@@ -3436,7 +3421,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
         description: receiptData.description || "",
         amount: receiptData.amount?.toString() || "",
         date: receiptData.date || new Date().toISOString().split('T')[0],
-        category: receiptData.category || "",
+        expenseAccountId: receiptData.expenseAccountId || "",
         notes: `Scanned from receipt image`
       });
     }
@@ -3449,7 +3434,11 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
   
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    const selectedAccount = availableAccounts.find(acc => acc.id === formData.expenseAccountId);
+    onSubmit({
+      ...formData,
+      category: selectedAccount?.name || ""
+    });
   };
   
   if (!isOpen || !receiptData) return null;
@@ -3545,19 +3534,19 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Category
+                  Expense Account
                 </label>
                 <select
-                  name="category"
-                  value={formData.category}
+                  name="expenseAccountId"
+                  value={formData.expenseAccountId}
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   required
                 >
-                  <option value="">Select a category</option>
-                  {expenseCategories.map((category, index) => (
-                    <option key={index} value={category}>
-                      {category}
+                  <option value="">Select an expense account</option>
+                  {availableAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.code ? `${account.code} - ${account.name}` : account.name}
                     </option>
                   ))}
                 </select>

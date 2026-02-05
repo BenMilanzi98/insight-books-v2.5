@@ -1,12 +1,19 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateReferenceNumber } from '@/lib/journalService';
 import {
-  formatJournalEntry,
-  formatJournalEntries,
-} from '@/lib/journalEntryFormatter';
+  createAndPostEntry,
+  createDraftEntry,
+} from '@/lib/journalService';
+import { formatJournalEntries } from '@/lib/journalEntryFormatter';
 
+/**
+ * Manual journal entries are restricted to adjustments only.
+ * Example scenarios:
+ * - Correction: Dr Office Expense, Cr Cash
+ * - Accrual: Dr Utilities Expense, Cr Accrued Liabilities
+ * - Opening Balance: Dr Cash, Cr Owner's Equity
+ */
 const ENTRY_INCLUDE = {
   lines: {
     orderBy: { lineNumber: 'asc' },
@@ -32,49 +39,150 @@ const ENTRY_INCLUDE = {
   },
 };
 
-// Build where clause for Transaction model
+const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
+const ALLOWED_ENTRY_TYPES = ['Correction', 'Accrual', 'Opening Balance'];
+
+function normalizeEntryType(value) {
+  if (!value) return 'Correction';
+  const normalized = value.toString().trim();
+  if (normalized.toLowerCase() === 'openingbalance') return 'Opening Balance';
+  return normalized;
+}
+
+function isFinanceAdmin(user) {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return (
+    roleName.includes('finance') ||
+    roleName.includes('admin') ||
+    roleName === 'master_admin'
+  );
+}
+
 function buildWhereClause(tenantId, searchParams) {
-  const where = { tenantId };
+  const where = { tenantId, AND: [] };
 
   const status = searchParams.get('status');
-  if (status && status !== 'all' && status.toLowerCase() !== 'all status') {
-    // Map status values: 'Posted' -> 'posted', 'Draft' -> 'draft'
-    where.status =
-      status === 'Posted' || status === 'posted'
-        ? 'posted'
-        : status === 'Draft' || status === 'draft'
-        ? 'draft'
-        : status.toLowerCase();
+  if (status && status.toLowerCase() !== 'all' && status.toLowerCase() !== 'all status') {
+    const normalized = status.toLowerCase();
+    where.AND.push({
+      status: normalized === 'posted' ? 'Posted' : normalized === 'draft' ? 'Draft' : status,
+    });
   }
 
   const startDate = searchParams.get('startDate');
   const endDate = searchParams.get('endDate');
   if (startDate || endDate) {
-    where.date = {};
+    const dateFilter = {};
     if (startDate) {
       const start = new Date(startDate);
       start.setHours(0, 0, 0, 0);
-      where.date.gte = start;
+      dateFilter.gte = start;
     }
     if (endDate) {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      where.date.lte = end;
+      dateFilter.lte = end;
     }
+    where.AND.push({ entryDate: dateFilter });
   }
 
   const search = searchParams.get('search');
   if (search) {
-    where.OR = [
-      { description: { contains: search, mode: 'insensitive' } },
-      { reference: { contains: search, mode: 'insensitive' } },
-      { notes: { contains: search, mode: 'insensitive' } },
-    ];
+    where.AND.push({
+      OR: [
+        { description: { contains: search, mode: 'insensitive' } },
+        { referenceNumber: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+      ],
+    });
   }
 
   const sourceType = searchParams.get('sourceType');
-  if (sourceType && sourceType !== 'all' && sourceType.toLowerCase() !== 'all types') {
-    where.sourceType = sourceType;
+  if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
+    if (sourceType.toLowerCase() === 'manual') {
+      where.AND.push({
+        OR: [
+          { sourceType: { in: MANUAL_SOURCE_TYPES } },
+          { sourceType: null },
+          { sourceType: '' },
+        ],
+      });
+    } else {
+      where.AND.push({ sourceType });
+    }
+  } else {
+    where.AND.push({
+      OR: [
+        { sourceType: { in: MANUAL_SOURCE_TYPES } },
+        { sourceType: null },
+        { sourceType: '' },
+      ],
+    });
+  }
+
+  return where;
+}
+
+function buildLegacyTransactionWhere(tenantId, searchParams) {
+  const where = { tenantId, AND: [] };
+
+  const status = searchParams.get('status');
+  if (status && status.toLowerCase() !== 'all' && status.toLowerCase() !== 'all status') {
+    const normalized = status.toLowerCase();
+    where.AND.push({
+      status: normalized === 'posted' ? 'posted' : normalized === 'draft' ? 'draft' : status,
+    });
+  }
+
+  const startDate = searchParams.get('startDate');
+  const endDate = searchParams.get('endDate');
+  if (startDate || endDate) {
+    const dateFilter = {};
+    if (startDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      dateFilter.gte = start;
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilter.lte = end;
+    }
+    where.AND.push({ date: dateFilter });
+  }
+
+  const search = searchParams.get('search');
+  if (search) {
+    where.AND.push({
+      OR: [
+        { description: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } },
+        { notes: { contains: search, mode: 'insensitive' } },
+      ],
+    });
+  }
+
+  const sourceType = searchParams.get('sourceType');
+  if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
+    if (sourceType.toLowerCase() === 'manual') {
+      where.AND.push({
+        OR: [
+          { sourceType: { in: MANUAL_SOURCE_TYPES } },
+          { sourceType: null },
+          { sourceType: '' },
+        ],
+      });
+    } else {
+      where.AND.push({ sourceType });
+    }
+  } else {
+    where.AND.push({
+      OR: [
+        { sourceType: { in: MANUAL_SOURCE_TYPES } },
+        { sourceType: null },
+        { sourceType: '' },
+      ],
+    });
   }
 
   return where;
@@ -116,6 +224,13 @@ export async function GET(request) {
       );
     }
 
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to view journal entries.' },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = Math.min(
@@ -125,80 +240,62 @@ export async function GET(request) {
     const skip = (page - 1) * limit;
 
     const where = buildWhereClause(user.tenantId, searchParams);
-    const sortBy = searchParams.get('sortBy') || 'date';
+    const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
 
-    // Map frontend sortBy to Transaction model fields
     let orderBy;
     if (sortBy === 'referenceNumber' || sortBy === 'reference') {
-      orderBy = { reference: sortOrder };
-    } else if (sortBy === 'entryDate' || sortBy === 'date') {
-      orderBy = { date: sortOrder };
+      orderBy = { referenceNumber: sortOrder };
     } else {
-      orderBy = { date: sortOrder }; // Default to date
+      orderBy = { entryDate: sortOrder };
     }
 
-    console.log('🔍 Fetching transactions with where clause:', JSON.stringify(where, null, 2));
-    console.log('🔍 Order by:', JSON.stringify(orderBy, null, 2));
-    
-    try {
-      const [totalCount, entriesRaw] = await Promise.all([
-        prisma.transaction.count({ where }),
+    const [totalCount, entriesRaw] = await Promise.all([
+      prisma.journalEntry.count({ where }),
+      prisma.journalEntry.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: ENTRY_INCLUDE,
+      }),
+    ]);
+
+    let entries = entriesRaw;
+    let total = totalCount;
+
+    if (entriesRaw.length === 0) {
+      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams);
+      const [legacyCount, legacyEntries] = await Promise.all([
+        prisma.transaction.count({ where: legacyWhere }),
         prisma.transaction.findMany({
-          where,
-          orderBy,
+          where: legacyWhere,
+          orderBy: { date: sortOrder },
           skip,
           take: limit,
           include: ENTRY_INCLUDE,
         }),
       ]);
-      
-      // Remove duplicates by ID (in case of any data issues)
-      const entriesMap = new Map();
-      entriesRaw.forEach(entry => {
-        if (!entriesMap.has(entry.id)) {
-          entriesMap.set(entry.id, entry);
-        }
-      });
-      const entries = Array.from(entriesMap.values());
-      
-      console.log('✅ Found transactions:', entries.length, 'Total count:', totalCount);
-      console.log('📊 Transaction breakdown:', {
-        sales: entries.filter(e => e.sourceType === 'Sale').length,
-        expenses: entries.filter(e => e.sourceType === 'Expense').length,
-        others: entries.filter(e => e.sourceType && !['Sale', 'Expense'].includes(e.sourceType)).length,
-      });
-      
-      return NextResponse.json({
-        entries: formatJournalEntries(entries),
-        pagination: {
-          page,
-          limit,
-          totalCount,
-          totalPages: Math.ceil(totalCount / limit),
-        },
-      });
-    } catch (queryError) {
-      console.error('❌ Query error details:', {
-        message: queryError.message,
-        code: queryError.code,
-        meta: queryError.meta,
-      });
-      throw queryError;
+
+      entries = legacyEntries;
+      total = legacyCount;
     }
 
-    } catch (error) {
-    console.error('Error fetching journal entries:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
+    return NextResponse.json({
+      entries: formatJournalEntries(entries),
+      pagination: {
+        page,
+        limit,
+        totalCount: total,
+        totalPages: Math.ceil(total / limit),
+      },
     });
+  } catch (error) {
+    console.error('Error fetching journal entries:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to load journal entries',
         details: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
@@ -215,8 +312,24 @@ export async function POST(request) {
       );
     }
 
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to create journal entries.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const lines = normalizeLines(body.lines, body.description);
+    const entryDate = resolveEntryDate(body);
+    const entryType = normalizeEntryType(body.entryType);
+
+    if (!body.description || body.description.trim().length < 3) {
+      return NextResponse.json(
+        { error: 'A reason/description is required for journal entries.' },
+        { status: 400 }
+      );
+    }
 
     if (lines.length < 2) {
       return NextResponse.json(
@@ -225,8 +338,53 @@ export async function POST(request) {
       );
     }
 
-    // Validate that no lines are posting to tax accounts (tax accounts should only be posted via tax service)
-    const accountIds = lines.map(line => line.accountId);
+    if (!ALLOWED_ENTRY_TYPES.includes(entryType)) {
+      return NextResponse.json(
+        { error: `Unsupported journal entry type: ${entryType}.` },
+        { status: 400 }
+      );
+    }
+
+    if (entryType === 'Opening Balance') {
+      const [postedTransactions, postedEntries] = await Promise.all([
+        prisma.transaction.count({
+          where: { tenantId: user.tenantId, status: 'posted' },
+        }),
+        prisma.journalEntry.count({
+          where: { tenantId: user.tenantId, status: 'Posted' },
+        }),
+      ]);
+
+      if ((postedTransactions > 0 || postedEntries > 0) && !body.forceOpeningBalance) {
+        return NextResponse.json(
+          {
+            error:
+              'Opening balance entries are restricted to initial setup or explicitly authorized periods.',
+            details:
+              'Existing posted transactions were found. If this is an authorized opening balance, provide forceOpeningBalance=true.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (body.currency) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { currencyCode: true },
+      });
+      if (tenant?.currencyCode && body.currency !== tenant.currencyCode) {
+        return NextResponse.json(
+          {
+            error: 'Multi-currency journal entries are not supported.',
+            details: `Expected currency ${tenant.currencyCode}.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const accountIds = lines.map((line) => line.accountId);
     const taxTypes = await prisma.taxType.findMany({
       where: {
         tenantId: user.tenantId,
@@ -243,56 +401,64 @@ export async function POST(request) {
     });
 
     if (taxTypes.length > 0) {
-      const taxAccountNames = taxTypes.map(tt => tt.account.accountName || 'Unknown').join(', ');
+      const taxAccountNames = taxTypes
+        .map((tt) => tt.account.accountName || 'Unknown')
+        .join(', ');
       return NextResponse.json(
-        { 
-          error: 'Manual journal entries to tax accounts are not allowed. Tax accounts must be posted automatically via the tax system.',
-          details: `Tax accounts detected: ${taxAccountNames}. Please use the tax management system to post taxes.`
+        {
+          error:
+            'Manual journal entries to tax accounts are not allowed. Tax accounts must be posted automatically via the tax system.',
+          details: `Tax accounts detected: ${taxAccountNames}. Please use the tax management system to post taxes.`,
         },
         { status: 400 }
       );
     }
 
-    // For now, create Transaction directly (we'll update journalService later)
-    const entryDate = resolveEntryDate(body);
-    const referenceNumber = await generateReferenceNumber(prisma, user.tenantId, entryDate);
-    const shouldPost = (body.status || '').toLowerCase() === 'posted';
-
-    const transaction = await prisma.transaction.create({
-      data: {
-        tenantId: user.tenantId,
-        date: entryDate,
-        reference: referenceNumber,
-        description: body.description || '',
-        entryType: body.entryType || 'Regular',
-        status: shouldPost ? 'posted' : 'draft',
-        notes: body.notes || undefined,
-        sourceType: body.sourceType || undefined,
-        sourceId: body.sourceId || undefined,
-        createdById: user.id,
-        postedById: shouldPost ? user.id : null,
-        postedDate: shouldPost ? new Date() : null,
-        lines: {
-          create: lines.map((line, index) => ({
-            lineNumber: index + 1,
-            accountId: line.accountId,
-            debitAmount: line.debitAmount,
-            creditAmount: line.creditAmount,
-            description: line.description,
-          })),
+    if (body.clientRequestId) {
+      const existing = await prisma.journalEntry.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          sourceType: { in: MANUAL_SOURCE_TYPES },
+          sourceId: body.clientRequestId,
         },
-      },
+        include: ENTRY_INCLUDE,
+      });
+
+      if (existing) {
+        return NextResponse.json({
+          message: 'Journal entry already created.',
+          entry: formatJournalEntries([existing])[0],
+        });
+      }
+    }
+
+    const shouldPost = (body.status || '').toLowerCase() === 'posted';
+    const payload = {
+      tenantId: user.tenantId,
+      entryDate,
+      description: body.description,
+      entryType,
+      sourceType: 'Manual',
+      sourceId: body.clientRequestId || null,
+      notes: body.notes || body.internalReference || null,
+      lines,
+    };
+
+    const entry = shouldPost
+      ? await createAndPostEntry(payload, { userId: user.id, tenantId: user.tenantId })
+      : await createDraftEntry(payload, { userId: user.id, tenantId: user.tenantId });
+
+    const hydratedEntry = await prisma.journalEntry.findUnique({
+      where: { id: entry.id },
       include: ENTRY_INCLUDE,
     });
-
-    const hydratedEntry = transaction;
 
     return NextResponse.json(
       {
         message: shouldPost
           ? 'Journal entry posted successfully.'
           : 'Journal entry saved as draft.',
-        entry: formatJournalEntry(hydratedEntry),
+        entry: formatJournalEntries([hydratedEntry])[0],
       },
       { status: 201 }
     );

@@ -34,10 +34,12 @@ export async function GET(request) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const status = searchParams.get('status');
     const category = searchParams.get('category');
+    const accountId = searchParams.get('accountId');
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
     const includeDeleted = searchParams.get('includeDeleted');
+    const supplierId = searchParams.get('supplierId');
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -62,9 +64,19 @@ export async function GET(request) {
       whereClause.status = status;
     }
     
-    // Add category filter if provided
+    // Add account filter if provided
+    if (accountId && accountId !== 'all') {
+      whereClause.expenseAccountId = accountId;
+    }
+
+    // Add category filter if provided (legacy support)
     if (category && category !== 'all') {
       whereClause.category = category;
+    }
+    
+    // Add supplier filter if provided
+    if (supplierId) {
+      whereClause.supplierId = supplierId;
     }
     
     // Add date range filter if provided
@@ -143,7 +155,7 @@ export async function GET(request) {
 
     // Check if we should include COGS transactions
     // If category filter is set and it's not "Cost of Goods Sold" or "COGS", exclude COGS
-    const categoryLower = category?.toLowerCase() || '';
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
     const includeCOGS = !category || 
       category === 'all' || 
       categoryLower.includes('cost of goods') || 
@@ -151,13 +163,13 @@ export async function GET(request) {
 
     // Check if we should include salary advances
     // Include salary advances when no category filter is applied or when specifically filtering for "Salary Advance"
-    const includeSalaryAdvances = !category ||
-      category === 'all' ||
-      category === '' ||
+    const includeSalaryAdvances = (!accountId && (!category || category === 'all' || category === '')) ||
+      categoryLower === 'salary advance' ||
       category === 'Salary Advance';
     
     console.log('🔍 Salary advances inclusion check:', {
       category,
+      categoryLower,
       includeSalaryAdvances,
       categoryType: typeof category
     });
@@ -166,6 +178,9 @@ export async function GET(request) {
     const salaryAdvanceFilter = {
       tenantId: user.tenantId
     };
+    
+    // Note: We don't filter salary advances by branchId because they might not have branchId set
+    // This ensures all salary advances are visible regardless of branch
 
     // Add date range filter to salary advances if provided
     if (dateFrom || dateTo) {
@@ -187,11 +202,14 @@ export async function GET(request) {
     }
 
     // Get total count for pagination (expenses + COGS transactions + salary advances)
+    // If filtering by "Salary Advance", exclude regular expenses and COGS from count
     let expenseCount = 0, cogsCount = 0, salaryAdvanceCount = 0;
     try {
       [expenseCount, cogsCount, salaryAdvanceCount] = await Promise.all([
-        prisma.expense.count({ where: whereClause }),
-        (includeCOGS && cogsAccountIds.length > 0) 
+        (categoryLower === 'salary advance' || category === 'Salary Advance')
+          ? Promise.resolve(0) // Don't count regular expenses when filtering by Salary Advance
+          : prisma.expense.count({ where: whereClause }),
+        (includeCOGS && cogsAccountIds.length > 0 && categoryLower !== 'salary advance' && category !== 'Salary Advance')
           ? prisma.transactionLine.count({ where: cogsTransactionFilter }) 
           : Promise.resolve(0),
         includeSalaryAdvances
@@ -225,6 +243,15 @@ export async function GET(request) {
             name: true,
           }
         },
+        supplier: {
+          select: {
+            id: true,
+            supplierName: true,
+            email: true,
+            phone: true,
+            paymentPreference: true,
+          }
+        },
         payments: {
           where: { status: 'Completed' },
           orderBy: { paymentDate: 'desc' },
@@ -242,8 +269,9 @@ export async function GET(request) {
     });
 
     // Fetch COGS transactions if there are COGS accounts and we should include them
+    // Exclude COGS when filtering by "Salary Advance"
     let cogsTransactions = [];
-    if (includeCOGS && cogsAccountIds.length > 0) {
+    if (includeCOGS && cogsAccountIds.length > 0 && categoryLower !== 'salary advance' && category !== 'Salary Advance') {
       const cogsTransactionLines = await prisma.transactionLine.findMany({
         where: cogsTransactionFilter,
         include: {
@@ -399,8 +427,15 @@ export async function GET(request) {
     );
 
     // Combine expenses, COGS transactions, and salary advances
-    console.log(`📊 Combining expenses: ${expensesWithAttachments.length} regular, ${cogsTransactions.length} COGS, ${salaryAdvanceExpenses.length} salary advances`);
-    const allExpenses = [...expensesWithAttachments, ...cogsTransactions, ...salaryAdvanceExpenses];
+    // If filtering by "Salary Advance", only include salary advances
+    let expensesToCombine = expensesWithAttachments;
+    if (categoryLower === 'salary advance' || category === 'Salary Advance') {
+      // When filtering by Salary Advance, exclude regular expenses and COGS
+      expensesToCombine = [];
+    }
+    
+    console.log(`📊 Combining expenses: ${expensesToCombine.length} regular, ${cogsTransactions.length} COGS, ${salaryAdvanceExpenses.length} salary advances`);
+    const allExpenses = [...expensesToCombine, ...cogsTransactions, ...salaryAdvanceExpenses];
 
     // Sort combined list by date (or other sort field)
     allExpenses.sort((a, b) => {
@@ -499,9 +534,9 @@ export async function POST(request) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.description || !body.amount || !body.date || !body.category) {
+    if (!body.description || !body.amount || !body.date || (!body.expenseAccountId && !body.category)) {
       return NextResponse.json(
-        { error: 'Description, amount, date, and category are required' },
+        { error: 'Description, amount, date, and expense account are required' },
         { status: 400 }
       );
     }
@@ -510,7 +545,31 @@ export async function POST(request) {
     const amount = typeof body.amount === 'string' 
       ? parseFloat(body.amount.replace(/,/g, ''))
       : body.amount;
-    const selectedCategory=body.category==="Other"?body.customCategory:body.category
+    let expenseAccount = null;
+    if (body.expenseAccountId) {
+      expenseAccount = await prisma.account.findFirst({
+        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' }
+      });
+    }
+
+    if (!expenseAccount && body.category) {
+      expenseAccount = await prisma.account.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          accountType: 'Expense',
+          accountName: { equals: body.category, mode: 'insensitive' }
+        }
+      });
+    }
+
+    if (!expenseAccount) {
+      return NextResponse.json(
+        { error: 'Invalid expense account. Please select a valid expense account from the Chart of Accounts.' },
+        { status: 400 }
+      );
+    }
+
+    const selectedCategory = expenseAccount.accountName;
     const paymentMethod=body.paymentMethod
     const paymentStatus = body.paymentStatus || 'Fully paid';
     const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || amount) : amount;
@@ -528,6 +587,7 @@ export async function POST(request) {
           amount: amount,
           date: expenseDate,
           category: selectedCategory,
+          expenseAccountId: expenseAccount.id,
           paymentMethod,
           sourceAccountId: body.sourceAccountId || null,
           merchant: body.merchant || null,
@@ -545,6 +605,8 @@ export async function POST(request) {
           historicalDate: body.historicalDate ? new Date(body.historicalDate) : null,
           migrationBatch: body.migrationBatch || null,
           originalReference: body.originalReference || null,
+          // Supplier linking
+          supplierId: body.supplierId || null,
         }
       });
       
@@ -581,6 +643,7 @@ export async function POST(request) {
             expenseDate: paymentDate,
             amount: paymentAmount,
             category: selectedCategory,
+            expenseAccountId: expenseAccount.id,
             paymentMethod,
             tx,
           });

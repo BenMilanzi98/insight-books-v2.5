@@ -10,16 +10,18 @@ import {
   Trash,
   X,
   Check,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
-import { getPermission } from "@/lib/permissions";
+import { getCurrentUser, getPermission } from "@/lib/permissions";
 
 const JournalEntries = () => {
   // State variables
   const [entries, setEntries] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [showEntryModal, setShowEntryModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -35,16 +37,20 @@ const JournalEntries = () => {
   // Filters
   const [dateRange, setDateRange] = useState("This Year");
   const [statusFilter, setStatusFilter] = useState("All Status");
-  const [sourceTypeFilter, setSourceTypeFilter] = useState("All Types");
+  const [sourceTypeFilter, setSourceTypeFilter] = useState("Manual");
   const [searchTerm, setSearchTerm] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
   const [alertType, setAlertType] = useState("success");
+  const [roleDenied, setRoleDenied] = useState(false);
+  const [accessChecked, setAccessChecked] = useState(false);
   
   // Form data
   const [entryFormData, setEntryFormData] = useState({
     date: new Date().toISOString().split('T')[0],
+    entryType: "Correction",
     description: "",
+    internalReference: "",
     lines: [
       { accountId: "", description: "", debit: "", credit: "" },
       { accountId: "", description: "", debit: "", credit: "" }
@@ -57,6 +63,31 @@ const JournalEntries = () => {
   // Fetch accounts when component mounts
   useEffect(() => {
     fetchAccounts();
+  }, []);
+
+  const isFinanceAdminRole = (user) => {
+    const roleName = user?.role?.name?.toLowerCase() || "";
+    return roleName.includes("finance") || roleName.includes("admin") || roleName === "master_admin";
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const checkRole = async () => {
+      try {
+        const user = await getCurrentUser();
+        if (!mounted) return;
+        setRoleDenied(!isFinanceAdminRole(user));
+      } catch (err) {
+        if (!mounted) return;
+        setRoleDenied(true);
+      } finally {
+        if (mounted) setAccessChecked(true);
+      }
+    };
+    checkRole();
+    return () => {
+      mounted = false;
+    };
   }, []);
   
   // Fetch journal entries when filters change
@@ -262,6 +293,7 @@ const JournalEntries = () => {
   // Submit journal entry form
   const handleSubmit = async (e, postStatus = "draft") => {
     e.preventDefault();
+    if (isSubmitting) return;
     
     try {
       // Validate that the entry is balanced
@@ -271,11 +303,24 @@ const JournalEntries = () => {
         setShowAlert(true);
         return;
       }
+
+      if (postStatus === "posted") {
+        const confirmed = window.confirm(
+          "Posting will permanently lock this entry and update ledger balances. Continue?"
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      setIsSubmitting(true);
       
       // Prepare journal entry data
       const entryData = {
         date: entryFormData.date,
         description: entryFormData.description,
+        entryType: entryFormData.entryType,
+        internalReference: entryFormData.internalReference,
         status: postStatus,
         lines: entryFormData.lines.map(line => ({
           accountId: line.accountId,
@@ -318,6 +363,8 @@ const JournalEntries = () => {
       setAlertMessage(error.message || "Failed to create journal entry");
       setAlertType("error");
       setShowAlert(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
   
@@ -325,7 +372,9 @@ const JournalEntries = () => {
   const resetForm = () => {
     setEntryFormData({
       date: new Date().toISOString().split('T')[0],
+      entryType: "Correction",
       description: "",
+      internalReference: "",
       lines: [
         { accountId: "", description: "", debit: "", credit: "" },
         { accountId: "", description: "", debit: "", credit: "" }
@@ -342,10 +391,18 @@ const JournalEntries = () => {
   
   // Edit journal entry
   const handleEditEntry = (entry) => {
+    if (entry.status === "Posted" || entry.status === "posted") {
+      setAlertMessage("Posted journal entries are read-only. Use a reversal instead.");
+      setAlertType("error");
+      setShowAlert(true);
+      return;
+    }
     // Transform entry data to form data format
     const formData = {
       date: new Date(entry.date).toISOString().split('T')[0],
+      entryType: entry.entryType || "Correction",
       description: entry.description || "",
+      internalReference: entry.notes || "",
       lines: entry.lines.map(line => ({
         accountId: line.accountId,
         description: line.description || "",
@@ -357,6 +414,38 @@ const JournalEntries = () => {
     setEntryFormData(formData);
     setEditId(entry.id);
     setShowEntryModal(true);
+  };
+
+  const handlePostEntry = async (entry) => {
+    if (!entry?.id || isSubmitting) return;
+    const confirmed = window.confirm(
+      "Posting will permanently lock this entry and update ledger balances. Continue?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/journal-entries/${entry.id}?action=post`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to post journal entry");
+      }
+      setAlertMessage("Journal entry posted successfully");
+      setAlertType("success");
+      setShowAlert(true);
+      fetchJournalEntries();
+    } catch (error) {
+      console.error("Error posting journal entry:", error);
+      setAlertMessage(error.message || "Failed to post journal entry");
+      setAlertType("error");
+      setShowAlert(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
 // Handle delete journal entry
@@ -508,17 +597,9 @@ const handleDeleteEntry = async (entryId) => {
   const statusOptions = ["All Status", "Posted", "Draft"];
   
   // Source type options for the filter dropdown
-  const sourceTypeOptions = [
-    "All Types",
-    "Sale",
-    "Expense",
-    "Invoice",
-    "InvoicePayment",
-    "LiabilityPayment",
-    "SupplierPayment",
-    "Asset",
-    "Manual"
-  ];
+  const sourceTypeOptions = ["Manual"];
+
+  const entryTypeOptions = ["Correction", "Accrual", "Opening Balance"];
   
   // Date range options for the filter dropdown
   const dateRangeOptions = [
@@ -531,9 +612,21 @@ const handleDeleteEntry = async (entryId) => {
     "Custom Range"
   ];
   
+  if (!accessChecked) {
+    return null;
+  }
+
   return (
     <PermissionGuard permission="journalEntries.view">   
     <div className="container mx-auto pb-8">
+      {roleDenied && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
+          <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
+          <p className="text-red-600">Only Finance or Admin roles can access journal entries.</p>
+        </div>
+      )}
+      {!roleDenied && (
+      <>
       {/* Alert message */}
       {showAlert && (
         <div className={`fixed top-4 right-4 p-4 rounded-md shadow-md z-50 ${
@@ -653,6 +746,7 @@ const handleDeleteEntry = async (entryId) => {
                   <th className="p-3 font-medium text-right">Debit</th>
                   <th className="p-3 font-medium text-right">Credit</th>
                   <th className="p-3 font-medium">Status</th>
+                  <th className="p-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -727,6 +821,48 @@ const handleDeleteEntry = async (entryId) => {
                               }`}>
                                 {entry.status || 'Draft'}
                               </span>
+                            </td>
+                            <td className="p-3" rowSpan={rowSpan}>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="text-blue-600 hover:text-blue-800"
+                                  onClick={() => handleViewEntry(entry)}
+                                  title="View"
+                                >
+                                  <Eye size={16} />
+                                </button>
+                                {pagePermissions.canUpdateJournal && !(entry.status === "Posted" || entry.status === "posted") && (
+                                  <button
+                                    type="button"
+                                    className="text-blue-600 hover:text-blue-800"
+                                    onClick={() => handleEditEntry(entry)}
+                                    title="Edit"
+                                  >
+                                    <Edit size={16} />
+                                  </button>
+                                )}
+                                {pagePermissions.canPostJournal && !(entry.status === "Posted" || entry.status === "posted") && (
+                                  <button
+                                    type="button"
+                                    className="text-green-600 hover:text-green-800"
+                                    onClick={() => handlePostEntry(entry)}
+                                    title="Post"
+                                  >
+                                    <Check size={16} />
+                                  </button>
+                                )}
+                                {pagePermissions.canDeleteJournal && !(entry.status === "Posted" || entry.status === "posted") && (
+                                  <button
+                                    type="button"
+                                    className="text-red-600 hover:text-red-800"
+                                    onClick={() => handleDeleteEntry(entry.id)}
+                                    title="Delete"
+                                  >
+                                    <Trash size={16} />
+                                  </button>
+                                )}
+                              </div>
                             </td>
                           </>
                         )}
@@ -812,7 +948,19 @@ const handleDeleteEntry = async (entryId) => {
                       required
                     />
                   </div>
-                  {/* Reference field removed as it doesn't exist in schema */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Entry Type</label>
+                    <select
+                      className="w-full p-2 border border-gray-200 rounded"
+                      value={entryFormData.entryType}
+                      onChange={(e) => setEntryFormData({...entryFormData, entryType: e.target.value})}
+                      required
+                    >
+                      {entryTypeOptions.map(option => (
+                        <option key={option} value={option}>{option}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 
                 <div className="mb-6">
@@ -824,6 +972,17 @@ const handleDeleteEntry = async (entryId) => {
                     value={entryFormData.description}
                     onChange={(e) => setEntryFormData({...entryFormData, description: e.target.value})}
                     required
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-medium mb-1">Internal Reference / Tag (optional)</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border border-gray-200 rounded"
+                    placeholder="Internal reference or tag"
+                    value={entryFormData.internalReference}
+                    onChange={(e) => setEntryFormData({...entryFormData, internalReference: e.target.value})}
                   />
                 </div>
                 
@@ -948,7 +1107,7 @@ const handleDeleteEntry = async (entryId) => {
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded"
-                  disabled={!isBalanced}
+                  disabled={!isBalanced || isSubmitting}
                 >
                   Save as Draft
                 </button>
@@ -956,7 +1115,7 @@ const handleDeleteEntry = async (entryId) => {
                   type="button"
                   onClick={(e) => handleSubmit(e, 'posted')}
                   className="px-4 py-2 bg-green-600 text-white rounded"
-                  disabled={!isBalanced}
+                  disabled={!isBalanced || isSubmitting}
                 >
                   Post Entry
                 </button>
@@ -982,6 +1141,11 @@ const handleDeleteEntry = async (entryId) => {
               </div>
             </div>
             <div className="p-6">
+              {(viewEntry.status === "Posted" || viewEntry.status === "posted") && (
+                <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+                  Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Date</p>
@@ -993,10 +1157,17 @@ const handleDeleteEntry = async (entryId) => {
                     return `${day}-${month}-${year}`;
                   })()}</p>
                 </div>
-                {/* Reference field removed as it doesn't exist in schema */}
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Entry Type</p>
+                  <p className="font-medium">{viewEntry.entryType || "Correction"}</p>
+                </div>
                 <div className="md:col-span-2">
                   <p className="text-sm text-gray-500 mb-1">Description</p>
                   <p className="font-medium">{viewEntry.description}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500 mb-1">Internal Reference / Tag</p>
+                  <p className="font-medium">{viewEntry.notes || "—"}</p>
                 </div>
               </div>
               
@@ -1046,6 +1217,8 @@ const handleDeleteEntry = async (entryId) => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
     </PermissionGuard>

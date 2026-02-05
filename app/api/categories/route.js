@@ -37,57 +37,30 @@ export async function GET(request) {
       });
       categories = inventoryCategories.map(cat => cat.name);
     } else {
-      // For expense categories, get unique categories from existing expenses
-      const expenseCategories = await prisma.expense.findMany({
+      // For expense categories, use Chart of Accounts (Expense type)
+      const expenseAccounts = await prisma.account.findMany({
         where: {
           tenantId: user.tenantId,
-          isDeleted: false
+          isActive: true,
+          accountType: 'Expense'
         },
         select: {
-          category: true
+          id: true,
+          accountCode: true,
+          accountName: true,
+          accountType: true
         },
-        distinct: ['category']
-      });
-
-      // Get unique categories from salary advances (they have category "Salary Advance")
-      const salaryAdvanceCount = await prisma.salaryAdvance.count({
-        where: {
-          tenantId: user.tenantId,
-          status: { not: 'Cancelled' }
+        orderBy: {
+          accountCode: 'asc'
         }
       });
 
-      // Extract unique categories and add default ones
-      const existingCategories = expenseCategories.map(e => e.category).filter(Boolean);
-      
-      // Add "Salary Advance" if there are any salary advances
-      if (salaryAdvanceCount > 0) {
-        existingCategories.push('Salary Advance');
-      }
-      
-      const defaultCategories = [
-        "Office Supplies",
-        "Travel",
-        "Meals & Entertainment",
-        "Utilities",
-        "Software Subscription",
-        "Advertising",
-        "Rent",
-        "Equipment",
-        "Professional Services",
-        "Marketing",
-        "Training",
-        "Insurance",
-        "Legal",
-        "Salary",
-        "Salary Advance",
-        "Pension",
-        "Gratuity"
-      ];
-
-      // Combine and deduplicate
-      const allCategories = [...new Set([...defaultCategories, ...existingCategories])];
-      categories = allCategories.sort();
+      categories = expenseAccounts.map(acc => ({
+        id: acc.id,
+        code: acc.accountCode,
+        name: acc.accountName,
+        type: acc.accountType
+      }));
     }
 
     return NextResponse.json({
@@ -137,13 +110,10 @@ export async function POST(request) {
         }
       });
     } else {
-      // For expense categories, we'll just return success for now
-      // In a real implementation, you might want to create an ExpenseCategory model
-      category = {
-        id: `expense-${Date.now()}`,
-        name: name.trim(),
-        type: 'expense'
-      };
+      return NextResponse.json(
+        { error: 'Expense categories are managed in the Chart of Accounts.' },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

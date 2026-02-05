@@ -3,6 +3,22 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+
+const isFinanceAdmin = (user) => {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
+};
+
+const normalizeAccountType = (value) => {
+  if (!value) return value;
+  const normalized = value.toString().trim();
+  const upper = normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+  return ACCOUNT_TYPES.includes(upper) ? upper : normalized;
+};
+
+const validateAccountCode = (code) => /^\d{3,10}$/.test(code || '');
+
 // GET - List all accounts with filtering and search
 export async function GET(request) {
   try {
@@ -11,6 +27,13 @@ export async function GET(request) {
       return NextResponse.json(
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
+      );
+    }
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
       );
     }
 
@@ -25,7 +48,7 @@ export async function GET(request) {
     };
 
     if (accountType && accountType !== 'All') {
-      where.accountType = accountType;
+      where.accountType = normalizeAccountType(accountType);
     }
 
     if (isActive === 'true' || (!includeInactive && isActive !== 'false')) {
@@ -57,12 +80,14 @@ export async function GET(request) {
             id: true,
             accountCode: true,
             accountName: true,
-            isActive: true
+            isActive: true,
+            isSystem: true
           }
         },
         _count: {
           select: {
-            journalEntryLines: true
+            journalEntryLines: true,
+            transactionLines: true
           }
         }
       },
@@ -71,98 +96,6 @@ export async function GET(request) {
       ]
     });
 
-    // Get payment method balances from AccountBalance table
-    const paymentMethodBalances = await prisma.accountBalance.findMany({
-      where: { tenantId: user.tenantId }
-    });
-    
-    // Ensure payment method accounts exist (1020, 1030, 1040, 1050)
-    // Check for existing accounts first to avoid duplicates
-    const paymentMethodCodes = ['1020', '1030', '1040', '1050'];
-    const existingPaymentMethodAccounts = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
-        OR: [
-          { accountCode: { in: paymentMethodCodes } },
-          { code: { in: paymentMethodCodes } }
-        ]
-      },
-      select: {
-        accountCode: true,
-        code: true
-      }
-    });
-    
-    const existingCodes = new Set(
-      existingPaymentMethodAccounts.map(acc => acc.accountCode || acc.code).filter(Boolean)
-    );
-    
-    const paymentMethodAccounts = [
-      { code: '1020', name: 'Bank Transfer', type: 'ASSET' },
-      { code: '1030', name: 'Airtel Money', type: 'ASSET' },
-      { code: '1040', name: 'Mpamba', type: 'ASSET' },
-      { code: '1050', name: 'PayChangu', type: 'ASSET' }
-    ];
-    
-    let accountsCreated = false;
-    for (const pmAccount of paymentMethodAccounts) {
-      if (!existingCodes.has(pmAccount.code)) {
-        try {
-          // Create the account if it doesn't exist
-          await prisma.account.create({
-            data: {
-              accountCode: pmAccount.code,
-              accountName: pmAccount.name,
-              accountType: pmAccount.type,
-              normalBalance: 'Debit',
-              isActive: true,
-              tenantId: user.tenantId,
-              balance: 0
-            }
-          });
-          console.log(`✅ Created payment method account: ${pmAccount.code} - ${pmAccount.name}`);
-          accountsCreated = true;
-          existingCodes.add(pmAccount.code); // Add to set to prevent duplicate creation in same request
-        } catch (error) {
-          // Account might have been created by another request, ignore duplicate error
-          if (!error.message.includes('Unique constraint') && !error.message.includes('duplicate')) {
-            console.error(`Error creating account ${pmAccount.code}:`, error);
-          }
-        }
-      }
-    }
-    
-    // Re-fetch accounts if we created any new ones
-    if (accountsCreated) {
-      accounts = await prisma.account.findMany({
-        where,
-        include: {
-          parentAccount: {
-            select: {
-              id: true,
-              accountCode: true,
-              accountName: true
-            }
-          },
-          childAccounts: {
-            select: {
-              id: true,
-              accountCode: true,
-              accountName: true,
-              isActive: true
-            }
-          },
-          _count: {
-            select: {
-              journalEntryLines: true
-            }
-          }
-        },
-        orderBy: [
-          { accountCode: 'asc' }
-        ]
-      });
-    }
 
     // Get other balance sources
     // Accounts Receivable from unpaid invoices
@@ -556,16 +489,7 @@ export async function GET(request) {
       payrollCount: payrolls.length
     });
 
-    // Payment method definitions (code/name matching)
-    const paymentMethodDefinitions = {
-      cash: { codes: ['1000'], names: ['cash'] },
-      bank_transfer: { codes: ['1020'], names: ['bank transfer', 'bank'] },
-      airtel_money: { codes: ['1030'], names: ['airtel money', 'airtel'] },
-      mpamba: { codes: ['1040'], names: ['mpamba'] },
-      paychangu: { codes: ['1050'], names: ['paychangu'] }
-    };
-    
-    // Calculate current balances from journal entries AND payment method balances
+    // Calculate current balances from journal entries
     const accountsWithBalances = await Promise.all(accounts.map(async (account) => {
       try {
         // Get all journal entry lines for this account (both Posted and Draft)
@@ -612,41 +536,9 @@ export async function GET(request) {
           balance = totalCredits - totalDebits;
         }
 
-        // Check if this account matches any payment method balances
         const accountCode = String(account.accountCode || account.code || '').trim();
         const accountName = (account.accountName || account.name || '').toLowerCase().trim();
         const accountType = (account.accountType || account.type || '').trim().toUpperCase();
-        
-        // Debug: Log account details
-        if (accountCode === '1200' || accountCode === '4000' || accountCode === '5000') {
-          console.log(`Processing account: ${accountCode} - ${account.accountName || account.name}, type: ${accountType}`);
-        }
-        
-        // Find matching payment method balances by account code or name
-        let paymentMethodBalance = 0;
-        let isPaymentMethodAccount = false;
-        let matchedPaymentMethodKey = null;
-        
-        for (const [methodKey, definition] of Object.entries(paymentMethodDefinitions)) {
-          const matchesCode = definition.codes.includes(accountCode);
-          const matchesName = definition.names.some(name => accountName.includes(name));
-          
-          if (matchesCode || matchesName) {
-            matchedPaymentMethodKey = methodKey;
-            break;
-          }
-        }
-        
-        if (matchedPaymentMethodKey) {
-          isPaymentMethodAccount = true;
-          const balanceRecord = paymentMethodBalances.find(b => b.account === matchedPaymentMethodKey);
-          paymentMethodBalance = parseFloat(balanceRecord?.balance) || 0;
-        }
-        
-        // For payment method accounts, use AccountBalance directly (skip journal entries to avoid double-counting)
-        if (isPaymentMethodAccount) {
-          balance = paymentMethodBalance; // Use AccountBalance directly
-        }
 
         // Add balances from other sources based on account type and name
         let additionalBalance = 0;
@@ -1040,6 +932,13 @@ export async function POST(request) {
       );
     }
 
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const {
       accountCode,
@@ -1052,18 +951,30 @@ export async function POST(request) {
       isActive = true
     } = body;
 
+    const normalizedType = normalizeAccountType(accountType);
+    const resolvedNormalBalance =
+      normalBalance ||
+      (normalizedType === 'Asset' || normalizedType === 'Expense' ? 'Debit' : 'Credit');
+
     // Validation
-    if (!accountCode || !accountName || !accountType || !normalBalance) {
+    if (!accountCode || !accountName || !normalizedType) {
       return NextResponse.json(
-        { error: 'Missing required fields: accountCode, accountName, accountType, normalBalance' },
+        { error: 'Missing required fields: accountCode, accountName, accountType' },
         { status: 400 }
       );
     }
 
     // Validate account code format (numeric only)
-    if (!/^\d+$/.test(accountCode)) {
+    if (!validateAccountCode(accountCode)) {
       return NextResponse.json(
-        { error: 'Account code must be numeric only (e.g., 1010)' },
+        { error: 'Account code must be numeric (3-10 digits).' },
+        { status: 400 }
+      );
+    }
+
+    if (!ACCOUNT_TYPES.includes(normalizedType)) {
+      return NextResponse.json(
+        { error: `Invalid account type. Expected one of: ${ACCOUNT_TYPES.join(', ')}` },
         { status: 400 }
       );
     }
@@ -1096,7 +1007,7 @@ export async function POST(request) {
         );
       }
 
-      if (parentAccount.accountType !== accountType) {
+    if (parentAccount.accountType !== normalizedType) {
         return NextResponse.json(
           { error: 'Parent account must be of the same type' },
           { status: 400 }
@@ -1113,9 +1024,9 @@ export async function POST(request) {
       'Income': 'Credit'
     };
 
-    if (expectedNormalBalance[accountType] !== normalBalance) {
+    if (expectedNormalBalance[normalizedType] !== resolvedNormalBalance) {
       return NextResponse.json(
-        { error: `Normal balance for ${accountType} should be ${expectedNormalBalance[accountType]}` },
+        { error: `Normal balance for ${normalizedType} should be ${expectedNormalBalance[normalizedType]}` },
         { status: 400 }
       );
     }
@@ -1124,13 +1035,14 @@ export async function POST(request) {
       data: {
         accountCode,
         accountName,
-        accountType,
+        accountType: normalizedType,
         accountSubtype: accountSubtype || null,
-        normalBalance,
+        normalBalance: resolvedNormalBalance,
         parentAccountId: parentAccountId || null,
         description: description || null,
         isActive,
         tenantId: user.tenantId,
+        isSystem: false,
         balance: 0
       },
       include: {

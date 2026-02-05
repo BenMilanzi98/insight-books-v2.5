@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateMalawiPayroll } from '@/lib/malawiTaxUtils';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
 
@@ -961,6 +962,7 @@ export async function POST(request) {
 
       if (transactionLines.length > 0) {
         await prisma.$transaction(async (tx) => {
+          await assertPeriodOpen(user.tenantId, paymentDate, tx);
           const referenceNumber = await generateReferenceNumber(tx, user.tenantId, paymentDate);
 
           const createdTransaction = await tx.transaction.create({

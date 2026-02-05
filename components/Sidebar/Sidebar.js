@@ -26,6 +26,8 @@ import {
   BarChart3,
   Package,
   ShoppingCart,
+  RotateCcw,
+  CalendarDays,
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
@@ -38,6 +40,7 @@ const iconMap = {
   affiliate: Handshake,
   users: Users,
   coa: BookText,
+  generalLedger: BookText,
   journal: BookOpen,
   trialBalance: Scale,
   capital: Wallet,
@@ -54,6 +57,8 @@ const iconMap = {
   gratuity: Wallet,
   advances: CreditCard,
   pension: Landmark,
+  reversals: RotateCcw,
+  accountingPeriods: CalendarDays,
 };
 
 const NavIcon = ({ name, active }) => {
@@ -67,6 +72,7 @@ const NavIcon = ({ name, active }) => {
     affiliate: "#EF4444", // Red
     users: "#8B5CF6", // Purple
     coa: "#06B6D4", // Cyan
+  generalLedger: "#0EA5E9", // Sky
     journal: "#84CC16", // Lime
     trialBalance: "#F97316", // Orange
     capital: "#EC4899", // Pink
@@ -83,6 +89,7 @@ const NavIcon = ({ name, active }) => {
     gratuity: "#84CC16", // Lime
     advances: "#F97316", // Orange
     pension: "#EC4899", // Pink
+    accountingPeriods: "#0F766E", // Teal
   };
 
   const iconColor = colorfulIcons[name] || (active ? "white" : "rgba(255,255,255,0.7)");
@@ -147,8 +154,11 @@ const navigationByPermission = {
         //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
         //   ]
         // },
+        { href: "/general-ledger", icon: "generalLedger", text: "General Ledger" },
         { href: "/chart-of-accounts", icon: "coa", text: "Chart of Accounts" },
+        { href: "/accounting-periods", icon: "accountingPeriods", text: "Accounting Periods" },
         { href: "/journal-entries", icon: "journal", text: "Journal Entries" },
+        { href: "/transactions/reversals", icon: "reversals", text: "Reversals" },
         { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance" },
         { href: "/capital-account", icon: "capital", text: "Capital Account" },
       ],
@@ -264,9 +274,12 @@ const navigationByPermission = {
       //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
       //   ]
       // },
+      { href: "/general-ledger", icon: "generalLedger", text: "General Ledger", permission: "generalLedger.view" },
+      { href: "/accounting-periods", icon: "accountingPeriods", text: "Accounting Periods", permission: "journalEntries.view" },
       { href: "/journal-entries", icon: "journal", text: "Journal Entries", permission: "journalEntries.view" },
       { href: "/capital-account", icon: "capital", text: "Capital Account", permission: "reports.view" },
       { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance", permission: "trialBalance.view" },
+      { href: "/transactions/reversals", icon: "reversals", text: "Reversals" },
     ]
   },
   // Additional modules
@@ -655,12 +668,47 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (
-      hasPermission(user.role.permissions, "reports.view") ||
-      hasPermission(user.role.permissions, "accounting.view")
-    ) {
-      sections.push(navigationByPermission.accounting);
-    }
+    // Accounting section - always show for all authenticated users
+    sections.push({
+      label: "Accounting",
+      items: [
+        {
+          href: "/general-ledger",
+          icon: "generalLedger",
+          text: "General Ledger"
+        },
+        {
+          href: "/accounting-periods",
+          icon: "accountingPeriods",
+          text: "Accounting Periods"
+        },
+        {
+          href: "/chart-of-accounts",
+          icon: "coa",
+          text: "Chart of Accounts"
+        },
+        {
+          href: "/journal-entries",
+          icon: "journal",
+          text: "Journal Entries"
+        },
+        {
+          href: "/capital-account",
+          icon: "capital",
+          text: "Capital Account"
+        },
+        {
+          href: "/trial-balance",
+          icon: "trialBalance",
+          text: "Trial Balance"
+        },
+        {
+          href: "/transactions/reversals",
+          icon: "reversals",
+          text: "Reversals"
+        },
+      ]
+    });
     
     // Create a business management section if user has access to any of these
     const businessItems = [];

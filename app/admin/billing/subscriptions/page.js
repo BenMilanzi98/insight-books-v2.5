@@ -43,10 +43,30 @@ export default function AdminSubscriptions() {
     notes: ''
   });
   const [tenants, setTenants] = useState([]);
+  const [branchSubscriptions, setBranchSubscriptions] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [allBranches, setAllBranches] = useState([]);
+  const [showBranchActivateModal, setShowBranchActivateModal] = useState(false);
+  const [showBranchDeactivateModal, setShowBranchDeactivateModal] = useState(false);
+  const [selectedBranchSubscription, setSelectedBranchSubscription] = useState(null);
+  const [branchFormData, setBranchFormData] = useState({
+    tenantId: '',
+    branchId: '',
+    durationDays: 30,
+    amount: '0',
+    currency: 'MWK',
+    notes: ''
+  });
+  const subscriptionsPerPage = 15;
+  const branchesPerPage = 15;
+  const [subscriptionPage, setSubscriptionPage] = useState(1);
+  const [branchPage, setBranchPage] = useState(1);
 
   useEffect(() => {
     fetchSubscriptions();
     fetchTenants();
+    fetchBranchSubscriptions();
+    fetchAllBranches();
   }, []);
 
   const fetchSubscriptions = async () => {
@@ -80,6 +100,118 @@ export default function AdminSubscriptions() {
       }
     } catch (error) {
       console.error('Error fetching tenants:', error);
+    }
+  };
+
+  const fetchBranchSubscriptions = async () => {
+    try {
+      const response = await fetch('/api/admin/branch-subscriptions', {
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBranchSubscriptions(data.branchSubscriptions || []);
+      } else {
+        console.error('Failed to fetch branch subscriptions');
+      }
+    } catch (error) {
+      console.error('Error fetching branch subscriptions:', error);
+    }
+  };
+
+  const fetchAllBranches = async () => {
+    try {
+      const response = await fetch('/api/admin/branches', {
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAllBranches(data.branches || []);
+      } else {
+        console.error('Failed to fetch branches');
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
+
+  const fetchBranchesForTenant = async (tenantId) => {
+    if (!tenantId) {
+      setBranches([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/branches?tenantId=${tenantId}`, {
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBranches(data.branches || []);
+      } else {
+        console.error('Failed to fetch branches');
+      }
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
+
+  const handleActivateBranchSubscription = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch('/api/admin/branch-subscriptions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(branchFormData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowBranchActivateModal(false);
+        resetBranchForm();
+        fetchBranchSubscriptions();
+        alert('Branch subscription activated successfully!');
+      } else {
+        alert(`Failed to activate branch subscription: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Network error. Please try again.');
+      console.error('Activate branch error:', error);
+    }
+  };
+
+  const handleDeactivateBranchSubscription = async () => {
+    try {
+      const response = await fetch('/api/admin/branch-subscriptions/deactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subscriptionId: selectedBranchSubscription?.id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowBranchDeactivateModal(false);
+        setSelectedBranchSubscription(null);
+        fetchBranchSubscriptions();
+        alert('Branch subscription deactivated.');
+      } else {
+        alert(`Failed to deactivate branch subscription: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Network error. Please try again.');
+      console.error('Deactivate branch error:', error);
     }
   };
 
@@ -211,6 +343,18 @@ export default function AdminSubscriptions() {
     });
   };
 
+  const resetBranchForm = () => {
+    setBranchFormData({
+      tenantId: '',
+      branchId: '',
+      durationDays: 30,
+      amount: '0',
+      currency: 'MWK',
+      notes: ''
+    });
+    setBranches([]);
+  };
+
   const openEditModal = (subscription) => {
     setSelectedSubscription(subscription);
     setFormData({
@@ -235,10 +379,38 @@ export default function AdminSubscriptions() {
     setShowDeleteModal(true);
   };
 
+  const openBranchDeactivateModal = (subscription) => {
+    setSelectedBranchSubscription(subscription);
+    setShowBranchDeactivateModal(true);
+  };
+
+  const openBranchActivateModal = (row) => {
+    if (row) {
+      const tenantId = row.tenantId || row?.tenant?.id || '';
+      const branchId = row.branchId || row?.branch?.id || '';
+      setBranchFormData({
+        tenantId,
+        branchId,
+        durationDays: 30,
+        amount: row.amount?.toString() || row?.subscription?.amount?.toString() || '0',
+        currency: row.currency || row?.subscription?.currency || 'MWK',
+        notes: ''
+      });
+      if (tenantId) {
+        fetchBranchesForTenant(tenantId);
+      }
+    } else {
+      resetBranchForm();
+    }
+
+    setShowBranchActivateModal(true);
+  };
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'Pending': 'bg-yellow-100 text-yellow-800',
       'Active': 'bg-green-100 text-green-800',
+      'Trial': 'bg-blue-100 text-blue-800',
       'Failed': 'bg-red-100 text-red-800',
       'Cancelled': 'bg-gray-100 text-gray-800',
       'Expired': 'bg-red-100 text-red-800'
@@ -257,8 +429,25 @@ export default function AdminSubscriptions() {
     return planConfig ? planConfig.displayName : plan;
   };
 
+  const getBranchDurationLabel = (subscription) => {
+    if (!subscription?.startedAt || !subscription?.expiresAt) {
+      return 'N/A';
+    }
+
+    const start = new Date(subscription.startedAt);
+    const end = new Date(subscription.expiresAt);
+    const diffMs = end.getTime() - start.getTime();
+    if (Number.isNaN(diffMs) || diffMs <= 0) {
+      return 'N/A';
+    }
+
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+    return `${diffDays} day${diffDays === 1 ? '' : 's'}`;
+  };
+
   const filteredSubscriptions = subscriptions.filter(subscription => {
     const matchesSearch = subscription.tenant?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         subscription.tenant?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          subscription.tenant?.subdomain?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          subscription.plan?.toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -266,6 +455,58 @@ export default function AdminSubscriptions() {
     
     return matchesSearch && matchesStatus;
   });
+
+  const branchSubscriptionLookup = new Map();
+  branchSubscriptions.forEach((subscription) => {
+    if (!branchSubscriptionLookup.has(subscription.branchId)) {
+      branchSubscriptionLookup.set(subscription.branchId, subscription);
+    }
+  });
+
+  const branchRows = allBranches.length > 0
+    ? allBranches.map((branch) => {
+        const subscription = branchSubscriptionLookup.get(branch.id) || null;
+        return {
+          branch,
+          subscription,
+          tenant: subscription?.tenant || branch.tenant,
+          tenantId: subscription?.tenantId || branch.tenantId,
+          branchId: branch.id,
+          amount: subscription?.amount,
+          currency: subscription?.currency
+        };
+      })
+    : branchSubscriptions.map((subscription) => ({
+        branch: subscription.branch,
+        subscription,
+        tenant: subscription.tenant,
+        tenantId: subscription.tenantId,
+        branchId: subscription.branchId,
+        amount: subscription.amount,
+        currency: subscription.currency
+      }));
+
+  const branchSearch = searchTerm.toLowerCase();
+  const filteredBranchRows = branchRows.filter((row) => {
+    if (!branchSearch) return true;
+    return (
+      row.branch?.name?.toLowerCase().includes(branchSearch) ||
+      row.tenant?.name?.toLowerCase().includes(branchSearch) ||
+      row.tenant?.email?.toLowerCase().includes(branchSearch) ||
+      row.tenant?.subdomain?.toLowerCase().includes(branchSearch)
+    );
+  });
+
+  const subscriptionTotalPages = Math.max(1, Math.ceil(filteredSubscriptions.length / subscriptionsPerPage));
+  const branchTotalPages = Math.max(1, Math.ceil(filteredBranchRows.length / branchesPerPage));
+  const pagedSubscriptions = filteredSubscriptions.slice(
+    (subscriptionPage - 1) * subscriptionsPerPage,
+    subscriptionPage * subscriptionsPerPage
+  );
+  const pagedBranchRows = filteredBranchRows.slice(
+    (branchPage - 1) * branchesPerPage,
+    branchPage * branchesPerPage
+  );
 
   if (isLoading) {
     return (
@@ -339,9 +580,13 @@ export default function AdminSubscriptions() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by tenant name, subdomain, or plan..."
+                placeholder="Search by tenant name, email, subdomain, or plan..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setSubscriptionPage(1);
+                  setBranchPage(1);
+                }}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
@@ -404,8 +649,8 @@ export default function AdminSubscriptions() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredSubscriptions.length > 0 ? (
-                filteredSubscriptions.map((subscription) => (
+              {pagedSubscriptions.length > 0 ? (
+                pagedSubscriptions.map((subscription) => (
                   <tr key={subscription.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-medium text-gray-900">
@@ -470,7 +715,366 @@ export default function AdminSubscriptions() {
             </tbody>
           </table>
         </div>
+        <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-600">
+          <div>
+            Showing {(subscriptionPage - 1) * subscriptionsPerPage + 1}
+            {' '}to{' '}
+            {Math.min(subscriptionPage * subscriptionsPerPage, filteredSubscriptions.length)} of{' '}
+            {filteredSubscriptions.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSubscriptionPage((prev) => Math.max(1, prev - 1))}
+              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              disabled={subscriptionPage === 1}
+            >
+              Prev
+            </button>
+            <span>
+              Page {subscriptionPage} of {subscriptionTotalPages}
+            </span>
+            <button
+              onClick={() => setSubscriptionPage((prev) => Math.min(subscriptionTotalPages, prev + 1))}
+              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              disabled={subscriptionPage === subscriptionTotalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Branch Subscriptions Table */}
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Branch Subscriptions</h3>
+            <p className="text-sm text-gray-500">Activate branches for a specific duration.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                fetchBranchSubscriptions();
+                fetchAllBranches();
+              }}
+              className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+              title="Refresh branch subscriptions"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => openBranchActivateModal()}
+              className="inline-flex items-center px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Activate Branch
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Tenant
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Branch
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Duration
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Expires
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Branch Active
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {pagedBranchRows.length > 0 ? (
+                pagedBranchRows.map((row) => (
+                  <tr
+                    key={row.branch?.id || row.subscription?.id}
+                    className="hover:bg-gray-50 cursor-pointer"
+                    onClick={() => openBranchActivateModal(row)}
+                    title="Click to activate or extend this branch"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {row.tenant?.name || 'Unknown'}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {row.tenant?.subdomain || 'No subdomain'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {row.branch?.name || row.subscription?.branch?.name || 'Unknown Branch'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(row.subscription?.status || 'Pending')}`}>
+                        {row.subscription?.status || 'Pending'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {row.subscription ? getBranchDurationLabel(row.subscription) : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {row.subscription?.currency || row.currency || 'MWK'} {(row.subscription?.amount || row.amount || 0).toLocaleString()}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {row.subscription?.expiresAt ? new Date(row.subscription.expiresAt).toLocaleDateString() : 'N/A'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${row.branch?.isActive || row.subscription?.branch?.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {row.branch?.isActive || row.subscription?.branch?.isActive ? 'Yes' : 'No'}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (row.subscription) {
+                            openBranchDeactivateModal(row.subscription);
+                          }
+                        }}
+                        className={`p-1 ${row.subscription?.isActive ? 'text-red-600 hover:text-red-900' : 'text-gray-300 cursor-not-allowed'}`}
+                        title="Deactivate branch subscription"
+                        disabled={!row.subscription?.isActive}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                    No branches found
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-6 py-4 border-t border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-gray-600">
+          <div>
+            Showing {(branchPage - 1) * branchesPerPage + 1}
+            {' '}to{' '}
+            {Math.min(branchPage * branchesPerPage, filteredBranchRows.length)} of{' '}
+            {filteredBranchRows.length}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setBranchPage((prev) => Math.max(1, prev - 1))}
+              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              disabled={branchPage === 1}
+            >
+              Prev
+            </button>
+            <span>
+              Page {branchPage} of {branchTotalPages}
+            </span>
+            <button
+              onClick={() => setBranchPage((prev) => Math.min(branchTotalPages, prev + 1))}
+              className="px-3 py-1 border border-gray-300 rounded-md disabled:opacity-50"
+              disabled={branchPage === branchTotalPages}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Activate Branch Subscription Modal */}
+      {showBranchActivateModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Activate Branch Subscription</h3>
+                <button
+                  onClick={() => setShowBranchActivateModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <AlertCircle className="h-6 w-6" />
+                </button>
+              </div>
+
+              <form onSubmit={handleActivateBranchSubscription} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tenant *
+                    </label>
+                    <select
+                      required
+                      value={branchFormData.tenantId}
+                      onChange={(e) => {
+                        const tenantId = e.target.value;
+                        setBranchFormData(prev => ({ ...prev, tenantId, branchId: '' }));
+                        fetchBranchesForTenant(tenantId);
+                      }}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    >
+                      <option value="">Select a tenant</option>
+                      {tenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>
+                          {tenant.name} ({tenant.subdomain})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Branch *
+                    </label>
+                    <select
+                      required
+                      value={branchFormData.branchId}
+                      onChange={(e) => setBranchFormData(prev => ({ ...prev, branchId: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      disabled={!branchFormData.tenantId}
+                    >
+                      <option value="">Select a branch</option>
+                      {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name} {branch.isActive ? '(active)' : '(inactive)'}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Duration (days) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      required
+                      value={branchFormData.durationDays}
+                      onChange={(e) => setBranchFormData(prev => ({ ...prev, durationDays: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="30"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Amount
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={branchFormData.amount}
+                      onChange={(e) => setBranchFormData(prev => ({ ...prev, amount: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Currency
+                    </label>
+                    <select
+                      value={branchFormData.currency}
+                      onChange={(e) => setBranchFormData(prev => ({ ...prev, currency: e.target.value }))}
+                      className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    >
+                      <option value="MWK">MWK</option>
+                      <option value="USD">USD</option>
+                      <option value="EUR">EUR</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    value={branchFormData.notes}
+                    onChange={(e) => setBranchFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    rows={3}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    placeholder="Reason or context for this activation..."
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowBranchActivateModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Activate Branch
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Branch Subscription Modal */}
+      {showBranchDeactivateModal && selectedBranchSubscription && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Deactivate Branch Subscription</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Deactivate subscription for{' '}
+                <strong>{selectedBranchSubscription.branch?.name || 'Unknown Branch'}</strong>?
+                This will deactivate the branch if no other active subscription exists.
+              </p>
+
+              <div className="flex justify-center space-x-3">
+                <button
+                  onClick={() => setShowBranchDeactivateModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeactivateBranchSubscription}
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700"
+                >
+                  Deactivate
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Subscription Modal */}
       {showAddModal && (

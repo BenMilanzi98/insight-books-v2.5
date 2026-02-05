@@ -389,6 +389,7 @@ const ChartOfAccountsPage = () => {
     const accountCode = account.accountCode || account.code || 'N/A';
     const accountName = account.accountName || account.name || 'Unnamed Account';
 
+    const isLocked = account.isSystem || account.transactionCount > 0;
     return (
       <React.Fragment key={account.id}>
         <tr className={`hover:bg-gray-50/50 transition-colors ${!account.isActive ? 'opacity-60' : ''}`}>
@@ -438,17 +439,18 @@ const ChartOfAccountsPage = () => {
                 <Eye size={16} />
               </button>
               <button
-                onClick={() => openEditModal(account)}
-                className="text-gray-600 hover:text-gray-800 transition-colors"
-                title="Edit"
+                onClick={() => !account.isSystem && openEditModal(account)}
+                className={`transition-colors ${account.isSystem ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-gray-800'}`}
+                title={account.isSystem ? 'System account (read-only)' : 'Edit'}
+                disabled={account.isSystem}
               >
                 <Edit size={16} />
               </button>
               <button
                 onClick={() => handleDeleteAccount(account.id)}
-                className="text-red-600 hover:text-red-800 transition-colors"
-                title="Delete"
-                disabled={account.transactionCount > 0}
+                className={`transition-colors ${isLocked ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:text-red-800'}`}
+                title={isLocked ? 'Account in use or system account' : 'Delete'}
+                disabled={isLocked}
               >
                 <Trash2 size={16} />
               </button>
@@ -730,7 +732,7 @@ const AccountModal = ({
                 onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., 1010"
-                disabled={isEdit}
+                disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               />
             </div>
 
@@ -744,6 +746,7 @@ const AccountModal = ({
                 onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., Cash on Hand"
+                disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               />
             </div>
           </div>
@@ -757,7 +760,7 @@ const AccountModal = ({
                 value={formData.accountType}
                 onChange={(e) => setFormData({ ...formData, accountType: e.target.value, accountSubtype: '' })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={isEdit && account?.transactionCount > 0}
+                disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               >
                 {accountTypes.map(type => (
                   <option key={type} value={type}>{type}</option>
@@ -796,7 +799,7 @@ const AccountModal = ({
                     checked={formData.normalBalance === 'Debit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
                     className="mr-2"
-                    disabled={isEdit && account?.transactionCount > 0}
+                    disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
                   <span>Debit</span>
                 </label>
@@ -807,7 +810,7 @@ const AccountModal = ({
                     checked={formData.normalBalance === 'Credit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
                     className="mr-2"
-                    disabled={isEdit && account?.transactionCount > 0}
+                    disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
                   <span>Credit</span>
                 </label>

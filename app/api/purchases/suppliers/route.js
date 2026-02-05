@@ -57,7 +57,8 @@ export async function GET(request) {
         { supplierName: { contains: search, mode: 'insensitive' } },
         { supplierCode: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
-        { phone: { contains: search, mode: 'insensitive' } }
+        { phone: { contains: search, mode: 'insensitive' } },
+        { contactPerson: { contains: search, mode: 'insensitive' } }
       ];
     }
 
@@ -67,7 +68,41 @@ export async function GET(request) {
       where,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
-      take: limit
+      take: limit,
+      select: {
+        id: true,
+        supplierCode: true,
+        supplierName: true,
+        contactPerson: true,
+        email: true,
+        phone: true,
+        mobile: true,
+        address: true,
+        city: true,
+        country: true,
+        postalCode: true,
+        taxId: true,
+        paymentTerms: true,
+        paymentPreference: true,
+        currency: true,
+        creditLimit: true,
+        currentBalance: true,
+        bankName: true,
+        bankAccountNumber: true,
+        bankBranch: true,
+        isActive: true,
+        notes: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            expenses: true,
+            supplierBills: true,
+            supplierPayments: true,
+            purchaseOrders: true,
+          }
+        }
+      }
     });
 
     return NextResponse.json({
@@ -81,8 +116,13 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching suppliers:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch suppliers. Please try again.' },
+      { error: 'Failed to fetch suppliers. Please try again.', details: error.message },
       { status: 500 }
     );
   }
@@ -182,6 +222,7 @@ export async function POST(request) {
         postalCode: body.postalCode || null,
         taxId: body.taxId || null,
         paymentTerms: body.paymentTerms ?? 30,
+        paymentPreference: body.paymentPreference || null,
         currency: body.currency || 'MWK',
         creditLimit: body.creditLimit ?? null,
         currentBalance: body.currentBalance ?? 0,

@@ -12,6 +12,7 @@ import {
 import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { resolveBranchId } from '@/lib/branchHelpers';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 // Helper function to format payment data
 const formatPaymentResponse = (payment) => {
@@ -143,6 +144,7 @@ async function recordPaymentTransaction({
       return;
     }
 
+    await assertPeriodOpen(tenantId, entryDate, prisma);
     const reference = await generateReferenceNumber(prisma, tenantId, entryDate);
 
     await prisma.transaction.create({

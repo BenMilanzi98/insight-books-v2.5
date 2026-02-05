@@ -228,6 +228,8 @@ model User {
   supplierPaymentsCreated        SupplierPayment[]
   createdTransactions            Transaction[]          @relation("TransactionCreatedBy")
   postedTransactions             Transaction[]          @relation("TransactionPostedBy")
+  closedAccountingPeriods        AccountingPeriod[]     @relation("AccountingPeriodClosedBy")
+  reopenedAccountingPeriods      AccountingPeriod[]     @relation("AccountingPeriodReopenedBy")
   defaultBranch                  Branch?                @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
   role                           Role                   @relation(fields: [roleId], references: [id])
   tenant                         Tenant?                @relation(fields: [tenantId], references: [id])
@@ -236,6 +238,32 @@ model User {
   @@index([email])
   @@index([tenantId])
   @@index([authProvider, authProviderId])
+}
+
+model AccountingPeriod {
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  periodType    String   // Monthly | Yearly
+  startDate     DateTime
+  endDate       DateTime
+  status        String   @default("open") // open | closed
+  closedAt      DateTime?
+  closedById    String?
+  reopenedAt    DateTime?
+  reopenedById  String?
+  reopenReason  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  closedBy      User?    @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
+  reopenedBy    User?    @relation("AccountingPeriodReopenedBy", fields: [reopenedById], references: [id])
+
+  @@unique([tenantId, periodType, startDate])
+  @@index([tenantId])
+  @@index([startDate, endDate])
+  @@index([status])
 }
 
 model Admin {
@@ -355,6 +383,12 @@ model Invoice {
   voidedAt            DateTime?
   voidedById          String?
   branchId            String?
+  // Reversal fields
+  isReversal         Boolean         @default(false)
+  reversedTransactionId String?
+  reversalReason     String?
+  reversedAt         DateTime?
+  reversedById      String?
   branch              Branch?         @relation(fields: [branchId], references: [id])
   client              Client          @relation(fields: [clientId], references: [id])
   createdBy           User            @relation("InvoiceCreator", fields: [createdById], references: [id])
@@ -366,6 +400,8 @@ model Invoice {
   payments            Payment[]
 
   @@index([branchId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model InvoiceItem {
@@ -431,6 +467,12 @@ model Payment {
   refundedAmount     Float               @default(0)
   saleId             String?
   branchId           String?
+  // Reversal fields
+  isReversal         Boolean             @default(false)
+  reversedTransactionId String?
+  reversalReason     String?
+  reversedAt         DateTime?
+  reversedById      String?
   branch             Branch?             @relation(fields: [branchId], references: [id])
   expense            Expense?            @relation(fields: [expenseId], references: [id])
   invoice            Invoice?            @relation(fields: [invoiceId], references: [id])
@@ -447,6 +489,8 @@ model Payment {
   @@index([paymentMethod])
   @@index([type])
   @@index([branchId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model PaymentAccount {
@@ -539,6 +583,7 @@ model Expense {
   amount                  Float
   date                    DateTime
   category                String
+  expenseAccountId        String?
   receiptUrl              String?
   submittedById           String
   status                  String
@@ -562,16 +607,26 @@ model Expense {
   paymentStatus           String                    @default("Fully paid")
   branchId                String?
   employeeId              String?
+  supplierId              String?
+  // Reversal fields
+  isReversal             Boolean                   @default(false)
+  reversedTransactionId   String?
+  reversalReason         String?
+  reversedAt             DateTime?
+  reversedById          String?
   branch                  Branch?                   @relation(fields: [branchId], references: [id])
   deletedBy               User?                     @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
   employee                Employee?                 @relation(fields: [employeeId], references: [id])
+  expenseAccount          Account?                  @relation(fields: [expenseAccountId], references: [id])
   sourceAccount           Account?                  @relation(fields: [sourceAccountId], references: [id])
   submittedBy             User                      @relation(fields: [submittedById], references: [id])
+  supplier                Supplier?                 @relation(fields: [supplierId], references: [id])
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
   expenseAttachments      ExpenseAttachment[]
   payments                Payment[]
   recurringExpenseHistory RecurringExpenseHistory[]
 
+  @@index([supplierId])
   @@index([paymentMethod])
   @@index([isDeleted])
   @@index([isHistorical])
@@ -580,6 +635,9 @@ model Expense {
   @@index([paymentStatus])
   @@index([branchId])
   @@index([employeeId])
+  @@index([expenseAccountId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model ExpenseAttachment {
@@ -625,6 +683,12 @@ model Sale {
   voidedAt                   DateTime?
   voidedById                 String?
   branchId                   String?
+  // Reversal fields
+  isReversal               Boolean                     @default(false)
+  reversedTransactionId     String?
+  reversalReason           String?
+  reversedAt               DateTime?
+  reversedById              String?
   inventoryBatchConsumptions InventoryBatchConsumption[]
   payments                   Payment[]
   branch                     Branch?                     @relation(fields: [branchId], references: [id])
@@ -644,6 +708,8 @@ model Sale {
   @@index([isHistorical])
   @@index([historicalDate])
   @@index([migrationBatch])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model SaleItem {
@@ -756,6 +822,7 @@ model Supplier {
   postalCode        String?
   taxId             String?
   paymentTerms      Int?              @default(30)
+  paymentPreference String?           // Cash, Bank transfer, Card, Other
   currency          String?           @default("MWK")
   creditLimit       Float?
   currentBalance    Float             @default(0)
@@ -768,6 +835,7 @@ model Supplier {
   modifiedById      String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
+  expenses          Expense[]
   goodsReceipts     GoodsReceipt[]
   products          Product[]
   purchaseOrders    PurchaseOrder[]
@@ -777,6 +845,7 @@ model Supplier {
 
   @@index([tenantId, supplierName])
   @@index([tenantId, isActive])
+  @@index([tenantId, paymentPreference])
 }
 
 model PurchaseOrder {
@@ -965,6 +1034,12 @@ model SupplierPayment {
   createdById     String?
   createdAt       DateTime                    @default(now())
   updatedAt       DateTime                    @updatedAt
+  // Reversal fields
+  isReversal         Boolean             @default(false)
+  reversedTransactionId String?
+  reversalReason     String?
+  reversedAt         DateTime?
+  reversedById      String?
   bankAccount     BankAccount?                @relation(fields: [bankAccountId], references: [id])
   createdBy       User?                       @relation(fields: [createdById], references: [id])
   journalEntry    JournalEntry?               @relation("SupplierPaymentJournalEntry", fields: [journalEntryId], references: [id])
@@ -974,6 +1049,8 @@ model SupplierPayment {
 
   @@index([tenantId, supplierId])
   @@index([paymentDate])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model SupplierPaymentAllocation {
@@ -1375,27 +1452,32 @@ model AffiliatePayout {
 }
 
 model Transaction {
-  id          String            @id @default(cuid())
-  date        DateTime
-  description String
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  tenantId    String
-  reference   String?
-  status      String            @default("posted")
-  createdById String?
-  entryType   String            @default("Regular")
-  notes       String?
-  postedById  String?
-  postedDate  DateTime?
-  sourceId    String?
-  sourceType  String?
-  branchId    String?
-  branch      Branch?           @relation(fields: [branchId], references: [id])
-  createdBy   User?             @relation("TransactionCreatedBy", fields: [createdById], references: [id])
-  postedBy    User?             @relation("TransactionPostedBy", fields: [postedById], references: [id])
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  lines       TransactionLine[]
+  id                   String            @id @default(cuid())
+  date                 DateTime
+  description          String
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  tenantId             String
+  reference            String?
+  status               String            @default("posted")
+  createdById          String?
+  entryType            String            @default("Regular")
+  notes                String?
+  postedById           String?
+  postedDate           DateTime?
+  sourceId             String?
+  sourceType           String?
+  branchId             String?
+  isReversal           Boolean           @default(false)
+  reversedTransactionId String?
+  reversalReason       String?
+  reversedAt           DateTime?
+  reversedById        String?
+  branch               Branch?           @relation(fields: [branchId], references: [id])
+  createdBy            User?             @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  postedBy             User?             @relation("TransactionPostedBy", fields: [postedById], references: [id])
+  tenant               Tenant            @relation(fields: [tenantId], references: [id])
+  lines                TransactionLine[]
 
   @@index([tenantId])
   @@index([date])
@@ -1404,6 +1486,8 @@ model Transaction {
   @@index([sourceId])
   @@index([reference])
   @@index([branchId])
+  @@index([isReversal])
+  @@index([reversedTransactionId])
 }
 
 model TransactionLine {
@@ -1433,6 +1517,7 @@ model Account {
   updatedAt         DateTime                @updatedAt
   tenantId          String?
   isActive          Boolean                 @default(true)
+  isSystem          Boolean                 @default(false)
   accountCode       String?
   accountName       String?
   accountSubtype    String?
@@ -1455,6 +1540,7 @@ model Account {
   transactionLines  TransactionLine[]       @relation("TransactionLineAccount")
 
   @@index([tenantId])
+  @@unique([tenantId, accountCode])
   @@index([accountType])
   @@index([isActive])
   @@index([parentAccountId])

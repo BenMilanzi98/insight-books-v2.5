@@ -166,6 +166,25 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }, 3500);
   };
 
+  // Helper function to normalize document URLs to the new API format
+  const normalizeDocumentUrl = (url, documentType = 'document') => {
+    if (!url) return null;
+    // If already using the new API format, return as-is
+    if (url.startsWith('/api/employees/documents/')) {
+      return url;
+    }
+    // If using the old static file format, convert to new API format
+    if (url.startsWith('/uploads/')) {
+      // Extract filename from old URL
+      // Old format: /uploads/{tenantId}/employees/documents/{filename}
+      const parts = url.split('/');
+      const filename = parts[parts.length - 1];
+      const tenantId = parts[2];
+      return `/api/employees/documents/${tenantId}/${documentType}/${filename}`;
+    }
+    return url;
+  };
+
   // Fetch deductions when employment type changes
   useEffect(() => {
     fetchDeductions();
@@ -1036,7 +1055,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <div>
                             <p className="text-sm font-medium text-gray-900">Contract uploaded</p>
                             <a 
-                              href={contractUrl} 
+                              href={normalizeDocumentUrl(contractUrl, 'contract')} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline"
@@ -1107,7 +1126,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <div>
                             <p className="text-sm font-medium text-gray-900">ID document uploaded</p>
                             <a 
-                              href={idUrl} 
+                              href={normalizeDocumentUrl(idUrl, 'nationalId')} 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="text-xs text-blue-600 hover:underline"
@@ -1584,9 +1603,13 @@ const EmployeeManagement = () => {
       // Map employees and extract photo URLs from contactDetails
       const employeesWithPhotos = (data.employees || []).map(emp => {
         const contactDetails = emp.contactDetails && typeof emp.contactDetails === 'object' ? emp.contactDetails : {};
+        const rawPhotoUrl = contactDetails.photoUrl || contactDetails.photo || emp.photoUrl || emp.photo || null;
+        // Normalize photo URL if it exists
+        const normalizedPhotoUrl = rawPhotoUrl ? normalizePhotoUrl(rawPhotoUrl, emp.id) : null;
         return {
           ...emp,
-          photoUrl: contactDetails.photoUrl || contactDetails.photo || emp.photoUrl || emp.photo || null
+          photoUrl: normalizedPhotoUrl,
+          photo: normalizedPhotoUrl
         };
       });
       setEmployees(employeesWithPhotos);
@@ -1952,6 +1975,44 @@ const EmployeeManagement = () => {
       currency: 'MWK',
       maximumFractionDigits: 0
     }).format(amount || 0);
+  };
+
+  // Helper function to normalize document URLs to the new API format (EmployeeManagement)
+  const normalizeDocumentUrl = (url, documentType = 'document') => {
+    if (!url) return null;
+    // If already using the new API format, return as-is
+    if (url.startsWith('/api/employees/documents/')) {
+      return url;
+    }
+    // If using the old static file format, convert to new API format
+    if (url.startsWith('/uploads/')) {
+      // Extract filename from old URL
+      // Old format: /uploads/{tenantId}/employees/documents/{filename}
+      const parts = url.split('/');
+      const filename = parts[parts.length - 1];
+      const tenantId = parts[2];
+      return `/api/employees/documents/${tenantId}/${documentType}/${filename}`;
+    }
+    return url;
+  };
+
+  // Helper function to normalize photo URLs to the new API format
+  const normalizePhotoUrl = (url, employeeId) => {
+    if (!url) return null;
+    // If already using the new API format, return as-is
+    if (url.startsWith('/api/employees/photos/')) {
+      return url;
+    }
+    // If using the old static file format, convert to new API format
+    if (url.startsWith('/uploads/')) {
+      // Extract filename from old URL
+      // Old format: /uploads/{tenantId}/employees/photos/{filename}
+      const parts = url.split('/');
+      const filename = parts[parts.length - 1];
+      const tenantId = parts[2];
+      return `/api/employees/photos/${tenantId}/${employeeId}/${filename}`;
+    }
+    return url;
   };
 
   const filteredEmployees = employees.filter(employee => {
@@ -2626,7 +2687,7 @@ const EmployeeManagement = () => {
                   </div>
                 )}
 
-                {/* Documents */}
+                  {/* Documents */}
                 {(() => {
                   const bankDetails = (viewingEmployee.bankDetails && typeof viewingEmployee.bankDetails === 'object') 
                     ? viewingEmployee.bankDetails 
@@ -2645,7 +2706,7 @@ const EmployeeManagement = () => {
                             <div className="bg-white p-3 rounded border border-gray-200">
                               <span className="text-sm font-medium text-gray-600 block mb-1">Employment Contract</span>
                               <a 
-                                href={documents.contract} 
+                                href={normalizeDocumentUrl(documents.contract, 'contract')} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"
@@ -2659,7 +2720,7 @@ const EmployeeManagement = () => {
                             <div className="bg-white p-3 rounded border border-gray-200">
                               <span className="text-sm font-medium text-gray-600 block mb-1">National ID</span>
                               <a 
-                                href={documents.nationalId} 
+                                href={normalizeDocumentUrl(documents.nationalId, 'nationalId')} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:text-blue-800 text-sm flex items-center gap-1"

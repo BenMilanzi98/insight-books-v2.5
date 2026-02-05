@@ -4,6 +4,17 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 
+const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
+
+function isFinanceAdmin(user) {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return (
+    roleName.includes('finance') ||
+    roleName.includes('admin') ||
+    roleName === 'master_admin'
+  );
+}
+
 /**
  * GET handler for exporting journal entries
  */
@@ -20,6 +31,13 @@ export async function GET(request) {
     
     const tenantId = user.tenantId;
     
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to export journal entries.' },
+        { status: 403 }
+      );
+    }
+
     // Get query parameters
     const { searchParams } = new URL(request.url);
     
@@ -32,37 +50,43 @@ export async function GET(request) {
     
     // Build filter object for Prisma
     const where = {
-      tenantId
+      tenantId,
+      OR: [
+        { sourceType: { in: MANUAL_SOURCE_TYPES } },
+        { sourceType: null },
+        { sourceType: '' },
+      ],
     };
     
     // Add date range filter if provided
     if (startDate || endDate) {
-      where.date = {};
+      where.entryDate = {};
       
       if (startDate) {
-        where.date.gte = new Date(startDate);
+        where.entryDate.gte = new Date(startDate);
       }
       
       if (endDate) {
-        where.date.lte = new Date(endDate);
+        where.entryDate.lte = new Date(endDate);
       }
     }
     
     // Add status filter if provided
     if (status && status !== 'all') {
-      where.status = status;
+      const normalized = status.toLowerCase();
+      where.status = normalized === 'posted' ? 'Posted' : normalized === 'draft' ? 'Draft' : status;
     }
     
     // Add search filter if provided
     if (search) {
       where.OR = [
         { description: { contains: search, mode: 'insensitive' } },
-        { reference: { contains: search, mode: 'insensitive' } }
+        { referenceNumber: { contains: search, mode: 'insensitive' } },
       ];
     }
     
-    // Fetch transactions with line details
-    const transactions = await prisma.transaction.findMany({
+    // Fetch journal entries with line details
+    let entries = await prisma.journalEntry.findMany({
       where,
       include: {
         lines: {
@@ -72,13 +96,61 @@ export async function GET(request) {
         }
       },
       orderBy: {
-        date: 'desc'
+        entryDate: 'desc'
       }
     });
+
+    if (entries.length === 0) {
+      const legacyWhere = {
+        tenantId,
+        OR: [
+          { sourceType: { in: MANUAL_SOURCE_TYPES } },
+          { sourceType: null },
+          { sourceType: '' },
+        ],
+      };
+
+      if (startDate || endDate) {
+        legacyWhere.date = {};
+        if (startDate) {
+          legacyWhere.date.gte = new Date(startDate);
+        }
+        if (endDate) {
+          legacyWhere.date.lte = new Date(endDate);
+        }
+      }
+
+      if (status && status !== 'all') {
+        const normalized = status.toLowerCase();
+        legacyWhere.status = normalized === 'posted' ? 'posted' : normalized === 'draft' ? 'draft' : status;
+      }
+
+      if (search) {
+        legacyWhere.OR = legacyWhere.OR.concat([
+          { description: { contains: search, mode: 'insensitive' } },
+          { reference: { contains: search, mode: 'insensitive' } },
+          { notes: { contains: search, mode: 'insensitive' } },
+        ]);
+      }
+
+      entries = await prisma.transaction.findMany({
+        where: legacyWhere,
+        include: {
+          lines: {
+            include: {
+              account: true
+            }
+          }
+        },
+        orderBy: {
+          date: 'desc'
+        }
+      });
+    }
     
     // Process data based on the requested format
     if (format.toLowerCase() === 'csv') {
-      return generateCsvResponse(transactions);
+      return generateCsvResponse(entries);
     } else {
       // Unsupported format
       return NextResponse.json(
@@ -98,26 +170,26 @@ export async function GET(request) {
 /**
  * Generate CSV response from transactions data
  */
-function generateCsvResponse(transactions) {
+function generateCsvResponse(entries) {
   try {
     // Prepare data for CSV
     const csvData = [];
     
-    transactions.forEach(transaction => {
-      if (!transaction.lines || !transaction.lines.length) return;
+    entries.forEach(entry => {
+      if (!entry.lines || !entry.lines.length) return;
 
-      transaction.lines.forEach(line => {
+      entry.lines.forEach(line => {
         const account = line.account || {};
         csvData.push({
-          date: transaction.date.toISOString().split('T')[0],
-          reference: transaction.reference || '',
-          description: transaction.description || '',
+          date: entry.entryDate ? entry.entryDate.toISOString().split('T')[0] : '',
+          reference: entry.referenceNumber || '',
+          description: entry.description || '',
           account_code: account.accountCode || account.code || 'N/A',
           account_name: account.accountName || account.name || 'N/A',
           account_type: account.accountType || account.type || 'N/A',
           debit: line.debitAmount || 0,
           credit: line.creditAmount || 0,
-          status: transaction.status || 'Posted'
+          status: entry.status || 'Posted'
         });
       });
     });

@@ -355,7 +355,9 @@ export const navigationByPermission = {
       sections.push({
         label: "Accounting",
         items: [
-          // { href: "/general-ledger", icon: "📕", text: "General Ledger" },
+          ...(hasPermission(user.role.permissions, "generalLedger.view")
+            ? [{ href: "/general-ledger", icon: "📕", text: "General Ledger" }]
+            : []),
           { href: "/journal-entries", icon: "✏️", text: "Journal Entries" },
           { href: "/chart-of-accounts", icon: "📋", text: "Chart of Accounts" },
           { href: "/capital-account", icon: "💰", text: "Capital Account" },

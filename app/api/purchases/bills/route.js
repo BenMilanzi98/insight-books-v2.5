@@ -6,6 +6,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { createFifoBatch } from '@/lib/fifoCosting';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense'];
@@ -409,6 +410,7 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
 
   // Create journal entry
   const entryDate = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
+  await assertPeriodOpen(tenantId, entryDate, tx);
   const referenceNumber = await generateReferenceNumber(tx, tenantId, entryDate);
 
   const transaction = await tx.transaction.create({

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { X, Save, AlertCircle, Loader } from 'lucide-react';
+import { Save, AlertCircle, Loader } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
+import SupplierExpenseSelect from '@/components/purchases/SupplierExpenseSelect';
 
 // Expense Form Component used for both creating and editing expenses
 const ExpenseForm = ({
@@ -13,27 +14,14 @@ const ExpenseForm = ({
   isLoading = false,
   categories = []
 }) => {
-  // Default categories if none are provided
-  const defaultCategories = [
-    "Office Supplies",
-    "Travel",
-    "Meals & Entertainment",
-    "Utilities",
-    "Software Subscription",
-    "Advertising",
-    "Rent",
-    "Equipment",
-    "Professional Services"
-  ];
-
   // Form state
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     date: new Date().toISOString().split('T')[0],
-    category: '',
-    customCategory: '',
+    expenseAccountId: '',
     merchant: '',
+    supplierId: '',
     paymentMethod: '',
     notes: '',
     status: 'Approved',
@@ -46,9 +34,7 @@ const ExpenseForm = ({
   const [formTouched, setFormTouched] = useState(false);
   
   // NEW: State for adding new categories
-  const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [availableCategories, setAvailableCategories] = useState(categories.length > 0 ? categories : defaultCategories);
+  const [availableCategories, setAvailableCategories] = useState([]);
 
   // Load payment accounts dynamically
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
@@ -59,10 +45,7 @@ const ExpenseForm = ({
       const response = await fetch('/api/categories?type=expense');
       if (response.ok) {
         const data = await response.json();
-        // Update the available categories with data from API
-        if (data.categories && data.categories.length > 0) {
-          setAvailableCategories(data.categories);
-        }
+        setAvailableCategories(Array.isArray(data.categories) ? data.categories : []);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
@@ -86,8 +69,9 @@ const ExpenseForm = ({
         description: expense.description || '',
         amount: formattedAmount || '',
         date: expense.date || new Date().toISOString().split('T')[0],
-        category: expense.category || '',
+        expenseAccountId: expense.expenseAccountId || '',
         merchant: expense.merchant || '',
+        supplierId: expense.supplierId || '',
         paymentMethod: expense.paymentMethod || '',
         notes: expense.notes || '',
         status: 'Approved',
@@ -141,26 +125,6 @@ const ExpenseForm = ({
     }
   };
 
-  // NEW: Handle adding new category
-  const handleAddNewCategory = () => {
-    if (!newCategoryName.trim()) {
-      return;
-    }
-    
-    // Add the new category to the list
-    const updatedCategories = [...availableCategories, newCategoryName.trim()];
-    setAvailableCategories(updatedCategories);
-    
-    // Set the new category as selected
-    setFormData(prev => ({
-      ...prev,
-      category: newCategoryName.trim()
-    }));
-    
-    // Reset and close modal
-    setNewCategoryName('');
-    setShowAddCategoryModal(false);
-  };
 
   // Validate form
   const validateForm = () => {
@@ -178,8 +142,8 @@ const ExpenseForm = ({
       newErrors.date = 'Date is required';
     }
     
-    if (!formData.category) {
-      newErrors.category = 'Category is required';
+    if (!formData.expenseAccountId) {
+      newErrors.expenseAccountId = 'Expense account is required';
     }
     
     // Validate payment method only when not Pending
@@ -207,10 +171,13 @@ const ExpenseForm = ({
     
     if (validateForm()) {
       // Format data for submission
+      const selectedAccount = availableCategories.find(acc => acc.id === formData.expenseAccountId);
       const submission = {
         ...formData,
         // Ensure amount is a number
         amount: parseFloat(formData.amount),
+        category: selectedAccount?.name || expense?.category || '',
+        expenseAccountId: formData.expenseAccountId,
         // Handle payment method - set to null for pending expenses
         paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,
         // Handle payment status fields
@@ -236,7 +203,6 @@ const ExpenseForm = ({
     });
   };
 
-  const categoryOptions = categories.length > 0 ? categories : defaultCategories;
 
   return (
     <div>
@@ -319,49 +285,20 @@ const ExpenseForm = ({
             )}
           </div>
 
-          {/* Category Field */}
+          {/* Expense Account Field */}
           <div>
             <DynamicCategorySelect
-              value={formData.category}
-              onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+              value={formData.expenseAccountId}
+              onChange={(value) => setFormData(prev => ({ ...prev, expenseAccountId: value }))}
               options={availableCategories}
-              placeholder="Select or add category"
-              onAddCategory={async (newCategory) => {
-                try {
-                  // Call the API to create the category
-                  const response = await fetch('/api/categories', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      name: newCategory.trim(),
-                      type: 'expense'
-                    })
-                  });
-
-                  if (response.ok) {
-                    // Add the new category to the available categories
-                    if (!availableCategories.includes(newCategory)) {
-                      setAvailableCategories(prev => [...prev, newCategory]);
-                    }
-                    // Set the new category as selected
-                    setFormData(prev => ({ ...prev, category: newCategory }));
-                  } else {
-                    const error = await response.json();
-                    console.error('Failed to add category:', error.error);
-                  }
-                } catch (error) {
-                  console.error('Error adding category:', error);
-                }
-              }}
+              placeholder="Select expense account"
               required={true}
-              label="Category"
+              label="Expense Account"
             />
-            {errors.category && (
+            {errors.expenseAccountId && (
               <p className="mt-1 text-sm text-red-600 flex items-center">
                 <AlertCircle className="h-4 w-4 mr-1" />
-                {errors.category}
+                {errors.expenseAccountId}
               </p>
             )}
           </div>
@@ -380,6 +317,22 @@ const ExpenseForm = ({
               placeholder="Vendor or merchant name"
             />
           </div>
+
+          {/* Supplier Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Supplier (Optional)
+            </label>
+            <SupplierExpenseSelect
+              value={formData.supplierId}
+              onChange={(supplierId) => setFormData(prev => ({ ...prev, supplierId }))}
+              status="active"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Link this expense to a supplier for tracking and reporting
+            </p>
+          </div>
+
           {/* Source of Funds - Only show when not Pending */}
           {formData.paymentStatus !== 'Pending' && (
             <div className="mb-4">
@@ -528,56 +481,6 @@ const ExpenseForm = ({
         </div>
       </form>
       
-      {/* NEW: Add New Category Modal */}
-      {showAddCategoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg w-full max-w-md shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Add New Category</h2>
-              <button 
-                onClick={() => setShowAddCategoryModal(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Category Name *</label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter category name"
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      handleAddNewCategory();
-                    }
-                  }}
-                />
-              </div>
-            </div>
-            
-            <div className="mt-6 flex justify-end space-x-3">
-              <button 
-                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors"
-                onClick={() => setShowAddCategoryModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                onClick={handleAddNewCategory}
-                disabled={!newCategoryName.trim()}
-              >
-                Add Category
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

@@ -191,8 +191,8 @@ export async function POST(request) {
       );
     }
 
-    // Public URL for the file
-    const fileUrl = `/uploads/${user.tenantId}/employees/documents/${fileName}`;
+    // Public URL for the file - use API route for reliable serving
+    const fileUrl = `/api/employees/documents/${user.tenantId}/${safeType}/${fileName}`;
 
     return NextResponse.json({
       success: true,

@@ -113,6 +113,32 @@ export async function POST(request) {
       );
     }
 
+    if (items && Array.isArray(items) && items.length > 0) {
+      const accountIds = items.map(item => item.accountId).filter(Boolean);
+      if (accountIds.length !== items.length) {
+        return NextResponse.json(
+          { error: 'All line items must reference a valid account from the Chart of Accounts.' },
+          { status: 400 }
+        );
+      }
+
+      const accounts = await prisma.account.findMany({
+        where: {
+          tenantId: user.tenantId,
+          id: { in: accountIds },
+          isActive: true
+        },
+        select: { id: true, accountType: true }
+      });
+
+      if (accounts.length !== new Set(accountIds).size) {
+        return NextResponse.json(
+          { error: 'One or more line item accounts are invalid or inactive.' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate breakdowns total matches expected revenue
     if (breakdowns && Array.isArray(breakdowns) && breakdowns.length > 0) {
       const breakdownTotal = breakdowns.reduce(

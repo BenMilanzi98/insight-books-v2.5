@@ -56,6 +56,10 @@ const GeneralLedger = () => {
     totalCredits: 0,
     totalPages: 1
   });
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState(null);
+  const [entryDetails, setEntryDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   // State for date range
   const [dateRange, setDateRange] = useState({
@@ -84,6 +88,35 @@ const GeneralLedger = () => {
   
     fetchPermissions();
   }, []);
+
+  const openDetails = async (entry) => {
+    setSelectedEntry(entry);
+    setEntryDetails(null);
+    setDetailsOpen(true);
+    setDetailsLoading(true);
+    try {
+      const params = new URLSearchParams({
+        entryType: entry.entryType || "Transaction",
+        entryId: entry.transactionId || entry.id
+      });
+      const response = await fetch(`/api/general-ledger/transaction?${params}`);
+      if (!response.ok) {
+        throw new Error("Failed to load ledger entry details");
+      }
+      const data = await response.json();
+      setEntryDetails(data.entries?.[0] || null);
+    } catch (error) {
+      console.error("Error loading ledger entry details:", error);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const closeDetails = () => {
+    setDetailsOpen(false);
+    setSelectedEntry(null);
+    setEntryDetails(null);
+  };
   // Update date range when timeframe changes
   useEffect(() => {
     if (timeframe !== "custom") {
@@ -628,15 +661,16 @@ const GeneralLedger = () => {
                       {formatCurrency(Math.abs(transaction.balance))}
                     </td>
                     <td className="p-3 text-center">
-  <div className="flex justify-center space-x-2">
-    {/* Make sure we're using the transactionId property, not id */}
-    <Link href={`/journal-entries/${transaction.transactionId || transaction.id}`}>
-      <button className="text-gray-500 hover:text-blue-600" title="View journal entry">
-        <Eye size={18} />
-      </button>
-    </Link>
-  </div>
-</td>
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          className="text-gray-500 hover:text-blue-600"
+                          title="View ledger entry details"
+                          onClick={() => openDetails(transaction)}
+                        >
+                          <Eye size={18} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -709,6 +743,92 @@ const GeneralLedger = () => {
           </div>
         </div>
       </div>
+
+      {detailsOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Ledger Entry Details</h2>
+              <button
+                onClick={closeDetails}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              {detailsLoading && (
+                <div className="text-sm text-gray-500">Loading details...</div>
+              )}
+              {!detailsLoading && entryDetails && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <div className="text-gray-500">Entry Type</div>
+                      <div className="font-medium">{entryDetails.entryType}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Entry ID</div>
+                      <div className="font-medium">{entryDetails.entryId}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Source Type</div>
+                      <div className="font-medium">{entryDetails.sourceType || "N/A"}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Source ID</div>
+                      <div className="font-medium">{entryDetails.sourceId || "N/A"}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Reference</div>
+                      <div className="font-medium">{entryDetails.reference || "N/A"}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-500">Date</div>
+                      <div className="font-medium">{formatDateDisplay(entryDetails.date)}</div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-gray-500 text-sm mb-2">Lines</div>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="p-2 text-left">Account</th>
+                            <th className="p-2 text-right">Debit</th>
+                            <th className="p-2 text-right">Credit</th>
+                            <th className="p-2 text-left">Description</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {entryDetails.lines.map((line) => (
+                            <tr key={line.id} className="border-t">
+                              <td className="p-2">
+                                <span className="font-medium">{line.accountCode}</span> - {line.accountName}
+                              </td>
+                              <td className="p-2 text-right">
+                                {line.debit ? formatCurrency(line.debit) : '-'}
+                              </td>
+                              <td className="p-2 text-right">
+                                {line.credit ? formatCurrency(line.credit) : '-'}
+                              </td>
+                              <td className="p-2">{line.description || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
+              )}
+              {!detailsLoading && !entryDetails && (
+                <div className="text-sm text-red-600">No details available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  createReversalEntry,
+  postEntry,
+} from '@/lib/journalService';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { formatJournalEntry } from '@/lib/journalEntryFormatter';
 
 const ENTRY_INCLUDE = {
@@ -28,12 +33,49 @@ const ENTRY_INCLUDE = {
   },
 };
 
+const ALLOWED_ENTRY_TYPES = ['Correction', 'Accrual', 'Opening Balance'];
+
+function normalizeEntryType(value) {
+  if (!value) return 'Correction';
+  const normalized = value.toString().trim();
+  if (normalized.toLowerCase() === 'openingbalance') return 'Opening Balance';
+  return normalized;
+}
+
+function isFinanceAdmin(user) {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return (
+    roleName.includes('finance') ||
+    roleName.includes('admin') ||
+    roleName === 'master_admin'
+  );
+}
+
+function normalizeLines(lines = [], fallbackDescription) {
+  return lines
+    .filter((line) => !!line.accountId)
+    .map((line) => {
+      const debit = Number(
+        line.debitAmount ?? line.debit ?? line.debit_value ?? 0
+      );
+      const credit = Number(
+        line.creditAmount ?? line.credit ?? line.credit_value ?? 0
+      );
+
+      return {
+        accountId: line.accountId,
+        description: line.description || fallbackDescription || null,
+        debitAmount: Number.isFinite(debit) ? debit : 0,
+        creditAmount: Number.isFinite(credit) ? credit : 0,
+      };
+    });
+}
+
 /**
  * GET - Fetch a single journal entry by ID
  */
 export async function GET(request, { params }) {
   try {
-    // Authenticate user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -41,38 +83,71 @@ export async function GET(request, { params }) {
         { status: 401 }
       );
     }
-    
-    // Handle potential async params (Next.js 15)
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to view journal entries.' },
+        { status: 403 }
+      );
+    }
+
     const resolvedParams = typeof params.then === 'function' ? await params : params;
     const entryId = resolvedParams?.id;
-    
+
     if (!entryId) {
       return NextResponse.json(
         { error: 'Invalid entry ID' },
         { status: 400 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    
-    // Find the transaction with its lines
-    const transaction = await prisma.transaction.findFirst({
+
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+
+    const entry = await prisma.journalEntry.findFirst({
       where: {
         id: entryId,
-        tenantId: tenantId
+        tenantId: user.tenantId,
       },
-      include: ENTRY_INCLUDE
+      include: ENTRY_INCLUDE,
     });
-    
-    // Check if transaction exists
-    if (!transaction) {
+
+    if (!entry) {
       return NextResponse.json(
-        { error: 'Transaction not found' },
+        { error: 'Journal entry not found' },
         { status: 404 }
       );
     }
-    
-    return NextResponse.json(formatJournalEntry(transaction));
+
+    if (action === 'impact') {
+      const totals = entry.lines.reduce(
+        (acc, line) => {
+          acc.debits += line.debitAmount || 0;
+          acc.credits += line.creditAmount || 0;
+          return acc;
+        },
+        { debits: 0, credits: 0 }
+      );
+
+      return NextResponse.json({
+        entryId: entry.id,
+        referenceNumber: entry.referenceNumber,
+        entryDate: entry.entryDate,
+        description: entry.description,
+        status: entry.status,
+        totals,
+        isBalanced: Math.abs(totals.debits - totals.credits) < 0.0001,
+        lines: entry.lines.map((line) => ({
+          accountId: line.accountId,
+          accountCode: line.account?.accountCode || line.account?.code || null,
+          accountName: line.account?.accountName || line.account?.name || null,
+          debitAmount: line.debitAmount || 0,
+          creditAmount: line.creditAmount || 0,
+        })),
+      });
+    }
+
+    return NextResponse.json(formatJournalEntry(entry));
   } catch (error) {
     console.error('Error fetching journal entry:', error);
     return NextResponse.json(
@@ -83,11 +158,10 @@ export async function GET(request, { params }) {
 }
 
 /**
- * DELETE - Delete a journal entry
+ * PUT - Update a draft journal entry
  */
-export async function DELETE(request, { params }) {
+export async function PUT(request, { params }) {
   try {
-    // Authenticate user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -95,71 +169,315 @@ export async function DELETE(request, { params }) {
         { status: 401 }
       );
     }
-    
-    // Get ID from URL - handle Next.js 15 async params
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to update journal entries.' },
+        { status: 403 }
+      );
+    }
+
     const resolvedParams = typeof params.then === 'function' ? await params : params;
     const entryId = resolvedParams?.id;
-    
+
     if (!entryId) {
       return NextResponse.json(
         { error: 'Invalid entry ID' },
         { status: 400 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    
-    // Check if the transaction exists
-    const existingEntry = await prisma.transaction.findFirst({
-      where: {
-        id: entryId,
-        tenantId: tenantId
-      },
-      include: {
-        lines: true
-      }
-    });
-    
-    // If no transaction found, return 404
-    if (!existingEntry) {
+
+    const body = await request.json();
+    const lines = normalizeLines(body.lines, body.description);
+    const entryType = normalizeEntryType(body.entryType);
+
+    if (!body.description || body.description.trim().length < 3) {
       return NextResponse.json(
-        { error: 'Transaction not found' },
-        { status: 404 }
-      );
-    }
-    
-    // Check if entry is posted - only allow deletion of draft entries
-    if (existingEntry.status === 'posted') {
-      return NextResponse.json(
-        { error: 'Cannot delete posted transaction. Please void it instead.' },
+        { error: 'A reason/description is required for journal entries.' },
         { status: 400 }
       );
     }
-    
-    // Delete in a transaction to ensure data integrity
+
+    if (lines.length < 2) {
+      return NextResponse.json(
+        { error: 'At least two lines are required for a journal entry.' },
+        { status: 400 }
+      );
+    }
+
+    if (!ALLOWED_ENTRY_TYPES.includes(entryType)) {
+      return NextResponse.json(
+        { error: `Unsupported journal entry type: ${entryType}.` },
+        { status: 400 }
+      );
+    }
+
+    const accountIds = lines.map((line) => line.accountId);
+    const accounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        id: { in: accountIds },
+      },
+      select: { id: true, isActive: true },
+    });
+
+    if (accounts.length !== new Set(accountIds).size) {
+      return NextResponse.json(
+        { error: 'One or more accounts are invalid for this tenant.' },
+        { status: 400 }
+      );
+    }
+
+    const inactiveAccount = accounts.find((account) => !account.isActive);
+    if (inactiveAccount) {
+      return NextResponse.json(
+        { error: 'Inactive accounts cannot be used in journal entries.' },
+        { status: 400 }
+      );
+    }
+
+    const taxTypes = await prisma.taxType.findMany({
+      where: {
+        tenantId: user.tenantId,
+        accountId: { in: accountIds },
+      },
+      include: {
+        account: {
+          select: {
+            id: true,
+            accountName: true,
+          },
+        },
+      },
+    });
+
+    if (taxTypes.length > 0) {
+      const taxAccountNames = taxTypes
+        .map((tt) => tt.account.accountName || 'Unknown')
+        .join(', ');
+      return NextResponse.json(
+        {
+          error:
+            'Manual journal entries to tax accounts are not allowed. Tax accounts must be posted automatically via the tax system.',
+          details: `Tax accounts detected: ${taxAccountNames}. Please use the tax management system to post taxes.`,
+        },
+        { status: 400 }
+      );
+    }
+
+    const existingEntry = await prisma.journalEntry.findFirst({
+      where: {
+        id: entryId,
+        tenantId: user.tenantId,
+      },
+      include: { lines: true },
+    });
+
+    if (!existingEntry) {
+      return NextResponse.json(
+        { error: 'Journal entry not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingEntry.status === 'Posted') {
+      return NextResponse.json(
+        { error: 'Posted journal entries are read-only. Use a reversal instead.' },
+        { status: 400 }
+      );
+    }
+
+    await assertPeriodOpen(user.tenantId, existingEntry.entryDate || existingEntry.createdAt, prisma);
+
+    const updatedEntry = await prisma.$transaction(async (tx) => {
+      await tx.journalEntryLine.deleteMany({
+        where: { journalEntryId: entryId },
+      });
+
+      return tx.journalEntry.update({
+        where: { id: entryId },
+        data: {
+          entryDate: body.entryDate || body.date ? new Date(body.entryDate || body.date) : existingEntry.entryDate,
+          description: body.description,
+          entryType,
+          notes: body.notes || body.internalReference || null,
+          lines: {
+            create: lines.map((line, index) => ({
+              lineNumber: index + 1,
+              accountId: line.accountId,
+              debitAmount: line.debitAmount,
+              creditAmount: line.creditAmount,
+              description: line.description,
+            })),
+          },
+        },
+        include: ENTRY_INCLUDE,
+      });
+    });
+
+    return NextResponse.json(formatJournalEntry(updatedEntry));
+  } catch (error) {
+    console.error('Error updating journal entry:', error);
+    return NextResponse.json(
+      { error: 'Failed to update journal entry', details: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST - Post or reverse a journal entry
+ */
+export async function POST(request, { params }) {
+  try {
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated with this user' },
+        { status: 401 }
+      );
+    }
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to post journal entries.' },
+        { status: 403 }
+      );
+    }
+
+    const resolvedParams = typeof params.then === 'function' ? await params : params;
+    const entryId = resolvedParams?.id;
+
+    if (!entryId) {
+      return NextResponse.json(
+        { error: 'Invalid entry ID' },
+        { status: 400 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action') || 'post';
+    const body = await request.json().catch(() => ({}));
+
+    if (action === 'reverse') {
+      const reversal = await createReversalEntry(entryId, body.reason, {
+        userId: user.id,
+        tenantId: user.tenantId,
+      });
+
+      const hydrated = await prisma.journalEntry.findUnique({
+        where: { id: reversal.id },
+        include: ENTRY_INCLUDE,
+      });
+
+      return NextResponse.json({
+        message: 'Journal entry reversed successfully.',
+        entry: formatJournalEntry(hydrated),
+      });
+    }
+
+    const posted = await postEntry(entryId, {
+      userId: user.id,
+      tenantId: user.tenantId,
+    });
+
+    const hydrated = await prisma.journalEntry.findUnique({
+      where: { id: posted.id },
+      include: ENTRY_INCLUDE,
+    });
+
+    return NextResponse.json({
+      message: 'Journal entry posted successfully.',
+      entry: formatJournalEntry(hydrated),
+    });
+  } catch (error) {
+    console.error('Error posting journal entry:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to post journal entry' },
+      { status: 400 }
+    );
+  }
+}
+
+/**
+ * DELETE - Delete a journal entry
+ */
+export async function DELETE(request, { params }) {
+  try {
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated with this user' },
+        { status: 401 }
+      );
+    }
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required to delete journal entries.' },
+        { status: 403 }
+      );
+    }
+
+    const resolvedParams = typeof params.then === 'function' ? await params : params;
+    const entryId = resolvedParams?.id;
+
+    if (!entryId) {
+      return NextResponse.json(
+        { error: 'Invalid entry ID' },
+        { status: 400 }
+      );
+    }
+
+    const existingEntry = await prisma.journalEntry.findFirst({
+      where: {
+        id: entryId,
+        tenantId: user.tenantId,
+      },
+      include: {
+        lines: true,
+      },
+    });
+
+    if (!existingEntry) {
+      return NextResponse.json(
+        { error: 'Journal entry not found' },
+        { status: 404 }
+      );
+    }
+
+    if (existingEntry.status === 'Posted') {
+      return NextResponse.json(
+        { error: 'Cannot delete posted journal entries. Please reverse instead.' },
+        { status: 400 }
+      );
+    }
+
+    await assertPeriodOpen(user.tenantId, existingEntry.entryDate || existingEntry.createdAt, prisma);
+
     await prisma.$transaction(async (tx) => {
-      await tx.transaction.delete({
+      await tx.journalEntry.delete({
         where: { id: entryId },
       });
 
       await tx.auditLog.create({
         data: {
-          action: 'TRANSACTION_DELETED',
-          entityType: 'TRANSACTION',
+          action: 'JOURNAL_ENTRY_DELETED',
+          entityType: 'JournalEntry',
           entityId: entryId,
           userId: user.id,
-          tenantId: tenantId,
+          tenantId: user.tenantId,
           details: JSON.stringify({
-            transactionId: entryId,
-            reference: existingEntry.reference,
+            entryId: entryId,
+            referenceNumber: existingEntry.referenceNumber,
             description: existingEntry.description,
           }),
         },
       });
     });
-    
+
     return NextResponse.json({
-      message: 'Journal entry deleted successfully'
+      message: 'Journal entry deleted successfully',
     });
   } catch (error) {
     console.error('Error deleting journal entry:', error);

@@ -32,6 +32,7 @@ import VoidInvoiceModal from "@/components/VoidInvoiceModal";
 import RefundInvoiceModal from "@/components/RefundInvoiceModal";
 import PartialPaymentModal from "@/components/PartialPaymentModal";
 import PaymentHistory from "@/components/PaymentHistory";
+import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
 import { 
   fetchInvoices, 
   createInvoice,
@@ -172,6 +173,7 @@ const InvoicingPage = () => {
   const [partialPaymentModalOpen, setPartialPaymentModalOpen] = useState(false);
   const [selectedInvoiceForPayment, setSelectedInvoiceForPayment] = useState(null);
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
+  
   const [pagePermissions, setPagePermissions] = useState({ 
     canSendInvoices: false,
     canCreateInvoices: false,
@@ -974,7 +976,7 @@ const InvoicingPage = () => {
                           )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center hidden sm:table-cell">
-                          <StatusBadge status={invoice.status} />
+                          <ReversalStatusBadge status={invoice.status} isReversed={invoice.isReversed} reversedAt={invoice.reversedAt} />
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
                           <div className="flex items-center justify-end gap-1">

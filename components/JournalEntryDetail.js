@@ -154,6 +154,16 @@ useEffect(() => {
       </div>
     );
   }
+  const totals = (journalEntry?.lines || []).reduce(
+    (acc, line) => {
+      acc.debits += line.debit || line.debitAmount || 0;
+      acc.credits += line.credit || line.creditAmount || 0;
+      return acc;
+    },
+    { debits: 0, credits: 0 }
+  );
+  const isBalanced = Math.abs(totals.debits - totals.credits) < 0.0001;
+  const isPosted = journalEntry.status === 'Posted' || journalEntry.status === 'posted';
   
   return (
     <div className="container mx-auto px-4 py-6 print:py-0">
@@ -176,19 +186,23 @@ useEffect(() => {
             <Printer size={16} />
             Print
           </button>
-          <Link href={`/accounting/journal-entries/edit/${id}`}>
-            <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded flex items-center gap-2">
-              <Edit size={16} />
-              Edit
+          {!isPosted && (
+            <Link href={`/accounting/journal-entries/edit/${id}`}>
+              <button className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-2 rounded flex items-center gap-2">
+                <Edit size={16} />
+                Edit
+              </button>
+            </Link>
+          )}
+          {!isPosted && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Delete
             </button>
-          </Link>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded flex items-center gap-2"
-          >
-            <Trash2 size={16} />
-            Delete
-          </button>
+          )}
         </div>
       </div>
       
@@ -225,6 +239,11 @@ useEffect(() => {
       
       {/* Journal Entry Details */}
       <div className="bg-white rounded-lg shadow-sm p-6 print:shadow-none print:p-0">
+        {isPosted && (
+          <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+          </div>
+        )}
         {/* Summary and metadata */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="flex flex-col">
@@ -239,14 +258,21 @@ useEffect(() => {
             <div className="text-gray-500 text-sm">Reference</div>
             <div className="flex items-center mt-1">
               <FileText size={16} className="text-gray-400 mr-2" />
-              <div className="font-medium">{journalEntry.reference || "N/A"}</div>
+              <div className="font-medium">{journalEntry.referenceNumber || journalEntry.reference || "N/A"}</div>
+            </div>
+          </div>
+          
+          <div className="flex flex-col">
+            <div className="text-gray-500 text-sm">Entry Type</div>
+            <div className="flex items-center mt-1">
+              <div className="font-medium">{journalEntry.entryType || "Correction"}</div>
             </div>
           </div>
           
           <div className="flex flex-col">
             <div className="text-gray-500 text-sm">Status</div>
             <div className="flex items-center mt-1">
-              {journalEntry.isBalanced ? (
+              {isBalanced ? (
                 <>
                   <CheckCircle size={16} className="text-green-500 mr-2" />
                   <div className="text-green-600 font-medium">Balanced</div>
@@ -265,6 +291,11 @@ useEffect(() => {
         <div className="mb-8">
           <div className="text-gray-500 text-sm mb-1">Description</div>
           <div className="p-4 bg-gray-50 rounded">{journalEntry.description}</div>
+        </div>
+        
+        <div className="mb-8">
+          <div className="text-gray-500 text-sm mb-1">Internal Reference / Tag</div>
+          <div className="p-4 bg-gray-50 rounded">{journalEntry.notes || "—"}</div>
         </div>
         
         {/* Journal Entry Lines */}

@@ -75,10 +75,10 @@ export async function POST(request) {
     }
     
     // Validate required fields
-    if (!expenseData.description || expenseData.amount === undefined || !expenseData.date || !expenseData.category) {
+    if (!expenseData.description || expenseData.amount === undefined || !expenseData.date) {
         return NextResponse.json(
           { 
-            error: 'Description, amount, date, and category are required in the expense data',
+            error: 'Description, amount, and date are required in the expense data',
             receivedData: JSON.stringify(expenseData) // Add this for debugging
           },
           { status: 400 }
@@ -128,12 +128,49 @@ async function handleExpenseCreation(user, expenseData, formData) {
   // Start a transaction to create the expense and attachments
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create the expense
+    let expenseAccount = null;
+    if (expenseData.expenseAccountId) {
+      expenseAccount = await tx.account.findFirst({
+        where: {
+          id: expenseData.expenseAccountId,
+          tenantId: user.tenantId,
+          accountType: 'Expense'
+        }
+      });
+    }
+
+    if (!expenseAccount && expenseData.category) {
+      expenseAccount = await tx.account.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          accountType: 'Expense',
+          accountName: { equals: expenseData.category, mode: 'insensitive' }
+        }
+      });
+    }
+
+    if (!expenseAccount) {
+      expenseAccount = await tx.account.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          accountType: 'Expense',
+          isActive: true
+        },
+        orderBy: { accountCode: 'asc' }
+      });
+    }
+
+    if (!expenseAccount) {
+      throw new Error('No expense account found. Please configure your Chart of Accounts.');
+    }
+
     const expense = await tx.expense.create({
       data: {
         description: expenseData.description,
         amount: amount,
         date: new Date(expenseData.date),
-        category: expenseData.category,
+        category: expenseAccount.accountName,
+        expenseAccountId: expenseAccount.id,
         status: expenseData.status || 'Pending',
         notes: expenseData.notes || null,
         submittedById: user.id,

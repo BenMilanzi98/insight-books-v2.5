@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 // GET - Get capital account information and balance
 export async function GET(request) {
@@ -360,10 +361,12 @@ export async function POST(request) {
       });
     }
 
+    const entryDate = new Date();
+    await assertPeriodOpen(user.tenantId, entryDate, prisma);
     // Create journal entry for initial capital
     const transaction = await prisma.transaction.create({
       data: {
-        date: new Date(),
+        date: entryDate,
         description: 'Initial Capital Contribution',
         reference: 'INIT-CAP',
         status: 'posted',

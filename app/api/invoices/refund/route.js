@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
+import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
+import { generateReferenceNumber } from '@/lib/journalService';
+import { getStandardAccounts } from '@/lib/transactionJournalHelpers';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 export async function POST(request) {
   try {
@@ -171,6 +176,7 @@ export async function POST(request) {
       // Update payment records to reflect refunds
       let remainingRefundAmount = refundAmount;
       const updatedPayments = [];
+      const paymentRefundMap = new Map(); // Track refund amounts per payment method
 
       for (const payment of invoice.payments) {
         if (remainingRefundAmount <= 0) break;
@@ -191,12 +197,103 @@ export async function POST(request) {
           }
         });
 
-        // Update account balance to reflect the refund
-        await updateAccountBalance(user.tenantId, payment.paymentMethod, refundFromThisPayment, "subtract");
+        // Track refund amount per payment method
+        const currentAmount = paymentRefundMap.get(payment.paymentMethod) || 0;
+        paymentRefundMap.set(payment.paymentMethod, currentAmount + refundFromThisPayment);
+
+        // Note: Account balance will be updated via journal entries below
+        // No need to call updateAccountBalance here as it will be handled by updateAccountBalanceOnTransaction
 
         updatedPayments.push(updatedPayment);
         remainingRefundAmount -= refundFromThisPayment;
       }
+
+      // Get standard accounts for journal entries
+      const accounts = await getStandardAccounts(user.tenantId, tx);
+      if (!accounts.accountsReceivable) {
+        throw new Error('Accounts Receivable account not found. Please set up your chart of accounts.');
+      }
+
+      // Create journal entries for refund
+      // For each payment method, create transaction lines
+      const refundDate = new Date();
+      const refundReference = await generateReferenceNumber(tx, user.tenantId, refundDate);
+      
+      const transactionLines = [];
+      let lineNumber = 1;
+
+      // Debit: Accounts Receivable (to restore AR that was reduced by payment)
+      transactionLines.push({
+        lineNumber: lineNumber++,
+        accountId: accounts.accountsReceivable.id,
+        debitAmount: refundAmount,
+        creditAmount: 0,
+        description: `Accounts Receivable restored for refund of Invoice ${invoice.invoiceNumber}`,
+      });
+
+      // Credit: Cash/Bank accounts (one line per payment method)
+      let totalCredit = 0;
+      for (const [paymentMethod, amount] of paymentRefundMap.entries()) {
+        const paymentAccount = await getPaymentAccount(user.tenantId, paymentMethod, tx);
+        if (!paymentAccount) {
+          throw new Error(`Payment account not found for method: ${paymentMethod}`);
+        }
+
+        transactionLines.push({
+          lineNumber: lineNumber++,
+          accountId: paymentAccount.id,
+          debitAmount: 0,
+          creditAmount: amount,
+          description: `Refund via ${paymentMethod} for Invoice ${invoice.invoiceNumber}`,
+        });
+        totalCredit += amount;
+      }
+
+      // Validate transaction balance
+      const totalDebit = transactionLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
+      const totalCreditCalculated = transactionLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
+      
+      if (Math.abs(totalDebit - totalCreditCalculated) > 0.01) {
+        throw new Error(`Transaction does not balance. Debits: ${totalDebit}, Credits: ${totalCreditCalculated}`);
+      }
+
+      await assertPeriodOpen(user.tenantId, refundDate, tx);
+      // Create the refund transaction
+      const refundTransaction = await tx.transaction.create({
+        data: {
+          tenantId: user.tenantId,
+          date: refundDate,
+          reference: refundReference,
+          description: `Refund for Invoice ${invoice.invoiceNumber} - ${refundReason.trim()}`,
+          entryType: 'Refund',
+          status: 'posted',
+          sourceType: 'InvoiceRefund',
+          sourceId: refund.id,
+          createdById: user.id,
+          postedById: user.id,
+          postedDate: new Date(),
+          lines: {
+            create: transactionLines,
+          },
+        },
+        include: { lines: true },
+      });
+
+      // Update account balances
+      for (const line of refundTransaction.lines) {
+        await updateAccountBalanceOnTransaction(
+          line.accountId,
+          line.debitAmount,
+          line.creditAmount,
+          tx
+        );
+      }
+
+      // Store transaction ID in refund record
+      await tx.invoiceRefund.update({
+        where: { id: refund.id },
+        data: { transactionId: refundTransaction.id }
+      });
 
       // Create audit log
       await tx.auditLog.create({
@@ -223,7 +320,7 @@ export async function POST(request) {
         }
       });
 
-      return { invoice: updatedInvoice, refund, updatedPayments };
+      return { invoice: updatedInvoice, refund, updatedPayments, refundTransaction };
     });
 
     return NextResponse.json({
@@ -251,8 +348,14 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error processing refund:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
     return NextResponse.json(
-      { success: false, error: 'Failed to process refund. Please try again.' },
+      { 
+        success: false, 
+        error: error.message || 'Failed to process refund. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

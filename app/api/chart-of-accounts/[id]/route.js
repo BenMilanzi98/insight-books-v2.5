@@ -3,6 +3,22 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
+
+const isFinanceAdmin = (user) => {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
+};
+
+const normalizeAccountType = (value) => {
+  if (!value) return value;
+  const normalized = value.toString().trim();
+  const upper = normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
+  return ACCOUNT_TYPES.includes(upper) ? upper : normalized;
+};
+
+const validateAccountCode = (code) => /^\d{3,10}$/.test(code || '');
+
 // GET - Get single account
 export async function GET(request, { params }) {
   try {
@@ -14,7 +30,30 @@ export async function GET(request, { params }) {
       );
     }
 
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
+      );
+    }
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
+      );
+    }
+
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const { id } = params;
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
 
     const account = await prisma.account.findUnique({
       where: { id },
@@ -48,6 +87,43 @@ export async function GET(request, { params }) {
         { error: 'Account not found' },
         { status: 404 }
       );
+    }
+
+    if (account.isSystem) {
+      return NextResponse.json(
+        { error: 'System accounts cannot be deleted or deactivated.' },
+        { status: 400 }
+      );
+    }
+
+    if (action === 'usage') {
+      const [journalCount, transactionCount] = await Promise.all([
+        prisma.journalEntryLine.count({
+          where: {
+            accountId: account.id,
+            journalEntry: {
+              status: 'Posted',
+              tenantId: user.tenantId
+            }
+          }
+        }),
+        prisma.transactionLine.count({
+          where: {
+            accountId: account.id,
+            transaction: {
+              status: 'posted',
+              tenantId: user.tenantId
+            }
+          }
+        })
+      ]);
+
+      return NextResponse.json({
+        accountId: account.id,
+        journalEntryLines: journalCount,
+        transactionLines: transactionCount,
+        hasUsage: journalCount > 0 || transactionCount > 0
+      });
     }
 
     // Calculate current balance
@@ -115,19 +191,35 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Check if account has transactions (can't change certain fields)
-    const hasTransactions = await prisma.journalEntryLine.count({
-      where: {
-        accountId: id,
-        journalEntry: {
-          status: 'Posted'
+    if (existingAccount.isSystem) {
+      return NextResponse.json(
+        { error: 'System accounts are read-only.' },
+        { status: 400 }
+      );
+    }
+
+    const [journalCount, transactionCount] = await Promise.all([
+      prisma.journalEntryLine.count({
+        where: {
+          accountId: id,
+          journalEntry: {
+            status: 'Posted'
+          }
         }
-      }
-    }) > 0;
+      }),
+      prisma.transactionLine.count({
+        where: {
+          accountId: id,
+          transaction: {
+            status: 'posted'
+          }
+        }
+      })
+    ]);
+    const hasTransactions = journalCount > 0 || transactionCount > 0;
 
     if (hasTransactions) {
-      // Can't change account type or normal balance if there are transactions
-      if (body.accountType && body.accountType !== existingAccount.accountType) {
+      if (body.accountType && normalizeAccountType(body.accountType) !== existingAccount.accountType) {
         return NextResponse.json(
           { error: 'Cannot change account type for accounts with existing transactions' },
           { status: 400 }
@@ -140,13 +232,27 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+
+      if (body.accountCode && body.accountCode !== existingAccount.accountCode) {
+        return NextResponse.json(
+          { error: 'Cannot change account code for accounts with existing transactions' },
+          { status: 400 }
+        );
+      }
+
+      if (body.accountName && body.accountName !== existingAccount.accountName) {
+        return NextResponse.json(
+          { error: 'Cannot change account name for accounts with existing transactions' },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate account code uniqueness if changed
     if (body.accountCode && body.accountCode !== existingAccount.accountCode) {
-      if (!/^\d+$/.test(body.accountCode)) {
+      if (!validateAccountCode(body.accountCode)) {
         return NextResponse.json(
-          { error: 'Account code must be numeric only' },
+          { error: 'Account code must be numeric (3-10 digits).' },
           { status: 400 }
         );
       }
@@ -182,7 +288,8 @@ export async function PUT(request, { params }) {
           );
         }
 
-        if (parentAccount.accountType !== (body.accountType || existingAccount.accountType)) {
+      const normalizedType = normalizeAccountType(body.accountType) || existingAccount.accountType;
+      if (parentAccount.accountType !== normalizedType) {
           return NextResponse.json(
             { error: 'Parent account must be of the same type' },
             { status: 400 }
@@ -199,11 +306,20 @@ export async function PUT(request, { params }) {
       }
     }
 
+    const normalizedType = body.accountType ? normalizeAccountType(body.accountType) : undefined;
+    if (normalizedType && !ACCOUNT_TYPES.includes(normalizedType)) {
+      return NextResponse.json(
+        { error: `Invalid account type. Expected one of: ${ACCOUNT_TYPES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     const updatedAccount = await prisma.account.update({
       where: { id },
       data: {
         accountCode: body.accountCode,
         accountName: body.accountName,
+        accountType: normalizedType,
         accountSubtype: body.accountSubtype,
         parentAccountId: body.parentAccountId !== undefined ? (body.parentAccountId || null) : undefined,
         description: body.description,
@@ -258,14 +374,25 @@ export async function DELETE(request, { params }) {
     }
 
     // Check if account has transactions
-    const hasTransactions = await prisma.journalEntryLine.count({
-      where: {
-        accountId: id,
-        journalEntry: {
-          status: 'Posted'
+    const [journalCount, transactionCount] = await Promise.all([
+      prisma.journalEntryLine.count({
+        where: {
+          accountId: id,
+          journalEntry: {
+            status: 'Posted'
+          }
         }
-      }
-    }) > 0;
+      }),
+      prisma.transactionLine.count({
+        where: {
+          accountId: id,
+          transaction: {
+            status: 'posted'
+          }
+        }
+      })
+    ]);
+    const hasTransactions = journalCount > 0 || transactionCount > 0;
 
     if (hasTransactions) {
       // Deactivate instead of delete

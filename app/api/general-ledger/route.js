@@ -3,6 +3,28 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+const toDateRange = (startDate, endDate) => {
+  const range = {};
+  if (startDate) {
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    range.gte = start;
+  }
+  if (endDate) {
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    range.lte = end;
+  }
+  return range;
+};
+
+const getNormalBalance = (accountType, normalBalance) => {
+  const normal = (normalBalance || '').toString().toLowerCase();
+  if (normal === 'debit' || normal === 'credit') return normal;
+  const type = (accountType || '').toLowerCase();
+  return type === 'asset' || type === 'expense' ? 'debit' : 'credit';
+};
+
 // GET - Fetch general ledger transactions with filtering, sorting, and pagination
 export async function GET(request) {
   try {
@@ -41,142 +63,201 @@ export async function GET(request) {
     const sortBy = searchParams.get('sortBy') || 'date';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     
-    // Build filter conditions for journal entry lines (modern accounting model)
-    const whereConditions = {
+    const dateRange = toDateRange(startDate, endDate);
+
+    const journalWhere = {
+      ...(accountId && accountId !== 'all' ? { accountId } : {}),
+      ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
+      ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       journalEntry: {
         tenantId,
-        status: 'Posted',
+        status: { in: ['Posted', 'posted'] },
+        ...(Object.keys(dateRange).length > 0 ? { entryDate: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
+        ...(reference ? {
+          OR: [
+            { referenceNumber: { contains: reference, mode: 'insensitive' } },
+            { description: { contains: reference, mode: 'insensitive' } },
+          ]
+        } : {}),
       },
-    };
-    
-    // Add date range filter if provided
-    if (startDate || endDate) {
-      whereConditions.journalEntry = {
-        ...whereConditions.journalEntry,
-        entryDate: {},
-      };
-      if (startDate) whereConditions.journalEntry.entryDate.gte = new Date(startDate);
-      if (endDate) whereConditions.journalEntry.entryDate.lte = new Date(endDate);
-    }
-    
-    // Add account filter if provided
-    if (accountId && accountId !== 'all') {
-      whereConditions.accountId = accountId;
-    }
-    
-    // Add reference filter if provided
-    if (reference) {
-      whereConditions.journalEntry = {
-        ...whereConditions.journalEntry,
+      ...(search ? {
         OR: [
-          { referenceNumber: { contains: reference, mode: 'insensitive' } },
-          { description: { contains: reference, mode: 'insensitive' } },
-        ],
-      };
-    }
-    
-    // Add balance type filter if provided
-    if (balanceType === 'debit') {
-      whereConditions.debitAmount = { gt: 0 };
-    } else if (balanceType === 'credit') {
-      whereConditions.creditAmount = { gt: 0 };
-    }
-    
-    // Add search filter if provided
-    if (search) {
-      whereConditions.OR = [
-        { journalEntry: { description: { contains: search, mode: 'insensitive' } } },
-        { journalEntry: { referenceNumber: { contains: search, mode: 'insensitive' } } },
-        { account: { accountName: { contains: search, mode: 'insensitive' } } },
-        { account: { accountCode: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
-    
-    // Get total count for pagination
-    const totalCount = await prisma.journalEntryLine.count({ where: whereConditions });
-    
-    // Fetch journal entry lines with their related journal entry + account
-    const lines = await prisma.journalEntryLine.findMany({
-      where: whereConditions,
-      include: {
-        account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
-        journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true } },
+          { journalEntry: { description: { contains: search, mode: 'insensitive' } } },
+          { journalEntry: { referenceNumber: { contains: search, mode: 'insensitive' } } },
+          { account: { accountName: { contains: search, mode: 'insensitive' } } },
+          { account: { accountCode: { contains: search, mode: 'insensitive' } } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ]
+      } : {}),
+    };
+
+    const transactionWhere = {
+      ...(accountId && accountId !== 'all' ? { accountId } : {}),
+      ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
+      ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
+      transaction: {
+        tenantId,
+        status: 'posted',
+        ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
+        ...(branchId ? { branchId } : {}),
+        ...(reference ? {
+          OR: [
+            { reference: { contains: reference, mode: 'insensitive' } },
+            { description: { contains: reference, mode: 'insensitive' } },
+          ]
+        } : {}),
       },
-      orderBy: { journalEntry: { entryDate: sortOrder.toLowerCase() } },
-      skip,
-      take: limit
-    });
+      ...(search ? {
+        OR: [
+          { transaction: { description: { contains: search, mode: 'insensitive' } } },
+          { transaction: { reference: { contains: search, mode: 'insensitive' } } },
+          { account: { accountName: { contains: search, mode: 'insensitive' } } },
+          { account: { accountCode: { contains: search, mode: 'insensitive' } } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ]
+      } : {}),
+    };
+
+    const [journalLines, transactionLines] = await Promise.all([
+      prisma.journalEntryLine.findMany({
+        where: journalWhere,
+        include: {
+          account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
+          journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true, sourceType: true, sourceId: true } },
+        },
+      }),
+      prisma.transactionLine.findMany({
+        where: transactionWhere,
+        include: {
+          account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
+          transaction: { select: { id: true, date: true, reference: true, description: true, branchId: true, sourceType: true, sourceId: true } },
+        },
+      }),
+    ]);
     
-    // Optional running balance if a single account is selected
     let openingBalance = null;
     let running = 0;
-    if (accountId && accountId !== 'all') {
-      // Sum all posted lines before startDate for this account to get opening balance
-      const openingWhere = {
-        ...whereConditions,
-        accountId,
-        ...(startDate
-          ? { journalEntry: { ...whereConditions.journalEntry, entryDate: { lt: new Date(startDate) } } }
-          : {}),
-      };
-      const opening = await prisma.journalEntryLine.aggregate({
-        where: openingWhere,
-        _sum: { debitAmount: true, creditAmount: true },
-      });
-      const acc = await prisma.account.findUnique({
-        where: { id: accountId },
-        select: { accountType: true, normalBalance: true },
-      });
-      const normal = (acc?.normalBalance || ((acc?.accountType || '').toLowerCase() === 'asset' || (acc?.accountType || '').toLowerCase() === 'expense' ? 'Debit' : 'Credit')).toLowerCase();
-      const deb = opening._sum.debitAmount || 0;
-      const cre = opening._sum.creditAmount || 0;
+    if (accountId && accountId !== 'all' && startDate) {
+      const openingDate = new Date(startDate);
+      openingDate.setHours(0, 0, 0, 0);
+      const [openingJournal, openingTransaction, acc] = await Promise.all([
+        prisma.journalEntryLine.aggregate({
+          where: {
+            ...journalWhere,
+            accountId,
+            journalEntry: {
+              ...journalWhere.journalEntry,
+              entryDate: { lt: openingDate },
+            },
+          },
+          _sum: { debitAmount: true, creditAmount: true },
+        }),
+        prisma.transactionLine.aggregate({
+          where: {
+            ...transactionWhere,
+            accountId,
+            transaction: {
+              ...transactionWhere.transaction,
+              date: { lt: openingDate },
+            },
+          },
+          _sum: { debitAmount: true, creditAmount: true },
+        }),
+        prisma.account.findUnique({
+          where: { id: accountId },
+          select: { accountType: true, normalBalance: true },
+        }),
+      ]);
+      const deb = (openingJournal._sum.debitAmount || 0) + (openingTransaction._sum.debitAmount || 0);
+      const cre = (openingJournal._sum.creditAmount || 0) + (openingTransaction._sum.creditAmount || 0);
+      const normal = getNormalBalance(acc?.accountType, acc?.normalBalance);
       openingBalance = normal === 'debit' ? (deb - cre) : (cre - deb);
       running = openingBalance;
     }
 
-    const transactions = lines.map((l) => {
-      const debit = l.debitAmount || 0;
-      const credit = l.creditAmount || 0;
+    const combined = [
+      ...journalLines.map((line) => ({
+        id: line.id,
+        transactionId: line.journalEntryId,
+        entryType: 'JournalEntry',
+        date: line.journalEntry?.entryDate ? new Date(line.journalEntry.entryDate).toISOString() : null,
+        description: line.journalEntry?.description || line.description || '',
+        reference: line.journalEntry?.referenceNumber || '',
+        accountId: line.accountId,
+        accountCode: line.account?.accountCode || '',
+        accountName: line.account?.accountName || '',
+        accountType: line.account?.accountType || '',
+        normalBalance: line.account?.normalBalance || null,
+        debit: line.debitAmount || 0,
+        credit: line.creditAmount || 0,
+        sourceType: line.journalEntry?.sourceType || 'JournalEntry',
+        sourceId: line.journalEntry?.sourceId || null,
+      })),
+      ...transactionLines.map((line) => ({
+        id: line.id,
+        transactionId: line.transactionId,
+        entryType: 'Transaction',
+        date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
+        description: line.transaction?.description || line.description || '',
+        reference: line.transaction?.reference || '',
+        accountId: line.accountId,
+        accountCode: line.account?.accountCode || '',
+        accountName: line.account?.accountName || '',
+        accountType: line.account?.accountType || '',
+        normalBalance: line.account?.normalBalance || null,
+        debit: line.debitAmount || 0,
+        credit: line.creditAmount || 0,
+        sourceType: line.transaction?.sourceType || 'Transaction',
+        sourceId: line.transaction?.sourceId || null,
+      })),
+    ];
+
+    combined.sort((a, b) => {
+      const dateA = new Date(a.date || 0);
+      const dateB = new Date(b.date || 0);
+      return sortOrder.toLowerCase() === 'asc' ? dateA - dateB : dateB - dateA;
+    });
+
+    const transactions = combined.map((entry) => {
       if (accountId && accountId !== 'all') {
-        const normal = (l.account?.normalBalance || ((l.account?.accountType || '').toLowerCase() === 'asset' || (l.account?.accountType || '').toLowerCase() === 'expense' ? 'Debit' : 'Credit')).toLowerCase();
-        const delta = normal === 'debit' ? (debit - credit) : (credit - debit);
+        const normal = getNormalBalance(entry.accountType, entry.normalBalance);
+        const delta = normal === 'debit' ? (entry.debit - entry.credit) : (entry.credit - entry.debit);
         running += delta;
+        return { ...entry, balance: running };
       }
-      return {
-        id: l.id,
-        transactionId: l.journalEntryId,
-        date: l.journalEntry?.entryDate ? new Date(l.journalEntry.entryDate).toISOString() : null,
-        description: l.journalEntry?.description || l.description || '',
-        reference: l.journalEntry?.referenceNumber || '',
-        accountId: l.accountId,
-        accountCode: l.account?.accountCode || '',
-        accountName: l.account?.accountName || '',
-        accountType: l.account?.accountType || '',
-        debit,
-        credit,
-        balance: (accountId && accountId !== 'all') ? running : null,
-      };
+      return { ...entry, balance: null };
     });
-    
-    // Calculate summary statistics
-    const summaryStats = await prisma.journalEntryLine.aggregate({
-      where: whereConditions,
-      _sum: { debitAmount: true, creditAmount: true },
-    });
+
+    const totalCount = transactions.length;
+    const paginated = transactions.slice(skip, skip + limit);
+
+    const [journalTotals, transactionTotals] = await Promise.all([
+      prisma.journalEntryLine.aggregate({
+        where: journalWhere,
+        _sum: { debitAmount: true, creditAmount: true },
+      }),
+      prisma.transactionLine.aggregate({
+        where: transactionWhere,
+        _sum: { debitAmount: true, creditAmount: true },
+      }),
+    ]);
     
     // Return the formatted response
+    const totalPages = Math.ceil(totalCount / limit);
     return NextResponse.json({
-      transactions,
+      transactions: paginated,
       openingBalance,
       pagination: {
         page,
         limit,
         totalCount,
-        totalPages: Math.ceil(totalCount / limit)
+        totalPages
       },
-      totalDebits: summaryStats._sum.debitAmount || 0,
-      totalCredits: summaryStats._sum.creditAmount || 0
+      totalCount,
+      totalPages,
+      totalDebits: (journalTotals._sum.debitAmount || 0) + (transactionTotals._sum.debitAmount || 0),
+      totalCredits: (journalTotals._sum.creditAmount || 0) + (transactionTotals._sum.creditAmount || 0)
     });
     
   } catch (error) {

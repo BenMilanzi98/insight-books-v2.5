@@ -127,12 +127,28 @@ export async function PUT(request, { params }) {
     
     // Prepare update data
     const updateData = {};
+
+    let expenseAccount = null;
+    if (body.expenseAccountId) {
+      expenseAccount = await prisma.account.findFirst({
+        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' }
+      });
+
+      if (!expenseAccount) {
+        return NextResponse.json(
+          { error: 'Invalid expense account. Please select a valid expense account.' },
+          { status: 400 }
+        );
+      }
+      updateData.expenseAccountId = expenseAccount.id;
+      updateData.category = expenseAccount.accountName;
+    }
     
     // Only include fields that are provided in the request
     if (body.description !== undefined) updateData.description = body.description;
     if (amount !== undefined) updateData.amount = amount;
     if (body.date !== undefined) updateData.date = new Date(body.date);
-    if (body.category !== undefined) updateData.category = body.category;
+    if (body.category !== undefined && !updateData.category) updateData.category = body.category;
     if (body.merchant !== undefined) updateData.merchant = body.merchant;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.notes !== undefined) updateData.notes = body.notes;

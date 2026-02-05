@@ -16,11 +16,14 @@ import { formatCurrency } from "@/lib/currencyUtils";
 const JournalEntryForm = ({ existingEntry = null }) => {
   const router = useRouter();
   const isEditing = !!existingEntry;
+  const isPosted = existingEntry?.status === 'Posted' || existingEntry?.status === 'posted';
   
   // Form state
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
+    entryType: "Correction",
     description: "",
+    internalReference: "",
     lines: [
       { accountId: "", description: "", debit: "", credit: "" },
       { accountId: "", description: "", debit: "", credit: "" }
@@ -50,7 +53,9 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     if (existingEntry) {
       setFormData({
         date: new Date(existingEntry.date).toISOString().split('T')[0],
+        entryType: existingEntry.entryType || "Correction",
         description: existingEntry.description || "",
+        internalReference: existingEntry.notes || "",
         lines: existingEntry.lines.map(entry => ({
           accountId: entry.accountId || "",
           description: entry.description || "",
@@ -149,7 +154,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     
     setFormData(prev => ({
       ...prev,
-      entries: newEntries
+      lines: newEntries
     }));
   };
   
@@ -237,7 +242,9 @@ const JournalEntryForm = ({ existingEntry = null }) => {
       // Prepare data for API
       const apiData = {
         date: formData.date,
+        entryType: formData.entryType,
         description: formData.description,
+        internalReference: formData.internalReference,
         status: 'Draft', // Add status since the API expects it
         lines: formData.lines.map(entry => ({
           accountId: entry.accountId,
@@ -333,6 +340,11 @@ const JournalEntryForm = ({ existingEntry = null }) => {
       )}
       
       <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6">
+        {isPosted && (
+          <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+            Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="date">
@@ -348,6 +360,23 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               required
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="entryType">
+              Entry Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="entryType"
+              name="entryType"
+              value={formData.entryType}
+              onChange={handleChange}
+              className="border border-gray-300 p-2 w-full rounded"
+              required
+            >
+              <option value="Correction">Correction</option>
+              <option value="Accrual">Accrual</option>
+              <option value="Opening Balance">Opening Balance</option>
+            </select>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="description">
@@ -362,6 +391,20 @@ const JournalEntryForm = ({ existingEntry = null }) => {
               onChange={handleChange}
               className="border border-gray-300 p-2 w-full rounded"
               required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="internalReference">
+              Internal Reference / Tag
+            </label>
+            <input
+              type="text"
+              id="internalReference"
+              name="internalReference"
+              placeholder="Optional internal reference or tag"
+              value={formData.internalReference}
+              onChange={handleChange}
+              className="border border-gray-300 p-2 w-full rounded"
             />
           </div>
         </div>
@@ -522,7 +565,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
           <button
             type="submit"
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
-            disabled={isLoading || !totals.isBalanced}
+            disabled={isLoading || !totals.isBalanced || isPosted}
           >
             {isLoading ? (
               <>

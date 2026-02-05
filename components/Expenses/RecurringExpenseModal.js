@@ -19,11 +19,13 @@ const RecurringExpenseModal = ({
   isLoading = false,
   initialData = null
 }) => {
+  const getOptionId = (option) => (typeof option === 'string' ? option : option?.id);
+  const getOptionName = (option) => (typeof option === 'string' ? option : option?.name);
   // Form state
   const [formData, setFormData] = useState({
     description: "",
     amount: "",
-    category: "",
+    expenseAccountId: "",
     startDate: new Date().toISOString().split("T")[0],
     frequency: "monthly", // weekly, monthly, quarterly, yearly
     dayOfMonth: new Date().getDate().toString(),
@@ -45,7 +47,7 @@ const RecurringExpenseModal = ({
         setFormData({
           description: initialData.description || "",
           amount: initialData.amount ? (typeof initialData.amount === 'string' ? initialData.amount.replace(/,/g, '') : initialData.amount.toString()) : "",
-          category: initialData.category || (categories.length > 0 ? categories[0] : ""),
+          expenseAccountId: initialData.expenseAccountId || (categories.length > 0 ? getOptionId(categories[0]) || "" : ""),
           startDate: initialData.startDate || new Date().toISOString().split("T")[0],
           frequency: initialData.frequency || "monthly",
           dayOfMonth: initialData.dayOfMonth ? initialData.dayOfMonth.toString() : new Date().getDate().toString(),
@@ -64,7 +66,7 @@ const RecurringExpenseModal = ({
         setFormData({
           description: "",
           amount: "",
-          category: categories.length > 0 ? categories[0] : "",
+          expenseAccountId: categories.length > 0 ? getOptionId(categories[0]) || "" : "",
           startDate: today,
           frequency: "monthly",
           dayOfMonth: new Date().getDate().toString(),
@@ -99,8 +101,8 @@ const RecurringExpenseModal = ({
       newErrors.amount = "Amount is required and must be greater than zero";
     }
     
-    if (!formData.category) {
-      newErrors.category = "Category is required";
+    if (!formData.expenseAccountId) {
+      newErrors.expenseAccountId = "Expense account is required";
     }
     
     if (!formData.startDate) {
@@ -137,13 +139,15 @@ const RecurringExpenseModal = ({
     }
     
     // Transform form data into recurring expense data structure
+    const selectedAccount = categories.find(acc => getOptionId(acc) === formData.expenseAccountId);
     const recurringExpenseData = {
       ...formData,
       amount: parseFloat(formData.amount.replace(/,/g, '')),
       dayOfMonth: parseInt(formData.dayOfMonth),
       dayOfWeek: parseInt(formData.dayOfWeek),
       occurrences: parseInt(formData.occurrences),
-      status: "Active"
+      status: "Active",
+      category: getOptionName(selectedAccount) || ""
     };
     
     onSubmit(recurringExpenseData);
@@ -225,40 +229,15 @@ const RecurringExpenseModal = ({
             
             <div className="mb-4">
               <DynamicCategorySelect
-                value={formData.category}
-                onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                value={formData.expenseAccountId}
+                onChange={(value) => setFormData(prev => ({ ...prev, expenseAccountId: value }))}
                 options={categories}
-                placeholder="Select or add category"
-                onAddCategory={async (newCategory) => {
-                  try {
-                    // Call the API to create the category
-                    const response = await fetch('/api/categories', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        name: newCategory.trim(),
-                        type: 'expense'
-                      })
-                    });
-
-                    if (response.ok) {
-                      // Note: In a real implementation, you might want to refresh the categories list
-                      console.log('New category added:', newCategory);
-                    } else {
-                      const error = await response.json();
-                      console.error('Failed to add category:', error.error);
-                    }
-                  } catch (error) {
-                    console.error('Error adding category:', error);
-                  }
-                }}
+                placeholder="Select expense account"
                 required={true}
-                label="Category"
+                label="Expense Account"
               />
-              {errors.category && (
-                <p className="mt-1 text-sm text-red-600">{errors.category}</p>
+              {errors.expenseAccountId && (
+                <p className="mt-1 text-sm text-red-600">{errors.expenseAccountId}</p>
               )}
             </div>
             

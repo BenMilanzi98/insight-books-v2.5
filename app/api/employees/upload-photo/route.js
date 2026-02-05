@@ -136,8 +136,8 @@ export async function POST(request) {
       );
     }
 
-    // Public URL for the file
-    const fileUrl = `/uploads/${user.tenantId}/employees/photos/${fileName}`;
+    // Public URL for the file - use API route for reliable serving
+    const fileUrl = `/api/employees/photos/${user.tenantId}/${employeeId}/${fileName}`;
 
     // Update employee record with photo URL
     // Store in a JSON field or add a photoUrl field if it exists in schema

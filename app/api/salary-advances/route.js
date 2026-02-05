@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 /**
  * GET - Get all salary advances for the tenant
@@ -208,6 +209,7 @@ export async function POST(request) {
       // Debit: Salary Advance Receivable (Asset) - increases receivable
       // Credit: Cash/Payment Account - decreases cash
       const entryDate = new Date(advanceDate);
+      await assertPeriodOpen(user.tenantId, entryDate, tx);
       const referenceNumber = await generateReferenceNumber(tx, user.tenantId, entryDate);
 
       await tx.transaction.create({

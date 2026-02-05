@@ -21,6 +21,7 @@ export async function GET(request) {
     // Parse query parameters
     const status = searchParams.get('status');
     const category = searchParams.get('category');
+    const accountId = searchParams.get('accountId');
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
@@ -36,7 +37,12 @@ export async function GET(request) {
       where.status = status;
     }
     
-    // Add category filter if provided
+    // Add account filter if provided
+    if (accountId && accountId !== 'all') {
+      where.expenseAccountId = accountId;
+    }
+
+    // Add category filter if provided (legacy support)
     if (category && category !== 'all') {
       where.category = category;
     }

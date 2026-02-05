@@ -93,45 +93,6 @@ export async function POST(request) {
       );
     }
 
-    // If this is NOT the first branch, enforce branch-level subscription.
-    if (existingBranches.length > 0) {
-      // Prevent creating unlimited unpaid branches:
-      // If there is already an inactive branch for this tenant with no active subscription, force paying it first.
-      const unpaidExisting = await prisma.branch.findFirst({
-        where: { tenantId: user.tenantId, isActive: false },
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, name: true },
-      });
-
-      if (unpaidExisting) {
-        const activePaidForThatBranch = await prisma.branchSubscription.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            branchId: unpaidExisting.id,
-            isActive: true,
-            expiresAt: { gt: new Date() },
-            amount: { gt: 0 },
-            status: { in: ['Completed', 'Active'] },
-          },
-          select: { id: true },
-        });
-
-        if (!activePaidForThatBranch) {
-          return NextResponse.json(
-            {
-              error:
-                'You have a pending branch that requires payment. Please subscribe for that branch before creating another.',
-              code: 'BRANCH_SUBSCRIPTION_REQUIRED',
-              scope: 'branch',
-              branchId: unpaidExisting.id,
-              branchName: unpaidExisting.name,
-            },
-            { status: 403 }
-          );
-        }
-      }
-    }
-
     const branch = await prisma.branch.create({
       data: {
         tenantId: user.tenantId,
@@ -141,21 +102,6 @@ export async function POST(request) {
         isActive: existingBranches.length === 0,
       },
     });
-
-    // If it's an additional branch, force payment for THIS branch.
-    if (existingBranches.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Branch subscription required to activate this branch.',
-          code: 'BRANCH_SUBSCRIPTION_REQUIRED',
-          scope: 'branch',
-          branchId: branch.id,
-          branchName: branch.name,
-        },
-        { status: 403 }
-      );
-    }
 
     return NextResponse.json({ success: true, branch }, { status: 201 });
   } catch (error) {

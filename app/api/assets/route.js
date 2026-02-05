@@ -7,6 +7,7 @@ import { getPaymentAccount } from '@/lib/transactionJournalHelpers';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { updateAccountBalance } from '@/lib/core';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 /**
  * GET handler for assets
@@ -568,6 +569,7 @@ async function createTransactionWithEntries(entries, description, tenantId, user
   }
 
   const transactionDate = entryDate || new Date();
+  await assertPeriodOpen(tenantId, transactionDate, prisma);
   const refNumber = referenceNumber || await generateReferenceNumber(prisma, tenantId, transactionDate);
   
   const transaction = await prisma.transaction.create({

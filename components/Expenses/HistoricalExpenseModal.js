@@ -10,7 +10,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
     historicalDate: '',
     description: '',
     amount: '',
-    category: '',
+    expenseAccountId: '',
     merchant: '',
     paymentMethod: '',
     originalReference: '',
@@ -26,75 +26,20 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
   // Load payment accounts dynamically
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
-  // Sample expense categories
-  const expenseCategories = [
-    "Office Supplies",
-    "Travel",
-    "Meals & Entertainment", 
-    "Utilities",
-    "Software Subscription",
-    "Advertising",
-    "Rent",
-    "Equipment",
-    "Professional Services",
-    "Insurance",
-    "Legal & Professional",
-    "Maintenance & Repairs",
-    "Marketing",
-    "Training & Education",
-    "Telecommunications"
-  ];
-
   // Load categories from API
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
       if (response.ok) {
         const data = await response.json();
-        if (data.categories && data.categories.length > 0) {
-          setAvailableCategories(data.categories);
-        } else {
-          // Fallback to default categories
-          setAvailableCategories(expenseCategories);
-        }
-      } else {
-        // Fallback to default categories
-        setAvailableCategories(expenseCategories);
+        setAvailableCategories(Array.isArray(data.categories) ? data.categories : []);
       }
     } catch (error) {
       console.error('Error loading categories:', error);
-      // Fallback to default categories
-      setAvailableCategories(expenseCategories);
+      setAvailableCategories([]);
     }
   };
 
-  // Handle adding new category
-  const handleAddCategory = async (categoryName) => {
-    try {
-      const response = await fetch('/api/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: categoryName,
-          type: 'expense'
-        }),
-      });
-
-      if (response.ok) {
-        // Add to local state
-        setAvailableCategories(prev => [...prev, categoryName]);
-      } else {
-        // Even if API fails, add to local state for this session
-        setAvailableCategories(prev => [...prev, categoryName]);
-      }
-    } catch (error) {
-      console.error('Error adding category:', error);
-      // Add to local state even if API fails
-      setAvailableCategories(prev => [...prev, categoryName]);
-    }
-  };
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -103,7 +48,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
         historicalDate: '',
         description: '',
         amount: '',
-        category: '',
+        expenseAccountId: '',
         merchant: '',
         paymentMethod: '',
         originalReference: '',
@@ -159,8 +104,8 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
       }
     }
 
-    if (!formData.category.trim()) {
-      newErrors.category = 'Category is required';
+    if (!formData.expenseAccountId.trim()) {
+      newErrors.expenseAccountId = 'Expense account is required';
     }
 
     // Validate payment method only when not Pending
@@ -192,6 +137,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
     }
 
     // Prepare data for submission
+    const selectedAccount = availableCategories.find(acc => acc.id === formData.expenseAccountId);
     const submissionData = {
       ...formData,
       amount: parseFloat(formData.amount),
@@ -206,7 +152,8 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
       // Handle payment status fields
       paidAmount: formData.paymentStatus === 'Partially' ? parseFloat(formData.paidAmount) : null,
       paymentReference: formData.paymentStatus === 'Partially' ? formData.paymentReference : null,
-      notes: formData.notes || null
+      notes: formData.notes || null,
+      category: selectedAccount?.name || ''
     };
 
     onSubmit(submissionData);
@@ -315,21 +262,20 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               )}
             </div>
 
-            {/* Category */}
+            {/* Expense Account */}
             <div>
               <DynamicCategorySelect
-                value={formData.category}
-                onChange={(value) => handleInputChange('category', value)}
+                value={formData.expenseAccountId}
+                onChange={(value) => handleInputChange('expenseAccountId', value)}
                 options={availableCategories}
-                onAddCategory={handleAddCategory}
-                placeholder="Select or add category"
-                label="Category"
+                placeholder="Select expense account"
+                label="Expense Account"
                 required={true}
                 disabled={isSubmitting}
-                className={errors.category ? 'border-red-500' : ''}
+                className={errors.expenseAccountId ? 'border-red-500' : ''}
               />
-              {errors.category && (
-                <p className="text-red-500 text-sm mt-1">{errors.category}</p>
+              {errors.expenseAccountId && (
+                <p className="text-red-500 text-sm mt-1">{errors.expenseAccountId}</p>
               )}
             </div>
 

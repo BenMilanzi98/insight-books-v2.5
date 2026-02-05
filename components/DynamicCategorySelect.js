@@ -28,9 +28,21 @@ const DynamicCategorySelect = ({
   // Ensure options is always an array
   const safeOptions = Array.isArray(options) ? options : [];
 
+  const getOptionLabel = (option) => {
+    if (typeof option === 'string') return option;
+    if (option?.label) return option.label;
+    if (option?.name && option?.code) return `${option.code} - ${option.name}`;
+    return option?.name || option?.accountName || option?.accountCode || 'Unknown';
+  };
+
+  const getOptionValue = (option) => {
+    if (typeof option === 'string') return option;
+    return option?.id || option?.value || option?.accountId || option?.accountCode || option?.name;
+  };
+
   // Filter options based on search term
   const filteredOptions = safeOptions.filter(option => 
-    option.toLowerCase().includes(searchTerm.toLowerCase())
+    getOptionLabel(option).toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Close dropdown when clicking outside
@@ -54,8 +66,8 @@ const DynamicCategorySelect = ({
     }
   }, [isAdding]);
 
-  const handleSelect = (category) => {
-    onChange(category);
+  const handleSelect = (option) => {
+    onChange(getOptionValue(option));
     setIsOpen(false);
     setSearchTerm("");
   };
@@ -99,7 +111,7 @@ const DynamicCategorySelect = ({
     }
   };
 
-  const selectedOption = safeOptions.find(option => option === value);
+  const selectedOption = safeOptions.find(option => getOptionValue(option) === value);
 
   return (
     <div className={`relative ${className}`}>
@@ -118,7 +130,7 @@ const DynamicCategorySelect = ({
         >
           <div className="flex items-center justify-between">
             <span className={selectedOption ? 'text-gray-900' : 'text-gray-500'}>
-              {selectedOption || placeholder}
+              {selectedOption ? getOptionLabel(selectedOption) : placeholder}
             </span>
             <ChevronDown 
               size={16} 
@@ -140,14 +152,16 @@ const DynamicCategorySelect = ({
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="flex-1 p-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
-                  <button
-                    type="button"
-                    onClick={handleAddNew}
-                    className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                    title="Add new category"
-                  >
-                    <Plus size={16} />
-                  </button>
+                  {onAddCategory && (
+                    <button
+                      type="button"
+                      onClick={handleAddNew}
+                      className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                      title="Add new category"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="flex items-center space-x-2">
@@ -186,14 +200,14 @@ const DynamicCategorySelect = ({
               {filteredOptions.length > 0 ? (
                 filteredOptions.map((option) => (
                   <button
-                    key={option}
+                    key={getOptionValue(option)}
                     type="button"
                     onClick={() => handleSelect(option)}
                     className={`w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 focus:outline-none ${
-                      option === value ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
+                      getOptionValue(option) === value ? 'bg-blue-50 text-blue-700' : 'text-gray-900'
                     }`}
                   >
-                    {option}
+                    {getOptionLabel(option)}
                   </button>
                 ))
               ) : (

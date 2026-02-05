@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import JournalEntryForm from '@/components/JournalEntryForm';
+import PermissionGuard from '@/components/PermissionGuard';
 
 export default function EditJournalEntryPage() {
   const params = useParams();
@@ -22,7 +23,7 @@ export default function EditJournalEntryPage() {
         }
         
         const data = await response.json();
-        setJournalEntry(data.journalEntry);
+        setJournalEntry(data);
       } catch (err) {
         console.error("Error fetching journal entry:", err);
         setError(err.message || "Failed to load journal entry");
@@ -53,5 +54,9 @@ export default function EditJournalEntryPage() {
     );
   }
   
-  return <JournalEntryForm existingEntry={journalEntry} />;
+  return (
+    <PermissionGuard permission="journalEntries.view">
+      <JournalEntryForm existingEntry={journalEntry} />
+    </PermissionGuard>
+  );
 }

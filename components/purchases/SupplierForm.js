@@ -38,6 +38,7 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
     phone: initialData.phone || "",
     address: initialData.address || "",
     paymentTerms: initialData.paymentTerms ?? 30,
+    paymentPreference: initialData.paymentPreference || "",
     currency: initialData.currency || "MWK",
     isActive: initialData.isActive !== undefined ? initialData.isActive : true,
     notes: initialData.notes || "",
@@ -201,19 +202,22 @@ export default function SupplierForm({ initialData = {}, onSave, onCancel }) {
               <p className="mt-1 text-xs text-gray-500">Default: 30 days</p>
             </div>
             <div>
-              <label className={labelClass}>Currency</label>
+              <label className={labelClass}>Payment Preference</label>
               <select
                 className={inputClass}
-                name="currency"
-                value={formData.currency}
+                name="paymentPreference"
+                value={formData.paymentPreference}
                 onChange={handleChange}
               >
-                <option value="MWK">MWK - Malawi Kwacha</option>
-                <option value="USD">USD - US Dollar</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="GBP">GBP - British Pound</option>
-                <option value="ZAR">ZAR - South African Rand</option>
+                <option value="">Select preference...</option>
+                <option value="Cash">Cash</option>
+                <option value="Bank transfer">Bank transfer</option>
+                <option value="Card">Card</option>
+                <option value="Mobile Money">Mobile Money</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Other">Other</option>
               </select>
+              <p className="mt-1 text-xs text-gray-500">Preferred payment method</p>
             </div>
           </div>
           <div>

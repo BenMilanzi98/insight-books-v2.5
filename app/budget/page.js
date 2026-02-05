@@ -34,6 +34,7 @@ const DEFAULT_FORM = {
   endDate: "",
   expectedRevenue: "",
   breakdowns: [],
+  items: [],
 };
 
 export default function RevenueBudgetPage() {
@@ -157,6 +158,46 @@ export default function RevenueBudgetPage() {
       .reduce((sum, item) => sum + (Number(item.budgetedAmount) || 0), 0);
   };
 
+  // Budget Line Items functions
+  const calculateLineItemsTotal = () => {
+    return (form.items || [])
+      .reduce((sum, item) => sum + (Number(item.budgetedAmount) || 0), 0);
+  };
+
+  const addLineItem = () => {
+    const newItem = {
+      lineNumber: (form.items?.length || 0) + 1,
+      accountId: "",
+      description: "",
+      period: form.startDate || new Date().toISOString().split('T')[0],
+      budgetedAmount: ""
+    };
+    
+    setForm((prev) => ({
+      ...prev,
+      items: [...(prev.items || []), newItem]
+    }));
+  };
+
+  const removeLineItem = (idx) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== idx)
+    }));
+  };
+
+  const updateLineItem = (idx, patch) => {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => {
+        if (i === idx) {
+          return { ...item, ...patch };
+        }
+        return item;
+      })
+    }));
+  };
+
   const addBreakdown = (type) => {
     const options = type === 'branch' ? branchOptions : categoryOptions;
     const existingIds = (form.breakdowns || [])
@@ -277,6 +318,19 @@ export default function RevenueBudgetPage() {
           budgetedAmount: Number(item.budgetedAmount)
         }));
 
+      const items = (form.items || [])
+        .filter(item => item.budgetedAmount && Number(item.budgetedAmount) > 0)
+        .map(item => {
+          const account = categoryOptions.find(acc => acc.id === item.accountId);
+          return {
+            accountId: item.accountId || null,
+            category: account?.name || null,
+            description: item.description || null,
+            period: item.period,
+            budgetedAmount: Number(item.budgetedAmount)
+          };
+        });
+
       const res = await fetch("/api/budgets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -287,7 +341,8 @@ export default function RevenueBudgetPage() {
           startDate: form.startDate,
           endDate: form.endDate,
           expectedRevenue: Number(form.expectedRevenue),
-          breakdowns: breakdowns.length > 0 ? breakdowns : undefined
+          breakdowns: breakdowns.length > 0 ? breakdowns : undefined,
+          items: items.length > 0 ? items : undefined
         }),
       });
       const json = await res.json();
@@ -310,10 +365,7 @@ export default function RevenueBudgetPage() {
       if (budget?.isLocked) {
         throw new Error("Cannot delete a locked budget. The budget period has ended.");
       }
-      if (budget?.status === "approved" || budget?.status === "active") {
-        throw new Error("Cannot delete approved/active budgets. Archive them instead.");
-      }
-      const ok = window.confirm(`Delete revenue budget "${budget?.name}"? This cannot be undone.`);
+      const ok = window.confirm(`Delete revenue budget "${budget?.name}"? This action cannot be undone.`);
       if (!ok) return;
 
       const res = await fetch(`/api/budgets/${budget.id}`, { method: "DELETE" });
@@ -567,17 +619,7 @@ export default function RevenueBudgetPage() {
                               Activate
                             </button>
                           )}
-                          {b.status === 'active' && pagePermissions.canUpdate && (
-                            <button
-                              type="button"
-                              onClick={() => handleAction(b, 'approve')}
-                              className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-green-200 text-green-700 bg-green-50 hover:bg-green-100"
-                              title="Approve budget"
-                            >
-                              <CheckCircle size={12} />
-                              Approve
-                            </button>
-                          )}
+                          {/* Approve button hidden - budgets are auto-approved */}
                           {b.status !== 'closed' && (
                             <button
                               type="button"
@@ -592,7 +634,7 @@ export default function RevenueBudgetPage() {
                         </>
                       )}
                       
-                      {pagePermissions.canDelete && !b.isLocked && b.status === 'draft' && (
+                      {pagePermissions.canDelete && !b.isLocked && (b.status === 'draft' || b.status === 'active' || b.status === 'approved') && (
                         <button
                           type="button"
                           onClick={() => handleDeleteBudget(b)}
@@ -931,6 +973,150 @@ export default function RevenueBudgetPage() {
                       {formErrors.breakdowns && (
                         <p className="text-xs text-red-600 mt-1">{formErrors.breakdowns}</p>
                       )}
+                    </div>
+                  )}
+                </div>
+                {/* Budget Lines Section */}
+                <div className="bg-white border border-gray-200 rounded-lg">
+                  <div className="p-4 border-b border-gray-200">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                          <DollarSign size={18} className="text-blue-600" />
+                          Budget Lines
+                        </h3>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Add detailed line items for this budget (optional).
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addLineItem}
+                        className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 text-sm"
+                      >
+                        <Plus size={14} />
+                        Add Line Item
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-gray-200">
+                    {(form.items || [])
+                      .map((item, idx) => {
+                        const hasAmountError = formErrors[`item_${idx}_amount`];
+                        
+                        return (
+                          <div key={idx} className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 ${hasAmountError ? "bg-red-50/30" : ""}`}>
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Line #
+                              </label>
+                              <div className="px-3 py-2 bg-gray-100 rounded-md text-gray-600 text-sm">
+                                {idx + 1}
+                              </div>
+                            </div>
+
+                            <div className="sm:col-span-3">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Account
+                              </label>
+                              <select
+                                value={item.accountId || ""}
+                                onChange={(e) => updateLineItem(idx, { accountId: e.target.value })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              >
+                                <option value="">Select...</option>
+                                {categoryOptions.map((cat) => (
+                                  <option key={cat.id} value={cat.id}>
+                                    {cat.code ? `${cat.code} - ${cat.name}` : cat.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="sm:col-span-4">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Description
+                              </label>
+                              <input
+                                type="text"
+                                value={item.description || ""}
+                                onChange={(e) => updateLineItem(idx, { description: e.target.value })}
+                                placeholder="e.g., January Product Sales"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                              />
+                            </div>
+
+                            <div className="sm:col-span-2">
+                              <label className="block text-xs font-medium text-gray-700 mb-1">
+                                Amount <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.01"
+                                value={item.budgetedAmount}
+                                onChange={(e) => {
+                                  updateLineItem(idx, { budgetedAmount: e.target.value });
+                                  if (formErrors[`item_${idx}_amount`]) {
+                                    setFormErrors((prev) => ({ ...prev, [`item_${idx}_amount`]: null }));
+                                  }
+                                }}
+                                className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm ${
+                                  hasAmountError ? "border-red-300 bg-red-50" : "border-gray-300"
+                                }`}
+                                placeholder="0.00"
+                              />
+                              {hasAmountError && (
+                                <p className="text-xs text-red-600 mt-1">{hasAmountError}</p>
+                              )}
+                              {item.budgetedAmount && (
+                                <div className="text-xs text-blue-600 mt-1 font-medium">
+                                  {formatCurrency(Number(item.budgetedAmount) || 0)}
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="sm:col-span-1 flex sm:justify-end items-end">
+                              <button
+                                type="button"
+                                onClick={() => removeLineItem(idx)}
+                                className="w-full sm:w-auto px-3 py-2 rounded-md border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors text-sm"
+                                title="Remove line item"
+                              >
+                                <X size={16} className="hidden sm:inline" />
+                                <span className="sm:hidden">Remove</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    
+                    {form.items?.length === 0 && (
+                      <div className="p-8 text-center text-gray-500">
+                        <p className="text-sm">No budget lines added.</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          Add line items to track budget by specific categories or descriptions.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Line items total validation */}
+                  {form.items?.length > 0 && (
+                    <div className="p-4 bg-blue-50 border-t border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-sm text-gray-600">Line Items Total:</span>
+                          <span className={`ml-2 font-semibold ${Math.abs(calculateLineItemsTotal() - Number(form.expectedRevenue || 0)) > 0.01 ? 'text-red-600' : 'text-blue-600'}`}>
+                            {formatCurrency(calculateLineItemsTotal())}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Expected: {formatCurrency(Number(form.expectedRevenue) || 0)}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

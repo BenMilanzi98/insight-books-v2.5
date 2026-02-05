@@ -23,7 +23,12 @@ export async function GET(request) {
             id: true,
             name: true,
             subdomain: true,
-            status: true
+            status: true,
+            settings: {
+              select: {
+                businessEmail: true
+              }
+            }
           }
         }
       },
@@ -48,7 +53,15 @@ export async function GET(request) {
       expiresAt: subscription.expiresAt,
       createdAt: subscription.createdAt,
       updatedAt: subscription.updatedAt,
-      tenant: subscription.tenant,
+      tenant: subscription.tenant
+        ? {
+            id: subscription.tenant.id,
+            name: subscription.tenant.name,
+            subdomain: subscription.tenant.subdomain,
+            status: subscription.tenant.status,
+            email: subscription.tenant.settings?.businessEmail || null
+          }
+        : null,
       tenantId: subscription.tenantId,
       notes: subscription.notes
     }));

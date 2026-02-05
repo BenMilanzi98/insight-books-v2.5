@@ -1,5 +1,6 @@
 // app/journal-entries/new/page.js
 import JournalEntryForm from '@/components/JournalEntryForm';
+import PermissionGuard from '@/components/PermissionGuard';
 
 export const metadata = {
   title: 'New Journal Entry',
@@ -7,5 +8,9 @@ export const metadata = {
 };
 
 export default function NewJournalEntryPage() {
-  return <JournalEntryForm />;
+  return (
+    <PermissionGuard permission="journalEntries.view">
+      <JournalEntryForm />
+    </PermissionGuard>
+  );
 }

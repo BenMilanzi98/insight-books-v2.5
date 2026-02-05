@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 const PAYMENT_METHOD_ACCOUNT_MAP = {
   cash: {
@@ -309,6 +310,7 @@ export async function POST(request, { params }) {
         description: `Payment via ${paymentMethod.replace('_', ' ')}`
       });
 
+      await assertPeriodOpen(user.tenantId, paymentDate, tx);
       const journalEntry = await tx.journalEntry.create({
         data: {
           tenantId: user.tenantId,

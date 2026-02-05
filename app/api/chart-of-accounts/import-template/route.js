@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+const isFinanceAdmin = (user) => {
+  const roleName = user?.role?.name?.toLowerCase() || '';
+  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
+};
+
 // Standard Chart of Accounts Template
 const STANDARD_COA_TEMPLATE = [
   // ASSETS
@@ -107,6 +112,13 @@ export async function POST(request) {
       );
     }
 
+    if (!isFinanceAdmin(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. Finance or Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { overwriteExisting = false } = body;
 
@@ -130,14 +142,25 @@ export async function POST(request) {
       });
 
       for (const account of fullAccounts) {
-        const hasTransactions = await prisma.journalEntryLine.count({
-          where: {
-            accountId: account.id,
-            journalEntry: {
-              status: 'Posted'
-            }
-          }
-        }) > 0;
+          const [journalCount, transactionCount] = await Promise.all([
+            prisma.journalEntryLine.count({
+              where: {
+                accountId: account.id,
+                journalEntry: {
+                  status: 'Posted'
+                }
+              }
+            }),
+            prisma.transactionLine.count({
+              where: {
+                accountId: account.id,
+                transaction: {
+                  status: 'posted'
+                }
+              }
+            })
+          ]);
+          const hasTransactions = journalCount > 0 || transactionCount > 0;
 
         if (!hasTransactions) {
           await prisma.account.delete({
@@ -164,6 +187,7 @@ export async function POST(request) {
             parentAccountId: null,
             description: null,
             isActive: true,
+            isSystem: true,
             tenantId: user.tenantId,
             balance: 0
           }
@@ -188,6 +212,7 @@ export async function POST(request) {
               parentAccountId: parentId,
               description: null,
               isActive: true,
+              isSystem: true,
               tenantId: user.tenantId,
               balance: 0
             }

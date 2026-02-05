@@ -6,6 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance, validateBalanceSheetEquation } from '@/lib/accountingValidation';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 /**
  * GET /api/accounts/opening-balances
@@ -329,6 +330,7 @@ export async function POST(request) {
 
     // Create opening balance transaction
     const entryDate = date ? new Date(date) : new Date();
+    await assertPeriodOpen(user.tenantId, entryDate, prisma);
     const referenceNumber = await generateReferenceNumber(prisma, user.tenantId, entryDate);
 
     const result = await prisma.$transaction(async (tx) => {
