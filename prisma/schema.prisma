@@ -79,6 +79,7 @@ model Tenant {
   transactions               Transaction[]
   users                      User[]
   members                    User[]                      @relation("UserTenants")
+  accountingPeriods          AccountingPeriod[]
 }
 
 model Branch {
@@ -1532,7 +1533,8 @@ model Account {
   bankAccounts      BankAccount[]
   budgetItems       BudgetItem[]
   equityAccounts    EquityAccount[]
-  Expense           Expense[]
+  expenseAccounts   Expense[]               @relation("ExpenseAccount")
+  expenseSources    Expense[]               @relation("ExpenseSourceAccount")
   journalEntryLines JournalEntryLine[]
   productsCogs      Product[]               @relation("ProductCogsAccount")
   productsInventory Product[]               @relation("ProductInventoryAccount")
