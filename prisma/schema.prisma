@@ -416,7 +416,7 @@ model Invoice {
 model InvoiceItem {
   id             String   @id @default(cuid())
   invoiceId      String
-  accountId      String
+  accountId      String?
   description    String
   quantity       Float
   unitPrice      Float
@@ -428,7 +428,7 @@ model InvoiceItem {
   netAmount      Float    @default(0)
   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product        Product? @relation(fields: [productId], references: [id])
-  account        Account  @relation(fields: [accountId], references: [id])
+  account        Account? @relation(fields: [accountId], references: [id])
 
   @@index([invoiceId])
   @@index([accountId])
@@ -597,7 +597,7 @@ model Expense {
   amount                  Float
   date                    DateTime
   category                String
-  expenseAccountId        String
+  expenseAccountId        String?
   receiptUrl              String?
   submittedById           String
   status                  String
@@ -631,7 +631,7 @@ model Expense {
   branch                  Branch?                   @relation(fields: [branchId], references: [id])
   deletedBy               User?                     @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
   employee                Employee?                 @relation(fields: [employeeId], references: [id])
-  expenseAccount          Account                   @relation("ExpenseAccount", fields: [expenseAccountId], references: [id])
+  expenseAccount          Account?                  @relation("ExpenseAccount", fields: [expenseAccountId], references: [id])
   sourceAccount           Account?                  @relation("ExpenseSourceAccount", fields: [sourceAccountId], references: [id])
   submittedBy             User                      @relation(fields: [submittedById], references: [id])
   supplier                Supplier?                 @relation(fields: [supplierId], references: [id])
@@ -729,7 +729,7 @@ model Sale {
 model SaleItem {
   id                String        @id @default(cuid())
   saleId            String
-  accountId         String
+  accountId         String?
   productId         String?
   description       String
   quantity          Float
@@ -743,7 +743,7 @@ model SaleItem {
   taxDescription    String?
   taxRate           Float         @default(0)
   product           Product?      @relation("ProductSales", fields: [productId], references: [id])
-  account           Account       @relation(fields: [accountId], references: [id])
+  account           Account?      @relation(fields: [accountId], references: [id])
   sale              Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   itemTaxes         SaleItemTax[]
 
@@ -1698,7 +1698,7 @@ model RecurringExpense {
   description          String
   amount               Float
   category             String
-  expenseAccountId     String
+  expenseAccountId     String?
   frequency            String
   dayOfMonth           Int?
   dayOfWeek            Int?
@@ -1717,7 +1717,7 @@ model RecurringExpense {
   updatedAt            DateTime                  @updatedAt
   createdBy            User                      @relation(fields: [createdById], references: [id])
   tenant               Tenant                    @relation(fields: [tenantId], references: [id])
-  expenseAccount       Account                   @relation("RecurringExpenseAccount", fields: [expenseAccountId], references: [id])
+  expenseAccount       Account?                  @relation("RecurringExpenseAccount", fields: [expenseAccountId], references: [id])
   history              RecurringExpenseHistory[]
 
   @@index([tenantId])
@@ -2324,7 +2324,7 @@ model RevenueBudgetBreakdown {
 model BudgetItem {
   id              String   @id @default(cuid())
   budgetId        String
-  accountId       String
+  accountId       String?
   branchId        String?
   categoryId      String?
   period          DateTime
@@ -2336,7 +2336,7 @@ model BudgetItem {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   category        String?
-  account         Account  @relation(fields: [accountId], references: [id])
+  account         Account? @relation(fields: [accountId], references: [id])
   budget          Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
   branch          Branch?  @relation(fields: [branchId], references: [id])
 
