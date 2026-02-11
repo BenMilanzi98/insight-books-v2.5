@@ -295,6 +295,13 @@ const ExpenseForm = ({
               required={true}
               label="Expense Account"
             />
+            <p className="mt-1 text-xs text-gray-500">
+              Need a new category? Create an Expense account in the{" "}
+              <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
+                Chart of Accounts
+              </a>
+              .
+            </p>
             {errors.expenseAccountId && (
               <p className="mt-1 text-sm text-red-600 flex items-center">
                 <AlertCircle className="h-4 w-4 mr-1" />

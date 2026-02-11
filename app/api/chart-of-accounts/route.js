@@ -65,36 +65,47 @@ export async function GET(request) {
       ];
     }
 
-    const accounts = await prisma.account.findMany({
-      where,
-      include: {
-        parentAccount: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true
+    let accounts = [];
+    try {
+      accounts = await prisma.account.findMany({
+        where,
+        include: {
+          parentAccount: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true
+            }
+          },
+          childAccounts: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true,
+              isActive: true,
+              isSystem: true
+            }
+          },
+          _count: {
+            select: {
+              journalEntryLines: true,
+              transactionLines: true
+            }
           }
         },
-        childAccounts: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-            isActive: true,
-            isSystem: true
-          }
-        },
-        _count: {
-          select: {
-            journalEntryLines: true,
-            transactionLines: true
-          }
-        }
-      },
-      orderBy: [
-        { accountCode: 'asc' }
-      ]
-    });
+        orderBy: [
+          { accountCode: 'asc' }
+        ]
+      });
+    } catch (error) {
+      console.error('Error fetching accounts:', error);
+      // Return empty array if accounts query fails
+      return NextResponse.json({
+        accounts: [],
+        total: 0,
+        error: 'Failed to fetch accounts'
+      });
+    }
 
 
     // Get other balance sources
@@ -107,35 +118,40 @@ export async function GET(request) {
     });
     
     // Fetch invoices with their actual payments to calculate accurate remaining balance
-    const allInvoices = await prisma.invoice.findMany({
-      where: {
-        tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
-        voidedAt: null,
-        refundedAt: null
-      },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        total: true,
-        totalPaid: true,
-        remainingBalance: true,
-        status: true,
-        issueDate: true,
-        dueDate: true,
-        payments: {
-          where: {
-            status: 'Completed'
-          },
-          select: {
-            amount: true,
-            status: true
+    let allInvoices = [];
+    try {
+      allInvoices = await prisma.invoice.findMany({
+        where: {
+          tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
+          voidedAt: null,
+          refundedAt: null
+        },
+        select: {
+          id: true,
+          invoiceNumber: true,
+          total: true,
+          totalPaid: true,
+          remainingBalance: true,
+          status: true,
+          issueDate: true,
+          dueDate: true,
+          payments: {
+            where: {
+              status: 'Completed'
+            },
+            select: {
+              amount: true,
+              status: true
+            }
           }
+        },
+        orderBy: {
+          issueDate: 'desc'
         }
-      },
-      orderBy: {
-        issueDate: 'desc'
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error fetching invoices:', error);
+    }
     
     // Calculate actual remaining balance from payments (more accurate than stored fields)
     const invoicesWithActualBalance = allInvoices.map(inv => {
@@ -267,17 +283,22 @@ export async function GET(request) {
     }
 
     // Inventory value from products
-    const inventoryProducts = await prisma.product.findMany({
-      where: {
-        tenantId: user.tenantId,
-        isService: false,
-        isDeleted: false
-      },
-      select: {
-        stockLevel: true,
-        cost: true
-      }
-    });
+    let inventoryProducts = [];
+    try {
+      inventoryProducts = await prisma.product.findMany({
+        where: {
+          tenantId: user.tenantId,
+          isService: false,
+          isDeleted: false
+        },
+        select: {
+          stockLevel: true,
+          cost: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching inventory products:', error);
+    }
     const totalInventoryValue = inventoryProducts.reduce((sum, product) => {
       const qty = parseFloat(product.stockLevel) || 0;
       const cost = parseFloat(product.cost) || 0;
@@ -297,24 +318,29 @@ export async function GET(request) {
     });
 
     // Assets from Asset model
-    const assets = await prisma.asset.findMany({
-      where: {
-        tenantId: user.tenantId,
-        status: { not: 'disposed' }
-      },
-      include: {
-        category: true,
-        depreciationSchedules: {
-          where: {
-            periodEnd: { lte: new Date() }
-          },
-          orderBy: {
-            periodEnd: 'desc'
-          },
-          take: 1 // Get the most recent schedule for accumulated depreciation
+    let assets = [];
+    try {
+      assets = await prisma.asset.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: { not: 'disposed' }
+        },
+        include: {
+          category: true,
+          depreciationSchedules: {
+            where: {
+              periodEnd: { lte: new Date() }
+            },
+            orderBy: {
+              periodEnd: 'desc'
+            },
+            take: 1 // Get the most recent schedule for accumulated depreciation
+          }
         }
-      }
-    });
+      });
+    } catch (error) {
+      console.error('Error fetching assets:', error);
+    }
     const totalAssetsValue = assets.reduce((sum, asset) => {
       const grossValue = parseFloat(asset.originalCost) || 0;
       // Use accumulatedDepreciation field directly, or from most recent schedule
@@ -326,17 +352,22 @@ export async function GET(request) {
     }, 0);
 
     // Accounts Payable from unpaid expenses
-    const unpaidExpenses = await prisma.expense.findMany({
-      where: {
-        tenantId: user.tenantId,
-        paymentStatus: { in: ['Pending', 'Partially'] },
-        isDeleted: false
-      },
-      select: {
-        amount: true,
-        paidAmount: true
-      }
-    });
+    let unpaidExpenses = [];
+    try {
+      unpaidExpenses = await prisma.expense.findMany({
+        where: {
+          tenantId: user.tenantId,
+          paymentStatus: { in: ['Pending', 'Partially'] },
+          isDeleted: false
+        },
+        select: {
+          amount: true,
+          paidAmount: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching unpaid expenses:', error);
+    }
     let totalAccountsPayable = unpaidExpenses.reduce((sum, exp) => {
       const paid = parseFloat(exp.paidAmount) || 0;
       const total = parseFloat(exp.amount) || 0;
@@ -344,16 +375,21 @@ export async function GET(request) {
     }, 0);
     
     // Add supplier bills (from purchase module) to Accounts Payable
-    const unpaidSupplierBills = await prisma.supplierBill.findMany({
-      where: {
-        tenantId: user.tenantId,
-        status: { in: ['Unpaid', 'Partially Paid'] }
-      },
-      select: {
-        totalAmount: true,
-        amountPaid: true
-      }
-    });
+    let unpaidSupplierBills = [];
+    try {
+      unpaidSupplierBills = await prisma.supplierBill.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: { in: ['Unpaid', 'Partially Paid'] }
+        },
+        select: {
+          totalAmount: true,
+          amountPaid: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching supplier bills:', error);
+    }
     const supplierBillsPayable = unpaidSupplierBills.reduce((sum, bill) => {
       const paid = parseFloat(bill.amountPaid) || 0;
       const total = parseFloat(bill.totalAmount) || 0;
@@ -362,69 +398,120 @@ export async function GET(request) {
     totalAccountsPayable += supplierBillsPayable;
 
     // Revenue from invoices and sales
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        tenantId: user.tenantId,
-        voidedAt: null,
-        refundedAt: null
-      },
-      select: {
-        total: true,
-        status: true
-      }
-    });
-    const sales = await prisma.sale.findMany({
-      where: {
-        tenantId: user.tenantId,
-        status: 'completed'
-      },
-      select: {
-        total: true
-      }
-    });
+    let invoices = [];
+    let sales = [];
+    try {
+      invoices = await prisma.invoice.findMany({
+        where: {
+          tenantId: user.tenantId,
+          voidedAt: null,
+          refundedAt: null
+        },
+        select: {
+          total: true,
+          status: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching invoices for revenue:', error);
+    }
+    
+    try {
+      sales = await prisma.sale.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: 'completed'
+        },
+        select: {
+          total: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+    }
     const totalRevenue = invoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) +
                         sales.reduce((sum, sale) => sum + (parseFloat(sale.total) || 0), 0);
 
     // COGS from expenses with category 'COGS' or 'Cost of Goods Sold'
-    const cogsExpenses = await prisma.expense.findMany({
-      where: {
-        tenantId: user.tenantId,
-        category: { in: ['COGS', 'Cost of Goods Sold', 'COGS Settlement'] },
-        isDeleted: false
-      },
-      select: {
-        amount: true
-      }
-    });
-    const totalCOGS = cogsExpenses.reduce((sum, exp) => sum + (parseFloat(exp.amount) || 0), 0);
+    let cogsExpenses = [];
+    try {
+      cogsExpenses = await prisma.expense.findMany({
+        where: {
+          tenantId: user.tenantId,
+          category: { in: ['COGS', 'Cost of Goods Sold', 'COGS Settlement'] },
+          isDeleted: false
+        },
+        select: {
+          amount: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching COGS expenses:', error);
+    }
+    const totalCOGS = cogsExpenses.reduce((sum, exp) => sum + (parseFloat(exp?.amount) || 0), 0);
 
     // Expenses by category
-    const expensesByCategory = await prisma.expense.groupBy({
-      by: ['category'],
-      where: {
-        tenantId: user.tenantId,
-        isDeleted: false
-      },
-      _sum: {
-        amount: true
-      }
-    });
+    let expensesByCategory = [];
+    try {
+      expensesByCategory = await prisma.expense.groupBy({
+        by: ['category'],
+        where: {
+          tenantId: user.tenantId,
+          isDeleted: false,
+          category: { not: null }
+        },
+        _sum: {
+          amount: true
+        }
+      });
+    } catch (error) {
+      console.error('Error grouping expenses by category:', error);
+      // If groupBy fails, try to get expenses and group manually
+      const allExpenses = await prisma.expense.findMany({
+        where: {
+          tenantId: user.tenantId,
+          isDeleted: false
+        },
+        select: {
+          category: true,
+          amount: true
+        }
+      });
+      
+      // Manual grouping
+      const categoryMap = new Map();
+      allExpenses.forEach(exp => {
+        const cat = exp.category || 'Other';
+        const current = categoryMap.get(cat) || 0;
+        categoryMap.set(cat, current + (parseFloat(exp.amount) || 0));
+      });
+      
+      expensesByCategory = Array.from(categoryMap.entries()).map(([category, amount]) => ({
+        category,
+        _sum: { amount }
+      }));
+    }
 
     // Payroll expenses
-    const payrolls = await prisma.payroll.findMany({
-      where: {
-        tenantId: user.tenantId,
-        status: 'processed'
-      },
-      select: {
-        grossPay: true,
-        basicSalary: true,
-        additions: true,
-        deductions: true,
-        payeAmount: true,
-        totalNpsAmount: true
-      }
-    });
+    let payrolls = [];
+    try {
+      payrolls = await prisma.payroll.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: 'processed'
+        },
+        select: {
+          grossPay: true,
+          basicSalary: true,
+          additions: true,
+          deductions: true,
+          payeAmount: true,
+          totalNpsAmount: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching payrolls:', error);
+    }
     const totalPayrollExpense = payrolls.reduce((sum, payroll) => {
       const gross = parseFloat(payroll.grossPay) || parseFloat(payroll.basicSalary) || 0;
       const additions = parseFloat(payroll.additions) || 0;
@@ -439,20 +526,25 @@ export async function GET(request) {
     }, 0);
 
     // Liabilities from Liability model
-    const liabilities = await prisma.liability.findMany({
-      where: {
-        tenantId: user.tenantId,
-        status: { not: 'paid_off' }
-      },
-      select: {
-        principalAmount: true,
-        interestRate: true,
-        startDate: true,
-        currentBalance: true,
-        totalPaid: true,
-        liabilityType: true
-      }
-    });
+    let liabilities = [];
+    try {
+      liabilities = await prisma.liability.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: { not: 'paid_off' }
+        },
+        select: {
+          principalAmount: true,
+          interestRate: true,
+          startDate: true,
+          currentBalance: true,
+          totalPaid: true,
+          liabilityType: true
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching liabilities:', error);
+    }
     const totalLiabilities = liabilities.reduce((sum, liab) => {
       return sum + (parseFloat(liab.currentBalance) || parseFloat(liab.principalAmount) || 0);
     }, 0);
@@ -465,8 +557,11 @@ export async function GET(request) {
     // Calculate Retained Earnings (Profit/Loss)
     // Revenue - COGS - Operating Expenses - Payroll - Other Expenses
     const totalOperatingExpenses = expensesByCategory
-      .filter(e => !['COGS', 'Cost of Goods Sold', 'COGS Settlement'].includes(e.category))
-      .reduce((sum, exp) => sum + (parseFloat(exp._sum.amount) || 0), 0);
+      .filter(e => e?.category && !['COGS', 'Cost of Goods Sold', 'COGS Settlement'].includes(e.category))
+      .reduce((sum, exp) => {
+        const amount = exp?._sum?.amount || exp?.amount || 0;
+        return sum + (parseFloat(amount) || 0);
+      }, 0);
     
     const netIncome = totalRevenue - totalCOGS - totalOperatingExpenses - totalPayrollExpense;
     
@@ -483,14 +578,18 @@ export async function GET(request) {
       totalLiabilities,
       totalAccumulatedDepreciation,
       netIncome,
-      expensesByCategory: expensesByCategory.map(e => ({ category: e.category, amount: e._sum.amount })),
+      expensesByCategory: expensesByCategory.map(e => ({ 
+        category: e?.category || 'Unknown', 
+        amount: e?._sum?.amount || e?.amount || 0 
+      })),
       assetCount: assets.length,
       liabilityCount: liabilities.length,
       payrollCount: payrolls.length
     });
 
     // Calculate current balances from journal entries
-    const accountsWithBalances = await Promise.all(accounts.map(async (account) => {
+    // Wrap in try-catch to handle any individual account calculation errors
+    const accountsWithBalances = await Promise.allSettled(accounts.map(async (account) => {
       try {
         // Get all journal entry lines for this account (both Posted and Draft)
         const allJournalLines = await prisma.journalEntryLine.findMany({
@@ -779,11 +878,12 @@ export async function GET(request) {
           // Sum matched expenses
           if (matchedExpenses && matchedExpenses.length > 0) {
             const totalMatched = matchedExpenses.reduce((sum, exp) => {
-              return sum + (parseFloat(exp._sum.amount) || 0);
+              const amount = exp?._sum?.amount || exp?.amount || 0;
+              return sum + (parseFloat(amount) || 0);
             }, 0);
             additionalBalance += totalMatched;
             console.log(`✅ Matched expenses for account ${accountCode} - ${account.accountName || account.name}:`, {
-              categories: matchedExpenses.map(e => e.category),
+              categories: matchedExpenses.map(e => e?.category || 'Unknown'),
               total: totalMatched
             });
           }
@@ -813,7 +913,6 @@ export async function GET(request) {
         const legacyBalance = parseFloat(account.balance) || 0;
         
         // Combine balances
-        // For payment method accounts: use AccountBalance directly (already set above)
         // For Accounts Receivable: use ONLY unpaid invoices (already set above)
         // For other accounts: use journal entries + additional balances
         let finalBalance = balance;
@@ -822,10 +921,7 @@ export async function GET(request) {
         const isAccountsReceivable = (accountCode === '1100' || accountName.includes('receivable')) && 
                                      (accountType === 'ASSET' || accountType === 'Asset');
         
-        if (isPaymentMethodAccount) {
-          // Payment method accounts: use AccountBalance directly (already set in balance)
-          finalBalance = balance; // balance is already set to paymentMethodBalance above
-        } else if (isAccountsReceivable) {
+        if (isAccountsReceivable) {
           // Accounts Receivable: use ONLY unpaid invoices (already set in balance above)
           finalBalance = balance; // balance is already set to totalAccountsReceivable above
         } else {
@@ -853,7 +949,6 @@ export async function GET(request) {
           transactionCount: allJournalLines.length,
           postedEntryCount: postedLines.length,
           draftEntryCount: draftLines.length,
-          paymentMethodBalance: paymentMethodBalance,
           additionalBalance: additionalBalance,
           journalEntryBalance: balance
         };
@@ -870,7 +965,7 @@ export async function GET(request) {
         
         return accountResult;
       } catch (error) {
-        console.error(`Error calculating balance for account ${account.id}:`, error);
+        console.error(`Error calculating balance for account ${account?.id || 'unknown'}:`, error);
         // Return account with zero balance if calculation fails
         return {
           ...account,
@@ -878,14 +973,37 @@ export async function GET(request) {
           transactionCount: 0,
           postedEntryCount: 0,
           draftEntryCount: 0,
-          paymentMethodBalance: 0
+          additionalBalance: 0,
+          journalEntryBalance: 0
         };
       }
     }));
 
+    // Extract successful results and handle failures
+    const successfulAccounts = accountsWithBalances
+      .map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          console.error(`Failed to calculate balance for account at index ${index}:`, result.reason);
+          // Return a basic account object with zero balance
+          const account = accounts[index];
+          return {
+            ...account,
+            currentBalance: 0,
+            transactionCount: 0,
+            postedEntryCount: 0,
+            draftEntryCount: 0,
+            additionalBalance: 0,
+            journalEntryBalance: 0
+          };
+        }
+      })
+      .filter(account => account !== null && account !== undefined);
+
     // Deduplicate accounts by accountCode (keep the one with the highest balance or most recent)
     const accountMap = new Map();
-    for (const account of accountsWithBalances) {
+    for (const account of successfulAccounts) {
       const code = account.accountCode || account.code || '';
       if (!code) continue;
       
@@ -914,8 +1032,14 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching chart of accounts:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch chart of accounts', details: error.message },
+      { error: 'Failed to fetch chart of accounts', details: error.message, stack: process.env.NODE_ENV === 'development' ? error.stack : undefined },
       { status: 500 }
     );
   }

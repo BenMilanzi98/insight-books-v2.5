@@ -1081,8 +1081,27 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error creating enhanced payroll run:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error code:', error.code);
+    
+    // Provide more detailed error information in development
+    const errorDetails = process.env.NODE_ENV === 'development' 
+      ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code,
+          meta: error.meta
+        }
+      : { message: error.message };
+    
     return NextResponse.json(
-      { error: 'Failed to create enhanced payroll run', details: error.message },
+      { 
+        error: 'Failed to create enhanced payroll run', 
+        details: error.message,
+        ...errorDetails
+      },
       { status: 500 }
     );
   }
@@ -1104,13 +1123,25 @@ async function getOrCreatePayrollAccounts(tenantId) {
   ];
 
   for (const accountName of accountNames) {
-    // First try exact match on name field
+    const accountCode = generateAccountCode(accountName);
+    
+    // First try to find by accountCode (most reliable)
     let account = await prisma.account.findFirst({
       where: {
-        name: accountName,
+        accountCode: accountCode,
         tenantId: tenantId
       }
     });
+
+    // If not found by code, try exact match on name field
+    if (!account) {
+      account = await prisma.account.findFirst({
+        where: {
+          name: accountName,
+          tenantId: tenantId
+        }
+      });
+    }
 
     // If not found, try accountName field
     if (!account) {
@@ -1154,27 +1185,46 @@ async function getOrCreatePayrollAccounts(tenantId) {
     }
 
     if (!account) {
-      const accountCode = generateAccountCode(accountName);
       const accountType = getAccountType(accountName);
-      
       const accountSubtype = getAccountSubtype(accountName);
       const properAccountType = convertAccountType(accountType);
       const normalBalance = (properAccountType === 'Asset' || properAccountType === 'Expense') ? 'Debit' : 'Credit';
 
-      account = await prisma.account.create({
-        data: {
-          code: accountCode,
-          name: accountName,
-          type: accountType,
-          accountCode: accountCode,
-          accountName: accountName,
-          accountType: properAccountType,
-          accountSubtype,
-          normalBalance,
-          balance: 0,
-          tenantId: tenantId
+      try {
+        account = await prisma.account.create({
+          data: {
+            code: accountCode,
+            name: accountName,
+            type: accountType,
+            accountCode: accountCode,
+            accountName: accountName,
+            accountType: properAccountType,
+            accountSubtype,
+            normalBalance,
+            balance: 0,
+            tenantId: tenantId,
+            isActive: true
+          }
+        });
+      } catch (createError) {
+        // If creation fails due to unique constraint, try to find the account again
+        if (createError.code === 'P2002') {
+          console.warn(`Account with code ${accountCode} already exists, attempting to find it...`);
+          account = await prisma.account.findFirst({
+            where: {
+              accountCode: accountCode,
+              tenantId: tenantId
+            }
+          });
+          
+          if (!account) {
+            // If still not found, throw the original error
+            throw createError;
+          }
+        } else {
+          throw createError;
         }
-      });
+      }
     }
 
     accounts.push(account);

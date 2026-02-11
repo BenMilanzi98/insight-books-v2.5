@@ -6,8 +6,7 @@ import { updateAccountBalance, processCapitalTransfer } from '@/lib/core';
 import {
   createInvoicePaymentJournalEntry,
   getPaymentAccount,
-  getStandardAccounts,
-  getExpenseAccount
+  getStandardAccounts
 } from '@/lib/transactionJournalHelpers';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
@@ -78,8 +77,21 @@ async function recordPaymentTransaction({
 
     if (type === 'expense') {
       const paymentAccount = await getPaymentAccount(tenantId, methodKey);
-      const expenseAccount = await getExpenseAccount(tenantId, 'Operating Expenses');
-      if (!paymentAccount || !expenseAccount) return;
+      if (!expenseAccountId) {
+        return NextResponse.json(
+          { error: 'Expense payments require an expenseAccountId.' },
+          { status: 400 }
+        );
+      }
+      const expenseAccount = await prisma.account.findFirst({
+        where: { id: expenseAccountId, tenantId, isActive: true, accountType: 'Expense' }
+      });
+      if (!paymentAccount || !expenseAccount) {
+        return NextResponse.json(
+          { error: 'Invalid payment or expense account.' },
+          { status: 400 }
+        );
+      }
       sourceType = 'ExpensePayment';
       lines = [
         {
@@ -96,10 +108,22 @@ async function recordPaymentTransaction({
         }
       ];
     } else if (type === 'sale') {
-      const accounts = await getStandardAccounts(tenantId);
-      const revenueAccount = accounts.salesRevenue || accounts.serviceRevenue;
+      if (!revenueAccountId) {
+        return NextResponse.json(
+          { error: 'Sale payments require a revenueAccountId.' },
+          { status: 400 }
+        );
+      }
+      const revenueAccount = await prisma.account.findFirst({
+        where: { id: revenueAccountId, tenantId, isActive: true, accountType: 'Income' }
+      });
       const paymentAccount = await getPaymentAccount(tenantId, methodKey);
-      if (!revenueAccount || !paymentAccount) return;
+      if (!revenueAccount || !paymentAccount) {
+        return NextResponse.json(
+          { error: 'Invalid payment or revenue account.' },
+          { status: 400 }
+        );
+      }
       sourceType = 'SalePayment';
       lines = [
         {
@@ -353,7 +377,9 @@ export async function POST(request) {
       type,
       sourceAccount,
       destinationAccount,
-      paymentAllocations // New: array of { paymentAccountId, amount }
+      paymentAllocations, // New: array of { paymentAccountId, amount }
+      expenseAccountId,
+      revenueAccountId
     } = body;
 
     if (!amount || !paymentDate || !type) {

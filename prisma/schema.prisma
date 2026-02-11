@@ -242,29 +242,37 @@ model User {
 }
 
 model AccountingPeriod {
-  id            String   @id @default(cuid())
-  tenantId      String
-  name          String
-  periodType    String   // Monthly | Yearly
-  startDate     DateTime
-  endDate       DateTime
-  status        String   @default("open") // open | closed
-  closedAt      DateTime?
-  closedById    String?
-  reopenedAt    DateTime?
-  reopenedById  String?
-  reopenReason  String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id           String    @id @default(cuid())
+  tenantId     String
+  name         String
+  periodType   String // Monthly | Yearly
+  startDate    DateTime
+  endDate      DateTime
+  status       String    @default("open") // open | closed
+  closedAt     DateTime?
+  closedById   String?
+  reopenedAt   DateTime?
+  reopenedById String?
+  reopenReason String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  closedBy      User?    @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
-  reopenedBy    User?    @relation("AccountingPeriodReopenedBy", fields: [reopenedById], references: [id])
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  closedBy   User?  @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
+  reopenedBy User?  @relation("AccountingPeriodReopenedBy", fields: [reopenedById], references: [id])
 
   @@unique([tenantId, periodType, startDate])
   @@index([tenantId])
   @@index([startDate, endDate])
   @@index([status])
+}
+
+// Legacy table backing the ReversalSummary view (kept to avoid accidental drops)
+model ReversalAudit {
+  id String @id
+
+  @@map("ReversalAudit")
+  @@ignore
 }
 
 model Admin {
@@ -356,49 +364,49 @@ model Client {
 }
 
 model Invoice {
-  id                  String          @id @default(cuid())
-  invoiceNumber       String
-  clientId            String
-  createdById         String
-  issueDate           DateTime
-  dueDate             DateTime
-  subtotal            Float
-  taxAmount           Float
-  total               Float
-  status              String          @default("draft")
-  notes               String?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  tenantId            String
-  discount            Float           @default(0)
-  lastPaymentDate     DateTime?
-  originalTotal       Float           @default(0)
-  refundAmount        Float           @default(0)
-  refundReason        String?
-  refundedAt          DateTime?
-  refundedById        String?
-  remainingBalance    Float           @default(0)
-  totalDiscountAmount Float           @default(0)
-  totalPaid           Float           @default(0)
-  voidReason          String?
-  voidedAt            DateTime?
-  voidedById          String?
-  branchId            String?
+  id                    String          @id @default(cuid())
+  invoiceNumber         String
+  clientId              String
+  createdById           String
+  issueDate             DateTime
+  dueDate               DateTime
+  subtotal              Float
+  taxAmount             Float
+  total                 Float
+  status                String          @default("draft")
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  tenantId              String
+  discount              Float           @default(0)
+  lastPaymentDate       DateTime?
+  originalTotal         Float           @default(0)
+  refundAmount          Float           @default(0)
+  refundReason          String?
+  refundedAt            DateTime?
+  refundedById          String?
+  remainingBalance      Float           @default(0)
+  totalDiscountAmount   Float           @default(0)
+  totalPaid             Float           @default(0)
+  voidReason            String?
+  voidedAt              DateTime?
+  voidedById            String?
+  branchId              String?
   // Reversal fields
-  isReversal         Boolean         @default(false)
+  isReversal            Boolean         @default(false)
   reversedTransactionId String?
-  reversalReason     String?
-  reversedAt         DateTime?
-  reversedById      String?
-  branch              Branch?         @relation(fields: [branchId], references: [id])
-  client              Client          @relation(fields: [clientId], references: [id])
-  createdBy           User            @relation("InvoiceCreator", fields: [createdById], references: [id])
-  refundedBy          User?           @relation("InvoiceRefundedBy", fields: [refundedById], references: [id])
-  tenant              Tenant          @relation(fields: [tenantId], references: [id])
-  voidedBy            User?           @relation("InvoiceVoidedBy", fields: [voidedById], references: [id])
-  items               InvoiceItem[]
-  refunds             InvoiceRefund[]
-  payments            Payment[]
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+  branch                Branch?         @relation(fields: [branchId], references: [id])
+  client                Client          @relation(fields: [clientId], references: [id])
+  createdBy             User            @relation("InvoiceCreator", fields: [createdById], references: [id])
+  refundedBy            User?           @relation("InvoiceRefundedBy", fields: [refundedById], references: [id])
+  tenant                Tenant          @relation(fields: [tenantId], references: [id])
+  voidedBy              User?           @relation("InvoiceVoidedBy", fields: [voidedById], references: [id])
+  items                 InvoiceItem[]
+  refunds               InvoiceRefund[]
+  payments              Payment[]
 
   @@index([branchId])
   @@index([isReversal])
@@ -408,6 +416,7 @@ model Invoice {
 model InvoiceItem {
   id             String   @id @default(cuid())
   invoiceId      String
+  accountId      String
   description    String
   quantity       Float
   unitPrice      Float
@@ -419,6 +428,10 @@ model InvoiceItem {
   netAmount      Float    @default(0)
   invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product        Product? @relation(fields: [productId], references: [id])
+  account        Account  @relation(fields: [accountId], references: [id])
+
+  @@index([invoiceId])
+  @@index([accountId])
 }
 
 model InvoiceRefund {
@@ -450,36 +463,36 @@ model InvoiceRefund {
 }
 
 model Payment {
-  id                 String              @id @default(cuid())
-  invoiceId          String?
-  amount             Float
-  paymentDate        DateTime
-  paymentMethod      String
-  reference          String?
-  notes              String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  status             String              @default("Completed")
-  tenantId           String
-  destinationAccount String?
-  sourceAccount      String?
-  type               String?
-  expenseId          String?
-  refundedAmount     Float               @default(0)
-  saleId             String?
-  branchId           String?
+  id                    String              @id @default(cuid())
+  invoiceId             String?
+  amount                Float
+  paymentDate           DateTime
+  paymentMethod         String
+  reference             String?
+  notes                 String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+  status                String              @default("Completed")
+  tenantId              String
+  destinationAccount    String?
+  sourceAccount         String?
+  type                  String?
+  expenseId             String?
+  refundedAmount        Float               @default(0)
+  saleId                String?
+  branchId              String?
   // Reversal fields
-  isReversal         Boolean             @default(false)
+  isReversal            Boolean             @default(false)
   reversedTransactionId String?
-  reversalReason     String?
-  reversedAt         DateTime?
-  reversedById      String?
-  branch             Branch?             @relation(fields: [branchId], references: [id])
-  expense            Expense?            @relation(fields: [expenseId], references: [id])
-  invoice            Invoice?            @relation(fields: [invoiceId], references: [id])
-  sale               Sale?               @relation(fields: [saleId], references: [id])
-  tenant             Tenant              @relation(fields: [tenantId], references: [id])
-  allocations        PaymentAllocation[]
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+  branch                Branch?             @relation(fields: [branchId], references: [id])
+  expense               Expense?            @relation(fields: [expenseId], references: [id])
+  invoice               Invoice?            @relation(fields: [invoiceId], references: [id])
+  sale                  Sale?               @relation(fields: [saleId], references: [id])
+  tenant                Tenant              @relation(fields: [tenantId], references: [id])
+  allocations           PaymentAllocation[]
 
   @@index([tenantId])
   @@index([invoiceId])
@@ -498,8 +511,8 @@ model PaymentAccount {
   id          String              @id @default(cuid())
   tenantId    String
   name        String
-  accountType String              // Cash, Bank, Mobile Money, Wallet, POS Terminal
-  reference   String?             // Account number, wallet ID, etc.
+  accountType String // Cash, Bank, Mobile Money, Wallet, POS Terminal
+  reference   String? // Account number, wallet ID, etc.
   isActive    Boolean             @default(true)
   isSystem    Boolean             @default(false) // System accounts (like Cash) cannot be deleted
   createdAt   DateTime            @default(now())
@@ -514,14 +527,14 @@ model PaymentAccount {
 }
 
 model PaymentAllocation {
-  id              String         @id @default(cuid())
-  paymentId       String
+  id               String         @id @default(cuid())
+  paymentId        String
   paymentAccountId String
-  amount          Float
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  payment         Payment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  paymentAccount  PaymentAccount @relation(fields: [paymentAccountId], references: [id])
+  amount           Float
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  payment          Payment        @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  paymentAccount   PaymentAccount @relation(fields: [paymentAccountId], references: [id])
 
   @@index([paymentId])
   @@index([paymentAccountId])
@@ -584,7 +597,7 @@ model Expense {
   amount                  Float
   date                    DateTime
   category                String
-  expenseAccountId        String?
+  expenseAccountId        String
   receiptUrl              String?
   submittedById           String
   status                  String
@@ -610,15 +623,15 @@ model Expense {
   employeeId              String?
   supplierId              String?
   // Reversal fields
-  isReversal             Boolean                   @default(false)
+  isReversal              Boolean                   @default(false)
   reversedTransactionId   String?
-  reversalReason         String?
-  reversedAt             DateTime?
-  reversedById          String?
+  reversalReason          String?
+  reversedAt              DateTime?
+  reversedById            String?
   branch                  Branch?                   @relation(fields: [branchId], references: [id])
   deletedBy               User?                     @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
   employee                Employee?                 @relation(fields: [employeeId], references: [id])
-  expenseAccount          Account?                  @relation("ExpenseAccount", fields: [expenseAccountId], references: [id])
+  expenseAccount          Account                   @relation("ExpenseAccount", fields: [expenseAccountId], references: [id])
   sourceAccount           Account?                  @relation("ExpenseSourceAccount", fields: [sourceAccountId], references: [id])
   submittedBy             User                      @relation(fields: [submittedById], references: [id])
   supplier                Supplier?                 @relation(fields: [supplierId], references: [id])
@@ -685,11 +698,11 @@ model Sale {
   voidedById                 String?
   branchId                   String?
   // Reversal fields
-  isReversal               Boolean                     @default(false)
-  reversedTransactionId     String?
-  reversalReason           String?
-  reversedAt               DateTime?
-  reversedById              String?
+  isReversal                 Boolean                     @default(false)
+  reversedTransactionId      String?
+  reversalReason             String?
+  reversedAt                 DateTime?
+  reversedById               String?
   inventoryBatchConsumptions InventoryBatchConsumption[]
   payments                   Payment[]
   branch                     Branch?                     @relation(fields: [branchId], references: [id])
@@ -716,6 +729,7 @@ model Sale {
 model SaleItem {
   id                String        @id @default(cuid())
   saleId            String
+  accountId         String
   productId         String?
   description       String
   quantity          Float
@@ -729,11 +743,13 @@ model SaleItem {
   taxDescription    String?
   taxRate           Float         @default(0)
   product           Product?      @relation("ProductSales", fields: [productId], references: [id])
+  account           Account       @relation(fields: [accountId], references: [id])
   sale              Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   itemTaxes         SaleItemTax[]
 
   @@index([saleId])
   @@index([productId])
+  @@index([accountId])
   @@index([isCustom])
 }
 
@@ -823,7 +839,7 @@ model Supplier {
   postalCode        String?
   taxId             String?
   paymentTerms      Int?              @default(30)
-  paymentPreference String?           // Cash, Bank transfer, Card, Other
+  paymentPreference String? // Cash, Bank transfer, Card, Other
   currency          String?           @default("MWK")
   creditLimit       Float?
   currentBalance    Float             @default(0)
@@ -1019,34 +1035,34 @@ model SupplierBillItem {
 }
 
 model SupplierPayment {
-  id              String                      @id @default(cuid())
-  paymentNumber   String                      @unique
-  tenantId        String
-  supplierId      String
-  paymentDate     DateTime
-  paymentMethod   String
-  bankAccountId   String?
-  referenceNumber String?
-  totalAmount     Float
-  currency        String?                     @default("MWK")
-  exchangeRate    Float?                      @default(1)
-  notes           String?
-  journalEntryId  String?
-  createdById     String?
-  createdAt       DateTime                    @default(now())
-  updatedAt       DateTime                    @updatedAt
+  id                    String                      @id @default(cuid())
+  paymentNumber         String                      @unique
+  tenantId              String
+  supplierId            String
+  paymentDate           DateTime
+  paymentMethod         String
+  bankAccountId         String?
+  referenceNumber       String?
+  totalAmount           Float
+  currency              String?                     @default("MWK")
+  exchangeRate          Float?                      @default(1)
+  notes                 String?
+  journalEntryId        String?
+  createdById           String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
   // Reversal fields
-  isReversal         Boolean             @default(false)
+  isReversal            Boolean                     @default(false)
   reversedTransactionId String?
-  reversalReason     String?
-  reversedAt         DateTime?
-  reversedById      String?
-  bankAccount     BankAccount?                @relation(fields: [bankAccountId], references: [id])
-  createdBy       User?                       @relation(fields: [createdById], references: [id])
-  journalEntry    JournalEntry?               @relation("SupplierPaymentJournalEntry", fields: [journalEntryId], references: [id])
-  supplier        Supplier                    @relation(fields: [supplierId], references: [id])
-  tenant          Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  allocations     SupplierPaymentAllocation[]
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+  bankAccount           BankAccount?                @relation(fields: [bankAccountId], references: [id])
+  createdBy             User?                       @relation(fields: [createdById], references: [id])
+  journalEntry          JournalEntry?               @relation("SupplierPaymentJournalEntry", fields: [journalEntryId], references: [id])
+  supplier              Supplier                    @relation(fields: [supplierId], references: [id])
+  tenant                Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  allocations           SupplierPaymentAllocation[]
 
   @@index([tenantId, supplierId])
   @@index([paymentDate])
@@ -1453,32 +1469,32 @@ model AffiliatePayout {
 }
 
 model Transaction {
-  id                   String            @id @default(cuid())
-  date                 DateTime
-  description          String
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
-  tenantId             String
-  reference            String?
-  status               String            @default("posted")
-  createdById          String?
-  entryType            String            @default("Regular")
-  notes                String?
-  postedById           String?
-  postedDate           DateTime?
-  sourceId             String?
-  sourceType           String?
-  branchId             String?
-  isReversal           Boolean           @default(false)
+  id                    String            @id @default(cuid())
+  date                  DateTime
+  description           String
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  tenantId              String
+  reference             String?
+  status                String            @default("posted")
+  createdById           String?
+  entryType             String            @default("Regular")
+  notes                 String?
+  postedById            String?
+  postedDate            DateTime?
+  sourceId              String?
+  sourceType            String?
+  branchId              String?
+  isReversal            Boolean           @default(false)
   reversedTransactionId String?
-  reversalReason       String?
-  reversedAt           DateTime?
-  reversedById        String?
-  branch               Branch?           @relation(fields: [branchId], references: [id])
-  createdBy            User?             @relation("TransactionCreatedBy", fields: [createdById], references: [id])
-  postedBy             User?             @relation("TransactionPostedBy", fields: [postedById], references: [id])
-  tenant               Tenant            @relation(fields: [tenantId], references: [id])
-  lines                TransactionLine[]
+  reversalReason        String?
+  reversedAt            DateTime?
+  reversedById          String?
+  branch                Branch?           @relation(fields: [branchId], references: [id])
+  createdBy             User?             @relation("TransactionCreatedBy", fields: [createdById], references: [id])
+  postedBy              User?             @relation("TransactionPostedBy", fields: [postedById], references: [id])
+  tenant                Tenant            @relation(fields: [tenantId], references: [id])
+  lines                 TransactionLine[]
 
   @@index([tenantId])
   @@index([date])
@@ -1509,40 +1525,43 @@ model TransactionLine {
 }
 
 model Account {
-  id                String                  @id @default(cuid())
-  code              String?                 @map("code")
-  name              String?                 @map("name")
-  type              String?                 @map("type")
-  balance           Float                   @default(0)
-  createdAt         DateTime                @default(now())
-  updatedAt         DateTime                @updatedAt
-  tenantId          String?
-  isActive          Boolean                 @default(true)
-  isSystem          Boolean                 @default(false)
-  accountCode       String?
-  accountName       String?
-  accountSubtype    String?
-  accountType       String?
-  description       String?
-  normalBalance     String?
-  parentAccountId   String?
-  parentAccount     Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
-  childAccounts     Account[]               @relation("AccountHierarchy")
-  tenant            Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  accountBalances   AccountBalanceHistory[]
-  bankAccounts      BankAccount[]
-  budgetItems       BudgetItem[]
-  equityAccounts    EquityAccount[]
-  expenseAccounts   Expense[]               @relation("ExpenseAccount")
-  expenseSources    Expense[]               @relation("ExpenseSourceAccount")
-  journalEntryLines JournalEntryLine[]
-  productsCogs      Product[]               @relation("ProductCogsAccount")
-  productsInventory Product[]               @relation("ProductInventoryAccount")
-  taxTypes          TaxType[]               @relation("TaxTypeAccount")
-  transactionLines  TransactionLine[]       @relation("TransactionLineAccount")
+  id                       String                  @id @default(cuid())
+  code                     String?                 @map("code")
+  name                     String?                 @map("name")
+  type                     String?                 @map("type")
+  balance                  Float                   @default(0)
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  tenantId                 String?
+  isActive                 Boolean                 @default(true)
+  isSystem                 Boolean                 @default(false)
+  accountCode              String?
+  accountName              String?
+  accountSubtype           String?
+  accountType              String?
+  description              String?
+  normalBalance            String?
+  parentAccountId          String?
+  parentAccount            Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts            Account[]               @relation("AccountHierarchy")
+  tenant                   Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  accountBalances          AccountBalanceHistory[]
+  bankAccounts             BankAccount[]
+  budgetItems              BudgetItem[]
+  equityAccounts           EquityAccount[]
+  expenseAccounts          Expense[]               @relation("ExpenseAccount")
+  expenseSources           Expense[]               @relation("ExpenseSourceAccount")
+  recurringExpenseAccounts RecurringExpense[]      @relation("RecurringExpenseAccount")
+  journalEntryLines        JournalEntryLine[]
+  productsCogs             Product[]               @relation("ProductCogsAccount")
+  productsInventory        Product[]               @relation("ProductInventoryAccount")
+  taxTypes                 TaxType[]               @relation("TaxTypeAccount")
+  transactionLines         TransactionLine[]       @relation("TransactionLineAccount")
+  invoiceItems             InvoiceItem[]
+  saleItems                SaleItem[]
 
-  @@index([tenantId])
   @@unique([tenantId, accountCode])
+  @@index([tenantId])
   @@index([accountType])
   @@index([isActive])
   @@index([parentAccountId])
@@ -1556,14 +1575,14 @@ model TaxType {
   taxCode         String?
   taxRate         Float
   calculationType String        @default("Percentage")
-  accountId       String?
+  accountId       String
   status          String        @default("Active")
   tenantId        String
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   productTaxes    ProductTax[]
   saleItemTaxes   SaleItemTax[]
-  account         Account?      @relation("TaxTypeAccount", fields: [accountId], references: [id])
+  account         Account       @relation("TaxTypeAccount", fields: [accountId], references: [id])
   tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, taxId])
@@ -1679,6 +1698,7 @@ model RecurringExpense {
   description          String
   amount               Float
   category             String
+  expenseAccountId     String
   frequency            String
   dayOfMonth           Int?
   dayOfWeek            Int?
@@ -1697,10 +1717,12 @@ model RecurringExpense {
   updatedAt            DateTime                  @updatedAt
   createdBy            User                      @relation(fields: [createdById], references: [id])
   tenant               Tenant                    @relation(fields: [tenantId], references: [id])
+  expenseAccount       Account                   @relation("RecurringExpenseAccount", fields: [expenseAccountId], references: [id])
   history              RecurringExpenseHistory[]
 
   @@index([tenantId])
   @@index([createdById])
+  @@index([expenseAccountId])
 }
 
 model RecurringExpenseHistory {
@@ -2246,31 +2268,33 @@ model LiabilityPayment {
 }
 
 model Budget {
-  id              String       @id @default(cuid())
+  id              String                   @id @default(cuid())
   tenantId        String
   name            String
   description     String?
-  periodType      String       @default("annual") // monthly, quarterly, yearly
+  budgetType      String                   @default("revenue") // revenue, expense
+  periodType      String                   @default("annual") // monthly, quarterly, yearly
   startDate       DateTime
   endDate         DateTime
-  expectedRevenue Float        @default(0) // Expected revenue amount for this budget
-  status          String       @default("draft") // draft, active, closed
-  version         Int          @default(1)
+  expectedRevenue Float                    @default(0) // Expected revenue amount for this budget
+  status          String                   @default("draft") // draft, active, closed
+  version         Int                      @default(1)
   approvedById    String?
   approvedAt      DateTime?
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
-  currency        String       @default("MWK")
-  isLocked        Boolean      @default(false)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+  currency        String                   @default("MWK")
+  isLocked        Boolean                  @default(false)
   lockedAt        DateTime?
   activatedById   String?
   activatedAt     DateTime?
-  approvedBy      User?        @relation("BudgetApprover", fields: [approvedById], references: [id])
-  tenant          Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  approvedBy      User?                    @relation("BudgetApprover", fields: [approvedById], references: [id])
+  tenant          Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   items           BudgetItem[]
   breakdowns      RevenueBudgetBreakdown[]
 
   @@index([tenantId])
+  @@index([budgetType])
   @@index([status])
   @@index([periodType])
   @@index([startDate, endDate])
@@ -2278,18 +2302,18 @@ model Budget {
 }
 
 model RevenueBudgetBreakdown {
-  id            String   @id @default(cuid())
-  budgetId      String
-  breakdownType String   // branch, product_category
-  referenceId   String   // branchId or categoryId
-  referenceName String   // branch name or category name
-  budgetedAmount Float
-  actualAmount   Float    @default(0)
-  variance       Float?
+  id              String   @id @default(cuid())
+  budgetId        String
+  breakdownType   String // branch, product_category
+  referenceId     String // branchId or categoryId
+  referenceName   String // branch name or category name
+  budgetedAmount  Float
+  actualAmount    Float    @default(0)
+  variance        Float?
   variancePercent Float?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  budget        Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  budget          Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 
   @@unique([budgetId, breakdownType, referenceId])
   @@index([budgetId])
@@ -2298,23 +2322,23 @@ model RevenueBudgetBreakdown {
 }
 
 model BudgetItem {
-  id             String   @id @default(cuid())
-  budgetId       String
-  accountId      String?
-  branchId       String?
-  categoryId     String?
-  period         DateTime
-  budgetedAmount Float
-  actualAmount   Float    @default(0)
-  variance       Float?
+  id              String   @id @default(cuid())
+  budgetId        String
+  accountId       String
+  branchId        String?
+  categoryId      String?
+  period          DateTime
+  budgetedAmount  Float
+  actualAmount    Float    @default(0)
+  variance        Float?
   variancePercent Float?
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  category       String?
-  account        Account? @relation(fields: [accountId], references: [id])
-  budget         Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  branch         Branch?  @relation(fields: [branchId], references: [id])
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  category        String?
+  account         Account  @relation(fields: [accountId], references: [id])
+  budget          Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  branch          Branch?  @relation(fields: [branchId], references: [id])
 
   @@unique([budgetId, accountId, category, period])
   @@index([budgetId])

@@ -18,7 +18,7 @@ const SalesModal = ({
   
   const [formData, setFormData] = useState({
     clientId: "",
-    items: [{ description: "", quantity: 1, unitPrice: "", taxRate: "" }],
+    items: [{ description: "", quantity: 1, unitPrice: "", taxRate: "", accountId: "" }],
     saleDate: new Date().toISOString().split("T")[0],
     paymentMethod: "",
     notes: ""
@@ -26,6 +26,7 @@ const SalesModal = ({
   
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
+  const [incomeAccounts, setIncomeAccounts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [showClientModal, setShowClientModal] = useState(false);
@@ -60,8 +61,9 @@ const SalesModal = ({
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           taxRate: item.taxRate,
-          productId: item.productId
-        })) || [{ description: "", quantity: 1, unitPrice: "", taxRate: "" }],
+          productId: item.productId,
+          accountId: item.accountId || ""
+        })) || [{ description: "", quantity: 1, unitPrice: "", taxRate: "", accountId: "" }],
         saleDate: new Date(sale.saleDate).toISOString().split("T")[0],
         paymentMethod: paymentMethodId || "",
         notes: sale.notes || ""
@@ -85,6 +87,12 @@ const SalesModal = ({
         if (productsResponse.ok) {
           const productsData = await productsResponse.json();
           setProducts(productsData.products || []);
+        }
+
+        const accountsResponse = await fetch('/api/chart-of-accounts?accountType=Income&isActive=true');
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          setIncomeAccounts(accountsData.accounts || accountsData.data || []);
         }
       } catch (error) {
         console.error("Error loading form data:", error);
@@ -155,7 +163,7 @@ const SalesModal = ({
       ...formData,
       items: [
         ...formData.items,
-        { description: "", quantity: 1, unitPrice: "", taxRate: "" }
+        { description: "", quantity: 1, unitPrice: "", taxRate: "", accountId: "" }
       ]
     });
   };
@@ -176,6 +184,7 @@ const SalesModal = ({
   const subtotal = calculateSubtotal(formData.items);
   const tax = calculateTax(formData.items);
   const total = calculateTotal(formData.items);
+  const isAccountSelectionValid = formData.items.every(item => item.accountId);
   
   // Validate form
   const validateForm = () => {
@@ -206,6 +215,10 @@ const SalesModal = ({
       if (item.taxRate < 0 || item.taxRate > 100) {
         newErrors[`items.${index}.taxRate`] = "Tax rate must be between 0 and 100";
       }
+
+      if (!item.accountId) {
+        newErrors[`items.${index}.accountId`] = "Income account is required";
+      }
     });
     
     // Check if there's at least one item
@@ -234,7 +247,7 @@ const SalesModal = ({
       // Reset form and close modal on success
       setFormData({
         clientId: "",
-        items: [{ description: "", quantity: 1, unitPrice: "", taxRate: "" }],
+        items: [{ description: "", quantity: 1, unitPrice: "", taxRate: "", accountId: "" }],
         saleDate: new Date().toISOString().split("T")[0],
         paymentMethod: "cash",
         notes: ""
@@ -378,6 +391,9 @@ const SalesModal = ({
                         Description
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Income Account
+                      </th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Quantity
                       </th>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -421,6 +437,23 @@ const SalesModal = ({
                           )}
                           {errors[`items.${index}.description`] && (
                             <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.description`]}</p>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 whitespace-nowrap">
+                          <select
+                            className={`w-full p-2 border rounded-md ${errors[`items.${index}.accountId`] ? 'border-red-500' : 'border-gray-300'}`}
+                            value={item.accountId || ""}
+                            onChange={(e) => handleItemChange(index, "accountId", e.target.value)}
+                          >
+                            <option value="">Select income account</option>
+                            {incomeAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {account.accountCode ? `${account.accountCode} - ${account.accountName || account.name}` : (account.accountName || account.name)}
+                              </option>
+                            ))}
+                          </select>
+                          {errors[`items.${index}.accountId`] && (
+                            <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>
                           )}
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
@@ -535,7 +568,8 @@ const SalesModal = ({
             type="button"
             onClick={handleSubmit}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-            disabled={loading}
+            disabled={loading || !isAccountSelectionValid}
+            title={!isAccountSelectionValid ? "Select an income account for each item" : ""}
           >
             {loading ? (
               <>

@@ -33,8 +33,18 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error generating accounts payable aging report:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      meta: error.meta
+    });
     return NextResponse.json(
-      { error: 'Failed to generate accounts payable aging report', details: error.message },
+      { 
+        error: 'Failed to generate accounts payable aging report',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }

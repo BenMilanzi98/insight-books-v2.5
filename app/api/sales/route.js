@@ -315,6 +315,16 @@ export async function POST(request) {
         );
       }
 
+      if (!item.accountId) {
+        return NextResponse.json(
+          {
+            error: `Item ${i + 1}: income account is required`,
+            details: `Missing accountId in item: ${JSON.stringify(item)}`
+          },
+          { status: 400 }
+        );
+      }
+
       // For non-custom products, validate productId exists
       if (!item.isCustom && item.productId) {
         try {
@@ -526,8 +536,111 @@ export async function POST(request) {
         }
       }
 
-      // Create the sale in a transaction
+      const incomeAccountIds = data.items.map(item => item.accountId).filter(Boolean);
+      if (incomeAccountIds.length !== data.items.length) {
+        return NextResponse.json(
+          { error: 'Each sale item must reference a valid income account.' },
+          { status: 400 }
+        );
+      }
+
+      const incomeAccounts = await prisma.account.findMany({
+        where: {
+          tenantId: user.tenantId,
+          id: { in: incomeAccountIds },
+          isActive: true,
+          OR: [
+            { accountType: 'Income' },
+            { accountType: 'Revenue' }
+          ]
+        },
+        select: { id: true, accountType: true, accountName: true }
+      });
+
+      if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
+        const foundAccountIds = new Set(incomeAccounts.map(acc => acc.id));
+        const missingAccountIds = incomeAccountIds.filter(id => !foundAccountIds.has(id));
+        return NextResponse.json(
+          { 
+            error: 'Sale items must reference active income accounts.',
+            details: `Missing or invalid account IDs: ${missingAccountIds.join(', ')}. Accounts must be active and of type Income or Revenue.`
+          },
+          { status: 400 }
+        );
+      }
+
+      // Pre-fetch payment accounts to avoid queries inside transaction
+      const paymentAccountIds = paymentAllocations.map(alloc => alloc.paymentAccountId);
+      const paymentAccountsMap = new Map();
+      if (paymentAccountIds.length > 0) {
+        const paymentAccounts = await prisma.paymentAccount.findMany({
+          where: {
+            id: { in: paymentAccountIds },
+            tenantId: user.tenantId,
+            isActive: true
+          },
+          select: { id: true, name: true }
+        });
+        paymentAccounts.forEach(acc => paymentAccountsMap.set(acc.id, acc));
+      }
+
+      // Pre-fetch Chart of Accounts account for payment method to avoid queries inside transaction
+      let paymentCoAAccount = null;
+      if (paymentMethodInput) {
+        try {
+          const { getAccountForPaymentMethod } = await import('@/lib/paymentMethodAccountMapping');
+          paymentCoAAccount = await getAccountForPaymentMethod(user.tenantId, paymentMethodInput);
+        } catch (error) {
+          console.warn('⚠️ Could not pre-fetch payment CoA account, will try inside transaction:', error.message);
+          // Continue - will try inside transaction as fallback
+        }
+      }
+
+      // Pre-fetch standard accounts to avoid queries inside transaction
+      const { getStandardAccounts } = await import('@/lib/transactionJournalHelpers');
+      let standardAccounts = null;
+      try {
+        standardAccounts = await getStandardAccounts(user.tenantId, prisma);
+      } catch (error) {
+        console.warn('⚠️ Could not pre-fetch standard accounts, will try inside transaction:', error.message);
+        // Continue - will try inside transaction as fallback
+      }
+
+      // Pre-generate reference numbers to avoid queries inside transaction
+      const { generateReferenceNumber } = await import('@/lib/journalService');
+      const paymentDate = data.historicalDate ? new Date(data.historicalDate) : (data.saleDate ? new Date(data.saleDate) : new Date());
+      
+      // Check accounting period lock BEFORE starting transaction (fail fast)
+      const { assertPeriodOpen } = await import('@/lib/accountingPeriodService');
+      try {
+        await assertPeriodOpen(user.tenantId, paymentDate, prisma);
+      } catch (error) {
+        if (error.code === 'PERIOD_LOCKED') {
+          return NextResponse.json(
+            { error: error.message || 'Cannot create sale in a locked accounting period.' },
+            { status: 400 }
+          );
+        }
+        // For other errors, log but continue (period check might not be configured)
+        console.warn('⚠️ Period check failed, continuing:', error.message);
+      }
+      
+      let referenceNumber = null;
+      let cogsReferenceNumber = null;
+      try {
+        referenceNumber = await generateReferenceNumber(prisma, user.tenantId, paymentDate);
+        // Pre-generate COGS reference number with a small delay to ensure uniqueness
+        await new Promise(resolve => setTimeout(resolve, 10));
+        cogsReferenceNumber = await generateReferenceNumber(prisma, user.tenantId, paymentDate);
+      } catch (error) {
+        console.warn('⚠️ Could not pre-generate reference numbers, will try inside transaction:', error.message);
+        // Continue - will try inside transaction as fallback
+      }
+
+      // Create the sale in a transaction with increased timeout (30 seconds)
       const result = await prisma.$transaction(async (tx) => {
+        // Track if transaction has been aborted
+        let transactionAborted = false;
         // Determine the actual status (default to 'completed' if not specified)
         const saleStatus = data.status || 'completed';
         console.log('🔥 Determined saleStatus:', saleStatus);
@@ -622,6 +735,9 @@ export async function POST(request) {
               sale: {
                 connect: { id: sale.id }
               },
+              account: {
+                connect: { id: item.accountId }
+              },
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
@@ -644,9 +760,41 @@ export async function POST(request) {
             }
             
             // Create sale item first
-            const saleItem = await tx.saleItem.create({
-              data: saleItemData
-            });
+            let saleItem;
+            try {
+              saleItem = await tx.saleItem.create({
+                data: saleItemData
+              });
+            } catch (error) {
+              console.error('❌ SaleItem creation failed:', {
+                message: error.message,
+                code: error.code,
+                meta: error.meta,
+                accountId: item.accountId,
+                saleItemData: JSON.stringify(saleItemData, null, 2)
+              });
+              
+              // Check if error is due to missing accountId column
+              if (error.message?.includes('Unknown argument `accountId`') || 
+                  error.message?.includes('Unknown column') ||
+                  error.code === 'P2009') {
+                throw new Error(
+                  'Database schema is missing the accountId column on SaleItem table. ' +
+                  'Please run: node scripts/run-accountid-migration.js'
+                );
+              }
+              
+              // Check if error is due to invalid accountId (foreign key constraint)
+              if (error.code === 'P2003') {
+                throw new Error(
+                  `Invalid accountId: ${item.accountId}. The account does not exist in Chart of Accounts. ` +
+                  'Please ensure the account exists and is active.'
+                );
+              }
+              
+              // Re-throw original error for other cases
+              throw error;
+            }
             
             // Create individual tax records if taxBreakdown is provided
             if (item.taxBreakdown && Array.isArray(item.taxBreakdown) && item.taxBreakdown.length > 0) {
@@ -778,44 +926,71 @@ export async function POST(request) {
           // paymentAllocations and paymentMethodInput are already set before the transaction
           // Just use them here to create the payment record
           
-          const newPayment = await tx.payment.create({
-            data: {
-              saleId: sale.id,
-              amount: finalTotal,
-              paymentDate: paymentDate,
-              paymentMethod: paymentMethodInput, // Keep for backward compatibility
-              reference: `Sale ${saleNumber}`,
-              notes: data.notes || `Payment for sale ${saleNumber}`,
-              status: 'Completed',
-              tenantId: user.tenantId,
-              type: 'sale',
-              sourceAccount: paymentMethodInput,
-              allocations: {
-                create: paymentAllocations.map(alloc => ({
-                  paymentAccountId: alloc.paymentAccountId,
-                  amount: alloc.amount
-                }))
+          let newPayment;
+          try {
+            newPayment = await tx.payment.create({
+              data: {
+                saleId: sale.id,
+                amount: finalTotal,
+                paymentDate: paymentDate,
+                paymentMethod: paymentMethodInput, // Keep for backward compatibility
+                reference: `Sale ${saleNumber}`,
+                notes: data.notes || `Payment for sale ${saleNumber}`,
+                status: 'Completed',
+                tenantId: user.tenantId,
+                type: 'sale',
+                sourceAccount: paymentMethodInput,
+                allocations: {
+                  create: paymentAllocations.map(alloc => ({
+                    paymentAccountId: alloc.paymentAccountId,
+                    amount: alloc.amount
+                  }))
+                }
               }
-            }
-          });
-
-          // Update account balances for each payment allocation
-          for (const alloc of paymentAllocations) {
-            const account = await tx.paymentAccount.findUnique({
-              where: { id: alloc.paymentAccountId }
             });
-            
-            if (account) {
-              // Normalize payment method name for AccountBalance
-              const normalizedPaymentMethod = normalizePaymentMethod(account.name);
-              await updateAccountBalance(
-                user.tenantId,
-                normalizedPaymentMethod,
-                Number(alloc.amount),
-                'add',
-                tx
+          } catch (paymentError) {
+            console.error('❌ Payment creation failed:', {
+              message: paymentError.message,
+              code: paymentError.code,
+              meta: paymentError.meta,
+              saleId: sale.id,
+              paymentAllocations: paymentAllocations
+            });
+            // Check if transaction is aborted
+            if (paymentError.message?.includes('transaction is aborted') || 
+                paymentError.message?.includes('25P02') ||
+                paymentError.code === 'P2034') {
+              throw new Error(
+                'Transaction was aborted. This usually means an error occurred earlier in the sale creation process. ' +
+                `Payment creation error: ${paymentError.message}`
               );
             }
+            throw paymentError;
+          }
+
+          // Update account balances for each payment allocation
+          // Use pre-fetched payment accounts to avoid query inside transaction
+          // NOTE: We skip this because account balances are updated automatically when transactions are created
+          // This prevents errors from aborting the transaction
+          try {
+            for (const alloc of paymentAllocations) {
+              const account = paymentAccountsMap.get(alloc.paymentAccountId);
+              
+              if (account) {
+                // Normalize payment method name for AccountBalance
+                const normalizedPaymentMethod = normalizePaymentMethod(account.name);
+                await updateAccountBalance(
+                  user.tenantId,
+                  normalizedPaymentMethod,
+                  Number(alloc.amount),
+                  'add',
+                  tx
+                );
+              }
+            }
+          } catch (balanceError) {
+            // Log but don't fail - account balances will be updated when transactions are created
+            console.warn('⚠️ Could not update account balances directly, will be updated via transactions:', balanceError.message);
           }
 
           // Create journal entries for sale (Revenue + COGS)
@@ -967,18 +1142,41 @@ export async function POST(request) {
               itemCount: data.items.length,
               inventoryItems: data.items.filter(item => item.productId && !item.isCustom).length
             });
-            const journalEntries = await createSaleJournalEntries({
-              tenantId: user.tenantId,
-              userId: user.id,
-              saleId: sale.id,
-              saleNumber,
-              saleDate: paymentDate,
-              totalAmount: finalTotal,
-              paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
-              hasServices,
-              cogsAmount: totalCOGS,
-              tx,
-            });
+            // Create journal entries with error handling
+            let journalEntries;
+            try {
+              journalEntries = await createSaleJournalEntries({
+                tenantId: user.tenantId,
+                userId: user.id,
+                saleId: sale.id,
+                saleNumber,
+                saleDate: paymentDate,
+                totalAmount: finalTotal,
+                items,
+                paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
+                hasServices,
+                cogsAmount: totalCOGS,
+                paymentAccount: paymentCoAAccount, // Pass pre-fetched account to avoid query inside transaction
+                standardAccounts: standardAccounts, // Pass pre-fetched standard accounts to avoid queries inside transaction
+                referenceNumber: referenceNumber, // Pass pre-generated reference number to avoid query inside transaction
+                cogsReferenceNumber: cogsReferenceNumber, // Pass pre-generated COGS reference number to avoid query inside transaction
+                tx,
+              });
+            } catch (journalError) {
+              // Check if transaction is aborted
+              if (journalError.message?.includes('transaction is aborted') || 
+                  journalError.message?.includes('25P02') ||
+                  journalError.code === 'P2034') {
+                console.error('❌ Transaction was aborted before journal entry creation. Original error may be above.');
+                throw new Error(
+                  'Transaction failed. This usually means an error occurred earlier in the sale creation process. ' +
+                  'Please check the server logs for the original error. ' +
+                  `Journal entry error: ${journalError.message}`
+                );
+              }
+              // Re-throw other errors
+              throw journalError;
+            }
             console.log('✅ Journal entries created successfully:', journalEntries.length);
 
             // Auto-post taxes from SaleItemTax records
@@ -1037,6 +1235,7 @@ export async function POST(request) {
               if (!taxPostingError.message?.includes('does not exist') && 
                   !taxPostingError.message?.includes('Unknown model')) {
                 console.error('Error fetching SaleItemTax records:', taxPostingError);
+                throw taxPostingError;
               }
             }
             if (totalCOGS > 0) {
@@ -1053,9 +1252,7 @@ export async function POST(request) {
               tenantId: user.tenantId,
               errorName: journalError.name,
             });
-            // IMPORTANT: We're catching the error but not re-throwing it
-            // This means the sale will be created even if journal entry fails
-            // Check the console logs above to see what went wrong
+            throw journalError;
           }
         }
         
@@ -1098,6 +1295,9 @@ export async function POST(request) {
         });
         
         return { sale, items };
+      }, {
+        maxWait: 30000, // Maximum time to wait for a transaction slot (30 seconds)
+        timeout: 30000, // Maximum time the transaction can run (30 seconds)
       });
       
       // Fetch the sale with payments and allocations for the response
@@ -1166,7 +1366,49 @@ export async function POST(request) {
       }
     }
   } catch (error) {
-    console.error('Error creating sale:', error);
+    console.error('❌ Error creating sale:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      meta: error.meta
+    });
+    
+    // Check if it's a transaction abort error
+    if (error.message?.includes('transaction is aborted') || 
+        error.message?.includes('25P02') ||
+        error.code === 'P2034') {
+      return NextResponse.json(
+        { 
+          error: 'Transaction failed. This usually means an error occurred during sale creation. ' +
+                 'Please check that all products exist, accounts are valid, and inventory is sufficient. ' +
+                 'Check server logs for the original error.',
+          details: error.message 
+        },
+        { status: 500 }
+      );
+    }
+    
+    // Check for specific error types
+    if (error.message?.includes('accountId') || error.message?.includes('account')) {
+      return NextResponse.json(
+        { 
+          error: 'Account validation failed. Please ensure all sale items have valid income accounts from Chart of Accounts.',
+          details: error.message 
+        },
+        { status: 400 }
+      );
+    }
+    
+    if (error.message?.includes('Insufficient stock')) {
+      return NextResponse.json(
+        { 
+          error: error.message 
+        },
+        { status: 400 }
+      );
+    }
+    
     return NextResponse.json(
       { 
         error: 'Failed to create sale. Please try again.',

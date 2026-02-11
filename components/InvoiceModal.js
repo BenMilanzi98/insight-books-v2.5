@@ -79,7 +79,9 @@ const InvoiceModal = ({
       quantity: "", 
       unitPrice: "", 
       taxRate: "0",
-      discountAmount: "" // NEW: Added discount amount
+      discountAmount: "", // NEW: Added discount amount
+      accountId: "",
+      productTaxes: [] // Store all taxes applied to the product
     }],
     issueDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -91,6 +93,7 @@ const InvoiceModal = ({
   
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
+  const [incomeAccounts, setIncomeAccounts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [itemSearchQueries, setItemSearchQueries] = useState({}); // Separate search query for each item
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -182,13 +185,15 @@ const InvoiceModal = ({
           unitPrice: item.unitPrice,
           taxRate: item.taxRate || "0",
           productId: item.productId,
-          discountAmount: item.discountAmount || 0 // Include discount amount
+          discountAmount: item.discountAmount || 0, // Include discount amount
+          accountId: item.accountId || ""
         })) || [{ 
           description: "", 
           quantity: "", 
           unitPrice: "", 
           taxRate: "0",
-          discountAmount: "" 
+          discountAmount: "",
+          accountId: ""
         }],
         issueDate: new Date(invoice.issueDate).toISOString().split("T")[0],
         dueDate: new Date(invoice.dueDate).toISOString().split("T")[0],
@@ -253,6 +258,15 @@ const InvoiceModal = ({
         
         // Load products using enhanced method
         await loadProducts();
+
+        // Use the lightweight income accounts endpoint (no Finance/Admin role required)
+        const accountsResponse = await fetch('/api/chart-of-accounts/income-accounts');
+        if (accountsResponse.ok) {
+          const accountsData = await accountsResponse.json();
+          setIncomeAccounts(accountsData.accounts || []);
+        } else {
+          console.error('Failed to fetch income accounts:', accountsResponse.status, accountsResponse.statusText);
+        }
       } catch (error) {
         console.error("Error loading form data:", error);
       }
@@ -378,52 +392,82 @@ const InvoiceModal = ({
     console.log(`Product selected: ${product.name} (ID: ${product.id}) for item ${index}`);
     
     try {
-      // Fetch full product details including units
-      const response = await fetch(`/api/stock/${product.id}`);
-      if (response.ok) {
-        const productData = await response.json();
+      // Fetch full product details including units and taxes
+      const [productResponse, taxesResponse] = await Promise.all([
+        fetch(`/api/stock/${product.id}`),
+        fetch(`/api/products/${product.id}/taxes`)
+      ]);
+      
+      let productData = product;
+      let productTaxes = [];
+      
+      if (productResponse.ok) {
+        productData = await productResponse.json();
         console.log("Full product data with units:", productData);
-        
-        const updatedItems = [...formData.items];
-        updatedItems[index] = {
-          ...updatedItems[index],
-          description: productData.name, // Set description from product name
-          unitPrice: productData.price || productData.unitPrice || "",
-          productId: productData.id,
-          // Apply product's tax rate if available
-          taxRate: productData.taxRate !== undefined && productData.taxRate !== null ? productData.taxRate : (updatedItems[index].taxRate || 0),
-          // Store full product data including units
-          product: productData
-        };
-        
-        // Initialize unit quantities for unit-based products
-        if (hasUnitManagement(productData)) {
-          const initialUnitQuantities = {};
-          productData.units?.forEach(unit => {
-            initialUnitQuantities[unit.id] = 0;
-          });
-          setUnitQuantities(prev => ({
-            ...prev,
-            [index]: initialUnitQuantities
-          }));
-        }
-        
-        setFormData({ ...formData, items: updatedItems });
-      } else {
-        // Fallback to basic product data if API fails
-        const updatedItems = [...formData.items];
-        updatedItems[index] = {
-          ...updatedItems[index],
-          description: product.name,
-          unitPrice: product.price || product.unitPrice || "",
-          productId: product.id,
-          // Apply product's tax rate if available
-          taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0),
-          product: product
-        };
-        
-        setFormData({ ...formData, items: updatedItems });
       }
+      
+      if (taxesResponse.ok) {
+        const taxesData = await taxesResponse.json();
+        productTaxes = taxesData.taxes || [];
+        console.log("Product taxes from API:", productTaxes);
+      }
+      
+      // If taxes API returned empty, try to get taxes from product data
+      if (productTaxes.length === 0 && productData.taxes && productData.taxes.length > 0) {
+        productTaxes = productData.taxes;
+        console.log("Product taxes from product data:", productTaxes);
+      }
+      
+      // If still no taxes, try productTaxes array from product data
+      if (productTaxes.length === 0 && productData.productTaxes && productData.productTaxes.length > 0) {
+        productTaxes = productData.productTaxes.map(pt => pt.taxType || pt).filter(Boolean);
+        console.log("Product taxes from productTaxes array:", productTaxes);
+      }
+      
+      // Calculate combined tax rate from all taxes (for backward compatibility with single taxRate field)
+      let combinedTaxRate = 0;
+      if (productTaxes.length > 0) {
+        // Sum all percentage taxes
+        combinedTaxRate = productTaxes
+          .filter(tax => {
+            const calcType = tax.calculationType || (tax.taxType?.calculationType);
+            return calcType === 'Percentage' || !calcType; // Default to percentage if not specified
+          })
+          .reduce((sum, tax) => {
+            const rate = tax.taxRate || tax.taxType?.taxRate || 0;
+            return sum + rate;
+          }, 0);
+      } else if (productData.taxRate !== undefined && productData.taxRate !== null) {
+        // Fallback to product's taxRate field
+        combinedTaxRate = productData.taxRate;
+      }
+      
+      const updatedItems = [...formData.items];
+      updatedItems[index] = {
+        ...updatedItems[index],
+        description: productData.name, // Set description from product name
+        unitPrice: productData.price || productData.unitPrice || "",
+        productId: productData.id,
+        // Use combined tax rate from all taxes, or fallback to product's taxRate
+        taxRate: combinedTaxRate,
+        // Store full product data including units and taxes
+        product: productData,
+        productTaxes: productTaxes // Store all taxes for display
+      };
+      
+      // Initialize unit quantities for unit-based products
+      if (hasUnitManagement(productData)) {
+        const initialUnitQuantities = {};
+        productData.units?.forEach(unit => {
+          initialUnitQuantities[unit.id] = 0;
+        });
+        setUnitQuantities(prev => ({
+          ...prev,
+          [index]: initialUnitQuantities
+        }));
+      }
+      
+      setFormData({ ...formData, items: updatedItems });
     } catch (error) {
       console.error("Error fetching product details:", error);
       // Fallback to basic product data
@@ -435,7 +479,8 @@ const InvoiceModal = ({
         productId: product.id,
         // Apply product's tax rate if available
         taxRate: product.taxRate !== undefined && product.taxRate !== null ? product.taxRate : (updatedItems[index].taxRate || 0),
-        product: product
+        product: product,
+        productTaxes: []
       };
       
       setFormData({ ...formData, items: updatedItems });
@@ -466,7 +511,9 @@ const InvoiceModal = ({
           quantity: "", 
           unitPrice: "", 
           taxRate: "0",
-          discountAmount: "" // NEW: Added discount amount
+          discountAmount: "", // NEW: Added discount amount
+          accountId: "",
+          productTaxes: [] // Store all taxes applied to the product
         }
       ]
     });
@@ -486,6 +533,7 @@ const InvoiceModal = ({
   
   // Calculate totals
   const invoiceTotals = calculateInvoiceTotals(formData.items, formData.discount);
+  const isAccountSelectionValid = formData.items.every(item => item.accountId);
   
   // Validate form
   const validateForm = () => {
@@ -536,6 +584,10 @@ const InvoiceModal = ({
       
       if (item.taxRate === "") {
         newErrors[`items.${index}.taxRate`] = "Tax rate is required";
+      }
+
+      if (!item.accountId) {
+        newErrors[`items.${index}.accountId`] = "Income account is required";
       }
       
       // Validate that per-item discount doesn't exceed unit price (only if discount is provided)
@@ -612,7 +664,7 @@ const InvoiceModal = ({
       setShowReceiptModal(true);
       setFormData({
         clientId: "",
-        items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }],
+        items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "", accountId: "", productTaxes: [] }],
         issueDate: new Date().toISOString().split("T")[0],
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         status: "Draft",
@@ -844,6 +896,24 @@ const InvoiceModal = ({
                             <div className="absolute right-3 top-3 pointer-events-none">
                               <Search className="w-4 h-4 text-gray-400" />
                             </div>
+
+                            <div className="mt-2">
+                              <select
+                                className={`w-full p-2 border rounded-md text-sm ${errors[`items.${index}.accountId`] ? 'border-red-500' : 'border-gray-300'}`}
+                                value={item.accountId || ""}
+                                onChange={(e) => handleItemChange(index, "accountId", e.target.value)}
+                              >
+                                <option value="">Select income account</option>
+                                {incomeAccounts.map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    {account.accountCode ? `${account.accountCode} - ${account.accountName || account.name}` : (account.accountName || account.name)}
+                                  </option>
+                                ))}
+                              </select>
+                              {errors[`items.${index}.accountId`] && (
+                                <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>
+                              )}
+                            </div>
                             
                             {/* Enhanced Product combobox dropdown - POS Style */}
                             {showProductDropdown && activeSearchIndex === index && (
@@ -968,18 +1038,32 @@ const InvoiceModal = ({
                           )}
                         </td>
                         <td className="px-2 py-2 whitespace-nowrap">
-                          <input
-                            type="number"
-                            className={`w-16 p-2 border rounded-md text-sm ${errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'}`}
-                            value={item.taxRate || ''}
-                            max="100"
-                            step="0.1"
-                            onChange={(e) => handleItemChange(index, "taxRate", e.target.value)}
-                            title="Enter the tax rate as a percentage (0-100%)"
-                          />
-                          {errors[`items.${index}.taxRate`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.taxRate`]}</p>
-                          )}
+                          <div className="flex flex-col">
+                            <input
+                              type="number"
+                              className={`w-16 p-2 border rounded-md text-sm ${errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'}`}
+                              value={item.taxRate || ''}
+                              max="100"
+                              step="0.1"
+                              onChange={(e) => handleItemChange(index, "taxRate", e.target.value)}
+                              title="Enter the tax rate as a percentage (0-100%)"
+                            />
+                            {/* Display all product taxes */}
+                            {item.productTaxes && item.productTaxes.length > 0 && (
+                              <div className="mt-1 text-xs text-gray-600">
+                                <div className="font-medium mb-0.5">Applied taxes:</div>
+                                {item.productTaxes.map((tax, taxIdx) => (
+                                  <div key={taxIdx} className="text-xs">
+                                    {tax.taxName || tax.taxId}: {tax.taxRate}%
+                                    {tax.calculationType === 'Fixed' && ' (Fixed)'}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {errors[`items.${index}.taxRate`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.taxRate`]}</p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
                           {formatCurrency(calculateItemTotals(item).amount)}
@@ -1116,7 +1200,8 @@ const InvoiceModal = ({
             type="button"
             onClick={handleSubmit}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-            disabled={loading}
+            disabled={loading || !isAccountSelectionValid}
+            title={!isAccountSelectionValid ? "Select an income account for each item" : ""}
           >
             {loading ? (
               <>

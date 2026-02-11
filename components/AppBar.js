@@ -662,6 +662,11 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
                       ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
                       : user.tenant.logoUrl}
                     alt="Logo"
+                    onError={(e) => {
+                      // Fallback gracefully if the logo file is missing or returns 404
+                      e.target.onerror = null;
+                      e.target.src = '/api/placeholder/40/40';
+                    }}
                     style={{
                       borderRadius: "50%",
                       objectFit: "cover"

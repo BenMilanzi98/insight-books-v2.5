@@ -29,6 +29,7 @@ import { getPermission } from "@/lib/permissions";
 const DEFAULT_FORM = {
   name: "",
   description: "",
+  budgetType: "revenue",
   periodType: "monthly",
   startDate: "",
   endDate: "",
@@ -37,7 +38,7 @@ const DEFAULT_FORM = {
   items: [],
 };
 
-export default function RevenueBudgetPage() {
+export default function BudgetPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -46,6 +47,7 @@ export default function RevenueBudgetPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [periodFilter, setPeriodFilter] = useState("");
+  const [budgetTypeFilter, setBudgetTypeFilter] = useState("");
 
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -75,6 +77,10 @@ export default function RevenueBudgetPage() {
     if (periodFilter) {
       result = result.filter(b => b.periodType === periodFilter);
     }
+
+    if (budgetTypeFilter) {
+      result = result.filter(b => (b.budgetType || "revenue") === budgetTypeFilter);
+    }
     
     // Apply search
     const q = search.trim().toLowerCase();
@@ -96,6 +102,7 @@ export default function RevenueBudgetPage() {
       const params = new URLSearchParams();
       if (statusFilter) params.set('status', statusFilter);
       if (periodFilter) params.set('periodType', periodFilter);
+      if (budgetTypeFilter) params.set('budgetType', budgetTypeFilter);
       
       const res = await fetch(`/api/budgets?${params.toString()}`, { cache: "no-store" });
       const json = await res.json();
@@ -130,7 +137,7 @@ export default function RevenueBudgetPage() {
 
   useEffect(() => {
     loadBudgets();
-  }, [statusFilter, periodFilter]);
+  }, [statusFilter, periodFilter, budgetTypeFilter]);
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -247,7 +254,7 @@ export default function RevenueBudgetPage() {
 
   const handleOpenCreate = async () => {
     if (!pagePermissions.canCreate) {
-      setError("You don't have permission to create revenue budgets. Please contact your administrator.");
+      setError("You don't have permission to create budgets. Please contact your administrator.");
       return;
     }
     setShowCreate(true);
@@ -276,12 +283,14 @@ export default function RevenueBudgetPage() {
     }
     
     if (!form.expectedRevenue || Number(form.expectedRevenue) <= 0) {
-      errors.expectedRevenue = "Expected revenue must be greater than zero";
+      errors.expectedRevenue = form.budgetType === "expense"
+        ? "Expected expense must be greater than zero"
+        : "Expected revenue must be greater than zero";
     }
     
     // Validate breakdowns
     const breakdownTotal = calculateBreakdownTotal();
-    if (form.breakdowns && form.breakdowns.length > 0) {
+    if (form.budgetType === "revenue" && form.breakdowns && form.breakdowns.length > 0) {
       const expected = Number(form.expectedRevenue) || 0;
       const tolerance = 0.01;
       if (Math.abs(breakdownTotal - expected) > tolerance) {
@@ -337,18 +346,21 @@ export default function RevenueBudgetPage() {
         body: JSON.stringify({
           name: form.name,
           description: form.description || null,
+        budgetType: form.budgetType,
           periodType: form.periodType,
           startDate: form.startDate,
           endDate: form.endDate,
           expectedRevenue: Number(form.expectedRevenue),
-          breakdowns: breakdowns.length > 0 ? breakdowns : undefined,
-          items: items.length > 0 ? items : undefined
+        breakdowns: form.budgetType === "revenue" && breakdowns.length > 0 ? breakdowns : undefined,
+        items: form.budgetType === "expense" && items.length > 0 ? items : undefined
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to create revenue budget");
+    if (!res.ok) throw new Error(json?.error || "Failed to create budget");
 
-      setSuccess("Revenue budget created successfully!");
+    setSuccess(form.budgetType === "expense"
+      ? "Expense budget created successfully!"
+      : "Revenue budget created successfully!");
       setTimeout(() => setSuccess(null), 3000);
       resetCreate();
       await loadBudgets();
@@ -365,7 +377,7 @@ export default function RevenueBudgetPage() {
       if (budget?.isLocked) {
         throw new Error("Cannot delete a locked budget. The budget period has ended.");
       }
-      const ok = window.confirm(`Delete revenue budget "${budget?.name}"? This action cannot be undone.`);
+      const ok = window.confirm(`Delete budget "${budget?.name}"? This action cannot be undone.`);
       if (!ok) return;
 
       const res = await fetch(`/api/budgets/${budget.id}`, { method: "DELETE" });
@@ -448,9 +460,9 @@ export default function RevenueBudgetPage() {
       <div className="p-6 bg-gray-50 min-h-screen">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Revenue Budgets</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
             <p className="text-sm text-gray-600">
-              Plan, track, and analyze expected revenue against actual performance.
+              Plan, track, and analyze revenue and expense budgets against actuals.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -485,7 +497,7 @@ export default function RevenueBudgetPage() {
               ) : (
                 <Plus size={18} />
               )}
-              New Revenue Budget
+              New Budget
             </button>
           </div>
         </div>
@@ -551,6 +563,16 @@ export default function RevenueBudgetPage() {
                 <option value="quarterly">Quarterly</option>
                 <option value="yearly">Yearly</option>
               </select>
+
+              <select
+                value={budgetTypeFilter}
+                onChange={(e) => setBudgetTypeFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">All Types</option>
+                <option value="revenue">Revenue</option>
+                <option value="expense">Expense</option>
+              </select>
             </div>
             
             <button
@@ -573,8 +595,8 @@ export default function RevenueBudgetPage() {
               <div className="mx-auto w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
                 <DollarSign size={22} className="text-green-600" />
               </div>
-              <div className="font-medium text-gray-800">No revenue budgets found</div>
-              <div className="text-sm text-gray-500 mt-1">Create your first revenue budget to start forecasting.</div>
+              <div className="font-medium text-gray-800">No budgets found</div>
+              <div className="text-sm text-gray-500 mt-1">Create your first budget to start forecasting.</div>
             </div>
           ) : (
             <div className="divide-y divide-gray-200">
@@ -585,6 +607,13 @@ export default function RevenueBudgetPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-gray-900">{b.name}</span>
                         {getStatusBadge(b)}
+                        <span className={`text-xs px-2 py-0.5 rounded ${
+                          (b.budgetType || "revenue") === "expense"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}>
+                          {(b.budgetType || "revenue") === "expense" ? "Expense" : "Revenue"}
+                        </span>
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
                           {b.periodType}
                         </span>
@@ -658,7 +687,8 @@ export default function RevenueBudgetPage() {
                   {/* Budget amount preview */}
                   <div className="mt-2 flex items-center gap-4 text-sm">
                     <span className="text-gray-600">
-                      Budgeted: <span className="font-semibold text-gray-900">{formatCurrency(b.expectedRevenue || 0)}</span>
+                      Budgeted {(b.budgetType || "revenue") === "expense" ? "Expense" : "Revenue"}:{" "}
+                      <span className="font-semibold text-gray-900">{formatCurrency(b.expectedRevenue || 0)}</span>
                     </span>
                   </div>
                 </div>
@@ -676,8 +706,12 @@ export default function RevenueBudgetPage() {
             >
               <div className="p-4 sm:p-5 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50 flex items-start justify-between gap-3 flex-shrink-0">
                 <div className="flex-1 min-w-0">
-                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Create Revenue Budget</h2>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">Plan your expected revenue for a specific period.</p>
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+                    Create {form.budgetType === "expense" ? "Expense" : "Revenue"} Budget
+                  </h2>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                    Plan your expected {form.budgetType === "expense" ? "expenses" : "revenue"} for a specific period.
+                  </p>
                 </div>
                 <button className="text-gray-500 hover:text-gray-700 transition-colors flex-shrink-0" onClick={resetCreate}>
                   <X size={22} />
@@ -690,7 +724,9 @@ export default function RevenueBudgetPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <DollarSign className="text-green-600" size={20} />
-                      <span className="text-sm font-medium text-gray-700">Expected Revenue:</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        Expected {form.budgetType === "expense" ? "Expense" : "Revenue"}:
+                      </span>
                     </div>
                     <input
                       type="number"
@@ -725,6 +761,27 @@ export default function RevenueBudgetPage() {
                     Budget Details
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Budget Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={form.budgetType}
+                        onChange={(e) => {
+                          const nextType = e.target.value;
+                          setForm((p) => ({
+                            ...p,
+                            budgetType: nextType,
+                            breakdowns: nextType === "expense" ? [] : p.breakdowns,
+                          }));
+                          setFormErrors((prev) => ({ ...prev, breakdowns: null }));
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      >
+                        <option value="revenue">Revenue</option>
+                        <option value="expense">Expense</option>
+                      </select>
+                    </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Budget Name <span className="text-red-500">*</span>
@@ -735,7 +792,7 @@ export default function RevenueBudgetPage() {
                           setForm((p) => ({ ...p, name: e.target.value }));
                           if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: null }));
                         }}
-                        placeholder="e.g., Q1 2026 Revenue Forecast"
+                        placeholder="e.g., Q1 2026 Budget"
                         className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
                           formErrors.name ? "border-red-300 bg-red-50" : "border-gray-300"
                         }`}
@@ -818,15 +875,17 @@ export default function RevenueBudgetPage() {
                         rows={2}
                         value={form.description}
                         onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                        placeholder="Optional: revenue assumptions, targets, etc."
+                        placeholder="Optional: notes, assumptions, or targets."
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Optional Breakdown Section */}
-                <div className="bg-white border border-gray-200 rounded-lg">
+                {form.budgetType === "revenue" && (
+                  <>
+                    {/* Optional Breakdown Section */}
+                    <div className="bg-white border border-gray-200 rounded-lg">
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div>
@@ -967,7 +1026,7 @@ export default function RevenueBudgetPage() {
                           </span>
                         </div>
                         <div className="text-sm text-gray-500">
-                          Expected: {formatCurrency(Number(form.expectedRevenue) || 0)}
+                          Expected Expense: {formatCurrency(Number(form.expectedRevenue) || 0)}
                         </div>
                       </div>
                       {formErrors.breakdowns && (
@@ -975,18 +1034,22 @@ export default function RevenueBudgetPage() {
                       )}
                     </div>
                   )}
-                </div>
-                {/* Budget Lines Section */}
-                <div className="bg-white border border-gray-200 rounded-lg">
+                    </div>
+                  </>
+                )}
+                {form.budgetType === "expense" && (
+                  <>
+                    {/* Budget Lines Section */}
+                    <div className="bg-white border border-gray-200 rounded-lg">
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
                       <div>
                         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                           <DollarSign size={18} className="text-blue-600" />
-                          Budget Lines
+                          Expense Lines
                         </h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          Add detailed line items for this budget (optional).
+                          Add detailed expense line items for this budget (optional).
                         </p>
                       </div>
                       <button
@@ -1018,20 +1081,27 @@ export default function RevenueBudgetPage() {
 
                             <div className="sm:col-span-3">
                               <label className="block text-xs font-medium text-gray-700 mb-1">
-                                Account
+                                Expense Account
                               </label>
                               <select
                                 value={item.accountId || ""}
                                 onChange={(e) => updateLineItem(idx, { accountId: e.target.value })}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                               >
-                                <option value="">Select...</option>
+                                <option value="">Select an expense account...</option>
                                 {categoryOptions.map((cat) => (
                                   <option key={cat.id} value={cat.id}>
                                     {cat.code ? `${cat.code} - ${cat.name}` : cat.name}
                                   </option>
                                 ))}
                               </select>
+                              <p className="mt-1 text-xs text-gray-500">
+                                Create new categories in{" "}
+                                <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
+                                  Chart of Accounts
+                                </a>
+                                .
+                              </p>
                             </div>
 
                             <div className="sm:col-span-4">
@@ -1042,7 +1112,7 @@ export default function RevenueBudgetPage() {
                                 type="text"
                                 value={item.description || ""}
                                 onChange={(e) => updateLineItem(idx, { description: e.target.value })}
-                                placeholder="e.g., January Product Sales"
+                                placeholder="e.g., Office Rent"
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                               />
                             </div>
@@ -1114,12 +1184,14 @@ export default function RevenueBudgetPage() {
                           </span>
                         </div>
                         <div className="text-sm text-gray-500">
-                          Expected: {formatCurrency(Number(form.expectedRevenue) || 0)}
+                          Expected Expense: {formatCurrency(Number(form.expectedRevenue) || 0)}
                         </div>
                       </div>
                     </div>
                   )}
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="p-4 sm:p-5 border-t border-gray-200 bg-gray-50 flex-shrink-0">

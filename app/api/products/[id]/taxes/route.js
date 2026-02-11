@@ -42,16 +42,16 @@ export async function GET(request, { params }) {
         },
         include: {
           taxType: {
-            include: {
-              account: {
-                select: {
-                  id: true,
-                  accountCode: true,
-                  accountName: true,
-                  accountType: true,
-                },
-              },
-            },
+            select: {
+              id: true,
+              taxId: true,
+              taxName: true,
+              taxCode: true,
+              taxRate: true,
+              calculationType: true,
+              status: true,
+              accountId: true
+            }
           },
         },
         orderBy: {
@@ -59,7 +59,18 @@ export async function GET(request, { params }) {
         },
       });
 
-      return NextResponse.json(productTaxes);
+      // Transform to match expected format
+      const taxes = productTaxes.map(pt => ({
+        id: pt.taxType.id,
+        taxId: pt.taxType.taxId,
+        taxName: pt.taxType.taxName,
+        taxCode: pt.taxType.taxCode,
+        taxRate: pt.taxType.taxRate,
+        calculationType: pt.taxType.calculationType,
+        status: pt.taxType.status
+      }));
+
+      return NextResponse.json({ taxes });
     } catch (error) {
       // If table doesn't exist, return empty array
       if (error.message?.includes('does not exist') || error.message?.includes('Unknown model')) {

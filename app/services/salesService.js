@@ -117,6 +117,8 @@ export const createSale = async (saleData) => {
           price: Number(item.unitPrice),
           description: String(item.description)
         } : null,
+        // Include accountId for Chart of Accounts requirement
+        accountId: item.accountId || null,
         // Include unit quantities for unit-managed products
         unitQuantities: item.unitQuantities || null
       })),

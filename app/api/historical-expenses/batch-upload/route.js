@@ -68,6 +68,22 @@ export async function POST(request) {
     const headers = parseCSVLine(lines[0]);
     const dataRows = lines.slice(1).map(line => parseCSVLine(line));
 
+    const expenseAccounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        accountType: 'Expense',
+        isActive: true
+      },
+      select: {
+        id: true,
+        accountName: true
+      }
+    });
+
+    const expenseAccountsByName = new Map(
+      expenseAccounts.map(account => [account.accountName.toLowerCase(), account])
+    );
+
     // Validate headers
     const expectedHeaders = [
       'Expense Date',
@@ -192,6 +208,11 @@ export async function POST(request) {
 
       if (!category.trim()) {
         errors.push('Category is required');
+      } else {
+        const account = expenseAccountsByName.get(category.trim().toLowerCase());
+        if (!account) {
+          errors.push('Category must match an existing Expense account name');
+        }
       }
 
       if (!paymentMethod.trim()) {
@@ -227,11 +248,13 @@ export async function POST(request) {
           }
         }
         
+        const matchedAccount = expenseAccountsByName.get(category.trim().toLowerCase());
         validExpenses.push({
           expenseDate: parsedDate,
           description: description.trim(),
           amount: parseFloat(amount.replace(/[,$]/g, '')),
-          category: category.trim(),
+          category: matchedAccount?.accountName || category.trim(),
+          expenseAccountId: matchedAccount?.id || null,
           merchant: merchant.trim() || null,
           paymentMethod: paymentMethod.trim(),
           originalReference: originalReference.trim() || null,
@@ -258,6 +281,9 @@ export async function POST(request) {
       const createdPayments = [];
 
       for (const expenseData of validExpenses) {
+        if (!expenseData.expenseAccountId) {
+          throw new Error(`Expense account missing for category: ${expenseData.category}`);
+        }
         // Create expense record
         const expense = await tx.expense.create({
           data: {
@@ -265,6 +291,7 @@ export async function POST(request) {
             description: expenseData.description,
             amount: expenseData.amount,
             category: expenseData.category,
+            expenseAccountId: expenseData.expenseAccountId,
             merchant: expenseData.merchant,
             paymentMethod: expenseData.paymentMethod,
             notes: expenseData.notes,

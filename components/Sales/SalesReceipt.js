@@ -307,12 +307,78 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                 <span style={{ fontWeight: 'bold' }}>Subtotal:</span>
                 <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(sale.subtotal || 0).toFixed(2)}</span>
               </div>
-              {sale.totalTaxAmount && sale.totalTaxAmount > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
-                  <span style={{ fontWeight: 'bold' }}>Total Tax:</span>
-                  <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(sale.totalTaxAmount).toFixed(2)}</span>
-                </div>
-              )}
+              {(() => {
+                const taxBuckets = {};
+                let hasAnyTaxes = false;
+                
+                // Check both taxBreakdown (from frontend) and itemTaxes (from database)
+                (sale.items || []).forEach(item => {
+                  // Try taxBreakdown first (frontend data)
+                  if (item.taxBreakdown && item.taxBreakdown.length > 0) {
+                    hasAnyTaxes = true;
+                    item.taxBreakdown.forEach(tax => {
+                      const taxKey = tax.taxName || tax.taxId || 'Tax';
+                      if (!taxBuckets[taxKey]) {
+                        taxBuckets[taxKey] = {
+                          name: tax.taxName || tax.taxId || 'Tax',
+                          code: tax.taxCode || null,
+                          total: 0
+                        };
+                      }
+                      taxBuckets[taxKey].total += Number(tax.taxAmount || 0);
+                    });
+                  }
+                  // Also check itemTaxes (database data)
+                  if (item.itemTaxes && item.itemTaxes.length > 0) {
+                    hasAnyTaxes = true;
+                    item.itemTaxes.forEach(tax => {
+                      const taxKey = tax.taxName || 'Tax';
+                      if (!taxBuckets[taxKey]) {
+                        taxBuckets[taxKey] = {
+                          name: tax.taxName || 'Tax',
+                          code: tax.taxCode || null,
+                          total: 0
+                        };
+                      }
+                      taxBuckets[taxKey].total += Number(tax.taxAmount || 0);
+                    });
+                  }
+                });
+
+                const detailedTaxes = Object.values(taxBuckets)
+                  .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+                const calculatedTotalTax = detailedTaxes.reduce((sum, tax) => sum + tax.total, 0);
+                const totalTax = calculatedTotalTax > 0 ? calculatedTotalTax : Number(sale.totalTaxAmount || 0);
+
+                // Show taxes if we have any
+                if (!hasAnyTaxes && totalTax <= 0) return null;
+
+                return (
+                  <>
+                    {detailedTaxes.length > 0 && detailedTaxes.map((tax, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
+                        <span style={{ fontWeight: 'bold' }}>
+                          {tax.name}{tax.code ? ` (${tax.code})` : ''}:
+                        </span>
+                        <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(tax.total).toFixed(2)}</span>
+                      </div>
+                    ))}
+                    {totalTax > 0 && (
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        margin: '2px 0',
+                        borderTop: '1px solid #ddd',
+                        paddingTop: '4px',
+                        marginTop: '4px'
+                      }}>
+                        <span style={{ fontWeight: 'bold' }}>Total Tax:</span>
+                        <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(totalTax).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               {sale.totalDiscountAmount && sale.totalDiscountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                   <span style={{ fontWeight: 'bold' }}>Total Discount:</span>

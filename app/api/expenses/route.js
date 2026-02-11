@@ -223,50 +223,75 @@ export async function GET(request) {
     }
     const totalCount = expenseCount + cogsCount + salaryAdvanceCount;
     
-    // Build sort object for Prisma
-    const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
+    // Build sort object for Prisma - validate sortBy field
+    const validSortFields = ['date', 'amount', 'description', 'status', 'createdAt', 'updatedAt', 'category'];
+    const validatedSortBy = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const orderBy = { [validatedSortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
     // Fetch ALL expenses (without pagination) so we can combine with COGS and re-paginate
-    const allExpensesFromDB = await prisma.expense.findMany({
-      where: whereClause,
-      orderBy,
-      include: {
-        submittedBy: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        sourceAccount: {
-          select: {
-            id: true,
-            name: true,
-          }
-        },
-        supplier: {
-          select: {
-            id: true,
-            supplierName: true,
-            email: true,
-            phone: true,
-            paymentPreference: true,
-          }
-        },
-        payments: {
-          where: { status: 'Completed' },
-          orderBy: { paymentDate: 'desc' },
-          select: {
-            id: true,
-            amount: true,
-            paymentMethod: true,
-            paymentDate: true,
-            reference: true,
-            notes: true,
-            status: true
+    let allExpensesFromDB = [];
+    try {
+      allExpensesFromDB = await prisma.expense.findMany({
+        where: whereClause,
+        orderBy,
+        include: {
+          submittedBy: {
+            select: {
+              id: true,
+              name: true,
+            }
+          },
+          expenseAccount: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true,
+              accountType: true,
+            }
+          },
+          sourceAccount: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true,
+              accountType: true,
+            }
+          },
+          supplier: {
+            select: {
+              id: true,
+              supplierName: true,
+              email: true,
+              phone: true,
+              paymentPreference: true,
+            }
+          },
+          payments: {
+            where: { status: 'Completed' },
+            orderBy: { paymentDate: 'desc' },
+            select: {
+              id: true,
+              amount: true,
+              paymentMethod: true,
+              paymentDate: true,
+              reference: true,
+              notes: true,
+              status: true
+            }
           }
         }
-      }
-    });
+      });
+    } catch (queryError) {
+      console.error('Error fetching expenses from database:', queryError);
+      console.error('Query error details:', {
+        message: queryError.message,
+        code: queryError.code,
+        meta: queryError.meta,
+        stack: queryError.stack
+      });
+      // Return empty array to allow the API to continue with COGS and salary advances
+      allExpensesFromDB = [];
+    }
 
     // Fetch COGS transactions if there are COGS accounts and we should include them
     // Exclude COGS when filtering by "Salary Advance"

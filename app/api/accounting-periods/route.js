@@ -8,7 +8,10 @@ import {
 } from '@/lib/accountingPeriodService';
 
 function isFinanceAdmin(user) {
-  const roleName = user?.role?.name?.toLowerCase() || '';
+  if (!user || !user.role) {
+    return false;
+  }
+  const roleName = (user.role.name || '').toLowerCase();
   return (
     roleName.includes('finance') ||
     roleName.includes('admin') ||
@@ -64,20 +67,46 @@ export async function GET(request) {
       );
     }
 
-    const periods = await prisma.accountingPeriod.findMany({
-      where: { tenantId: user.tenantId },
-      orderBy: { startDate: 'desc' },
-    });
+    let periods = [];
+    try {
+      periods = await prisma.accountingPeriod.findMany({
+        where: { tenantId: user.tenantId },
+        orderBy: { startDate: 'desc' },
+      });
+    } catch (periodsError) {
+      console.error('Error fetching periods:', periodsError);
+      // Return empty array if query fails
+      periods = [];
+    }
 
-    const currentPeriod = await getCurrentPeriod(user.tenantId, prisma);
+    let currentPeriod = null;
+    try {
+      currentPeriod = await getCurrentPeriod(user.tenantId, prisma);
+    } catch (periodError) {
+      console.warn('Error getting current period (non-fatal):', periodError);
+      // Continue without currentPeriod if there's an error
+    }
 
     return NextResponse.json({ periods, currentPeriod });
   } catch (error) {
     console.error('Error fetching accounting periods:', error);
-    return NextResponse.json(
-      { error: 'Failed to load accounting periods', details: error.message },
-      { status: 500 }
-    );
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error code:', error.code);
+    
+    // Provide more detailed error information in development
+    const errorResponse = {
+      error: 'Failed to load accounting periods',
+      details: error.message || 'Unknown error'
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = error.stack;
+      errorResponse.name = error.name;
+      errorResponse.code = error.code;
+    }
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -178,34 +207,60 @@ export async function POST(request) {
     });
 
     if (lastClosed) {
-      const lastBalances = await prisma.accountBalanceHistory.findMany({
-        where: {
-          periodDate: lastClosed.endDate,
-          account: { tenantId: user.tenantId },
-        },
+      // First, get all account IDs for this tenant
+      const tenantAccounts = await prisma.account.findMany({
+        where: { tenantId: user.tenantId },
+        select: { id: true },
       });
+      const accountIds = tenantAccounts.map((acc) => acc.id);
 
-      if (lastBalances.length > 0) {
-        await prisma.accountBalanceHistory.createMany({
-          data: lastBalances.map((balance) => ({
-            accountId: balance.accountId,
-            periodDate: startDate,
-            openingBalance: balance.closingBalance,
-            totalDebits: 0,
-            totalCredits: 0,
-            closingBalance: balance.closingBalance,
-          })),
-          skipDuplicates: true,
+      if (accountIds.length > 0) {
+        // Then get balance history for those accounts
+        const lastBalances = await prisma.accountBalanceHistory.findMany({
+          where: {
+            periodDate: lastClosed.endDate,
+            accountId: { in: accountIds },
+          },
         });
+
+        if (lastBalances.length > 0) {
+          await prisma.accountBalanceHistory.createMany({
+            data: lastBalances.map((balance) => ({
+              accountId: balance.accountId,
+              periodDate: startDate,
+              openingBalance: balance.closingBalance,
+              totalDebits: 0,
+              totalCredits: 0,
+              closingBalance: balance.closingBalance,
+            })),
+            skipDuplicates: true,
+          });
+        }
       }
     }
 
     return NextResponse.json({ period }, { status: 201 });
   } catch (error) {
     console.error('Error creating accounting period:', error);
-    return NextResponse.json(
-      { error: 'Failed to create accounting period', details: error.message },
-      { status: 500 }
-    );
+    console.error('Error stack:', error.stack);
+    console.error('Error name:', error.name);
+    console.error('Error code:', error.code);
+    
+    // Provide more detailed error information in development
+    const errorResponse = {
+      error: 'Failed to create accounting period',
+      details: error.message || 'Unknown error'
+    };
+    
+    if (process.env.NODE_ENV === 'development') {
+      errorResponse.stack = error.stack;
+      errorResponse.name = error.name;
+      errorResponse.code = error.code;
+      if (error.meta) {
+        errorResponse.meta = error.meta;
+      }
+    }
+    
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }

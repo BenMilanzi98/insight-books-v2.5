@@ -124,11 +124,34 @@ export async function GET(request, { params }) {
         itemTaxesMap[tax.saleItemId].push(tax);
       });
       
-      // Attach to items
-      sale.items = sale.items.map(item => ({
-        ...item,
-        itemTaxes: itemTaxesMap[item.id] || []
-      }));
+      // Attach to items and ensure proper serialization
+      sale.items = sale.items.map(item => {
+        const itemTaxes = (itemTaxesMap[item.id] || []).map(tax => ({
+          id: tax.id,
+          saleItemId: tax.saleItemId,
+          taxName: tax.taxName || null,
+          taxCode: tax.taxCode || null,
+          taxRate: typeof tax.taxRate === 'object' && tax.taxRate?.toNumber ? tax.taxRate.toNumber() : parseFloat(tax.taxRate || 0),
+          taxAmount: typeof tax.taxAmount === 'object' && tax.taxAmount?.toNumber ? tax.taxAmount.toNumber() : parseFloat(tax.taxAmount || 0)
+        }));
+        
+        return {
+          ...item,
+          itemTaxes: itemTaxes,
+          // Ensure numeric fields are properly converted
+          amount: typeof item.amount === 'object' && item.amount?.toNumber ? item.amount.toNumber() : parseFloat(item.amount || 0),
+          taxAmount: typeof item.taxAmount === 'object' && item.taxAmount?.toNumber ? item.taxAmount.toNumber() : parseFloat(item.taxAmount || 0)
+        };
+      });
+      
+      // Debug: Log tax data
+      console.log('Receipt API - Item taxes fetched:', itemTaxes.length);
+      console.log('Receipt API - Items with taxes:', sale.items.map(item => ({
+        id: item.id,
+        description: item.description,
+        taxCount: item.itemTaxes?.length || 0,
+        taxes: item.itemTaxes
+      })));
     } catch (error) {
       // If table doesn't exist, items won't have itemTaxes - that's okay
       if (!error.message?.includes('does not exist') && !error.message?.includes('Unknown model')) {
@@ -136,9 +159,107 @@ export async function GET(request, { params }) {
       }
     }
     
-    // Debug: Log the logo URL
+    // Ensure sale.totalTaxAmount is a number (not Decimal)
+    sale.totalTaxAmount = typeof sale.totalTaxAmount === 'object' && sale.totalTaxAmount?.toNumber 
+      ? sale.totalTaxAmount.toNumber() 
+      : parseFloat(sale.totalTaxAmount || 0);
+    sale.subtotal = typeof sale.subtotal === 'object' && sale.subtotal?.toNumber 
+      ? sale.subtotal.toNumber() 
+      : parseFloat(sale.subtotal || 0);
+    sale.total = typeof sale.total === 'object' && sale.total?.toNumber 
+      ? sale.total.toNumber() 
+      : parseFloat(sale.total || 0);
+    sale.totalDiscountAmount = typeof sale.totalDiscountAmount === 'object' && sale.totalDiscountAmount?.toNumber 
+      ? sale.totalDiscountAmount.toNumber() 
+      : parseFloat(sale.totalDiscountAmount || 0);
+    
+    // Debug: Log the logo URL and tax summary
     console.log('Receipt API - Logo URL:', sale.tenant.logoUrl);
     console.log('Receipt API - Tenant name:', sale.tenant.name);
+    console.log('Receipt API - Total Tax Amount:', sale.totalTaxAmount);
+    console.log('Receipt API - Sale Items Count:', sale.items.length);
+    console.log('Receipt API - Items with taxes:', JSON.stringify(sale.items.map(item => ({
+      id: item.id,
+      description: item.description,
+      taxCount: item.itemTaxes?.length || 0,
+      taxes: item.itemTaxes?.map(t => ({ name: t.taxName, amount: t.taxAmount })) || []
+    })), null, 2));
+    
+    // Process taxes for receipt display
+    // IMPORTANT: taxAmount in SaleItemTax is already the total tax for that line item
+    // (quantity × unitPrice × taxRate), so we just sum them up
+    const processTaxesForReceipt = (items, totalTaxAmount) => {
+      const taxGroups = {};
+      let hasAnyTaxes = false;
+      let totalTaxFromItems = 0;
+      
+      // Convert items to plain array
+      const itemsArray = Array.isArray(items) ? items : [];
+      
+      itemsArray.forEach((item, itemIndex) => {
+        const itemTaxes = item.itemTaxes || [];
+        const itemQuantity = parseFloat(item.quantity || 1);
+        const itemUnitPrice = parseFloat(item.unitPrice || 0);
+        const itemSubtotal = itemQuantity * itemUnitPrice;
+        
+        if (itemTaxes.length > 0) {
+          hasAnyTaxes = true;
+          itemTaxes.forEach(tax => {
+            const taxKey = (tax.taxName || tax.taxId || 'Tax').trim();
+            // tax.taxAmount is already the total tax for this line item (includes quantity)
+            const taxAmount = parseFloat(tax.taxAmount || 0);
+            
+            if (!taxGroups[taxKey]) {
+              taxGroups[taxKey] = {
+                taxName: tax.taxName || tax.taxId || 'Tax',
+                taxCode: tax.taxCode || null,
+                totalAmount: 0
+              };
+            }
+            // Sum up the tax amounts (each taxAmount already includes quantity)
+            taxGroups[taxKey].totalAmount += taxAmount;
+            totalTaxFromItems += taxAmount;
+            
+            console.log(`Receipt Tax Processing - Item ${itemIndex + 1}: ${item.description}, Qty: ${itemQuantity}, Tax: ${tax.taxName}, Amount: ${taxAmount}, Running Total: ${taxGroups[taxKey].totalAmount}`);
+          });
+        } else if (item.taxAmount && parseFloat(item.taxAmount) > 0) {
+          // Fallback: use item-level taxAmount if no itemTaxes
+          // This taxAmount should also already include quantity
+          hasAnyTaxes = true;
+          const taxKey = item.taxDescription || 'Tax';
+          const taxAmount = parseFloat(item.taxAmount || 0);
+          
+          if (!taxGroups[taxKey]) {
+            taxGroups[taxKey] = {
+              taxName: item.taxDescription || 'Tax',
+              taxCode: null,
+              totalAmount: 0
+            };
+          }
+          taxGroups[taxKey].totalAmount += taxAmount;
+          totalTaxFromItems += taxAmount;
+        }
+      });
+      
+      const sortedTaxGroups = Object.values(taxGroups).sort((a, b) => (a.taxName || '').localeCompare(b.taxName || ''));
+      
+      console.log('Receipt Tax Summary:', {
+        totalTaxFromItems,
+        saleTotalTaxAmount: totalTaxAmount,
+        taxGroups: sortedTaxGroups.map(t => ({ name: t.taxName, amount: t.totalAmount }))
+      });
+      
+      return {
+        taxGroups: sortedTaxGroups,
+        hasAnyTaxes,
+        totalTaxFromItems,
+        // Use calculated total from items if available, otherwise use sale.totalTaxAmount
+        totalTaxAmount: totalTaxFromItems > 0 ? totalTaxFromItems : parseFloat(totalTaxAmount || 0)
+      };
+    };
+    
+    const taxData = processTaxesForReceipt(sale.items, sale.totalTaxAmount);
+    console.log('Receipt API - Processed tax data:', JSON.stringify(taxData, null, 2));
     
     // ENHANCED: Create the HTML receipt with thermal size and business address
     const receiptHtml = `
@@ -426,20 +547,86 @@ export async function GET(request, { params }) {
           <strong>ITEMS PURCHASED</strong>
         </div>
         
-        ${sale.items.map(item => `
+        ${sale.items.map(item => {
+          // Calculate item subtotal (before tax) = quantity × unitPrice - discount
+          const itemQuantity = parseFloat(item.quantity || 1);
+          const itemUnitPrice = parseFloat(item.unitPrice || 0);
+          const itemDiscountAmount = parseFloat(item.discountAmount || 0);
+          const itemSubtotal = (itemQuantity * itemUnitPrice) - itemDiscountAmount;
+          
+          const itemTaxes = item.itemTaxes || [];
+          
+          // Group taxes for this item
+          const itemTaxGroups = {};
+          let itemTaxTotal = 0;
+          
+          itemTaxes.forEach(tax => {
+            const taxKey = (tax.taxName || tax.taxId || 'Tax').trim();
+            const taxAmount = parseFloat(tax.taxAmount || 0);
+            
+            if (!itemTaxGroups[taxKey]) {
+              itemTaxGroups[taxKey] = {
+                taxName: tax.taxName || tax.taxId || 'Tax',
+                taxCode: tax.taxCode || null,
+                totalAmount: 0
+              };
+            }
+            itemTaxGroups[taxKey].totalAmount += taxAmount;
+            itemTaxTotal += taxAmount;
+          });
+          
+          // Fallback: use item.taxAmount if no itemTaxes
+          if (itemTaxTotal === 0 && item.taxAmount) {
+            itemTaxTotal = parseFloat(item.taxAmount || 0);
+          }
+          
+          // Item total = subtotal + taxes
+          const itemTotal = itemSubtotal + itemTaxTotal;
+          
+          return `
           <div class="item-row">
             <div class="item-name">${item.description}</div>
             <div class="item-details">
-              <span class="item-qty-price">${item.quantity} x ${formatCurrency(item.unitPrice, tenantSettings?.currencyCode || 'MWK')}</span>
-              <span class="item-amount">${formatCurrency(item.amount, tenantSettings?.currencyCode || 'MWK')}</span>
+              <span class="item-qty-price">${itemQuantity} x ${formatCurrency(itemUnitPrice, tenantSettings?.currencyCode || 'MWK')}</span>
+              <span class="item-amount">${formatCurrency(itemSubtotal, tenantSettings?.currencyCode || 'MWK')}</span>
+            </div>
+            ${itemDiscountAmount > 0 ? `
+            <div style="font-size: 7px; margin-top: 1px; padding-left: 4px; color: #999;">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Discount:</span>
+                <span>-${formatCurrency(itemDiscountAmount, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+            </div>
+            ` : ''}
+            ${Object.keys(itemTaxGroups).length > 0 ? `
+            <div style="font-size: 7px; margin-top: 2px; padding-left: 4px; color: #666;">
+              ${Object.values(itemTaxGroups).map(tax => `
+                <div style="display: flex; justify-content: space-between;">
+                  <span>${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
+                  <span>${formatCurrency(tax.totalAmount, tenantSettings?.currencyCode || 'MWK')}</span>
+                </div>
+              `).join('')}
+            </div>
+            ` : itemTaxTotal > 0 ? `
+            <div style="font-size: 7px; margin-top: 2px; padding-left: 4px; color: #666;">
+              <div style="display: flex; justify-content: space-between;">
+                <span>Tax:</span>
+                <span>${formatCurrency(itemTaxTotal, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+            </div>
+            ` : ''}
+            <div class="item-details" style="margin-top: 2px; border-top: 1px dotted #ddd; padding-top: 2px;">
+              <span class="item-qty-price" style="font-weight: bold;">Item Total:</span>
+              <span class="item-amount" style="font-weight: bold;">${formatCurrency(itemTotal, tenantSettings?.currencyCode || 'MWK')}</span>
             </div>
           </div>
-        `).join('')}
+        `;
+        }).join('')}
         
         <!-- ENHANCED: Totals section -->
         <div class="totals">
           <div class="total-row">
-            <span class="total-label">Subtotal:</span>
+            <span class="total-label">Subtotal (Before Tax):</span>
             <span class="total-amount">${formatCurrency(sale.subtotal, tenantSettings?.currencyCode || 'MWK')}</span>
           </div>
           ${sale.totalDiscountAmount > 0 ? `
@@ -448,49 +635,44 @@ export async function GET(request, { params }) {
             <span class="total-amount">-${formatCurrency(sale.totalDiscountAmount, tenantSettings?.currencyCode || 'MWK')}</span>
           </div>
           ` : ''}
-          ${sale.totalTaxAmount > 0 ? `
           ${(() => {
-            // Group taxes by name across all items
-            const taxGroups = {};
-            sale.items.forEach(item => {
-              if (item.itemTaxes && item.itemTaxes.length > 0) {
-                item.itemTaxes.forEach(tax => {
-                  if (!taxGroups[tax.taxName]) {
-                    taxGroups[tax.taxName] = {
-                      taxName: tax.taxName,
-                      taxCode: tax.taxCode,
-                      totalAmount: 0
-                    };
-                  }
-                  taxGroups[tax.taxName].totalAmount += tax.taxAmount || 0;
-                });
-              }
-            });
+            // Use pre-processed tax data
+            const { taxGroups, hasAnyTaxes, totalTaxAmount } = taxData;
             
-            // If no individual taxes, show total tax
-            if (Object.keys(taxGroups).length === 0) {
-              return `
-              <div class="total-row">
-                <span class="total-label">Total Tax:</span>
-                <span class="total-amount">${formatCurrency(sale.totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
+            // If we have individual taxes, show them
+            if (hasAnyTaxes && taxGroups.length > 0) {
+              const taxRows = taxGroups.map(tax => {
+                const amount = parseFloat(tax.totalAmount || 0);
+                return `
+                  <div class="total-row">
+                    <span class="total-label">${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
+                    <span class="total-amount">${formatCurrency(amount, tenantSettings?.currencyCode || 'MWK')}</span>
+                  </div>
+                `;
+              }).join('');
+              
+              return taxRows + `
+                <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;">
+                  <span class="total-label"><strong>Total Tax:</strong></span>
+                  <span class="total-amount"><strong>${formatCurrency(totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</strong></span>
+                </div>
               `;
             }
             
-            // Show individual tax breakdown
-            return Object.values(taxGroups).map(tax => `
-              <div class="total-row">
-                <span class="total-label">${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
-                <span class="total-amount">${formatCurrency(tax.totalAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
-            `).join('') + `
-              <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;">
-                <span class="total-label"><strong>Total Tax:</strong></span>
-                <span class="total-amount"><strong>${formatCurrency(sale.totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</strong></span>
-              </div>
-            `;
+            // If no individual taxes but totalTaxAmount exists, show it
+            const totalTax = parseFloat(totalTaxAmount || 0);
+            if (totalTax > 0) {
+              return `
+                <div class="total-row">
+                  <span class="total-label">Total Tax:</span>
+                  <span class="total-amount">${formatCurrency(totalTax, tenantSettings?.currencyCode || 'MWK')}</span>
+                </div>
+              `;
+            }
+            
+            // No taxes
+            return '';
           })()}
-          ` : ''}
           <div class="total-row grand-total">
             <span class="total-label">TOTAL:</span>
             <span class="total-amount">${formatCurrency(sale.total, tenantSettings?.currencyCode || 'MWK')}</span>

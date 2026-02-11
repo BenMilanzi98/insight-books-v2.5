@@ -214,6 +214,13 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+
+      if (!item.accountId) {
+        return NextResponse.json(
+          { error: 'Each invoice item must reference an income account.' },
+          { status: 400 }
+        );
+      }
       
       // Validate per-item discount amount (should be non-negative and not exceed unit price)
       if (item.discountAmount && item.discountAmount < 0) {
@@ -237,6 +244,24 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+    }
+
+    const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);
+    const incomeAccounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        id: { in: incomeAccountIds },
+        isActive: true,
+        accountType: 'Income'
+      },
+      select: { id: true }
+    });
+
+    if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
+      return NextResponse.json(
+        { error: 'Invoice items must reference active income accounts.' },
+        { status: 400 }
+      );
     }
 
     // Enhanced calculation using the new function
@@ -282,7 +307,8 @@ export async function PUT(request, { params }) {
               discountAmount: item.discountAmount || 0,
               netAmount: item.netAmount || 0,
               amount: item.amount,
-              productId: item.productId || null
+              productId: item.productId || null,
+              accountId: item.accountId
             }
           })
         )
@@ -353,6 +379,7 @@ export async function PUT(request, { params }) {
               invoiceNumber: invoice.invoiceNumber,
               issueDate: invoice.issueDate,
               totalAmount: invoice.total,
+              items: calculations.processedItems,
               hasServices: invoiceHasServices,
               cogsAmount: totalCOGS,
               tx,
@@ -360,7 +387,7 @@ export async function PUT(request, { params }) {
           }
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
-          // Don't fail the invoice update if journal entry creation fails
+          throw journalError;
         }
       }
 

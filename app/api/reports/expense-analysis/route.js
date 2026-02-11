@@ -40,26 +40,43 @@ export async function GET(request) {
     
     if (groupBy === 'category') {
       // Get expenses for current period
-      const currentExpenses = await prisma.expense.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          date: { gte: start, lte: end },
-          isDeleted: false
-        })
-      });
+      let currentExpenses = [];
+      try {
+        currentExpenses = await prisma.expense.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            date: { gte: start, lte: end },
+            isDeleted: false
+          })
+        });
+      } catch (expenseQueryError) {
+        console.error('Error fetching current expenses for expense analysis:', expenseQueryError);
+        console.error('Expense query error details:', {
+          message: expenseQueryError.message,
+          code: expenseQueryError.code,
+          meta: expenseQueryError.meta
+        });
+        currentExpenses = [];
+      }
       
       // Calculate period before (for comparison)
       const periodLength = end.getTime() - start.getTime();
       const previousStart = new Date(start.getTime() - periodLength);
       const previousEnd = new Date(start.getTime() - 1);
       
-      const previousExpenses = await prisma.expense.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          date: { gte: previousStart, lte: previousEnd },
-          isDeleted: false
-        })
-      });
+      let previousExpenses = [];
+      try {
+        previousExpenses = await prisma.expense.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            date: { gte: previousStart, lte: previousEnd },
+            isDeleted: false
+          })
+        });
+      } catch (expenseQueryError) {
+        console.error('Error fetching previous expenses for expense analysis:', expenseQueryError);
+        previousExpenses = [];
+      }
       
       // Group by category
       const categoryData = {};
@@ -120,13 +137,19 @@ export async function GET(request) {
       };
     } else if (groupBy === 'month') {
       // Group by month
-      const expenses = await prisma.expense.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          date: { gte: start, lte: end },
-          isDeleted: false
-        })
-      });
+      let expenses = [];
+      try {
+        expenses = await prisma.expense.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            date: { gte: start, lte: end },
+            isDeleted: false
+          })
+        });
+      } catch (expenseQueryError) {
+        console.error('Error fetching expenses for monthly analysis:', expenseQueryError);
+        expenses = [];
+      }
       
       // Get all unique categories
       const categories = [...new Set(expenses.map(e => e.category || 'Uncategorized'))];
@@ -178,8 +201,18 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error generating expense analysis report:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      meta: error.meta
+    });
     return NextResponse.json(
-      { error: 'Failed to generate expense analysis report. Please try again.' },
+      { 
+        error: 'Failed to generate expense analysis report. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }

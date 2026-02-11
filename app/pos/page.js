@@ -106,6 +106,10 @@ const POSPage = () => {
   const [filteredClients, setFilteredClients] = useState([]);
   const [showClientDropdown, setShowClientDropdown] = useState(false);
   
+  // Income accounts for Chart of Accounts
+  const [incomeAccounts, setIncomeAccounts] = useState([]);
+  const [defaultIncomeAccountId, setDefaultIncomeAccountId] = useState(null);
+  
   // Current sale state
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState("");
@@ -263,6 +267,38 @@ const POSPage = () => {
     }
   };
 
+  // Load income accounts from Chart of Accounts
+  const loadIncomeAccounts = async () => {
+    try {
+      // Use the lightweight income accounts endpoint (no Finance/Admin requirement)
+      const response = await fetch('/api/chart-of-accounts/income-accounts', { cache: 'no-store' });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const accounts = data.accounts || [];
+        setIncomeAccounts(accounts);
+        
+        // Find default income account (prefer code 4000, otherwise 4100, otherwise first available)
+        const defaultAccount = 
+          accounts.find(acc => acc.accountCode === '4000') || 
+          accounts.find(acc => acc.accountCode === '4100') ||
+          accounts[0];
+          
+        if (defaultAccount) {
+          setDefaultIncomeAccountId(defaultAccount.id);
+          console.log('✅ Income account loaded:', defaultAccount.accountName, defaultAccount.accountCode);
+        } else {
+          console.warn('No income accounts found. Sales will fail without accountId.');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to load income accounts:', response.status, errorData);
+      }
+    } catch (error) {
+      console.error('Failed to load income accounts:', error);
+    }
+  };
+
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
     loadRecentSales();
@@ -271,6 +307,7 @@ const POSPage = () => {
     loadStatistics();
     loadBranches();
     loadPaymentAccounts();
+    loadIncomeAccounts();
     
     // Set default tax rate from tenant settings
     // This would typically come from your API, but we'll hard-code it for now
@@ -622,7 +659,9 @@ const POSPage = () => {
       console.log("Tax breakdown:", taxCalculation.taxBreakdown);
       console.log("==============================");
 
-      setSelectedProducts([...selectedProducts, {
+      // For unit-based products, initialize with empty unitQuantities
+      // The UnitBasedQuantityInput will set the actual quantities and trigger tax recalculation
+      const newProduct = {
         ...detailedProduct,
         quantity: parsedQty,
         subtotal: initialPrice * parsedQty,
@@ -635,7 +674,19 @@ const POSPage = () => {
         discount: 0,
         discountAmount: 0,
         isCustom: false
-      }]);
+      };
+      
+      // Initialize unitQuantities for unit-based products
+      if (isUnitManaged && detailedProduct.units) {
+        const initialUnitQuantities = {};
+        detailedProduct.units.forEach(unit => {
+          // Initialize with 0, user will enter actual quantities
+          initialUnitQuantities[unit.id] = 0;
+        });
+        newProduct.unitQuantities = initialUnitQuantities;
+      }
+      
+      setSelectedProducts([...selectedProducts, newProduct]);
     }
     
     // Clear product selection
@@ -862,26 +913,155 @@ const POSPage = () => {
     console.log("Unit Quantities:", unitQuantities);
     console.log("==================================");
     
-    setSelectedProducts(prev => prev.map(product => 
-      product.id === productId 
-        ? {...product, unitQuantities: unitQuantities}
-        : product
-    ));
+    setSelectedProducts(prev => prev.map(product => {
+      if (product.id === productId) {
+        // Calculate total base quantity and total price from unitQuantities
+        let totalBaseQuantity = 0;
+        let totalPrice = 0;
+        
+        if (product.units && unitQuantities) {
+          Object.entries(unitQuantities).forEach(([unitId, qty]) => {
+            const unit = product.units.find(u => u.id === unitId);
+            if (unit && qty > 0) {
+              const conversionRate = parseFloat(unit.conversionToBase || 1);
+              const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
+              totalBaseQuantity += convertedToBase;
+              
+              const unitPrice = parseFloat(unit.unitPrice || 0);
+              totalPrice += qty * unitPrice;
+            }
+          });
+        }
+        
+        // Recalculate taxes based on the new total price
+        const productTaxes = product.taxes || [];
+        let taxAmount = product.taxAmount || 0;
+        let taxBreakdown = product.taxBreakdown || [];
+        
+        if (productTaxes.length > 0 && totalPrice > 0) {
+          const baseAmount = totalPrice - (product.discountAmount || 0);
+          const quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : (product.quantity || 1);
+          
+          // Calculate taxes directly on baseAmount
+          taxBreakdown = productTaxes.map(tax => {
+            let calculatedTaxAmount = 0;
+            if (tax.calculationType === 'Fixed') {
+              calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
+            } else {
+              calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
+            }
+            
+            return {
+              taxTypeId: tax.id,
+              taxId: tax.taxId,
+              taxName: tax.taxName,
+              taxCode: tax.taxCode,
+              taxRate: tax.taxRate,
+              calculationType: tax.calculationType,
+              taxAmount: Number(calculatedTaxAmount.toFixed(2))
+            };
+          });
+          
+          taxAmount = Number(taxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0).toFixed(2));
+          
+          console.log(`🔍 Recalculating tax after unit quantities change for ${product.name}:`, {
+            unitQuantities,
+            totalBaseQuantity,
+            totalPrice,
+            baseAmount,
+            quantityForTax,
+            taxBreakdown,
+            totalTaxAmount: taxAmount
+          });
+        }
+        
+        return {
+          ...product,
+          unitQuantities: unitQuantities,
+          quantity: totalBaseQuantity > 0 ? totalBaseQuantity : product.quantity,
+          subtotal: totalPrice > 0 ? totalPrice : product.subtotal,
+          taxAmount: taxAmount,
+          taxBreakdown: taxBreakdown
+        };
+      }
+      return product;
+    }));
   }, []);
 
   // Update product price for unit-managed products
+  // NOTE: This is called by UnitBasedQuantityInput when totalPrice changes
+  // The newPrice is already the total price including all unit quantities
   const updateUnitBasedPrice = useCallback((productId, newPrice) => {
     setSelectedProducts(prev => prev.map(product => {
       if (product.id === productId) {
-        // newPrice is the total price already calculated by UnitBasedQuantityInput
-        // We should use it directly as subtotal, not multiply by quantity
-        // Calculate average unit price for display purposes based on current quantity
+        // newPrice is the total price already calculated by UnitBasedQuantityInput from all unit quantities
+        // We should use it directly as subtotal
         const currentQuantity = product.quantity || 1;
         const avgUnitPrice = currentQuantity > 0 ? newPrice / currentQuantity : newPrice;
+        
+        // Recalculate taxes based on the new subtotal (which already includes all quantities)
+        const productTaxes = product.taxes || [];
+        let taxAmount = product.taxAmount || 0;
+        let taxBreakdown = product.taxBreakdown || [];
+        
+        if (productTaxes.length > 0 && newPrice > 0) {
+          // Calculate total base quantity from unitQuantities for Fixed tax calculations
+          let totalBaseQuantity = 0;
+          if (product.units && product.unitQuantities) {
+            Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
+              const unit = product.units.find(u => u.id === unitId);
+              if (unit && qty > 0) {
+                const conversionRate = parseFloat(unit.conversionToBase || 1);
+                const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
+                totalBaseQuantity += convertedToBase;
+              }
+            });
+          }
+          
+          // Use newPrice directly as the base amount (it already includes all quantities)
+          const baseAmount = newPrice - (product.discountAmount || 0);
+          const quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : currentQuantity;
+          
+          // Calculate taxes directly on baseAmount (which is the total price for all quantities)
+          taxBreakdown = productTaxes.map(tax => {
+            let calculatedTaxAmount = 0;
+            if (tax.calculationType === 'Fixed') {
+              // Fixed tax: multiply rate by total base quantity
+              calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
+            } else {
+              // Percentage tax: apply to baseAmount (which is already total price for all quantities)
+              calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
+            }
+            
+            return {
+              taxTypeId: tax.id,
+              taxId: tax.taxId,
+              taxName: tax.taxName,
+              taxCode: tax.taxCode,
+              taxRate: tax.taxRate,
+              calculationType: tax.calculationType,
+              taxAmount: Number(calculatedTaxAmount.toFixed(2))
+            };
+          });
+          
+          taxAmount = Number(taxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0).toFixed(2));
+          
+          console.log(`🔍 Recalculating tax for unit-based product ${product.name} (price update):`, {
+            newPrice,
+            baseAmount,
+            totalBaseQuantity: quantityForTax,
+            unitQuantities: product.unitQuantities,
+            taxBreakdown,
+            totalTaxAmount: taxAmount
+          });
+        }
+        
         return {
           ...product,
           price: avgUnitPrice,
-          subtotal: newPrice // Use total price directly as subtotal
+          subtotal: newPrice, // Use total price directly as subtotal
+          taxAmount: taxAmount,
+          taxBreakdown: taxBreakdown
         };
       }
       return product;
@@ -1148,6 +1328,31 @@ const POSPage = () => {
       setSaleError("Please add at least one product to the sale");
       return;
     }
+    
+    // Check if income account is available
+    if (!defaultIncomeAccountId && incomeAccounts.length === 0) {
+      setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.");
+      return;
+    }
+    
+    // Ensure we have a default income account ID
+    let accountIdToUse = defaultIncomeAccountId;
+    if (!accountIdToUse && incomeAccounts.length > 0) {
+      // Try to use first available income account
+      const firstAccount = incomeAccounts.find(acc => acc.isActive);
+      if (firstAccount) {
+        accountIdToUse = firstAccount.id;
+        setDefaultIncomeAccountId(firstAccount.id);
+      } else {
+        setSaleError("No active income account found. Please go to Chart of Accounts and create an active Income account (e.g., account code 4000 - Revenue) before creating sales.");
+        return;
+      }
+    }
+    
+    if (!accountIdToUse) {
+      setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue) before creating sales.");
+      return;
+    }
 
     // Validate historical transaction data
     if (activeTab === "historical") {
@@ -1256,19 +1461,113 @@ const POSPage = () => {
         clientId: (activeTab === "registered" || activeTab === "historical") && selectedCustomer ? selectedCustomer : null,
         branchId: selectedBranchId || null,
         items: selectedProducts.map(product => {
+          // Recalculate taxes to ensure they're correct for the current quantity
+          // This is important because taxBreakdown might be stale if quantity was changed
+          const productTaxes = product.taxes || [];
+          let taxBreakdown = product.taxBreakdown || [];
+          let taxAmount = product.taxAmount || 0;
+          
+          // Only recalculate if we have taxes and the taxBreakdown might be stale
+          if (productTaxes.length > 0) {
+            // For unit-based products, use subtotal (which is already calculated correctly from unitQuantities)
+            // For regular products, calculate from quantity × unitPrice
+            const isUnitManaged = hasUnitManagement(product);
+            let lineTotal;
+            let quantityForTax;
+            
+            if (isUnitManaged && product.unitQuantities) {
+              // Calculate total base quantity from unitQuantities for Fixed tax calculations
+              let totalBaseQuantity = 0;
+              if (product.units && product.unitQuantities) {
+                Object.entries(product.unitQuantities).forEach(([unitId, qty]) => {
+                  const unit = product.units.find(u => u.id === unitId);
+                  if (unit && qty > 0) {
+                    const conversionRate = parseFloat(unit.conversionToBase || 1);
+                    const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
+                    totalBaseQuantity += convertedToBase;
+                  }
+                });
+              }
+              
+              // Use subtotal (already calculated correctly by UnitBasedQuantityInput from all unit quantities)
+              lineTotal = product.subtotal || 0;
+              quantityForTax = totalBaseQuantity > 0 ? totalBaseQuantity : (product.quantity || 1);
+              
+              console.log(`🔍 Unit-based product tax calculation for ${product.name}:`, {
+                unitQuantities: product.unitQuantities,
+                totalBaseQuantity,
+                subtotal: product.subtotal,
+                lineTotal,
+                quantityForTax
+              });
+            } else {
+              // Regular product: quantity × unitPrice
+              lineTotal = (product.quantity || 1) * (product.price || 0);
+              quantityForTax = product.quantity || 1;
+            }
+            
+            const baseAmount = lineTotal - (product.discountAmount || 0);
+            
+            // Calculate taxes directly on baseAmount (which already includes quantity for unit-based products)
+            const recalculatedTaxBreakdown = productTaxes.map(tax => {
+              let calculatedTaxAmount = 0;
+              if (tax.calculationType === 'Fixed') {
+                // Fixed tax: multiply rate by quantity
+                calculatedTaxAmount = (tax.taxRate || 0) * quantityForTax;
+              } else {
+                // Percentage tax: apply to baseAmount (which is already lineTotal - discount)
+                calculatedTaxAmount = baseAmount * ((tax.taxRate || 0) / 100);
+              }
+              
+              return {
+                taxTypeId: tax.id,
+                taxId: tax.taxId,
+                taxName: tax.taxName,
+                taxCode: tax.taxCode,
+                taxRate: tax.taxRate,
+                calculationType: tax.calculationType,
+                taxAmount: Number(calculatedTaxAmount.toFixed(2))
+              };
+            });
+            
+            const recalculatedTotalTax = recalculatedTaxBreakdown.reduce((sum, tax) => sum + tax.taxAmount, 0);
+            
+            taxBreakdown = recalculatedTaxBreakdown;
+            taxAmount = Number(recalculatedTotalTax.toFixed(2));
+            
+            console.log(`🔍 Recalculating tax for ${product.name}:`, {
+              isUnitManaged,
+              quantity: product.quantity,
+              quantityForTax,
+              unitPrice: product.price,
+              subtotal: product.subtotal,
+              lineTotal,
+              baseAmount,
+              discountAmount: product.discountAmount || 0,
+              taxBreakdown: taxBreakdown,
+              totalTaxAmount: taxAmount
+            });
+          }
+          
           const itemData = {
           productId: product.isCustom ? null : product.id,
           description: product.name,
           quantity: product.quantity,
           unitPrice: product.price,
           taxRate: product.taxRate || 0,
-          taxAmount: product.taxAmount || 0,
+          taxAmount: taxAmount, // Use recalculated tax amount
           taxDescription: product.taxDescription || "",
-          taxBreakdown: product.taxBreakdown || [], // Include tax breakdown for multiple taxes
+          taxBreakdown: taxBreakdown, // Use recalculated tax breakdown
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
-          isCustom: product.isCustom || false
+          isCustom: product.isCustom || false,
+          accountId: product.accountId || accountIdToUse || defaultIncomeAccountId // Include accountId from product or use default
           };
+          
+          // Validate accountId is present
+          if (!itemData.accountId) {
+            throw new Error(`Income account is required for item: ${product.name}. Please set up your Chart of Accounts with an Income account.`);
+          }
           
           // Add unit quantities for unit-managed products
           if (hasUnitManagement(product) && product.units) {
@@ -1351,7 +1650,14 @@ const POSPage = () => {
       
     } catch (error) {
       console.error("Error completing sale:", error);
-      setSaleError("Failed to complete sale. Please try again.");
+      const errorMessage = error.message || "Failed to complete sale. Please try again.";
+      
+      // Check if it's an accountId error
+      if (errorMessage.includes('account') || errorMessage.includes('accountId') || errorMessage.includes('Income account')) {
+        setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.");
+      } else {
+        setSaleError(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -2039,27 +2345,38 @@ const POSPage = () => {
                 {(() => {
                   // Group all taxes from all products
                   const allTaxes = {};
+                  let hasAnyTaxes = false;
+                  
                   selectedProducts.forEach(product => {
+                    // Check taxBreakdown (from frontend calculation)
                     if (product.taxBreakdown && product.taxBreakdown.length > 0) {
+                      hasAnyTaxes = true;
                       product.taxBreakdown.forEach(tax => {
-                        if (!allTaxes[tax.taxName]) {
-                          allTaxes[tax.taxName] = {
-                            taxName: tax.taxName,
-                            taxCode: tax.taxCode,
+                        const taxKey = tax.taxName || tax.taxId || 'Tax';
+                        if (!allTaxes[taxKey]) {
+                          allTaxes[taxKey] = {
+                            taxName: tax.taxName || tax.taxId || 'Tax',
+                            taxCode: tax.taxCode || null,
                             totalAmount: 0
                           };
                         }
-                        allTaxes[tax.taxName].totalAmount += tax.taxAmount || 0;
+                        allTaxes[taxKey].totalAmount += Number(tax.taxAmount || 0);
                       });
                     }
                   });
                   
                   const totalTax = calculateTaxAmount();
                   
-                  if (Object.keys(allTaxes).length > 0) {
+                  // Sort taxes by name for consistent display
+                  const sortedTaxes = Object.values(allTaxes).sort((a, b) => 
+                    (a.taxName || '').localeCompare(b.taxName || '')
+                  );
+                  
+                  // Show individual taxes if we have them
+                  if (hasAnyTaxes && sortedTaxes.length > 0) {
                     return (
                       <>
-                        {Object.values(allTaxes).map((tax, idx) => (
+                        {sortedTaxes.map((tax, idx) => (
                           <div key={idx} className="flex justify-between items-center text-sm">
                             <span className="text-gray-600">
                               {tax.taxName}{tax.taxCode ? ` (${tax.taxCode})` : ''}:
@@ -2067,13 +2384,14 @@ const POSPage = () => {
                             <span className="font-semibold text-gray-800">{formatCurrency(tax.totalAmount)}</span>
                           </div>
                         ))}
-                        <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                        <div className="flex justify-between items-center pt-1 border-t border-gray-200 mt-1">
                           <span className="font-semibold text-gray-700">Total Tax:</span>
                           <span className="font-bold text-gray-900">{formatCurrency(totalTax)}</span>
                         </div>
                       </>
                     );
-                  } else {
+                  } else if (totalTax > 0) {
+                    // Show total tax only if no individual breakdown available
                     return (
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-700">Total Tax:</span>
@@ -2081,6 +2399,8 @@ const POSPage = () => {
                       </div>
                     );
                   }
+                  // No taxes
+                  return null;
                 })()}
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-gray-700">Total Discount:</span>

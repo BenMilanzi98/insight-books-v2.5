@@ -34,11 +34,16 @@ function calculateInvoiceTotals(items, globalDiscount = 0) {
     totalDiscountAmount += lineDiscountAmount;
     
     return {
-      ...item,
-      // Persist per-item discount for each item
+      // Only include fields needed for database
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      taxRate: item.taxRate || 0,
       discountAmount: Number(perItemDiscount.toFixed(2)),
       netAmount: Number(netLineAmount.toFixed(2)),
-      amount: Number(finalAmount.toFixed(2))
+      amount: Number(finalAmount.toFixed(2)),
+      productId: item.productId || null,
+      accountId: item.accountId
     };
   });
   
@@ -154,50 +159,119 @@ export async function GET(request) {
     // Get total count for pagination
     const totalCount = await prisma.invoice.count({ where });
     
-    // Build sort object
-    const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
+    // Build sort object - handle special cases for date fields
+    let orderBy;
+    // Validate sortBy field - only allow valid Invoice model fields
+    const validSortFields = ['createdAt', 'updatedAt', 'issueDate', 'dueDate', 'invoiceNumber', 'total', 'status'];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+    orderBy = { [sortField]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
     // Fetch invoices with related data
-    const invoices = await prisma.invoice.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit,
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true
+    // Fetch invoices first without items to avoid foreign key validation issues
+    let invoices;
+    try {
+      invoices = await prisma.invoice.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true
+            }
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          payments: {
+            where: {
+              status: 'Completed'
+            },
+            select: {
+              id: true,
+              amount: true,
+              paymentDate: true,
+              paymentMethod: true,
+              reference: true,
+              status: true
+            }
           }
-        },
-        createdBy: { // Include user info for "Prepared By"
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        items: true,
-        payments: {
+        }
+      });
+    } catch (queryError) {
+      console.error('❌ Error fetching invoices:', queryError);
+      console.error('Error details:', {
+        message: queryError.message,
+        stack: queryError.stack,
+        name: queryError.name,
+        code: queryError.code,
+        meta: queryError.meta
+      });
+      throw queryError;
+    }
+    
+    // Fetch items separately to handle potential data integrity issues
+    const invoiceIds = invoices.map(inv => inv.id);
+    let items = [];
+    if (invoiceIds.length > 0) {
+      try {
+        items = await prisma.invoiceItem.findMany({
           where: {
-            status: 'Completed'
+            invoiceId: { in: invoiceIds }
           },
           select: {
             id: true,
+            invoiceId: true,
+            accountId: true,
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            taxRate: true,
             amount: true,
-            paymentDate: true,
-            paymentMethod: true,
-            reference: true,
-            status: true
+            productId: true,
+            discountAmount: true,
+            discountRate: true,
+            netAmount: true
           }
-        }
+        });
+      } catch (itemsError) {
+        console.error('❌ Error fetching invoice items:', itemsError);
+        console.error('Items error details:', {
+          message: itemsError.message,
+          stack: itemsError.stack,
+          name: itemsError.name,
+          code: itemsError.code
+        });
+        // Continue without items rather than failing completely
+        items = [];
       }
-    });
+    }
+    
+    // Group items by invoiceId
+    const itemsByInvoice = items.reduce((acc, item) => {
+      if (!acc[item.invoiceId]) {
+        acc[item.invoiceId] = [];
+      }
+      acc[item.invoiceId].push(item);
+      return acc;
+    }, {});
+    
+    // Attach items to invoices
+    const invoicesWithFilteredItems = invoices.map(invoice => ({
+      ...invoice,
+      items: itemsByInvoice[invoice.id] || []
+    }));
     
     // Calculate amount due for each invoice and format response
-    const invoicesWithAmountDue = invoices.map(invoice => {
+    const invoicesWithAmountDue = invoicesWithFilteredItems.map(invoice => {
       const totalPaid = invoice.payments?.reduce((sum, payment) => sum + payment.amount, 0) || 0;
       const outstandingAmount = invoice.total - totalPaid;
       const isFullyPaid = totalPaid >= invoice.total;
@@ -248,8 +322,17 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching invoices:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code
+    });
     return NextResponse.json(
-      { error: 'Failed to fetch invoices. Please try again.' },
+      { 
+        error: 'Failed to fetch invoices. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
       { status: 500 }
     );
   }
@@ -288,6 +371,13 @@ export async function POST(request) {
           { status: 400 }
         );
       }
+
+      if (!item.accountId) {
+        return NextResponse.json(
+          { error: 'Each invoice item must reference an income account.' },
+          { status: 400 }
+        );
+      }
       
       // Validate per-item discount amount (should be non-negative and not exceed unit price)
       if (item.discountAmount && item.discountAmount < 0) {
@@ -313,6 +403,27 @@ export async function POST(request) {
       }
     }
     
+    const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);
+    const incomeAccounts = await prisma.account.findMany({
+      where: {
+        tenantId: user.tenantId,
+        id: { in: incomeAccountIds },
+        isActive: true,
+        OR: [
+          { accountType: 'Income' },
+          { accountType: 'Revenue' }
+        ]
+      },
+      select: { id: true }
+    });
+
+    if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
+      return NextResponse.json(
+        { error: 'Invoice items must reference active income accounts.' },
+        { status: 400 }
+      );
+    }
+
     // Enhanced calculation using the new function
     const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
     
@@ -415,14 +526,15 @@ export async function POST(request) {
           items: {
             create: calculations.processedItems.map(item => ({
               description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              taxRate: Number(item.taxRate || 0), // Convert to number
+              quantity: Number(item.quantity),
+              unitPrice: Number(item.unitPrice),
+              taxRate: Number(item.taxRate || 0),
               discountRate: 0, // Legacy field, keep for backward compatibility
-              discountAmount: item.discountAmount || 0,
-              netAmount: item.netAmount || 0,
-              amount: item.amount,
-              productId: item.productId || null
+              discountAmount: Number(item.discountAmount || 0),
+              netAmount: Number(item.netAmount || 0),
+              amount: Number(item.amount),
+              productId: item.productId || null,
+              accountId: item.accountId // Use direct field assignment instead of relation connect
             }))
           }
         },
@@ -503,6 +615,7 @@ export async function POST(request) {
             invoiceNumber,
             issueDate,
             totalAmount: calculations.total,
+            items: calculations.processedItems,
             hasServices: invoiceHasServices,
             cogsAmount: totalCOGS,
             tx,
@@ -511,7 +624,7 @@ export async function POST(request) {
           console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}`);
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
-          // Don't fail the invoice creation if journal entry creation fails
+          throw journalError;
         }
       }
 
@@ -568,9 +681,28 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error('Error creating invoice:', error);
+    console.error('❌ Error creating invoice:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      meta: error.meta
+    });
+    
+    // Return more detailed error in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `Failed to create invoice: ${error.message}` 
+      : 'Failed to create invoice. Please try again.';
+    
     return NextResponse.json(
-      { error: 'Failed to create invoice. Please try again.' },
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          code: error.code,
+          meta: error.meta
+        } : undefined
+      },
       { status: 500 }
     );
   }

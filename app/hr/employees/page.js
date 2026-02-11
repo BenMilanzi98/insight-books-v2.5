@@ -23,9 +23,12 @@ import {
   Eye,
   Printer,
   CreditCard,
+  Upload,
   Ban,
   UserX,
-  UserCheck
+  UserCheck,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 
@@ -1555,18 +1558,44 @@ const EmployeeManagement = () => {
   const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [employeeToAction, setEmployeeToAction] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResults, setImportResults] = useState(null);
   const [statistics, setStatistics] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
     inactiveEmployees: 0,
     totalSalaryExpense: 0
   });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [paginationInfo, setPaginationInfo] = useState({
+    page: 1,
+    limit: 15,
+    totalCount: 0,
+    totalPages: 1
+  });
 
   useEffect(() => {
-    loadEmployees();
+    loadEmployees(1); // Load first page on mount
     loadDeductions();
     loadTenantInfo();
   }, []);
+
+  // Reload employees when filters or search change (reset to page 1)
+  useEffect(() => {
+    setCurrentPage(1);
+    loadEmployees(1);
+  }, [searchTerm, filterDepartment, filterStatus, filterEmploymentType]);
+
+  // Handle page changes
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+      loadEmployees(newPage);
+    }
+  };
 
   const loadTenantInfo = async () => {
     try {
@@ -1580,12 +1609,31 @@ const EmployeeManagement = () => {
     }
   };
 
-  const loadEmployees = async () => {
+  const loadEmployees = async (page = currentPage) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('/api/employees');
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '15'
+      });
+      
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      if (filterDepartment && filterDepartment !== 'All') {
+        params.append('department', filterDepartment);
+      }
+      if (filterStatus && filterStatus !== 'All') {
+        params.append('status', filterStatus);
+      }
+      if (filterEmploymentType && filterEmploymentType !== 'All') {
+        params.append('employmentType', filterEmploymentType);
+      }
+      
+      const response = await fetch(`/api/employees?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1600,6 +1648,7 @@ const EmployeeManagement = () => {
       }
       
       const data = await response.json();
+      
       // Map employees and extract photo URLs from contactDetails
       const employeesWithPhotos = (data.employees || []).map(emp => {
         const contactDetails = emp.contactDetails && typeof emp.contactDetails === 'object' ? emp.contactDetails : {};
@@ -1614,6 +1663,13 @@ const EmployeeManagement = () => {
       });
       setEmployees(employeesWithPhotos);
       
+      // Update pagination info
+      if (data.pagination) {
+        setPaginationInfo(data.pagination);
+        setCurrentPage(data.pagination.page);
+        setTotalPages(data.pagination.totalPages);
+      }
+      
       // Extract unique departments from existing employees
       const uniqueDepartments = [...new Set((data.employees || [])
         .map(e => e.department)
@@ -1621,22 +1677,72 @@ const EmployeeManagement = () => {
       ].sort();
       setDepartments(uniqueDepartments);
       
-      // Calculate statistics
+      // Calculate statistics - use pagination totalCount for accurate totals
+      const totalCount = data.pagination?.totalCount || 0;
       const active = (data.employees || []).filter(e => e.isActive).length;
-      const inactive = (data.employees || []).length - active;
+      // Note: For statistics, we might want to fetch all employees or use a separate endpoint
+      // For now, we'll use the current page data as an approximation
       const totalSalary = (data.employees || []).reduce((sum, e) => sum + (parseFloat(e.salary) || 0), 0);
       
       setStatistics({
-        totalEmployees: (data.employees || []).length,
-        activeEmployees: active,
-        inactiveEmployees: inactive,
-        totalSalaryExpense: totalSalary
+        totalEmployees: totalCount,
+        activeEmployees: active, // This is only for current page
+        inactiveEmployees: totalCount - active, // Approximation
+        totalSalaryExpense: totalSalary // This is only for current page
       });
     } catch (error) {
       console.error("Error loading employees:", error);
       setError(`Failed to load employees: ${error.message}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/employees/import-template');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to download template');
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'employee-import-template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      setError(error.message || 'Failed to download template');
+    }
+  };
+
+  const handleImportEmployees = async () => {
+    if (!importFile) return;
+    try {
+      setIsImporting(true);
+      setError(null);
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const response = await fetch('/api/employees/import', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = data.details ? ` (${data.details})` : '';
+        throw new Error(`${data.error || 'Failed to import employees'}${detail}`);
+      }
+      setImportResults(data);
+      await loadEmployees();
+    } catch (error) {
+      console.error('Error importing employees:', error);
+      setError(error.message || 'Failed to import employees');
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -2059,6 +2165,25 @@ const EmployeeManagement = () => {
         </div>
         <div className="flex gap-2">
           <button 
+            className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50"
+            onClick={handleDownloadTemplate}
+            title="Download Excel import template"
+          >
+            <Download size={16} />
+            <span>Download Template</span>
+          </button>
+          <button 
+            className="px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-md flex items-center gap-2 hover:bg-blue-50"
+            onClick={() => {
+              setImportResults(null);
+              setImportFile(null);
+              setShowImportModal(true);
+            }}
+          >
+            <Upload size={16} />
+            <span>Import Employees</span>
+          </button>
+          <button 
             className="px-4 py-2 bg-green-600 text-white rounded-md flex items-center gap-2 hover:bg-green-700"
             onClick={() => setShowIDCardGenerator(true)}
             title="Generate Employee ID Cards"
@@ -2320,7 +2445,7 @@ const EmployeeManagement = () => {
             </table>
           </div>
           
-          {filteredEmployees.length === 0 && (
+          {employees.length === 0 && !isLoading && (
             <div className="py-12 text-center">
               <div className="text-4xl mb-2">👥</div>
               <h3 className="text-lg font-medium text-gray-900 mb-1">No employees found</h3>
@@ -2336,6 +2461,87 @@ const EmployeeManagement = () => {
               >
                 Add Your First Employee
               </button>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {employees.length > 0 && totalPages > 1 && (
+            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+              <div className="flex-1 flex justify-between sm:hidden">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm text-gray-700">
+                    Showing <span className="font-medium">{(currentPage - 1) * 15 + 1}</span> to{' '}
+                    <span className="font-medium">
+                      {Math.min(currentPage * 15, paginationInfo.totalCount)}
+                    </span> of{' '}
+                    <span className="font-medium">{paginationInfo.totalCount}</span> results
+                  </p>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(page => {
+                        // Show first page, last page, current page, and pages around current
+                        if (page === 1 || page === totalPages) return true;
+                        if (page >= currentPage - 1 && page <= currentPage + 1) return true;
+                        return false;
+                      })
+                      .map((page, index, array) => {
+                        // Add ellipsis if there's a gap
+                        const showEllipsisBefore = index > 0 && array[index - 1] < page - 1;
+                        return (
+                          <span key={page}>
+                            {showEllipsisBefore && (
+                              <span className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                                ...
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handlePageChange(page)}
+                              className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                                currentPage === page
+                                  ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          </span>
+                        );
+                      })}
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </nav>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -2983,6 +3189,76 @@ const EmployeeManagement = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">Import Employees</h2>
+              <button
+                className="text-gray-500 hover:text-gray-700"
+                onClick={() => setShowImportModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-700">
+                Use the Excel template to upload up to 500+ employees at once. Required fields are highlighted in the template.
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Upload completed template
+                </label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                  className="w-full border border-gray-300 rounded-md p-2"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Supported: .xlsx, .xls, .csv
+                </p>
+              </div>
+              {importResults && (
+                <div className="bg-gray-50 border border-gray-200 rounded-md p-3 text-sm">
+                  <p className="font-medium text-gray-800">Import Summary</p>
+                  <p>Created: {importResults.createdCount || 0}</p>
+                  <p>Skipped: {importResults.skippedCount || 0}</p>
+                  {importResults.errors?.length > 0 && (
+                    <div className="mt-2 max-h-40 overflow-y-auto text-xs text-red-600">
+                      {importResults.errors.map((err, idx) => (
+                        <div key={`${err.row}-${idx}`}>
+                          Row {err.row}: {err.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                onClick={() => setShowImportModal(false)}
+                disabled={isImporting}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                onClick={handleImportEmployees}
+                disabled={!importFile || isImporting}
+              >
+                {isImporting ? 'Importing...' : 'Start Import'}
+              </button>
             </div>
           </div>
         </div>

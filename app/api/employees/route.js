@@ -93,37 +93,35 @@ export async function POST(request) {
     }
     */
     
-    // Generate unique employee ID
-    // Check for existing employeeIds to ensure uniqueness
-    let employeeId;
-    let attemptCount = 0;
-    const maxAttempts = 100;
-    
-    do {
-      const employeeCount = await prisma.employee.count({
-        where: { tenantId: user.tenantId }
-      });
-      employeeId = `EMP${String(employeeCount + 1 + attemptCount).padStart(4, '0')}`;
+    // Generate a random unique employee ID
+    const generateRandomEmployeeId = async () => {
+      const maxAttempts = 100;
+      let attempts = 0;
       
-      // Check if this employeeId already exists
-      const existing = await prisma.employee.findUnique({
-        where: { employeeId },
-        select: { id: true }
-      });
-      
-      if (!existing) {
-        break; // Found a unique ID
+      while (attempts < maxAttempts) {
+        // Generate a random ID using timestamp + random alphanumeric characters
+        const timestamp = Date.now().toString(36); // Base36 encoding of timestamp
+        const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6 random chars
+        const candidate = `${timestamp}${randomPart}`.toUpperCase();
+        
+        // Check if this ID already exists
+        const existing = await prisma.employee.findUnique({
+          where: { employeeId: candidate },
+          select: { id: true }
+        });
+        
+        if (!existing) {
+          return candidate; // Found a unique ID
+        }
+        
+        attempts += 1;
       }
       
-      attemptCount++;
-    } while (attemptCount < maxAttempts);
+      // Fallback: if we can't generate a unique ID after max attempts, use UUID-like format
+      return `EMP${Date.now()}${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+    };
     
-    if (attemptCount >= maxAttempts) {
-      return NextResponse.json(
-        { error: 'Failed to generate unique employee ID. Please try again.' },
-        { status: 500 }
-      );
-    }
+    const employeeId = await generateRandomEmployeeId();
     
     // Create new employee with all form fields
     // IMPORTANT: If email is empty, generate a unique placeholder to avoid unique constraint violations

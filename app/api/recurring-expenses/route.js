@@ -4,6 +4,25 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 // import { calculateNextRunDate } from '@/lib/recurring-expenses';
 
+const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
+  if (expenseAccountId) {
+    return prisma.account.findFirst({
+      where: { id: expenseAccountId, tenantId, accountType: 'Expense', isActive: true }
+    });
+  }
+  if (category) {
+    return prisma.account.findFirst({
+      where: {
+        tenantId,
+        accountType: 'Expense',
+        isActive: true,
+        accountName: { equals: category, mode: 'insensitive' }
+      }
+    });
+  }
+  return null;
+};
+
 // GET - Fetch recurring expenses with filtering, sorting, and pagination
 export async function GET(request) {
   try {
@@ -25,6 +44,7 @@ export async function GET(request) {
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const status = searchParams.get('status');
     const category = searchParams.get('category');
+    const accountId = searchParams.get('accountId');
     const search = searchParams.get('search');
     
     // Calculate pagination
@@ -41,6 +61,10 @@ export async function GET(request) {
     }
     
     // Add category filter if provided
+    if (accountId && accountId !== 'all') {
+      where.expenseAccountId = accountId;
+    }
+
     if (category && category !== 'all') {
       where.category = category;
     }
@@ -146,9 +170,9 @@ export async function POST(request) {
     const body = await request.json();
     
     // Validate required fields
-    if (!body.description || !body.amount || !body.category || !body.frequency || !body.startDate) {
+    if (!body.description || !body.amount || !body.frequency || !body.startDate) {
       return NextResponse.json(
-        { error: 'Description, amount, category, frequency, and start date are required' },
+        { error: 'Description, amount, frequency, and start date are required' },
         { status: 400 }
       );
     }
@@ -195,6 +219,19 @@ export async function POST(request) {
       );
     }
     
+    const expenseAccount = await resolveExpenseAccount(
+      user.tenantId,
+      body.expenseAccountId,
+      body.category
+    );
+
+    if (!expenseAccount) {
+      return NextResponse.json(
+        { error: 'Valid expense account is required.' },
+        { status: 400 }
+      );
+    }
+
     // Convert string dates to Date objects
     const startDate = new Date(body.startDate);
     const endDate = body.endDate ? new Date(body.endDate) : null;
@@ -229,7 +266,8 @@ export async function POST(request) {
       data: {
         description: body.description,
         amount: amount,
-        category: body.category,
+        category: expenseAccount.accountName,
+        expenseAccountId: expenseAccount.id,
         frequency: body.frequency,
         dayOfMonth: body.frequency === 'monthly' ? body.dayOfMonth : null,
         dayOfWeek: body.frequency === 'weekly' ? body.dayOfWeek : null,

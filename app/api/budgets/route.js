@@ -34,6 +34,7 @@ export async function GET(request) {
     const startDateFrom = searchParams.get('startDateFrom');
     const startDateTo = searchParams.get('startDateTo');
     const includeLocked = searchParams.get('includeLocked') === 'true';
+    const budgetType = searchParams.get('budgetType');
 
     // Auto-close expired budgets first
     await autoCloseExpiredBudgets(user.tenantId);
@@ -43,7 +44,8 @@ export async function GET(request) {
       periodType: periodType || undefined,
       startDateFrom: startDateFrom || undefined,
       startDateTo: startDateTo || undefined,
-      includeLocked
+      includeLocked,
+      budgetType: budgetType || undefined
     });
 
     return NextResponse.json({
@@ -84,6 +86,7 @@ export async function POST(request) {
       startDate,
       endDate,
       expectedRevenue,
+      budgetType = 'revenue',
       currency,
       breakdowns,
       items
@@ -92,7 +95,7 @@ export async function POST(request) {
     // Validation
     if (!name || !startDate || !endDate || !expectedRevenue) {
       return NextResponse.json(
-        { error: 'Name, start date, end date, and expected revenue are required' },
+        { error: 'Name, start date, end date, and expected amount are required' },
         { status: 400 }
       );
     }
@@ -108,7 +111,24 @@ export async function POST(request) {
     // Validate expected revenue is positive
     if (expectedRevenue <= 0) {
       return NextResponse.json(
-        { error: 'Expected revenue must be greater than zero' },
+        { error: budgetType === 'expense'
+          ? 'Expected expense must be greater than zero'
+          : 'Expected revenue must be greater than zero'
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!['revenue', 'expense'].includes(budgetType)) {
+      return NextResponse.json(
+        { error: 'Budget type must be revenue or expense' },
+        { status: 400 }
+      );
+    }
+
+    if (budgetType === 'expense' && breakdowns && breakdowns.length > 0) {
+      return NextResponse.json(
+        { error: 'Breakdowns are only supported for revenue budgets' },
         { status: 400 }
       );
     }
@@ -126,21 +146,22 @@ export async function POST(request) {
         where: {
           tenantId: user.tenantId,
           id: { in: accountIds },
-          isActive: true
+          isActive: true,
+          accountType: 'Expense'
         },
         select: { id: true, accountType: true }
       });
 
       if (accounts.length !== new Set(accountIds).size) {
         return NextResponse.json(
-          { error: 'One or more line item accounts are invalid or inactive.' },
+          { error: 'Line items must reference active Expense accounts.' },
           { status: 400 }
         );
       }
     }
 
     // Validate breakdowns total matches expected revenue
-    if (breakdowns && Array.isArray(breakdowns) && breakdowns.length > 0) {
+    if (budgetType === 'revenue' && breakdowns && Array.isArray(breakdowns) && breakdowns.length > 0) {
       const breakdownTotal = breakdowns.reduce(
         (sum, item) => sum + (item.budgetedAmount || 0),
         0
@@ -159,6 +180,7 @@ export async function POST(request) {
     const budget = await createRevenueBudget(user.tenantId, user.id, {
       name,
       description,
+      budgetType,
       periodType,
       startDate,
       endDate,
@@ -170,7 +192,9 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Revenue budget created successfully',
+      message: budgetType === 'expense'
+        ? 'Expense budget created successfully'
+        : 'Revenue budget created successfully',
       data: budget
     }, { status: 201 });
   } catch (error) {
