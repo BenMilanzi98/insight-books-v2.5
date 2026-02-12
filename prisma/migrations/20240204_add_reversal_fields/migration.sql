@@ -60,28 +60,50 @@ CREATE INDEX IF NOT EXISTS "Payment_reversedTransactionId_idx" ON "Payment"("rev
 -- =============================================================================
 -- REVERSAL FIELDS FOR SALE TABLE
 -- =============================================================================
-ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "isReversal" BOOLEAN DEFAULT FALSE;
-ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedTransactionId" TEXT;
-ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;
-ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedAt" TIMESTAMP(3);
-ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedById" TEXT;
+-- Note: Sale table is created in a later migration, so we check if it exists first
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Sale') THEN
+        ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "isReversal" BOOLEAN DEFAULT FALSE;
+        ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedTransactionId" TEXT;
+        ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;
+        ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedAt" TIMESTAMP(3);
+        ALTER TABLE "Sale" ADD COLUMN IF NOT EXISTS "reversedById" TEXT;
+    END IF;
+END $$;
 
--- Indexes for Sale reversal queries
-CREATE INDEX IF NOT EXISTS "Sale_isReversal_idx" ON "Sale"("isReversal");
-CREATE INDEX IF NOT EXISTS "Sale_reversedTransactionId_idx" ON "Sale"("reversedTransactionId");
+-- Indexes for Sale reversal queries (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Sale') THEN
+        CREATE INDEX IF NOT EXISTS "Sale_isReversal_idx" ON "Sale"("isReversal");
+        CREATE INDEX IF NOT EXISTS "Sale_reversedTransactionId_idx" ON "Sale"("reversedTransactionId");
+    END IF;
+END $$;
 
 -- =============================================================================
 -- REVERSAL FIELDS FOR SUPPLIER_PAYMENT TABLE
 -- =============================================================================
-ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "isReversal" BOOLEAN DEFAULT FALSE;
-ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedTransactionId" TEXT;
-ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;
-ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedAt" TIMESTAMP(3);
-ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedById" TEXT;
+-- Note: SupplierPayment table may not exist yet, so we check if it exists first
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'SupplierPayment') THEN
+        ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "isReversal" BOOLEAN DEFAULT FALSE;
+        ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedTransactionId" TEXT;
+        ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversalReason" TEXT;
+        ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedAt" TIMESTAMP(3);
+        ALTER TABLE "SupplierPayment" ADD COLUMN IF NOT EXISTS "reversedById" TEXT;
+    END IF;
+END $$;
 
--- Indexes for SupplierPayment reversal queries
-CREATE INDEX IF NOT EXISTS "SupplierPayment_isReversal_idx" ON "SupplierPayment"("isReversal");
-CREATE INDEX IF NOT EXISTS "SupplierPayment_reversedTransactionId_idx" ON "SupplierPayment"("reversedTransactionId");
+-- Indexes for SupplierPayment reversal queries (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'SupplierPayment') THEN
+        CREATE INDEX IF NOT EXISTS "SupplierPayment_isReversal_idx" ON "SupplierPayment"("isReversal");
+        CREATE INDEX IF NOT EXISTS "SupplierPayment_reversedTransactionId_idx" ON "SupplierPayment"("reversedTransactionId");
+    END IF;
+END $$;
 
 -- =============================================================================
 -- REVERSAL AUDIT TABLE - For comprehensive audit trail
@@ -188,11 +210,14 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION check_no_duplicate_sale_reversal()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM "Sale"
-        WHERE "id" = NEW."reversedTransactionId" AND "isReversal" = TRUE
-    ) THEN
-        RAISE EXCEPTION 'Sale % has already been reversed', NEW."reversedTransactionId";
+    -- Only check if Sale table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'Sale') THEN
+        IF EXISTS (
+            SELECT 1 FROM "Sale"
+            WHERE "id" = NEW."reversedTransactionId" AND "isReversal" = TRUE
+        ) THEN
+            RAISE EXCEPTION 'Sale % has already been reversed', NEW."reversedTransactionId";
+        END IF;
     END IF;
     RETURN NEW;
 END;
@@ -201,11 +226,14 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION check_no_duplicate_supplier_payment_reversal()
 RETURNS TRIGGER AS $$
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM "SupplierPayment"
-        WHERE "id" = NEW."reversedTransactionId" AND "isReversal" = TRUE
-    ) THEN
-        RAISE EXCEPTION 'SupplierPayment % has already been reversed', NEW."reversedTransactionId";
+    -- Only check if SupplierPayment table exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'SupplierPayment') THEN
+        IF EXISTS (
+            SELECT 1 FROM "SupplierPayment"
+            WHERE "id" = NEW."reversedTransactionId" AND "isReversal" = TRUE
+        ) THEN
+            RAISE EXCEPTION 'SupplierPayment % has already been reversed', NEW."reversedTransactionId";
+        END IF;
     END IF;
     RETURN NEW;
 END;
