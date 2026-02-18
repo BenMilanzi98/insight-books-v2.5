@@ -59,13 +59,32 @@ if [ -z "$DATABASE_URL" ]; then
     exit 1
 fi
 
-# Remove the ?schema= parameter for pg_dump (it's Prisma-specific, not needed for pg_dump)
-# pg_dump doesn't understand the schema query parameter
-DB_URL_FOR_DUMP=$(echo "$DATABASE_URL" | sed 's/?schema=[^&]*//' | sed 's/&schema=[^&]*//')
+# Remove the ?schema= parameter (Prisma-specific, not used by pg_dump)
+DB_URL_CLEAN=$(echo "$DATABASE_URL" | sed 's/?schema=[^&]*//' | sed 's/&schema=[^&]*//')
+
+# Parse URL for pg_dump (avoids issues with special chars in password and URI handling)
+# Format: postgresql://user:password@host:port/dbname (password without : or @)
+USE_PARSED=0
+if [[ "$DB_URL_CLEAN" =~ postgresql://([^:]+):([^@]+)@([^:]+):([0-9]+)/([^?]*) ]]; then
+    PGUSER="${BASH_REMATCH[1]}"
+    PGPASSWORD="${BASH_REMATCH[2]}"
+    PGHOST="${BASH_REMATCH[3]}"
+    PGPORT="${BASH_REMATCH[4]}"
+    PGDATABASE="${BASH_REMATCH[5]}"
+    USE_PARSED=1
+fi
 
 # Debug: Show database connection (mask password)
-DB_INFO=$(echo "$DB_URL_FOR_DUMP" | sed 's/:[^:@]*@/:***@/' | cut -c1-80)
 echo -e "${GREEN}Database connection loaded${NC}"
+if [ -n "$USE_PARSED" ] && [ "$USE_PARSED" -eq 1 ]; then
+    echo "Host: $PGHOST:$PGPORT Database: $PGDATABASE User: $PGUSER"
+fi
+
+# Check pg_dump is available
+if ! command -v pg_dump >/dev/null 2>&1; then
+    echo -e "${RED}ERROR: pg_dump not found. Install PostgreSQL client (e.g. apt install postgresql-client).${NC}"
+    exit 1
+fi
 
 # Create backups directory if it doesn't exist
 mkdir -p backups
@@ -76,23 +95,26 @@ BACKUP_FILE="backups/backup_${TIMESTAMP}.dump"
 
 echo -e "${YELLOW}Creating database backup...${NC}"
 echo "Backup file: ${BACKUP_FILE}"
-
-# Create backup using pg_dump
-# Use --no-password to avoid interactive prompts
 echo "Connecting to database..."
-DUMP_OUTPUT=$(pg_dump "$DB_URL_FOR_DUMP" -F c -f "$BACKUP_FILE" --no-password 2>&1)
+
+run_pg_dump() {
+    if [ "$USE_PARSED" -eq 1 ]; then
+        export PGPASSWORD
+        pg_dump -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -F c -f "$BACKUP_FILE" --no-password 2>&1
+    else
+        pg_dump "$DB_URL_CLEAN" -F c -f "$BACKUP_FILE" --no-password 2>&1
+    fi
+}
+
+DUMP_OUTPUT=$(run_pg_dump)
 DUMP_EXIT_CODE=$?
 
-# Filter out the libpq version warning (it's harmless)
+# Unset PGPASSWORD if we set it
+[ "$USE_PARSED" -eq 1 ] && unset PGPASSWORD
+
+# Filter out the libpq version warning (harmless)
 if echo "$DUMP_OUTPUT" | grep -q "no version information available"; then
     echo "Note: Library version warning (can be ignored)"
-fi
-
-# Check for actual errors
-if echo "$DUMP_OUTPUT" | grep -q "error\|failed\|invalid"; then
-    echo -e "${RED}Backup error:${NC}"
-    echo "$DUMP_OUTPUT" | grep -i "error\|failed\|invalid"
-    exit 1
 fi
 
 if [ $DUMP_EXIT_CODE -eq 0 ]; then
@@ -102,7 +124,12 @@ if [ $DUMP_EXIT_CODE -eq 0 ]; then
     echo "To restore this backup:"
     echo "pg_restore -d \"\$DATABASE_URL\" -c ${BACKUP_FILE}"
 else
-    echo "❌ Backup failed!"
+    echo -e "${RED}❌ Backup failed!${NC}"
+    echo ""
+    echo "pg_dump output:"
+    echo "$DUMP_OUTPUT"
+    echo ""
+    echo "Common causes: PostgreSQL not running, wrong host/port/user/password in .env, or pg_dump not in PATH."
     exit 1
 fi
 

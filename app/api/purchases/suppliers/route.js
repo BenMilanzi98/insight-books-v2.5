@@ -96,9 +96,8 @@ export async function GET(request) {
         updatedAt: true,
         _count: {
           select: {
-            expenses: {
-              where: { isDeleted: false }
-            },
+            goodsReceipts: true,
+            products: true,
             supplierBills: true,
             supplierPayments: true,
             purchaseOrders: true,
