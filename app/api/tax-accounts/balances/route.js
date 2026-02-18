@@ -32,24 +32,28 @@ export async function GET(request) {
       dateFilter.lte = end;
     }
 
-    // Get all active tax types with their accounts
-    const taxTypes = await prisma.taxType.findMany({
+    // Get all active tax types (no include to avoid Prisma relation mismatches)
+    const taxTypesRaw = await prisma.taxType.findMany({
       where: {
         tenantId: user.tenantId,
         status: 'Active',
       },
-      include: {
-        account: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-            accountType: true,
-            balance: true,
-          },
-        },
-      },
     });
+
+    // Load accounts separately
+    const accountIds = [...new Set(taxTypesRaw.map((t) => t.accountId).filter(Boolean))];
+    const accounts = accountIds.length
+      ? await prisma.account.findMany({
+          where: { id: { in: accountIds } },
+          select: { id: true, accountCode: true, accountName: true, accountType: true, balance: true },
+        })
+      : [];
+    const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+    const taxTypes = taxTypesRaw.map((t) => ({
+      ...t,
+      account: t.accountId ? accountMap.get(t.accountId) ?? null : null,
+    }));
 
     const taxAccountBalances = [];
 

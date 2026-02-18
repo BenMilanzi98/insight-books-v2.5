@@ -136,24 +136,28 @@ export async function GET(request) {
       where.status = status;
     }
 
+    // Fetch tax types without include to avoid Prisma relation mismatches on different clients
     const taxTypes = await prisma.taxType.findMany({
       where,
-      include: {
-        account: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-            accountType: true,
-          },
-        },
-      },
-      orderBy: {
-        taxName: 'asc',
-      },
+      orderBy: { taxName: 'asc' },
     });
 
-    return NextResponse.json(taxTypes);
+    // Load accounts separately if any tax types have accountId
+    const accountIds = [...new Set(taxTypes.map((t) => t.accountId).filter(Boolean))];
+    const accounts = accountIds.length
+      ? await prisma.account.findMany({
+          where: { id: { in: accountIds } },
+          select: { id: true, accountCode: true, accountName: true, accountType: true },
+        })
+      : [];
+    const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+    const taxTypesWithAccount = taxTypes.map((t) => ({
+      ...t,
+      account: t.accountId ? accountMap.get(t.accountId) ?? null : null,
+    }));
+
+    return NextResponse.json(taxTypesWithAccount);
   } catch (error) {
     console.error('Error fetching tax types:', error);
     return NextResponse.json(
