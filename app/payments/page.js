@@ -96,11 +96,11 @@ const PaymentProcessingPage = () => {
         const data = await response.json();
         if (data.success && data.accounts) {
           setPaymentAccounts(data.accounts);
-          
-          // Create balances map
+          // Balances from API (actual AccountBalance + COA); key by account id for distribution cards
           const balancesMap = {};
           data.accounts.forEach(account => {
-            balancesMap[account.id] = account.balance || 0;
+            const bal = account.balance;
+            balancesMap[account.id] = typeof bal === 'number' ? bal : parseFloat(bal) || 0;
           });
           setAccountBalances(balancesMap);
         }

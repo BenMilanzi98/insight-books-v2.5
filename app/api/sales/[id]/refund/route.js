@@ -18,7 +18,9 @@ export async function POST(request, { params }) {
     }
     
     // Parse request body
-    const { reason } = await request.json();
+    const body = await request.json();
+    const reason = body.reason;
+    const refundMethod = body.refundMethod || null;
     
     if (!reason || reason.trim() === '') {
       return NextResponse.json(
@@ -69,10 +71,12 @@ export async function POST(request, { params }) {
         // Continue without failing the transaction
       }
 
-      // Prepare update data - start with basic fields that always exist
+      const refundNote = refundMethod
+        ? `REFUNDED: ${reason} | Method: ${refundMethod}`
+        : `REFUNDED: ${reason}`;
       const updateData = {
         status: 'refunded',
-        notes: sale.notes ? `${sale.notes}\n\nREFUNDED: ${reason}` : `REFUNDED: ${reason}`
+        notes: sale.notes ? `${sale.notes}\n\n${refundNote}` : refundNote
       };
 
       // Try to add enhanced refund fields if schema supports them

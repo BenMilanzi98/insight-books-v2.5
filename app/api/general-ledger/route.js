@@ -99,6 +99,7 @@ export async function GET(request) {
       transaction: {
         tenantId,
         status: 'posted',
+        // Include reversals so ledger reflects full history (invoice/sale reversals are real entries)
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
         ...(reference ? {
@@ -131,7 +132,7 @@ export async function GET(request) {
         where: transactionWhere,
         include: {
           account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
-          transaction: { select: { id: true, date: true, reference: true, description: true, branchId: true, sourceType: true, sourceId: true } },
+          transaction: { select: { id: true, date: true, reference: true, description: true, branchId: true, sourceType: true, sourceId: true, isReversal: true, entryType: true } },
         },
       }),
     ]);
@@ -197,7 +198,8 @@ export async function GET(request) {
       ...transactionLines.map((line) => ({
         id: line.id,
         transactionId: line.transactionId,
-        entryType: 'Transaction',
+        entryType: line.transaction?.entryType || 'Transaction',
+        isReversal: line.transaction?.isReversal ?? false,
         date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
         description: line.transaction?.description || line.description || '',
         reference: line.transaction?.reference || '',

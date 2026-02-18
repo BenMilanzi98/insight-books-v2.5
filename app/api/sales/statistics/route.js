@@ -40,6 +40,9 @@ export async function GET(request) {
           count: 1,
           amount: "12,500.00"
         },
+        taxCollected: {
+          amount: "8,250.00"
+        },
         byPaymentMethod: [
           {
             method: "cash",
@@ -97,15 +100,20 @@ export async function GET(request) {
       baseFilter.branchId = user.currentBranchId;
     }
     
+    // Completed, non-refunded sales only (for revenue and tax collected)
+    const completedFilter = {
+      ...baseFilter,
+      status: 'completed',
+      refundedAt: null
+    };
+
     // Get total sales count and sum
     const totalSales = await prisma.sale.aggregate({
-      where: {
-        ...baseFilter,
-        status: 'completed'
-      },
+      where: completedFilter,
       _count: true,
       _sum: {
-        total: true
+        total: true,
+        totalTaxAmount: true
       }
     });
     
@@ -136,10 +144,7 @@ export async function GET(request) {
     // Get sales by payment method
     const salesByPaymentMethod = await prisma.sale.groupBy({
       by: ['paymentMethod'],
-      where: {
-        ...baseFilter,
-        status: 'completed'
-      },
+      where: completedFilter,
       _sum: {
         total: true
       },
@@ -155,10 +160,7 @@ export async function GET(request) {
     const topProducts = await prisma.saleItem.groupBy({
       by: ['productId'],
       where: {
-        sale: {
-          ...baseFilter,
-          status: 'completed'
-        }
+        sale: completedFilter
       },
       _sum: {
         quantity: true
@@ -214,6 +216,9 @@ export async function GET(request) {
       };
     });
     
+    // Tax collected from completed, non-refunded POS sales in the period
+    const taxCollectedAmount = Number(totalSales._sum.totalTaxAmount || 0);
+
     // Return statistics
     return NextResponse.json({
       total: {
@@ -237,6 +242,12 @@ export async function GET(request) {
           maximumFractionDigits: 2
         })
       },
+      taxCollected: {
+        amount: taxCollectedAmount.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        })
+      },
       byPaymentMethod: formattedPaymentMethods,
       topProducts: topProductsWithNames
     });
@@ -255,6 +266,9 @@ export async function GET(request) {
       },
       refunded: {
         count: 0,
+        amount: "0.00"
+      },
+      taxCollected: {
         amount: "0.00"
       },
       byPaymentMethod: [],

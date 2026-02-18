@@ -20,7 +20,6 @@ const ExpenseForm = ({
     amount: '',
     date: new Date().toISOString().split('T')[0],
     expenseAccountId: '',
-    merchant: '',
     supplierId: '',
     paymentMethod: '',
     notes: '',
@@ -39,7 +38,7 @@ const ExpenseForm = ({
   // Load payment accounts dynamically
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
-  // NEW: Load categories from API
+  // Load expense categories (from expense categories + CoA expense accounts for compatibility)
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
@@ -50,6 +49,22 @@ const ExpenseForm = ({
     } catch (error) {
       console.error('Error loading categories:', error);
     }
+  };
+
+  // Create new expense category and return its accountId for selection
+  const handleAddExpenseCategory = async (name) => {
+    const res = await fetch('/api/expense-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), description: '' })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to create category');
+    }
+    const data = await res.json();
+    await loadCategories();
+    return data.category?.accountId ?? data.category?.account?.id ?? null;
   };
 
   useEffect(() => {
@@ -70,7 +85,6 @@ const ExpenseForm = ({
         amount: formattedAmount || '',
         date: expense.date || new Date().toISOString().split('T')[0],
         expenseAccountId: expense.expenseAccountId || '',
-        merchant: expense.merchant || '',
         supplierId: expense.supplierId || '',
         paymentMethod: expense.paymentMethod || '',
         notes: expense.notes || '',
@@ -143,7 +157,7 @@ const ExpenseForm = ({
     }
     
     if (!formData.expenseAccountId) {
-      newErrors.expenseAccountId = 'Expense account is required';
+      newErrors.expenseAccountId = 'Expense category is required';
     }
     
     // Validate payment method only when not Pending
@@ -285,22 +299,22 @@ const ExpenseForm = ({
             )}
           </div>
 
-          {/* Expense Account Field */}
+          {/* Expense Category Field */}
           <div>
             <DynamicCategorySelect
               value={formData.expenseAccountId}
               onChange={(value) => setFormData(prev => ({ ...prev, expenseAccountId: value }))}
               options={availableCategories}
-              placeholder="Select expense account"
+              placeholder="Select expense category"
+              searchPlaceholder="Search categories..."
+              emptyMessage="No expense categories yet"
+              addNewPlaceholder="New category name..."
               required={true}
-              label="Expense Account"
+              label="Expense Category"
+              onAddCategory={handleAddExpenseCategory}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Need a new category? Create an Expense account in the{" "}
-              <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
-                Chart of Accounts
-              </a>
-              .
+              Select a category or use the + button above to create a new expense category.
             </p>
             {errors.expenseAccountId && (
               <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -310,33 +324,19 @@ const ExpenseForm = ({
             )}
           </div>
 
-          {/* Merchant Field */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Merchant
-            </label>
-            <input
-              type="text"
-              name="merchant"
-              value={formData.merchant}
-              onChange={handleChange}
-              className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="Vendor or merchant name"
-            />
-          </div>
-
-          {/* Supplier Field */}
+          {/* Supplier Field - from /purchases/suppliers with option to add new */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Supplier (Optional)
             </label>
             <SupplierExpenseSelect
               value={formData.supplierId}
-              onChange={(supplierId) => setFormData(prev => ({ ...prev, supplierId }))}
-              status="active"
+              onChange={(idOrEvent) => setFormData(prev => ({ ...prev, supplierId: idOrEvent?.target?.value ?? idOrEvent ?? '' }))}
+              showActiveOnly={true}
+              onSupplierAdded={(newSupplierId) => setFormData(prev => ({ ...prev, supplierId: newSupplierId }))}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Link this expense to a supplier for tracking and reporting
+              Link to a supplier from Purchases; or add a new supplier (saved to Purchases → Suppliers).
             </p>
           </div>
 

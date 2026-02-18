@@ -484,6 +484,82 @@ export async function GET(request) {
     const previousExpenses = (previousExpensesData._sum.amount || 0) + previousCOGS;
     const currentProfit = currentRevenue - currentExpenses;
     const previousProfit = previousRevenue - previousExpenses;
+    
+    // Get budget information for the current period
+    let budgetInfo = null;
+    try {
+      const { getBudgetVsActual, getActualRevenue, getActualExpenses } = await import('@/lib/budgetService');
+      
+      const activeBudgets = await prisma.budget.findMany({
+        where: {
+          tenantId,
+          status: { in: ['active', 'approved'] },
+          startDate: { lte: currentPeriodEnd },
+          endDate: { gte: currentPeriodStart }
+        },
+        include: {
+          items: true,
+          breakdowns: true
+        }
+      });
+
+      if (activeBudgets.length > 0) {
+        const revenueBudget = activeBudgets.find(b => (b.budgetType || 'revenue') === 'revenue');
+        const expenseBudget = activeBudgets.find(b => b.budgetType === 'expense');
+
+        const budgetComparisons = await Promise.all(
+          activeBudgets.map(async (budget) => {
+            try {
+              const comparison = await getBudgetVsActual(budget.id, tenantId, currentPeriodEnd);
+              return {
+                budgetId: budget.id,
+                budgetName: budget.name,
+                budgetType: budget.budgetType || 'revenue',
+                budgeted: budget.expectedRevenue,
+                actual: comparison.comparison.actualRevenue,
+                variance: comparison.comparison.variance.amount,
+                variancePercent: comparison.comparison.variance.percent,
+                achievement: comparison.comparison.achievement.percent,
+                status: comparison.comparison.achievement.status
+              };
+            } catch (error) {
+              console.error(`Error getting budget comparison for dashboard:`, error);
+              return null;
+            }
+          })
+        );
+
+        const validComparisons = budgetComparisons.filter(Boolean);
+        
+        if (validComparisons.length > 0) {
+          const revenueBudgetComparison = validComparisons.find(b => b.budgetType === 'revenue');
+          const expenseBudgetComparison = validComparisons.find(b => b.budgetType === 'expense');
+
+          budgetInfo = {
+            revenue: revenueBudgetComparison ? {
+              budgeted: revenueBudgetComparison.budgeted,
+              actual: revenueBudgetComparison.actual,
+              variance: revenueBudgetComparison.variance,
+              variancePercent: revenueBudgetComparison.variancePercent,
+              achievement: revenueBudgetComparison.achievement,
+              status: revenueBudgetComparison.status
+            } : null,
+            expenses: expenseBudgetComparison ? {
+              budgeted: expenseBudgetComparison.budgeted,
+              actual: expenseBudgetComparison.actual,
+              variance: expenseBudgetComparison.variance,
+              variancePercent: expenseBudgetComparison.variancePercent,
+              achievement: expenseBudgetComparison.achievement,
+              status: expenseBudgetComparison.status
+            } : null
+          };
+        }
+      }
+    } catch (budgetError) {
+      console.error('Error fetching budget data for dashboard:', budgetError);
+      // Continue without budget data if there's an error
+    }
+    
     // Calculate actual receivables (remaining balances)
     // Include invoices with remaining balance > 0, regardless of status
     // This ensures we capture all unpaid invoices even if status values vary
@@ -631,12 +707,32 @@ export async function GET(request) {
         revenue: {
           current: currentRevenue,
           previous: previousRevenue,
-          change: parseFloat(revenueChange)
+          change: parseFloat(revenueChange),
+          ...(budgetInfo?.revenue && {
+            budget: {
+              budgeted: budgetInfo.revenue.budgeted,
+              actual: budgetInfo.revenue.actual,
+              variance: budgetInfo.revenue.variance,
+              variancePercent: budgetInfo.revenue.variancePercent,
+              achievement: budgetInfo.revenue.achievement,
+              status: budgetInfo.revenue.status
+            }
+          })
         },
         expenses: {
           current: currentExpenses,
           previous: previousExpenses,
-          change: parseFloat(expensesChange)
+          change: parseFloat(expensesChange),
+          ...(budgetInfo?.expenses && {
+            budget: {
+              budgeted: budgetInfo.expenses.budgeted,
+              actual: budgetInfo.expenses.actual,
+              variance: budgetInfo.expenses.variance,
+              variancePercent: budgetInfo.expenses.variancePercent,
+              achievement: budgetInfo.expenses.achievement,
+              status: budgetInfo.expenses.status
+            }
+          })
         },
         profit: {
           current: currentProfit,

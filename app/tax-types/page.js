@@ -20,7 +20,9 @@ import {
   RefreshCw,
   ChevronRight,
   Percent,
-  Link as LinkIcon
+  Link as LinkIcon,
+  Download,
+  RotateCcw
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 
@@ -50,6 +52,12 @@ export default function TaxTypesPage() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
+  const [reversedTaxes, setReversedTaxes] = useState([]);
+  const [totalTaxReversed, setTotalTaxReversed] = useState(0);
+  const [loadingReversedTaxes, setLoadingReversedTaxes] = useState(false);
+  const [reversedTaxesStart, setReversedTaxesStart] = useState('');
+  const [reversedTaxesEnd, setReversedTaxesEnd] = useState('');
+  const [exportingReversedTaxes, setExportingReversedTaxes] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -184,6 +192,52 @@ export default function TaxTypesPage() {
       accountId: "",
       status: "Active"
     });
+  };
+
+  const loadReversedTaxes = async () => {
+    setLoadingReversedTaxes(true);
+    try {
+      const params = new URLSearchParams();
+      if (reversedTaxesStart) params.append('startDate', reversedTaxesStart);
+      if (reversedTaxesEnd) params.append('endDate', reversedTaxesEnd);
+      const res = await fetch(`/api/tax-types/reversed-taxes?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to load reversed taxes');
+      const data = await res.json();
+      setReversedTaxes(data.reversedTaxes || []);
+      setTotalTaxReversed(data.totalTaxReversed || 0);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingReversedTaxes(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReversedTaxes();
+  }, []);
+
+  const handleExportReversedTaxes = async (format) => {
+    setExportingReversedTaxes(true);
+    try {
+      const params = new URLSearchParams({ format: format === 'pdf' ? 'pdf' : 'xlsx' });
+      if (reversedTaxesStart) params.append('startDate', reversedTaxesStart);
+      if (reversedTaxesEnd) params.append('endDate', reversedTaxesEnd);
+      const res = await fetch(`/api/tax-types/reversed-taxes/export?${params.toString()}`);
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `reversed-taxes-${new Date().toISOString().slice(0, 10)}.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || 'Export failed');
+    } finally {
+      setExportingReversedTaxes(false);
+    }
   };
 
   const handleViewReports = async (tax) => {
@@ -429,6 +483,15 @@ export default function TaxTypesPage() {
                       </div>
                     )}
                     
+                    {balance.totalCollected !== undefined && (
+                      <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                        <span className="text-sm text-gray-600">Collected</span>
+                        <span className="font-semibold text-blue-600">
+                          {formatCurrency(balance.totalCollected)}
+                        </span>
+                      </div>
+                    )}
+                    
                     {balance.netPayable !== undefined && (
                       <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                         <span className="text-sm text-gray-600">Net Payable</span>
@@ -472,6 +535,100 @@ export default function TaxTypesPage() {
           })}
         </div>
       )}
+
+      {/* Reversed Taxes Section */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-amber-50 rounded-lg">
+              <RotateCcw className="text-amber-600" size={22} />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Reversed Taxes</h2>
+              <p className="text-sm text-gray-500">Tax amounts reversed via refunds and their corresponding transactions</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              value={reversedTaxesStart}
+              onChange={(e) => setReversedTaxesStart(e.target.value)}
+            />
+            <input
+              type="date"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              value={reversedTaxesEnd}
+              onChange={(e) => setReversedTaxesEnd(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={loadReversedTaxes}
+              disabled={loadingReversedTaxes}
+              className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+            >
+              {loadingReversedTaxes ? 'Loading...' : 'Apply'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportReversedTaxes('xlsx')}
+              disabled={exportingReversedTaxes || reversedTaxes.length === 0}
+              className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Download size={16} />
+              Export Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExportReversedTaxes('pdf')}
+              disabled={exportingReversedTaxes || reversedTaxes.length === 0}
+              className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Download size={16} />
+              Export PDF
+            </button>
+          </div>
+        </div>
+        {loadingReversedTaxes ? (
+          <div className="py-8 text-center text-gray-500">Loading reversed taxes...</div>
+        ) : reversedTaxes.length === 0 ? (
+          <div className="py-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-lg">
+            No reversed taxes found for the selected period.
+          </div>
+        ) : (
+          <>
+            <div className="mb-3 text-sm font-medium text-gray-700">
+              Total tax reversed: <span className="text-amber-600 font-semibold">{formatCurrency(totalTaxReversed)}</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Date</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Transaction</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Type</th>
+                    <th className="px-4 py-2.5 text-right font-semibold text-gray-700">Tax Reversed</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {reversedTaxes.map((row) => (
+                    <tr key={`${row.type}-${row.id}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-gray-700">
+                        {row.date ? new Date(row.date).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium text-gray-900">{row.reference}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{row.type}</td>
+                      <td className="px-4 py-2.5 text-right font-medium text-amber-700">{formatCurrency(row.taxReversed || 0)}</td>
+                      <td className="px-4 py-2.5 text-gray-600 max-w-xs truncate" title={row.reason}>{row.reason || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Add/Edit Modal */}
       {showAddModal && (

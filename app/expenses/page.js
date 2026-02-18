@@ -1194,20 +1194,12 @@ const handleFileUpload = async (e) => {
     );
   };
 
-  // Load expense accounts from Chart of Accounts
+  // Load expense categories (Chart of Accounts 5xxx + ExpenseCategory) for filter and modals
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.categories && data.categories.length > 0) {
-          setCategories(data.categories);
-        } else {
-          setCategories([]);
-        }
-      } else {
-        setCategories([]);
-      }
+      const data = response.ok ? await response.json() : {};
+      setCategories(Array.isArray(data.categories) ? data.categories : []);
     } catch (error) {
       console.error('Error loading categories:', error);
       setCategories([]);
@@ -3534,7 +3526,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
               
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Expense Account
+                  Expense Category
                 </label>
                 <select
                   name="expenseAccountId"
@@ -3543,7 +3535,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
                   className="w-full p-2 border border-gray-300 rounded-md"
                   required
                 >
-                  <option value="">Select an expense account</option>
+                  <option value="">Select an expense category</option>
                   {availableAccounts.map((account) => (
                     <option key={account.id} value={account.id}>
                       {account.code ? `${account.code} - ${account.name}` : account.name}
@@ -3551,11 +3543,7 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
                   ))}
                 </select>
                 <p className="mt-1 text-xs text-gray-500">
-                  Need a new category? Create an Expense account in the{" "}
-                  <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
-                    Chart of Accounts
-                  </a>
-                  .
+                  Create new categories from the main expense form (Create New Expense) using the + button.
                 </p>
               </div>
               

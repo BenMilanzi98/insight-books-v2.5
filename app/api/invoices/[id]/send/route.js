@@ -48,14 +48,65 @@ export async function POST(request, context) {
         );
       }
       
-      // Get email customization options if provided
-      const body = await request.json().catch(() => ({}));
-      const customMessage = body?.message || '';
-      const templateId = body?.templateId;
+      // Get email customization options (JSON body or multipart formData with optional attachments)
+      const contentType = request.headers.get('content-type') || '';
+      let customMessage = '';
+      let templateId = null;
+      let userAttachmentFiles = [];
+      let otherEmailsFromRequest = [];
+      if (contentType.includes('multipart/form-data')) {
+        const formData = await request.formData();
+        customMessage = (formData.get('message') ?? '').toString();
+        const tid = formData.get('templateId');
+        templateId = tid != null && tid !== '' ? tid.toString() : null;
+        const otherEmailsRaw = formData.get('otherEmails');
+        if (otherEmailsRaw != null && typeof otherEmailsRaw === 'string') {
+          try {
+            const parsed = JSON.parse(otherEmailsRaw);
+            otherEmailsFromRequest = Array.isArray(parsed) ? parsed.filter((e) => e && typeof e === 'string') : [];
+          } catch (_) {}
+        }
+        for (const [key, value] of formData.entries()) {
+          if (key === 'attachments' && value != null && typeof value.arrayBuffer === 'function') {
+            userAttachmentFiles.push(value);
+          }
+        }
+      } else {
+        const body = await request.json().catch(() => ({}));
+        customMessage = body?.message || '';
+        templateId = body?.templateId;
+        const raw = body?.otherEmails;
+        otherEmailsFromRequest = Array.isArray(raw) ? raw.filter((e) => e && typeof e === 'string') : [];
+      }
       
-      // Get the client's email
-      const clientEmail = invoice.client.email;
-      if (!clientEmail) {
+      // Get all client email addresses (primary + additional) plus any "other" emails from the request
+      const seen = new Set();
+      const clientEmails = [];
+      if (invoice.client.email) {
+        const e = invoice.client.email.trim().toLowerCase();
+        if (e && !seen.has(e)) {
+          seen.add(e);
+          clientEmails.push(invoice.client.email);
+        }
+      }
+      if (invoice.client.additionalEmails && invoice.client.additionalEmails.length > 0) {
+        for (const email of invoice.client.additionalEmails) {
+          const e = (email || '').trim().toLowerCase();
+          if (e && !seen.has(e)) {
+            seen.add(e);
+            clientEmails.push(email);
+          }
+        }
+      }
+      for (const email of otherEmailsFromRequest) {
+        const e = (email || '').trim().toLowerCase();
+        if (e && !seen.has(e)) {
+          seen.add(e);
+          clientEmails.push(email.trim());
+        }
+      }
+      
+      if (clientEmails.length === 0) {
         return NextResponse.json(
           { error: 'Client does not have an email address' },
           { status: 400 }
@@ -90,6 +141,7 @@ export async function POST(request, context) {
         });
       }
       
+      const isPaid = invoice.status === 'Paid';
       // Generate email HTML content with enhanced invoice design
       const invoiceHtml = generateInvoiceHtml(invoice, tenant, isPaid);
       
@@ -137,11 +189,15 @@ export async function POST(request, context) {
       const pdfBuffer = fs.readFileSync(filePath);
       // Prepare email
       const companyName = tenant?.name || 'InsightBooks';
-      const isPaid = invoice.status === 'Paid';
+
+      // Use tenant's business email if available, otherwise fall back to system email
+      const tenantEmail = tenant?.settings?.businessEmail || process.env.EMAIL_FROM || 'insightbooks@insightbooksafrica.com';
+      const fromEmail = `"${companyName}" <${tenantEmail}>`;
 
       const mailOptions = {
-        from: process.env.EMAIL_FROM || `"${companyName}" <insightbooks@insightbooksafrica.com>`,
-        to: clientEmail,
+        from: fromEmail,
+        replyTo: tenantEmail,
+        to: clientEmails.join(', '), // Send to all email addresses
         subject: isPaid ? `Payment Confirmation - Invoice #${invoice.invoiceNumber} from ${companyName}` : `Invoice #${invoice.invoiceNumber} from ${companyName}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
@@ -171,6 +227,15 @@ export async function POST(request, context) {
           }
         ]
       };
+      // Append user-provided attachments (from multipart form)
+      for (const file of userAttachmentFiles) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const name = file.name || `attachment-${Date.now()}`;
+        mailOptions.attachments.push({
+          filename: name,
+          content: buffer
+        });
+      }
       
       console.log('Sending invoice email with options:', {
         from: mailOptions.from,

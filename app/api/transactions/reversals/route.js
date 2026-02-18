@@ -169,8 +169,34 @@ export async function GET(request) {
         });
       } catch (refundError) {
         console.error('Error fetching refund reversals:', refundError);
-        // Continue with empty array
         refundReversals = [];
+      }
+    }
+
+    // Fetch refunded POS sales (reversals from /pos/list Process Refund)
+    let saleRefundReversals = [];
+    if (type === 'all' || type === 'sale_refund') {
+      try {
+        const saleRefundWhere = {
+          tenantId: user.tenantId,
+          refundedAt: { not: null }
+        };
+        if (startDate || endDate) {
+          saleRefundWhere.refundedAt = {};
+          if (startDate) saleRefundWhere.refundedAt.gte = new Date(startDate);
+          if (endDate) saleRefundWhere.refundedAt.lte = new Date(endDate + 'T23:59:59');
+        }
+        saleRefundReversals = await prisma.sale.findMany({
+          where: saleRefundWhere,
+          include: {
+            refundedBy: {
+              select: { id: true, name: true, email: true }
+            }
+          }
+        });
+      } catch (saleRefundError) {
+        console.error('Error fetching sale refund reversals:', saleRefundError);
+        saleRefundReversals = [];
       }
     }
 
@@ -255,7 +281,24 @@ export async function GET(request) {
         },
         refundMethod: refund.refundMethod,
         status: refund.status,
-        performedBy: refund.refundedBy
+        performedBy: refund.refundedBy,
+        taxReversed: null
+      })),
+      ...saleRefundReversals.map(sale => ({
+        id: sale.id,
+        type: 'sale_refund',
+        description: `Refund for Sale #${sale.saleNumber}`,
+        originalAmount: parseFloat(sale.total),
+        reversalAmount: -parseFloat(sale.total),
+        date: sale.saleDate,
+        reversedAt: sale.refundedAt,
+        reversalReason: sale.refundReason || 'Sale refunded',
+        originalTransactionId: sale.id,
+        reversalTransactionId: null,
+        saleNumber: sale.saleNumber,
+        status: sale.status,
+        performedBy: sale.refundedBy,
+        taxReversed: sale.totalTaxAmount != null ? parseFloat(sale.totalTaxAmount) : 0
       }))
     ];
 
@@ -286,7 +329,8 @@ export async function GET(request) {
         expense: filteredReversals.filter(r => r.type === 'expense').length,
         sale: filteredReversals.filter(r => r.type === 'sale').length,
         payment: filteredReversals.filter(r => r.type === 'payment').length,
-        refund: filteredReversals.filter(r => r.type === 'refund').length
+        refund: filteredReversals.filter(r => r.type === 'refund').length,
+        sale_refund: filteredReversals.filter(r => r.type === 'sale_refund').length
       }
     };
 

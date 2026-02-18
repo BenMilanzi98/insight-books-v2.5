@@ -115,13 +115,24 @@ export async function GET(request) {
       where.branchId = branchId;
     }
     
-    // Add status filter if provided
+    // Add status filter if provided (align with statistics: Pending = not yet due, Overdue = past due or status Overdue)
     if (status) {
-      // Handle comma-separated statuses
       if (status.includes(',')) {
         where.status = {
           in: status.split(',').map(s => s.trim())
         };
+      } else if (status === 'Overdue') {
+        const startOfToday = new Date();
+        startOfToday.setUTCHours(0, 0, 0, 0);
+        where.OR = [
+          { status: 'Overdue' },
+          { status: 'Pending', dueDate: { lt: startOfToday } }
+        ];
+      } else if (status === 'Pending') {
+        const startOfToday = new Date();
+        startOfToday.setUTCHours(0, 0, 0, 0);
+        where.status = 'Pending';
+        where.dueDate = { gte: startOfToday };
       } else {
         where.status = status;
       }
@@ -435,11 +446,15 @@ export async function POST(request) {
     const year = today.getFullYear();
     const dateStr = `${day}${month}${year}`; // DDMMYYYY format
     
-    // Get tenant settings for invoice prefix
-    const tenantSettings = await prisma.tenantSettings.findFirst({
-      where: { tenantId: user.tenantId }
-    });
-    
+    // Get tenant settings for invoice prefix (optional; avoid 500 if TenantSettings has missing columns e.g. after restore)
+    let tenantSettings = null;
+    try {
+      tenantSettings = await prisma.tenantSettings.findFirst({
+        where: { tenantId: user.tenantId }
+      });
+    } catch (_) {
+      // use default prefix below
+    }
     const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
     
     // Get the last invoice for this tenant to extract the sequential number
@@ -510,6 +525,8 @@ export async function POST(request) {
       const newInvoice = await tx.invoice.create({
         data: {
           invoiceNumber,
+          title: body.title || null,
+          orderNumber: body.orderNumber || null,
           clientId: body.clientId,
           createdById: user.id,
           issueDate,
@@ -567,7 +584,7 @@ export async function POST(request) {
                   select: { id: true, isService: true, cost: true, averageCost: true }
                 });
                 
-                // Only calculate COGS for non-service products
+                // Only calculate COGS and deduct stock for non-service products
                 if (product && !product.isService) {
                   const cogsData = await calculateCOGS({
                     productId: item.productId,
@@ -592,6 +609,28 @@ export async function POST(request) {
                       quantity: item.quantity,
                       unitPrice: item.unitPrice
                     });
+                  }
+                  // Deduct stock when invoice is posted (reversal will restore)
+                  const qty = Number(item.quantity) || 0;
+                  if (qty > 0) {
+                    await tx.product.update({
+                      where: { id: item.productId },
+                      data: { stockLevel: { decrement: qty } }
+                    });
+                    try {
+                      await tx.inventoryTransaction.create({
+                        data: {
+                          productId: item.productId,
+                          type: 'invoice',
+                          quantity: -Math.round(qty), // Int: negative = deduction
+                          notes: `Invoice ${invoiceNumber}`,
+                          userId: user.id,
+                          tenantId: user.tenantId
+                        }
+                      });
+                    } catch (e) {
+                      if (!e.message?.includes('Unknown model')) console.warn('InventoryTransaction for invoice:', e?.message);
+                    }
                   }
                 }
               } catch (cogsError) {

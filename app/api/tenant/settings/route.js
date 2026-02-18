@@ -22,12 +22,9 @@ export async function GET(request) {
       );
     }
     
-    // Fetch the tenant and its settings
+    // Fetch the tenant (without settings to avoid 500 if TenantSettings table/schema has issues)
     const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      include: {
-        settings: true
-      }
+      where: { id: user.tenantId }
     });
     
     if (!tenant) {
@@ -35,6 +32,16 @@ export async function GET(request) {
         { error: 'Tenant not found' },
         { status: 404 }
       );
+    }
+
+    // Fetch settings separately so missing/wrong TenantSettings does not break the API
+    let settings = null;
+    try {
+      settings = await prisma.tenantSettings.findUnique({
+        where: { tenantId: user.tenantId }
+      });
+    } catch (settingsErr) {
+      console.warn('Tenant settings GET: could not load TenantSettings:', settingsErr?.message || settingsErr);
     }
     
     // Combine tenant and settings data for the response
@@ -47,34 +54,34 @@ export async function GET(request) {
       faviconUrl: tenant.faviconUrl,
       primaryColor: tenant.primaryColor,
       secondaryColor: tenant.secondaryColor,
-      emailFooter: tenant.settings?.emailFooter,
-      customDomain: tenant.settings?.customDomain,
+      emailFooter: settings?.emailFooter,
+      customDomain: settings?.customDomain,
       
       // Business Address Information for receipts
-      businessAddress: tenant.settings?.businessAddress,
-      businessCity: tenant.settings?.businessCity,
-      businessPhone: tenant.settings?.businessPhone,
-      businessEmail: tenant.settings?.businessEmail,
-      buildingName: tenant.settings?.buildingName,
-      receiptFooter: tenant.settings?.receiptFooter,
+      businessAddress: settings?.businessAddress,
+      businessCity: settings?.businessCity,
+      businessPhone: settings?.businessPhone,
+      businessEmail: settings?.businessEmail,
+      buildingName: settings?.buildingName,
+      receiptFooter: settings?.receiptFooter,
       
       // Notification settings
-      emailNotifications: tenant.settings?.emailNotifications,
-      smsNotifications: tenant.settings?.smsNotifications,
-      inAppNotifications: tenant.settings?.inAppNotifications,
-      dailyReports: tenant.settings?.dailyReports,
-      weeklyReports: tenant.settings?.weeklyReports,
-      monthlyReports: tenant.settings?.monthlyReports,
-      invoiceReminders: tenant.settings?.invoiceReminders,
-      lowStockAlerts: tenant.settings?.lowStockAlerts,
-      paymentReceipts: tenant.settings?.paymentReceipts,
+      emailNotifications: settings?.emailNotifications,
+      smsNotifications: settings?.smsNotifications,
+      inAppNotifications: settings?.inAppNotifications,
+      dailyReports: settings?.dailyReports,
+      weeklyReports: settings?.weeklyReports,
+      monthlyReports: settings?.monthlyReports,
+      invoiceReminders: settings?.invoiceReminders,
+      lowStockAlerts: settings?.lowStockAlerts,
+      paymentReceipts: settings?.paymentReceipts,
       
       // Additional settings 
-      taxEnabled: tenant.settings?.taxEnabled,
-      defaultTaxRate: tenant.settings?.defaultTaxRate,
-      currencyCode: tenant.settings?.currencyCode,
-      invoicePrefix: tenant.settings?.invoicePrefix,
-      enabledModules: tenant.settings?.enabledModules,
+      taxEnabled: settings?.taxEnabled,
+      defaultTaxRate: settings?.defaultTaxRate,
+      currencyCode: settings?.currencyCode,
+      invoicePrefix: settings?.invoicePrefix,
+      enabledModules: settings?.enabledModules,
     };
     
     console.log('Tenant Settings API GET - Tenant data from database:', {

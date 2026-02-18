@@ -331,6 +331,26 @@ export const fetchStockMovement = async ({ timeframe, productId = null, customDa
 };
 
 /**
+ * Fetch Daily POS report for a single date (default: today).
+ * @param {string} [date] - YYYY-MM-DD; defaults to today
+ */
+export const fetchPosDailyReport = async (date = null) => {
+  try {
+    const d = date ? new Date(date) : new Date();
+    const dateStr = d.toISOString().split('T')[0];
+    const response = await fetch(`/api/reports/pos-daily?date=${dateStr}`);
+    if (!response.ok) {
+      throw new Error(`Error fetching daily POS report: ${response.statusText}`);
+    }
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching daily POS report:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetch sales analysis report data
  */
 export const fetchSalesAnalysis = async ({ timeframe, groupBy = 'time', customDateRange = null }) => {
@@ -473,7 +493,10 @@ export const exportReport = async (reportType, format, params = {}) => {
     
     // Handle the downloaded file
     const blob = await response.blob();
-    const fileName = `${reportType}_${new Date().toISOString().split('T')[0]}.${format}`;
+    let fileName = `${reportType}_${new Date().toISOString().split('T')[0]}.${format}`;
+    if (reportType === 'pos-daily' && params.date) {
+      fileName = `POS_DAILY_REPORT_${params.date}.${format === 'xlsx' ? 'xlsx' : format}`;
+    }
     
     // Create a download link and trigger download
     const downloadUrl = window.URL.createObjectURL(blob);

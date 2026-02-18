@@ -7,16 +7,17 @@ import { getUserFromSession } from '@/lib/auth';
 async function getClientWithValidation(id, tenantId) {
   const client = await prisma.client.findUnique({
     where: { id },
-    select: {
-      id: true,
-      name: true,
-      contactPerson: true,
-      email: true,
-      phone: true,
-      address: true,
-      createdAt: true,
-      updatedAt: true,
-      tenantId: true,
+      select: {
+        id: true,
+        name: true,
+        contactPerson: true,
+        email: true,
+        additionalEmails: true,
+        phone: true,
+        address: true,
+        createdAt: true,
+        updatedAt: true,
+        tenantId: true,
       // Get aggregate data for invoices
       invoices: {
         select: {
@@ -185,6 +186,7 @@ export async function PUT(request, { params }) {
     if (body.name !== undefined) updateData.name = body.name;
     if (body.contactPerson !== undefined) updateData.contactPerson = body.contactPerson;
     if (body.email !== undefined) updateData.email = body.email;
+    if (body.additionalEmails !== undefined) updateData.additionalEmails = Array.isArray(body.additionalEmails) ? body.additionalEmails : [];
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.address !== undefined) updateData.address = body.address;
     

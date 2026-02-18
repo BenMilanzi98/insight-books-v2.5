@@ -2,18 +2,24 @@ import prisma from '../lib/prisma.js';
 
 const dryRun = process.argv.includes('--dry-run');
 
+// Expense categories: sequential unique codes 5001-5999 under parent 5000 - Expense
 const getNextExpenseCode = async (tenantId) => {
   const accounts = await prisma.account.findMany({
     where: { tenantId, accountType: 'Expense' },
     select: { accountCode: true },
   });
 
-  const maxCode = accounts
-    .map((acc) => parseInt(acc.accountCode, 10))
-    .filter((code) => Number.isFinite(code))
-    .reduce((max, code) => Math.max(max, code), 5999);
+  const usedSet = new Set(
+    accounts
+      .map((acc) => acc.accountCode)
+      .filter(Boolean)
+      .map(String)
+  );
 
-  return String(maxCode + 1);
+  for (let code = 5001; code <= 5999; code++) {
+    if (!usedSet.has(String(code))) return String(code);
+  }
+  throw new Error('Expense code range (5001-5999) exhausted');
 };
 
 const findOrCreateExpenseAccount = async (tenantId, name) => {
@@ -29,9 +35,18 @@ const findOrCreateExpenseAccount = async (tenantId, name) => {
 
   const nextCode = await getNextExpenseCode(tenantId);
   if (dryRun) {
-    console.log(`[DRY RUN] Would create expense account ${nextCode} - ${name}`);
+    console.log(`[DRY RUN] Would create expense account ${nextCode} - ${name} (under 5000 - Expense)`);
     return { id: null, accountName: name, accountCode: nextCode };
   }
+
+  const parentExpense = await prisma.account.findFirst({
+    where: {
+      tenantId,
+      isActive: true,
+      OR: [{ accountCode: '5000' }, { code: '5000' }],
+    },
+    select: { id: true },
+  });
 
   return prisma.account.create({
     data: {
@@ -44,6 +59,7 @@ const findOrCreateExpenseAccount = async (tenantId, name) => {
       isActive: true,
       isSystem: false,
       balance: 0,
+      ...(parentExpense?.id && { parentAccountId: parentExpense.id }),
     },
   });
 };

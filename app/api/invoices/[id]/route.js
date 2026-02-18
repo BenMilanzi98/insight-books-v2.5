@@ -355,7 +355,7 @@ export async function PUT(request, { params }) {
                     select: { id: true, isService: true }
                   });
                   
-                  // Only calculate COGS for non-service products
+                  // Only calculate COGS and deduct stock for non-service products
                   if (product && !product.isService) {
                     const cogsData = await calculateCOGS({
                       productId: item.productId,
@@ -364,6 +364,28 @@ export async function PUT(request, { params }) {
                       tx,
                     });
                     totalCOGS += cogsData.cogsAmount;
+                    // Deduct stock when invoice is posted (reversal will restore)
+                    const qty = Number(item.quantity) || 0;
+                    if (qty > 0) {
+                      await tx.product.update({
+                        where: { id: item.productId },
+                        data: { stockLevel: { decrement: qty } }
+                      });
+                      try {
+                        await tx.inventoryTransaction.create({
+                          data: {
+                            productId: item.productId,
+                            type: 'invoice',
+                            quantity: -Math.round(qty),
+                            notes: `Invoice ${existingInvoice.invoiceNumber}`,
+                            userId: user.id,
+                            tenantId: user.tenantId
+                          }
+                        });
+                      } catch (e) {
+                        if (!e.message?.includes('Unknown model')) console.warn('InventoryTransaction for invoice:', e?.message);
+                      }
+                    }
                   }
                 } catch (cogsError) {
                   console.error(`Error calculating COGS for product ${item.productId}:`, cogsError);

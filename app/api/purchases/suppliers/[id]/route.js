@@ -20,9 +20,100 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const includeTransactions = searchParams.get('includeTransactions') === 'true';
+
     const supplier = await getSupplierForTenant(params.id, user.tenantId);
     if (!supplier) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    }
+
+    // If transactions are requested, fetch comprehensive transaction data
+    if (includeTransactions) {
+      const { updateSupplierBalance } = await import('@/lib/supplierService');
+      
+      // Update supplier balance to ensure accuracy
+      await updateSupplierBalance(params.id, user.tenantId);
+      
+      // Fetch updated supplier with balance
+      const updatedSupplier = await getSupplierForTenant(params.id, user.tenantId);
+      
+      // Get bills summary
+      const billsAggregation = await prisma.supplierBill.aggregate({
+        where: {
+          supplierId: params.id,
+          tenantId: user.tenantId
+        },
+        _sum: {
+          totalAmount: true,
+          amountPaid: true
+        },
+        _count: true
+      });
+
+      // Get expenses summary
+      const expensesAggregation = await prisma.expense.aggregate({
+        where: {
+          supplierId: params.id,
+          tenantId: user.tenantId,
+          isDeleted: false
+        },
+        _sum: {
+          amount: true,
+          paidAmount: true
+        },
+        _count: true
+      });
+
+      // Get payments summary
+      const paymentsAggregation = await prisma.supplierPayment.aggregate({
+        where: {
+          supplierId: params.id,
+          tenantId: user.tenantId
+        },
+        _sum: {
+          totalAmount: true
+        },
+        _count: true
+      });
+
+      const totalBills = Number(billsAggregation._sum.totalAmount || 0);
+      const totalBillsPaid = Number(billsAggregation._sum.amountPaid || 0);
+      const billsOutstanding = totalBills - totalBillsPaid;
+
+      const totalExpenses = Number(expensesAggregation._sum.amount || 0);
+      const totalExpensesPaid = Number(expensesAggregation._sum.paidAmount || 0);
+      const expensesOutstanding = totalExpenses - totalExpensesPaid;
+
+      const totalPayments = Number(paymentsAggregation._sum.totalAmount || 0);
+
+      return NextResponse.json({
+        supplier: updatedSupplier,
+        transactions: {
+          bills: {
+            total: billsAggregation._count || 0,
+            totalAmount: totalBills,
+            totalPaid: totalBillsPaid,
+            outstanding: billsOutstanding
+          },
+          expenses: {
+            total: expensesAggregation._count || 0,
+            totalAmount: totalExpenses,
+            totalPaid: totalExpensesPaid,
+            outstanding: expensesOutstanding
+          },
+          payments: {
+            total: paymentsAggregation._count || 0,
+            totalAmount: totalPayments
+          },
+          summary: {
+            totalOwed: billsOutstanding + expensesOutstanding,
+            totalBilled: totalBills + totalExpenses,
+            totalPaid: totalBillsPaid + totalExpensesPaid,
+            currentBalance: Number(updatedSupplier.currentBalance || 0)
+          }
+        }
+      });
     }
 
     return NextResponse.json({ supplier });

@@ -4,16 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Bell, User, Search, X } from "lucide-react";
 
-const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
+const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, adminUser = null }) => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const pathname = usePathname();
   
-  // Add state for user data and loading state
-  const [user, setUser] = useState(null);
-  const [isUserLoading, setIsUserLoading] = useState(true);
+  // Add state for user data and loading state (only used when !skipUserFetch)
+  const [user, setUser] = useState(skipUserFetch && adminUser ? { name: adminUser.name, email: adminUser.email } : null);
+  const [isUserLoading, setIsUserLoading] = useState(!skipUserFetch);
   
   const notificationRef = useRef(null);
   const profileRef = useRef(null);
@@ -35,8 +35,17 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
     return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
   };
   
-  // Add useEffect to fetch user data
+  // Add useEffect to fetch user data (skip when in admin context to avoid calling tenant /api/auth/me)
   useEffect(() => {
+    if (skipUserFetch) {
+      if (adminUser) {
+        setUser({ name: adminUser.name, email: adminUser.email });
+      } else {
+        setUser({ name: "Admin", email: "" });
+      }
+      setIsUserLoading(false);
+      return;
+    }
     const fetchUserData = async () => {
       setIsUserLoading(true);
       try {
@@ -46,20 +55,17 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile }) => {
           setUser(userData);
         } else {
           console.error('Failed to fetch user data');
-          // Set default user on error
           setUser({ name: "User", email: "user@example.com" });
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
-        // Set default user on error
         setUser({ name: "User", email: "user@example.com" });
       } finally {
         setIsUserLoading(false);
       }
     };
-    
     fetchUserData();
-  }, []);
+  }, [skipUserFetch, adminUser]);
   
   // Handle clicks outside to close dropdowns
   useEffect(() => {

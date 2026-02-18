@@ -5,10 +5,12 @@ import { getUserFromSession } from '@/lib/auth';
 import { getPaymentMethodName } from '@/lib/paymentMethods';
 
 export async function GET(request, { params }) {
+  const resolvedParams = typeof params.then === 'function' ? await params : params;
+  const saleId = resolvedParams?.id ?? null;
   try {
-    const resolvedParams = await params;
-    const { id: saleId } = resolvedParams;
-    
+    if (!saleId) {
+      return NextResponse.json({ error: 'Sale ID required' }, { status: 400 });
+    }
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
@@ -41,8 +43,7 @@ export async function GET(request, { params }) {
           select: {
             id: true,
             name: true,
-            logoUrl: true,
-            settings: true
+            logoUrl: true
           }
         },
         items: {
@@ -95,16 +96,34 @@ export async function GET(request, { params }) {
         { status: 403 }
       );
     }
-    
-    // Get tenant settings
-    const tenantSettings = sale.tenant.settings;
-    
-    // Fetch item taxes if table exists
-    let itemTaxesMap = {};
+
+    // Fetch tenant settings separately (avoids failing whole receipt if settings table/relation has issues)
+    let tenantSettings = null;
     try {
+      const settings = await prisma.tenantSettings.findUnique({
+        where: { tenantId: sale.tenantId }
+      });
+      tenantSettings = settings ?? null;
+    } catch (settingsErr) {
+      console.warn('Receipt: could not load tenant settings:', settingsErr?.message || settingsErr);
+    }
+    
+    // Fetch item taxes if table exists (skip when no items to avoid Prisma in: [] issues)
+    let itemTaxesMap = {};
+    const itemIds = Array.isArray(sale.items) ? sale.items.map(item => item.id) : [];
+    try {
+      if (itemIds.length === 0) {
+        // No items - ensure each item has itemTaxes and numeric fields
+        sale.items = (sale.items || []).map(item => ({
+          ...item,
+          itemTaxes: [],
+          amount: typeof item.amount === 'object' && item.amount?.toNumber ? item.amount.toNumber() : parseFloat(item.amount || 0),
+          taxAmount: typeof item.taxAmount === 'object' && item.taxAmount?.toNumber ? item.taxAmount.toNumber() : parseFloat(item.taxAmount || 0)
+        }));
+      } else {
       const itemTaxes = await prisma.saleItemTax.findMany({
         where: {
-          saleItemId: { in: sale.items.map(item => item.id) }
+          saleItemId: { in: itemIds }
         },
         select: {
           id: true,
@@ -152,6 +171,7 @@ export async function GET(request, { params }) {
         taxCount: item.itemTaxes?.length || 0,
         taxes: item.itemTaxes
       })));
+      }
     } catch (error) {
       // If table doesn't exist, items won't have itemTaxes - that's okay
       if (!error.message?.includes('does not exist') && !error.message?.includes('Unknown model')) {
@@ -727,22 +747,26 @@ export async function GET(request, { params }) {
     </html>
     `;
     
-    // Log the receipt generation in the audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'RECEIPT_GENERATED',
-        entityType: 'SALE',
-        entityId: sale.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          saleNumber: sale.saleNumber,
-          total: sale.total,
-          receiptFormat: 'thermal_enhanced'
-        })
-      }
-    });
-    
+    // Log the receipt generation in the audit log (non-blocking; don't fail receipt on audit error)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'RECEIPT_GENERATED',
+          entityType: 'SALE',
+          entityId: sale.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            saleNumber: sale.saleNumber,
+            total: sale.total,
+            receiptFormat: 'thermal_enhanced'
+          })
+        }
+      });
+    } catch (auditErr) {
+      console.warn('Receipt audit log failed (receipt still returned):', auditErr?.message || auditErr);
+    }
+
     // Return HTML response
     return new NextResponse(receiptHtml, {
       headers: {
@@ -750,9 +774,14 @@ export async function GET(request, { params }) {
       }
     });
   } catch (error) {
-    console.error(`Error generating receipt for sale ${saleId}:`, error);
+    const errMsg = error?.message || String(error);
+    console.error(`Error generating receipt for sale ${saleId}:`, errMsg);
+    if (error?.stack) console.error(error.stack);
     return NextResponse.json(
-      { error: 'Failed to generate receipt. Please try again.' },
+      {
+        error: 'Failed to generate receipt. Please try again.',
+        ...(process.env.NODE_ENV === 'development' && { details: errMsg })
+      },
       { status: 500 }
     );
   }

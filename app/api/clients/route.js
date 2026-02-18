@@ -66,6 +66,7 @@ export async function GET(request) {
         name: true,
         contactPerson: true,
         email: true,
+        additionalEmails: true,
         phone: true,
         address: true,
         createdAt: true,
@@ -214,6 +215,7 @@ export async function POST(request) {
         name: body.name,
         contactPerson: body.contactPerson || null,
         email: body.email && body.email.trim() ? body.email : null,
+        additionalEmails: body.additionalEmails && Array.isArray(body.additionalEmails) ? body.additionalEmails : [],
         phone: body.phone && body.phone.trim() ? body.phone : null,
         address: body.address || null,
         tenant: { connect: { id: user.tenantId } }

@@ -80,7 +80,7 @@ async function createAdminUser(email, name, password) {
     console.log(`   Role: ${adminRole.name}`);
     console.log(`   Tenant: ${tenant.name}`);
     console.log(`   User ID: ${user.id}`);
-    console.log(`\n🔗 Login at: https://insightbooksafrica.com/admin/login`);
+    console.log(`\n🔗 Login at: https://insightbooksafrica.com/insightbooks/login`);
     
   } catch (error) {
     console.error('❌ Error creating admin user:', error);

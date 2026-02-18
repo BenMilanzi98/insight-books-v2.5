@@ -3,10 +3,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 
 export async function GET(request) {
   try {
-    // Get user from session
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
       return NextResponse.json(
@@ -14,63 +14,34 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    // Get query parameters
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    
-    // Validate dates
+
     if (!startDate || !endDate) {
       return NextResponse.json(
         { error: 'Start date and end date are required' },
         { status: 400 }
       );
     }
-    
-    // Get revenue (from paid invoices and sales) - filter by branch
-    const invoiceRevenue = await prisma.invoice.aggregate({
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: 'Paid',
-        issueDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      }),
-      _sum: {
-        total: true
-      }
+
+    // Same logic as Income Statement (system rule): revenue and COGS system-generated; operating expenses drive structure
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: { name: true }
     });
-    
-    const salesRevenue = await prisma.sale.aggregate({
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: 'completed',
-        saleDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      }),
-      _sum: {
-        total: true
-      }
-    });
-    
-    // Get expenses - filter by branch
-    const expenses = await prisma.expense.aggregate({
-      where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: 'Approved',
-        date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
-        }
-      }),
-      _sum: {
-        amount: true
-      }
-    });
+    const statement = await generateIncomeStatementFromAccounts(
+      user.tenantId,
+      startDate,
+      endDate,
+      tenant?.name || 'Company',
+      null,
+      user.currentBranchId || null
+    );
+    const totalRevenue = Number(statement?.totalRevenue ?? 0);
+    const totalExpenses = Number(statement?.totalOperatingExpenses ?? 0);
+    const profit = Number(statement?.operatingIncome ?? statement?.netIncome ?? totalRevenue - totalExpenses);
     
     // Count outstanding invoices - filter by branch
     const outstandingInvoices = await prisma.invoice.aggregate({
@@ -87,46 +58,31 @@ export async function GET(request) {
       }
     });
     
-    // Count recent sales - filter by branch
     const recentSales = await prisma.sale.count({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
         saleDate: {
-          gte: new Date(new Date().setDate(new Date().getDate() - 7)) // Last 7 days
+          gte: new Date(new Date().setDate(new Date().getDate() - 7))
         }
       })
     });
-    
-    // Get low stock products - Simplified logic to match stock alerts API
+
     const allProducts = await prisma.product.findMany({
       where: {
         tenantId: user.tenantId,
         isService: false,
-        stockLevel: { not: null } // Only products with stock level set
+        stockLevel: { not: null }
       },
-      select: {
-        stockLevel: true,
-        reorderPoint: true
-      }
+      select: { stockLevel: true, reorderPoint: true }
     });
-    
-    // Filter products that need alerts (same logic as stock alerts API)
-    const lowStockProducts = allProducts.filter(product => {
-      const stockLevel = product.stockLevel || 0;
-      const reorderPoint = product.reorderPoint || 10;
-      
-      // Show alert if:
-      // 1. Out of stock (stockLevel = 0)
-      // 2. Stock level is at or below reorder point
-      return stockLevel === 0 || stockLevel <= reorderPoint;
+    const lowStockProducts = allProducts.filter(p => {
+      const level = p.stockLevel || 0;
+      const reorder = p.reorderPoint || 10;
+      return level === 0 || level <= reorder;
     }).length;
-    
-    // Calculate total revenue and profit
-    const totalRevenue = (invoiceRevenue._sum.total || 0) + (salesRevenue._sum.total || 0);
-    const totalExpenses = expenses._sum.amount || 0;
-    const profit = totalRevenue - totalExpenses;
+
     const profitMargin = totalRevenue > 0 ? ((profit / totalRevenue) * 100).toFixed(2) : 0;
-    
+
     return NextResponse.json({
       revenue: totalRevenue.toFixed(2),
       expenses: totalExpenses.toFixed(2),

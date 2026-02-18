@@ -186,7 +186,7 @@ const ACCOUNT_BLUEPRINT: AccountBlueprint[] = [
   // Expenses
   {
     code: '5000',
-    name: 'Expenses',
+    name: 'Expense',
     type: 'Expense',
     normalBalance: 'Debit',
     subtype: 'Group',

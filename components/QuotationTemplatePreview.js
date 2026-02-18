@@ -93,7 +93,8 @@ const QuotationTemplatePreview = forwardRef(({
           <div className="text-right">
             <h2 className="text-gray-900 font-bold mb-1" style={{ fontSize: '14pt' }}>QUOTATION</h2>
             <div className="text-gray-600" style={{ fontSize: '12pt' }}>
-              <div style={{ marginBottom: '2px' }}><strong>Quotation #:</strong> {quotation?.quotationNumber}</div>
+              <div style={{ marginBottom: '2px' }}><strong>Quotation #:</strong> {quotation?.quotationNumber ?? '—'}</div>
+              <div style={{ marginBottom: '2px' }}><strong>Order #:</strong> {quotation?.orderNumber ?? '—'}</div>
               <div style={{ marginBottom: '2px' }}><strong>Date:</strong> {formatDate(quotation?.issueDate)}</div>
               <div style={{ marginBottom: '2px' }}><strong>Valid Until:</strong> {formatDate(quotation?.validUntil)}</div>
               <div style={{ marginBottom: '2px' }}><strong>Status:</strong> 
@@ -161,12 +162,11 @@ const QuotationTemplatePreview = forwardRef(({
         </div>
       </div>
 
-      {/* Title Section */}
-      {quotation?.title && (
-        <div className="px-4 py-2 bg-gray-50">
-          <h3 className="text-gray-900 font-semibold" style={{ fontSize: '12pt' }}>{quotation.title}</h3>
-        </div>
-      )}
+      {/* Title Section - always show so title/order context is visible */}
+      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
+        <h3 className="text-gray-500 font-medium mb-0.5" style={{ fontSize: '11pt' }}>Title</h3>
+        <p className="text-gray-900 font-semibold" style={{ fontSize: '12pt' }}>{quotation?.title ?? '—'}</p>
+      </div>
 
       {/* Items Table */}
       <div className="p-4 -mt-2 pt-0">

@@ -99,11 +99,14 @@ export async function POST(request) {
     `;
 
     // Send email using transporter directly to avoid template requirement
+    // Use tenant's business email if available
+    const tenantEmail = tenant?.settings?.businessEmail || process.env.EMAIL_FROM || 'noreply@insightbooksafrica.com';
+    const senderFrom = `"${companyName}" <${tenantEmail}>`;
+    
     const transporter = createTransport();
-    const senderFrom = process.env.EMAIL_FROM || 'noreply@insightbooksafrica.com';
     await transporter.sendMail({
       from: senderFrom,
-      replyTo,
+      replyTo: replyTo || tenantEmail,
       to,
       subject,
       html: emailHtml,

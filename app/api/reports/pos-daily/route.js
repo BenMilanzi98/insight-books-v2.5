@@ -1,0 +1,39 @@
+/**
+ * Daily POS Micro Report API – one calendar day.
+ */
+import { NextResponse } from 'next/server';
+import { getUserFromSession } from '@/lib/auth';
+import { generatePosDailyReport } from '@/lib/posDailyReportService';
+
+export async function GET(request) {
+  try {
+    const user = await getUserFromSession(request);
+    if (!user || !user.tenantId) {
+      return NextResponse.json(
+        { error: 'Authentication required or no tenant associated' },
+        { status: 401 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    let date = searchParams.get('date');
+    if (!date) {
+      const t = new Date();
+      date = t.toISOString().slice(0, 10);
+    }
+
+    const report = await generatePosDailyReport(
+      user.tenantId,
+      date,
+      user.currentBranchId || null
+    );
+
+    return NextResponse.json(report);
+  } catch (error) {
+    console.error('Error generating POS daily report:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate daily POS report. Please try again.' },
+      { status: 500 }
+    );
+  }
+}

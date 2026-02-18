@@ -123,7 +123,11 @@ function buildWhereClause(tenantId, searchParams) {
   return where;
 }
 
-function buildLegacyTransactionWhere(tenantId, searchParams) {
+/**
+ * Build where for Transaction (legacy) entries.
+ * When includeAllSourceTypes is true, do not filter by sourceType so Invoice, Sale, Reversal all appear.
+ */
+function buildLegacyTransactionWhere(tenantId, searchParams, includeAllSourceTypes = false) {
   const where = { tenantId, AND: [] };
 
   const status = searchParams.get('status');
@@ -162,9 +166,21 @@ function buildLegacyTransactionWhere(tenantId, searchParams) {
     });
   }
 
-  const sourceType = searchParams.get('sourceType');
-  if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
-    if (sourceType.toLowerCase() === 'manual') {
+  if (!includeAllSourceTypes) {
+    const sourceType = searchParams.get('sourceType');
+    if (sourceType && sourceType.toLowerCase() !== 'all' && sourceType.toLowerCase() !== 'all types') {
+      if (sourceType.toLowerCase() === 'manual') {
+        where.AND.push({
+          OR: [
+            { sourceType: { in: MANUAL_SOURCE_TYPES } },
+            { sourceType: null },
+            { sourceType: '' },
+          ],
+        });
+      } else {
+        where.AND.push({ sourceType });
+      }
+    } else {
       where.AND.push({
         OR: [
           { sourceType: { in: MANUAL_SOURCE_TYPES } },
@@ -172,17 +188,7 @@ function buildLegacyTransactionWhere(tenantId, searchParams) {
           { sourceType: '' },
         ],
       });
-    } else {
-      where.AND.push({ sourceType });
     }
-  } else {
-    where.AND.push({
-      OR: [
-        { sourceType: { in: MANUAL_SOURCE_TYPES } },
-        { sourceType: null },
-        { sourceType: '' },
-      ],
-    });
   }
 
   return where;
@@ -242,12 +248,54 @@ export async function GET(request) {
     const where = buildWhereClause(user.tenantId, searchParams);
     const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
+    const sourceType = searchParams.get('sourceType');
+    const isAllSourceTypes = !sourceType || sourceType.toLowerCase() === 'all' || sourceType.toLowerCase() === 'all types';
 
     let orderBy;
     if (sortBy === 'referenceNumber' || sortBy === 'reference') {
       orderBy = { referenceNumber: sortOrder };
     } else {
       orderBy = { entryDate: sortOrder };
+    }
+
+    // When "all" source types: merge JournalEntry (manual) + Transaction (Invoice, Sale, Reversal, etc.) so reversals show
+    const MERGE_CAP = 3000;
+    if (isAllSourceTypes) {
+      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams, true);
+      const [journalEntries, legacyTransactions] = await Promise.all([
+        prisma.journalEntry.findMany({
+          where,
+          orderBy,
+          take: MERGE_CAP,
+          include: ENTRY_INCLUDE,
+        }),
+        prisma.transaction.findMany({
+          where: legacyWhere,
+          orderBy: { date: sortOrder },
+          take: MERGE_CAP,
+          include: ENTRY_INCLUDE,
+        }),
+      ]);
+      const merged = [
+        ...journalEntries.map((e) => ({ ...e, _sortDate: e.entryDate || e.createdAt })),
+        ...legacyTransactions.map((t) => ({ ...t, _sortDate: t.date || t.createdAt })),
+      ];
+      merged.sort((a, b) => {
+        const da = new Date(a._sortDate || 0).getTime();
+        const db = new Date(b._sortDate || 0).getTime();
+        return sortOrder === 'asc' ? da - db : db - da;
+      });
+      const total = merged.length;
+      const entries = merged.slice(skip, skip + limit);
+      return NextResponse.json({
+        entries: formatJournalEntries(entries),
+        pagination: {
+          page,
+          limit,
+          totalCount: total,
+          totalPages: Math.ceil(total / limit),
+        },
+      });
     }
 
     const [totalCount, entriesRaw] = await Promise.all([
@@ -265,7 +313,7 @@ export async function GET(request) {
     let total = totalCount;
 
     if (entriesRaw.length === 0) {
-      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams);
+      const legacyWhere = buildLegacyTransactionWhere(user.tenantId, searchParams, false);
       const [legacyCount, legacyEntries] = await Promise.all([
         prisma.transaction.count({ where: legacyWhere }),
         prisma.transaction.findMany({

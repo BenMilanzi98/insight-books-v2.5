@@ -39,35 +39,35 @@ const AdminSidebar = ({ collapsed, setCollapsed, admin }) => {
     {
       label: "Administration",
       items: [
-        { href: '/admin/dashboard', icon: '📊', text: 'Dashboard' },
-        { href: '/admin/tenant-management', icon: '🏢', text: 'Tenant Management' },
+        { href: '/insightbooks/dashboard', icon: '📊', text: 'Dashboard' },
+        { href: '/insightbooks/tenant-management', icon: '🏢', text: 'Tenant Management' },
         { 
-          href: '/admin/user-management', 
+          href: '/insightbooks/user-management', 
           icon: '👥', 
           text: 'User Management',
         },
-        { href: '/admin/global-settings', icon: '⚙️', text: 'Global Settings' },
-        { href: '/admin/affiliate', icon: '🤝', text: 'Affiliate Management' },
+        { href: '/insightbooks/global-settings', icon: '⚙️', text: 'Global Settings' },
+        { href: '/insightbooks/affiliate', icon: '🤝', text: 'Affiliate Management' },
         { 
-          href: '/admin/billing', 
+          href: '/insightbooks/billing', 
           icon: '💰', 
           text: 'Billing & Subscriptions',
           expandable: true,
           subItems: [
-            { href: '/admin/billing/overview', text: 'Billing Overview' },
-            { href: '/admin/billing/subscriptions', text: 'Subscription Management' },
-            { href: '/admin/billing/invoices', text: 'Invoices' },
-            { href: '/admin/billing/payments', text: 'Payments' },
+            { href: '/insightbooks/billing/overview', text: 'Billing Overview' },
+            { href: '/insightbooks/billing/subscriptions', text: 'Subscription Management' },
+            { href: '/insightbooks/billing/invoices', text: 'Invoices' },
+            { href: '/insightbooks/billing/payments', text: 'Payments' },
           ]
         },
         { 
-          href: '/admin/email-management', 
+          href: '/insightbooks/email-management', 
           icon: '📧', 
           text: 'Email Management',
           description: 'Send bulk emails to users'
         },
         { 
-          href: '/admin/audit', 
+          href: '/insightbooks/audit', 
           icon: '📜', 
           text: 'Audit & Security',
         }
@@ -78,7 +78,7 @@ const AdminSidebar = ({ collapsed, setCollapsed, admin }) => {
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/auth/logout', { method: 'POST' });
-      window.location.href = '/admin/login';
+      window.location.href = '/insightbooks/login';
     } catch (error) {
       console.error('Logout error:', error);
     }

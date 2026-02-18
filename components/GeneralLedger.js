@@ -5,11 +5,16 @@ import {
   Calendar, 
   Download, 
   FileText, 
-  Filter, 
   Plus, 
   Search, 
   SlidersHorizontal,
-  Eye
+  Eye,
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Hash
 } from "lucide-react";
 import Link from "next/link";
 import { calculateDateRange } from "@/lib/dateUtils";
@@ -412,408 +417,457 @@ const GeneralLedger = () => {
   const renderPaginationButtons = () => {
     const buttons = [];
     const totalPages = summary.totalPages;
-    
-    // Always show first page
+
+    const btnClass = (active) =>
+      cn(
+        "min-w-[2.25rem] px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
+        active
+          ? "bg-indigo-600 text-white shadow-sm"
+          : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+      );
+
     buttons.push(
-      <button 
+      <button
         key="page-1"
+        type="button"
         onClick={() => goToPage(1)}
-        className={`px-3 py-1 ${page === 1 ? 'bg-blue-600 text-white' : 'border border-gray-200 hover:bg-gray-50'} rounded`}
+        className={btnClass(page === 1)}
       >
         1
       </button>
     );
-    
-    // Logic for ellipsis and neighboring pages
+
     if (totalPages > 1) {
       if (page > 3) {
-        buttons.push(<span key="ellipsis-1">...</span>);
+        buttons.push(<span key="ellipsis-1" className="px-1 text-slate-400">…</span>);
       }
-      
-      // Show current page and neighbors
+
       for (let i = Math.max(2, page - 1); i <= Math.min(page + 1, totalPages - 1); i++) {
         buttons.push(
-          <button 
+          <button
             key={`page-${i}`}
+            type="button"
             onClick={() => goToPage(i)}
-            className={`px-3 py-1 ${page === i ? 'bg-blue-600 text-white' : 'border border-gray-200 hover:bg-gray-50'} rounded`}
+            className={btnClass(page === i)}
           >
             {i}
           </button>
         );
       }
-      
+
       if (page < totalPages - 2) {
-        buttons.push(<span key="ellipsis-2">...</span>);
+        buttons.push(<span key="ellipsis-2" className="px-1 text-slate-400">…</span>);
       }
-      
-      // Always show last page if more than 1 page
+
       if (totalPages > 1) {
         buttons.push(
-          <button 
+          <button
             key={`page-${totalPages}`}
+            type="button"
             onClick={() => goToPage(totalPages)}
-            className={`px-3 py-1 ${page === totalPages ? 'bg-blue-600 text-white' : 'border border-gray-200 hover:bg-gray-50'} rounded`}
+            className={btnClass(page === totalPages)}
           >
             {totalPages}
           </button>
         );
       }
     }
-    
+
     return buttons;
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <h1 className="text-2xl font-bold">General Ledger</h1>
-        <div className="flex flex-wrap gap-2">
-        {pagePermissions.canExportLedger &&( <button 
-            onClick={handleExport}
-            className="btn bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded flex items-center gap-2"
-          >
-            <Download size={16} />
-            Export
-          </button>)}
-          {pagePermissions.canCreateJournal &&(   <Link href="/journal-entries/new">
-            <button className="btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded flex items-center gap-2">
-              <Plus size={16} />
-              New Entry
-            </button>
-          </Link>)}
-        </div>
-      </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 flex justify-between items-center">
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="font-bold">×</button>
-        </div>
-      )}
-
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by description, account, or reference..."
-                className="border border-gray-300 pl-10 pr-4 py-2 w-full rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={searchTerm}
-                onChange={handleSearchChange}
-              />
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative">
-              <select
-                className="border border-gray-300 pl-10 pr-4 py-2 rounded appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={timeframe}
-                onChange={(e) => setTimeframe(e.target.value)}
-              >
-                {dateRangeOptions.map(option => (
-                  <option key={option.value} value={option.value}>{option.label}</option>
-                ))}
-              </select>
-              <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            <div className="relative">
-              <select
-                className="border border-gray-300 pl-10 pr-8 py-2 rounded appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value)}
-              >
-                <option value="all">All Accounts</option>
-                {accounts.map(account => (
-                  <option key={account.id} value={account.id}>
-                    {account.code} - {account.name}
-                  </option>
-                ))}
-              </select>
-              <FileText className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            <button 
-              className="border border-gray-300 px-4 py-2 rounded flex items-center gap-2 hover:bg-gray-50"
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-            >
-              <SlidersHorizontal size={16} />
-              {showAdvancedFilters ? 'Hide Filters' : 'Advanced Filters'}
-            </button>
-          </div>
-        </div>
-
-        {/* Custom date range inputs */}
-        {showCustomDateRange && (
-          <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-              <input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded w-full"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-              <input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded w-full"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={applyCustomDateRange}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Advanced filters */}
-        {showAdvancedFilters && (
-          <div className="flex flex-col md:flex-row gap-4 mb-6 p-4 bg-gray-50 rounded">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
-              <input
-                type="text"
-                placeholder="Invoice or payment reference"
-                value={referenceFilter}
-                onChange={(e) => setReferenceFilter(e.target.value)}
-                className="border border-gray-300 px-3 py-2 rounded w-full"
-              />
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Balance Type</label>
-              <select
-                className="border border-gray-300 px-3 py-2 rounded w-full"
-                value={balanceFilter}
-                onChange={(e) => setBalanceFilter(e.target.value)}
-              >
-                <option value="all">All</option>
-                <option value="debit">Debit</option>
-                <option value="credit">Credit</option>
-              </select>
-            </div>
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Items Per Page</label>
-              <select
-                className="border border-gray-300 px-3 py-2 rounded w-full"
-                value={limit}
-                onChange={(e) => setLimit(Number(e.target.value))}
-              >
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : transactions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <FileText size={48} className="mb-4 text-gray-400" />
-            <p className="text-xl font-medium mb-2">No transactions found</p>
-            <p>Try adjusting your filters or search criteria</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left">
-                  <th className="p-3 font-medium">Date</th>
-                  <th className="p-3 font-medium">Description</th>
-                  <th className="p-3 font-medium">Reference</th>
-                  <th className="p-3 font-medium">Account</th>
-                  <th className="p-3 font-medium text-right">Debit</th>
-                  <th className="p-3 font-medium text-right">Credit</th>
-                  <th className="p-3 font-medium text-right">Balance</th>
-                  <th className="p-3 font-medium text-center">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id} className="border-t border-gray-200 hover:bg-gray-50">
-                    <td className="p-3">{formatDateDisplay(transaction.date)}</td>
-                    <td className="p-3">{transaction.description}</td>
-                    <td className="p-3 text-blue-600">{transaction.reference}</td>
-                    <td className="p-3">
-                      <span className="font-medium">{transaction.accountCode}</span> - {transaction.accountName}
-                    </td>
-                    <td className="p-3 text-right">
-                      {transaction.debit > 0 ? formatCurrency(transaction.debit) : '-'}
-                    </td>
-                    <td className="p-3 text-right">
-                      {transaction.credit > 0 ? formatCurrency(transaction.credit) : '-'}
-                    </td>
-                    <td className={`p-3 text-right ${transaction.balance < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {formatCurrency(Math.abs(transaction.balance))}
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="flex justify-center space-x-2">
-                        <button
-                          className="text-gray-500 hover:text-blue-600"
-                          title="View ledger entry details"
-                          onClick={() => openDetails(transaction)}
-                        >
-                          <Eye size={18} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!isLoading && transactions.length > 0 && (
-          <div className="mt-6 flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500">
-            <div className="mb-4 sm:mb-0">
-              Showing {Math.min((page - 1) * limit + 1, summary.totalTransactions)} - {Math.min(page * limit, summary.totalTransactions)} of {summary.totalTransactions} transactions
-            </div>
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={handlePrevPage} 
-                disabled={page === 1}
-                className={`px-3 py-1 border border-gray-200 rounded ${page === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
-              >
-                Previous
-              </button>
-              
-              <div className="flex items-center space-x-2">
-                {renderPaginationButtons()}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-7xl">
+        {/* Header */}
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
               </div>
-              
-              <button 
-                onClick={handleNextPage} 
-                disabled={page >= summary.totalPages}
-                className={`px-3 py-1 border border-gray-200 rounded ${page >= summary.totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">General Ledger</h1>
+                <p className="text-indigo-100 text-sm sm:text-base mt-0.5">View and filter journal entries</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              {pagePermissions.canExportLedger && (
+                <button
+                  onClick={handleExport}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all shadow-sm border border-white/20"
+                >
+                  <Download size={18} />
+                  Export
+                </button>
+              )}
+              {pagePermissions.canCreateJournal && (
+                <Link href="/journal-entries/new">
+                  <button className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold transition-all shadow-lg">
+                    <Plus size={18} />
+                    New Entry
+                  </button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 mb-6 flex justify-between items-center shadow-sm">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="font-bold text-red-600 hover:text-red-800">×</button>
+          </div>
+        )}
+
+        {/* Summary cards - above filters on mobile for quick glance */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Transactions</p>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{summary.totalTransactions}</p>
+                <p className="text-xs text-slate-400 mt-2">{formatDateDisplay(dateRange.startDate)} – {formatDateDisplay(dateRange.endDate)}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-indigo-100">
+                <Hash className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Debits</p>
+                <p className="text-2xl sm:text-3xl font-bold text-amber-600 mt-1">{formatCurrency(summary.totalDebits)}</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  {((summary.totalDebits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-amber-100">
+                <TrendingDown className="w-6 h-6 text-amber-600" />
+              </div>
+            </div>
+          </div>
+          <div className="rounded-2xl bg-white p-5 sm:p-6 shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-500 uppercase tracking-wider">Total Credits</p>
+                <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">{formatCurrency(summary.totalCredits)}</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  {((summary.totalCredits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
+                </p>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <TrendingUp className="w-6 h-6 text-emerald-600" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters card */}
+        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+          <div className="flex flex-col lg:flex-row gap-4 mb-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by description, account, or reference..."
+                  className={cn(
+                    "w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50",
+                    "focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white transition-all"
+                  )}
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              <div className="relative flex-1 sm:flex-initial min-w-[140px]">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                <select
+                  className="w-full sm:w-auto pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 appearance-none cursor-pointer"
+                  value={timeframe}
+                  onChange={(e) => setTimeframe(e.target.value)}
+                >
+                  {dateRangeOptions.map(option => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="relative flex-1 sm:flex-initial min-w-[160px]">
+                <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                <select
+                  className="w-full sm:w-auto pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 appearance-none cursor-pointer"
+                  value={accountFilter}
+                  onChange={(e) => setAccountFilter(e.target.value)}
+                >
+                  <option value="all">All Accounts</option>
+                  {accounts.map(account => (
+                    <option key={account.id} value={account.id}>
+                      {account.code} - {account.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={cn(
+                  "inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all",
+                  showAdvancedFilters
+                    ? "bg-indigo-100 text-indigo-700 border border-indigo-200"
+                    : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200/80"
+                )}
               >
-                Next
+                <SlidersHorizontal size={18} />
+                {showAdvancedFilters ? "Hide filters" : "More filters"}
               </button>
             </div>
           </div>
-        )}
+
+          {showCustomDateRange && (
+            <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-gradient-to-r from-indigo-50 to-violet-50 border border-indigo-100 mb-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Start date</label>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">End date</label>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={applyCustomDateRange}
+                  className="px-4 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          )}
+
+          {showAdvancedFilters && (
+            <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Reference</label>
+                <input
+                  type="text"
+                  placeholder="Invoice or payment reference"
+                  value={referenceFilter}
+                  onChange={(e) => setReferenceFilter(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Balance type</label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  value={balanceFilter}
+                  onChange={(e) => setBalanceFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  <option value="debit">Debit</option>
+                  <option value="credit">Credit</option>
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Per page</label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  value={limit}
+                  onChange={(e) => setLimit(Number(e.target.value))}
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Table card */}
+        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+              <p className="text-slate-500 font-medium">Loading ledger...</p>
+            </div>
+          ) : transactions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 px-4">
+              <div className="p-4 rounded-2xl bg-slate-100 mb-4">
+                <FileText className="w-12 h-12 text-slate-400" />
+              </div>
+              <p className="text-lg font-semibold text-slate-700 mb-1">No transactions found</p>
+              <p className="text-slate-500 text-sm text-center">Try adjusting filters or date range</p>
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
+                      <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
+                      <th className="px-4 py-3.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
+                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-20">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {transactions.map((transaction, idx) => (
+                      <tr
+                        key={transaction.id}
+                        className={cn(
+                          "hover:bg-indigo-50/50 transition-colors",
+                          idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"
+                        )}
+                      >
+                        <td className="px-4 py-3 text-slate-700 whitespace-nowrap">{formatDateDisplay(transaction.date)}</td>
+                        <td className="px-4 py-3 text-slate-800 max-w-[200px] truncate" title={transaction.description}>{transaction.description}</td>
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-indigo-600">{transaction.reference}</span>
+                        </td>
+                        <td className="px-4 py-3 text-slate-700">
+                          <span className="font-semibold text-slate-800">{transaction.accountCode}</span>
+                          <span className="text-slate-500"> – {transaction.accountName}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-amber-700">
+                          {transaction.debit > 0 ? formatCurrency(transaction.debit) : "–"}
+                        </td>
+                        <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                          {transaction.credit > 0 ? formatCurrency(transaction.credit) : "–"}
+                        </td>
+                        <td className={cn(
+                          "px-4 py-3 text-right font-medium",
+                          transaction.balance < 0 ? "text-rose-600" : "text-emerald-600"
+                        )}>
+                          {formatCurrency(Math.abs(transaction.balance))}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            className="p-2 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="View details"
+                            onClick={() => openDetails(transaction)}
+                          >
+                            <Eye size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {!isLoading && transactions.length > 0 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 px-4 py-4 bg-slate-50/80 border-t border-slate-200">
+                  <p className="text-sm text-slate-600 order-2 sm:order-1">
+                    Showing {Math.min((page - 1) * limit + 1, summary.totalTransactions)}–{Math.min(page * limit, summary.totalTransactions)} of {summary.totalTransactions}
+                  </p>
+                  <div className="flex items-center gap-2 order-1 sm:order-2">
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={page === 1}
+                      className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5 text-slate-600" />
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {renderPaginationButtons()}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={page >= summary.totalPages}
+                      className="p-2 rounded-lg border border-slate-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5 text-slate-600" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-medium mb-4">Total Transactions</h2>
-          <div className="flex justify-between items-center">
-            <span className="text-3xl font-bold">{summary.totalTransactions}</span>
-            <span className="text-green-600 bg-green-100 px-3 py-1 rounded-full text-sm">
-              Period: {formatDateDisplay(dateRange.startDate)} - {formatDateDisplay(dateRange.endDate)}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-medium mb-4">Total Debits</h2>
-          <div className="flex justify-between items-center">
-            <span className="text-3xl font-bold">
-              {formatCurrency(summary.totalDebits)}
-            </span>
-            <span className="text-yellow-600 bg-yellow-100 px-3 py-1 rounded-full text-sm">
-              {((summary.totalDebits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-medium mb-4">Total Credits</h2>
-          <div className="flex justify-between items-center">
-            <span className="text-3xl font-bold">
-              {formatCurrency(summary.totalCredits)}
-            </span>
-            <span className="text-blue-600 bg-blue-100 px-3 py-1 rounded-full text-sm">
-              {((summary.totalCredits / (summary.totalDebits + summary.totalCredits || 1)) * 100).toFixed(1)}% of volume
-            </span>
-          </div>
-        </div>
-      </div>
-
+      {/* Entry details modal */}
       {detailsOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="text-lg font-semibold">Ledger Entry Details</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+              <h2 className="text-lg font-semibold text-slate-800">Ledger entry details</h2>
               <button
+                type="button"
                 onClick={closeDetails}
-                className="text-gray-400 hover:text-gray-600"
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
               >
                 ✕
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-6 overflow-y-auto flex-1">
               {detailsLoading && (
-                <div className="text-sm text-gray-500">Loading details...</div>
+                <div className="flex items-center gap-2 text-slate-500">
+                  <div className="w-5 h-5 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                  Loading details...
+                </div>
               )}
               {!detailsLoading && entryDetails && (
                 <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <div className="text-gray-500">Entry Type</div>
-                      <div className="font-medium">{entryDetails.entryType}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Entry ID</div>
-                      <div className="font-medium">{entryDetails.entryId}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Source Type</div>
-                      <div className="font-medium">{entryDetails.sourceType || "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Source ID</div>
-                      <div className="font-medium">{entryDetails.sourceId || "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Reference</div>
-                      <div className="font-medium">{entryDetails.reference || "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-gray-500">Date</div>
-                      <div className="font-medium">{formatDateDisplay(entryDetails.date)}</div>
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                    {[
+                      { label: "Entry type", value: entryDetails.entryType },
+                      { label: "Entry ID", value: entryDetails.entryId },
+                      { label: "Source type", value: entryDetails.sourceType || "N/A" },
+                      { label: "Source ID", value: entryDetails.sourceId || "N/A" },
+                      { label: "Reference", value: entryDetails.reference || "N/A" },
+                      { label: "Date", value: formatDateDisplay(entryDetails.date) },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
+                        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">{label}</p>
+                        <p className="font-medium text-slate-800 mt-0.5">{value}</p>
+                      </div>
+                    ))}
                   </div>
-
                   <div>
-                    <div className="text-gray-500 text-sm mb-2">Lines</div>
-                    <div className="overflow-x-auto border rounded-lg">
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">Lines</p>
+                    <div className="overflow-x-auto rounded-xl border border-slate-200">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-slate-50">
                           <tr>
-                            <th className="p-2 text-left">Account</th>
-                            <th className="p-2 text-right">Debit</th>
-                            <th className="p-2 text-right">Credit</th>
-                            <th className="p-2 text-left">Description</th>
+                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Account</th>
+                            <th className="px-4 py-2.5 text-right font-semibold text-amber-600">Debit</th>
+                            <th className="px-4 py-2.5 text-right font-semibold text-emerald-600">Credit</th>
+                            <th className="px-4 py-2.5 text-left font-semibold text-slate-600">Description</th>
                           </tr>
                         </thead>
-                        <tbody>
-                          {entryDetails.lines.map((line) => (
-                            <tr key={line.id} className="border-t">
-                              <td className="p-2">
-                                <span className="font-medium">{line.accountCode}</span> - {line.accountName}
+                        <tbody className="divide-y divide-slate-100">
+                          {entryDetails.lines?.map((line) => (
+                            <tr key={line.id} className="hover:bg-slate-50/50">
+                              <td className="px-4 py-2.5">
+                                <span className="font-medium text-slate-800">{line.accountCode}</span>
+                                <span className="text-slate-500"> – {line.accountName}</span>
                               </td>
-                              <td className="p-2 text-right">
-                                {line.debit ? formatCurrency(line.debit) : '-'}
-                              </td>
-                              <td className="p-2 text-right">
-                                {line.credit ? formatCurrency(line.credit) : '-'}
-                              </td>
-                              <td className="p-2">{line.description || '-'}</td>
+                              <td className="px-4 py-2.5 text-right text-amber-700">{line.debit ? formatCurrency(line.debit) : "–"}</td>
+                              <td className="px-4 py-2.5 text-right text-emerald-700">{line.credit ? formatCurrency(line.credit) : "–"}</td>
+                              <td className="px-4 py-2.5 text-slate-600">{line.description || "–"}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -823,7 +877,7 @@ const GeneralLedger = () => {
                 </>
               )}
               {!detailsLoading && !entryDetails && (
-                <div className="text-sm text-red-600">No details available.</div>
+                <p className="text-sm text-rose-600">No details available.</p>
               )}
             </div>
           </div>

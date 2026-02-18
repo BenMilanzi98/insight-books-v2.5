@@ -28,6 +28,12 @@ import {
   ShoppingCart,
   RotateCcw,
   CalendarDays,
+  Briefcase,
+  Clock,
+  TrendingUp,
+  FileCheck,
+  DollarSign,
+  PieChart,
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
@@ -59,9 +65,26 @@ const iconMap = {
   pension: Landmark,
   reversals: RotateCcw,
   accountingPeriods: CalendarDays,
+  // Sub-item icons
+  "Employee Management": Users,
+  "Leave Management": CalendarDays,
+  "Attendance Tracking": Clock,
+  "Performance Management": TrendingUp,
+  "Payroll Processing": DollarSign,
+  "Pension (NPS)": Landmark,
+  "Gratuity Management": Wallet,
+  "Salary Advances": CreditCard,
+  "HR Reports": BarChart3,
+  "General Ledger": BookText,
+  "Chart of Accounts": BookText,
+  "Accounting Periods": CalendarDays,
+  "Journal Entries": BookOpen,
+  "Capital Account": Wallet,
+  "Trial Balance": Scale,
+  "Reversals": RotateCcw,
 };
 
-const NavIcon = ({ name, active }) => {
+const NavIcon = ({ name, active, size = 18 }) => {
   const Icon = iconMap[name] || LayoutDashboard;
 
   // Define colorful icons for specific modules
@@ -72,7 +95,7 @@ const NavIcon = ({ name, active }) => {
     affiliate: "#EF4444", // Red
     users: "#8B5CF6", // Purple
     coa: "#06B6D4", // Cyan
-  generalLedger: "#0EA5E9", // Sky
+    generalLedger: "#0EA5E9", // Sky
     journal: "#84CC16", // Lime
     trialBalance: "#F97316", // Orange
     capital: "#EC4899", // Pink
@@ -90,16 +113,34 @@ const NavIcon = ({ name, active }) => {
     advances: "#F97316", // Orange
     pension: "#EC4899", // Pink
     accountingPeriods: "#0F766E", // Teal
+    // Sub-item colors
+    "Employee Management": "#06B6D4",
+    "Leave Management": "#14B8A6",
+    "Attendance Tracking": "#3B82F6",
+    "Performance Management": "#10B981",
+    "Payroll Processing": "#22C55E",
+    "Pension (NPS)": "#EC4899",
+    "Gratuity Management": "#84CC16",
+    "Salary Advances": "#F97316",
+    "HR Reports": "#6366F1",
+    "General Ledger": "#0EA5E9",
+    "Chart of Accounts": "#06B6D4",
+    "Accounting Periods": "#0F766E",
+    "Journal Entries": "#84CC16",
+    "Capital Account": "#EC4899",
+    "Trial Balance": "#F97316",
+    "Reversals": "#F43F5E",
   };
 
-  const iconColor = colorfulIcons[name] || (active ? "white" : "rgba(255,255,255,0.7)");
+  const iconColor = colorfulIcons[name] || (active ? "#60a5fa" : "rgba(255,255,255,0.6)");
 
   return (
     <Icon
-      size={18}
+      size={size}
       style={{
         flexShrink: 0,
         color: iconColor,
+        transition: "all 0.2s ease",
       }}
     />
   );
@@ -112,22 +153,22 @@ const navigationByPermission = {
     {
       label: "Administration",
       items: [
-        { href: "/admin/dashboard", icon: "dashboard", text: "Dashboard" },
-        { href: "/admin/tenant-management", icon: "tenants", text: "Tenant Management" },
-        { href: "/admin/global-settings", icon: "settings", text: "Global Settings" },
-        { href: "/admin/affiliate-system", icon: "affiliate", text: "Affiliate Management" },
+        { href: "/insightbooks/dashboard", icon: "dashboard", text: "Dashboard" },
+        { href: "/insightbooks/tenant-management", icon: "tenants", text: "Tenant Management" },
+        { href: "/insightbooks/global-settings", icon: "settings", text: "Global Settings" },
+        { href: "/insightbooks/affiliate-system", icon: "affiliate", text: "Affiliate Management" },
         { 
-          href: "/admin/internal-business", 
+          href: "/insightbooks/internal-business", 
           icon: "businessModule", 
           text: "Business Owner Module", 
           expandable: true,
           subItems: [
-            { href: "/admin/internal-business/overview", text: "Business Overview" },
-            { href: "/admin/internal-business/finances", text: "Financial Management" },
-            { href: "/admin/internal-business/staff", text: "Staff Management" },
-            { href: "/admin/internal-business/expenses", text: "Expense Tracking" },
-            { href: "/admin/internal-business/revenue", text: "Revenue Analytics" },
-            { href: "/admin/internal-business/reports", text: "Business Reports" },
+            { href: "/insightbooks/internal-business/overview", text: "Business Overview" },
+            { href: "/insightbooks/internal-business/finances", text: "Financial Management" },
+            { href: "/insightbooks/internal-business/staff", text: "Staff Management" },
+            { href: "/insightbooks/internal-business/expenses", text: "Expense Tracking" },
+            { href: "/insightbooks/internal-business/revenue", text: "Revenue Analytics" },
+            { href: "/insightbooks/internal-business/reports", text: "Business Reports" },
           ]
         },
       ],
@@ -138,29 +179,28 @@ const navigationByPermission = {
         { href: "/tenants/dashboard", icon: "dashboard", text: "Business Owner Dashboard" },
         { href: "/users", icon: "users", text: "User & Role Management" },
         { href: "/customization", icon: "settings", text: "System Customization" },
-        { href: "/admin/billing", icon: "payments", text: "Billing & Subscriptions" },
-        { href: "/admin/audit-logs", icon: "reports", text: "Audit Logs" },
+        { href: "/insightbooks/billing", icon: "payments", text: "Billing & Subscriptions" },
+        { href: "/insightbooks/audit-logs", icon: "reports", text: "Audit Logs" },
       ],
     },
     {
       label: "Accounting",
       items: [
-        // {
-        //   href: "/financial-setup",
-        //   icon: "💼",
-        //   text: "Financial Setup",
-        //   expandable: true,
-        //   subItems: [
-        //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
-        //   ]
-        // },
-        { href: "/general-ledger", icon: "generalLedger", text: "General Ledger" },
-        { href: "/chart-of-accounts", icon: "coa", text: "Chart of Accounts" },
-        { href: "/accounting-periods", icon: "accountingPeriods", text: "Accounting Periods" },
-        { href: "/journal-entries", icon: "journal", text: "Journal Entries" },
-        { href: "/transactions/reversals", icon: "reversals", text: "Reversals" },
-        { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance" },
-        { href: "/capital-account", icon: "capital", text: "Capital Account" },
+        {
+          href: "/accounting",
+          icon: "coa",
+          text: "Accounting",
+          expandable: true,
+          subItems: [
+            { href: "/general-ledger", text: "General Ledger" },
+            { href: "/chart-of-accounts", text: "Chart of Accounts" },
+            { href: "/accounting-periods", text: "Accounting Periods" },
+            { href: "/journal-entries", text: "Journal Entries" },
+            { href: "/transactions/reversals", text: "Reversals" },
+            { href: "/trial-balance", text: "Trial Balance" },
+            { href: "/capital-account", text: "Capital Account" },
+          ]
+        },
       ],
     },
     {
@@ -196,6 +236,7 @@ const navigationByPermission = {
             { href: "/hr/attendance", text: "Attendance Tracking" },
             { href: "/hr/performance", text: "Performance Management" },
             { href: "/hr/payroll", text: "Payroll Processing" },
+            { href: "/hr/benefits", text: "Benefits & Allowances" },
             { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
             { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
             { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
@@ -210,16 +251,15 @@ const navigationByPermission = {
     {
       label: "Accounting",
       items: [
-        // { 
-        //   href: "/financial-setup", 
-        //   icon: "💼", 
-        //   text: "Financial Setup",
-        //   expandable: true,
-        //   subItems: [
-        //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
-        //   ]
-        // },
-        { href: "/chart-of-accounts", icon: "coa", text: "Chart of Accounts" },
+        {
+          href: "/accounting",
+          icon: "coa",
+          text: "Accounting",
+          expandable: true,
+          subItems: [
+            { href: "/chart-of-accounts", text: "Chart of Accounts" },
+          ]
+        },
       ],
     },
   ],
@@ -265,21 +305,20 @@ const navigationByPermission = {
   accounting: {
     label: "Accounting",
     items: [
-      // {
-      //   href: "/financial-setup",
-      //   icon: "💼",
-      //   text: "Financial Setup",
-      //   expandable: true,
-      //   subItems: [
-      //     { href: "/financial-setup/opening-balances", text: "Opening Balances" },
-      //   ]
-      // },
-      { href: "/general-ledger", icon: "generalLedger", text: "General Ledger", permission: "generalLedger.view" },
-      { href: "/accounting-periods", icon: "accountingPeriods", text: "Accounting Periods", permission: "journalEntries.view" },
-      { href: "/journal-entries", icon: "journal", text: "Journal Entries", permission: "journalEntries.view" },
-      { href: "/capital-account", icon: "capital", text: "Capital Account", permission: "reports.view" },
-      { href: "/trial-balance", icon: "trialBalance", text: "Trial Balance", permission: "trialBalance.view" },
-      { href: "/transactions/reversals", icon: "reversals", text: "Reversals" },
+      {
+        href: "/accounting",
+        icon: "coa",
+        text: "Accounting",
+        expandable: true,
+        subItems: [
+          { href: "/general-ledger", text: "General Ledger", permission: "generalLedger.view" },
+          { href: "/accounting-periods", text: "Accounting Periods", permission: "journalEntries.view" },
+          { href: "/journal-entries", text: "Journal Entries", permission: "journalEntries.view" },
+          { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
+          { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
+          { href: "/transactions/reversals", text: "Reversals" },
+        ]
+      },
     ]
   },
   // Additional modules
@@ -581,6 +620,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/hr/attendance", text: "Attendance Tracking" },
           { href: "/hr/performance", text: "Performance Management" },
           { href: "/hr/payroll", text: "Payroll Processing" },
+          { href: "/hr/benefits", text: "Benefits & Allowances" },
           { href: "/hr/pension", text: "Pension (NPS)", icon: "pension" },
           { href: "/hr/gratuity", text: "Gratuity Management", icon: "gratuity" },
           { href: "/hr/advances", text: "Salary Advances", icon: "advances" },
@@ -673,39 +713,19 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       label: "Accounting",
       items: [
         {
-          href: "/general-ledger",
-          icon: "generalLedger",
-          text: "General Ledger"
-        },
-        {
-          href: "/accounting-periods",
-          icon: "accountingPeriods",
-          text: "Accounting Periods"
-        },
-        {
-          href: "/chart-of-accounts",
+          href: "/accounting",
           icon: "coa",
-          text: "Chart of Accounts"
-        },
-        {
-          href: "/journal-entries",
-          icon: "journal",
-          text: "Journal Entries"
-        },
-        {
-          href: "/capital-account",
-          icon: "capital",
-          text: "Capital Account"
-        },
-        {
-          href: "/trial-balance",
-          icon: "trialBalance",
-          text: "Trial Balance"
-        },
-        {
-          href: "/transactions/reversals",
-          icon: "reversals",
-          text: "Reversals"
+          text: "Accounting",
+          expandable: true,
+          subItems: [
+            { href: "/general-ledger", text: "General Ledger" },
+            { href: "/accounting-periods", text: "Accounting Periods" },
+            { href: "/chart-of-accounts", text: "Chart of Accounts" },
+            { href: "/journal-entries", text: "Journal Entries" },
+            { href: "/capital-account", text: "Capital Account" },
+            { href: "/trial-balance", text: "Trial Balance" },
+            { href: "/transactions/reversals", text: "Reversals" },
+          ]
         },
       ]
     });
@@ -1293,27 +1313,41 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                           borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
                           gap: "12px",
                           position: "relative",
-                          transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                          transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                           cursor: "pointer",
                           borderRadius: "8px",
-                          border: "1px solid transparent"
+                          border: "1px solid transparent",
+                          transform: "translateX(0)",
                         }}
                         onMouseEnter={(e) => {
+                          const el = e.currentTarget;
                           if (!isActive(item.href)) {
-                            const el = e.currentTarget;
-                            el.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
-                            el.style.borderColor = "rgba(49, 130, 206, 0.2)";
+                            el.style.backgroundColor = "rgba(49, 130, 206, 0.15)";
+                            el.style.borderColor = "rgba(49, 130, 206, 0.3)";
+                            el.style.transform = "translateX(4px)";
+                            el.style.color = "rgba(255,255,255,0.9)";
+                          } else {
+                            el.style.transform = "translateX(2px)";
                           }
                         }}
                         onMouseLeave={(e) => {
+                          const el = e.currentTarget;
                           if (!isActive(item.href)) {
-                            const el = e.currentTarget;
                             el.style.backgroundColor = "transparent";
                             el.style.borderColor = "transparent";
+                            el.style.transform = "translateX(0)";
+                            el.style.color = "rgba(255,255,255,0.7)";
+                          } else {
+                            el.style.transform = "translateX(0)";
                           }
                         }}
                       >
-                        <span className="nav-icon" style={{ display: "inline-flex" }}>
+                        <span className="nav-icon" style={{ 
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "transform 0.2s ease"
+                        }}>
                           <NavIcon name={item.icon} active={isActive(item.href)} />
                         </span>
                         {!collapsed && (
@@ -1326,32 +1360,88 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                               size={16} 
                               style={{
                                 transform: isExpanded(item.href) ? 'rotate(90deg)' : 'rotate(0deg)',
-                                transition: 'transform 0.2s'
+                                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                color: isExpanded(item.href) ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.5)',
+                                flexShrink: 0
                               }}
                             />
                           </>
                         )}
                       </div>
                       {!collapsed && isExpanded(item.href) && (
-                        <div className="sub-menu">
-                          {item.subItems.map((subItem, subIndex) => (
-                            <Link 
-                              href={subItem.href}
-                              key={`subitem-${sIndex}-${iIndex}-${subIndex}`}
-                              className={`sub-menu-item ${isActive(subItem.href) ? "active" : ""}`}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                padding: "8px 16px 8px 44px",
-                                textDecoration: "none",
-                                color: isActive(subItem.href) ? "white" : "rgba(255,255,255,0.6)",
-                                backgroundColor: isActive(subItem.href) ? "rgba(49, 130, 206, 0.1)" : "transparent",
-                                fontSize: "13px",
-                              }}
-                            >
-                              {subItem.text}
-                            </Link>
-                          ))}
+                        <div className="sub-menu" style={{
+                          animation: "slideDown 0.2s ease-out",
+                          overflow: "hidden"
+                        }}>
+                          {item.subItems.map((subItem, subIndex) => {
+                            const isSubActive = isActive(subItem.href);
+                            const subItemIconName = subItem.icon || subItem.text;
+                            return (
+                              <Link 
+                                href={subItem.href}
+                                key={`subitem-${sIndex}-${iIndex}-${subIndex}`}
+                                className={`sub-menu-item ${isSubActive ? "active" : ""}`}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  padding: "10px 16px 10px 52px",
+                                  textDecoration: "none",
+                                  color: isSubActive ? "white" : "rgba(255,255,255,0.7)",
+                                  backgroundColor: isSubActive ? "rgba(49, 130, 206, 0.15)" : "transparent",
+                                  fontSize: "13px",
+                                  gap: "10px",
+                                  position: "relative",
+                                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                                  borderRadius: "6px",
+                                  margin: "2px 8px",
+                                  borderLeft: isSubActive ? "3px solid #3182ce" : "3px solid transparent",
+                                  transform: "translateX(0)",
+                                  animation: `fadeIn 0.2s ease-out ${subIndex * 0.03}s both`,
+                                }}
+                                onMouseEnter={(e) => {
+                                  const el = e.currentTarget;
+                                  if (!isSubActive) {
+                                    el.style.backgroundColor = "rgba(49, 130, 206, 0.12)";
+                                    el.style.transform = "translateX(6px)";
+                                    el.style.color = "rgba(255,255,255,0.95)";
+                                    el.style.borderLeft = "3px solid rgba(49, 130, 206, 0.4)";
+                                  } else {
+                                    el.style.transform = "translateX(2px)";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  const el = e.currentTarget;
+                                  if (!isSubActive) {
+                                    el.style.backgroundColor = "transparent";
+                                    el.style.transform = "translateX(0)";
+                                    el.style.color = "rgba(255,255,255,0.7)";
+                                    el.style.borderLeft = "3px solid transparent";
+                                  } else {
+                                    el.style.transform = "translateX(0)";
+                                  }
+                                }}
+                              >
+                                <span className="sub-nav-icon" style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  width: "18px",
+                                  height: "18px",
+                                  flexShrink: 0,
+                                  transition: "transform 0.2s ease",
+                                }}>
+                                  <NavIcon name={subItemIconName} active={isSubActive} size={16} />
+                                </span>
+                                <span style={{
+                                  flex: 1,
+                                  fontWeight: isSubActive ? "500" : "400",
+                                  transition: "font-weight 0.2s ease, color 0.2s ease"
+                                }}>
+                                  {subItem.text}
+                                </span>
+                              </Link>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -1373,25 +1463,39 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                         borderBottom: isActive(item.href) ? "1px solid rgba(49, 130, 206, 0.3)" : "1px solid transparent",
                         gap: "12px",
                         position: "relative",
-                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-                        borderRadius: "8px"
+                        transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+                        borderRadius: "8px",
+                        transform: "translateX(0)",
                       }}
                       onMouseEnter={(e) => {
+                        const el = e.currentTarget;
                         if (!isActive(item.href)) {
-                          const el = e.currentTarget;
-                          el.style.backgroundColor = "rgba(49, 130, 206, 0.1)";
-                          el.style.borderColor = "rgba(49, 130, 206, 0.2)";
+                          el.style.backgroundColor = "rgba(49, 130, 206, 0.15)";
+                          el.style.borderColor = "rgba(49, 130, 206, 0.3)";
+                          el.style.transform = "translateX(4px)";
+                          el.style.color = "rgba(255,255,255,0.9)";
+                        } else {
+                          el.style.transform = "translateX(2px)";
                         }
                       }}
                       onMouseLeave={(e) => {
+                        const el = e.currentTarget;
                         if (!isActive(item.href)) {
-                          const el = e.currentTarget;
                           el.style.backgroundColor = "transparent";
                           el.style.borderColor = "transparent";
+                          el.style.transform = "translateX(0)";
+                          el.style.color = "rgba(255,255,255,0.7)";
+                        } else {
+                          el.style.transform = "translateX(0)";
                         }
                       }}
                     >
-                      <span className="nav-icon" style={{ display: "inline-flex" }}>
+                      <span className="nav-icon" style={{ 
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        transition: "transform 0.2s ease"
+                      }}>
                         <NavIcon name={item.icon} active={isActive(item.href)} />
                       </span>
                       {!collapsed && (
@@ -1444,6 +1548,58 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       0% { opacity: 0.6; }
       50% { opacity: 1; }
       100% { opacity: 0.6; }
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 1000px;
+      }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 1000px;
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+      }
+    }
+
+    .nav-item:hover .nav-icon {
+      transform: scale(1.15);
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sub-menu-item:hover .sub-nav-icon {
+      transform: scale(1.15) rotate(5deg);
+      transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .nav-item.active .nav-icon {
+      filter: brightness(1.3) drop-shadow(0 0 4px rgba(96, 165, 250, 0.4));
+    }
+
+    .sub-menu-item.active .sub-nav-icon {
+      filter: brightness(1.3) drop-shadow(0 0 3px rgba(96, 165, 250, 0.4));
+    }
+
+    .nav-item:hover {
+      box-shadow: 0 2px 8px rgba(49, 130, 206, 0.15);
+    }
+
+    .sub-menu-item:hover {
+      box-shadow: 0 2px 6px rgba(49, 130, 206, 0.12);
     }
   `
 }} />

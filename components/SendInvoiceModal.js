@@ -1,16 +1,59 @@
-import React, { useState } from 'react';
-import { X, Send, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { X, Send, Mail, AlertCircle, Loader2, Paperclip, File, Image, Plus } from 'lucide-react';
+
+const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
 
 const SendInvoiceModal = ({ isOpen, onClose, invoice, isSending, companyName, onMessageSubmit }) => {
   const [message, setMessage] = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [otherEmails, setOtherEmails] = useState([]);
+  const [otherEmailInput, setOtherEmailInput] = useState('');
+  const fileInputRef = useRef(null);
+
+  const addOtherEmail = () => {
+    const email = otherEmailInput.trim();
+    if (!email) return;
+    if (!isValidEmail(email)) {
+      setOtherEmailInput('');
+      return;
+    }
+    const normalized = email.toLowerCase();
+    if (otherEmails.some((e) => e.toLowerCase() === normalized)) return;
+    setOtherEmails((prev) => [...prev, email]);
+    setOtherEmailInput('');
+  };
+
+  const removeOtherEmail = (index) => {
+    setOtherEmails((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleFileChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length) {
+      setAttachments((prev) => [...prev, ...files]);
+    }
+    e.target.value = '';
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Pass the custom message back to the parent component
     if (onMessageSubmit) {
-      onMessageSubmit(message);
+      onMessageSubmit(message, attachments, otherEmails);
     }
-    // Close the modal
+    setAttachments([]);
+    setOtherEmails([]);
+    setOtherEmailInput('');
+    onClose();
+  };
+
+  const handleClose = () => {
+    setAttachments([]);
+    setOtherEmails([]);
+    setOtherEmailInput('');
     onClose();
   };
 
@@ -22,8 +65,9 @@ const SendInvoiceModal = ({ isOpen, onClose, invoice, isSending, companyName, on
         <div className="flex justify-between items-center p-4 border-b border-gray-200">
           <h3 className="text-lg font-medium">Send Invoice to Client</h3>
           <button
+            type="button"
             className="text-gray-400 hover:text-gray-600 focus:outline-none"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={isSending}
           >
             <X className="h-5 w-5" />
@@ -45,6 +89,49 @@ const SendInvoiceModal = ({ isOpen, onClose, invoice, isSending, companyName, on
                 <p className="text-sm text-gray-700 mb-2">
                   <strong>To:</strong> {invoice.client?.name} ({invoice.client?.email})
                 </p>
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    Also send to (optional)
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    <input
+                      type="email"
+                      className="flex-1 min-w-[180px] p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      placeholder="email@example.com"
+                      value={otherEmailInput}
+                      onChange={(e) => setOtherEmailInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addOtherEmail())}
+                    />
+                    <button
+                      type="button"
+                      onClick={addOtherEmail}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </button>
+                  </div>
+                  {otherEmails.length > 0 && (
+                    <ul className="mt-2 flex flex-wrap gap-2">
+                      {otherEmails.map((email, index) => (
+                        <li
+                          key={`${email}-${index}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 rounded text-sm text-gray-700"
+                        >
+                          <span>{email}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeOtherEmail(index)}
+                            className="text-gray-500 hover:text-red-600 focus:outline-none"
+                            aria-label={`Remove ${email}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <p className="text-sm text-gray-700 mb-2">
                   <strong>Subject:</strong> Invoice #{invoice.invoiceNumber} from {companyName}
                 </p>
@@ -60,6 +147,58 @@ const SendInvoiceModal = ({ isOpen, onClose, invoice, isSending, companyName, on
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               ></textarea>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Attach files (optional)
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={handleFileChange}
+                accept="*/*"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Paperclip className="h-4 w-4 mr-2 text-gray-500" />
+                Add files (images, documents, etc.)
+              </button>
+              {attachments.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {attachments.map((file, index) => (
+                    <li
+                      key={`${file.name}-${index}`}
+                      className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 rounded px-2 py-1.5"
+                    >
+                      <span className="flex items-center min-w-0 truncate">
+                        {file.type.startsWith('image/') ? (
+                          <Image className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                        ) : (
+                          <File className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{file.name}</span>
+                        <span className="text-gray-400 ml-1 flex-shrink-0">
+                          ({(file.size / 1024).toFixed(1)} KB)
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="ml-2 text-red-500 hover:text-red-700 focus:outline-none flex-shrink-0"
+                        aria-label="Remove file"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             
             {!invoice.client?.email && (
@@ -77,7 +216,7 @@ const SendInvoiceModal = ({ isOpen, onClose, invoice, isSending, companyName, on
             <button
               type="button"
               className="px-4 py-2 bg-white border border-gray-300 rounded-md font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-3"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSending}
             >
               Cancel

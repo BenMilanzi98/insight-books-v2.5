@@ -61,6 +61,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   // Sample invoice data for template preview (used when no invoice is provided)
   const sampleData = {
     invoiceNumber: 'INV-0001',
+    title: 'Sample Invoice Title',
+    orderNumber: 'ORD-SAMPLE-001',
     issueDate: (() => {
       const date = new Date();
       const day = String(date.getDate()).padStart(2, '0');
@@ -111,9 +113,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     });
   }
   
-  // If using real invoice, calculate display values
+  // If using real invoice, calculate display values (title/orderNumber from API)
   const displayData = invoice ? {
     invoiceNumber: invoice.invoiceNumber,
+    title: invoice.title ?? null,
+    orderNumber: invoice.orderNumber ?? null,
     issueDate: formatDate(invoice.issueDate),
     dueDate: formatDate(invoice.dueDate),
     status: invoice.status,
@@ -199,6 +203,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
         <div>
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            <div className="col-span-2">
+              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Title:</h3>
+              <p className="text-xs sm:text-sm">{displayData.title || '—'}</p>
+            </div>
+            <div className="col-span-2">
+              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Order #:</h3>
+              <p className="text-xs sm:text-sm">{displayData.orderNumber || '—'}</p>
+            </div>
             <div>
               <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Invoice Date:</h3>
               <p className="text-xs sm:text-sm">{displayData.issueDate}</p>
@@ -394,6 +406,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         <div className="p-4 bg-gray-50 rounded-md">
           <h3 className="font-medium mb-3 pb-2 border-b" style={{ color: primaryColor }}>INVOICE DETAILS</h3>
           <div className="grid grid-cols-2 gap-2">
+            <p className="font-medium">Title:</p>
+            <p>{displayData.title || '—'}</p>
+            <p className="font-medium">Order #:</p>
+            <p>{displayData.orderNumber || '—'}</p>
             <p className="font-medium">Issue Date:</p>
             <p>{displayData.issueDate}</p>
             <p className="font-medium">Due Date:</p>
@@ -591,8 +607,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           )}
         </div>
         <div>
-          <p className="text-sm text-gray-500 mb-1">Payment Details</p>
-          <p className="font-medium">Due Date: {displayData.dueDate}</p>
+          <p className="text-sm text-gray-500 mb-1">Invoice Details</p>
+          <p className="text-sm">Title: {displayData.title || '—'}</p>
+          <p className="text-sm">Order #: {displayData.orderNumber || '—'}</p>
+          <p className="font-medium mt-1">Due Date: {displayData.dueDate}</p>
           <p className="text-sm">Amount Due: {formatCurrency(displayData.total)}</p>
           <p className="text-sm">Status: {displayData.status}</p>
         </div>

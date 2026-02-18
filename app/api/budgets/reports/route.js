@@ -121,24 +121,34 @@ export async function GET(request) {
           orderBy: { startDate: 'desc' }
         });
 
-        // Get actual totals for each budget
+        // Get actual totals for each budget using General Ledger
+        const { getActualRevenue, getActualExpenses } = await import('@/lib/budgetService');
         const summaryData = await Promise.all(
           budgets.map(async (budget) => {
-            // Get actual revenue
-            const actualRevenue = await prisma.sale.aggregate({
-              where: {
-                tenantId: user.tenantId,
-                saleDate: {
-                  gte: budget.startDate,
-                  lte: budget.endDate
-                },
-                status: { in: ['completed', 'finalized'] }
-              },
-              _sum: { total: true }
-            });
+            let actual = 0;
+            const budgetType = budget.budgetType || 'revenue';
+            
+            if (budgetType === 'expense') {
+              // Get actual expenses from General Ledger
+              const accountIds = (budget.items || []).map(item => item.accountId).filter(Boolean);
+              const actualExpenses = await getActualExpenses(
+                user.tenantId,
+                budget.startDate,
+                budget.endDate,
+                { accountIds }
+              );
+              actual = actualExpenses.totalExpenses;
+            } else {
+              // Get actual revenue from General Ledger
+              const actualRevenue = await getActualRevenue(
+                user.tenantId,
+                budget.startDate,
+                budget.endDate
+              );
+              actual = actualRevenue.totalRevenue;
+            }
 
             const budgeted = budget.expectedRevenue;
-            const actual = actualRevenue._sum.total || 0;
             const variance = actual - budgeted;
             const achievement = budgeted > 0 ? (actual / budgeted) * 100 : 0;
 

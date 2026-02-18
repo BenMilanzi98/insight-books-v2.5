@@ -26,11 +26,13 @@ import {
   User,
   Clock,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Eye
 } from "lucide-react";
-import { fetchSales, exportSales } from "@/app/services/salesService";
+import { fetchSales, exportSales, refundSale } from "@/app/services/salesService";
 import { getPermission, getCurrentUser } from "@/lib/permissions";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
+import RefundSaleModal from "@/components/RefundSaleModal";
 
 const SalesListPage = () => {
   const router = useRouter();
@@ -64,6 +66,10 @@ const SalesListPage = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [refundModalOpen, setRefundModalOpen] = useState(false);
+  const [selectedSaleForRefund, setSelectedSaleForRefund] = useState(null);
+  const [isProcessingRefund, setIsProcessingRefund] = useState(false);
+  const [refundSuccessMessage, setRefundSuccessMessage] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({ 
     canVoidSales: false,
     canCreateSales: false,
@@ -227,6 +233,32 @@ const SalesListPage = () => {
   // Navigate to sale detail
   const viewSaleDetail = (saleId) => {
     router.push(`/pos/list/${saleId}`);
+  };
+
+  // Open refund modal
+  const openRefundModal = (sale, e) => {
+    if (e) e.stopPropagation();
+    setSelectedSaleForRefund(sale);
+    setRefundModalOpen(true);
+  };
+
+  // Handle refund sale (same flow as invoice refund)
+  const handleRefundSale = async (saleId, reason, refundMethod) => {
+    if (!saleId || !reason?.trim()) return;
+    setIsProcessingRefund(true);
+    setRefundSuccessMessage(null);
+    try {
+      await refundSale(saleId, reason.trim(), refundMethod);
+      setRefundSuccessMessage('Refund processed successfully. Reversal recorded.');
+      setRefundModalOpen(false);
+      setSelectedSaleForRefund(null);
+      await loadSales();
+    } catch (err) {
+      console.error('Error processing refund:', err);
+      throw err;
+    } finally {
+      setIsProcessingRefund(false);
+    }
   };
   
   // Reset filters
@@ -607,15 +639,28 @@ const SalesListPage = () => {
                         {sale.total}
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
-                        <button
-                          className="text-blue-600 hover:text-blue-800"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            viewSaleDetail(sale.id);
-                          }}
-                        >
-                          View
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          {sale.status === 'completed' && (
+                            <button
+                              className="p-1.5 rounded-lg text-purple-600 hover:text-purple-800 hover:bg-purple-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={(e) => pagePermissions.canRefundSales && openRefundModal(sale, e)}
+                              title={pagePermissions.canRefundSales ? 'Process Refund' : 'You do not have permission to refund sales'}
+                              disabled={!pagePermissions.canRefundSales}
+                            >
+                              <RotateCcw className="w-4 h-4" />
+                            </button>
+                          )}
+                          <button
+                            className="p-1.5 rounded-lg text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              viewSaleDetail(sale.id);
+                            }}
+                            title="View"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -711,6 +756,18 @@ const SalesListPage = () => {
           </>
         )}
       </div>
+
+      {/* Refund Sale Modal - same flow as invoice Process Refund */}
+      <RefundSaleModal
+        sale={selectedSaleForRefund}
+        isOpen={refundModalOpen}
+        onClose={() => {
+          setRefundModalOpen(false);
+          setSelectedSaleForRefund(null);
+        }}
+        onRefund={handleRefundSale}
+        loading={isProcessingRefund}
+      />
 
       {/* Clear History Confirmation Modal */}
       {showClearConfirmModal && (

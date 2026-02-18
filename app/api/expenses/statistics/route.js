@@ -93,7 +93,7 @@ export async function GET(request) {
       }
     });
     
-    // Get expenses by category
+    // Get expenses by category (only categories that have at least one expense)
     const expensesByCategory = await prisma.expense.groupBy({
       by: ['category'],
       where: baseFilter,
@@ -106,6 +106,40 @@ export async function GET(request) {
         }
       }
     });
+
+    // Default (hardcoded) expense category names so section always shows a base set
+    const DEFAULT_EXPENSE_CATEGORY_NAMES = [
+      'Rent Expense', 'Utilities Expense', 'Salaries & Wages', 'Advertising Expense',
+      'Office Supplies', 'Insurance Expense', 'Depreciation Expense', 'Bank Charges',
+      'Other Expenses', 'Travel & Transportation', 'Marketing & Advertising',
+      'Professional Fees', 'Maintenance & Repairs', 'Miscellaneous Expenses'
+    ];
+
+    // Build full list: default + custom (ExpenseCategory) + Chart of Accounts expense accounts
+    const allCategoryNames = new Set(DEFAULT_EXPENSE_CATEGORY_NAMES);
+    try {
+      const expenseCategories = await prisma.expenseCategory.findMany({
+        where: { tenantId: user.tenantId },
+        select: { name: true }
+      });
+      expenseCategories.forEach(cat => {
+        if (cat.name && cat.name.trim()) allCategoryNames.add(cat.name.trim());
+      });
+      const expenseAccounts = await prisma.account.findMany({
+        where: {
+          tenantId: user.tenantId,
+          accountType: 'Expense',
+          isActive: true
+        },
+        select: { accountName: true, name: true }
+      });
+      expenseAccounts.forEach(acc => {
+        const name = (acc.accountName || acc.name || '').trim();
+        if (name) allCategoryNames.add(name);
+      });
+    } catch (e) {
+      console.warn('Statistics: could not load full category list', e?.message || e);
+    }
     
     // Find COGS account(s) for this tenant to include in statistics
     const cogsAccounts = await prisma.account.findMany({
@@ -168,21 +202,37 @@ export async function GET(request) {
     const totalExpenseAmount = (totalExpenses._sum.amount || 0) + cogsTotal;
     const approvedAmount = approvedExpenses._sum.amount || 0;
     
-    // Calculate percentages for categories
-    const formattedCategoryStats = expensesByCategory.map(category => {
-      const amount = category._sum.amount || 0;
+    // Map: category name (as stored in Expense) -> sum amount
+    const amountByCategory = new Map();
+    expensesByCategory.forEach(row => {
+      const name = (row.category || '').trim();
+      if (name) amountByCategory.set(name, row._sum.amount || 0);
+    });
+    const getAmountForName = (name) => {
+      const exact = amountByCategory.get(name);
+      if (exact !== undefined) return exact;
+      const lower = name.toLowerCase();
+      for (const [key, val] of amountByCategory) {
+        if (key.toLowerCase() === lower) return val;
+      }
+      return 0;
+    };
+
+    // Build byCategory: every category (custom + CoA) with amount 0 if no expenses
+    const formattedCategoryStats = [];
+    allCategoryNames.forEach(categoryName => {
+      const amount = getAmountForName(categoryName);
       const percentage = totalExpenseAmount > 0 ? Math.round((amount / totalExpenseAmount) * 100) : 0;
-      
-      return {
-        category: category.category,
+      formattedCategoryStats.push({
+        category: categoryName,
         amount: amount.toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         }),
         percentage
-      };
+      });
     });
-    
+
     // Add COGS as a separate category if there are COGS transactions
     if (cogsTotal > 0) {
       const cogsPercentage = totalExpenseAmount > 0 ? Math.round((cogsTotal / totalExpenseAmount) * 100) : 0;
@@ -195,11 +245,28 @@ export async function GET(request) {
         percentage: cogsPercentage
       });
     }
+
+    // Include any expense category that appeared in data but is not in allCategoryNames (e.g. legacy names)
+    expensesByCategory.forEach(row => {
+      const name = (row.category || '').trim();
+      if (name && !allCategoryNames.has(name)) {
+        const amount = row._sum.amount || 0;
+        const percentage = totalExpenseAmount > 0 ? Math.round((amount / totalExpenseAmount) * 100) : 0;
+        formattedCategoryStats.push({
+          category: name,
+          amount: amount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }),
+          percentage
+        });
+      }
+    });
     
-    // Sort by amount descending
+    // Sort by amount descending (categories with 0 at the end)
     formattedCategoryStats.sort((a, b) => {
-      const amountA = parseFloat(a.amount.replace(/,/g, ''));
-      const amountB = parseFloat(b.amount.replace(/,/g, ''));
+      const amountA = parseFloat(String(a.amount).replace(/,/g, ''));
+      const amountB = parseFloat(String(b.amount).replace(/,/g, ''));
       return amountB - amountA;
     });
     

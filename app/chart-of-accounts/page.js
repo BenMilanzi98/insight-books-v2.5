@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Edit, 
   Trash2, 
   Eye, 
@@ -15,7 +14,8 @@ import {
   XCircle,
   AlertCircle,
   Loader2,
-  X
+  X,
+  BookOpen
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -392,13 +392,13 @@ const ChartOfAccountsPage = () => {
     const isLocked = account.isSystem || account.transactionCount > 0;
     return (
       <React.Fragment key={account.id}>
-        <tr className={`hover:bg-gray-50/50 transition-colors ${!account.isActive ? 'opacity-60' : ''}`}>
+        <tr className={`hover:bg-indigo-50/30 transition-colors ${!account.isActive ? 'opacity-60' : ''}`}>
           <td className="px-5 py-3 text-sm">
             <div className="flex items-center" style={{ paddingLeft: `${indent}px` }}>
               {hasChildren ? (
                 <button
                   onClick={() => toggleExpand(account.id)}
-                  className="mr-2 text-gray-400 hover:text-gray-600"
+                  className="mr-2 text-slate-400 hover:text-indigo-600"
                 >
                   {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </button>
@@ -466,152 +466,134 @@ const ChartOfAccountsPage = () => {
 
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="p-6 bg-gray-50 min-h-screen">
-        {/* Header */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Chart of Accounts</h1>
-              <p className="text-sm text-gray-600 mt-1">Manage your accounting accounts and structure</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="relative">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+        <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-7xl pb-12">
+          {/* Header */}
+          <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                  <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Chart of Accounts</h1>
+                  <p className="text-indigo-100 text-sm mt-0.5">Manage your accounting accounts and structure</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => handleImportTemplate('retail')}
-                  className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
                   title="Import Retail Template"
                 >
-                  <Upload size={16} className="mr-2" />
+                  <Upload size={18} />
                   Templates
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('json')}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
+                  title="Export as JSON"
+                >
+                  <Download size={18} />
+                  Export
+                </button>
+                <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 cursor-pointer transition-colors">
+                  <Upload size={18} />
+                  Import
+                  <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => { resetForm(); setShowAddModal(true); }}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold shadow-lg transition-colors"
+                >
+                  <Plus size={18} />
+                  Add Account
+                </button>
               </div>
-              <button
-                onClick={() => handleExport('json')}
-                className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center"
-                title="Export as JSON"
-              >
-                <Download size={16} className="mr-2" />
-                Export
-              </button>
-              <label className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors flex items-center cursor-pointer">
-                <Upload size={16} className="mr-2" />
-                Import
-                <input
-                  type="file"
-                  accept=".json,.csv"
-                  onChange={handleImport}
-                  className="hidden"
-                />
-              </label>
-              <button
-                onClick={() => {
-                  resetForm();
-                  setShowAddModal(true);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
-              >
-                <Plus size={16} className="mr-2" />
-                Add Account
-              </button>
             </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
             <div className="flex flex-wrap items-center gap-4">
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
-                  <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search by code, name, or description..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white transition-all"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <select
-                  value={accountTypeFilter}
-                  onChange={(e) => setAccountTypeFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="All">All Types</option>
-                  {accountTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-                <label className="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-md bg-white">
-                  <input
-                    type="checkbox"
-                    checked={activeFilter}
-                    onChange={(e) => setActiveFilter(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">Active Only</span>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 p-4 border border-red-300 bg-red-50 rounded-md text-red-700 flex items-center">
-            <AlertCircle size={20} className="mr-2" />
-            {error}
-          </div>
-        )}
-
-        {/* Accounts Table */}
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          {loading ? (
-            <div className="p-12 text-center">
-              <Loader2 size={32} className="mx-auto animate-spin text-blue-600 mb-4" />
-              <p className="text-gray-600">Loading accounts...</p>
-            </div>
-          ) : hierarchicalAccounts.length === 0 ? (
-            <div className="p-12 text-center">
-              <AlertCircle size={48} className="mx-auto text-gray-400 mb-4" />
-              <h3 className="text-lg font-medium text-gray-700 mb-2">No Accounts Found</h3>
-              <p className="text-gray-500 mb-4">Get started by importing the standard template or creating your first account.</p>
-              <button
-                onClick={handleImportTemplate}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              <select
+                value={accountTypeFilter}
+                onChange={(e) => setAccountTypeFilter(e.target.value)}
+                className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
               >
-                Import Standard Template
-              </button>
+                <option value="All">All Types</option>
+                {accountTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+              <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer hover:bg-slate-50 transition-colors">
+                <input type="checkbox" checked={activeFilter} onChange={(e) => setActiveFilter(e.target.checked)} className="rounded text-indigo-600" />
+                <span className="text-sm font-medium text-slate-700">Active only</span>
+              </label>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Code
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Account Name
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Type
-                    </th>
-                    <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Balance
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Status
-                    </th>
-                    <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-900 uppercase tracking-wide border-b border-gray-200">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {hierarchicalAccounts.map(account => renderAccountRow(account))}
-                </tbody>
-              </table>
+          </div>
+
+          {error && (
+            <div className="mb-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 flex items-center gap-2 shadow-sm">
+              <AlertCircle size={20} />
+              {error}
+            </div>
+          )}
+
+          {/* Accounts Table */}
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
+                <p className="text-slate-500 font-medium">Loading accounts...</p>
+              </div>
+            ) : hierarchicalAccounts.length === 0 ? (
+              <div className="py-20 text-center px-4">
+                <div className="p-4 rounded-2xl bg-slate-100 inline-block mb-4">
+                  <AlertCircle size={48} className="text-slate-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-slate-700 mb-2">No accounts found</h3>
+                <p className="text-slate-500 mb-6">Import the standard template or create your first account.</p>
+                <button
+                  type="button"
+                  onClick={() => handleImportTemplate('retail')}
+                  className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+                >
+                  Import standard template
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Code</th>
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account name</th>
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
+                      <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {hierarchicalAccounts.map(account => renderAccountRow(account))}
+                  </tbody>
+                </table>
             </div>
           )}
         </div>
@@ -665,6 +647,7 @@ const ChartOfAccountsPage = () => {
             }}
           />
         )}
+        </div>
       </div>
     </PermissionGuard>
   );

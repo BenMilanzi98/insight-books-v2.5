@@ -11,7 +11,8 @@ import {
   X,
   Check,
   AlertCircle,
-  Eye
+  Eye,
+  FileText
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
@@ -617,138 +618,154 @@ const handleDeleteEntry = async (entryId) => {
   }
 
   return (
-    <PermissionGuard permission="journalEntries.view">   
-    <div className="container mx-auto pb-8">
-      {roleDenied && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center mb-6">
-          <h3 className="text-lg font-medium text-red-800 mb-2">Access Denied</h3>
-          <p className="text-red-600">Only Finance or Admin roles can access journal entries.</p>
-        </div>
-      )}
-      {!roleDenied && (
-      <>
-      {/* Alert message */}
-      {showAlert && (
-        <div className={`fixed top-4 right-4 p-4 rounded-md shadow-md z-50 ${
-          alertType === "success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-        }`}>
-          <div className="flex items-center">
-            {alertType === "success" ? (
-              <Check className="mr-2 h-5 w-5" />
-            ) : (
-              <AlertCircle className="mr-2 h-5 w-5" />
-            )}
-            <span>{alertMessage}</span>
-            <button
-              className="ml-4 text-gray-500 hover:text-gray-700"
-              onClick={() => setShowAlert(false)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-      )}
-      
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Journal Entries</h1>
-        <div className="flex space-x-2">
-        {pagePermissions.canExportJournal &&( <button 
-            className="btn-secondary flex items-center gap-2 px-4 py-2 rounded border border-gray-300 bg-white hover:bg-gray-50"
-            onClick={() => handleExport('csv')}
-          >
-            <Download size={16} />
-            Export
-          </button>)}
-        </div>
-      </div>
+    <PermissionGuard permission="journalEntries.view">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+        <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-7xl pb-12">
+          {roleDenied && (
+            <div className="rounded-2xl bg-rose-50 border border-rose-200 p-6 sm:p-8 text-center shadow-sm">
+              <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+              <h3 className="text-lg font-semibold text-rose-800 mb-2">Access Denied</h3>
+              <p className="text-rose-600">Only Finance or Admin roles can access journal entries.</p>
+            </div>
+          )}
+          {!roleDenied && (
+            <>
+              {showAlert && (
+                <div className={`fixed top-4 right-4 p-4 rounded-xl shadow-lg z-50 flex items-center gap-3 ${
+                  alertType === "success" ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-rose-50 border border-rose-200 text-rose-800"
+                }`}>
+                  {alertType === "success" ? <Check className="h-5 w-5 shrink-0" /> : <AlertCircle className="h-5 w-5 shrink-0" />}
+                  <span>{alertMessage}</span>
+                  <button type="button" className="ml-2 p-1 rounded-lg hover:bg-black/10" onClick={() => setShowAlert(false)}>
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex flex-col md:flex-row gap-4 mb-6">
-          <div className="flex-1">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search journal entries..."
-                className="input-search pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md"
-                value={searchTerm}
-                onChange={handleSearchChange}
-              />
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-          </div>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="relative">
-              <select
-                className="select-filter pl-10 pr-8 py-2 border border-gray-300 rounded-md appearance-none bg-white"
-                value={dateRange}
-                onChange={handleDateRangeChange}
-              >
-                {dateRangeOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            <div className="relative">
-              <select
-                className="select-filter pl-10 pr-8 py-2 border border-gray-300 rounded-md appearance-none bg-white"
-                value={statusFilter}
-                onChange={handleStatusFilterChange}
-              >
-                {statusOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            <div className="relative">
-              <select
-                className="select-filter pl-10 pr-8 py-2 border border-gray-300 rounded-md appearance-none bg-white"
-                value={sourceTypeFilter}
-                onChange={handleSourceTypeFilterChange}
-              >
-                {sourceTypeOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-          </div>
-        </div>
+              <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                      <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Journal Entries</h1>
+                      <p className="text-indigo-100 text-sm mt-0.5">View and manage general ledger entries</p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {pagePermissions.canCreateJournal && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold transition-all shadow-lg"
+                        onClick={() => { resetForm(); setShowEntryModal(true); }}
+                      >
+                        <Plus size={18} />
+                        New Entry
+                      </button>
+                    )}
+                    {pagePermissions.canExportJournal && (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium transition-all border border-white/20"
+                        onClick={() => handleExport('csv')}
+                      >
+                        <Download size={18} />
+                        Export
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-50 text-red-700 p-4 rounded-md">
-            <p className="flex items-center">
-              <AlertCircle className="mr-2 h-5 w-5" />
-              {error}
-            </p>
-          </div>
-        ) : entries.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">No journal entries found. Create your first entry!</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left">
-                  <th className="p-3 font-medium">Entry #</th>
-                  <th className="p-3 font-medium">Date</th>
-                  <th className="p-3 font-medium">Reference</th>
-                  <th className="p-3 font-medium">Source Type</th>
-                  <th className="p-3 font-medium">Description</th>
-                  <th className="p-3 font-medium">Account</th>
-                  <th className="p-3 font-medium">Line Description</th>
-                  <th className="p-3 font-medium text-right">Debit</th>
-                  <th className="p-3 font-medium text-right">Credit</th>
-                  <th className="p-3 font-medium">Status</th>
-                  <th className="p-3 font-medium">Actions</th>
-                </tr>
-              </thead>
+              <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+                <div className="flex flex-col lg:flex-row gap-4 mb-4">
+                  <div className="flex-1">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search journal entries..."
+                        className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white"
+                        value={searchTerm}
+                        onChange={handleSearchChange}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <div className="relative min-w-[140px]">
+                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                      <select
+                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                        value={dateRange}
+                        onChange={handleDateRangeChange}
+                      >
+                        {dateRangeOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="relative min-w-[120px]">
+                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                      <select
+                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                        value={statusFilter}
+                        onChange={handleStatusFilterChange}
+                      >
+                        {statusOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="relative min-w-[120px]">
+                      <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                      <select
+                        className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                        value={sourceTypeFilter}
+                        onChange={handleSourceTypeFilterChange}
+                      >
+                        {sourceTypeOptions.map(option => (
+                          <option key={option} value={option}>{option}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+                    <p className="text-slate-500 font-medium">Loading entries...</p>
+                  </div>
+                ) : error ? (
+                  <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 p-4 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 shrink-0" />
+                    {error}
+                  </div>
+                ) : entries.length === 0 ? (
+                  <div className="text-center py-16">
+                    <FileText className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <p className="text-slate-600 font-medium">No journal entries found</p>
+                    <p className="text-slate-500 text-sm mt-1">Create your first entry or adjust filters</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Entry #</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Source Type</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Line Description</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
+                          <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
+                          <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
+                          <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
               <tbody>
                 {entries.filter(entry => entry && entry.id).map((entry) => {
                   const sourceType = entry.sourceType || 'Manual';
@@ -777,7 +794,7 @@ const handleDeleteEntry = async (entryId) => {
                     const accountName = line.account?.accountName || line.account?.name || line.accountName || 'Unnamed Account';
 
                     return (
-                      <tr key={`${entry.id}-${line.id || index}`} className="border-t border-gray-200 hover:bg-gray-50">
+                      <tr key={`${entry.id}-${line.id || index}`} className="border-t border-slate-100 hover:bg-indigo-50/30 transition-colors">
                         {index === 0 && (
                           <>
                             <td className="p-3 text-blue-600" rowSpan={rowSpan}>{entry.id ? entry.id.substring(0, 8) : 'N/A'}</td>
@@ -805,10 +822,10 @@ const handleDeleteEntry = async (entryId) => {
                         <td className="p-3 text-sm text-gray-600">
                           {line.description || entry.description || '—'}
                         </td>
-                        <td className="p-3 text-right text-green-700">
+                        <td className="p-3 text-right font-medium text-amber-700">
                           {debitValue ? formatCurrency(debitValue) : '—'}
                         </td>
-                        <td className="p-3 text-right text-red-700">
+                        <td className="p-3 text-right font-medium text-emerald-700">
                           {creditValue ? formatCurrency(creditValue) : '—'}
                         </td>
                         {index === 0 && (
@@ -876,11 +893,12 @@ const handleDeleteEntry = async (entryId) => {
         )}
 
         {!isLoading && !error && entries.length > 0 && (
-          <div className="mt-6 flex justify-between items-center text-sm text-gray-500">
+          <div className="mt-6 flex flex-col sm:flex-row justify-between items-center gap-4 px-4 py-4 bg-slate-50/80 border-t border-slate-200 rounded-b-xl text-sm text-slate-600">
             <div>Showing {entries.length} of {totalCount} entries</div>
-            <div className="flex items-center space-x-2">
-              <button 
-                className={`px-3 py-1 border border-gray-200 rounded ${page === 1 ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
                 onClick={() => handlePageChange(page - 1)}
                 disabled={page === 1}
               >
@@ -892,10 +910,11 @@ const handleDeleteEntry = async (entryId) => {
                   return (
                     <button
                       key={pageNumber}
-                      className={`px-3 py-1 rounded ${
+                      type="button"
+                      className={`min-w-[2.25rem] px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
                         pageNumber === page
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-200 hover:bg-gray-50'
+                          ? 'bg-indigo-600 text-white shadow-sm'
+                          : 'border border-slate-200 bg-white hover:bg-slate-50'
                       }`}
                       onClick={() => handlePageChange(pageNumber)}
                     >
@@ -905,8 +924,9 @@ const handleDeleteEntry = async (entryId) => {
                 }
                 return null;
               })}
-              <button 
-                className={`px-3 py-1 border border-gray-200 rounded ${page === totalPages ? 'text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'}`}
+              <button
+                type="button"
+                className="px-3 py-2 rounded-xl border border-slate-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page === totalPages}
               >
@@ -919,21 +939,17 @@ const handleDeleteEntry = async (entryId) => {
 
       {/* New Journal Entry Modal */}
       {showEntryModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold">{editId ? 'Edit Journal Entry' : 'New Journal Entry'}</h2>
-                <button 
-                  onClick={() => {
-                    setShowEntryModal(false);
-                    resetForm();
-                  }}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <X size={20} />
-                </button>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
+              <h2 className="text-xl font-semibold text-slate-800">{editId ? 'Edit Journal Entry' : 'New Journal Entry'}</h2>
+              <button
+                type="button"
+                onClick={() => { setShowEntryModal(false); resetForm(); }}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
             </div>
             <form onSubmit={(e) => handleSubmit(e, 'draft')}>
               <div className="p-6">
@@ -1220,7 +1236,8 @@ const handleDeleteEntry = async (entryId) => {
       )}
       </>
       )}
-    </div>
+        </div>
+      </div>
     </PermissionGuard>
   );
 };

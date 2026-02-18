@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState,useEffect } from "react";
 import { getPermission } from "@/lib/permissions";
 
-const Footer = () => {
+const Footer = ({ skipPermissions = false }) => {
   const currentYear = new Date().getFullYear();
   const [pagePermissions, setPagePermissions] = useState({ 
     canViewInvoice:false,
@@ -13,6 +13,7 @@ const Footer = () => {
   });
   
   useEffect(() => {
+    if (skipPermissions) return;
     const fetchPermissions = async () => {   
       const canViewInvoice= await getPermission("invoices.view");   
       const canViewPayments = await getPermission("payments.view")
@@ -25,9 +26,8 @@ const Footer = () => {
         canViewSettings
       });
     };
-  
     fetchPermissions();
-  }, []);
+  }, [skipPermissions]);
   return (
     <footer style={{
       borderTop: "1px solid #e0e0e0",

@@ -80,13 +80,10 @@ const DynamicCategorySelect = ({
   const handleSaveNew = async () => {
     if (newCategory.trim()) {
       try {
-        // Call the parent's onAddCategory function
-        await onAddCategory(newCategory.trim());
-        
-        // Select the newly added category
-        onChange(newCategory.trim());
-        
-        // Reset state
+        // Call the parent's onAddCategory; if it returns an id (or value), use that for selection
+        const result = await onAddCategory(newCategory.trim());
+        const valueToSet = result !== undefined && result !== null ? result : newCategory.trim();
+        onChange(valueToSet);
         setIsAdding(false);
         setNewCategory("");
         setIsOpen(false);

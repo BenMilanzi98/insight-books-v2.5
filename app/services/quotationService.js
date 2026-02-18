@@ -118,17 +118,31 @@ export const fetchQuotations = async (params = {}) => {
     }
   };
   
-  // Send quotation to client
-  export const sendQuotation = async (quotationId) => {
+  // Send quotation to client (optional: { message, attachments, otherEmails } for custom message, file attachments, and extra recipients)
+  export const sendQuotation = async (quotationId, options = {}) => {
     try {
-      const response = await fetch(`/api/quotations/${quotationId}/send`, {
-        method: 'POST',
-      });
-      
+      const { message = '', attachments, otherEmails = [] } = options;
+      const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+      let response;
+      if (hasAttachments) {
+        const formData = new FormData();
+        formData.append('message', message);
+        formData.append('otherEmails', JSON.stringify(Array.isArray(otherEmails) ? otherEmails : []));
+        attachments.forEach((file) => formData.append('attachments', file));
+        response = await fetch(`/api/quotations/${quotationId}/send`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        response = await fetch(`/api/quotations/${quotationId}/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message, otherEmails: Array.isArray(otherEmails) ? otherEmails : [] }),
+        });
+      }
       if (!response.ok) {
         throw new Error(`Error sending quotation: ${response.statusText}`);
       }
-      
       const data = await response.json();
       return data;
     } catch (error) {

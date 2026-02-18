@@ -33,6 +33,7 @@ model Tenant {
   branchSubscriptions        BranchSubscription[]
   budgets                    Budget[]
   clients                    Client[]
+  benefits                   Benefit[]
   deductions                 Deduction[]
   departments                Department[]
   emailLogs                  EmailLog[]
@@ -50,12 +51,14 @@ model Tenant {
   invoices                   Invoice[]
   invoiceRefunds             InvoiceRefund[]
   invoiceTemplates           InvoiceTemplate[]
+  invoiceAttachments          InvoiceAttachment[]
   journalEntries             JournalEntry[]
   leaveBalances              LeaveBalance[]
   leavePolicies              LeavePolicy[]
   leaveRequests              LeaveRequest[]
   liabilities                Liability[]
   liabilityCategories        LiabilityCategory[]
+  expenseCategories          ExpenseCategory[]
   payments                   Payment[]
   paymentGateways            PaymentGateway[]
   paymentAccounts            PaymentAccount[]
@@ -137,6 +140,8 @@ model TenantSettings {
   receiptFooter          String?
   npsEmployeeRatePercent Float    @default(5)
   npsEmployerRatePercent Float    @default(5)
+  balanceReminderSubject String?
+  balanceReminderBody    String?
   tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
@@ -203,6 +208,7 @@ model User {
   deletedExpenses                Expense[]              @relation("ExpenseDeletedBy")
   expenseSubmissions             Expense[]
   uploadedAttachments            ExpenseAttachment[]    @relation("UploadedAttachments")
+  invoiceAttachments             InvoiceAttachment[]   @relation("InvoiceAttachmentUploader")
   goodsReceiptsReceived          GoodsReceipt[]         @relation("GoodsReceiptReceiver")
   inventoryTransactions          InventoryTransaction[]
   createdInvoices                Invoice[]              @relation("InvoiceCreator")
@@ -351,6 +357,7 @@ model Client {
   id            String      @id @default(cuid())
   name          String
   email         String?
+  additionalEmails String[]  @default([]) // Multiple email addresses for sending invoices
   phone         String?
   address       String?
   contactPerson String?
@@ -366,6 +373,8 @@ model Client {
 model Invoice {
   id                    String          @id @default(cuid())
   invoiceNumber         String
+  title                 String?
+  orderNumber           String?
   clientId              String
   createdById           String
   issueDate             DateTime
@@ -407,10 +416,30 @@ model Invoice {
   items                 InvoiceItem[]
   refunds               InvoiceRefund[]
   payments              Payment[]
+  attachments           InvoiceAttachment[]
 
   @@index([branchId])
   @@index([isReversal])
   @@index([reversedTransactionId])
+}
+
+model InvoiceAttachment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  fileName    String
+  filePath    String
+  fileSize    Int
+  mimeType    String
+  uploadedAt  DateTime @default(now())
+  uploadedById String
+  tenantId    String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  uploadedBy  User     @relation("InvoiceAttachmentUploader", fields: [uploadedById], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@index([invoiceId])
+  @@index([tenantId])
+  @@index([uploadedById])
 }
 
 model InvoiceItem {
@@ -597,6 +626,7 @@ model Expense {
   amount                  Float
   date                    DateTime
   category                String
+  categoryId              String?
   expenseAccountId        String?
   receiptUrl              String?
   submittedById           String
@@ -635,6 +665,7 @@ model Expense {
   sourceAccount           Account?                  @relation("ExpenseSourceAccount", fields: [sourceAccountId], references: [id])
   submittedBy             User                      @relation(fields: [submittedById], references: [id])
   supplier                Supplier?                 @relation(fields: [supplierId], references: [id])
+  expenseCategory         ExpenseCategory?          @relation(fields: [categoryId], references: [id])
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
   expenseAttachments      ExpenseAttachment[]
   payments                Payment[]
@@ -670,6 +701,8 @@ model ExpenseAttachment {
 model Sale {
   id                         String                      @id @default(cuid())
   saleNumber                 String
+  title                      String?
+  orderNumber                String?
   clientId                   String?
   createdById                String
   saleDate                   DateTime                    @default(now())
@@ -1180,6 +1213,7 @@ model InventoryTransaction {
   @@index([tenantId])
   @@index([userId])
   @@index([branchId])
+  @@index([tenantId, productId, createdAt])
 }
 
 model InventoryBatch {
@@ -1265,6 +1299,7 @@ model Employee {
   terminationReason           String?
   attendanceRecords           AttendanceRecord[]
   departmentRef               Department?           @relation(fields: [departmentId], references: [id])
+  employeeBenefits            EmployeeBenefit[]
   tenant                      Tenant                @relation(fields: [tenantId], references: [id])
   expenses                    Expense[]
   gratuityAccount             GratuityAccount?
@@ -1321,6 +1356,38 @@ model Payroll {
   @@index([periodStart])
   @@index([periodEnd])
   @@index([status])
+}
+
+model Benefit {
+  id               String           @id @default(cuid())
+  name             String
+  description      String?
+  defaultAmount    Float?           @default(0)
+  defaultPercentage Float?         @default(0)
+  isActive         Boolean         @default(true)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  tenantId         String
+  tenant           Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeBenefits EmployeeBenefit[]
+
+  @@index([tenantId])
+  @@index([isActive])
+}
+
+model EmployeeBenefit {
+  id         String   @id @default(cuid())
+  employeeId String
+  benefitId  String
+  amount     Float    @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  benefit    Benefit  @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, benefitId])
+  @@index([employeeId])
+  @@index([benefitId])
 }
 
 model Deduction {
@@ -1559,6 +1626,7 @@ model Account {
   transactionLines         TransactionLine[]       @relation("TransactionLineAccount")
   invoiceItems             InvoiceItem[]
   saleItems                SaleItem[]
+  expenseCategory          ExpenseCategory? @relation("ExpenseCategoryAccount")
 
   @@unique([tenantId, accountCode])
   @@index([tenantId])
@@ -1744,9 +1812,10 @@ model RecurringExpenseHistory {
 model Quotation {
   id                  String          @id @default(cuid())
   quotationNumber     String
+  title               String
+  orderNumber         String?
   clientId            String
   createdById         String
-  title               String
   issueDate           DateTime
   validUntil          DateTime
   subtotal            Float
@@ -2210,6 +2279,25 @@ model LiabilityCategory {
 
   @@unique([tenantId, name])
   @@index([tenantId])
+}
+
+model ExpenseCategory {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  accountId   String    @unique
+  accountCode String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenantId    String
+  expenses    Expense[]
+  account     Account   @relation("ExpenseCategoryAccount", fields: [accountId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, accountCode])
+  @@index([tenantId])
+  @@index([accountId])
 }
 
 model Liability {

@@ -45,19 +45,18 @@ export const FinancialReport = ({
     fetchPermissions();
   }, []);
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="p-6 border-b border-gray-200 bg-gray-50/50">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center">
-          <div className="mb-4 sm:mb-0">
-            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">{title}</h2>
-            {subtitle && <p className="text-sm text-gray-600 mt-1">{subtitle}</p>}
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="p-4 sm:p-6 border-b border-slate-200 bg-gradient-to-r from-emerald-50/80 via-slate-50/80 to-blue-50/60">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="min-w-0 border-l-4 border-emerald-500 pl-4">
+            <h2 className="text-xl sm:text-2xl font-semibold text-slate-800 tracking-tight">{title}</h2>
+            {subtitle && <p className="text-sm text-slate-500 mt-1 truncate">{subtitle}</p>}
           </div>
-          
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {timeframe && onTimeframeChange && (
               <div className="relative">
-                <select 
-                  className="appearance-none px-3 py-2 border border-gray-300 rounded-md bg-white pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                <select
+                  className="appearance-none px-3 py-2 border border-slate-200 rounded-xl bg-white pr-8 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 shadow-sm"
                   value={timeframe}
                   onChange={(e) => onTimeframeChange(e.target.value)}
                   disabled={loading}
@@ -71,14 +70,13 @@ export const FinancialReport = ({
                   <option value="custom">Custom Range...</option>
                 </select>
                 <div className="absolute right-2 top-2.5 pointer-events-none">
-                  <ChevronDown size={15} className="text-gray-500" />
+                  <ChevronDown size={15} className="text-slate-400" />
                 </div>
               </div>
             )}
-            
             {onRefresh && (
-              <button 
-                className="px-3 py-2 border border-gray-300 bg-white rounded-md flex items-center text-sm hover:bg-gray-50 text-gray-700 transition-colors disabled:opacity-50"
+              <button
+                className="px-3 py-2 border border-slate-200 bg-white rounded-xl flex items-center text-sm hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50 shadow-sm"
                 onClick={onRefresh}
                 disabled={loading}
               >
@@ -90,70 +88,42 @@ export const FinancialReport = ({
                 Refresh
               </button>
             )}
-            
             {onExport && canExportReports && (
               <div className="relative group">
-                <button 
-                  className="px-3 py-2 border border-gray-300 bg-white rounded-md flex items-center text-sm hover:bg-gray-50 text-gray-700 transition-colors disabled:opacity-50"
+                <button
+                  className="px-3 py-2 border border-slate-200 bg-white rounded-xl flex items-center text-sm hover:bg-slate-50 text-slate-700 transition-colors disabled:opacity-50 shadow-sm"
                   disabled={loading}
                 >
                   <Download size={15} className="mr-1" />
                   Export
                   <ChevronDown size={15} className="ml-1" />
                 </button>
-                <div className="absolute right-0 mt-1 w-40 bg-white border border-gray-200 rounded-md hidden group-hover:block z-10">
-                  <ul className="py-1">
-                    <li>
-                      <button 
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => onExport('pdf')}
-                      >
-                        Export as PDF
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => onExport('csv')}
-                      >
-                        Export as CSV
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                        onClick={() => onExport('xlsx')}
-                      >
-                        Export as Excel
-                      </button>
-                    </li>
-                  </ul>
+                <div className="absolute right-0 mt-1 w-40 bg-white border border-slate-200 rounded-xl shadow-lg hidden group-hover:block z-10 py-1">
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('pdf')}>Export as PDF</button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('csv')}>Export as CSV</button>
+                  <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50" onClick={() => onExport('xlsx')}>Export as Excel</button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
-      
       {error ? (
-        <div className="p-6 text-center">
-          <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-md">
+        <div className="p-6 sm:p-8 text-center">
+          <div className="p-4 mb-4 text-red-700 bg-red-50 border border-red-200 rounded-xl">
             <p>{error}</p>
           </div>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded-md"
-            onClick={onRefresh}
-          >
+          <button className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 transition-colors" onClick={onRefresh}>
             Try Again
           </button>
         </div>
       ) : loading ? (
-        <div className="p-8 text-center">
-          <Loader2 size={36} className="mx-auto animate-spin text-blue-600 mb-4" />
-          <p className="text-gray-500">Loading report data...</p>
+        <div className="p-8 sm:p-12 text-center">
+          <Loader2 size={36} className="mx-auto animate-spin text-emerald-600 mb-4" />
+          <p className="text-slate-500 text-sm">Loading report data...</p>
         </div>
       ) : (
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {children}
         </div>
       )}
@@ -170,7 +140,7 @@ export const PercentageChange = ({ value, decimals = 2, showIcon = true }) => {
   const isZero = value === 0;
   
   return (
-    <div className={`inline-flex items-center ${isPositive ? 'text-green-600' : isZero ? 'text-gray-500' : 'text-red-600'}`}>
+    <div className={`inline-flex items-center ${isPositive ? 'text-green-600' : isZero ? 'text-slate-500' : 'text-red-600'}`}>
       {showIcon && (
         isPositive ? (
           <TrendingUp size={16} className="mr-1" />
@@ -242,22 +212,25 @@ export const ProfitLossReport = ({
 
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gray-50 rounded-lg">
-        <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please select a time period and generate the report.</p>
+      <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-emerald-50/40 rounded-2xl border border-slate-200">
+        <FileText size={48} className="mx-auto text-emerald-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
+        <p className="text-slate-500 mt-2 text-sm">Please select a time period and generate the report.</p>
       </div>
     );
   }
-  
+
   if (!data) return null;
 
   const companyName = data.companyName || 'Company';
   const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
   const totalRevenue = data.revenue?.total || 0;
   const netIncome = getValue(data.netIncome);
+  const netProfit = getValue(data.operatingIncome) ?? getValue(data.netIncome) ?? 0;
   const hasComparison = data.previous && data.comparisonType;
-  
+  const operatingExpensesCategories = data.operatingExpenses?.categories ?? [];
+  const hasOperatingExpenses = operatingExpensesCategories.length > 0;
+
   return (
     <FinancialReport
       title="Income Statement"
@@ -272,10 +245,10 @@ export const ProfitLossReport = ({
       {data && (
         <div className="space-y-6">
           {/* Company Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6 sm:mb-8">
             {data.logoUrl && (
               <div className="mb-4 flex justify-center">
-                <img 
+                <img
                   src={
                     typeof data.logoUrl === 'string' && data.logoUrl.startsWith('/uploads/')
                       ? `/api/uploads/${data.logoUrl.replace(/^\/+uploads\//, '')}`
@@ -285,57 +258,57 @@ export const ProfitLossReport = ({
                       ? data.logoUrl
                       : ''
                   }
-                  alt="Company Logo" 
+                  alt="Company Logo"
                   className="h-16 sm:h-20 object-contain max-w-xs"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
+                  onError={(e) => { e.target.style.display = 'none'; }}
                 />
               </div>
             )}
-            <h1 className="text-2xl font-bold text-gray-900">{companyName || 'Company'}</h1>
-            <h2 className="text-xl font-semibold text-gray-700 mt-2">Income Statement</h2>
-            <p className="text-sm text-gray-600 mt-1">For the Period: {periodLabel}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{companyName || 'Company'}</h1>
+            <h2 className="text-lg sm:text-xl font-semibold text-slate-600 mt-2">Income Statement</h2>
+            <p className="text-sm text-slate-500 mt-1">For the period: {periodLabel}</p>
+            <p className="text-xs text-slate-400 mt-0.5">Revenue and COGS are system-generated. Operating expenses reflect your expense categories.</p>
           </div>
 
           {/* Comparison Toggle */}
           {hasComparison && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-800">
-                  {data.comparisonType === 'previousPeriod' ? 'Comparing with Previous Period' : 'Comparing with Previous Year'}
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 sm:p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-medium text-emerald-800">
+                  {data.comparisonType === 'previousPeriod' ? 'Comparing with previous period' : 'Comparing with previous year'}
                 </span>
                 <button
+                  type="button"
                   onClick={() => setExpandedSections(prev => ({ ...prev, comparison: !prev.comparison }))}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
                 >
-                  {expandedSections.comparison ? 'Hide' : 'Show'} Comparison
+                  {expandedSections.comparison ? 'Hide' : 'Show'} comparison
                 </button>
               </div>
             </div>
           )}
 
           {/* Income Statement Table */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto -mx-1 rounded-2xl border border-slate-200">
             <table className="min-w-full border-collapse">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="text-left py-3.5 px-5 font-semibold text-gray-900 border-b-2 border-gray-300 text-sm uppercase tracking-wide"></th>
+                <tr className="bg-slate-50">
+                  <th className="text-left py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide"></th>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <th className="text-right py-3.5 px-5 font-semibold text-gray-900 border-b-2 border-gray-300 text-sm uppercase tracking-wide">Previous</th>
-                      <th className="text-right py-3.5 px-5 font-semibold text-gray-900 border-b-2 border-gray-300 text-sm uppercase tracking-wide">Change</th>
+                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Previous</th>
+                      <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Change</th>
                     </>
                   )}
-                  <th className="text-right py-3.5 px-5 font-semibold text-gray-900 border-b-2 border-gray-300 text-sm uppercase tracking-wide">Current Period</th>
-                  <th className="text-right py-3.5 px-5 font-semibold text-gray-900 border-b-2 border-gray-300 text-sm uppercase tracking-wide">% of Revenue</th>
+                  <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">Current period</th>
+                  <th className="text-right py-3.5 px-4 sm:px-5 font-semibold text-slate-700 border-b border-slate-200 text-xs sm:text-sm uppercase tracking-wide whitespace-nowrap">% of revenue</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-slate-200 bg-white">
                 {/* REVENUE SECTION */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-5 font-bold text-gray-900 uppercase text-sm tracking-wide">
-                    REVENUE
+                <tr className="bg-slate-50/80">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
+                    Revenue
                   </td>
                 </tr>
                 
@@ -386,41 +359,27 @@ export const ProfitLossReport = ({
                       previousValue={data.previous?.revenue?.serviceRevenue}
                       showComparison={hasComparison && expandedSections.comparison}
                     />
-                    
-                    <IncomeStatementRow
-                      label="Other Income"
-                      value={data.revenue?.otherIncome}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.revenue?.otherIncome).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Other Income', details: getDetails(data.revenue?.otherIncome) })}
-                      previousValue={data.previous?.revenue?.otherIncome}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
                   </>
                 )}
                 
-                <tr className="border-t-2 border-gray-300 bg-gray-50">
-                  <td className="py-3 px-5 font-semibold text-gray-900">Total Revenue</td>
+                <tr className="border-t-2 border-slate-200 bg-slate-50/50">
+                  <td className="py-3 px-4 sm:px-5 font-semibold text-slate-800">Total Revenue</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(data.previous?.revenue?.total || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.revenue?.total ? (
-                          <PercentageChange value={((totalRevenue - data.previous.revenue.total) / data.previous.revenue.total) * 100} />
-                        ) : '-'}
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(data.previous?.revenue?.total || 0)}</td>
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold">
+                        {data.previous?.revenue?.total ? <PercentageChange value={((totalRevenue - data.previous.revenue.total) / data.previous.revenue.total) * 100} /> : '-'}
                       </td>
                     </>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(totalRevenue)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">100.0%</td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(totalRevenue)}</td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">100.0%</td>
                 </tr>
 
                 {/* COGS SECTION */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-5 font-bold text-gray-900 uppercase text-sm tracking-wide">
-                    COST OF GOODS SOLD
+                <tr className="bg-slate-50/80">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
+                    Cost of goods sold
                   </td>
                 </tr>
                 
@@ -474,64 +433,51 @@ export const ProfitLossReport = ({
                   </>
                 )}
                 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Cost of Goods Sold</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">Total Cost of Goods Sold</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(getValue(data.previous?.cogs?.total) || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.cogs?.total ? (
-                          <PercentageChange value={((getValue(data.cogs?.total) - getValue(data.previous.cogs.total)) / getValue(data.previous.cogs.total)) * 100} />
-                        ) : '-'}
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.previous?.cogs?.total) || 0)}</td>
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold">
+                        {data.previous?.cogs?.total ? <PercentageChange value={((getValue(data.cogs?.total) - getValue(data.previous.cogs.total)) / getValue(data.previous.cogs.total)) * 100} /> : '-'}
                       </td>
                     </>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(getValue(data.cogs?.total) || 0)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {getPercentage(getValue(data.cogs?.total), totalRevenue).toFixed(1)}%
-                  </td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.cogs?.total) || 0)}</td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{getPercentage(getValue(data.cogs?.total), totalRevenue).toFixed(1)}%</td>
                 </tr>
-                
-                <tr className="border-t-2 border-gray-300 bg-gray-50">
-                  <td className="py-3 px-5 font-semibold text-gray-900">GROSS PROFIT</td>
+                <tr className="border-t-2 border-slate-200 bg-slate-50/50">
+                  <td className="py-3 px-4 sm:px-5 font-semibold text-slate-800">
+                    <span className="block">Gross profit</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5">Sales revenue − Cost of goods sold</span>
+                  </td>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(getValue(data.previous?.grossProfit) || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.grossProfit ? (
-                          <PercentageChange value={((getValue(data.grossProfit) - getValue(data.previous.grossProfit)) / getValue(data.previous.grossProfit)) * 100} />
-                        ) : '-'}
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.previous?.grossProfit) || 0)}</td>
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold">
+                        {data.previous?.grossProfit ? <PercentageChange value={((getValue(data.grossProfit) - getValue(data.previous.grossProfit)) / getValue(data.previous.grossProfit)) * 100} /> : '-'}
                       </td>
                     </>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(getValue(data.grossProfit) || 0)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {getPercentage(getValue(data.grossProfit), totalRevenue).toFixed(1)}%
-                  </td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.grossProfit) || 0)}</td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{getPercentage(getValue(data.grossProfit), totalRevenue).toFixed(1)}%</td>
                 </tr>
 
-                {/* OPERATING EXPENSES SECTION - DYNAMIC CATEGORIES */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-5 font-bold text-gray-900 uppercase text-sm tracking-wide">
-                    OPERATING EXPENSES
+                {/* OPERATING EXPENSES */}
+                <tr className="bg-slate-50/80">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
+                    <span className="block">Operating expenses</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Expense categories with activity in this period (expenses & payroll)</span>
                   </td>
                 </tr>
-                
-                {/* Render dynamic expense categories */}
-                {data.operatingExpenses?.categories && data.operatingExpenses.categories.length > 0 ? (
-                  data.operatingExpenses.categories.map((category, index) => {
-                    // Find corresponding category in previous period for comparison
+                {hasOperatingExpenses ? (
+                  operatingExpensesCategories.map((category, index) => {
                     const previousCategory = data.previous?.operatingExpenses?.categories?.find(
-                      cat => cat.category === category.category
+                      cat => (cat.accountCode && cat.accountCode === category.accountCode) || cat.category === category.category
                     );
-                    
                     return (
                       <IncomeStatementRow
-                        key={`expense-category-${index}-${category.category}`}
+                        key={`expense-category-${index}-${category.accountCode ?? category.category}`}
                         label={category.category}
                         value={{
                           amount: category.amount || 0,
@@ -540,10 +486,7 @@ export const ProfitLossReport = ({
                         }}
                         totalRevenue={totalRevenue}
                         hasDetails={(category.details || []).length > 0}
-                        onDrillDown={() => handleDrillDown({ 
-                          type: category.category, 
-                          details: category.details || [] 
-                        })}
+                        onDrillDown={() => handleDrillDown({ type: category.category, details: category.details || [] })}
                         previousValue={previousCategory ? {
                           amount: previousCategory.amount || 0,
                           percentage: previousCategory.percentage || 0,
@@ -554,243 +497,47 @@ export const ProfitLossReport = ({
                     );
                   })
                 ) : (
-                  // Fallback to legacy hardcoded categories if dynamic categories not available
-                  <>
-                    <IncomeStatementRow
-                      label="Salaries & Wages"
-                      value={data.operatingExpenses?.salariesWages}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.salariesWages).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Salaries & Wages', details: getDetails(data.operatingExpenses?.salariesWages) })}
-                      previousValue={data.previous?.operatingExpenses?.salariesWages}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Rent Expense"
-                      value={data.operatingExpenses?.rentExpense}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.rentExpense).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Rent Expense', details: getDetails(data.operatingExpenses?.rentExpense) })}
-                      previousValue={data.previous?.operatingExpenses?.rentExpense}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Utilities Expense"
-                      value={data.operatingExpenses?.utilitiesExpense}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.utilitiesExpense).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Utilities Expense', details: getDetails(data.operatingExpenses?.utilitiesExpense) })}
-                      previousValue={data.previous?.operatingExpenses?.utilitiesExpense}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Office Supplies"
-                      value={data.operatingExpenses?.officeSupplies}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.officeSupplies).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Office Supplies', details: getDetails(data.operatingExpenses?.officeSupplies) })}
-                      previousValue={data.previous?.operatingExpenses?.officeSupplies}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Marketing & Advertising"
-                      value={data.operatingExpenses?.marketingAdvertising}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.marketingAdvertising).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Marketing & Advertising', details: getDetails(data.operatingExpenses?.marketingAdvertising) })}
-                      previousValue={data.previous?.operatingExpenses?.marketingAdvertising}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Insurance"
-                      value={data.operatingExpenses?.insurance}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.insurance).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Insurance', details: getDetails(data.operatingExpenses?.insurance) })}
-                      previousValue={data.previous?.operatingExpenses?.insurance}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Depreciation"
-                      value={data.operatingExpenses?.depreciation}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.depreciation).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Depreciation', details: getDetails(data.operatingExpenses?.depreciation) })}
-                      previousValue={data.previous?.operatingExpenses?.depreciation}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Loan Payments"
-                      value={data.operatingExpenses?.loanPayments}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.loanPayments).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Loan Payments', details: getDetails(data.operatingExpenses?.loanPayments) })}
-                      previousValue={data.previous?.operatingExpenses?.loanPayments}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                    
-                    <IncomeStatementRow
-                      label="Other Operating Expenses"
-                      value={data.operatingExpenses?.otherOperatingExpenses}
-                      totalRevenue={totalRevenue}
-                      hasDetails={getDetails(data.operatingExpenses?.otherOperatingExpenses).length > 0}
-                      onDrillDown={() => handleDrillDown({ type: 'Other Operating Expenses', details: getDetails(data.operatingExpenses?.otherOperatingExpenses) })}
-                      previousValue={data.previous?.operatingExpenses?.otherOperatingExpenses}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-                  </>
+                  <tr>
+                    <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-4 px-4 sm:px-5 text-center text-sm text-slate-500 italic">
+                      No operating expenses in this period. Expense categories with transactions will appear here.
+                    </td>
+                  </tr>
                 )}
-                
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Operating Expenses</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 sm:px-5 font-semibold text-slate-800">Total Operating Expenses</td>
                   {hasComparison && expandedSections.comparison && (
                     <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(getValue(data.previous?.operatingExpenses?.total) || 0)}
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.previous?.operatingExpenses?.total) || 0)}</td>
+                      <td className="py-2 px-4 sm:px-5 text-right font-semibold">
+                        {data.previous?.operatingExpenses?.total ? <PercentageChange value={((getValue(data.operatingExpenses?.total) - getValue(data.previous.operatingExpenses.total)) / getValue(data.previous.operatingExpenses.total)) * 100} /> : '-'}
                       </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.operatingExpenses?.total ? (
-                          <PercentageChange value={((getValue(data.operatingExpenses?.total) - getValue(data.previous.operatingExpenses.total)) / getValue(data.previous.operatingExpenses.total)) * 100} />
+                    </>
+                  )}
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{formatCurrency(getValue(data.operatingExpenses?.total) || 0)}</td>
+                  <td className="py-2 px-4 sm:px-5 text-right font-semibold text-slate-800">{getPercentage(getValue(data.operatingExpenses?.total), totalRevenue).toFixed(1)}%</td>
+                </tr>
+                <tr className="border-t-2 border-slate-300 bg-slate-50/80">
+                  <td className="py-3 px-4 sm:px-5 font-bold text-slate-800">
+                    <span className="block text-base sm:text-lg">Net profit / loss</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Gross profit − Total operating expenses</span>
+                  </td>
+                  {hasComparison && expandedSections.comparison && (
+                    <>
+                      <td className="py-3 px-4 sm:px-5 text-right font-bold text-slate-800">{formatCurrency(getValue(data.previous?.operatingIncome) ?? getValue(data.previous?.netIncome) ?? 0)}</td>
+                      <td className="py-3 px-4 sm:px-5 text-right font-bold">
+                        {getValue(data.previous?.operatingIncome) != null || getValue(data.previous?.netIncome) != null ? (
+                          <PercentageChange value={((netProfit - (getValue(data.previous?.operatingIncome) ?? getValue(data.previous?.netIncome) ?? 0)) / Math.abs(getValue(data.previous?.operatingIncome) ?? getValue(data.previous?.netIncome) ?? 1)) * 100} />
                         ) : '-'}
                       </td>
                     </>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(getValue(data.operatingExpenses?.total) || 0)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {getPercentage(getValue(data.operatingExpenses?.total), totalRevenue).toFixed(1)}%
+                  <td className={`py-3 px-4 sm:px-5 text-right font-bold text-base sm:text-lg ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {formatCurrency(netProfit)}
+                  </td>
+                  <td className={`py-3 px-4 sm:px-5 text-right font-bold text-base sm:text-lg ${netProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {getPercentage(netProfit, totalRevenue).toFixed(1)}%
                   </td>
                 </tr>
-                
-                <tr className="border-t-2 border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">OPERATING INCOME</td>
-                  {hasComparison && expandedSections.comparison && (
-                    <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(getValue(data.previous?.operatingIncome) || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.operatingIncome ? (
-                          <PercentageChange value={((getValue(data.operatingIncome) - getValue(data.previous.operatingIncome)) / Math.abs(getValue(data.previous.operatingIncome))) * 100} />
-                        ) : '-'}
-                      </td>
-                    </>
-                  )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(getValue(data.operatingIncome) || 0)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {getPercentage(getValue(data.operatingIncome), totalRevenue).toFixed(1)}%
-                  </td>
-                </tr>
-
-                {/* OTHER INCOME/(EXPENSES) SECTION */}
-                    <tr className="bg-gray-50">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-2 px-4 font-bold text-gray-900 uppercase">
-                    OTHER INCOME/(EXPENSES)
-                  </td>
-                    </tr>
-                
-                <IncomeStatementRow
-                  label="Interest Income"
-                  value={data.otherIncomeExpenses?.interestIncome}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.otherIncomeExpenses?.interestIncome).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Interest Income', details: getDetails(data.otherIncomeExpenses?.interestIncome) })}
-                  previousValue={data.previous?.otherIncomeExpenses?.interestIncome}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Interest Expense"
-                  value={data.otherIncomeExpenses?.interestExpense}
-                  totalRevenue={totalRevenue}
-                  isNegative={true}
-                  hasDetails={getDetails(data.otherIncomeExpenses?.interestExpense).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Interest Expense', details: getDetails(data.otherIncomeExpenses?.interestExpense) })}
-                  previousValue={data.previous?.otherIncomeExpenses?.interestExpense}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <IncomeStatementRow
-                  label="Gain/Loss on Asset Sales"
-                  value={data.otherIncomeExpenses?.gainLossOnAssetSales}
-                  totalRevenue={totalRevenue}
-                  hasDetails={getDetails(data.otherIncomeExpenses?.gainLossOnAssetSales).length > 0}
-                  onDrillDown={() => handleDrillDown({ type: 'Gain/Loss on Asset Sales', details: getDetails(data.otherIncomeExpenses?.gainLossOnAssetSales) })}
-                  previousValue={data.previous?.otherIncomeExpenses?.gainLossOnAssetSales}
-                  showComparison={hasComparison && expandedSections.comparison}
-                />
-                
-                <tr className="border-t-2 border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">NET INCOME BEFORE TAX</td>
-                  {hasComparison && expandedSections.comparison && (
-                    <>
-                      <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                        {formatCurrency(getValue(data.previous?.netIncomeBeforeTax) || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right font-semibold">
-                        {data.previous?.netIncomeBeforeTax ? (
-                          <PercentageChange value={((getValue(data.netIncomeBeforeTax) - getValue(data.previous.netIncomeBeforeTax)) / Math.abs(getValue(data.previous.netIncomeBeforeTax))) * 100} />
-                        ) : '-'}
-                      </td>
-                    </>
-                  )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">{formatCurrency(getValue(data.netIncomeBeforeTax) || 0)}</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
-                    {getPercentage(getValue(data.netIncomeBeforeTax), totalRevenue).toFixed(1)}%
-                        </td>
-                      </tr>
-                
-                <tr>
-                  <td className="py-2 px-4 text-gray-700">
-                    Income Tax Expense ({data.incomeTaxExpense?.rate || 0}%)
-                  </td>
-                  {hasComparison && expandedSections.comparison && (
-                    <>
-                      <td className="py-2 px-4 text-right text-gray-700">
-                        {formatCurrency(getValue(data.previous?.incomeTaxExpense) || 0)}
-                      </td>
-                      <td className="py-2 px-4 text-right text-gray-700">
-                        {data.previous?.incomeTaxExpense ? (
-                          <PercentageChange value={((getValue(data.incomeTaxExpense) - getValue(data.previous.incomeTaxExpense)) / getValue(data.previous.incomeTaxExpense)) * 100} />
-                        ) : '-'}
-                      </td>
-                    </>
-                  )}
-                  <td className="py-2 px-4 text-right text-gray-700">{formatCurrency(getValue(data.incomeTaxExpense) || 0)}</td>
-                  <td className="py-2 px-4 text-right text-gray-700">
-                    {getPercentage(getValue(data.incomeTaxExpense), totalRevenue).toFixed(1)}%
-                  </td>
-                </tr>
-                
-                <tr className="border-t-2 border-gray-400">
-                  <td className="py-3 px-4 font-bold text-lg text-gray-900">
-                    NET INCOME
-                  </td>
-                  {hasComparison && expandedSections.comparison && (
-                    <>
-                      <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
-                        {formatCurrency(getValue(data.previous?.netIncome) || 0)}
-                      </td>
-                      <td className="py-3 px-4 text-right font-bold text-lg">
-                        {data.previous?.netIncome !== undefined ? (
-                          <PercentageChange value={((netIncome - getValue(data.previous.netIncome)) / Math.abs(getValue(data.previous.netIncome))) * 100} />
-                        ) : '-'}
-                      </td>
-                    </>
-                  )}
-                  <td className={`py-3 px-4 text-right font-bold text-lg ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(netIncome)}
-                  </td>
-                  <td className={`py-3 px-4 text-right font-bold text-lg ${netIncome >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {getPercentage(netIncome, totalRevenue).toFixed(1)}%
-                  </td>
-                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -815,39 +562,38 @@ const IncomeStatementRow = ({ label, value, totalRevenue, hasDetails, onDrillDow
   const amount = typeof value === 'object' && value !== null && 'amount' in value ? value.amount : (value || 0);
   const percentage = typeof value === 'object' && value !== null && 'percentage' in value ? value.percentage : (totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0);
   const prevAmount = typeof previousValue === 'object' && previousValue !== null && 'amount' in previousValue ? previousValue.amount : (previousValue || 0);
-  
+
   return (
-    <tr className="hover:bg-gray-50/50 transition-colors">
-      <td className="py-2.5 px-5 text-gray-900 text-sm">
-        <div className="flex items-center">
+    <tr className="hover:bg-slate-50/70 transition-colors">
+      <td className="py-2.5 px-4 sm:px-5 text-slate-800 text-sm">
+        <div className="flex items-center gap-2">
           {hasDetails && (
             <button
+              type="button"
               onClick={onDrillDown}
-              className="mr-2 text-blue-600 hover:text-blue-800 transition-colors"
-              title="Click to view details"
+              className="text-emerald-600 hover:text-emerald-700 transition-colors p-0.5 rounded"
+              title="View details"
             >
               <Eye size={14} />
             </button>
           )}
-          {label}
+          <span>{label}</span>
         </div>
       </td>
       {showComparison && (
         <>
-          <td className="py-2.5 px-5 text-right text-gray-700 text-sm">
+          <td className="py-2.5 px-4 sm:px-5 text-right text-slate-700 text-sm">
             {isNegative ? `(${formatCurrency(Math.abs(prevAmount))})` : formatCurrency(prevAmount)}
           </td>
-          <td className="py-2.5 px-5 text-right text-sm">
-            {prevAmount !== 0 ? (
-              <PercentageChange value={((amount - prevAmount) / Math.abs(prevAmount)) * 100} />
-            ) : '-'}
+          <td className="py-2.5 px-4 sm:px-5 text-right text-sm">
+            {prevAmount !== 0 ? <PercentageChange value={((amount - prevAmount) / Math.abs(prevAmount)) * 100} /> : '-'}
           </td>
         </>
       )}
-      <td className="py-2.5 px-5 text-right text-gray-900 text-sm font-medium">
+      <td className="py-2.5 px-4 sm:px-5 text-right text-slate-800 text-sm font-medium">
         {isNegative ? `(${formatCurrency(Math.abs(amount))})` : formatCurrency(amount)}
       </td>
-      <td className="py-2.5 px-5 text-right text-gray-700 text-sm">
+      <td className="py-2.5 px-4 sm:px-5 text-right text-slate-600 text-sm">
         {percentage.toFixed(1)}%
       </td>
     </tr>
@@ -863,31 +609,28 @@ const DrillDownModal = ({ data, onClose }) => {
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-300 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-900">{data.type} - Transaction Details</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X size={24} />
+    <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xl max-w-4xl w-full max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 sm:p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+          <h3 className="text-lg sm:text-xl font-semibold text-slate-800">{data.type} — Transaction details</h3>
+          <button type="button" onClick={onClose} className="p-1.5 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+            <X size={22} />
           </button>
         </div>
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="bg-gray-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[65vh]">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="bg-slate-50">
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Date</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Reference</th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Description</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Amount</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
               {data.details.map((detail, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                <tr key={index} className="hover:bg-slate-50">
+                  <td className="px-4 py-2.5 text-sm text-slate-800">
                     {detail.date ? (() => {
                       const date = new Date(detail.date);
                       const day = String(date.getDate()).padStart(2, '0');
@@ -896,25 +639,23 @@ const DrillDownModal = ({ data, onClose }) => {
                       return `${day}-${month}-${year}`;
                     })() : 'N/A'}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                  <td className="px-4 py-2.5 text-sm text-slate-800">
                     {detail.number || detail.invoiceNumber || detail.saleNumber || detail.reference || 'N/A'}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                  <td className="px-4 py-2.5 text-sm text-slate-800">
                     {detail.description || detail.productName || detail.client || 'N/A'}
                   </td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">
+                  <td className="px-4 py-2.5 text-sm text-slate-800 text-right font-medium">
                     {formatCurrency(detail.amount || detail.cogsAmount || 0)}
-                        </td>
-                      </tr>
-                    ))}
+                  </td>
+                </tr>
+              ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-50 font-semibold">
-                <td colSpan="3" className="px-4 py-2 text-sm text-gray-900">Total</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                  {formatCurrency(data.details.reduce((sum, d) => sum + (d.amount || d.cogsAmount || 0), 0))}
-                      </td>
-                    </tr>
+              <tr className="bg-slate-50 font-semibold border-t border-slate-200">
+                <td colSpan={3} className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.details.reduce((sum, d) => sum + (d.amount || d.cogsAmount || 0), 0))}</td>
+              </tr>
             </tfoot>
                 </table>
               </div>
@@ -949,14 +690,14 @@ export const BalanceSheetReport = ({
 
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gray-50 rounded-lg">
-        <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please select a time period and generate the report.</p>
+      <div className="text-center p-8 sm:p-10 bg-gradient-to-br from-slate-50 to-blue-50/40 rounded-2xl border border-slate-200">
+        <FileText size={48} className="mx-auto text-blue-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
+        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
       </div>
     );
   }
-  
+
   if (!data) return null;
 
   const companyName = data.companyName || 'Company';
@@ -1000,57 +741,50 @@ export const BalanceSheetReport = ({
                 />
               </div>
             )}
-            <h1 className="text-2xl font-bold text-gray-900">{companyName}</h1>
-            <h2 className="text-xl font-semibold text-gray-700 mt-2">Balance Sheet</h2>
-            <p className="text-sm text-gray-600 mt-1">As of {asOfDate}</p>
+            <h1 className="text-2xl font-bold text-slate-800">{companyName}</h1>
+            <h2 className="text-xl font-semibold text-slate-700 mt-2">Balance Sheet</h2>
+            <p className="text-sm text-slate-600 mt-1">As of {asOfDate}</p>
             </div>
 
-          {/* Comparison Toggle */}
           {hasComparison && (
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-blue-800">
-                  Comparing with Previous Year
-                </span>
+                <span className="text-sm font-medium text-slate-700">Comparing with previous year</span>
                 <button
                   onClick={() => setExpandedSections(prev => ({ ...prev, comparison: !prev.comparison }))}
-                  className="text-sm text-blue-600 hover:text-blue-800"
+                  className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
                 >
-                  {expandedSections.comparison ? 'Hide' : 'Show'} Comparison
+                  {expandedSections.comparison ? 'Hide' : 'Show'} comparison
                 </button>
               </div>
-              </div>
+            </div>
           )}
 
-          {/* Balance Sheet Table */}
-                <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
             <table className="min-w-full border-collapse">
-                    <thead>
-                <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300"></th>
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="text-left py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200"></th>
                   {hasComparison && expandedSections.comparison && (
-                    <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300">Previous Year</th>
+                    <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Previous year</th>
                   )}
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300">Current</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300">% of Total Assets</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {React.Children.toArray(
-                        <>
-                {/* ASSETS SECTION */}
-                <tr className="bg-gray-50">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-gray-900 uppercase">
+                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Current</th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">% of total assets</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {React.Children.toArray(
+                  <>
+                <tr className="bg-slate-50">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-slate-800 uppercase">
                     ASSETS
                   </td>
-                        </tr>
-
-                {/* Current Assets */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-gray-800">
-                    Current Assets
+                </tr>
+                <tr className="bg-slate-100/80">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
+                    Current assets
                   </td>
-                      </tr>
+                </tr>
 
                 {Array.isArray(data.assets?.currentAssets?.lineItems) && data.assets.currentAssets.lineItems.length > 0 ? (
                   data.assets.currentAssets.lineItems.map((li) => (
@@ -1101,42 +835,27 @@ export const BalanceSheetReport = ({
                       })}
                     />
 
-                    <BalanceSheetRow
-                      label="Prepaid Expenses"
-                      value={data.assets?.currentAssets?.prepaidExpenses || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.assets?.currentAssets?.prepaidExpenses}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-
-                    <BalanceSheetRow
-                      label="Other Current Assets"
-                      value={data.assets?.currentAssets?.otherCurrentAssets || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.assets?.currentAssets?.otherCurrentAssets}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
                   </>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Current Assets</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Current Assets</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.currentAssets?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.assets?.currentAssets?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.assets?.currentAssets?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                         </tr>
 
                 {/* Non-Current Assets */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-gray-800">
+                <tr className="bg-slate-100">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
                     Non-Current Assets
                   </td>
                 </tr>
@@ -1157,7 +876,7 @@ export const BalanceSheetReport = ({
                 ) : (
                   <>
                     <tr>
-                      <td className="py-2 px-4 pl-8 text-gray-700">
+                      <td className="py-2 px-4 pl-8 text-slate-600">
                         <div className="flex items-center">
                           {(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.items?.length > 0) && (
                             <button
@@ -1175,29 +894,29 @@ export const BalanceSheetReport = ({
                         </div>
                       </td>
                       {hasComparison && expandedSections.comparison && (
-                        <td className="py-2 px-4 text-right text-gray-700">
+                        <td className="py-2 px-4 text-right text-slate-600">
                           {formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
                         </td>
                       )}
-                      <td className="py-2 px-4 text-right text-gray-900">
+                      <td className="py-2 px-4 text-right text-slate-800">
                         {formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0)}
                       </td>
-                      <td className="py-2 px-4 text-right text-gray-700">
+                      <td className="py-2 px-4 text-right text-slate-600">
                         {data.assets?.total > 0 ? ((data.assets?.nonCurrentAssets?.propertyPlantEquipment?.net || 0) / data.assets.total * 100).toFixed(1) : 0}%
                       </td>
                             </tr>
 
                     <tr>
-                      <td className="py-2 px-4 pl-12 text-gray-600 text-sm">Less: Accumulated Depreciation</td>
+                      <td className="py-2 px-4 pl-12 text-slate-600 text-sm">Less: Accumulated Depreciation</td>
                       {hasComparison && expandedSections.comparison && (
-                        <td className="py-2 px-4 text-right text-gray-600 text-sm">
+                        <td className="py-2 px-4 text-right text-slate-600 text-sm">
                           ({formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
                         </td>
                       )}
-                      <td className="py-2 px-4 text-right text-gray-600 text-sm">
+                      <td className="py-2 px-4 text-right text-slate-600 text-sm">
                         ({formatCurrency(data.assets?.nonCurrentAssets?.propertyPlantEquipment?.accumulatedDepreciation || 0)})
                       </td>
-                      <td className="py-2 px-4 text-right text-gray-600 text-sm">-</td>
+                      <td className="py-2 px-4 text-right text-slate-600 text-sm">-</td>
                           </tr>
 
                     <BalanceSheetRow
@@ -1207,55 +926,47 @@ export const BalanceSheetReport = ({
                       previousValue={data.previousYear?.assets?.nonCurrentAssets?.intangibleAssets}
                       showComparison={hasComparison && expandedSections.comparison}
                     />
-
-                    <BalanceSheetRow
-                      label="Other Non-Current Assets"
-                      value={data.assets?.nonCurrentAssets?.otherNonCurrentAssets || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.assets?.nonCurrentAssets?.otherNonCurrentAssets}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
                   </>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Non-Current Assets</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Non-Current Assets</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.nonCurrentAssets?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.assets?.nonCurrentAssets?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.assets?.nonCurrentAssets?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                       </tr>
 
-                <tr className="border-t-2 border-gray-400">
-                  <td className="py-3 px-4 font-bold text-lg text-gray-900">TOTAL ASSETS</td>
+                <tr className="border-t-2 border-slate-300">
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">TOTAL ASSETS</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
+                    <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                       {formatCurrency(data.previousYear?.assets?.total || 0)}
                     </td>
                   )}
-                  <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
+                  <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                     {formatCurrency(data.assets?.total || 0)}
                   </td>
-                  <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">100.0%</td>
+                  <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">100.0%</td>
                         </tr>
 
                 {/* LIABILITIES SECTION */}
-                <tr className="bg-gray-50">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-gray-900 uppercase">
+                <tr className="bg-slate-50">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-slate-800 uppercase">
                     LIABILITIES
                   </td>
                         </tr>
 
                 {/* Current Liabilities */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-gray-800">
+                <tr className="bg-slate-100">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
                     Current Liabilities
                   </td>
                       </tr>
@@ -1306,42 +1017,27 @@ export const BalanceSheetReport = ({
                       showComparison={hasComparison && expandedSections.comparison}
                     />
 
-                    <BalanceSheetRow
-                      label="Accrued Expenses"
-                      value={data.liabilities?.currentLiabilities?.accruedExpenses || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.accruedExpenses}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-
-                    <BalanceSheetRow
-                      label="Other Current Liabilities"
-                      value={data.liabilities?.currentLiabilities?.otherCurrentLiabilities || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.liabilities?.currentLiabilities?.otherCurrentLiabilities}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
                   </>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Current Liabilities</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Current Liabilities</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.currentLiabilities?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.liabilities?.currentLiabilities?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.liabilities?.currentLiabilities?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                       </tr>
 
                 {/* Non-Current Liabilities */}
-                <tr className="bg-gray-100">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-gray-800">
+                <tr className="bg-slate-100">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-semibold text-slate-700">
                     Non-Current Liabilities
                   </td>
                         </tr>
@@ -1369,50 +1065,35 @@ export const BalanceSheetReport = ({
                       showComparison={hasComparison && expandedSections.comparison}
                     />
 
-                    <BalanceSheetRow
-                      label="Bonds Payable"
-                      value={data.liabilities?.nonCurrentLiabilities?.bondsPayable || data.liabilities?.longTermLiabilities?.bondsPayable || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.bondsPayable || data.previousYear?.liabilities?.longTermLiabilities?.bondsPayable}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
-
-                    <BalanceSheetRow
-                      label="Other Non-Current Liabilities"
-                      value={data.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities || data.liabilities?.nonCurrentLiabilities?.otherLongTermLiabilities || data.liabilities?.longTermLiabilities?.otherLongTermLiabilities || 0}
-                      totalAssets={data.assets?.total || 0}
-                      previousValue={data.previousYear?.liabilities?.nonCurrentLiabilities?.otherNonCurrentLiabilities || data.previousYear?.liabilities?.nonCurrentLiabilities?.otherLongTermLiabilities || data.previousYear?.liabilities?.longTermLiabilities?.otherLongTermLiabilities}
-                      showComparison={hasComparison && expandedSections.comparison}
-                    />
                   </>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Non-Current Liabilities</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Non-Current Liabilities</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.nonCurrentLiabilities?.total || data.previousYear?.liabilities?.longTermLiabilities?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.liabilities?.nonCurrentLiabilities?.total || data.liabilities?.longTermLiabilities?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.liabilities?.nonCurrentLiabilities?.total || data.liabilities?.longTermLiabilities?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                       </tr>
 
-                <tr className="border-t-2 border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">TOTAL LIABILITIES</td>
+                <tr className="border-t-2 border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">TOTAL LIABILITIES</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.liabilities?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.liabilities?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.liabilities?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                       </tr>
@@ -1420,26 +1101,26 @@ export const BalanceSheetReport = ({
                 {/* Total Liabilities with Interest - Informational Note
                 {data.totalLiabilitiesWithInterest && data.totalLiabilitiesWithInterest > data.liabilities?.total && (
                   <tr className="bg-blue-50">
-                    <td className="py-2 px-4 text-sm text-gray-600 italic pl-8">
+                    <td className="py-2 px-4 text-sm text-slate-600 italic pl-8">
                       Total Liabilities (including future interest payments)
                     </td>
                     {hasComparison && expandedSections.comparison && (
-                      <td className="py-2 px-4 text-right text-sm text-gray-600 italic">
+                      <td className="py-2 px-4 text-right text-sm text-slate-600 italic">
                         -
                       </td>
                     )}
-                    <td className="py-2 px-4 text-right text-sm text-gray-700 font-medium">
+                    <td className="py-2 px-4 text-right text-sm text-slate-600 font-medium">
                       {formatCurrency(data.totalLiabilitiesWithInterest || 0)}
                     </td>
-                    <td className="py-2 px-4 text-right text-sm text-gray-600 italic">
+                    <td className="py-2 px-4 text-right text-sm text-slate-600 italic">
                       {data.assets?.total > 0 ? ((data.totalLiabilitiesWithInterest || 0) / data.assets.total * 100).toFixed(1) : 0}%
                     </td>
                   </tr>
                 )} */}
 
                 {/* EQUITY SECTION */}
-                      <tr className="bg-gray-50">
-                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-gray-900 uppercase">
+                      <tr className="bg-slate-50">
+                  <td colSpan={hasComparison && expandedSections.comparison ? 4 : 3} className="py-2 px-4 font-bold text-slate-800 uppercase">
                     EQUITY
                   </td>
                       </tr>
@@ -1485,32 +1166,32 @@ export const BalanceSheetReport = ({
                   </>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">TOTAL EQUITY</td>
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">TOTAL EQUITY</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                    <td className="py-2 px-4 text-right font-semibold text-slate-800">
                       {formatCurrency(data.previousYear?.equity?.total || 0)}
                     </td>
                   )}
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(data.equity?.total || 0)}
                   </td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {data.assets?.total > 0 ? ((data.equity?.total || 0) / data.assets.total * 100).toFixed(1) : 0}%
                   </td>
                         </tr>
 
-                <tr className="border-t-2 border-gray-400">
-                  <td className="py-3 px-4 font-bold text-lg text-gray-900">TOTAL LIABILITIES & EQUITY</td>
+                <tr className="border-t-2 border-slate-300">
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">TOTAL LIABILITIES & EQUITY</td>
                   {hasComparison && expandedSections.comparison && (
-                    <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
+                    <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                       {formatCurrency(data.previousYear?.totalLiabilitiesAndEquity || 0)}
                     </td>
                   )}
-                  <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
+                  <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                     {formatCurrency(data.totalLiabilitiesAndEquity || 0)}
                   </td>
-                      <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">100.0%</td>
+                      <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">100.0%</td>
                         </tr>
                         </>
                       ).filter((child) => typeof child !== 'string')}
@@ -1549,37 +1230,31 @@ export const BalanceSheetReport = ({
               
           {/* Financial Ratios */}
           {data.ratios && (
-            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Financial Ratios</h3>
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50/60 via-slate-50 to-blue-50/60 rounded-2xl border border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4 border-l-4 border-emerald-500 pl-3">Financial ratios</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Current Ratio</p>
-                  <p className="text-xl font-semibold text-gray-900">
+                <div className="p-3 rounded-xl bg-white/80 border border-emerald-100">
+                  <p className="text-sm text-emerald-700 mb-1">Current ratio</p>
+                  <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.currentRatio ? data.ratios.currentRatio.toFixed(2) : 'N/A'}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Current Assets ÷ Current Liabilities
-                  </p>
+                  <p className="text-xs text-slate-500 mt-1">Current Assets ÷ Current Liabilities</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Quick Ratio</p>
-                  <p className="text-xl font-semibold text-gray-900">
+                <div className="p-3 rounded-xl bg-white/80 border border-blue-100">
+                  <p className="text-sm text-blue-700 mb-1">Quick ratio</p>
+                  <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.quickRatio ? data.ratios.quickRatio.toFixed(2) : 'N/A'}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    (Cash + Accounts Receivable) ÷ Current Liabilities
-                  </p>
-              </div>
-                <div>
-                  <p className="text-sm text-gray-600 mb-1">Debt-to-Equity</p>
-                  <p className="text-xl font-semibold text-gray-900">
+                  <p className="text-xs text-slate-500 mt-1">(Cash + AR) ÷ Current Liabilities</p>
+                </div>
+                <div className="p-3 rounded-xl bg-white/80 border border-violet-100">
+                  <p className="text-sm text-violet-700 mb-1">Debt-to-equity</p>
+                  <p className="text-xl font-semibold text-slate-800">
                     {data.ratios.debtToEquity ? (data.ratios.debtToEquity < 0.01 ? data.ratios.debtToEquity.toFixed(4) : data.ratios.debtToEquity.toFixed(2)) : 'N/A'}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Total Liabilities ÷ Total Equity
-                  </p>
-            </div>
-          </div>
+                  <p className="text-xs text-slate-500 mt-1">Total Liabilities ÷ Total Equity</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1601,16 +1276,15 @@ export const BalanceSheetReport = ({
  */
 const BalanceSheetRow = ({ label, value, totalAssets, previousValue, showComparison, hasDetails, onDrillDown }) => {
   const percentage = totalAssets > 0 ? (value / totalAssets) * 100 : 0;
-  
   return (
-    <tr className="hover:bg-gray-50">
-      <td className="py-2 px-4 text-gray-900">
+    <tr className="hover:bg-slate-50/70">
+      <td className="py-2 px-4 text-slate-800">
         <div className="flex items-center">
           {hasDetails && (
             <button
               onClick={onDrillDown}
-              className="mr-2 text-blue-600 hover:text-blue-800"
-              title="Click to view details"
+              className="mr-2 text-emerald-600 hover:text-emerald-700"
+              title="View details"
             >
               <Eye size={14} />
             </button>
@@ -1619,14 +1293,14 @@ const BalanceSheetRow = ({ label, value, totalAssets, previousValue, showCompari
         </div>
       </td>
       {showComparison && (
-        <td className="py-2 px-4 text-right text-gray-700">
+        <td className="py-2 px-4 text-right text-slate-600">
           {formatCurrency(previousValue || 0)}
         </td>
       )}
-      <td className="py-2 px-4 text-right text-gray-900">
+      <td className="py-2 px-4 text-right text-slate-800">
         {formatCurrency(value)}
       </td>
-      <td className="py-2 px-4 text-right text-gray-700">
+      <td className="py-2 px-4 text-right text-slate-600">
         {percentage.toFixed(1)}%
       </td>
     </tr>
@@ -1643,12 +1317,12 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-300 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-900">{data.type} - Details</h3>
+      <div className="bg-white rounded-lg border border-slate-200 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+          <h3 className="text-xl font-semibold text-slate-800">{data.type} - Details</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-slate-500 hover:text-slate-600"
           >
             <X size={24} />
           </button>
@@ -1656,80 +1330,80 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           <table className="min-w-full">
             <thead>
-              <tr className="bg-gray-50">
+              <tr className="bg-slate-50">
                 {data.type === 'Accounts Receivable' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance Due</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Invoice #</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Client</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Due Date</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Paid</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance Due</th>
                   </>
                 )}
                 {data.type === 'Accounts Payable' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Merchant</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Paid</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance Due</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Merchant</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Paid</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance Due</th>
                   </>
                 )}
                 {data.type === 'Property, Plant & Equipment' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Asset Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Purchase Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Original Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Accum. Depreciation</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net Book Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Asset Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Category</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Purchase Date</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Original Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Accum. Depreciation</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Net Book Value</th>
                   </>
                 )}
                 {data.type === 'Inventory' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product Name</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost per Unit</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Total Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Product Name</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Cost per Unit</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Total Value</th>
                   </>
                 )}
                 {data.type === 'Property, Plant & Equipment' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Asset Name</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Purchase Date</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Original Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Accum. Depreciation</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Net Book Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Asset Name</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Category</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Purchase Date</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Original Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Accum. Depreciation</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Net Book Value</th>
                   </>
                 )}
                 {data.type === 'Inventory' && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Quantity</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Cost</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Value</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Product</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Quantity</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Cost</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Value</th>
                   </>
                 )}
                 {!['Accounts Receivable', 'Accounts Payable', 'Property, Plant & Equipment', 'Inventory'].includes(data.type) && (
                   <>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Code</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account Name</th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Balance</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Account Code</th>
+                    <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Account Name</th>
+                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Balance</th>
                   </>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {data.items.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
+                <tr key={index} className="hover:bg-slate-50">
                   {data.type === 'Accounts Receivable' && (
                     <>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.invoiceNumber || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.clientName || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.invoiceNumber || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.clientName || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">
                         {item.dueDate ? (() => {
                           const date = new Date(item.dueDate);
                           const day = String(date.getDate()).padStart(2, '0');
@@ -1738,14 +1412,14 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                           return `${day}-${month}-${year}`;
                         })() : 'N/A'}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.total || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.paid || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.balanceDue || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.total || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.paid || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.balanceDue || 0)}</td>
                     </>
                   )}
                   {data.type === 'Accounts Payable' && (
                     <>
-                      <td className="px-4 py-2 text-sm text-gray-900">
+                      <td className="px-4 py-2 text-sm text-slate-800">
                         {item.date ? (() => {
                           const date = new Date(item.date);
                           const day = String(date.getDate()).padStart(2, '0');
@@ -1754,18 +1428,18 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                           return `${day}-${month}-${year}`;
                         })() : 'N/A'}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.description || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.merchant || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.total || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.paid || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.balanceDue || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.description || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.merchant || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.total || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.paid || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.balanceDue || 0)}</td>
                     </>
                   )}
                   {data.type === 'Property, Plant & Equipment' && (
                     <>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.name || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.category || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.name || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.category || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">
                         {item.purchaseDate ? (() => {
                           const date = new Date(item.purchaseDate);
                           const day = String(date.getDate()).padStart(2, '0');
@@ -1774,37 +1448,37 @@ const BalanceSheetDrillDownModal = ({ data, onClose }) => {
                           return `${day}-${month}-${year}`;
                         })() : 'N/A'}
                       </td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.originalCost || item.gross || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.accumulatedDepreciation || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.netBookValue || item.net || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.originalCost || item.gross || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.accumulatedDepreciation || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.netBookValue || item.net || 0)}</td>
                     </>
                   )}
                   {data.type === 'Inventory' && (
                     <>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.name || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{item.quantity || 0}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.cost || 0)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.value || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.name || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{item.quantity || 0}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.cost || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.value || 0)}</td>
                     </>
                   )}
                   {!['Accounts Receivable', 'Accounts Payable', 'Property, Plant & Equipment', 'Inventory'].includes(data.type) && (
                     <>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.accountCode || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900">{item.accountName || 'N/A'}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(item.balance || 0)}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.accountCode || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800">{item.accountName || 'N/A'}</td>
+                      <td className="px-4 py-2 text-sm text-slate-800 text-right">{formatCurrency(item.balance || 0)}</td>
                     </>
                   )}
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-50 font-semibold">
+              <tr className="bg-slate-50 font-semibold">
                 <td colSpan={
                   data.type === 'Inventory' ? 3 : 
                   data.type === 'Property, Plant & Equipment' ? 5 :
                   data.type === 'Accounts Receivable' || data.type === 'Accounts Payable' ? 5 : 2
-                } className="px-4 py-2 text-sm text-gray-900">Total</td>
-                <td className="px-4 py-2 text-sm text-gray-900 text-right">
+                } className="px-4 py-2 text-sm text-slate-800">Total</td>
+                <td className="px-4 py-2 text-sm text-slate-800 text-right">
                   {formatCurrency(data.items.reduce((sum, item) => {
                     if (data.type === 'Accounts Receivable' || data.type === 'Accounts Payable') {
                       return sum + (item.balanceDue || 0);
@@ -1840,14 +1514,14 @@ export const TaxSummaryReport = ({
 }) => {
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gray-50 rounded-lg">
-        <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please select a time period and generate the report.</p>
+      <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
+        <FileText size={48} className="mx-auto text-slate-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
+        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
       </div>
     );
   }
-  
+
   return (
     <FinancialReport
       title="Tax Summary"
@@ -1861,62 +1535,48 @@ export const TaxSummaryReport = ({
     >
       {data && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Total Collected Tax</h3>
-              <p className="text-2xl font-semibold text-gray-800">
-                {formatCurrency(data.collectedTaxes.totalCollectedTax)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                From taxable amount of {formatCurrency(data.collectedTaxes.totalTaxableAmount)}
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-8">
+            <div className="bg-gradient-to-br from-emerald-50 to-white p-4 sm:p-5 rounded-2xl border border-emerald-200/80 shadow-sm border-l-4 border-l-emerald-500">
+              <h3 className="text-sm font-medium text-emerald-700 mb-1">Total collected tax</h3>
+              <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
+              <p className="text-xs text-slate-500 mt-1">From taxable amount of {formatCurrency(data.collectedTaxes.totalTaxableAmount)}</p>
             </div>
-            
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Total Tax Paid</h3>
-              <p className="text-2xl font-semibold text-gray-800">
-                {formatCurrency(data.paidTaxes.totalTaxPaid)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                From {data.paidTaxes.expenses.length} tax-related expenses
-              </p>
+            <div className="bg-gradient-to-br from-blue-50 to-white p-4 sm:p-5 rounded-2xl border border-blue-200/80 shadow-sm border-l-4 border-l-blue-500">
+              <h3 className="text-sm font-medium text-blue-700 mb-1">Total tax paid</h3>
+              <p className="text-2xl font-semibold text-slate-800">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
+              <p className="text-xs text-slate-500 mt-1">From {data.paidTaxes.expenses.length} tax-related expenses</p>
             </div>
-            
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-500 mb-1">Net Tax Liability</h3>
-              <p className={`text-2xl font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {formatCurrency(data.netTaxLiability)}
-              </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}
-              </p>
+            <div className="bg-gradient-to-br from-violet-50 to-white p-4 sm:p-5 rounded-2xl border border-violet-200/80 shadow-sm border-l-4 border-l-violet-500">
+              <h3 className="text-sm font-medium text-violet-700 mb-1">Net tax liability</h3>
+              <p className={`text-2xl font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
+              <p className="text-xs text-slate-500 mt-1">{data.netTaxLiability >= 0 ? 'Tax to be paid' : 'Tax credit'}</p>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Collected Taxes by Rate</h3>
-              <div className="overflow-x-auto">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Collected taxes by rate</h3>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
                 <table className="min-w-full">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tax Rate</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Taxable Amount</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tax Amount</th>
+                    <tr className="bg-slate-50">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Tax rate</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Taxable amount</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Tax amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-200 bg-white">
                     {data.collectedTaxes.byRate.map((taxRate) => (
-                      <tr key={taxRate.rate} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm text-gray-900">{taxRate.rate}%</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(taxRate.taxableAmount)}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(taxRate.taxAmount)}</td>
+                      <tr key={taxRate.rate} className="hover:bg-slate-50/70">
+                        <td className="px-4 py-2.5 text-sm text-slate-800">{taxRate.rate}%</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(taxRate.taxableAmount)}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(taxRate.taxAmount)}</td>
                       </tr>
                     ))}
-                    <tr className="font-semibold bg-gray-50">
-                      <td className="px-4 py-2 text-sm text-gray-900">Total</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(data.collectedTaxes.totalTaxableAmount)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</td>
+                    <tr className="font-semibold bg-slate-50 border-t border-slate-200">
+                      <td className="px-4 py-2.5 text-sm text-slate-800">Total</td>
+                      <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.collectedTaxes.totalTaxableAmount)}</td>
+                      <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -1924,56 +1584,54 @@ export const TaxSummaryReport = ({
             </div>
             
             <div>
-              <h3 className="text-lg font-medium text-gray-800 mb-4">Tax Expenses</h3>
-              <div className="overflow-x-auto">
+              <h3 className="text-lg font-semibold text-slate-800 mb-4">Tax expenses</h3>
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
                 <table className="min-w-full">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <tr className="bg-slate-50">
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                      <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
+                      <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-200 bg-white">
                     {data.paidTaxes.expenses.map((expense) => (
-                      <tr key={expense.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm text-gray-900">{expense.description}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">{expense.category}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(expense.amount)}</td>
+                      <tr key={expense.id} className="hover:bg-slate-50/70">
+                        <td className="px-4 py-2.5 text-sm text-slate-800">{expense.description}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800">{expense.category}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(expense.amount)}</td>
                       </tr>
                     ))}
                     {data.paidTaxes.expenses.length === 0 && (
                       <tr>
-                        <td colSpan="3" className="px-4 py-2 text-sm text-gray-500 text-center">No tax expenses recorded</td>
+                        <td colSpan="3" className="px-4 py-6 text-sm text-slate-500 text-center">No tax expenses recorded</td>
                       </tr>
                     )}
-                    <tr className="font-semibold bg-gray-50">
-                      <td colSpan="2" className="px-4 py-2 text-sm text-gray-900">Total Tax Paid</td>
-                      <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(data.paidTaxes.totalTaxPaid)}</td>
+                    <tr className="font-semibold bg-slate-50 border-t border-slate-200">
+                      <td colSpan="2" className="px-4 py-2.5 text-sm text-slate-800">Total tax paid</td>
+                      <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(data.paidTaxes.totalTaxPaid)}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
-          
-          <div className="mt-8 p-4 rounded-lg bg-gray-50 border border-gray-200">
-            <h3 className="text-md font-medium text-gray-800 mb-3">Tax Summary</h3>
+
+          <div className="mt-8 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-50 via-emerald-50/40 to-blue-50/40 border border-slate-200">
+            <h3 className="text-base font-semibold text-slate-800 mb-3 border-l-4 border-emerald-500 pl-3">Tax summary</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <p className="text-sm text-gray-700 mb-1">Total Sales Tax Collected</p>
-                <p className="text-lg font-semibold">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
+              <div className="p-3 rounded-xl bg-white/70">
+                <p className="text-sm text-slate-600 mb-1">Total sales tax collected</p>
+                <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.collectedTaxes.totalCollectedTax)}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-700 mb-1">Total Tax Paid Out</p>
-                <p className="text-lg font-semibold">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
+              <div className="p-3 rounded-xl bg-white/70">
+                <p className="text-sm text-slate-600 mb-1">Total tax paid out</p>
+                <p className="text-lg font-semibold text-slate-800">{formatCurrency(data.paidTaxes.totalTaxPaid)}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-700 mb-1">Net Tax Position</p>
-                <p className={`text-lg font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatCurrency(data.netTaxLiability)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
+              <div className="p-3 rounded-xl bg-white/70">
+                <p className="text-sm text-slate-600 mb-1">Net tax position</p>
+                <p className={`text-lg font-semibold ${data.netTaxLiability >= 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(data.netTaxLiability)}</p>
+                <p className="text-xs text-slate-500 mt-1">
                   {data.netTaxLiability >= 0 ? 'You need to remit this amount to the tax authority' : 'You may be due a tax refund of this amount'}
                 </p>
               </div>
@@ -2009,14 +1667,14 @@ export const AgingReportTable = ({
   
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gray-50 rounded-lg">
-        <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please generate the report.</p>
+      <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
+        <FileText size={48} className="mx-auto text-slate-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
+        <p className="text-slate-500 mt-2 text-sm">Generate the report to view aging summary.</p>
       </div>
     );
   }
-  
+
   // Helper function to get the age of an invoice/bill in days
   const getDaysPastDue = (dueDate) => {
     if (!dueDate) return 0; // Handle missing due date
@@ -2170,130 +1828,95 @@ export const AgingReportTable = ({
     >
       {data && (
         <>
-          <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-100">
-            <div className="flex justify-between items-center">
-              <h3 className="font-medium text-blue-800">
-                {type === 'receivable' ? 'Outstanding Invoices' : 'Outstanding Bills'}
+          <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-blue-50/80 via-slate-50 to-violet-50/60 border border-slate-200">
+            <div className="flex flex-wrap justify-between items-center gap-2 border-l-4 border-blue-500 pl-3">
+              <h3 className="font-semibold text-slate-800">
+                {type === 'receivable' ? 'Outstanding invoices' : 'Outstanding bills'}
               </h3>
-              <span className="text-xs text-blue-700">As of {data.asOfDate}</span>
+              <span className="text-xs text-slate-600">As of {data.asOfDate}</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-              <div>
-                <p className="text-sm text-blue-700 mb-1">
-                  Total {type === 'receivable' ? 'Receivables' : 'Payables'}
-                </p>
-                <p className="text-xl font-semibold text-blue-900">{formatCurrency(grandTotal)}</p>
+              <div className="p-3 rounded-xl bg-white/80 border border-blue-100">
+                <p className="text-sm text-blue-700 mb-1">Total {type === 'receivable' ? 'receivables' : 'payables'}</p>
+                <p className="text-xl font-semibold text-slate-800">{formatCurrency(grandTotal)}</p>
               </div>
-              <div>
-                <p className="text-sm text-blue-700 mb-1">
-                  {type === 'receivable' ? 'Customers' : 'Vendors'} with Outstanding Balances
-                </p>
-                <p className="text-xl font-semibold text-blue-900">{groupedData.length}</p>
+              <div className="p-3 rounded-xl bg-white/80 border border-violet-100">
+                <p className="text-sm text-violet-700 mb-1">{type === 'receivable' ? 'Customers' : 'Vendors'} with outstanding balances</p>
+                <p className="text-xl font-semibold text-slate-800">{groupedData.length}</p>
               </div>
             </div>
           </div>
-          
-          <div className="overflow-x-auto">
+
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
             <table className="min-w-full">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    {type === 'receivable' ? 'Customer' : 'Vendor'}
-                  </th>
+                <tr className="bg-slate-50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Customer' : 'Vendor'}</th>
                   {agingBuckets.map(bucket => (
-                    <th key={bucket.label} className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {bucket.label}
-                    </th>
+                    <th key={bucket.label} className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">{bucket.label}</th>
                   ))}
-                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Total
-                  </th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-slate-200 bg-white">
                 {groupedData.map(entity => (
-                  <tr key={entity.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 text-sm text-gray-900">{entity.name}</td>
+                  <tr key={entity.id} className="hover:bg-slate-50/70">
+                    <td className="px-4 py-2.5 text-sm text-slate-800">{entity.name}</td>
                     {agingBuckets.map(bucket => (
-                      <td key={bucket.label} className="px-4 py-2 text-sm text-gray-900 text-right">
-                        {formatCurrency(entity.buckets[bucket.label])}
-                      </td>
+                      <td key={bucket.label} className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(entity.buckets[bucket.label])}</td>
                     ))}
-                    <td className="px-4 py-2 text-sm font-medium text-gray-900 text-right">
-                      {formatCurrency(entity.total)}
-                    </td>
+                    <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">{formatCurrency(entity.total)}</td>
                   </tr>
                 ))}
                 {groupedData.length === 0 && (
                   <tr>
-                    <td colSpan={agingBuckets.length + 2} className="px-4 py-2 text-sm text-gray-500 text-center">
-                      No outstanding {type === 'receivable' ? 'invoices' : 'bills'}
-                    </td>
+                    <td colSpan={agingBuckets.length + 2} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? 'invoices' : 'bills'}</td>
                   </tr>
                 )}
-                <tr className="font-semibold bg-gray-50">
-                  <td className="px-4 py-2 text-sm text-gray-900">Total</td>
+                <tr className="font-semibold bg-slate-50 border-t-2 border-slate-200">
+                  <td className="px-4 py-2.5 text-sm text-slate-800">Total</td>
                   {agingBuckets.map(bucket => (
-                    <td key={bucket.label} className="px-4 py-2 text-sm text-gray-900 text-right">
-                      {formatCurrency(bucketTotals[bucket.label])}
-                    </td>
+                    <td key={bucket.label} className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(bucketTotals[bucket.label])}</td>
                   ))}
-                  <td className="px-4 py-2 text-sm text-gray-900 text-right">
-                    {formatCurrency(grandTotal)}
-                  </td>
+                  <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(grandTotal)}</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          
+
           <div className="mt-8">
-            <h3 className="text-lg font-medium text-gray-800 mb-4">
+            <h3 className="text-lg font-semibold text-slate-800 mb-4">
               {type === 'receivable' ? 'Outstanding Invoices Detail' : 'Outstanding Bills Detail'}
             </h3>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-sm">
               <table className="min-w-full">
                 <thead>
-                  <tr className="bg-gray-50">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {type === 'receivable' ? 'Invoice #' : 'Bill #'}
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      {type === 'receivable' ? 'Customer' : 'Vendor'}
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Due Date
-                    </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Days Past Due
-                    </th>
-                    <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
+                  <tr className="bg-slate-50">
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Invoice #' : 'Bill #'}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">{type === 'receivable' ? 'Customer' : 'Vendor'}</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Due date</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Days past due</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-slate-200 bg-white">
                   {(data?.invoices || processedItems).map((item, index) => {
                     const entityInfo = getEntityInfo(item);
                     const daysPastDue = item.daysPastDue !== undefined ? item.daysPastDue : getDaysPastDue(item.dueDate);
                     const dueDate = item.dueDate ? new Date(item.dueDate) : null;
                     const issueDate = item.issueDate ? new Date(item.issueDate) : null;
-                    
                     return (
-                      <tr key={item.id || index} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm text-gray-900">{item.invoiceNumber || entityInfo.documentNumber || 'N/A'}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">{entityInfo.name}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">
+                      <tr key={item.id || index} className="hover:bg-slate-50/70">
+                        <td className="px-4 py-2.5 text-sm text-slate-800">{item.invoiceNumber || entityInfo.documentNumber || 'N/A'}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800">{entityInfo.name}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800">
                           {issueDate && !isNaN(issueDate.getTime()) ? (() => {
-                            const day = String(issueDate.getDate()).padStart(2, '0');
-                            const month = String(issueDate.getMonth() + 1).padStart(2, '0');
-                            const year = issueDate.getFullYear();
-                            return `${day}-${month}-${year}`;
+                            const d = issueDate;
+                            return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
                           })() : 'N/A'}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-900">
+                        <td className="px-4 py-2.5 text-sm text-slate-800">
                           {dueDate && !isNaN(dueDate.getTime()) ? (() => {
                             const day = String(dueDate.getDate()).padStart(2, '0');
                             const month = String(dueDate.getMonth() + 1).padStart(2, '0');
@@ -2301,16 +1924,14 @@ export const AgingReportTable = ({
                             return `${day}-${month}-${year}`;
                           })() : 'N/A'}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">{daysPastDue}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900 text-right">{formatCurrency(Number(item.amount) || 0)}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{daysPastDue}</td>
+                        <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(Number(item.amount) || 0)}</td>
                       </tr>
                     );
                   })}
                   {(!data?.invoices || data.invoices.length === 0) && processedItems.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-2 text-sm text-gray-500 text-center">
-                        No outstanding {type === 'receivable' ? 'invoices' : 'bills'}
-                      </td>
+                      <td colSpan={6} className="px-4 py-6 text-sm text-slate-500 text-center">No outstanding {type === 'receivable' ? 'invoices' : 'bills'}</td>
                     </tr>
                   )}
                 </tbody>
@@ -2348,14 +1969,14 @@ export const CashFlowReport = ({
 
   if (!data && !loading && !error) {
     return (
-      <div className="text-center p-8 bg-gray-50 rounded-lg">
-        <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-700">No Data Available</h3>
-        <p className="text-gray-500 mt-2">Please select a time period and generate the report.</p>
+      <div className="text-center p-8 sm:p-10 bg-slate-50 rounded-2xl border border-slate-200">
+        <FileText size={48} className="mx-auto text-slate-400 mb-4" />
+        <h3 className="text-lg font-medium text-slate-800">No data available</h3>
+        <p className="text-slate-500 mt-2 text-sm">Select a time period and generate the report.</p>
       </div>
     );
   }
-  
+
   if (!data) return null;
 
   const companyName = data.companyName || 'Company';
@@ -2370,72 +1991,80 @@ export const CashFlowReport = ({
   const inflowsLineItems = cashInflows.lineItems || [];
   const outflowsLineItems = cashOutflows.lineItems || [];
   
-  // Legacy fallback: create line items from old structure
+  // Legacy fallback: create line items from old structure (support both customerPayments and cashFromCustomerPayments)
   const legacyInflows = [];
-  if (data.cashInflows?.customerPayments > 0) {
+  const customerPaymentsVal = data.cashInflows?.cashFromCustomerPayments ?? data.cashInflows?.customerPayments ?? 0;
+  const otherReceiptsVal = data.cashInflows?.otherCashReceipts ?? 0;
+  if (customerPaymentsVal > 0) {
     legacyInflows.push({
       key: 'inflow-customer-payments',
-      label: 'Customer Payments',
-      value: data.cashInflows.customerPayments,
-      details: data.cashInflows.details?.filter(d => d.type === 'customer_payment' || d.type === 'sale_payment') || []
+      label: 'Cash from Customer Payments',
+      value: customerPaymentsVal,
+      details: data.cashInflows?.details?.filter(d => d.type === 'customer_payment' || d.type === 'sale_payment') || []
     });
   }
-  if (data.cashInflows?.otherCashReceipts > 0) {
+  if (otherReceiptsVal > 0) {
     legacyInflows.push({
       key: 'inflow-other-receipts',
       label: 'Other Cash Receipts',
-      value: data.cashInflows.otherCashReceipts,
-      details: data.cashInflows.details?.filter(d => d.type === 'other_receipt') || []
+      value: otherReceiptsVal,
+      details: data.cashInflows?.details?.filter(d => d.type === 'other_receipt') || []
     });
   }
-  
+
   const legacyOutflows = [];
-  if (data.cashOutflows?.supplierPayments > 0) {
+  const supplierPaymentsVal = data.cashOutflows?.paymentsToSuppliers ?? data.cashOutflows?.supplierPayments ?? 0;
+  if (supplierPaymentsVal > 0) {
     legacyOutflows.push({
       key: 'outflow-supplier-payments',
       label: 'Payments to Suppliers',
-      value: data.cashOutflows.supplierPayments,
-      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('supplier') || d.category?.toLowerCase().includes('vendor'))) || []
+      value: supplierPaymentsVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'supplier_payment' || d.type === 'expense_supplier') || []
     });
   }
-  if (data.cashOutflows?.salaryPayments > 0) {
+  const salaryVal = data.cashOutflows?.salaryPayments ?? 0;
+  if (salaryVal > 0) {
     legacyOutflows.push({
       key: 'outflow-salary-payments',
       label: 'Salary Payments',
-      value: data.cashOutflows.salaryPayments,
-      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && (d.category?.toLowerCase().includes('salary') || d.category?.toLowerCase().includes('wage') || d.category?.toLowerCase().includes('payroll'))) || []
+      value: salaryVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'payroll' || d.type === 'expense_salary') || []
     });
   }
-  if (data.cashOutflows?.rentPayments > 0) {
+  const rentVal = data.cashOutflows?.rentPayments ?? 0;
+  if (rentVal > 0) {
     legacyOutflows.push({
       key: 'outflow-rent-payments',
       label: 'Rent Payments',
-      value: data.cashOutflows.rentPayments,
-      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && d.category?.toLowerCase().includes('rent')) || []
+      value: rentVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'rent') || []
     });
   }
-  if (data.cashOutflows?.otherExpensePayments > 0) {
+  const otherExpVal = data.cashOutflows?.otherExpensePayments ?? 0;
+  if (otherExpVal > 0) {
     legacyOutflows.push({
       key: 'outflow-other-expenses',
       label: 'Other Expense Payments',
-      value: data.cashOutflows.otherExpensePayments,
-      details: data.cashOutflows.details?.filter(d => d.type === 'expense_payment' && !d.category?.toLowerCase().includes('supplier') && !d.category?.toLowerCase().includes('vendor') && !d.category?.toLowerCase().includes('salary') && !d.category?.toLowerCase().includes('wage') && !d.category?.toLowerCase().includes('payroll') && !d.category?.toLowerCase().includes('rent')) || []
+      value: otherExpVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'other_expense') || []
     });
   }
-  if (data.cashOutflows?.assetPurchases > 0) {
+  const assetVal = data.cashOutflows?.assetPurchases ?? 0;
+  if (assetVal > 0) {
     legacyOutflows.push({
       key: 'outflow-asset-purchases',
       label: 'Asset Purchases',
-      value: data.cashOutflows.assetPurchases,
-      details: data.cashOutflows.details?.filter(d => d.type === 'asset_purchase') || []
+      value: assetVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'asset_payment' || d.type === 'asset_module') || []
     });
   }
-  if (data.cashOutflows?.loanPayments > 0) {
+  const loanVal = data.cashOutflows?.loanPayments ?? 0;
+  if (loanVal > 0) {
     legacyOutflows.push({
       key: 'outflow-loan-payments',
       label: 'Loan Payments',
-      value: data.cashOutflows.loanPayments,
-      details: data.cashOutflows.details?.filter(d => d.type === 'loan_payment') || []
+      value: loanVal,
+      details: data.cashOutflows?.details?.filter(d => d.type === 'loan_payment') || []
     });
   }
   
@@ -2446,7 +2075,7 @@ export const CashFlowReport = ({
   
   return (
     <FinancialReport
-      title="Cash Flow Summary"
+      title="Cash Flow Statement (Direct Method)"
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -2476,9 +2105,9 @@ export const CashFlowReport = ({
                 />
               </div>
             )}
-            <h1 className="text-2xl font-bold text-gray-900">{companyName}</h1>
-            <h2 className="text-xl font-semibold text-gray-700 mt-2">Cash Flow Summary</h2>
-            <p className="text-sm text-gray-600 mt-1">For the Period: {periodLabel}</p>
+            <h1 className="text-2xl font-bold text-slate-800">{companyName}</h1>
+            <h2 className="text-xl font-semibold text-slate-600 mt-2">Cash Flow Statement (Direct Method)</h2>
+            <p className="text-sm text-slate-600 mt-1">For the Period: {periodLabel}</p>
           </div>
             
           {/* Cash Flow Statement Table */}
@@ -2486,14 +2115,14 @@ export const CashFlowReport = ({
             <table className="min-w-full border-collapse">
               <thead>
                 <tr>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300"></th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-900 border-b-2 border-gray-300">Amount</th>
+                  <th className="text-left py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200"></th>
+                  <th className="text-right py-3 px-4 font-semibold text-slate-800 border-b-2 border-slate-200">Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
+              <tbody className="divide-y divide-slate-200">
                 {/* CASH INFLOWS SECTION */}
-                <tr className="bg-gray-50">
-                  <td colSpan="2" className="py-2 px-4 font-bold text-gray-900 uppercase">
+                <tr className="bg-slate-50">
+                  <td colSpan="2" className="py-2 px-4 font-bold text-slate-800 uppercase">
                     CASH INFLOWS
                   </td>
                 </tr>
@@ -2514,20 +2143,20 @@ export const CashFlowReport = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="2" className="py-2 px-4 text-gray-500 text-center italic">No cash inflows recorded</td>
+                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">No cash inflows recorded</td>
                   </tr>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Cash Inflows</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Cash Inflows</td>
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(totalInflows)}
                   </td>
                 </tr>
 
                 {/* CASH OUTFLOWS SECTION */}
-                <tr className="bg-gray-50">
-                  <td colSpan="2" className="py-2 px-4 font-bold text-gray-900 uppercase">
+                <tr className="bg-slate-50">
+                  <td colSpan="2" className="py-2 px-4 font-bold text-slate-800 uppercase">
                     CASH OUTFLOWS
                   </td>
                 </tr>
@@ -2548,41 +2177,41 @@ export const CashFlowReport = ({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="2" className="py-2 px-4 text-gray-500 text-center italic">No cash outflows recorded</td>
+                    <td colSpan="2" className="py-2 px-4 text-slate-500 text-center italic">No cash outflows recorded</td>
                   </tr>
                 )}
 
-                <tr className="border-t border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">Total Cash Outflows</td>
-                  <td className="py-2 px-4 text-right font-semibold text-gray-900">
+                <tr className="border-t border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">Total Cash Outflows</td>
+                  <td className="py-2 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(totalOutflows)}
                   </td>
                 </tr>
 
-                <tr className="border-t-2 border-gray-300">
-                  <td className="py-2 px-4 font-semibold text-gray-900">NET CASH FLOW</td>
-                  <td className={`py-2 px-4 text-right font-semibold text-gray-900 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                <tr className="border-t-2 border-slate-200">
+                  <td className="py-2 px-4 font-semibold text-slate-800">NET CASH FLOW</td>
+                  <td className={`py-2 px-4 text-right font-semibold text-slate-800 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(netCashFlow)}
                   </td>
                 </tr>
 
-                <tr className="border-t-2 border-gray-400">
-                  <td className="py-3 px-4 font-semibold text-gray-900">Opening Cash Balance</td>
-                  <td className="py-3 px-4 text-right font-semibold text-gray-900">
+                <tr className="border-t-2 border-slate-300">
+                  <td className="py-3 px-4 font-semibold text-slate-800">Opening Cash Balance</td>
+                  <td className="py-3 px-4 text-right font-semibold text-slate-800">
                     {formatCurrency(openingBalance)}
                   </td>
                 </tr>
 
                 <tr>
-                  <td className="py-2 px-4 text-gray-700">Add: Net Cash Flow</td>
-                  <td className={`py-2 px-4 text-right text-gray-700 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <td className="py-2 px-4 text-slate-600">Add: Net Cash Flow</td>
+                  <td className={`py-2 px-4 text-right text-slate-600 ${netCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(netCashFlow)}
                   </td>
                 </tr>
 
-                <tr className="border-t-2 border-gray-400">
-                  <td className="py-3 px-4 font-bold text-lg text-gray-900">Closing Cash Balance</td>
-                  <td className="py-3 px-4 text-right font-bold text-lg text-gray-900">
+                <tr className="border-t-2 border-slate-300">
+                  <td className="py-3 px-4 font-bold text-lg text-slate-800">Closing Cash Balance</td>
+                  <td className="py-3 px-4 text-right font-bold text-lg text-slate-800">
                     {formatCurrency(closingBalance)}
                   </td>
                 </tr>
@@ -2608,8 +2237,8 @@ export const CashFlowReport = ({
  */
 const CashFlowRow = ({ label, value, isNegative = false, hasDetails, onDrillDown }) => {
   return (
-    <tr className="hover:bg-gray-50">
-      <td className="py-2 px-4 text-gray-900">
+    <tr className="hover:bg-slate-50">
+      <td className="py-2 px-4 text-slate-800">
         <div className="flex items-center">
           {hasDetails && (
             <button
@@ -2623,7 +2252,7 @@ const CashFlowRow = ({ label, value, isNegative = false, hasDetails, onDrillDown
           {label}
           </div>
       </td>
-      <td className="py-2 px-4 text-right text-gray-900">
+      <td className="py-2 px-4 text-right text-slate-800">
         {isNegative ? `(${formatCurrency(Math.abs(value))})` : formatCurrency(value)}
       </td>
     </tr>
@@ -2640,12 +2269,12 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-300 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-xl font-semibold text-gray-900">{data.type} - Transaction Details</h3>
+      <div className="bg-white rounded-lg border border-slate-200 max-w-4xl w-full mx-4 max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+          <h3 className="text-xl font-semibold text-slate-800">{data.type} - Transaction Details</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-slate-500 hover:text-slate-600"
           >
             <X size={24} />
           </button>
@@ -2653,17 +2282,17 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
         <div className="p-6 overflow-y-auto max-h-[60vh]">
               <table className="min-w-full">
             <thead>
-              <tr className="bg-gray-50">
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+              <tr className="bg-slate-50">
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Date</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Reference</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-slate-500 uppercase">Description</th>
+                <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">Amount</th>
                   </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-slate-200">
               {data.items.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                <tr key={index} className="hover:bg-slate-50">
+                  <td className="px-4 py-2 text-sm text-slate-800">
                     {item.date ? (() => {
                       const date = new Date(item.date);
                       const day = String(date.getDate()).padStart(2, '0');
@@ -2672,22 +2301,22 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
                       return `${day}-${month}-${year}`;
                     })() : 'N/A'}
                   </td>
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                  <td className="px-4 py-2 text-sm text-slate-800">
                     {item.reference || 'N/A'}
                     </td>
-                  <td className="px-4 py-2 text-sm text-gray-900">
+                  <td className="px-4 py-2 text-sm text-slate-800">
                     {item.description || 'N/A'}
                     </td>
-                    <td className="px-4 py-2 text-sm text-gray-900 text-right">
+                    <td className="px-4 py-2 text-sm text-slate-800 text-right">
                     {formatCurrency(item.amount || 0)}
                     </td>
                   </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="bg-gray-50 font-semibold">
-                <td colSpan="3" className="px-4 py-2 text-sm text-gray-900">Total</td>
-                    <td className="px-4 py-2 text-sm text-gray-900 text-right">
+              <tr className="bg-slate-50 font-semibold">
+                <td colSpan="3" className="px-4 py-2 text-sm text-slate-800">Total</td>
+                    <td className="px-4 py-2 text-sm text-slate-800 text-right">
                   {formatCurrency(data.items.reduce((sum, item) => sum + (item.amount || 0), 0))}
                     </td>
                   </tr>
@@ -2702,6 +2331,7 @@ const CashFlowDrillDownModal = ({ data, onClose }) => {
 // Import and re-export new report components
 import { 
   StockMovementReport, 
+  PosDailyReport,
   SalesAnalysisReport, 
   ExpenseAnalysisReport, 
   ProfitabilityAnalysisReport 
@@ -2710,6 +2340,7 @@ import {
 // Re-export for use in other files
 export { 
   StockMovementReport, 
+  PosDailyReport,
   SalesAnalysisReport, 
   ExpenseAnalysisReport, 
   ProfitabilityAnalysisReport 

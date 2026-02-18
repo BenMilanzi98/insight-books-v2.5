@@ -68,11 +68,12 @@ export async function GET(request, { params }) {
     }
 
     // Calculate tax collected from SALES (since tax transactions don't exist)
-    // Query sales with items that have tax for this tax type
+    // Exclude refunded sales so their tax is not counted as collected
     const salesWithTax = await prisma.sale.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
         status: { in: ['completed', 'paid'] },
+        refundedAt: null,
         ...(Object.keys(dateFilter).length > 0 && {
           saleDate: dateFilter,
         }),
@@ -93,6 +94,9 @@ export async function GET(request, { params }) {
                 productTaxes: {
                   where: {
                     taxTypeId: taxType.id,
+                  },
+                  include: {
+                    taxType: true,
                   },
                 },
               },
@@ -219,6 +223,43 @@ export async function GET(request, { params }) {
             runningBalance: 0, // Will be calculated later
           });
         }
+      }
+    }
+
+    // Include tax collected from paid/completed invoices when only one tax type exists
+    if (activeTaxTypeCount === 1) {
+      const invoicesWithTax = await prisma.invoice.findMany({
+        where: addBranchFilter(user, {
+          tenantId: user.tenantId,
+          status: { in: ['Paid', 'Completed'] },
+          refundedAt: null,
+          taxAmount: { gt: 0 },
+          ...(Object.keys(dateFilter).length > 0 && {
+            issueDate: dateFilter,
+          }),
+        }),
+        select: { id: true, invoiceNumber: true, issueDate: true, taxAmount: true },
+      });
+      for (const inv of invoicesWithTax) {
+        const amt = Number(inv.taxAmount || 0);
+        if (amt <= 0) continue;
+        totalCollected += amt;
+        const debitAmt = isAsset ? amt : 0;
+        const creditAmt = isLiability ? amt : 0;
+        salesTransactions.push({
+          id: `invoice-${inv.id}`,
+          reference: inv.invoiceNumber || `INV-${inv.id}`,
+          date: inv.issueDate,
+          description: `Tax Collection - ${inv.invoiceNumber || 'Invoice'}`,
+          sourceType: 'Tax-Invoice',
+          sourceId: inv.id,
+          transactionType: 'collected',
+          debitAmount: debitAmt,
+          creditAmount: creditAmt,
+          netAmount: creditAmt - debitAmt,
+          createdBy: 'System',
+          runningBalance: 0,
+        });
       }
     }
 

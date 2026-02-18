@@ -55,7 +55,7 @@ async function updateProductionAdmin() {
     console.log(`   Email: ${email}`);
     console.log(`   Password: ${password}`);
     console.log(`   Role: SUPER_ADMIN`);
-    console.log('\n🌐 Access production at: https://insightbooksafrica.com/admin/login');
+    console.log('\n🌐 Access production at: https://insightbooksafrica.com/insightbooks/login');
     
   } catch (error) {
     console.error('❌ Error:', error.message);

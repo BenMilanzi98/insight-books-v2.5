@@ -116,10 +116,11 @@ export async function GET(request, { params }) {
     const preparedQuotation = {
       id: quotation.id,
       quotationNumber: quotation.quotationNumber || '',
+      title: quotation.title || 'Quotation',
+      orderNumber: quotation.orderNumber ?? null,
       issueDate: quotation.issueDate ? quotation.issueDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       validUntil: quotation.validUntil ? quotation.validUntil.toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       status: quotation.status || 'Draft',
-      title: quotation.title || 'Quotation',
       notes: quotation.notes || '',
       createdAt: quotation.createdAt ? quotation.createdAt.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       // Client information

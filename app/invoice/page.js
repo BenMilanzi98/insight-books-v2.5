@@ -46,13 +46,15 @@ import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { formatDate } from "@/lib/dateUtils";
 
-// Statistics card component
-const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => (
+// Statistics card component — amount is numeric from API (sum of invoice totals)
+const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColor }) => {
+  const value = typeof amount === 'number' ? amount : (parseFloat(String(amount || 0).replace(/,/g, '')) || 0);
+  return (
   <div className={`${bgColor} border ${borderColor} rounded-xl p-5 transition-all duration-200 hover:shadow-md`}>
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm font-medium text-gray-600 mb-1">{label}</p>
-        <p className="text-2xl font-bold text-gray-900">MWK {parseFloat(amount || 0).toLocaleString()}</p>
+        <p className="text-2xl font-bold text-gray-900">MWK {value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</p>
         <p className="text-xs text-gray-500 mt-1">{count || 0} invoice{count !== 1 ? 's' : ''}</p>
       </div>
       <div className={`p-3 rounded-full ${color === 'green' ? 'bg-emerald-100' : color === 'yellow' ? 'bg-amber-100' : color === 'red' ? 'bg-red-100' : 'bg-blue-100'}`}>
@@ -60,7 +62,8 @@ const StatCard = ({ label, amount, count, icon: Icon, color, bgColor, borderColo
       </div>
     </div>
   </div>
-);
+  );
+};
 
 // Status badge component with improved styling
 const StatusBadge = ({ status }) => {
@@ -168,6 +171,11 @@ const InvoicingPage = () => {
   const [sendInvoiceModalOpen, setSendInvoiceModalOpen] = useState(false);
   const [selectedInvoiceForSending, setSelectedInvoiceForSending] = useState(null);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [sendAttachments, setSendAttachments] = useState([]);
+  const sendOnceForInvoiceIdRef = useRef(null);
+  const pendingSendMessageRef = useRef(null);
+  const pendingSendAttachmentsRef = useRef([]);
+  const pendingSendOtherEmailsRef = useRef([]);
 
   // Partial payment modal states
   const [partialPaymentModalOpen, setPartialPaymentModalOpen] = useState(false);
@@ -214,12 +222,28 @@ const InvoicingPage = () => {
     fetchPermissions();
   }, []);
 
-  // Handle send invoice
+  // Handle send invoice - only open modal; capture starts when user clicks Send in modal
   const handleSendInvoice = (invoice) => {
+    sendOnceForInvoiceIdRef.current = null;
+    pendingSendMessageRef.current = null;
+    pendingSendAttachmentsRef.current = [];
+    pendingSendOtherEmailsRef.current = [];
     setSelectedInvoiceForSending(invoice);
     setCustomMessage("");
+    setSendAttachments([]);
     setSendInvoiceModalOpen(true);
-    
+  };
+
+  // When user clicks Send in modal: store message/attachments/otherEmails, close modal, then start PDF capture (email sends when capture completes)
+  const handleMessageSubmit = (message, files = [], otherEmails = []) => {
+    const invoice = selectedInvoiceForSending;
+    if (!invoice) return;
+    setCustomMessage(message);
+    setSendAttachments(Array.isArray(files) ? files : []);
+    pendingSendMessageRef.current = message;
+    pendingSendAttachmentsRef.current = Array.isArray(files) ? files : [];
+    pendingSendOtherEmailsRef.current = Array.isArray(otherEmails) ? otherEmails : [];
+    setSendInvoiceModalOpen(false);
     (async () => {
       try {
         setIsCapturingPdf(true);
@@ -232,11 +256,6 @@ const InvoicingPage = () => {
         setIsCapturingPdf(false);
       }
     })();
-  };
-
-  // Handle custom message from modal
-  const handleMessageSubmit = (message) => {
-    setCustomMessage(message);
   };
 
   // Handle void invoice
@@ -337,44 +356,72 @@ const InvoicingPage = () => {
 
   // Handle capture success
   const handleCaptureSuccess = () => {
-    if (captureInvoiceType === "save") {
-      if (isSendingInvoice) return;
-      setIsSendingInvoice(true);
-      
-      (async () => {
-        try {
-          const invoiceId = captureInvoiceData?.invoice?.id;
-          if (invoiceId) {
-            await waitForFile(invoiceId, "invoice");
-            const response = await fetch(`/api/invoices/${invoiceId}/send`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: customMessage || "", templateId: selectedTemplate?.id }),
-            });
-            
-            if (!response.ok) throw new Error('Failed to send invoice');
-            const result = await response.json();
-            
-            setSendInvoiceModalOpen(false);
-            const isPaid = captureInvoiceData.invoice.status === 'Paid';
-            setSuccessMessage(`${isPaid ? 'Payment confirmation' : 'Invoice'} sent successfully`);
-            
-            if (result.statusUpdated) loadInvoices();
-          }
-        } catch (error) {
-          console.error("Error in post-capture process:", error);
-          alert("PDF generated but failed to send invoice. Please try again.");
-        } finally {
-          setIsSendingInvoice(false);
-        }
-      })();
-    } else {
+    if (captureInvoiceType !== "save") {
       setSuccessMessage("Invoice downloaded successfully!");
+      setTimeout(() => {
+        setCaptureInvoiceData(null);
+        setIsCapturingPdf(false);
+      }, 1000);
+      return;
     }
-    setTimeout(() => {
-      setCaptureInvoiceData(null);
-      setIsCapturingPdf(false);
-    }, 1000);
+    const invoiceId = captureInvoiceData?.invoice?.id;
+    if (!invoiceId) {
+      setTimeout(() => { setCaptureInvoiceData(null); setIsCapturingPdf(false); }, 1000);
+      return;
+    }
+    if (sendOnceForInvoiceIdRef.current === invoiceId) return;
+    sendOnceForInvoiceIdRef.current = invoiceId;
+    if (isSendingInvoice) return;
+    setIsSendingInvoice(true);
+
+    (async () => {
+      try {
+        await waitForFile(invoiceId, "invoice");
+        const message = pendingSendMessageRef.current ?? customMessage ?? "";
+        const attachments = pendingSendAttachmentsRef.current ?? sendAttachments ?? [];
+        const otherEmails = pendingSendOtherEmailsRef.current ?? [];
+        const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+
+        let response;
+        if (hasAttachments) {
+          const formData = new FormData();
+          formData.append('message', message);
+          formData.append('templateId', selectedTemplate?.id || "");
+          formData.append('otherEmails', JSON.stringify(otherEmails));
+          attachments.forEach((file) => formData.append('attachments', file));
+          response = await fetch(`/api/invoices/${invoiceId}/send`, {
+            method: 'POST',
+            body: formData,
+          });
+        } else {
+          response = await fetch(`/api/invoices/${invoiceId}/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, templateId: selectedTemplate?.id, otherEmails }),
+          });
+        }
+        if (!response.ok) throw new Error('Failed to send invoice');
+        const result = await response.json();
+        setSendInvoiceModalOpen(false);
+        setSendAttachments([]);
+        pendingSendMessageRef.current = null;
+        pendingSendAttachmentsRef.current = [];
+        pendingSendOtherEmailsRef.current = [];
+        const isPaid = captureInvoiceData.invoice.status === 'Paid';
+        setSuccessMessage(`${isPaid ? 'Payment confirmation' : 'Invoice'} sent successfully`);
+        if (result.statusUpdated) loadInvoices();
+      } catch (error) {
+        console.error("Error in post-capture process:", error);
+        sendOnceForInvoiceIdRef.current = null;
+        alert("PDF generated but failed to send invoice. Please try again.");
+      } finally {
+        setIsSendingInvoice(false);
+        setTimeout(() => {
+          setCaptureInvoiceData(null);
+          setIsCapturingPdf(false);
+        }, 1000);
+      }
+    })();
   };
 
   const handleCaptureError = (error) => {
@@ -384,14 +431,9 @@ const InvoicingPage = () => {
     setIsCapturingPdf(false);
   };
 
-  // Handle preview invoice
+  // Handle preview invoice - always fetch full invoice so title, orderNumber, and all fields are available for preview
   const handlePreviewInvoice = async (invoice) => {
     try {
-      if (invoice.items) {
-        setInvoiceForPreview(invoice);
-        setPreviewModalOpen(true);
-        return;
-      }
       const fullInvoice = await getInvoiceById(invoice.id);
       setInvoiceForPreview(fullInvoice);
       setPreviewModalOpen(true);

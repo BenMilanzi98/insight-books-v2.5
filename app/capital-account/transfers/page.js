@@ -6,7 +6,8 @@ import { paymentMethods } from "@/lib/paymentMethods";
 
 const CapitalAccountTransfersPage = () => {
   const [transfers, setTransfers] = useState([]);
-  const [paymentMethodBalances, setPaymentMethodBalances] = useState([]);
+  /** Actual payment accounts from /payments/management with real balances */
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
@@ -21,24 +22,30 @@ const CapitalAccountTransfersPage = () => {
 
   useEffect(() => {
     fetchTransfers();
-    fetchPaymentMethodBalances();
+    fetchPaymentAccounts();
     fetchCapitalAccount();
   }, [filters, currentPage]);
 
-  const fetchPaymentMethodBalances = async () => {
+  const fetchPaymentAccounts = async () => {
     try {
-      const response = await fetch('/api/payments/account-balances');
+      const response = await fetch('/api/payment-accounts/balances');
       if (response.ok) {
         const data = await response.json();
-        setPaymentMethodBalances(data.balances || []);
+        setPaymentAccounts(data.accounts || []);
       }
     } catch (error) {
-      console.error('Error fetching payment method balances:', error);
+      console.error('Error fetching payment accounts:', error);
     }
   };
 
-  const getBalance = (key) => paymentMethodBalances.find((b) => b.account === key)?.balance ?? 0;
-  const getPaymentMethodName = (key) => paymentMethods.find(method => method.key === key)?.name || 'Unknown';
+  /** Resolve display name: by payment account id, then legacy payment method key, then capital account */
+  const getPaymentMethodName = (keyOrId) => {
+    if (!keyOrId) return 'Unknown';
+    if (keyOrId === capitalAccount?.id) return capitalAccount?.name || 'Capital Account';
+    const byId = paymentAccounts.find((a) => a.id === keyOrId);
+    if (byId?.name) return byId.name;
+    return paymentMethods.find((m) => m.key === keyOrId)?.name || keyOrId;
+  };
 
   const fetchTransfers = async () => {
     try {
@@ -242,27 +249,27 @@ const CapitalAccountTransfersPage = () => {
           </div>
         </div>
 
-        {/* Payment Method Balances */}
+        {/* Payment account balances (same as /payments/management) */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Available Balances</h2>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            {paymentMethods.map(method => {
-              const balance = getBalance(method.key);
-              const bgColor = `bg-${method.color}-50`;
-              const textColor = `text-${method.color}-500`;
-              return (
-                <div key={method.key} className={`${bgColor} p-4 rounded-lg`}>
-                  <div className="flex items-center mb-2">
-                    <span className="text-2xl mr-2">{method.icon || '💰'}</span>
-                    <span className="font-medium text-sm">{method.name}</span>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {paymentAccounts
+              .filter((a) => a.isActive !== false)
+              .map((account) => {
+                const balance = typeof account.balance === 'number' ? account.balance : parseFloat(account.balance) || 0;
+                return (
+                  <div key={account.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="flex items-center mb-2">
+                      <span className="text-2xl mr-2">💰</span>
+                      <span className="font-medium text-sm text-gray-900">{account.name}</span>
+                    </div>
+                    <div className="text-sm text-gray-600 mb-1">Available Balance</div>
+                    <div className="text-xl font-bold text-gray-900">
+                      {formatCurrency(balance)}
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-600 mb-1">Available Balance</div>
-                  <div className="text-xl font-bold">
-                    {formatCurrency(balance)}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
           </div>
         </div>
 

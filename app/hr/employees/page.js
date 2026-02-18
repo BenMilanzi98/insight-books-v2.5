@@ -60,6 +60,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
   const [deductions, setDeductions] = useState([]);
   const [selectedDeductions, setSelectedDeductions] = useState([]);
+  const [benefits, setBenefits] = useState([]);
+  const [employeeBenefitAmounts, setEmployeeBenefitAmounts] = useState({});
   const [gratuityAccounts, setGratuityAccounts] = useState([]);
   const [selectedGratuityAccount, setSelectedGratuityAccount] = useState('');
   const [salaryCalculation, setSalaryCalculation] = useState(null);
@@ -188,10 +190,11 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     return url;
   };
 
-  // Fetch deductions when employment type changes
+  // Fetch deductions and benefits when employment type changes
   useEffect(() => {
     fetchDeductions();
     fetchGratuityAccounts();
+    fetchBenefits();
   }, [formData.employmentType]);
 
   // Load selected deductions when deductions are fetched and employee has selectedDeductions
@@ -208,6 +211,30 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       setSelectedGratuityAccount(employee.gratuityAccount.id);
     }
   }, [employee, deductions]);
+
+  // Load employee benefits when editing
+  useEffect(() => {
+    if (!employee?.id) {
+      setEmployeeBenefitAmounts({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/employees/${employee.id}/benefits`);
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        const amounts = {};
+        (data.benefits || []).forEach((b) => {
+          amounts[b.benefitId] = b.amount != null ? b.amount : 0;
+        });
+        setEmployeeBenefitAmounts(amounts);
+      } catch {
+        if (!cancelled) setEmployeeBenefitAmounts({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [employee?.id]);
 
   const fetchDeductions = async () => {
     try {
@@ -226,6 +253,16 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }
   };
 
+  const fetchBenefits = async () => {
+    try {
+      const response = await fetch('/api/benefits');
+      const data = await response.json();
+      setBenefits(data.benefits || []);
+    } catch (error) {
+      console.error('Error fetching benefits:', error);
+    }
+  };
+
   const fetchGratuityAccounts = async () => {
     try {
       const response = await fetch('/api/gratuity');
@@ -237,6 +274,13 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }
   };
 
+  const setBenefitAmount = (benefitId, amount) => {
+    setEmployeeBenefitAmounts((prev) => ({
+      ...prev,
+      [benefitId]: amount === '' ? '' : (Number(amount) || 0)
+    }));
+  };
+
   const calculateSalary = async () => {
     if (!formData.grossSalary || formData.grossSalary <= 0) {
       alert('Please enter a valid gross salary');
@@ -245,6 +289,9 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
     try {
       setCalculating(true);
+      const benefitsList = Object.entries(employeeBenefitAmounts || {})
+        .filter(([, amount]) => amount !== '' && amount !== undefined && Number(amount) > 0)
+        .map(([benefitId, amount]) => ({ benefitId, amount: Number(amount) }));
       const response = await fetch('/api/employees/calculate-salary', {
         method: 'POST',
         headers: {
@@ -253,7 +300,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         body: JSON.stringify({
           grossSalary: formData.grossSalary,
           deductionIds: selectedDeductions.map(d => d.id),
-          employmentType: formData.employmentType
+          employmentType: formData.employmentType,
+          benefits: benefitsList
         }),
       });
 
@@ -397,11 +445,20 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       const sendEmailCheckbox = formEvent?.target?.querySelector?.('input[name="sendEmail"]');
       const sendEmail = sendEmailCheckbox ? sendEmailCheckbox.checked : false;
 
+      const benefitsList = benefits
+        .filter((b) => b.isActive)
+        .map((b) => ({
+          benefitId: b.id,
+          amount: Number(employeeBenefitAmounts[b.id]) || 0
+        }))
+        .filter((eb) => eb.amount > 0);
+
       const submitData = {
         ...formWithoutKin,
         grossSalary: formData.grossSalary,
         selectedDeductions: selectedDeductions.map(d => d.id),
         gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
+        benefits: benefitsList,
         salaryCalculation: salaryCalculation,
         emergencyContact,
         documents: documents && Object.keys(documents).length > 0 ? documents : undefined,
@@ -437,10 +494,18 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         isActive: formData.isActive,
       });
     } else if (stepIndex === 2) {
+      const benefitsList = benefits
+        .filter((b) => b.isActive)
+        .map((b) => ({
+          benefitId: b.id,
+          amount: Number(employeeBenefitAmounts[b.id]) || 0
+        }))
+        .filter((eb) => eb.amount > 0);
       Object.assign(base, {
         grossSalary: formData.grossSalary,
         selectedDeductions: selectedDeductions.map(d => d.id),
         gratuityAccountId: selectedGratuityAccount && selectedGratuityAccount.trim() !== '' ? selectedGratuityAccount : null,
+        benefits: benefitsList,
       });
     } else if (stepIndex === 3) {
       Object.assign(base, {
@@ -895,6 +960,39 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                 )}
               </div>
 
+              {/* Benefits & allowances (house allowance, airtime, other perks) */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-800 mb-3">Benefits & Allowances</h4>
+                <p className="text-sm text-gray-600 mb-3">
+                  Optional perks paid in addition to basic salary (e.g. house allowance, airtime). These are included in gross pay for payroll.
+                </p>
+                {benefits.filter((b) => b.isActive).length > 0 ? (
+                  <div className="space-y-2">
+                    {benefits.filter((b) => b.isActive).map((benefit) => (
+                      <div key={benefit.id} className="flex items-center gap-3">
+                        <label className="flex-1 text-sm text-gray-700 min-w-0 truncate" title={benefit.name}>
+                          {benefit.name}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={employeeBenefitAmounts[benefit.id] ?? ''}
+                          onChange={(e) => setBenefitAmount(benefit.id, e.target.value)}
+                          placeholder="0"
+                          className="w-32 px-2 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        <span className="text-xs text-gray-500 w-10">MWK</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">
+                    No benefits defined. Add benefit types under HR → Benefits & Allowances, then assign amounts here.
+                  </p>
+                )}
+              </div>
+
               {formData.grossSalary && (
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -911,6 +1009,14 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
 
                   {salaryCalculation && (
                     <div className="bg-gray-50 p-4 rounded-lg">
+                      {(salaryCalculation.totalBenefits != null && salaryCalculation.totalBenefits > 0) && (
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 text-sm text-gray-600">
+                          <span>Gross: MWK {(salaryCalculation.grossSalary || 0).toLocaleString()}</span>
+                          <span>− Deductions: MWK {(salaryCalculation.totalDeductions || 0).toLocaleString()}</span>
+                          <span>+ Benefits: MWK {(salaryCalculation.totalBenefits || 0).toLocaleString()}</span>
+                          <span>= Net: MWK {(salaryCalculation.netPay || 0).toLocaleString()}</span>
+                        </div>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div className="bg-white p-3 rounded">
                           <div className="text-sm text-gray-600">Gross Salary</div>
@@ -2012,17 +2118,21 @@ const EmployeeManagement = () => {
 
   const handleFormSubmit = async (formData, options = {}) => {
     setIsSubmitting(true);
-    
+    const { benefits: benefitsPayload, ...employeePayload } = formData;
+    const benefits = Array.isArray(benefitsPayload) ? benefitsPayload : [];
+
     try {
+      let employeeId;
       if (isEditing && selectedEmployee) {
-        const response = await fetch(`/api/employees/${selectedEmployee.id}`, {
+        employeeId = selectedEmployee.id;
+        const response = await fetch(`/api/employees/${employeeId}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(employeePayload),
         });
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             setError("Please log in to update employees. Authentication required.");
@@ -2031,9 +2141,9 @@ const EmployeeManagement = () => {
           }
           throw new Error('Failed to update employee');
         }
-        
+
         const data = await response.json();
-        setEmployees(employees.map(e => 
+        setEmployees(employees.map(e =>
           e.id === selectedEmployee.id ? data.employee : e
         ));
         setSuccessMessage('Employee updated successfully');
@@ -2043,9 +2153,9 @@ const EmployeeManagement = () => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(employeePayload),
         });
-        
+
         if (!response.ok) {
           if (response.status === 401) {
             setError("Please log in to create employees. Authentication required.");
@@ -2055,12 +2165,26 @@ const EmployeeManagement = () => {
           const errorData = await response.json();
           throw new Error(errorData.error || 'Failed to create employee');
         }
-        
+
         const data = await response.json();
+        employeeId = data.employee?.id;
         setEmployees([data.employee, ...employees]);
         setSuccessMessage('Employee created successfully');
       }
-      
+
+      // Save benefits/allowances for this employee
+      if (employeeId && (benefits.length > 0 || isEditing)) {
+        const benefitsRes = await fetch(`/api/employees/${employeeId}/benefits`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ benefits }),
+        });
+        if (!benefitsRes.ok) {
+          const errData = await benefitsRes.json();
+          console.warn('Employee benefits save warning:', errData.error);
+        }
+      }
+
       // If saving a single tab while editing, keep the form open.
       if (!options.keepOpen) {
         setIsFormOpen(false);

@@ -150,6 +150,10 @@ const ReversalsPage = () => {
         return <FileText className="w-4 h-4 text-green-500" />;
       case 'payment':
         return <CreditCard className="w-4 h-4 text-blue-500" />;
+      case 'refund':
+        return <RotateCcw className="w-4 h-4 text-amber-500" />;
+      case 'sale_refund':
+        return <RotateCcw className="w-4 h-4 text-purple-500" />;
       default:
         return <DollarSign className="w-4 h-4 text-gray-500" />;
     }
@@ -163,6 +167,10 @@ const ReversalsPage = () => {
         return 'Sale/Invoice';
       case 'payment':
         return 'Payment';
+      case 'refund':
+        return 'Invoice Refund';
+      case 'sale_refund':
+        return 'POS Refund';
       default:
         return 'Transaction';
     }
@@ -176,6 +184,10 @@ const ReversalsPage = () => {
         return 'bg-green-100 text-green-800';
       case 'payment':
         return 'bg-blue-100 text-blue-800';
+      case 'refund':
+        return 'bg-amber-100 text-amber-800';
+      case 'sale_refund':
+        return 'bg-purple-100 text-purple-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -199,13 +211,14 @@ const ReversalsPage = () => {
       const data = await response.json();
 
       // Generate CSV
-      const headers = ['ID', 'Type', 'Description', 'Original Amount', 'Reversal Amount', 'Date', 'Reversed At', 'Reason', 'Performed By'];
+      const headers = ['ID', 'Type', 'Description', 'Original Amount', 'Reversal Amount', 'Tax Reversed', 'Date', 'Reversed At', 'Reason', 'Performed By'];
       const rows = data.reversals.map(r => [
         r.id,
         getTypeLabel(r.type),
         r.description,
         r.originalAmount,
         r.reversalAmount,
+        r.taxReversed != null && r.taxReversed > 0 ? r.taxReversed : '',
         r.date,
         r.reversedAt,
         `"${r.reversalReason || ''}"`,
@@ -260,28 +273,27 @@ const ReversalsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-        
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 max-w-7xl">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 bg-clip-text text-transparent flex items-center gap-3">
-                <RotateCcw className="w-8 h-8 text-red-600" />
-                Reversed Transactions
-              </h1>
-              <p className="text-gray-600 text-sm sm:text-base mt-2">
-                View and track all reversed transactions with full audit trail
-              </p>
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                <RotateCcw className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Reversed Transactions</h1>
+                <p className="text-indigo-100 text-sm mt-0.5">View and track all reversed transactions with full audit trail</p>
+              </div>
             </div>
-            
             {pagePermissions.canExportReversals && reversals.length > 0 && (
               <button
+                type="button"
                 onClick={handleExport}
-                className="px-5 py-2.5 border-2 border-gray-300 bg-white hover:bg-gray-50 rounded-lg flex items-center shadow-md hover:shadow-lg transition-all duration-200 font-medium text-sm text-gray-700"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-all"
               >
-                <Download className="w-5 h-5 mr-2" />
+                <Download className="w-5 h-5" />
                 Export CSV
               </button>
             )}
@@ -289,96 +301,85 @@ const ReversalsPage = () => {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {/* Total Reversals */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Reversals</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{totals.count}</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Reversals</p>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.count}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
-                <RotateCcw className="w-6 h-6 text-red-600" />
+              <div className="p-3 rounded-xl bg-rose-100">
+                <RotateCcw className="w-6 h-6 text-rose-600" />
               </div>
             </div>
           </div>
-
-          {/* Total Amount Reversed */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 p-6">
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Amount</p>
-                <p className="text-2xl sm:text-3xl font-bold text-red-600 mt-1">MK {formatCurrency(totals.totalAmount)}</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Amount</p>
+                <p className="text-2xl sm:text-3xl font-bold text-rose-600 mt-1">{formatCurrency(totals.totalAmount)}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-red-600" />
+              <div className="p-3 rounded-xl bg-rose-100">
+                <DollarSign className="w-6 h-6 text-rose-600" />
               </div>
             </div>
           </div>
-
-          {/* Expense Reversals */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 p-6">
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Expenses</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{totals.byType?.expense || 0}</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Expenses</p>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.expense || 0}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
-                <Receipt className="w-6 h-6 text-red-600" />
+              <div className="p-3 rounded-xl bg-amber-100">
+                <Receipt className="w-6 h-6 text-amber-600" />
               </div>
             </div>
           </div>
-
-          {/* Sales Reversals */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 p-6">
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Sales/Invoice</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1">{totals.byType?.sale || 0}</p>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Sales/Invoice</p>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.sale || 0}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
-                <FileText className="w-6 h-6 text-green-600" />
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <FileText className="w-6 h-6 text-emerald-600" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 p-6 mb-6">
+        {/* Filters */}
+        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
           <div className="flex flex-col lg:flex-row gap-4">
-            {/* Type Filter */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Transaction Type
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Transaction Type</label>
               <select
                 value={typeFilter}
                 onChange={(e) => {
                   setTypeFilter(e.target.value);
                   setPagination(prev => ({ ...prev, page: 1 }));
                 }}
-                className="w-full appearance-none bg-white border-2 border-gray-200 rounded-lg px-4 py-3 pr-10 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
               >
                 <option value="all">All Types</option>
                 <option value="expense">Expenses</option>
                 <option value="sale">Sales/Invoices</option>
                 <option value="payment">Payments</option>
+                <option value="refund">Invoice Refunds</option>
+                <option value="sale_refund">POS Refunds</option>
               </select>
             </div>
 
             {/* Date Range */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Start Date
-              </label>
+              <label className="block text-sm font-medium text-slate-700 mb-2">Start Date</label>
               <input
                 type="date"
                 value={dateRange.start}
                 onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
               />
             </div>
-
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 End Date
@@ -387,7 +388,7 @@ const ReversalsPage = () => {
                 type="date"
                 value={dateRange.end}
                 onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all shadow-sm"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
               />
             </div>
 
@@ -472,6 +473,9 @@ const ReversalsPage = () => {
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Reason
                     </th>
+                    <th className="px-4 sm:px-6 py-4 text-right text-xs font-bold text-gray-700 uppercase tracking-wider">
+                      Tax Reversed
+                    </th>
                     <th className="px-4 sm:px-6 py-4 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                       Performed By
                     </th>
@@ -520,6 +524,13 @@ const ReversalsPage = () => {
                         <span className="text-sm text-gray-600 max-w-xs truncate block" title={reversal.reversalReason}>
                           {reversal.reversalReason || 'No reason provided'}
                         </span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right text-sm">
+                        {reversal.taxReversed != null && reversal.taxReversed > 0 ? (
+                          <span className="font-medium text-amber-700">MK {formatCurrency(reversal.taxReversed)}</span>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                         {reversal.performedBy ? (

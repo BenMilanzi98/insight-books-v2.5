@@ -105,7 +105,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
     }
 
     if (!formData.expenseAccountId.trim()) {
-      newErrors.expenseAccountId = 'Expense account is required';
+      newErrors.expenseAccountId = 'Expense category is required';
     }
 
     // Validate payment method only when not Pending
@@ -262,14 +262,14 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
               )}
             </div>
 
-            {/* Expense Account */}
+            {/* Expense Category */}
             <div>
               <DynamicCategorySelect
                 value={formData.expenseAccountId}
                 onChange={(value) => handleInputChange('expenseAccountId', value)}
                 options={availableCategories}
                 placeholder="Select expense account"
-                label="Expense Account"
+                label="Expense Category"
                 required={true}
                 disabled={isSubmitting}
                 className={errors.expenseAccountId ? 'border-red-500' : ''}

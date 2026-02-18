@@ -37,97 +37,87 @@ export async function GET(request) {
       if (Object.keys(dateFilter).length > 0) {
         baseFilter.issueDate = dateFilter;
       }
+
+      // Start of today (UTC) for overdue vs pending split: pending = not yet due, overdue = past due
+      const startOfToday = new Date();
+      startOfToday.setUTCHours(0, 0, 0, 0);
       
-      // Get paid invoices count and sum
+      // Paid: status = Paid — true total amount of paid invoices
       const paidInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
           status: 'Paid'
         },
         _count: true,
-        _sum: {
-          total: true
-        }
+        _sum: { total: true }
       });
       
-      // Get pending invoices count and sum
+      // Pending: status = Pending AND dueDate >= today (not yet overdue)
       const pendingInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
-          status: 'Pending'
+          status: 'Pending',
+          dueDate: { gte: startOfToday }
         },
         _count: true,
-        _sum: {
-          total: true
-        }
+        _sum: { total: true }
       });
       
-      // Get overdue invoices count and sum
+      // Overdue: status = Overdue OR (status = Pending AND dueDate < today)
       const overdueInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
-          status: 'Overdue'
+          OR: [
+            { status: 'Overdue' },
+            { status: 'Pending', dueDate: { lt: startOfToday } }
+          ]
         },
         _count: true,
-        _sum: {
-          total: true
-        }
+        _sum: { total: true }
       });
       
-      // Get draft invoices count and sum
+      // Draft (for completeness; not shown on cards)
       const draftInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
           status: 'Draft'
         },
         _count: true,
-        _sum: {
-          total: true
-        }
+        _sum: { total: true }
       });
       
-      // Get partial invoices count and sum
+      // Partial: status = Partial — true total amount of partially paid invoices
       const partialInvoices = await prisma.invoice.aggregate({
         where: {
           ...baseFilter,
           status: 'Partial'
         },
         _count: true,
-        _sum: {
-          total: true
-        }
+        _sum: { total: true }
       });
       
-      // Format currency amounts
-      const formatCurrency = (amount) => {
-        if (!amount) return '0.00';
-        return amount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-      };
-      
-      // Return statistics
+      // Return statistics with numeric amounts (frontend formats for display)
+      const num = (v) => (v != null && !Number.isNaN(v) ? Number(v) : 0);
       return NextResponse.json({
         paid: {
           count: paidInvoices._count,
-          amount: formatCurrency(paidInvoices._sum.total)
+          amount: num(paidInvoices._sum?.total)
         },
         pending: {
           count: pendingInvoices._count,
-          amount: formatCurrency(pendingInvoices._sum.total)
+          amount: num(pendingInvoices._sum?.total)
         },
         overdue: {
           count: overdueInvoices._count,
-          amount: formatCurrency(overdueInvoices._sum.total)
+          amount: num(overdueInvoices._sum?.total)
         },
         partial: {
           count: partialInvoices._count,
-          amount: formatCurrency(partialInvoices._sum.total)
+          amount: num(partialInvoices._sum?.total)
         },
         draft: {
           count: draftInvoices._count,
-          amount: formatCurrency(draftInvoices._sum.total)
+          amount: num(draftInvoices._sum?.total)
         }
       });
     } catch (error) {

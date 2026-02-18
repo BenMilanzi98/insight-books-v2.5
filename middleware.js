@@ -2,20 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname;
-  
-  // Public paths that don't require authentication
-  const isPublicPath = 
-    pathname === '/' || 
-    pathname === '/auth/login' || 
-    pathname === '/auth/signup' || 
-    pathname === '/auth/forgot-password' ||
-    pathname === '/auth/reset-password' ||
-    pathname === '/suspended' ||
-    pathname === '/contact' ||
-    pathname === '/terms' ||
-    pathname === '/privacy' ||
-    pathname.startsWith('/auth/');
-  
+
   // Skip middleware for static files, api routes, etc.
   if (
     pathname.startsWith('/_next') ||
@@ -28,13 +15,56 @@ export async function middleware(request) {
   ) {
     return NextResponse.next();
   }
-  
-  // For all protected routes (not public paths)
-  if (!isPublicPath) {
-    // Get session from cookies
+
+  // Redirect old /admin paths to /insightbooks (admin panel moved)
+  if (pathname.startsWith('/admin')) {
+    const url = request.nextUrl.clone();
+    url.pathname = pathname.replace(/^\/admin/, '/insightbooks');
+    return NextResponse.redirect(url);
+  }
+
+  // --- /insightbooks: admin-only (not for tenants). Requires admin_token cookie. ---
+  if (pathname.startsWith('/insightbooks')) {
+    const adminToken = request.cookies.get('admin_token')?.value;
+    const isInsightBooksLogin = pathname === '/insightbooks/login';
+
+    if (isInsightBooksLogin) {
+      // Allow access to admin login page without admin token
+      return NextResponse.next();
+    }
+
+    if (!adminToken) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/insightbooks/login';
+      url.search = pathname !== '/insightbooks' ? `?redirect=${encodeURIComponent(pathname)}` : '';
+      return NextResponse.redirect(url);
+    }
+
+    // Admin token present: allow. No tenant subscription check for insightbooks.
+    return NextResponse.next();
+  }
+
+  // --- Tenant app: public paths that don't require authentication ---
+  const isPublicPath =
+    pathname === '/' ||
+    pathname === '/auth/login' ||
+    pathname === '/auth/signup' ||
+    pathname === '/auth/forgot-password' ||
+    pathname === '/auth/reset-password' ||
+    pathname === '/suspended' ||
+    pathname === '/contact' ||
+    pathname === '/terms' ||
+    pathname === '/privacy' ||
+    pathname.startsWith('/auth/');
+
+  if (isPublicPath) {
+    return NextResponse.next();
+  }
+
+  // For all other protected routes (tenant app)
+  {
     const sessionCookie = request.cookies.get('session')?.value;
-    
-    // If no session, redirect to login
+
     if (!sessionCookie) {
       console.log('No session cookie found, redirecting to login');
       const url = request.nextUrl.clone();
@@ -75,7 +105,7 @@ export async function middleware(request) {
           // IMPORTANT:
           // Always call the subscription status endpoint on the SAME ORIGIN as the request.
           // Using APP_URL can point to an unreachable host (e.g. a public IP) in dev / some deployments,
-          // causing /admin to fail even for valid subscribers.
+          // causing tenant app to fail even for valid subscribers.
           const apiUrl = new URL('/api/subscription/status', request.nextUrl.origin);
           console.log(`📡 Calling API: ${apiUrl.toString()}`);
 
@@ -121,7 +151,7 @@ export async function middleware(request) {
 
           console.log(`✅ Access granted, continuing to ${pathname}`);
         } catch (error) {
-          // Fail-open: if the subscription API is temporarily unreachable, don't break access to /admin.
+          // Fail-open: if the subscription API is temporarily unreachable, don't break tenant access.
           // This avoids locking users out due to transient network/DNS issues.
           console.error(`⚠️ Subscription check error, allowing request to continue:`, error);
           return NextResponse.next({
@@ -145,9 +175,6 @@ export async function middleware(request) {
       return NextResponse.redirect(url);
     }
   }
-  
-  // Continue for public paths
-  return NextResponse.next();
 }
 
 // Specify paths that should trigger this middleware

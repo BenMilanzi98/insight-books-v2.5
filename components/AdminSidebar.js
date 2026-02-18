@@ -33,7 +33,7 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "Dashboard",
       items: [
         { 
-          href: "/admin/dashboard", 
+          href: "/insightbooks/dashboard", 
           icon: Shield, 
           text: "System Overview",
           description: "Monitor system health and performance"
@@ -44,19 +44,19 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "Tenant Management",
       items: [
         { 
-          href: "/admin/tenants", 
+          href: "/insightbooks/tenants", 
           icon: Building2, 
           text: "All Tenants",
           description: "Manage business accounts and subscriptions"
         },
         { 
-          href: "/admin/tenants/trials", 
+          href: "/insightbooks/tenants/trials", 
           icon: Clock, 
           text: "Trial Users",
           description: "Monitor trial accounts and conversions"
         },
         { 
-          href: "/admin/tenants/expiring", 
+          href: "/insightbooks/tenants/expiring", 
           icon: AlertTriangle, 
           text: "Expiring Soon",
           description: "Track subscriptions nearing expiration"
@@ -67,19 +67,19 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "User Management",
       items: [
         { 
-          href: "/admin/users", 
+          href: "/insightbooks/users", 
           icon: Users, 
           text: "All Users",
           description: "Manage user accounts across tenants"
         },
         { 
-          href: "/admin/users/roles", 
+          href: "/insightbooks/users/roles", 
           icon: Shield, 
           text: "Roles & Permissions",
           description: "Configure user roles and access levels"
         },
         { 
-          href: "/admin/users/activity", 
+          href: "/insightbooks/users/activity", 
           icon: Activity, 
           text: "User Activity",
           description: "Monitor user engagement and logins"
@@ -90,19 +90,19 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "Financial Oversight",
       items: [
         { 
-          href: "/admin/financials", 
+          href: "/insightbooks/financials", 
           icon: DollarSign, 
           text: "Revenue Overview",
           description: "Track system-wide financial metrics"
         },
         { 
-          href: "/admin/financials/invoices", 
+          href: "/insightbooks/financials/invoices", 
           icon: FileText, 
           text: "Invoice Management",
           description: "Monitor all invoices and payments"
         },
         { 
-          href: "/admin/financials/subscriptions", 
+          href: "/insightbooks/financials/subscriptions", 
           icon: CreditCard, 
           text: "Subscription Analytics",
           description: "Analyze subscription patterns and revenue"
@@ -113,31 +113,31 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "System Administration",
       items: [
         { 
-          href: "/admin/system", 
+          href: "/insightbooks/system", 
           icon: Server, 
           text: "System Health",
           description: "Monitor system performance and uptime"
         },
         { 
-          href: "/admin/system/database", 
+          href: "/insightbooks/system/database", 
           icon: Database, 
           text: "Database Status",
           description: "Check database health and performance"
         },
         { 
-          href: "/admin/system/security", 
+          href: "/insightbooks/system/security", 
           icon: Shield, 
           text: "Security Monitoring",
           description: "Track security events and threats"
         },
         { 
-          href: "/admin/system/backups", 
+          href: "/insightbooks/system/backups", 
           icon: Zap, 
           text: "Backup Management",
           description: "Manage system backups and recovery"
         },
         { 
-          href: "/admin/email-management", 
+          href: "/insightbooks/email-management", 
           icon: Mail, 
           text: "Email Management",
           description: "Send bulk emails to users"
@@ -148,19 +148,19 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "Analytics & Reports",
       items: [
         { 
-          href: "/admin/analytics", 
+          href: "/insightbooks/analytics", 
           icon: BarChart3, 
           text: "Business Analytics",
           description: "Comprehensive business insights"
         },
         { 
-          href: "/admin/reports", 
+          href: "/insightbooks/reports", 
           icon: TrendingUp, 
           text: "System Reports",
           description: "Generate detailed system reports"
         },
         { 
-          href: "/admin/analytics/geographic", 
+          href: "/insightbooks/analytics/geographic", 
           icon: Globe, 
           text: "Geographic Data",
           description: "Analyze user distribution by location"
@@ -171,19 +171,19 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
       label: "Configuration",
       items: [
         { 
-          href: "/admin/settings", 
+          href: "/insightbooks/settings", 
           icon: Settings, 
           text: "System Settings",
           description: "Configure global system parameters"
         },
         { 
-          href: "/admin/settings/email", 
+          href: "/insightbooks/settings/email", 
           icon: Zap, 
           text: "Email Configuration",
           description: "Manage email templates and settings"
         },
         { 
-          href: "/admin/settings/integrations", 
+          href: "/insightbooks/settings/integrations", 
           icon: Zap, 
           text: "Third-party Integrations",
           description: "Configure external service connections"

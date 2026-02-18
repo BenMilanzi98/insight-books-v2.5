@@ -27,7 +27,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { grossSalary, deductionIds = [], employmentType = 'Permanent' } = body;
+    const { grossSalary, deductionIds = [], employmentType = 'Permanent', benefits = [] } = body;
 
     // Validate required fields
     if (!grossSalary || grossSalary <= 0) {
@@ -36,6 +36,12 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    // Sum benefit amounts (allowances) – added to net salary (take-home), not to gross
+    const totalBenefits = Array.isArray(benefits)
+      ? benefits.reduce((sum, b) => sum + (Number(b?.amount) || 0), 0)
+      : 0;
+    const baseSalary = parseFloat(grossSalary) || 0;
 
     // Fetch selected deductions from database
     let deductions = [];
@@ -70,12 +76,20 @@ export async function POST(request) {
       console.warn('Salary calculate raw NPS rate read failed, using defaults:', e?.message || e);
     }
 
-    // Calculate payroll
-    const payrollCalculation = calculatePayroll(parseFloat(grossSalary), deductions, npsOptions);
+    // Calculate payroll: deductions apply to base salary only; benefits are added to net (take-home)
+    const payrollCalculation = calculatePayroll(baseSalary, deductions, npsOptions);
+    const netWithBenefits = payrollCalculation.netPay + totalBenefits;
+    const calculation = {
+      ...payrollCalculation,
+      baseSalary: Math.round(baseSalary * 100) / 100,
+      totalBenefits: Math.round(totalBenefits * 100) / 100,
+      grossSalary: Math.round(payrollCalculation.grossSalary * 100) / 100,
+      netPay: Math.round(netWithBenefits * 100) / 100
+    };
 
     return NextResponse.json({
-      calculation: payrollCalculation,
-      deductions: deductions
+      calculation,
+      deductions
     });
 
   } catch (error) {

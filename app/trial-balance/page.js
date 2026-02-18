@@ -9,7 +9,8 @@ import {
   RefreshCw, 
   Search,
   X,
-  Clock
+  Clock,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { fetchTrialBalance, exportTrialBalance } from "@/app/services/trialBalanceService";
@@ -316,121 +317,132 @@ const TrialBalance = () => {
   };
 
   return (
-    <PermissionGuard permission="trialBalance.view">   
-    <div className="container mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Trial Balance</h1>
-        <div className="flex space-x-2">
-          <button 
-            className="btn-outline flex items-center gap-2"
-            onClick={handlePrint}
-            disabled={isLoading || isPrinting}
-          >
-            <Printer size={16} />
-            Print
-          </button>
-          
-          <div className="relative">
-          {pagePermissions.canExportTrial &&(   <button 
-              className="btn-secondary flex items-center gap-2"
-              onClick={() => setShowExportOptions(!showExportOptions)}
-              disabled={isLoading || isExporting}
-            >
-              <Download size={16} />
-              Export
-            </button>)}
-            
-            {showExportOptions && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 p-1 z-10">
-                <div className="p-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Format</label>
-                  <select 
-                    className="w-full p-2 border border-gray-300 rounded text-sm"
-                    value={exportFormat}
-                    onChange={(e) => setExportFormat(e.target.value)}
-                  >
-                    <option value="pdf">PDF</option>
-                    <option value="csv">CSV</option>
-                    <option value="xlsx">Excel</option>
-                  </select>
+    <PermissionGuard permission="trialBalance.view">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+        <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-6xl">
+          <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+                  <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
                 </div>
-                <div className="p-1">
-                  <button 
-                    className="w-full py-2 px-4 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-                    onClick={handleExport}
-                  >
-                    {isExporting ? "Exporting..." : "Download"}
-                  </button>
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Trial Balance</h1>
+                  <p className="text-indigo-100 text-sm mt-0.5">Debits and credits by account for the selected period</p>
                 </div>
               </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-all"
+                  onClick={handlePrint}
+                  disabled={isLoading || isPrinting}
+                >
+                  <Printer size={18} />
+                  Print
+                </button>
+                {pagePermissions.canExportTrial && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-medium transition-all"
+                      onClick={() => setShowExportOptions(!showExportOptions)}
+                      disabled={isLoading || isExporting}
+                    >
+                      <Download size={18} />
+                      Export
+                    </button>
+                    {showExportOptions && (
+                      <div className="absolute right-0 mt-2 w-48 rounded-xl shadow-lg bg-white border border-slate-200 p-3 z-10">
+                        <label className="block text-sm font-medium text-slate-700 mb-2">Format</label>
+                        <select
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 mb-3"
+                          value={exportFormat}
+                          onChange={(e) => setExportFormat(e.target.value)}
+                        >
+                          <option value="pdf">PDF</option>
+                          <option value="csv">CSV</option>
+                          <option value="xlsx">Excel</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="w-full py-2 px-4 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+                          onClick={handleExport}
+                        >
+                          {isExporting ? "Exporting..." : "Download"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
+            <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-4">
+              <div className="flex flex-wrap gap-2">
+                <div className="relative min-w-[140px]">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
+                  <select
+                    className="w-full pl-10 pr-8 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 appearance-none cursor-pointer"
+                    value={displayTimeframe}
+                    onChange={handleTimeframeChange}
+                  >
+                    {dateRangeOptions.map(option => (
+                      <option key={option} value={option}>{option}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="relative flex-1 min-w-[160px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search accounts..."
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                    value={searchTerm}
+                    onChange={handleSearchChange}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-slate-500">
+                <span>Last updated: {formatDate(lastUpdated)}</span>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 disabled:opacity-50"
+                  onClick={handleRefresh}
+                  disabled={isLoading}
+                >
+                  <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+                </button>
+              </div>
+            </div>
+
+            {error && (
+              <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 p-4 mb-4 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {error}
+              </div>
             )}
-          </div>
-        </div>
-      </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-4 md:mb-0">
-            <div className="relative">
-              <select
-                className="select-filter pl-10 pr-8 py-2 border border-gray-300 rounded-md"
-                value={displayTimeframe}
-                onChange={handleTimeframeChange}
-              >
-                {dateRangeOptions.map(option => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-              <Calendar className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search accounts..."
-                className="input-search pl-10 pr-4 py-2 border border-gray-300 rounded-md"
-                value={searchTerm}
-                onChange={handleSearchChange}
-              />
-              <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
-            </div>
-          </div>
-          <div className="flex items-center">
-            <span className="text-gray-500 text-sm mr-2">
-              Last updated: {formatDate(lastUpdated)}
-            </span>
-            <button 
-              className="text-blue-600 hover:text-blue-800"
-              onClick={handleRefresh}
-              disabled={isLoading}
-            >
-              <RefreshCw size={16} className={isLoading ? "animate-spin" : ""} />
-            </button>
-          </div>
-        </div>
-
-        {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded-md mb-4">
-            {error}
-          </div>
-        )}
-
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 text-left">
-                    <th className="p-3 font-medium" style={{ width: '10%' }}>Account Code</th>
-                    <th className="p-3 font-medium" style={{ width: '40%' }}>Account Name</th>
-                    <th className="p-3 font-medium" style={{ width: '15%' }}>Type</th>
-                    <th className="p-3 font-medium text-right" style={{ width: '17.5%' }}>Debit</th>
-                    <th className="p-3 font-medium text-right" style={{ width: '17.5%' }}>Credit</th>
-                  </tr>
-                </thead>
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+                <p className="text-slate-500 font-medium">Loading trial balance...</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '10%' }}>Account Code</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '40%' }}>Account Name</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider" style={{ width: '15%' }}>Type</th>
+                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider" style={{ width: '17.5%' }}>Debit</th>
+                        <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider" style={{ width: '17.5%' }}>Credit</th>
+                      </tr>
+                    </thead>
                 <tbody>
                   {filteredAccounts.length > 0 ? (
                     filteredAccounts.map((account, index) => (
@@ -483,23 +495,20 @@ const TrialBalance = () => {
             )}
           </>
         )}
-      </div>
+          </div>
 
-     
+          {/* Hidden print iframe - only used when printing */}
+          <iframe
+            ref={printFrameRef}
+            style={{ display: 'none' }}
+            title="Print Frame"
+          />
 
-      {/* Hidden print iframe - only used when printing */}
-      <iframe 
-        ref={printFrameRef}
-        style={{ display: 'none' }} 
-        title="Print Frame"
-      />
-
-      {/* Account History Modal */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowHistoryModal(false)}>
-          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+          {/* Account History Modal */}
+          {showHistoryModal && (
+            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowHistoryModal(false)}>
+              <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200 bg-gradient-to-r from-slate-50 to-white">
               <div>
                 <h2 className="text-xl font-bold">Account History</h2>
                 {selectedAccount && (
@@ -579,7 +588,8 @@ const TrialBalance = () => {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      </div>
     </PermissionGuard>
   );
 };                                                                                                                                                                                        

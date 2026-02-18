@@ -16,12 +16,27 @@ export async function GET(request) {
       );
     }
 
-    // Find capital account
+    // Find capital account - check both accountType and type fields for compatibility
     const capitalAccount = await prisma.account.findFirst({
       where: {
         tenantId: user.tenantId,
-        type: 'EQUITY',
-        name: { contains: 'Capital', mode: 'insensitive' }
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { accountType: 'Equity' },
+              { accountType: 'EQUITY' },
+              { type: 'Equity' },
+              { type: 'EQUITY' }
+            ]
+          },
+          {
+            OR: [
+              { accountName: { contains: 'Capital', mode: 'insensitive' } },
+              { name: { contains: 'Capital', mode: 'insensitive' } }
+            ]
+          }
+        ]
       }
     });
 
@@ -114,12 +129,27 @@ export async function PUT(request) {
     const body = await request.json();
     const { name, code, isActive } = body;
 
-    // Find capital account
+    // Find capital account - check both accountType and type fields for compatibility
     const capitalAccount = await prisma.account.findFirst({
       where: {
         tenantId: user.tenantId,
-        type: 'EQUITY',
-        name: { contains: 'Capital', mode: 'insensitive' }
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { accountType: 'Equity' },
+              { accountType: 'EQUITY' },
+              { type: 'Equity' },
+              { type: 'EQUITY' }
+            ]
+          },
+          {
+            OR: [
+              { accountName: { contains: 'Capital', mode: 'insensitive' } },
+              { name: { contains: 'Capital', mode: 'insensitive' } }
+            ]
+          }
+        ]
       }
     });
 
@@ -206,12 +236,27 @@ export async function DELETE(request) {
       );
     }
 
-    // Find capital account
+    // Find capital account - check both accountType and type fields for compatibility
     const capitalAccount = await prisma.account.findFirst({
       where: {
         tenantId: user.tenantId,
-        type: 'EQUITY',
-        name: { contains: 'Capital', mode: 'insensitive' }
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { accountType: 'Equity' },
+              { accountType: 'EQUITY' },
+              { type: 'Equity' },
+              { type: 'EQUITY' }
+            ]
+          },
+          {
+            OR: [
+              { accountName: { contains: 'Capital', mode: 'insensitive' } },
+              { name: { contains: 'Capital', mode: 'insensitive' } }
+            ]
+          }
+        ]
       }
     });
 

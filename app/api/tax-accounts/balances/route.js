@@ -76,11 +76,12 @@ export async function GET(request) {
       }
 
       // Calculate tax collected from SALES (since tax transactions don't exist)
-      // Query sales with items that have tax
+      // Exclude refunded sales so their tax is not counted as collected
       const salesWithTax = await prisma.sale.findMany({
         where: addBranchFilter(user, {
           tenantId: user.tenantId,
           status: { in: ['completed', 'paid'] },
+          refundedAt: null,
           ...(Object.keys(dateFilter).length > 0 && {
             saleDate: dateFilter,
           }),
@@ -101,6 +102,9 @@ export async function GET(request) {
                   productTaxes: {
                     where: {
                       taxTypeId: taxType.id,
+                    },
+                    include: {
+                      taxType: true,
                     },
                   },
                 },
@@ -183,6 +187,41 @@ export async function GET(request) {
             breakdownMap.get(dateKey).collected += taxAmountForThisType;
             totalCollected += taxAmountForThisType;
           }
+        }
+      }
+
+      // Include tax collected from paid/completed invoices (when only one tax type, allocate all invoice tax to it)
+      if (activeTaxTypeCount === 1) {
+        const invoicesWithTax = await prisma.invoice.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            status: { in: ['Paid', 'Completed'] },
+            refundedAt: null,
+            taxAmount: { gt: 0 },
+            ...(Object.keys(dateFilter).length > 0 && {
+              issueDate: dateFilter,
+            }),
+          }),
+          select: { issueDate: true, taxAmount: true },
+        });
+        for (const inv of invoicesWithTax) {
+          const amt = Number(inv.taxAmount || 0);
+          if (amt <= 0) continue;
+          totalCollected += amt;
+          const d = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
+          const dateKey = groupBy === 'day'
+            ? d.toISOString().split('T')[0]
+            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!breakdownMap.has(dateKey)) {
+            breakdownMap.set(dateKey, {
+              period: dateKey,
+              collected: 0,
+              paid: 0,
+              refunded: 0,
+              net: 0,
+            });
+          }
+          breakdownMap.get(dateKey).collected += amt;
         }
       }
 

@@ -78,14 +78,49 @@ export async function GET(request) {
         previousExpenses = [];
       }
       
-      // Group by category
-      const categoryData = {};
+      // Group by account code (normalized grouping)
+      // This ensures duplicate categories map to the same account code
+      const categoryDataByCode = {};
       
-      currentExpenses.forEach(expense => {
+      // Import normalization service
+      const { getOrCreateExpenseAccountForCategory } = await import('@/lib/expenseCategoryNormalization');
+      
+      // Process current expenses
+      for (const expense of currentExpenses) {
         const category = expense.category || 'Uncategorized';
-        if (!categoryData[category]) {
-          categoryData[category] = {
-            category,
+        let accountCode = null;
+        let accountName = category;
+        
+        // Get account code for this category (normalize)
+        if (expense.expenseAccountId) {
+          const account = await prisma.account.findUnique({
+            where: { id: expense.expenseAccountId },
+            select: { accountCode: true, accountName: true }
+          });
+          if (account) {
+            accountCode = account.accountCode;
+            accountName = account.accountName;
+          }
+        } else if (category && category !== 'Uncategorized') {
+          // Normalize category to get account code
+          try {
+            const account = await getOrCreateExpenseAccountForCategory(user.tenantId, category);
+            accountCode = account.accountCode;
+            accountName = account.accountName;
+          } catch (error) {
+            console.warn(`Error normalizing category ${category}:`, error);
+          }
+        }
+        
+        // Use account code as key for grouping (normalized)
+        const groupKey = accountCode || category;
+        
+        if (!categoryDataByCode[groupKey]) {
+          categoryDataByCode[groupKey] = {
+            accountCode: accountCode,
+            accountName: accountName,
+            category: category, // Keep original category visible
+            categories: new Set([category]), // Track all categories that map to this code
             thisPeriod: 0,
             lastPeriod: 0,
             change: 0,
@@ -93,14 +128,47 @@ export async function GET(request) {
             percentOfTotal: 0
           };
         }
-        categoryData[category].thisPeriod += expense.amount || 0;
-      });
+        
+        categoryDataByCode[groupKey].thisPeriod += expense.amount || 0;
+        categoryDataByCode[groupKey].categories.add(category);
+      }
       
-      previousExpenses.forEach(expense => {
+      // Process previous expenses
+      for (const expense of previousExpenses) {
         const category = expense.category || 'Uncategorized';
-        if (!categoryData[category]) {
-          categoryData[category] = {
-            category,
+        let accountCode = null;
+        let accountName = category;
+        
+        // Get account code for this category (normalize)
+        if (expense.expenseAccountId) {
+          const account = await prisma.account.findUnique({
+            where: { id: expense.expenseAccountId },
+            select: { accountCode: true, accountName: true }
+          });
+          if (account) {
+            accountCode = account.accountCode;
+            accountName = account.accountName;
+          }
+        } else if (category && category !== 'Uncategorized') {
+          // Normalize category to get account code
+          try {
+            const account = await getOrCreateExpenseAccountForCategory(user.tenantId, category);
+            accountCode = account.accountCode;
+            accountName = account.accountName;
+          } catch (error) {
+            console.warn(`Error normalizing category ${category}:`, error);
+          }
+        }
+        
+        // Use account code as key for grouping (normalized)
+        const groupKey = accountCode || category;
+        
+        if (!categoryDataByCode[groupKey]) {
+          categoryDataByCode[groupKey] = {
+            accountCode: accountCode,
+            accountName: accountName,
+            category: category, // Keep original category visible
+            categories: new Set([category]),
             thisPeriod: 0,
             lastPeriod: 0,
             change: 0,
@@ -108,13 +176,21 @@ export async function GET(request) {
             percentOfTotal: 0
           };
         }
-        categoryData[category].lastPeriod += expense.amount || 0;
-      });
+        
+        categoryDataByCode[groupKey].lastPeriod += expense.amount || 0;
+        categoryDataByCode[groupKey].categories.add(category);
+      }
+      
+      // Convert Set to Array for JSON serialization
+      const categoryData = Object.values(categoryDataByCode).map(cat => ({
+        ...cat,
+        categories: Array.from(cat.categories) // Convert Set to Array
+      }));
       
       // Calculate changes and percentages
-      const totalThisPeriod = Object.values(categoryData).reduce((sum, c) => sum + c.thisPeriod, 0);
+      const totalThisPeriod = categoryData.reduce((sum, c) => sum + c.thisPeriod, 0);
       
-      Object.values(categoryData).forEach(cat => {
+      categoryData.forEach(cat => {
         cat.change = cat.thisPeriod - cat.lastPeriod;
         cat.percentChange = cat.lastPeriod > 0 
           ? ((cat.thisPeriod - cat.lastPeriod) / cat.lastPeriod) * 100 
@@ -124,7 +200,15 @@ export async function GET(request) {
       
       reportData = {
         groupBy: 'category',
-        data: Object.values(categoryData).sort((a, b) => b.thisPeriod - a.thisPeriod),
+        data: categoryData.sort((a, b) => {
+          // Sort by account code first, then by amount
+          if (a.accountCode && b.accountCode) {
+            const codeA = parseInt(a.accountCode) || 9999;
+            const codeB = parseInt(b.accountCode) || 9999;
+            if (codeA !== codeB) return codeA - codeB;
+          }
+          return b.thisPeriod - a.thisPeriod;
+        }),
         totals: {
           thisPeriod: totalThisPeriod,
           lastPeriod: Object.values(categoryData).reduce((sum, c) => sum + c.lastPeriod, 0),

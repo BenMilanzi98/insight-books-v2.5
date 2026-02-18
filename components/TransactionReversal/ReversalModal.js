@@ -241,16 +241,45 @@ export default function ReversalModal({
                     </div>
                   </div>
                   
-                  {/* Affected Components */}
+                  {/* Affected Components - Tax Reversals */}
                   {impact.affectedTaxes && impact.affectedTaxes.length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-sm font-medium text-amber-700 mb-2">Tax Impact:</p>
-                      {impact.affectedTaxes.map((tax, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{tax.type}</span>
-                          <span className="text-red-600">{formatCurrency(tax.reversal)}</span>
-                        </div>
-                      ))}
+                    <div className="mt-3 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm font-semibold text-orange-800">Tax Reversals:</p>
+                      </div>
+                      <div className="space-y-2">
+                        {impact.affectedTaxes.map((tax, idx) => (
+                          <div key={idx} className="bg-white rounded border border-orange-200 p-2">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="text-sm font-medium text-gray-700">
+                                {tax.taxAccountName || tax.type || 'Tax Account'}
+                              </span>
+                              <span className="text-sm font-bold text-red-600">
+                                {formatCurrency(tax.reversal)}
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                              <div>
+                                <span>Original:</span>
+                                <span className="ml-1 font-medium">{formatCurrency(tax.original)}</span>
+                              </div>
+                              <div>
+                                <span>Reversal:</span>
+                                <span className="ml-1 font-medium text-red-600">{formatCurrency(tax.reversal)}</span>
+                              </div>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-500">
+                              Net Effect: <span className="font-medium text-green-600">{formatCurrency(tax.net)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 pt-2 border-t border-orange-200 text-xs text-orange-700">
+                        <p>✓ Tax account entries will be reversed with opposite debit/credit amounts</p>
+                      </div>
                     </div>
                   )}
                   
@@ -407,7 +436,7 @@ export default function ReversalModal({
               
               {/* Reversal Summary */}
               {result?.reversal && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left max-w-sm mx-auto">
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left max-w-2xl mx-auto space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs text-gray-500 uppercase">Reversal Reference</p>
@@ -434,6 +463,51 @@ export default function ReversalModal({
                       </p>
                     </div>
                   </div>
+                  
+                  {/* Tax Reversals */}
+                  {result.taxReversals && result.taxReversals.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-red-200">
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-sm font-semibold text-orange-800 uppercase tracking-wide">Tax Reversals Completed</p>
+                      </div>
+                      <div className="space-y-2">
+                        {result.taxReversals.map((taxRev, idx) => (
+                          <div key={idx} className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <span className="text-gray-600">Tax Account:</span>
+                                <span className="ml-2 font-medium text-orange-900">
+                                  {taxRev.taxAccountName || 'Tax Account'}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Tax Amount Reversed:</span>
+                                <span className="ml-2 font-bold text-red-600">
+                                  {formatCurrency(-taxRev.taxAmount)}
+                                </span>
+                              </div>
+                              <div className="col-span-2 text-xs text-gray-500 mt-1">
+                                <div className="flex justify-between">
+                                  <span>Original Tax Transaction:</span>
+                                  <span className="font-mono">{taxRev.originalTaxTransactionId?.substring(0, 12)}...</span>
+                                </div>
+                                <div className="flex justify-between mt-1">
+                                  <span>Reversal Tax Transaction:</span>
+                                  <span className="font-mono">{taxRev.reversalTaxTransactionId?.substring(0, 12)}...</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2 text-xs text-orange-700 bg-orange-100 rounded p-2">
+                        ✓ All tax entries have been reversed with opposite debit/credit amounts
+                      </div>
+                    </div>
+                  )}
                   
                   {/* Reason */}
                   {result.reversal.reversalReason && (

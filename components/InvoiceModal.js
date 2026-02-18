@@ -74,6 +74,9 @@ const InvoiceModal = ({
 }) => {
   const [formData, setFormData] = useState({
     clientId: "",
+    title: "",
+    orderNumber: "",
+    orderNumberAutogenerate: false,
     items: [{ 
       description: "", 
       quantity: "", 
@@ -94,6 +97,8 @@ const InvoiceModal = ({
   const [clients, setClients] = useState([]);
   const [products, setProducts] = useState([]);
   const [incomeAccounts, setIncomeAccounts] = useState([]);
+  // Fixed revenue account for invoice items (4000 - Revenue only, not changeable)
+  const [revenueAccount, setRevenueAccount] = useState(null);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [itemSearchQueries, setItemSearchQueries] = useState({}); // Separate search query for each item
   const [showProductDropdown, setShowProductDropdown] = useState(false);
@@ -179,21 +184,24 @@ const InvoiceModal = ({
     if (mode === "edit" && invoice) {
       setFormData({
         clientId: invoice.clientId,
+        title: invoice.title || "",
+        orderNumber: invoice.orderNumber || "",
+        orderNumberAutogenerate: false,
         items: invoice.items?.map(item => ({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           taxRate: item.taxRate || "0",
           productId: item.productId,
-          discountAmount: item.discountAmount || 0, // Include discount amount
-          accountId: item.accountId || ""
+          discountAmount: item.discountAmount || 0,
+          accountId: item.accountId || revenueAccount?.id || ""
         })) || [{ 
           description: "", 
           quantity: "", 
           unitPrice: "", 
           taxRate: "0",
           discountAmount: "",
-          accountId: ""
+          accountId: revenueAccount?.id || ""
         }],
         issueDate: new Date(invoice.issueDate).toISOString().split("T")[0],
         dueDate: new Date(invoice.dueDate).toISOString().split("T")[0],
@@ -205,6 +213,16 @@ const InvoiceModal = ({
     }
   }, [invoice, mode]);
   
+  // When revenue account (4000 - Revenue) is set, ensure all items use it
+  useEffect(() => {
+    if (revenueAccount?.id && formData.items.some(item => item.accountId !== revenueAccount.id)) {
+      setFormData(prev => ({
+        ...prev,
+        items: prev.items.map(item => ({ ...item, accountId: revenueAccount.id }))
+      }));
+    }
+  }, [revenueAccount?.id]);
+
   // Update template selection when available templates change
   useEffect(() => {
     if (templates.length && !formData.templateId) {
@@ -259,11 +277,14 @@ const InvoiceModal = ({
         // Load products using enhanced method
         await loadProducts();
 
-        // Use the lightweight income accounts endpoint (no Finance/Admin role required)
+        // Use the lightweight income accounts endpoint; we only use 4000 - Revenue (fixed, not changeable)
         const accountsResponse = await fetch('/api/chart-of-accounts/income-accounts');
         if (accountsResponse.ok) {
           const accountsData = await accountsResponse.json();
-          setIncomeAccounts(accountsData.accounts || []);
+          const accounts = accountsData.accounts || [];
+          const revenueOnly = accounts.find(a => String(a.accountCode || '').trim() === '4000') || accounts[0] || null;
+          setRevenueAccount(revenueOnly);
+          setIncomeAccounts(revenueOnly ? [revenueOnly] : []);
         } else {
           console.error('Failed to fetch income accounts:', accountsResponse.status, accountsResponse.statusText);
         }
@@ -500,7 +521,7 @@ const InvoiceModal = ({
     setFormData({ ...formData, discount });
   };
   
-  // Add a new item
+  // Add a new item (income account fixed to 4000 - Revenue)
   const addItem = () => {
     setFormData({
       ...formData,
@@ -511,9 +532,9 @@ const InvoiceModal = ({
           quantity: "", 
           unitPrice: "", 
           taxRate: "0",
-          discountAmount: "", // NEW: Added discount amount
-          accountId: "",
-          productTaxes: [] // Store all taxes applied to the product
+          discountAmount: "",
+          accountId: revenueAccount?.id || "",
+          productTaxes: []
         }
       ]
     });
@@ -664,7 +685,10 @@ const InvoiceModal = ({
       setShowReceiptModal(true);
       setFormData({
         clientId: "",
-        items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "", accountId: "", productTaxes: [] }],
+        title: "",
+        orderNumber: "",
+        orderNumberAutogenerate: false,
+        items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "", accountId: revenueAccount?.id || "", productTaxes: [] }],
         issueDate: new Date().toISOString().split("T")[0],
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         status: "Draft",
@@ -744,6 +768,55 @@ const InvoiceModal = ({
                   <option value="Draft">Draft</option>
                   <option value="Pending">Pending</option>
                 </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">
+                  Invoice title
+                </label>
+                <input
+                  type="text"
+                  id="title"
+                  name="title"
+                  placeholder="e.g. Consulting services, Project XYZ"
+                  className="w-full p-2 border border-gray-300 rounded-md"
+                  value={formData.title || ""}
+                  onChange={handleChange}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="orderNumber">
+                  Order number
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    id="orderNumber"
+                    name="orderNumber"
+                    placeholder={formData.orderNumberAutogenerate ? "Auto-generated" : "Enter order number"}
+                    className="w-full p-2 border border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-500"
+                    value={formData.orderNumber || ""}
+                    onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
+                    disabled={formData.orderNumberAutogenerate}
+                  />
+                  <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.orderNumberAutogenerate || false}
+                      onChange={(e) => {
+                        const autogen = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          orderNumberAutogenerate: autogen,
+                          orderNumber: autogen ? `ORD-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}` : prev.orderNumber
+                        }));
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Autogenerate
+                  </label>
+                </div>
               </div>
               
               <div>
@@ -898,18 +971,14 @@ const InvoiceModal = ({
                             </div>
 
                             <div className="mt-2">
-                              <select
-                                className={`w-full p-2 border rounded-md text-sm ${errors[`items.${index}.accountId`] ? 'border-red-500' : 'border-gray-300'}`}
-                                value={item.accountId || ""}
-                                onChange={(e) => handleItemChange(index, "accountId", e.target.value)}
-                              >
-                                <option value="">Select income account</option>
-                                {incomeAccounts.map((account) => (
-                                  <option key={account.id} value={account.id}>
-                                    {account.accountCode ? `${account.accountCode} - ${account.accountName || account.name}` : (account.accountName || account.name)}
-                                  </option>
-                                ))}
-                              </select>
+                              <input
+                                type="text"
+                                readOnly
+                                disabled
+                                className="w-full p-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
+                                value={revenueAccount ? `${revenueAccount.accountCode || '4000'} - ${revenueAccount.accountName || revenueAccount.name || 'Revenue'}` : '4000 - Revenue'}
+                                title="Income account is fixed to 4000 - Revenue"
+                              />
                               {errors[`items.${index}.accountId`] && (
                                 <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>
                               )}

@@ -69,14 +69,47 @@ export async function GET(request) {
     const taxRate = tenantSettings?.defaultTaxRate || 30; // Default 30%
     
     // Generate current period income statement using Phase 2 enhanced service
-    const currentPeriod = await generateIncomeStatementFromAccounts(
-      user.tenantId,
-      startDate,
-      endDate,
-      tenant?.name || 'Company',
-      tenant?.logoUrl || null,
-      user.currentBranchId || null
-    );
+    // This pulls data directly from General Ledger (Transaction/TransactionLine records)
+    let currentPeriod;
+    try {
+      currentPeriod = await generateIncomeStatementFromAccounts(
+        user.tenantId,
+        startDate,
+        endDate,
+        tenant?.name || 'Company',
+        tenant?.logoUrl || null,
+        user.currentBranchId || null
+      );
+      
+      // Validate that we have data
+      if (!currentPeriod) {
+        throw new Error('Income statement generation returned null');
+      }
+      
+      // Validate totals
+      const totalRevenue = currentPeriod.totalRevenue || 0;
+      const totalCOGS = (currentPeriod.cogs?.costOfProductsSold || 0) + (currentPeriod.cogs?.freightShippingCosts || 0);
+      const totalExpenses = currentPeriod.totalOperatingExpenses || 0;
+      
+      console.log('✅ Income Statement Generated:', {
+        revenue: totalRevenue,
+        cogs: totalCOGS,
+        expenses: totalExpenses,
+        netIncome: currentPeriod.netIncome || 0,
+        revenueAccounts: currentPeriod.metadata?.revenueAccounts || 0,
+        expenseAccounts: currentPeriod.metadata?.expenseAccounts || 0
+      });
+    } catch (error) {
+      console.error('❌ Error generating income statement:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        tenantId: user.tenantId,
+        startDate,
+        endDate
+      });
+      throw error;
+    }
     
     // Generate comparison period if requested
     let previousPeriod = null;
@@ -155,9 +188,10 @@ export async function GET(request) {
         operatingExpenses: {
           ...data.operatingExpenses,
           total: data.totalOperatingExpenses || data.operatingExpenses?.total || 0,
-          // Dynamic categories from Expense table
+          // Dynamic categories: user-created expense categories (display name = category; accountCode locked)
           categories: (data.operatingExpenses?.categories || []).map(cat => ({
             category: cat.category,
+            accountCode: cat.accountCode,
             amount: cat.amount,
             percentage: totalRevenue > 0 ? (cat.amount / totalRevenue) * 100 : 0,
             details: cat.details || []

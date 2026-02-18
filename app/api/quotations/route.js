@@ -300,10 +300,15 @@ export async function POST(request) {
     const year = today.getFullYear();
     const dateStr = `${day}${month}${year}`; // DDMMYYYY format
     
-    // Get tenant settings for quotation prefix (default to 'QUO' if not set)
-    const tenantSettings = await prisma.tenantSettings.findFirst({
-      where: { tenantId: user.tenantId }
-    });
+    // Get tenant settings for quotation prefix (optional; avoid 500 if TenantSettings has issues)
+    let tenantSettings = null;
+    try {
+      tenantSettings = await prisma.tenantSettings.findFirst({
+        where: { tenantId: user.tenantId }
+      });
+    } catch (_) {
+      // use defaults below
+    }
     
     // Use 'QUO' as default prefix (quotationPrefix not in settings, but could be added later)
     const quotationPrefix = 'QUO';
@@ -354,6 +359,7 @@ export async function POST(request) {
       data: {
         quotationNumber,
         title: body.title || 'Quotation',
+        orderNumber: body.orderNumber || null,
         clientId: body.clientId,
         createdById: user.id,
         issueDate: body.issueDate ? new Date(body.issueDate) : new Date(),
@@ -393,21 +399,25 @@ export async function POST(request) {
       }
     });
     
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'QUOTATION_CREATED',
-        entityType: 'QUOTATION',
-        entityId: newQuotation.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          quotationNumber,
-          clientId: body.clientId,
-          total: newQuotation.total
-        })
-      }
-    });
+    // Create audit log (non-blocking; do not fail the request if audit fails)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'QUOTATION_CREATED',
+          entityType: 'QUOTATION',
+          entityId: newQuotation.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            quotationNumber,
+            clientId: body.clientId,
+            total: newQuotation.total
+          })
+        }
+      });
+    } catch (auditErr) {
+      console.warn('Quotation created but audit log failed:', auditErr?.message || auditErr);
+    }
     
     // Format the response
     const formattedQuotation = {
@@ -448,8 +458,13 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating quotation:', error);
+    const message = error?.message || String(error);
+    const isDev = process.env.NODE_ENV === 'development';
     return NextResponse.json(
-      { error: 'Failed to create quotation. Please try again.' },
+      {
+        error: 'Failed to create quotation. Please try again.',
+        ...(isDev && { details: message })
+      },
       { status: 500 }
     );
   }

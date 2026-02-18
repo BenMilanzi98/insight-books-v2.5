@@ -156,6 +156,53 @@ const clientService = {
     }
   },
 
+  // Balance reminder template
+  getBalanceReminderTemplate: async () => {
+    const res = await fetch('/api/clients/balance-reminder-template');
+    if (!res.ok) throw new Error('Failed to fetch template');
+    return res.json();
+  },
+  updateBalanceReminderTemplate: async (data) => {
+    const res = await fetch('/api/clients/balance-reminder-template', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) throw new Error('Failed to update template');
+    return res.json();
+  },
+  downloadBalanceReminderPdf: async (clientId) => {
+    const res = await fetch(`/api/clients/${clientId}/balance-reminder-pdf`);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Failed to download');
+    return { blob: await res.blob() };
+  },
+  sendBalanceReminder: async (clientId) => {
+    const res = await fetch(`/api/clients/${clientId}/balance-reminder`, { method: 'POST' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to send reminder');
+    }
+    return res.json();
+  },
+  sendBulkBalanceReminders: async (clientIds) => {
+    const res = await fetch('/api/clients/bulk-balance-reminder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientIds })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to send reminders');
+    }
+    return res.json();
+  },
+  // Download client account summary (trading history)
+  downloadAccountSummary: async (clientId, format = 'csv') => {
+    const res = await fetch(`/api/clients/${clientId}/account-summary?format=${format}`);
+    if (!res.ok) throw new Error('Failed to download');
+    return { blob: await res.blob(), contentType: res.headers.get('Content-Type') };
+  },
+
   // Export clients as CSV
   exportClients: async (format = 'csv') => {
     try {
@@ -182,12 +229,14 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
     phone: "",
     address: "",
     industry: "",
-    status: "Active"
+    status: "Active",
+    additionalEmails: []
   });
 
   // If editing, populate the form with client data
   useEffect(() => {
     if (client) {
+      const extra = Array.isArray(client.additionalEmails) ? client.additionalEmails : [];
       setFormData({
         name: client.name || "",
         contactPerson: client.contactPerson || client.contact || "",
@@ -195,7 +244,8 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
         phone: client.phone || "",
         address: client.address || "",
         industry: client.industry || "",
-        status: client.status || "Active"
+        status: client.status || "Active",
+        additionalEmails: extra
       });
     }
   }, [client]);
@@ -274,6 +324,23 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
               className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Contact phone"
             />
+          </div>
+          
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Additional email addresses (for invoices)</label>
+            <input
+              type="text"
+              name="additionalEmailsRaw"
+              value={(formData.additionalEmails || []).join(', ')}
+              onChange={(e) => {
+                const raw = e.target.value || '';
+                const list = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+                setFormData(prev => ({ ...prev, additionalEmails: list }));
+              }}
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="e.g. accounts@client.com, finance@client.com (comma or newline separated)"
+            />
+            <p className="mt-1 text-xs text-gray-500">Invoices can be sent to these addresses in addition to the primary email.</p>
           </div>
           
           <div className="md:col-span-2">
@@ -366,6 +433,14 @@ const ClientManagement = () => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showBalanceReminderTemplateModal, setShowBalanceReminderTemplateModal] = useState(false);
+  const [balanceReminderTemplate, setBalanceReminderTemplate] = useState({ subject: '', body: '' });
+  const [balanceReminderTemplateSaving, setBalanceReminderTemplateSaving] = useState(false);
+  const [sendingBalanceReminder, setSendingBalanceReminder] = useState(false);
+  const [downloadingReminderPdf, setDownloadingReminderPdf] = useState(false);
+  const [downloadingAccountSummary, setDownloadingAccountSummary] = useState(false);
+  const [selectedClientIds, setSelectedClientIds] = useState([]);
+  const [sendingBulkReminders, setSendingBulkReminders] = useState(false);
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({
     canViewClients: false,
@@ -735,7 +810,123 @@ const ClientManagement = () => {
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting clients:", error);
-      alert("Failed to export clients. Please try again.");
+      alert("Export failed. Please try again.");
+    }
+  };
+
+  const handleOpenBalanceReminderTemplate = async () => {
+    setShowBalanceReminderTemplateModal(true);
+    try {
+      const t = await clientService.getBalanceReminderTemplate();
+      setBalanceReminderTemplate({ subject: t.subject || '', body: t.body || '' });
+    } catch {
+      setBalanceReminderTemplate({ subject: 'Outstanding balance reminder', body: 'Dear {{clientName}},\n\nThis is a friendly reminder that you have an outstanding balance of {{balance}}.\n\nPlease arrange payment at your earliest convenience.\n\nThank you.' });
+    }
+  };
+
+  const handleSaveBalanceReminderTemplate = async () => {
+    if (!balanceReminderTemplate.subject?.trim() || !balanceReminderTemplate.body?.trim()) {
+      alert('Subject and body are required.');
+      return;
+    }
+    setBalanceReminderTemplateSaving(true);
+    try {
+      await clientService.updateBalanceReminderTemplate(balanceReminderTemplate);
+      setSuccessMessage('Balance reminder template saved.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+      setShowBalanceReminderTemplateModal(false);
+    } catch (e) {
+      alert(e.message || 'Failed to save template.');
+    } finally {
+      setBalanceReminderTemplateSaving(false);
+    }
+  };
+
+  const handleSendBalanceReminder = async () => {
+    if (!selectedClient?.id) return;
+    setSendingBalanceReminder(true);
+    try {
+      await clientService.sendBalanceReminder(selectedClient.id);
+      setSuccessMessage('Balance reminder sent.');
+      setTimeout(() => setSuccessMessage(''), 3000);
+    } catch (e) {
+      alert(e.message || 'Failed to send balance reminder.');
+    } finally {
+      setSendingBalanceReminder(false);
+    }
+  };
+
+  const handleDownloadBalanceReminderPdf = async () => {
+    if (!selectedClient?.id) return;
+    setDownloadingReminderPdf(true);
+    try {
+      const { blob } = await clientService.downloadBalanceReminderPdf(selectedClient.id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `balance-reminder-${(selectedClient.name || 'client').replace(/\s+/g, '-')}-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setSuccessMessage('Reminder PDF downloaded.');
+      setTimeout(() => setSuccessMessage(''), 2000);
+    } catch (e) {
+      alert(e.message || 'Download failed.');
+    } finally {
+      setDownloadingReminderPdf(false);
+    }
+  };
+
+  const toggleClientSelection = (clientId, e) => {
+    if (e) e.stopPropagation();
+    setSelectedClientIds(prev =>
+      prev.includes(clientId) ? prev.filter(id => id !== clientId) : [...prev, clientId]
+    );
+  };
+
+  const toggleSelectAllOnPage = (e) => {
+    if (e) e.stopPropagation();
+    const pageIds = clients.map(c => c.id);
+    const allSelected = pageIds.every(id => selectedClientIds.includes(id));
+    setSelectedClientIds(allSelected ? [] : pageIds);
+  };
+
+  const handleSendBulkBalanceReminders = async () => {
+    if (selectedClientIds.length === 0) return;
+    setSendingBulkReminders(true);
+    try {
+      const data = await clientService.sendBulkBalanceReminders(selectedClientIds);
+      setSelectedClientIds([]);
+      const msg = data.failed > 0
+        ? `Sent to ${data.sent} of ${data.total} clients. ${data.failed} had no balance or no email.`
+        : `Payment reminders sent to ${data.sent} client(s).`;
+      setSuccessMessage(msg);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    } catch (e) {
+      alert(e.message || 'Failed to send reminders.');
+    } finally {
+      setSendingBulkReminders(false);
+    }
+  };
+
+  const handleDownloadAccountSummary = async (format) => {
+    if (!selectedClient?.id) return;
+    setDownloadingAccountSummary(true);
+    try {
+      const { blob } = await clientService.downloadAccountSummary(selectedClient.id, format);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `account-summary-${(selectedClient.name || 'client').replace(/\s+/g, '-')}-${Date.now()}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      setSuccessMessage('Download started.');
+      setTimeout(() => setSuccessMessage(''), 2000);
+    } catch (e) {
+      alert(e.message || 'Download failed.');
+    } finally {
+      setDownloadingAccountSummary(false);
     }
   };
 
@@ -1110,8 +1301,52 @@ const ClientManagement = () => {
             <Download size={18} className="text-gray-500" />
             <span>Export</span>
           </button>)}
+          <button 
+            className="flex items-center border border-gray-300 rounded-md px-4 py-2 bg-white gap-2 hover:bg-gray-50"
+            onClick={handleOpenBalanceReminderTemplate}
+            title="Edit balance reminder email template"
+          >
+            <FileText size={18} className="text-gray-500" />
+            <span>Balance reminder template</span>
+          </button>
         </div>
       </div>
+
+      {selectedClientIds.length > 0 && (
+        <div className="mb-4 flex items-center justify-between gap-4 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+          <span className="text-sm font-medium text-amber-800">
+            {selectedClientIds.length} client{selectedClientIds.length !== 1 ? 's' : ''} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSelectedClientIds([])}
+              className="px-3 py-1.5 text-sm border border-amber-300 text-amber-800 rounded-md hover:bg-amber-100"
+            >
+              Clear selection
+            </button>
+            <button
+              type="button"
+              onClick={handleSendBulkBalanceReminders}
+              disabled={sendingBulkReminders}
+              className="px-4 py-1.5 text-sm bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              title="Send balance reminder email to all selected clients"
+            >
+              {sendingBulkReminders ? (
+                <>
+                  <span className="inline-block h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <Mail size={16} />
+                  Send payment reminders
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-12">
@@ -1138,6 +1373,14 @@ const ClientManagement = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-3 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={clients.length > 0 && clients.every(c => selectedClientIds.includes(c.id))}
+                      onChange={toggleSelectAllOnPage}
+                      className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                  </th>
                   <th 
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
                     onClick={() => {
@@ -1255,8 +1498,16 @@ const ClientManagement = () => {
                   <tr 
                     key={client.id} 
                     onClick={() => handleClientClick(client)}
-                    className="hover:bg-gray-50 cursor-pointer"
+                    className={`hover:bg-gray-50 cursor-pointer ${selectedClientIds.includes(client.id) ? 'bg-amber-50' : ''}`}
                   >
+                    <td className="px-3 py-4 w-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedClientIds.includes(client.id)}
+                        onChange={(e) => toggleClientSelection(client.id, e)}
+                        className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      />
+                    </td>
                     <td className="px-4 py-4 text-sm font-medium text-gray-900">{client.name}</td>
                     <td className="px-4 py-4 text-sm text-gray-500">{client.contactPerson || client.contact}</td>
                     <td className="px-4 py-4 text-sm text-gray-500">{client.email}</td>
@@ -1456,6 +1707,15 @@ const ClientManagement = () => {
                     <span className="text-gray-600 mr-2">Industry:</span>
                     <span className="font-medium">{selectedClient.industry}</span>
                   </div>
+                  {selectedClient.additionalEmails && selectedClient.additionalEmails.length > 0 && (
+                    <div className="sm:col-span-2 flex items-start">
+                      <Mail size={16} className="text-gray-400 mr-2 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <span className="text-gray-600 mr-2 block mb-1">Additional emails (invoices):</span>
+                        <span className="font-medium text-sm">{selectedClient.additionalEmails.join(', ')}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -1536,6 +1796,51 @@ const ClientManagement = () => {
                       </div>
                       <span className="font-medium text-gray-900">Send Email</span>
                     </button>
+                    <button
+                      onClick={handleSendBalanceReminder}
+                      disabled={sendingBalanceReminder}
+                      className="group flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50"
+                      title="Send balance reminder using your template"
+                    >
+                      <div className="p-2 bg-amber-100 rounded-full group-hover:bg-amber-200 transition-colors">
+                        <AlertCircle size={16} className="text-amber-600" />
+                      </div>
+                      <span className="font-medium text-gray-900">{sendingBalanceReminder ? 'Sending…' : 'Send balance reminder'}</span>
+                    </button>
+                    <button
+                      onClick={handleDownloadBalanceReminderPdf}
+                      disabled={downloadingReminderPdf}
+                      className="group flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg hover:border-amber-300 hover:bg-amber-50 hover:shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50"
+                      title="Download balance reminder as PDF to send manually"
+                    >
+                      <div className="p-2 bg-amber-100 rounded-full group-hover:bg-amber-200 transition-colors">
+                        <Download size={16} className="text-amber-600" />
+                      </div>
+                      <span className="font-medium text-gray-900">{downloadingReminderPdf ? 'Downloading…' : 'Download reminder (PDF)'}</span>
+                    </button>
+                    <div className="flex flex-col gap-2">
+                      <span className="text-xs font-medium text-gray-500 px-1">Account summary</span>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleDownloadAccountSummary('csv')}
+                          disabled={downloadingAccountSummary}
+                          className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                          title="Download client trading history as CSV"
+                        >
+                          <Download size={14} className="text-teal-600" />
+                          <span>CSV</span>
+                        </button>
+                        <button
+                          onClick={() => handleDownloadAccountSummary('pdf')}
+                          disabled={downloadingAccountSummary}
+                          className="group flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg hover:border-teal-300 hover:bg-teal-50 text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50"
+                          title="Download client trading history as PDF"
+                        >
+                          <Download size={14} className="text-teal-600" />
+                          <span>PDF</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1727,6 +2032,59 @@ const ClientManagement = () => {
                 }}
               >
                 {isSendingEmail ? 'Sending...' : 'Send Email'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Balance reminder template modal */}
+      {showBalanceReminderTemplateModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !balanceReminderTemplateSaving && setShowBalanceReminderTemplateModal(false)}>
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-200">
+              <h3 className="text-lg font-semibold">Balance reminder email template</h3>
+              <button className="p-2 hover:bg-gray-100 rounded" onClick={() => !balanceReminderTemplateSaving && setShowBalanceReminderTemplateModal(false)}>
+                <X size={18} className="text-gray-600" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+              <p className="text-sm text-gray-600">This template is used when you send a balance reminder to a client. Use {'{{clientName}}'} and {'{{balance}}'} as placeholders.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <input
+                  type="text"
+                  value={balanceReminderTemplate.subject}
+                  onChange={(e) => setBalanceReminderTemplate(prev => ({ ...prev, subject: e.target.value }))}
+                  placeholder="Outstanding balance reminder"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email body</label>
+                <textarea
+                  value={balanceReminderTemplate.body}
+                  onChange={(e) => setBalanceReminderTemplate(prev => ({ ...prev, body: e.target.value }))}
+                  placeholder="Dear {{clientName}}, ..."
+                  rows={10}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2"
+                />
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-end gap-3">
+              <button
+                className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
+                disabled={balanceReminderTemplateSaving}
+                onClick={() => setShowBalanceReminderTemplateModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                disabled={balanceReminderTemplateSaving}
+                onClick={handleSaveBalanceReminderTemplate}
+              >
+                {balanceReminderTemplateSaving ? 'Saving…' : 'Save template'}
               </button>
             </div>
           </div>

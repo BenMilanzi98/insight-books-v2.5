@@ -26,7 +26,7 @@ export default function RootLayout({ children }) {
 
   // Define paths where sidebar, footer, and appbar should be hidden
   const hiddenPaths = ["/", "/auth/login", "/auth/signup", "/auth/business-setup", "/contact", "/terms", "/privacy"];
-  const shouldHideLayout = hiddenPaths.includes(pathname) || pathname.startsWith('/auth/') || pathname.startsWith('/admin/') || pathname.startsWith('/ref/') || pathname.startsWith('/affiliate/');
+  const shouldHideLayout = hiddenPaths.includes(pathname) || pathname.startsWith('/auth/') || pathname.startsWith('/insightbooks/') || pathname.startsWith('/ref/') || pathname.startsWith('/affiliate/');
 
   // Handle responsive behavior
   useEffect(() => {

@@ -685,6 +685,8 @@ export async function POST(request) {
         const sale = await tx.sale.create({
           data: {
             saleNumber,
+            title: data.title || null,
+            orderNumber: data.orderNumber || null,
             saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
             subtotal,
             // Enhanced: Store individual tax amounts
@@ -968,29 +970,23 @@ export async function POST(request) {
             throw paymentError;
           }
 
-          // Update account balances for each payment allocation
-          // Use pre-fetched payment accounts to avoid query inside transaction
-          // NOTE: We skip this because account balances are updated automatically when transactions are created
-          // This prevents errors from aborting the transaction
+          // Update account balances for each payment allocation (by PaymentAccount id so /payments/management and POS show correct balances)
           try {
             for (const alloc of paymentAllocations) {
-              const account = paymentAccountsMap.get(alloc.paymentAccountId);
-              
-              if (account) {
-                // Normalize payment method name for AccountBalance
-                const normalizedPaymentMethod = normalizePaymentMethod(account.name);
-                await updateAccountBalance(
-                  user.tenantId,
-                  normalizedPaymentMethod,
-                  Number(alloc.amount),
-                  'add',
-                  tx
-                );
-              }
+              const accountId = alloc.paymentAccountId;
+              const amount = Number(alloc.amount);
+              if (!accountId || amount <= 0) continue;
+              await updateAccountBalance(
+                user.tenantId,
+                accountId,
+                amount,
+                'add',
+                tx
+              );
             }
           } catch (balanceError) {
-            // Log but don't fail - account balances will be updated when transactions are created
-            console.warn('⚠️ Could not update account balances directly, will be updated via transactions:', balanceError.message);
+            console.error('Failed to update payment account balances for sale:', balanceError);
+            throw balanceError;
           }
 
           // Create journal entries for sale (Revenue + COGS)

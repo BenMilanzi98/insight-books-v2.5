@@ -148,32 +148,53 @@ export async function POST(request) {
       );
     }
     
-    // Check if account code already exists
+    // Check if account code already exists (check both code and accountCode fields)
     const existingAccount = await prisma.account.findFirst({
       where: {
-        code: body.code,
-        tenantId: tenantId
+        tenantId: tenantId,
+        OR: [
+          { code: body.code },
+          { accountCode: body.code }
+        ]
       }
     });
     
     if (existingAccount) {
       return NextResponse.json(
-        { error: 'Account code already exists' },
+        { 
+          error: 'Account code already exists',
+          details: `Account code ${body.code} is already in use by account: ${existingAccount.accountName || existingAccount.name || existingAccount.accountCode || existingAccount.code}`
+        },
         { status: 400 }
       );
     }
     
     // Create account in database
-    const account = await prisma.account.create({
-      data: {
-        code: body.code,
-        name: body.name,
-        type: body.type,
-        balance: body.balance || 0,
-        isActive: body.isActive !== undefined ? body.isActive : true,
-        tenantId: tenantId
+    let account;
+    try {
+      account = await prisma.account.create({
+        data: {
+          code: body.code,
+          name: body.name,
+          type: body.type,
+          balance: body.balance || 0,
+          isActive: body.isActive !== undefined ? body.isActive : true,
+          tenantId: tenantId
+        }
+      });
+    } catch (createError) {
+      // Handle Prisma unique constraint errors
+      if (createError.code === 'P2002') {
+        return NextResponse.json(
+          { 
+            error: 'Account code already exists',
+            details: `Account code ${body.code} is already in use. Please use a different code.`
+          },
+          { status: 400 }
+        );
       }
-    });
+      throw createError;
+    }
     
     // Create audit log entry
     await prisma.auditLog.create({

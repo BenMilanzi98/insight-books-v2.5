@@ -121,6 +121,7 @@ export async function GET(request, { params }) {
       id: quotation.id,
       quotationNumber: quotation.quotationNumber,
       title: quotation.title,
+      orderNumber: quotation.orderNumber ?? null,
       client: quotation.client.name,
       clientId: quotation.clientId,
       clientEmail: quotation.client.email,
@@ -213,10 +214,11 @@ export async function PUT(request, { params }) {
         where: { id: quotationId },
         data: {
           title: body.title || existingQuotation.title,
+          orderNumber: body.orderNumber !== undefined ? body.orderNumber : existingQuotation.orderNumber,
           clientId: body.clientId || existingQuotation.clientId,
           issueDate: body.issueDate ? new Date(body.issueDate) : existingQuotation.issueDate,
           validUntil: body.validUntil ? new Date(body.validUntil) : existingQuotation.validUntil,
-          discount: body.discount || existingQuotation.discount,
+          discount: body.discount ?? existingQuotation.discount,
           subtotal: subtotal,
           taxAmount: taxAmount,
           totalDiscountAmount: totalDiscountAmount, // Enhanced: Total of all line item discounts

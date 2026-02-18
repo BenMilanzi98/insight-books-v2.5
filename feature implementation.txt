@@ -1,0 +1,1125 @@
+Feature Summary: Product-Level Tax Management for Inventory & POS
+Overview
+This feature allows businesses to define their own taxes and assign one or multiple taxes to individual products within the inventory module. Once configured, taxes are automatically applied during POS sales and clearly itemized on receipts, ensuring transparency and compliance.
+
+What the Feature Solves
+
+
+Supports businesses with multiple tax obligations
+
+
+Ensures accurate, consistent tax calculation
+
+
+Produces compliant receipts with full tax breakdown
+
+
+
+Core Capabilities
+Users can create and manage multiple tax types (percentage or fixed).
+
+
+Each product can have zero, one, or multiple taxes assigned.
+
+
+Taxes are applied automatically when the product is sold in POS.
+
+
+POS users cannot edit taxes; they are controlled from inventory.
+
+
+All applied taxes are listed clearly on the receipt.
+
+
+
+
+How It Works (High Level)
+User defines tax types (e.g. VAT, Levy).
+
+
+User assigns applicable taxes to each product.
+
+
+When a product is sold:
+
+
+Base price is calculated.
+
+
+All assigned taxes are applied automatically.
+
+
+POS totals update instantly.
+
+
+Receipt shows:
+
+
+Subtotal
+
+
+Individual tax amounts
+
+
+Total tax
+
+
+Grand total
+
+
+
+Receipt & Transparency
+Each tax is shown by name.
+
+
+Taxes are grouped in the receipt summary.
+
+
+Customers can clearly see:
+
+
+What tax was charged
+
+
+How much was charged
+
+
+Improves trust and regulatory compliance.
+
+
+
+Business & Reporting Impact
+Tax amounts are stored per sale for historical accuracy.
+
+
+Tax totals can be reported daily, weekly, or monthly.
+
+
+Revenue and tax amounts are separated for accounting.
+
+
+Supports VAT reporting and audits.
+
+
+
+Permissions & Control
+Only Admin or Manager can:
+
+
+Create taxes
+
+
+Assign taxes to products
+
+
+Cashiers can only view applied taxes during sales.
+
+
+
+Edge Case Handling
+Products without tax remain tax-free.
+
+
+Multiple taxes stack correctly per product.
+
+
+Tax changes do not affect past sales
+
+2. Feature Summary: Multi-Tax Accounts & Tax Tracking
+Overview
+The system will allow users to create multiple tax accounts within the Tax Management module. Each tax collected during sales, invoicing, or payroll will be automatically assigned to its respective tax account, enabling accurate tracking, reporting, and compliance with statutory obligations.
+
+What This Enables
+Clear separation of different tax obligations
+
+
+Accurate tracking of how much tax is collected per tax type
+
+
+Easy preparation for tax remittance and reporting
+
+
+Elimination of manual tax reconciliation
+
+
+
+Supported Tax Examples
+VAT
+
+
+PAYE
+
+
+Withholding Tax
+
+
+Levies (Tourism Levy, Municipal Levy, etc.)
+
+
+Each tax type is treated as a separate tax account.
+
+Core Capabilities
+Users can create multiple tax accounts, each representing a specific tax obligation.
+
+
+Each tax account has:
+
+
+Name (e.g. VAT, PAYE)
+
+
+Rate or calculation rule
+
+
+Status (active/inactive)
+
+
+Taxes applied during transactions are automatically routed to the correct tax account.
+
+
+One product or transaction can contribute to multiple tax accounts simultaneously.
+
+
+
+How Tax Assignment Works
+User defines tax accounts in the Tax Management module.
+
+
+Each tax is linked to a specific tax account.
+
+
+When a transaction occurs:
+
+
+Tax is calculated.
+
+
+The calculated amount is posted to the linked tax account.
+
+
+The system keeps a running balance per tax account.
+
+
+
+Tracking & Visibility
+Each tax account shows:
+
+
+Total tax collected
+
+
+Total tax refunded or adjusted
+
+
+Net tax payable
+
+
+Users can view tax totals:
+
+
+Daily
+
+
+Monthly
+
+
+3. Feature Summary: Payment Processing 
+Overview
+The system will support user-defined payment accounts instead of fixed payment methods.
+ Only Cash will exist as a default system account. All other payment accounts (e.g. Bank, Mpamba, Airtel Money, POS Terminal) are created and managed by the client.
+
+Single Source of Truth: Payment Accounts Module
+What Lives Here
+Creation and management of payment accounts
+
+
+Each account represents where money is received or stored
+
+
+Examples:
+
+
+National Bank Account
+
+
+Standard Bank POS
+
+
+Mpamba
+
+
+Airtel Money
+
+
+PayChangu
+
+
+Mobile Wallet
+
+
+📌 Payment accounts are not hard-coded.
+
+Default System Accounts
+Cash (system-created, cannot be deleted)
+
+
+All other accounts:
+
+
+Created by the user
+
+
+Editable and deactivatable
+Maintain the hardcoded accounts for existing users 
+
+
+
+Payment Account Capabilities
+Each payment account includes:
+Account name
+
+
+Account type (Cash, Bank, Mobile Money, Wallet)
+
+
+Optional reference (account number, wallet ID)
+
+
+Status (active/inactive)
+
+
+
+How Payment Processing Works
+User creates payment accounts in Payment Management
+
+
+POS and Invoicing load active payment accounts
+
+
+At checkout:
+
+
+Cashier selects one or more payment accounts
+
+
+Amounts are allocated per account
+
+
+System records payment per account automatically
+
+
+
+POS & Sales Behavior
+Cashiers see only active payment accounts
+
+
+Supports:
+
+
+Single-account payments
+
+
+Split payments across multiple accounts
+
+
+Cash account always available
+
+
+
+Receipts & Transparency
+Receipt shows:
+
+
+Payment breakdown by account
+
+
+Amount per account
+
+
+Improves reconciliation and auditing
+
+
+
+Reporting & Reconciliation
+Daily reports show:
+
+
+Total collections per payment account
+
+
+Enables:
+
+
+Bank reconciliation
+
+
+Mobile money settlement tracking
+
+
+Cash vs non-cash analysis
+
+
+
+Permissions & Control
+Admin / Finance:
+
+
+Create, edit, deactivate payment accounts
+
+
+Cashiers:
+
+
+Select accounts during payment
+
+
+No account configuration access
+
+
+
+Edge Case Handling
+Inactive accounts cannot be used for new payments
+
+
+Historical payments remain linked to original accounts
+
+
+Cash cannot be deleted or disabled
+
+🐞 Bug Report & Feature Fix Requests
+1. Stock Not Saving – KU Branch
+Issue:
+ Stock entries are not being saved when the KU branch is selected.
+Expected Behavior:
+ Stock should save correctly for all branches, including KU.
+Impact:
+ Inventory levels for KU branch are inaccurate or missing.
+
+2. Stock Movement Across Business Branches
+Issue:
+ Stock movement between branches is not tracked or reflected correctly.
+Expected Behavior:
+Ability to transfer stock between branches
+
+
+Stock OUT from source branch
+
+
+Stock IN to destination branch
+
+
+Proper audit trail (date, reference, user)
+
+
+Impact:
+ Branch-level inventory reporting is unreliable.
+
+3. COGS Not Calculating Correctly
+Issue:
+ Cost of Goods Sold (COGS) is:
+Not calculated correctly
+
+
+Being posted to Expenses
+
+
+Not reflected accurately on the Dashboard
+
+
+Expected Behavior:
+COGS should be calculated automatically from inventory sales
+
+
+Posted only to the COGS account
+
+
+Reflected correctly in:
+
+
+Profit & Loss
+
+
+Dashboard metrics
+
+
+Impact:
+ Financial reports and profitability figures are incorrect.
+
+4. Remove Accounts Option When Creating Taxes
+Issue:
+ Users cannot remove or deselect accounts when creating or editing a tax.
+Expected Behavior:
+Ability to remove/change linked accounts when setting up taxes
+
+
+Prevent locked or incorrect tax-account mappings
+
+
+Impact:
+ Tax setup becomes rigid and error-prone.
+
+5. Incorrect Calculation When Taxes Are Combined
+Issue:
+ When multiple taxes are combined:
+Tax calculation is wrong
+
+
+Tax Account Dashboard shows incorrect totals
+
+
+Expected Behavior:
+Accurate tax calculation for combined taxes
+
+
+Correct posting to each respective tax account
+
+
+Accurate totals on the Tax Dashboard
+
+
+Impact:
+ Tax liabilities and compliance figures are inaccurate.
+
+6. HR – Salary Advance Not Working
+Issue:
+ Salary advance feature is not functioning.
+Expected Behavior:
+Ability to issue salary advances
+
+
+Advances deducted automatically from future payroll
+
+
+Proper ledger and employee balance tracking
+
+
+Impact:
+ HR payroll processing is incomplete.
+
+7. HR – Error When Generating Reports
+Issue:
+ System throws errors when generating HR reports.
+Expected Behavior:
+HR reports should generate without errors
+
+
+Reports should be accurate and downloadable
+
+
+Impact:
+ HR data analysis and compliance reporting is blocked.
+
+8. PAYEE – Default Tax Account Required
+Issue:
+ PAYE does not have a default tax account for tracking.
+Expected Behavior:
+PAYE should be linked to a default tax liability account
+
+
+Automatic posting from:
+
+
+Payroll
+
+
+Salary calculations
+
+
+Clear tracking of PAYE liabilities and payments
+
+
+Impact:
+ PAYE tracking and reconciliation is unreliable.
+
+
+
+
+3. ADDITIONAL CHANGES 
+
+i. Revenue Budget (Forecasting Module)
+Objective
+Enable businesses to plan, track, and compare expected revenue against actual performance.
+Scope
+User can create revenue budgets (forecasts) per:
+
+
+Month
+
+
+Quarter
+
+
+Year
+
+
+Budgets are manual inputs, not system-generated.
+
+
+Forecasts are read-only once the period is closed.
+
+
+Core Capabilities
+Define budget period (start date – end date)
+
+
+Enter expected revenue amounts
+
+
+Optional breakdown:
+
+
+By branch
+
+
+By product category
+
+
+Compare:
+
+
+Budget vs Actual Revenue
+
+
+Variance (over / under)
+
+
+Reporting
+Budget vs actual report
+
+
+Percentage achievement
+
+
+Period-based comparison
+
+
+
+ii. Stock Movement Across Branches
+Objective
+Track real-time stock movement between branches while maintaining accurate inventory balances.
+Scope
+Support multiple branches / locations
+
+
+Stock movements include:
+
+
+Transfers (Branch A → Branch B)
+
+
+Sales
+
+
+Restocks
+
+
+Adjustments
+
+
+Core Capabilities
+Initiate stock transfer from one branch to another
+
+
+Track:
+
+
+Quantity out (source branch)
+
+
+Quantity in (destination branch)
+
+
+Each branch maintains its own stock balance
+
+
+Full audit trail per movement
+
+
+Reporting
+Stock movement report per branch
+
+
+Inter-branch transfer history
+
+
+Stock availability per location
+
+
+
+iii. Supplier (Merchant) Management for Expenses
+Objective
+Make expenses supplier-driven, enabling proper tracking of who was paid, how much, and when.
+Scope
+Introduce Suppliers / Merchants module
+
+
+Expenses must reference a supplier (optional but recommended)
+
+
+Core Capabilities
+Create and manage suppliers:
+
+
+Name
+
+
+Contact details
+
+
+Payment preference
+
+
+Link expenses to suppliers
+
+
+Track:
+
+
+Total paid per supplier
+
+
+Outstanding balances (if applicable)
+
+
+Benefits
+Enables supplier payment history
+
+
+Improves procurement transparency
+
+
+Supports audits and reconciliations
+
+
+
+iv. Transaction Reversal (Accounting-Safe)
+Objective
+Allow safe reversal of transactions without deleting financial history.
+Scope
+Applies to:
+
+
+Sales
+
+
+Expenses
+
+
+Payments
+
+
+No hard deletes
+
+
+Core Capabilities
+Reversal creates an equal and opposite transaction
+
+
+Original transaction remains unchanged
+
+
+Reversal is linked to original transaction
+
+
+Reason for reversal is mandatory
+
+
+Accounting Rules
+Reversals adjust:
+
+
+Ledgers
+
+
+Tax accounts
+
+
+Payment accounts
+
+
+Historical integrity preserved
+
+
+
+v. Ledger System (General Ledger)
+Objective
+Provide a central financial record of all system transactions.
+Scope
+Every financial transaction posts to the ledger
+
+
+Ledger is system-generated, not manually editable
+
+
+Core Capabilities
+Ledger entries include:
+
+
+Date
+
+
+Account
+
+
+Debit / Credit
+
+
+Reference transaction
+
+
+Supports:
+
+
+Revenue
+
+
+Expenses
+
+
+Taxes
+
+
+Payments
+
+
+Read-only for users
+
+
+Reporting
+Ledger by date range
+
+
+Ledger by account
+
+
+Transaction drill-down
+
+
+
+vi. Journal Entries (Manual Adjustments)
+Objective
+Allow finance users to post manual accounting adjustments.
+Scope
+Used for:
+
+
+Corrections
+
+
+Accruals
+
+
+Opening balances
+
+
+Restricted to Finance/Admin roles
+
+
+Core Capabilities
+Create journal entries with:
+
+
+Debit account
+
+
+Credit account
+
+
+Amount
+
+
+Reason
+
+
+Journal entries affect ledger balances
+
+
+Fully auditable
+
+
+
+vii. Period Closing & Opening
+Objective
+Lock financial periods to prevent retroactive changes and ensure clean reporting.
+Scope
+Periods:
+
+
+Monthly
+
+
+Yearly
+
+
+Once closed:
+
+
+No new transactions allowed
+
+
+No edits to existing transactions
+
+
+Core Capabilities
+Close period:
+
+
+Validates all balances
+
+
+Locks transactions
+
+
+Open new period:
+
+
+Carries forward balances
+
+
+Period status visible system-wide
+
+
+Controls
+Only Admin / Finance can close or reopen periods
+
+
+Reopening requires reason and audit log
+
+
+Vii. Unified Account Codes & Categories Management (Core Accounting Rule)
+Problem Statement
+Currently, account codes and account names are system-created and locked, while other modules (Expenses, Budgeting) allow users to create free-text categories.
+ This leads to:
+Duplicate categories (e.g. Meals & Entertainment vs Meals and Entertainment)
+
+
+Expenses not mapped to any account code
+
+
+Budget tracking mismatches
+
+
+Inaccurate financial statements
+
+
+Broken reporting logic
+
+
+This breaks a core accounting principle: every transaction must map to an account code.
+
+Proposed Solution
+Introduce one central place to manage account codes and account names, and make all financial categories derive from this structure.
+
+Single Source of Truth: Chart of Accounts (Ledger / Advanced Accounting)
+What Lives Here
+List of default account codes with:
+
+
+Account code
+
+
+Account name
+
+
+Account type (Income, Expense, Asset, Liability, Equity)
+
+
+System-provided default accounts (read-only)
+
+
+User-created accounts (editable)
+
+
+📌 This becomes the only place where account categories are defined.
+
+Xi. Expense Categories – Behavior Change
+Current Issue
+Users freely create expense categories
+
+
+Categories are not linked to account codes
+
+
+Duplicates are common
+
+
+New Behavior
+Expense category selector pulls directly from the Chart of Accounts
+
+
+Only Expense-type account codes are shown
+
+
+Category name = Account name
+
+
+No free-text category creation
+
+
+If a User Needs a New Category
+User creates a new Expense account in Chart of Accounts
+
+
+System assigns a default expense account code
+
+
+The new account automatically appears as an expense category
+
+
+
+Budgeting – Behavior Change
+Current Issue
+Budgets are created using categories that don’t always match expenses
+
+
+New Behavior
+Budget categories are selected from the same Chart of Accounts
+
+
+Budgets reference account codes, not text labels
+
+
+Budget vs Actual works reliably because:
+
+
+Expenses and budgets hit the same account code
+
+
+
+System-Wide Accounting Rule
+No transaction, budget, or report may exist without referencing an account code.
+Applies to:
+Expenses
+
+
+Budgets
+
+
+Revenues
+
+
+Taxes
+
+
+Journals
+
+
+Forecast
+
+
+NEW ADDITIONAL
+
+Payroll Commision and tax calculations
+Refined Feature / Requirement List
+1. Client Management
+Template for sending balance reminders to clients.
+
+
+Ability to download client trading history (Client Account Summary).
+
+
+Ability to send invoices to multiple email addresses per client.
+
+
+Email sending should use the tenant’s email address instead of our system email.
+
+
+2. Invoicing & POS
+Include titles on invoices and quotes, as well as order numbers.
+
+
+Ability to upload files (attachments) within invoices.
+
+
+Add tax lines to POS receipts, invoices, and quotations.
+
+
+3. HR & Payroll
+Include benefits tracking such as house allowance, airtime, and other perks.
+
+
+
+
+Accounting & Finance – Bug Tracking Checklist
+1. Navigation & Structure
+Move all accounting-related modules into a single Accounting dropdown
+Verify correct routing and permissions after consolidation
+
+2. POS & Revenue Posting
+POS transactions not posting correctly to accounting
+Revenue should post to one default revenue account (remove multiple options)
+Verify revenue entries are reflected in General Ledger and reports
+
+3. Profit & Loss / Reports
+Profit & Loss report not loading
+Ensure P&L pulls data from General Ledger, not dashboards only
+Validate revenue, expenses, COGS totals
+
+4. Budgeting & Expenses
+Budgeting module throwing errors
+Expenses not appearing in budgeting
+Expenses not reflected correctly in reports
+
+5. Reversals & Adjustments
+Reversal entries not fully functional
+Verify reversals correctly negate original debit and credit entries
+
+6. Cost of Goods Sold (COGS)
+COGS not posting from sales invoices
+COGS visible on dashboard but missing in General Ledger
+Validate inventory → COGS posting logic
+
+7. Account Transfers & Payments
+Transferring funds between accounts fails for newly created accounts
+Payment processing not recognizing new accounts
+Verify account availability and validation in payment workflows
+
+8. Loans & Liabilities
+Loan repayments incorrectly posting to COGS
+Loan principal and interest not posting to correct liability/expense accounts
+
+9. General Ledger & Chart of Accounts
+Errors when creating new General Ledger accounts
+Duplicate account codes for salary expense
+Consolidate salary expense into a single account code
+Validate uniqueness and posting rules for new accounts
+
+10. Payroll Accounting
+Balance Sheet not balancing after payroll processing
+Missing debit or credit postings for payroll entries
+Verify salary expense, tax, and liability postings
+
+11. Supplier Management in Expenses
+Add Supplier field when creating expenses
+Supplier module should behave like Client Management
+Track supplier balances (amount owed vs paid)
+Link expenses to supplier accounts payable
+
+12. Expense Categories & Account Codes
+Allow users to create expense categories
+System should automatically generate and assign an account code in the Chart of Accounts
+No user interaction required for account code creation
+Ensure new categories post correctly to reports
+
+13. Regression & Validation
+Verify historical transactions remain unchanged
+Confirm reports match General Ledger after fixes
+Test with existing and newly created users
+14. Account Codes & Category Normalization
+Introduce account codes without disrupting existing users by silently normalizing expense categories in the backend
+
+
+Keep all existing categories visible to users
+
+
+Automatically map categories (including duplicates) to standard Chart of Accounts codes
+
+
+Ensure historical transactions remain unchanged and reports use account codes for grouping
+
+
+
+
+
+
+

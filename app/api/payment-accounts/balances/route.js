@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
-// GET - Get balances for all payment accounts
+// GET - Get actual balances for all payment accounts (AccountBalance + Chart of Accounts)
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
@@ -10,10 +10,12 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    const tenantId = user.tenantId;
+
     // Get all active payment accounts
     const paymentAccounts = await prisma.paymentAccount.findMany({
       where: {
-        tenantId: user.tenantId,
+        tenantId,
         isActive: true
       },
       orderBy: [
@@ -22,59 +24,142 @@ export async function GET(request) {
       ]
     });
 
-    // Get all account balances
-    const accountBalances = await prisma.accountBalance.findMany({
-      where: { tenantId: user.tenantId }
+    // All AccountBalance records for tenant (source of truth for cash/bank/mobile)
+    const accountBalanceRecords = await prisma.accountBalance.findMany({
+      where: { tenantId }
     });
 
-    // Helper to normalize payment method names for matching
     const normalizeName = (name) => {
       if (!name) return '';
-      return name.toLowerCase().trim().replace(/\s+/g, '_');
+      return String(name).toLowerCase().trim().replace(/\s+/g, '_');
     };
 
-    // Create a map of normalized names to balances
-    const balancesMap = new Map();
-    accountBalances.forEach(b => {
-      const normalized = normalizeName(b.account);
-      const currentBalance = balancesMap.get(normalized) || 0;
-      balancesMap.set(normalized, currentBalance + (parseFloat(b.balance) || 0));
+    // Map: raw account key -> balance (exact key as stored in DB)
+    const balanceByKey = new Map();
+    accountBalanceRecords.forEach(b => {
+      const key = String(b.account).trim();
+      const val = parseFloat(b.balance) || 0;
+      balanceByKey.set(key, (balanceByKey.get(key) || 0) + val);
     });
 
-    // Map payment accounts to their balances
-    const accountsWithBalances = paymentAccounts.map(account => {
-      // Try multiple normalization strategies
-      const accountName = account.name.toLowerCase().trim();
-      const normalized = normalizeName(account.name);
-      
-      // Try exact match first
-      let balance = balancesMap.get(accountName) || balancesMap.get(normalized) || 0;
-      
-      // If still 0, try variations
-      if (balance === 0) {
-        // Try without underscores
-        const noSpaces = accountName.replace(/\s+/g, '');
-        balance = balancesMap.get(noSpaces) || 0;
+    // Map: normalized key -> balance (for name matching)
+    const balanceByNormalized = new Map();
+    accountBalanceRecords.forEach(b => {
+      const norm = normalizeName(b.account);
+      if (!norm) return;
+      const val = parseFloat(b.balance) || 0;
+      balanceByNormalized.set(norm, (balanceByNormalized.get(norm) || 0) + val);
+    });
+
+    // Chart of Accounts cash/bank/mobile accounts (1000–1050) – actual ledger balances
+    const cashAccountCodes = ['1000', '1010', '1020', '1030', '1040', '1050'];
+    const coaAccounts = await prisma.account.findMany({
+      where: {
+        tenantId,
+        isActive: true,
+        OR: [
+          { accountCode: { in: cashAccountCodes } },
+          { accountName: { contains: 'Cash', mode: 'insensitive' } },
+          { accountName: { contains: 'Bank', mode: 'insensitive' } },
+          { accountName: { contains: 'Airtel', mode: 'insensitive' } },
+          { accountName: { contains: 'Mpamba', mode: 'insensitive' } },
+          { accountName: { contains: 'PayChangu', mode: 'insensitive' } }
+        ]
+      },
+      select: { id: true, accountCode: true, accountName: true, balance: true }
+    });
+
+    // Balance by COA account code (prefer AccountBalance, else Account.balance)
+    const balanceByCode = new Map();
+    coaAccounts.forEach(acc => {
+      const code = acc.accountCode || '';
+      const fromAb = balanceByKey.get(code);
+      const fromAccount = acc.balance != null ? parseFloat(acc.balance) : 0;
+      balanceByCode.set(code, fromAb !== undefined && fromAb !== null ? fromAb : fromAccount);
+    });
+    accountBalanceRecords.forEach(b => {
+      const k = String(b.account).trim();
+      if (cashAccountCodes.includes(k)) {
+        const val = parseFloat(b.balance) || 0;
+        balanceByCode.set(k, val);
       }
-      
-      return {
-        id: account.id,
-        name: account.name,
-        accountType: account.accountType,
-        reference: account.reference,
-        isSystem: account.isSystem,
-        isActive: account.isActive,
-        balance: balance
-      };
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      accounts: accountsWithBalances 
+    // Resolve balance for one payment account
+    const getBalanceForPaymentAccount = (account) => {
+      const id = account.id;
+      const name = account.name || '';
+      const normalized = normalizeName(name);
+      const accountType = (account.accountType || '').toLowerCase();
+
+      // 1) AccountBalance keyed by PaymentAccount.id (allocations may use id)
+      let balance = balanceByKey.get(id);
+      if (balance !== undefined && balance !== null) return balance;
+
+      // 2) AccountBalance keyed by normalized name (e.g. "bank_transfer")
+      balance = balanceByNormalized.get(normalized);
+      if (balance !== undefined && balance !== null && balance !== 0) return balance;
+
+      // 3) Map name/type to standard key and use AccountBalance (first match)
+      const standardKeys = getStandardKeysForNameAndType(name, accountType);
+      for (const key of standardKeys) {
+        const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
+        if (b !== undefined && b !== null && b !== 0) return b;
+      }
+
+      // 4) Use Chart of Accounts balance (actual cash/bank ledger); sum when multiple codes map to same bucket (e.g. Cash = 1000+1010)
+      const codes = getAccountCodesForNameAndType(name, accountType);
+      let sum = 0;
+      for (const code of codes) {
+        const b = balanceByCode.get(code);
+        if (b !== undefined && b !== null) sum += b;
+      }
+      return sum;
+    };
+
+    const accountsWithBalances = paymentAccounts.map(account => ({
+      id: account.id,
+      name: account.name,
+      accountType: account.accountType,
+      reference: account.reference,
+      isSystem: account.isSystem,
+      isActive: account.isActive,
+      balance: getBalanceForPaymentAccount(account)
+    }));
+
+    return NextResponse.json({
+      success: true,
+      accounts: accountsWithBalances
     });
   } catch (error) {
     console.error('Error fetching payment account balances:', error);
     return NextResponse.json({ error: 'Failed to fetch payment account balances' }, { status: 500 });
   }
+}
+
+function getStandardKeysForNameAndType(name, accountType) {
+  const n = String(name).toLowerCase();
+  if (n.includes('cash')) return ['cash'];
+  if (n.includes('bank') || n.includes('transfer')) return ['bank_transfer'];
+  if (n.includes('airtel')) return ['airtel_money'];
+  if (n.includes('mpamba')) return ['mpamba'];
+  if (n.includes('paychangu')) return ['paychangu'];
+  if (accountType === 'cash') return ['cash'];
+  if (accountType === 'bank') return ['bank_transfer'];
+  if (accountType.includes('mobile')) return ['airtel_money', 'mpamba', 'paychangu'];
+  return [];
+}
+
+function getAccountCodesForNameAndType(name, accountType) {
+  const n = String(name).toLowerCase();
+  if (n.includes('cash')) return ['1000', '1010'];
+  if (n.includes('bank') || n.includes('transfer')) return ['1020'];
+  if (n.includes('airtel')) return ['1030'];
+  if (n.includes('mpamba')) return ['1040'];
+  if (n.includes('paychangu')) return ['1050'];
+  if (accountType === 'cash') return ['1000', '1010'];
+  if (accountType === 'bank') return ['1020'];
+  if (accountType.includes('mobile')) return ['1030', '1040', '1050'];
+  return [];
 }
 

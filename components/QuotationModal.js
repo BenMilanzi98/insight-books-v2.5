@@ -40,6 +40,8 @@ const QuotationModal = ({
   const [formData, setFormData] = useState({
     clientId: "",
     title: "",
+    orderNumber: "",
+    orderNumberAutogenerate: false,
     items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }],
     issueDate: new Date().toISOString().split("T")[0],
     validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -134,19 +136,21 @@ const QuotationModal = ({
       setFormData({
         clientId: quotation.clientId,
         title: quotation.title || "",
+        orderNumber: quotation.orderNumber || "",
+        orderNumberAutogenerate: false,
         items: quotation.items?.map(item => ({
           description: item.description,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           taxRate: item.taxRate || "0",
           productId: item.productId,
-          discountAmount: item.discountAmount || "" // Ensure discountAmount is included
+          discountAmount: item.discountAmount || ""
         })) || [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }],
         issueDate: quotation.date || new Date().toISOString().split("T")[0],
         validUntil: quotation.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         status: "Approved",
         notes: quotation.notes || "",
-        discount: parseFloat((quotation.discount || '0').toString().replace(/,/g, '')) || 0 
+        discount: parseFloat((quotation.discount || '0').toString().replace(/,/g, '')) || 0
       });
     }
   }, [quotation, mode]);
@@ -515,6 +519,8 @@ const QuotationModal = ({
       setFormData({
         clientId: "",
         title: "",
+        orderNumber: "",
+        orderNumberAutogenerate: false,
         items: [{ description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }],
         issueDate: new Date().toISOString().split("T")[0],
         validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -654,7 +660,7 @@ const QuotationModal = ({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">
-                  Title <span className="text-red-500">*</span>
+                  Quotation title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -663,11 +669,44 @@ const QuotationModal = ({
                   className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                   value={formData.title}
                   onChange={handleChange}
-                  placeholder="Quotation Title"
+                  placeholder="e.g. Consulting services, Project XYZ"
                 />
                 {errors.title && (
                   <p className="text-red-500 text-xs mt-1">{errors.title}</p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="orderNumber">
+                  Order number
+                </label>
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    id="orderNumber"
+                    name="orderNumber"
+                    placeholder={formData.orderNumberAutogenerate ? "Auto-generated" : "Enter order number"}
+                    className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition disabled:bg-gray-100 disabled:text-gray-500 ${errors.orderNumber ? 'border-red-500' : 'border-gray-300'}`}
+                    value={formData.orderNumber || ""}
+                    onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
+                    disabled={formData.orderNumberAutogenerate}
+                  />
+                  <label className="flex items-center gap-1.5 whitespace-nowrap text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.orderNumberAutogenerate || false}
+                      onChange={(e) => {
+                        const autogen = e.target.checked;
+                        setFormData(prev => ({
+                          ...prev,
+                          orderNumberAutogenerate: autogen,
+                          orderNumber: autogen ? `ORD-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).slice(2, 8).toUpperCase()}` : prev.orderNumber
+                        }));
+                      }}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Autogenerate
+                  </label>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="issueDate">

@@ -36,11 +36,37 @@ export async function GET(request, { params }) {
     switch (reportType) {
       case 'income-statement':
       case 'profit-loss':
-        // For PDF, use the actual income statement API to get the same data structure
         if (format.toLowerCase() === 'pdf') {
           return await generateIncomeStatementPDF(user.tenantId, startDate, endDate, request);
         }
-        // For CSV/XLSX, use the simplified format
+        // Same logic for Excel and CSV (system rule): use full income statement service
+        if (format.toLowerCase() === 'xlsx' || format.toLowerCase() === 'csv') {
+          const { generateIncomeStatementFromAccounts } = await import('@/lib/incomeStatementService');
+          const tenant = await prisma.tenant.findUnique({
+            where: { id: user.tenantId },
+            select: { name: true }
+          });
+          const statement = await generateIncomeStatementFromAccounts(
+            user.tenantId,
+            startDate,
+            endDate,
+            tenant?.name || 'Company',
+            null,
+            user.currentBranchId || null
+          );
+          if (format.toLowerCase() === 'xlsx') {
+            return await generateIncomeStatementExcelResponse(statement, startDate, endDate, 'income-statement.xlsx');
+          }
+          reportData = flattenIncomeStatementForCSV(statement);
+          headers = [
+            { key: 'type', label: 'Type' },
+            { key: 'category', label: 'Category' },
+            { key: 'amount', label: 'Amount' },
+            { key: 'percentage', label: 'Percentage of Revenue' }
+          ];
+          title = 'Profit & Loss Statement';
+          break;
+        }
         reportData = await generateIncomeStatementData(user.tenantId, startDate, endDate);
         headers = [
           { key: 'type', label: 'Type' },
@@ -108,6 +134,97 @@ export async function GET(request, { params }) {
         ];
         title = 'Inventory Valuation Report';
         break;
+
+      case 'cash-flow':
+        if (!startDate || !endDate) {
+          return NextResponse.json(
+            { error: 'Start date and end date are required for cash flow export' },
+            { status: 400 }
+          );
+        }
+        const { generateCashFlowFromAccounts } = await import('@/lib/cashFlowService');
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: user.tenantId },
+          select: { name: true, logoUrl: true }
+        });
+        const cashFlowData = await generateCashFlowFromAccounts(
+          user.tenantId,
+          startDate,
+          endDate,
+          tenant?.name || 'Company',
+          tenant?.logoUrl || null,
+          user.currentBranchId || null
+        );
+        const { prepareExportData } = await import('@/lib/exportUtils');
+        const cashFlowExport = prepareExportData('cash-flow', cashFlowData);
+        reportData = cashFlowExport.data;
+        headers = cashFlowExport.headers || [
+          { key: 'section', label: 'Section' },
+          { key: 'description', label: 'Description' },
+          { key: 'amount', label: 'Amount', format: 'currency' }
+        ];
+        title = cashFlowExport.title || 'Cash Flow Statement (Direct Method)';
+        break;
+
+      case 'stock-movement':
+        if (!startDate || !endDate) {
+          return NextResponse.json(
+            { error: 'Start date and end date are required for stock movement export' },
+            { status: 400 }
+          );
+        }
+        const { generateStockMovementReport } = await import('@/lib/stockMovementService');
+        const stockMovementData = await generateStockMovementReport(
+          user.tenantId,
+          startDate,
+          endDate,
+          searchParams.get('productId') || null,
+          user.currentBranchId || null
+        );
+        const { prepareExportData } = await import('@/lib/exportUtils');
+        const stockMovementExport = prepareExportData('stock-movement', stockMovementData);
+        reportData = stockMovementExport.data;
+        headers = stockMovementExport.headers || [
+          { key: 'productName', label: 'Product' },
+          { key: 'sku', label: 'SKU' },
+          { key: 'date', label: 'Date' },
+          { key: 'transactionType', label: 'Transaction Type' },
+          { key: 'qtyIn', label: 'Qty In' },
+          { key: 'qtyOut', label: 'Qty Out' },
+          { key: 'balance', label: 'Balance' },
+          { key: 'reference', label: 'Reference' }
+        ];
+        title = stockMovementExport.title || 'Stock Movement Report';
+        break;
+
+      case 'pos-daily': {
+        const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
+        const { generatePosDailyReport } = await import('@/lib/posDailyReportService');
+        const posData = await generatePosDailyReport(
+          user.tenantId,
+          dateParam,
+          user.currentBranchId || null
+        );
+        const posRows = [
+          { metric: 'Date', value: posData.date },
+          { metric: 'Total Sales', value: posData.totalSales },
+          { metric: 'Transactions', value: posData.transactionCount },
+          { metric: 'Items Sold', value: posData.itemsSold },
+          { metric: 'Average Sale', value: posData.averageSaleValue },
+          { metric: 'Total COGS', value: posData.totalCogs ?? '' },
+          { metric: 'Gross Profit', value: posData.grossProfit ?? '' },
+          { metric: 'Voided', value: posData.voidedCount ?? 0 },
+          { metric: 'Refunds', value: posData.refundCount ?? 0 }
+        ];
+        (posData.paymentBreakdown || []).forEach(p => {
+          posRows.push({ metric: `Payment: ${p.label || p.method}`, value: p.total });
+        });
+        posRows.push({ metric: 'Grand Total (Payments)', value: posData.paymentGrandTotal ?? 0 });
+        reportData = posRows;
+        headers = [{ key: 'metric', label: 'Metric' }, { key: 'value', label: 'Value' }];
+        title = `POS Daily Report ${dateParam}`;
+        break;
+      }
         
       default:
         return NextResponse.json(
@@ -160,44 +277,48 @@ export async function GET(request, { params }) {
 }
 
 /**
- * Generate Income Statement data for export
+ * Generate Income Statement data for export.
+ * Revenue: ONE line — Sales Revenue. COGS: ONE line — Cost of Goods Sold (FIFO).
  */
 async function generateIncomeStatementData(tenantId, startDate, endDate) {
-  // Get revenue data (invoices and sales)
-  const invoices = await prisma.invoice.findMany({
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  // Sales Revenue = Invoices (Paid/Completed) + POS sales (completed) — one line only
+  const invoiceAgg = await prisma.invoice.aggregate({
     where: {
       tenantId,
-      issueDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      status: { in: ['Paid', 'Completed'] },
+      issueDate: { gte: start, lte: end },
+      voidedAt: null,
+      refundedAt: null
     },
-    include: {
-      items: true
-    }
+    _sum: { total: true }
   });
-  
-  const sales = await prisma.sale.findMany({
+  const saleAgg = await prisma.sale.aggregate({
     where: {
       tenantId,
-      saleDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      status: 'completed',
+      saleDate: { gte: start, lte: end }
     },
-    include: {
-      items: true
-    }
+    _sum: { total: true }
   });
-  
-  // Get expense data
+  const totalRevenue = (Number(invoiceAgg._sum?.total ?? 0) || 0) + (Number(saleAgg._sum?.total ?? 0) || 0);
+  const revenueByCategory = { 'Sales Revenue': totalRevenue };
+
+  // COGS: One line — Cost of Goods Sold from stock/COGS integration (same source as /stock)
+  const { getCOGSTransactionStats } = await import('@/lib/cogsIntegration');
+  const cogsStats = await getCOGSTransactionStats(tenantId, start, end, null);
+  const costOfGoodsSold = Math.round(Number(cogsStats?.totalAmount ?? 0) * 100) / 100;
+  const grossProfit = totalRevenue - costOfGoodsSold;
+
+  // Get expense data (operating expenses only)
   const expenses = await prisma.expense.findMany({
     where: {
       tenantId,
-      date: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      date: { gte: start, lte: end }
     },
     select: {
       id: true,
@@ -207,31 +328,6 @@ async function generateIncomeStatementData(tenantId, startDate, endDate) {
       description: true
     }
   });
-  
-  // Process revenue data
-  const revenueByCategory = {};
-  
-  // Process invoices
-  invoices.forEach(invoice => {
-    if (invoice.status === 'Paid' || invoice.status === 'Pending') {
-      const category = 'Invoice Sales';
-      if (!revenueByCategory[category]) {
-        revenueByCategory[category] = 0;
-      }
-      revenueByCategory[category] += invoice.total;
-    }
-  });
-  
-  // Process sales
-  sales.forEach(sale => {
-    const category = 'Direct Sales';
-    if (!revenueByCategory[category]) {
-      revenueByCategory[category] = 0;
-    }
-    revenueByCategory[category] += sale.total;
-  });
-  
-  // Process expense data
   const expensesByCategory = {};
   expenses.forEach(expense => {
     if (!expensesByCategory[expense.category]) {
@@ -239,67 +335,63 @@ async function generateIncomeStatementData(tenantId, startDate, endDate) {
     }
     expensesByCategory[expense.category] += expense.amount;
   });
-  
-  // Calculate totals
-  const totalRevenue = Object.values(revenueByCategory).reduce((sum, amount) => sum + amount, 0);
   const totalExpenses = Object.values(expensesByCategory).reduce((sum, amount) => sum + amount, 0);
-  const netIncome = totalRevenue - totalExpenses;
-  
-  // Format data for export
+  const netIncome = grossProfit - totalExpenses;
+
   const exportData = [];
-  
-  // Add revenue items
+
+  // Revenue
   Object.entries(revenueByCategory).forEach(([category, amount]) => {
     exportData.push({
       type: 'Revenue',
       category,
       amount,
-      percentage: totalRevenue > 0 
-        ? ((amount / totalRevenue) * 100).toFixed(2) 
-        : '0.00'
+      percentage: totalRevenue > 0 ? ((amount / totalRevenue) * 100).toFixed(2) : '0.00'
     });
   });
-  
-  // Add revenue subtotal
   exportData.push({
     type: 'Subtotal',
     category: 'Total Revenue',
     amount: totalRevenue,
     percentage: '100.00'
   });
-  
-  // Add expenses items
+
+  // COGS — one line only
+  exportData.push({
+    type: 'COGS',
+    category: 'Cost of Goods Sold',
+    amount: costOfGoodsSold,
+    percentage: totalRevenue > 0 ? ((costOfGoodsSold / totalRevenue) * 100).toFixed(2) : '0.00'
+  });
+  exportData.push({
+    type: 'Subtotal',
+    category: 'Gross Profit',
+    amount: grossProfit,
+    percentage: totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(2) : '0.00'
+  });
+
+  // Operating expenses
   Object.entries(expensesByCategory).forEach(([category, amount]) => {
     exportData.push({
       type: 'Expense',
       category,
       amount,
-      percentage: totalRevenue > 0 
-        ? ((amount / totalRevenue) * 100).toFixed(2) 
-        : '0.00'
+      percentage: totalRevenue > 0 ? ((amount / totalRevenue) * 100).toFixed(2) : '0.00'
     });
   });
-  
-  // Add expenses subtotal
   exportData.push({
     type: 'Subtotal',
     category: 'Total Expenses',
     amount: totalExpenses,
-    percentage: totalRevenue > 0 
-      ? ((totalExpenses / totalRevenue) * 100).toFixed(2) 
-      : '0.00'
+    percentage: totalRevenue > 0 ? ((totalExpenses / totalRevenue) * 100).toFixed(2) : '0.00'
   });
-  
-  // Add net income
   exportData.push({
     type: 'Total',
     category: 'Net Income',
     amount: netIncome,
-    percentage: totalRevenue > 0 
-      ? ((netIncome / totalRevenue) * 100).toFixed(2) 
-      : '0.00'
+    percentage: totalRevenue > 0 ? ((netIncome / totalRevenue) * 100).toFixed(2) : '0.00'
   });
-  
+
   return exportData;
 }
 
@@ -644,10 +736,41 @@ function generateCSVResponse(data, headers, filename) {
 }
 
 /**
- * Generate an Excel response
+ * Flatten income statement (same source as Excel/PDF) to CSV rows. Same logic for all exports.
+ */
+function flattenIncomeStatementForCSV(statement) {
+  const totalRevenue = Number(statement?.totalRevenue ?? 0);
+  const cogsTotal = Number(statement?.cogs?.costOfProductsSold ?? statement?.cogs?.total ?? 0);
+  const grossProfit = Number(statement?.grossProfit ?? totalRevenue - cogsTotal);
+  const totalOpEx = Number(statement?.totalOperatingExpenses ?? statement?.operatingExpenses?.total ?? 0);
+  const netProfit = Number(statement?.operatingIncome ?? statement?.netIncome ?? grossProfit - totalOpEx);
+  const pct = (amt) => totalRevenue > 0 ? ((amt / totalRevenue) * 100).toFixed(2) : '0.00';
+
+  const rows = [
+    { type: 'Revenue', category: 'Sales Revenue', amount: totalRevenue, percentage: pct(totalRevenue) },
+    { type: 'Subtotal', category: 'Total Revenue', amount: totalRevenue, percentage: '100.00' },
+    { type: 'COGS', category: 'Cost of Goods Sold', amount: cogsTotal, percentage: pct(cogsTotal) },
+    { type: 'Subtotal', category: 'Gross Profit', amount: grossProfit, percentage: pct(grossProfit) }
+  ];
+  (statement?.operatingExpenses?.categories ?? []).forEach((cat) => {
+    rows.push({
+      type: 'Expense',
+      category: cat.category ?? cat.accountName ?? '',
+      amount: Number(cat.amount ?? 0),
+      percentage: pct(cat.amount ?? 0)
+    });
+  });
+  rows.push(
+    { type: 'Subtotal', category: 'Total Operating Expenses', amount: totalOpEx, percentage: pct(totalOpEx) },
+    { type: 'Total', category: 'Net Profit', amount: netProfit, percentage: pct(netProfit) }
+  );
+  return rows;
+}
+
+/**
+ * Generate an Excel response (generic)
  */
 function generateExcelResponse(data, headers, sheetName, filename) {
-  // Convert data for XLSX format
   const worksheetData = data.map(item => {
     const row = {};
     headers.forEach(header => {
@@ -655,27 +778,109 @@ function generateExcelResponse(data, headers, sheetName, filename) {
     });
     return row;
   });
-  
-  // Create worksheet
   const worksheet = XLSX.utils.json_to_sheet(worksheetData);
-  
-  // Create workbook and add the worksheet
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName || 'Report');
-  
-  // Generate Excel buffer
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-  
-  // Create response with Excel content
-  const response = new NextResponse(excelBuffer, {
+  return new NextResponse(excelBuffer, {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="${filename}"`
     }
   });
-  
-  return response;
+}
+
+/**
+ * Income Statement Excel export: one worksheet, clean layout, values only.
+ * Styling: headings bold, totals bold with top border, currency format, negative in brackets.
+ */
+async function generateIncomeStatementExcelResponse(statement, startDate, endDate, filename = 'income-statement.xlsx') {
+  const ExcelJS = (await import('exceljs')).default;
+  const periodLabel = startDate && endDate ? `${startDate} to ${endDate}` : (statement?.period ? `${statement.period.startDate} to ${statement.period.endDate}` : '');
+  const totalRevenue = Number(statement?.totalRevenue ?? 0);
+  const cogsTotal = Number(statement?.cogs?.costOfProductsSold ?? statement?.cogs?.total ?? 0);
+  const grossProfit = Number(statement?.grossProfit ?? totalRevenue - cogsTotal);
+  const operatingExpenses = statement?.operatingExpenses?.categories ?? [];
+  const totalOperatingExpenses = Number(statement?.totalOperatingExpenses ?? statement?.operatingExpenses?.total ?? 0);
+  const netProfit = Number(statement?.operatingIncome ?? statement?.netIncome ?? grossProfit - totalOperatingExpenses);
+
+  const workbook = new ExcelJS.Workbook();
+  const ws = workbook.addWorksheet('Income Statement', { views: [{ state: 'normal' }] });
+
+  const currencyNumFmt = '#,##0.00;(#,##0.00)';
+  const setAmount = (row, col, value) => {
+    const cell = row.getCell(col);
+    cell.value = value;
+    cell.numFmt = currencyNumFmt;
+    cell.alignment = { horizontal: 'right' };
+  };
+
+  let rowNum = 1;
+  const r1 = ws.getRow(rowNum++);
+  r1.getCell(1).value = 'Profit & Loss Statement';
+  r1.getCell(1).font = { bold: true };
+  r1.height = 22;
+
+  const r2 = ws.getRow(rowNum++);
+  r2.getCell(1).value = 'Period';
+  r2.getCell(1).font = { bold: true };
+  r2.getCell(2).value = periodLabel;
+
+  rowNum++;
+  const rRev = ws.getRow(rowNum++);
+  rRev.getCell(1).value = 'Revenue';
+  rRev.getCell(1).font = { bold: true };
+  setAmount(rRev, 2, totalRevenue);
+
+  const rCogs = ws.getRow(rowNum++);
+  rCogs.getCell(1).value = 'Cost of Goods Sold';
+  rCogs.getCell(1).font = { bold: true };
+  setAmount(rCogs, 2, cogsTotal);
+
+  const rGp = ws.getRow(rowNum++);
+  rGp.getCell(1).value = 'Gross Profit';
+  rGp.getCell(1).font = { bold: true };
+  setAmount(rGp, 2, grossProfit);
+
+  rowNum++;
+  const rOpHeader = ws.getRow(rowNum++);
+  rOpHeader.getCell(1).value = 'Operating Expenses';
+  rOpHeader.getCell(1).font = { bold: true };
+
+  operatingExpenses.forEach((cat) => {
+    const r = ws.getRow(rowNum++);
+    r.getCell(1).value = cat.category ?? cat.accountName ?? '';
+    setAmount(r, 2, Number(cat.amount ?? 0));
+  });
+
+  const rTotalOp = ws.getRow(rowNum++);
+  rTotalOp.getCell(1).value = 'Total Operating Expenses';
+  rTotalOp.getCell(1).font = { bold: true };
+  rTotalOp.getCell(1).border = { top: { style: 'thin' } };
+  setAmount(rTotalOp, 2, totalOperatingExpenses);
+  rTotalOp.getCell(2).border = { top: { style: 'thin' } };
+
+  rowNum++;
+  const rNet = ws.getRow(rowNum++);
+  rNet.getCell(1).value = 'Net Profit';
+  rNet.getCell(1).font = { bold: true };
+  rNet.getCell(1).border = { top: { style: 'thin' } };
+  setAmount(rNet, 2, netProfit);
+  rNet.getCell(2).border = { top: { style: 'thin' } };
+
+  ws.getColumn(1).width = 28;
+  ws.getColumn(2).width = 18;
+
+  const buffer = await workbook.xlsx.writeBuffer();
+
+  return new NextResponse(buffer, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${filename}"`
+    }
+  });
 }
 
 /**
@@ -820,31 +1025,20 @@ async function generatePDFResponse(data, headers, title, filename, options = {})
  */
 async function generateIncomeStatementPDF(tenantId, startDate, endDate, request) {
   try {
-    // Import the generateIncomeStatement function
-    const { generateIncomeStatement } = await import('@/app/api/reports/income-statement/route');
-    
-    // Get tenant settings for tax rate
+    const { generateIncomeStatementFromAccounts } = await import('@/lib/incomeStatementService');
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { 
-        name: true,
-        logoUrl: true
-      }
+      select: { name: true, logoUrl: true }
     });
-    
-    const tenantSettings = await prisma.tenantSettings.findUnique({
-      where: { tenantId }
-    });
-    const taxRate = tenantSettings?.defaultTaxRate || 30;
-    
-    // Generate income statement data
-    const data = await generateIncomeStatement(
+    const url = request?.url ? new URL(request.url) : null;
+    const branchId = url?.searchParams?.get('branchId') || null;
+    const data = await generateIncomeStatementFromAccounts(
       tenantId,
       startDate,
       endDate,
-      taxRate,
       tenant?.name || 'Company',
-      tenant?.logoUrl || null
+      tenant?.logoUrl || null,
+      branchId
     );
     
     // Use dynamic imports for server-side compatibility
@@ -889,7 +1083,7 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
     
     const companyName = data.companyName || 'Company';
     const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
-    const totalRevenue = data.revenue?.total || 0;
+    const totalRevenue = data.totalRevenue ?? data.revenue?.total ?? 0;
     
     // Company Header
     doc.setFontSize(18);
@@ -912,112 +1106,52 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
     // Build table data matching the component structure
     const tableData = [];
     
-    // REVENUE SECTION
+    // REVENUE SECTION — one line: Sales Revenue
     tableData.push(['REVENUE', '', '', '']);
-    
-    const salesRevenue = getValue(data.revenue?.salesRevenue) || 0;
-    const salesRevenuePct = getPercentage(data.revenue?.salesRevenue, totalRevenue);
-    tableData.push(['Sales Revenue', '', formatCurrency(salesRevenue), `${salesRevenuePct.toFixed(1)}%`]);
-    
-    const serviceRevenue = getValue(data.revenue?.serviceRevenue) || 0;
-    const serviceRevenuePct = getPercentage(data.revenue?.serviceRevenue, totalRevenue);
-    tableData.push(['Service Revenue', '', formatCurrency(serviceRevenue), `${serviceRevenuePct.toFixed(1)}%`]);
-    
-    const otherIncome = getValue(data.revenue?.otherIncome) || 0;
-    const otherIncomePct = getPercentage(data.revenue?.otherIncome, totalRevenue);
-    tableData.push(['Other Income', '', formatCurrency(otherIncome), `${otherIncomePct.toFixed(1)}%`]);
-    
+    (data.revenue?.lineItems || []).forEach((li) => {
+      const amt = li.amount ?? 0;
+      const pct = totalRevenue > 0 ? (amt / totalRevenue) * 100 : 0;
+      tableData.push([li.label || 'Sales Revenue', '', formatCurrency(amt), `${pct.toFixed(1)}%`]);
+    });
+    if (!(data.revenue?.lineItems?.length)) {
+      tableData.push(['Sales Revenue', '', formatCurrency(totalRevenue), '100.0%']);
+    }
     tableData.push(['Total Revenue', '', formatCurrency(totalRevenue), '100.0%']);
-    
-    // COGS SECTION
+
+    // COGS SECTION — one line only: Cost of Goods Sold (FIFO)
     tableData.push(['COST OF GOODS SOLD', '', '', '']);
-    
-    const costOfProductsSold = getValue(data.cogs?.costOfProductsSold) || 0;
-    const costOfProductsSoldPct = getPercentage(data.cogs?.costOfProductsSold, totalRevenue);
-    tableData.push(['Cost of Products Sold', '', formatCurrency(costOfProductsSold), `${costOfProductsSoldPct.toFixed(1)}%`]);
-    
-    const freightShipping = getValue(data.cogs?.freightShippingCosts) || 0;
-    const freightShippingPct = getPercentage(data.cogs?.freightShippingCosts, totalRevenue);
-    tableData.push(['Freight/Shipping Costs', '', formatCurrency(freightShipping), `${freightShippingPct.toFixed(1)}%`]);
-    
-    const totalCOGS = getValue(data.cogs?.total) || 0;
-    const totalCOGSPct = getPercentage(data.cogs?.total, totalRevenue);
+    const totalCOGS = getValue(data.cogs?.total) ?? data.cogs?.costOfProductsSold ?? 0;
+    const totalCOGSPct = totalRevenue > 0 ? (totalCOGS / totalRevenue) * 100 : 0;
+    (data.cogs?.lineItems || []).forEach((li) => {
+      const amt = li.amount ?? 0;
+      const pct = totalRevenue > 0 ? (amt / totalRevenue) * 100 : 0;
+      tableData.push([li.label || 'Cost of Goods Sold', '', formatCurrency(amt), `${pct.toFixed(1)}%`]);
+    });
+    if (!(data.cogs?.lineItems?.length) && totalCOGS !== 0) {
+      tableData.push(['Cost of Goods Sold', '', formatCurrency(totalCOGS), `${totalCOGSPct.toFixed(1)}%`]);
+    }
     tableData.push(['Total Cost of Goods Sold', '', formatCurrency(totalCOGS), `${totalCOGSPct.toFixed(1)}%`]);
-    
+
     const grossProfit = getValue(data.grossProfit) || 0;
     const grossProfitPct = getPercentage(data.grossProfit, totalRevenue);
     tableData.push(['GROSS PROFIT', '', formatCurrency(grossProfit), `${grossProfitPct.toFixed(1)}%`]);
     
-    // OPERATING EXPENSES SECTION
+    // OPERATING EXPENSES SECTION — dynamic categories
     tableData.push(['OPERATING EXPENSES', '', '', '']);
-    
-    const salariesWages = getValue(data.operatingExpenses?.salariesWages) || 0;
-    const salariesWagesPct = getPercentage(data.operatingExpenses?.salariesWages, totalRevenue);
-    tableData.push(['Salaries & Wages', '', formatCurrency(salariesWages), `${salariesWagesPct.toFixed(1)}%`]);
-    
-    const rentExpense = getValue(data.operatingExpenses?.rentExpense) || 0;
-    const rentExpensePct = getPercentage(data.operatingExpenses?.rentExpense, totalRevenue);
-    tableData.push(['Rent Expense', '', formatCurrency(rentExpense), `${rentExpensePct.toFixed(1)}%`]);
-    
-    const utilitiesExpense = getValue(data.operatingExpenses?.utilitiesExpense) || 0;
-    const utilitiesExpensePct = getPercentage(data.operatingExpenses?.utilitiesExpense, totalRevenue);
-    tableData.push(['Utilities Expense', '', formatCurrency(utilitiesExpense), `${utilitiesExpensePct.toFixed(1)}%`]);
-    
-    const officeSupplies = getValue(data.operatingExpenses?.officeSupplies) || 0;
-    const officeSuppliesPct = getPercentage(data.operatingExpenses?.officeSupplies, totalRevenue);
-    tableData.push(['Office Supplies', '', formatCurrency(officeSupplies), `${officeSuppliesPct.toFixed(1)}%`]);
-    
-    const marketingAdvertising = getValue(data.operatingExpenses?.marketingAdvertising) || 0;
-    const marketingAdvertisingPct = getPercentage(data.operatingExpenses?.marketingAdvertising, totalRevenue);
-    tableData.push(['Marketing & Advertising', '', formatCurrency(marketingAdvertising), `${marketingAdvertisingPct.toFixed(1)}%`]);
-    
-    const insurance = getValue(data.operatingExpenses?.insurance) || 0;
-    const insurancePct = getPercentage(data.operatingExpenses?.insurance, totalRevenue);
-    tableData.push(['Insurance', '', formatCurrency(insurance), `${insurancePct.toFixed(1)}%`]);
-    
-    const depreciation = getValue(data.operatingExpenses?.depreciation) || 0;
-    const depreciationPct = getPercentage(data.operatingExpenses?.depreciation, totalRevenue);
-    tableData.push(['Depreciation', '', formatCurrency(depreciation), `${depreciationPct.toFixed(1)}%`]);
-    
-    const otherOperatingExpenses = getValue(data.operatingExpenses?.otherOperatingExpenses) || 0;
-    const otherOperatingExpensesPct = getPercentage(data.operatingExpenses?.otherOperatingExpenses, totalRevenue);
-    tableData.push(['Other Operating Expenses', '', formatCurrency(otherOperatingExpenses), `${otherOperatingExpensesPct.toFixed(1)}%`]);
-    
-    const totalOperatingExpenses = getValue(data.operatingExpenses?.total) || 0;
-    const totalOperatingExpensesPct = getPercentage(data.operatingExpenses?.total, totalRevenue);
+    const categories = data.operatingExpenses?.categories || [];
+    categories.forEach((cat) => {
+      const amt = cat.amount ?? 0;
+      const pct = totalRevenue > 0 ? (amt / totalRevenue) * 100 : 0;
+      tableData.push([cat.accountName || cat.category || 'Expense', '', formatCurrency(amt), `${pct.toFixed(1)}%`]);
+    });
+    const totalOperatingExpenses = data.totalOperatingExpenses ?? getValue(data.operatingExpenses?.total) ?? 0;
+    const totalOperatingExpensesPct = totalRevenue > 0 ? (totalOperatingExpenses / totalRevenue) * 100 : 0;
     tableData.push(['Total Operating Expenses', '', formatCurrency(totalOperatingExpenses), `${totalOperatingExpensesPct.toFixed(1)}%`]);
     
-    const operatingIncome = getValue(data.operatingIncome) || 0;
-    const operatingIncomePct = getPercentage(data.operatingIncome, totalRevenue);
-    tableData.push(['OPERATING INCOME', '', formatCurrency(operatingIncome), `${operatingIncomePct.toFixed(1)}%`]);
-    
-    // OTHER INCOME/(EXPENSES) SECTION
-    tableData.push(['OTHER INCOME/(EXPENSES)', '', '', '']);
-    
-    const interestIncome = getValue(data.otherIncomeExpenses?.interestIncome) || 0;
-    const interestIncomePct = getPercentage(data.otherIncomeExpenses?.interestIncome, totalRevenue);
-    tableData.push(['Interest Income', '', formatCurrency(interestIncome), `${interestIncomePct.toFixed(1)}%`]);
-    
-    const interestExpense = getValue(data.otherIncomeExpenses?.interestExpense) || 0;
-    const interestExpensePct = getPercentage(data.otherIncomeExpenses?.interestExpense, totalRevenue);
-    tableData.push(['Interest Expense', '', formatCurrency(interestExpense), `${interestExpensePct.toFixed(1)}%`]);
-    
-    const gainLossOnAssetSales = getValue(data.otherIncomeExpenses?.gainLossOnAssetSales) || 0;
-    const gainLossOnAssetSalesPct = getPercentage(data.otherIncomeExpenses?.gainLossOnAssetSales, totalRevenue);
-    tableData.push(['Gain/Loss on Asset Sales', '', formatCurrency(gainLossOnAssetSales), `${gainLossOnAssetSalesPct.toFixed(1)}%`]);
-    
-    const netIncomeBeforeTax = getValue(data.netIncomeBeforeTax) || 0;
-    const netIncomeBeforeTaxPct = getPercentage(data.netIncomeBeforeTax, totalRevenue);
-    tableData.push(['NET INCOME BEFORE TAX', '', formatCurrency(netIncomeBeforeTax), `${netIncomeBeforeTaxPct.toFixed(1)}%`]);
-    
-    const incomeTaxExpense = getValue(data.incomeTaxExpense) || 0;
-    const incomeTaxExpensePct = getPercentage(data.incomeTaxExpense, totalRevenue);
-    const incomeTaxRate = data.incomeTaxExpense?.rate || 0;
-    tableData.push([`Income Tax Expense (${incomeTaxRate}%)`, '', formatCurrency(incomeTaxExpense), `${incomeTaxExpensePct.toFixed(1)}%`]);
-    
-    const netIncome = getValue(data.netIncome) || 0;
-    const netIncomePct = getPercentage(netIncome, totalRevenue);
-    tableData.push(['NET INCOME', '', formatCurrency(netIncome), `${netIncomePct.toFixed(1)}%`]);
+    // Net Profit / Loss = Gross Profit – Total Operating Expenses (one final line)
+    const netProfitLoss = getValue(data.operatingIncome) ?? getValue(data.netIncome) ?? 0;
+    const netProfitLossPct = getPercentage(netProfitLoss, totalRevenue);
+    tableData.push(['NET PROFIT / LOSS', '', formatCurrency(netProfitLoss), `${netProfitLossPct.toFixed(1)}%`]);
     
     // Add table with custom styling
     autoTable(doc, {
@@ -1057,10 +1191,10 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
           }
           // Style totals
           if (cellValue && (cellValue.includes('Total') || cellValue.includes('PROFIT') || cellValue.includes('INCOME'))) {
-            if (cellValue === 'NET INCOME') {
+            if (cellValue === 'NET PROFIT / LOSS') {
               data.cell.styles.fontStyle = 'bold';
               data.cell.styles.fontSize = 11;
-              data.cell.styles.textColor = netIncome >= 0 ? [0, 128, 0] : [255, 0, 0];
+              data.cell.styles.textColor = netProfitLoss >= 0 ? [0, 0, 0] : [255, 0, 0];
             } else {
               data.cell.styles.fontStyle = 'bold';
             }

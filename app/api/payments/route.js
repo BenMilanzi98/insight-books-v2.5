@@ -430,8 +430,12 @@ export async function POST(request) {
         where: { id: paymentAllocationsList[0].paymentAccountId }
       });
       paymentMethod = firstAccount?.name || 'cash';
+    } else if (type === 'transfer' && sourceAccount && destinationAccount) {
+      // Transfer: source may be Capital (Account) or PaymentAccount; destination is PaymentAccount. Allocations = destination receives amount.
+      paymentAllocationsList = [{ paymentAccountId: destinationAccount, amount: amount }];
+      paymentMethod = 'Transfer';
     } else {
-      // Legacy format: single sourceAccount
+      // Legacy format: single sourceAccount (invoice/sale/expense)
       if (!sourceAccount) {
         return NextResponse.json({ error: 'Source account or payment allocations are required' }, { status: 400 });
       }
@@ -499,8 +503,91 @@ export async function POST(request) {
     if (type === "expense" && paymentAllocationsList.length === 0) {
       return NextResponse.json({ error: 'Source account is required for expense' }, { status: 400 });
     }
-    if (type === "transfer" && (!sourceAccount || !destinationAccount)) {
-      return NextResponse.json({ error: 'Both source and destination accounts are required for transfer' }, { status: 400 });
+    if (type === "transfer") {
+      if (!sourceAccount || !destinationAccount) {
+        return NextResponse.json({ error: 'Both source and destination accounts are required for transfer' }, { status: 400 });
+      }
+      
+      // Validate that both accounts exist and are active
+      // Check both Account and PaymentAccount models
+      const [sourceAccountRecord, destAccountRecord, sourcePaymentAccountRecord, destPaymentAccountRecord] = await Promise.all([
+        prisma.account.findFirst({
+          where: {
+            id: sourceAccount,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        }),
+        prisma.account.findFirst({
+          where: {
+            id: destinationAccount,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        }),
+        prisma.paymentAccount.findFirst({
+          where: {
+            id: sourceAccount,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        }),
+        prisma.paymentAccount.findFirst({
+          where: {
+            id: destinationAccount,
+            tenantId: user.tenantId,
+            isActive: true
+          }
+        })
+      ]);
+      
+      const validSource = sourceAccountRecord || sourcePaymentAccountRecord;
+      const validDestination = destAccountRecord || destPaymentAccountRecord;
+      
+      if (!validSource) {
+        return NextResponse.json({ 
+          error: 'Source account not found or inactive. Please ensure the account exists and is active.' 
+        }, { status: 404 });
+      }
+      
+      if (!validDestination) {
+        return NextResponse.json({ 
+          error: 'Destination account not found or inactive. Please ensure the account exists and is active.' 
+        }, { status: 404 });
+      }
+      
+      // Validate sufficient balance for source account
+      const { getAccountBalanceDetails } = await import('@/lib/accountBalanceService');
+      let sourceBalance = 0;
+      
+      try {
+        if (sourceAccountRecord) {
+          const sourceDetails = await getAccountBalanceDetails(sourceAccount, user.tenantId);
+          sourceBalance = sourceDetails.balance || 0;
+          // Use stored Account.balance when transaction-based balance is 0 (e.g. capital initial balance)
+          if (sourceBalance === 0 && sourceAccountRecord.balance != null) {
+            const stored = parseFloat(sourceAccountRecord.balance);
+            if (!Number.isNaN(stored) && stored > 0) sourceBalance = stored;
+          }
+        } else if (sourcePaymentAccountRecord) {
+          const accountBalance = await prisma.accountBalance.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              account: sourceAccount
+            }
+          });
+          sourceBalance = accountBalance?.balance || sourcePaymentAccountRecord.currentBalance || 0;
+        }
+      } catch (error) {
+        console.warn('Could not get source account balance:', error.message);
+        sourceBalance = sourceAccountRecord?.balance || sourcePaymentAccountRecord?.currentBalance || 0;
+      }
+      
+      if (sourceBalance < amount) {
+        return NextResponse.json({ 
+          error: `Insufficient balance in source account. Available: ${sourceBalance}, Required: ${amount}` 
+        }, { status: 400 });
+      }
     }
     // Special handling for invoices
     let invoice = null;
@@ -522,11 +609,27 @@ export async function POST(request) {
     }
 
     // Find capital account for transfer validation
+    // Check both accountType and type fields for compatibility
     const capitalAccount = await prisma.account.findFirst({
       where: {
         tenantId: user.tenantId,
-        type: 'EQUITY',
-        name: { contains: 'Capital', mode: 'insensitive' }
+        isActive: true,
+        AND: [
+          {
+            OR: [
+              { accountType: 'Equity' },
+              { accountType: 'EQUITY' },
+              { type: 'Equity' },
+              { type: 'EQUITY' }
+            ]
+          },
+          {
+            OR: [
+              { accountName: { contains: 'Capital', mode: 'insensitive' } },
+              { name: { contains: 'Capital', mode: 'insensitive' } }
+            ]
+          }
+        ]
       }
     });
 
@@ -552,7 +655,7 @@ export async function POST(request) {
         tenantId: user.tenantId,
         branchId: branchId,
         type,
-        sourceAccount: paymentMethod, // Keep for backward compatibility
+        sourceAccount: type === 'transfer' ? sourceAccount : paymentMethod, // For transfer keep actual source (e.g. capital account id)
         destinationAccount: destinationAccount || null,
         allocations: {
           create: paymentAllocationsList.map(alloc => ({

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import Image from "next/image";
-import { Eye, Search, Download, Calendar } from "lucide-react";
+import { Eye, Search, Download, Calendar, X, FileText, Receipt, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 import SupplierForm from "@/components/purchases/SupplierForm";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
@@ -61,6 +61,431 @@ function ConfirmDialog({ title, message, onConfirm, onCancel, loading }) {
             className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white  hover:bg-red-700 disabled:opacity-50"
           >
             {loading ? "Removing…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SupplierTransactionsModal({ supplier, transactions, onClose, loading }) {
+  if (!supplier) return null;
+
+  const summary = transactions?.summary || {};
+  const bills = summary.bills || {};
+  const expenses = summary.expenses || {};
+  const payments = summary.payments || {};
+  const billsList = transactions?.bills || [];
+  const expensesList = transactions?.expenses || [];
+  const paymentsList = transactions?.payments || [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div 
+        className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 bg-gradient-to-r from-indigo-50 to-blue-50 px-6 py-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">{supplier.supplierName}</h2>
+            <p className="text-sm text-gray-600 mt-1">Code: {supplier.supplierCode}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-2 text-gray-400 hover:bg-white hover:text-gray-600 transition-colors"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="overflow-y-auto max-h-[calc(90vh-140px)]">
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-500">Loading transactions...</div>
+            </div>
+          ) : transactions ? (
+            <div className="p-6 space-y-6">
+              {/* Overall Summary */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <DollarSign size={16} className="text-indigo-600" />
+                    Total Owed
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-red-600">
+                    {formatMoney(summary.totalOwed || 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Bills: {formatMoney(bills.billsOutstanding || 0)} + Expenses: {formatMoney(expenses.expensesOutstanding || 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <FileText size={16} className="text-blue-600" />
+                    Total Billed
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-gray-900">
+                    {formatMoney(summary.totalBilled || 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Bills: {formatMoney(bills.totalBillsAmount || 0)} + Expenses: {formatMoney(expenses.totalExpensesAmount || 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <TrendingDown size={16} className="text-green-600" />
+                    Total Paid
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-green-600">
+                    {formatMoney(summary.totalPaid || 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Bills: {formatMoney(bills.totalBillsPaid || 0)} + Expenses: {formatMoney(expenses.totalExpensesPaid || 0)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <TrendingUp size={16} className="text-orange-600" />
+                    Current Balance
+                  </div>
+                  <div className="mt-2 text-2xl font-bold text-orange-600">
+                    {formatMoney(summary.currentBalance || 0)}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    From supplier record
+                  </div>
+                </div>
+              </div>
+
+              {/* Bills Section */}
+              <div className="rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <Receipt size={20} className="text-indigo-600" />
+                    Bills Summary
+                  </h3>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <div className="text-xs text-gray-500">Total Bills</div>
+                      <div className="text-lg font-semibold text-gray-900">{bills.totalBills || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Total Amount</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatMoney(bills.totalBillsAmount || 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Amount Paid</div>
+                      <div className="text-lg font-semibold text-green-600">{formatMoney(bills.totalBillsPaid || 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-lg font-semibold text-red-600">{formatMoney(bills.billsOutstanding || 0)}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                      Paid: {bills.paidBillsCount || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                      Partial: {bills.partiallyPaidBillsCount || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded">
+                      Unpaid: {bills.unpaidBillsCount || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Expenses Section */}
+              <div className="rounded-lg border border-gray-200 bg-white">
+                <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                  <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <FileText size={20} className="text-blue-600" />
+                    Expenses Summary
+                  </h3>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                      <div className="text-xs text-gray-500">Total Expenses</div>
+                      <div className="text-lg font-semibold text-gray-900">{expenses.totalExpenses || 0}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Total Amount</div>
+                      <div className="text-lg font-semibold text-gray-900">{formatMoney(expenses.totalExpensesAmount || 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Amount Paid</div>
+                      <div className="text-lg font-semibold text-green-600">{formatMoney(expenses.totalExpensesPaid || 0)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500">Outstanding</div>
+                      <div className="text-lg font-semibold text-red-600">{formatMoney(expenses.expensesOutstanding || 0)}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 text-xs">
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded">
+                      Fully Paid: {expenses.fullyPaidExpensesCount || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                      Partial: {expenses.partiallyPaidExpensesCount || 0}
+                    </span>
+                    <span className="px-2 py-1 bg-red-100 text-red-800 rounded">
+                      Unpaid: {expenses.unpaidExpensesCount || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payments Section */}
+              {payments.totalPayments > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <DollarSign size={20} className="text-green-600" />
+                      Payments Summary
+                    </h3>
+                  </div>
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <div className="text-xs text-gray-500">Total Payments</div>
+                        <div className="text-lg font-semibold text-gray-900">{payments.totalPayments || 0}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Total Amount Paid</div>
+                        <div className="text-lg font-semibold text-green-600">{formatMoney(payments.totalPaymentsAmount || 0)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">Allocated to Bills</div>
+                        <div className="text-lg font-semibold text-blue-600">{formatMoney(payments.paymentsToBills || 0)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* All Bills */}
+              {billsList.length > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">All Bills ({billsList.length})</h3>
+                    {billsList.length > 10 && (
+                      <span className="text-xs text-gray-500">Showing all bills</span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Bill Number</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Due Date</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Balance</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {billsList.map((bill) => (
+                          <tr key={bill.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm font-medium text-gray-900">{bill.billNumber}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {new Date(bill.billDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {bill.dueDate ? new Date(bill.dueDate).toLocaleDateString() : '-'}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-900">{formatMoney(bill.totalAmount)}</td>
+                            <td className="px-4 py-2 text-sm text-right text-green-600">{formatMoney(bill.amountPaid)}</td>
+                            <td className="px-4 py-2 text-sm text-right text-red-600 font-semibold">{formatMoney(bill.balanceDue)}</td>
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                bill.status === 'Paid' ? 'bg-green-100 text-green-800' :
+                                bill.status === 'Partially Paid' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {bill.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {billsList.length > 0 && (
+                        <tfoot className="bg-gray-50">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Totals:</td>
+                            <td className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">
+                              {formatMoney(billsList.reduce((sum, b) => sum + (Number(b.totalAmount) || 0), 0))}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-semibold text-green-600 text-right">
+                              {formatMoney(billsList.reduce((sum, b) => sum + (Number(b.amountPaid) || 0), 0))}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-semibold text-red-600 text-right">
+                              {formatMoney(billsList.reduce((sum, b) => sum + (Number(b.balanceDue) || 0), 0))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* All Expenses */}
+              {expensesList.length > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">All Expenses ({expensesList.length})</h3>
+                    {expensesList.length > 10 && (
+                      <span className="text-xs text-gray-500">Showing all expenses</span>
+                    )}
+                  </div>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Description</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Category</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Paid</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Balance</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {expensesList.map((expense) => (
+                          <tr key={expense.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm font-medium text-gray-900">{expense.description}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {new Date(expense.date).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{expense.category || '-'}</td>
+                            <td className="px-4 py-2 text-sm text-right text-gray-900">{formatMoney(expense.amount)}</td>
+                            <td className="px-4 py-2 text-sm text-right text-green-600">{formatMoney(expense.paidAmount)}</td>
+                            <td className="px-4 py-2 text-sm text-right text-red-600 font-semibold">{formatMoney(expense.balanceDue)}</td>
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                                expense.paymentStatus === 'Fully paid' ? 'bg-green-100 text-green-800' :
+                                expense.paymentStatus === 'Partially' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}>
+                                {expense.paymentStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {expensesList.length > 0 && (
+                        <tfoot className="bg-gray-50">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Totals:</td>
+                            <td className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">
+                              {formatMoney(expensesList.reduce((sum, e) => sum + (Number(e.amount) || 0), 0))}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-semibold text-green-600 text-right">
+                              {formatMoney(expensesList.reduce((sum, e) => sum + (Number(e.paidAmount) || 0), 0))}
+                            </td>
+                            <td className="px-4 py-2 text-sm font-semibold text-red-600 text-right">
+                              {formatMoney(expensesList.reduce((sum, e) => sum + (Number(e.balanceDue) || 0), 0))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* All Payments */}
+              {paymentsList.length > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-white">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">All Payments ({paymentsList.length})</h3>
+                  </div>
+                  <div className="overflow-x-auto max-h-96">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Payment Number</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Date</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Method</th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500">Amount</th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Allocated Bills</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {paymentsList.map((payment) => (
+                          <tr key={payment.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-2 text-sm font-medium text-gray-900">{payment.paymentNumber}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {new Date(payment.paymentDate).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 py-2 text-sm text-gray-600">{payment.paymentMethod || '-'}</td>
+                            <td className="px-4 py-2 text-sm text-right text-green-600 font-semibold">{formatMoney(payment.totalAmount)}</td>
+                            <td className="px-4 py-2 text-sm text-gray-600">
+                              {payment.allocations && payment.allocations.length > 0 ? (
+                                <div className="space-y-1">
+                                  {payment.allocations.map((alloc) => (
+                                    <div key={alloc.id} className="text-xs">
+                                      {alloc.bill?.billNumber || 'N/A'}: {formatMoney(alloc.amount)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400">No allocations</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      {paymentsList.length > 0 && (
+                        <tfoot className="bg-gray-50">
+                          <tr>
+                            <td colSpan={3} className="px-4 py-2 text-sm font-semibold text-gray-900 text-right">Total:</td>
+                            <td className="px-4 py-2 text-sm font-semibold text-green-600 text-right">
+                              {formatMoney(paymentsList.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {billsList.length === 0 && expensesList.length === 0 && paymentsList.length === 0 && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center">
+                  <FileText size={48} className="mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-600 font-medium">No transactions found</p>
+                  <p className="text-sm text-gray-500 mt-2">This supplier has no bills, expenses, or payments recorded.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-gray-500">No transaction data available</div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 flex justify-end">
+          <button
+            onClick={onClose}
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+          >
+            Close
           </button>
         </div>
       </div>
@@ -1551,6 +1976,9 @@ export default function SuppliersPage() {
   const [deletingSupplier, setDeletingSupplier] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [viewingSupplierTransactions, setViewingSupplierTransactions] = useState(null);
+  const [supplierTransactions, setSupplierTransactions] = useState(null);
+  const [loadingTransactions, setLoadingTransactions] = useState(false);
   
   // Bills state
   const [bills, setBills] = useState([]);
@@ -2453,6 +2881,15 @@ export default function SuppliersPage() {
                     </div>
                   </th>
                   <th 
+                    className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("currentBalance")}
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      Balance Owed
+                      {sortBy === "currentBalance" && (sortOrder === "asc" ? "↑" : "↓")}
+                    </div>
+                  </th>
+                  <th 
                     className="px-4 py-2 text-left text-xs font-medium uppercase tracking-wider text-gray-500 cursor-pointer hover:bg-gray-100"
                     onClick={() => handleSort("isActive")}
                   >
@@ -2495,6 +2932,14 @@ export default function SuppliersPage() {
                     <td className="px-4 py-2 text-gray-700">
                       {supplier.paymentTerms ?? 30} days
                     </td>
+                    <td className="px-4 py-2 text-right">
+                      <div className="font-semibold text-gray-900">
+                        {formatMoney(supplier.currentBalance || 0)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {supplier._count?.supplierBills || 0} bills, {supplier._count?.expenses || 0} expenses
+                      </div>
+                    </td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                         supplier.isActive !== false 
@@ -2506,6 +2951,36 @@ export default function SuppliersPage() {
                     </td>
                     <td className="px-4 py-2 text-right">
                       <div className="flex justify-end gap-2">
+                        <button
+                          className="rounded-md border border-indigo-200 px-3 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50"
+                          onClick={async () => {
+                            setViewingSupplierTransactions(supplier);
+                            setLoadingTransactions(true);
+                            setSupplierTransactions(null);
+                            try {
+                              const res = await fetch(`/api/purchases/suppliers/${supplier.id}/transactions`);
+                              if (res.ok) {
+                                const data = await res.json();
+                                setSupplierTransactions(data);
+                              } else {
+                                const errorData = await res.json().catch(() => ({}));
+                                console.error('Error fetching transactions:', errorData.error);
+                                alert(`Error: ${errorData.error || 'Failed to fetch transactions'}`);
+                                setViewingSupplierTransactions(null);
+                              }
+                            } catch (err) {
+                              console.error('Error fetching transactions:', err);
+                              alert(`Error: ${err.message || 'Failed to fetch transactions'}`);
+                              setViewingSupplierTransactions(null);
+                            } finally {
+                              setLoadingTransactions(false);
+                            }
+                          }}
+                          title="View all transactions"
+                        >
+                          <Eye size={14} className="inline mr-1" />
+                          View
+                        </button>
                         <button
                           className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
                           onClick={() => {
@@ -3993,6 +4468,19 @@ export default function SuppliersPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* Supplier Transactions Modal */}
+      {viewingSupplierTransactions && (
+        <SupplierTransactionsModal
+          supplier={viewingSupplierTransactions}
+          transactions={supplierTransactions}
+          loading={loadingTransactions}
+          onClose={() => {
+            setViewingSupplierTransactions(null);
+            setSupplierTransactions(null);
+          }}
+        />
       )}
     </div>
   );

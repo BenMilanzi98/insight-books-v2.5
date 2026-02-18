@@ -19,11 +19,18 @@ export async function GET(request) {
     }
     
     const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant context required' },
+        { status: 401 }
+      );
+    }
     const now = new Date();
     
-    // Get date range from query parameters
+    // Get date range from query parameters (front-end may send 'thisMonth')
     const { searchParams } = new URL(request.url);
-    const dateRange = searchParams.get('dateRange') || 'month';
+    const dateRangeParam = searchParams.get('dateRange') || 'month';
+    const dateRange = dateRangeParam === 'thisMonth' ? 'month' : dateRangeParam;
     
     // Calculate date range based on the parameter
     let startDate, endDate;
@@ -128,38 +135,62 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // Get upcoming expenses that are not paid yet, created within the date range
-    const expenses = await prisma.expense.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
-        status: 'Pending',
-        date: {
-          gte: now
-        },
-        createdAt: {
-          gte: startDate,
-          lte: endDate
+    // Upcoming = not fully paid, due on or after today; optionally scoped by creation date range
+    const baseWhere = {
+      tenantId,
+      isDeleted: false,
+      paymentStatus: { in: ['Pending', 'Partially'] },
+      date: { gte: now }
+    };
+    // Optionally limit to expenses created in the selected period (e.g. "this month")
+    if (startDate != null && endDate != null) {
+      baseWhere.createdAt = {
+        gte: startDate,
+        lte: endDate
+      };
+    }
+    const whereClause = addBranchFilter(user, { ...baseWhere });
+
+    let expenses = [];
+    try {
+      expenses = await prisma.expense.findMany({
+        where: whereClause,
+        orderBy: { date: 'asc' },
+        take: 3,
+        select: {
+          id: true,
+          description: true,
+          amount: true,
+          date: true
         }
-      }),
-      orderBy: {
-        date: 'asc'
-      },
-      take: 3
-    });
-    
-    // Format the response
+      });
+    } catch (queryError) {
+      console.error('Upcoming payments expense query failed:', queryError?.message || queryError);
+      if (queryError?.stack) console.error(queryError.stack);
+      // Return empty list so dashboard still loads
+    }
+
     const upcomingPayments = expenses.map(expense => ({
       id: expense.id,
-      description: expense.description,
+      description: expense.description ?? '',
       amount: expense.amount,
-      dueDate: expense.date.toISOString().split('T')[0]
+      dueDate: expense.date ? expense.date.toISOString().split('T')[0] : null
     }));
-    
-    return NextResponse.json({
-      upcomingPayments
-    });
+
+    return NextResponse.json({ upcomingPayments });
   } catch (error) {
-    console.error('Error getting upcoming payments:', error);
+    const errMsg = error?.message || String(error);
+    const errCause = error?.cause?.message || error?.cause;
+    console.error('Error getting upcoming payments:', errMsg);
+    if (error?.stack) console.error('Stack:', error.stack);
+    if (errCause) console.error('Cause:', errCause);
+    // In development, return 200 with empty list so dashboard still loads; client can check console for details
+    if (process.env.NODE_ENV === 'development') {
+      return NextResponse.json({
+        upcomingPayments: [],
+        _debugError: errMsg
+      });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch upcoming payments' },
       { status: 500 }

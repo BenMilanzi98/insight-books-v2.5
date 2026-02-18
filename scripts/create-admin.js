@@ -3,7 +3,7 @@
  * Usage: node scripts/create-admin.js <email> <name> <password>
  * 
  * This creates an Admin record in the Admin table, which is separate from the User table.
- * Admin users can access the /admin/* routes.
+ * Admin users can access the /insightbooks/* routes.
  */
 
 const { PrismaClient } = require('@prisma/client');
@@ -35,7 +35,7 @@ async function createAdmin(email, name, password) {
       console.log(`   Name: ${existingAdmin.name}`);
       console.log(`   Role: ${existingAdmin.role}`);
       console.log(`   Admin ID: ${existingAdmin.id}`);
-      console.log(`\n🔗 Login at: https://insightbooksafrica.com/admin/login`);
+      console.log(`\n🔗 Login at: https://insightbooksafrica.com/insightbooks/login`);
       return;
     }
     
@@ -61,7 +61,7 @@ async function createAdmin(email, name, password) {
     console.log(`   Password: ${password}`);
     console.log(`   Role: Super Admin`);
     console.log(`   Admin ID: ${admin.id}`);
-    console.log(`\n🔗 Login at: https://insightbooksafrica.com/admin/login`);
+    console.log(`\n🔗 Login at: https://insightbooksafrica.com/insightbooks/login`);
     
   } catch (error) {
     console.error('❌ Error creating admin user:', error);
@@ -83,7 +83,7 @@ if (!email || !name || !password) {
   console.log('\n📝 Usage: node scripts/create-admin.js <email> <name> <password>');
   console.log('\nExample:');
   console.log('   node scripts/create-admin.js admin@insightbooks.com "System Admin" yourpassword123');
-  console.log('\nNote: This creates an Admin record (for /admin/* routes), not a User record.');
+  console.log('\nNote: This creates an Admin record (for /insightbooks/* routes), not a User record.');
   process.exit(1);
 }
 

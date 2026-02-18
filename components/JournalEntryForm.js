@@ -9,7 +9,8 @@ import {
   ArrowLeft, 
   AlertCircle, 
   CheckCircle,
-  X
+  X,
+  BookOpen
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 
@@ -302,287 +303,259 @@ const JournalEntryForm = ({ existingEntry = null }) => {
   };
   
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="mb-6 flex items-center">
-        <button
-          onClick={handleCancel}
-          className="mr-4 text-gray-600 hover:text-gray-900"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-2xl font-bold">
-          {isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}
-        </h1>
-      </div>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6 flex justify-between items-center">
-          <div className="flex items-center">
-            <AlertCircle className="mr-2" size={20} />
-            <span>{error}</span>
-          </div>
-          <button onClick={() => setError(null)} className="text-red-700">
-            <X size={20} />
-          </button>
-        </div>
-      )}
-      
-      {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6 flex justify-between items-center">
-          <div className="flex items-center">
-            <CheckCircle className="mr-2" size={20} />
-            <span>{success}</span>
-          </div>
-          <button onClick={() => setSuccess(null)} className="text-green-700">
-            <X size={20} />
-          </button>
-        </div>
-      )}
-      
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6">
-        {isPosted && (
-          <div className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-            Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
-          </div>
-        )}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="date">
-              Date <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="date"
-              id="date"
-              name="date"
-              value={formData.date}
-              onChange={handleChange}
-              className="border border-gray-300 p-2 w-full rounded"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="entryType">
-              Entry Type <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="entryType"
-              name="entryType"
-              value={formData.entryType}
-              onChange={handleChange}
-              className="border border-gray-300 p-2 w-full rounded"
-              required
-            >
-              <option value="Correction">Correction</option>
-              <option value="Accrual">Accrual</option>
-              <option value="Opening Balance">Opening Balance</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="description">
-              Description <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="description"
-              name="description"
-              placeholder="Enter a description for this journal entry"
-              value={formData.description}
-              onChange={handleChange}
-              className="border border-gray-300 p-2 w-full rounded"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="internalReference">
-              Internal Reference / Tag
-            </label>
-            <input
-              type="text"
-              id="internalReference"
-              name="internalReference"
-              placeholder="Optional internal reference or tag"
-              value={formData.internalReference}
-              onChange={handleChange}
-              className="border border-gray-300 p-2 w-full rounded"
-            />
-          </div>
-        </div>
-        
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <h2 className="text-lg font-medium">Entry Lines</h2>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-5xl">
+        {/* Header */}
+        <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
+          <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={addEntry}
-              className="bg-blue-100 text-blue-600 px-4 py-2 rounded hover:bg-blue-200 flex items-center gap-2"
+              onClick={handleCancel}
+              className="p-2 rounded-xl bg-white/20 hover:bg-white/30 text-white transition-colors"
             >
-              <Plus size={16} />
-              Add Line
+              <ArrowLeft size={22} />
             </button>
+            <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                {isEditing ? 'Edit Journal Entry' : 'New Journal Entry'}
+              </h1>
+              <p className="text-indigo-100 text-sm mt-0.5">Create or edit a general ledger entry</p>
+            </div>
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr className="bg-gray-50">
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Account <span className="text-red-500">*</span>
-                  </th>
-                  <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Description
-                  </th>
-                  <th className="p-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Debit
-                  </th>
-                  <th className="p-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Credit
-                  </th>
-                  <th className="p-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {formData.lines.map((entry, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="p-3">
-                      {isLoadingAccounts ? (
-                        <div className="animate-pulse h-10 bg-gray-200 rounded"></div>
-                      ) : (
-                        <select
-                          value={entry.accountId}
-                          onChange={(e) => handleEntryChange(index, 'accountId', e.target.value)}
-                          className="border border-gray-300 p-2 w-full rounded"
-                          required
+        </div>
+
+        {error && (
+          <div className="rounded-xl bg-red-50 border border-red-200 text-red-800 px-4 py-3 mb-6 flex justify-between items-center shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={20} />
+              <span>{error}</span>
+            </div>
+            <button type="button" onClick={() => setError(null)} className="text-red-600 hover:text-red-800 font-bold">×</button>
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 mb-6 flex justify-between items-center shadow-sm">
+            <div className="flex items-center gap-2">
+              <CheckCircle size={20} />
+              <span>{success}</span>
+            </div>
+            <button type="button" onClick={() => setSuccess(null)} className="text-emerald-600 hover:text-emerald-800 font-bold">×</button>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
+          {isPosted && (
+            <div className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              Posted entries are read-only. Corrections must be made via reversal or a new adjusting entry.
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="date">Date <span className="text-rose-500">*</span></label>
+              <input
+                type="date"
+                id="date"
+                name="date"
+                value={formData.date}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="entryType">Entry Type <span className="text-rose-500">*</span></label>
+              <select
+                id="entryType"
+                name="entryType"
+                value={formData.entryType}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                required
+              >
+                <option value="Correction">Correction</option>
+                <option value="Accrual">Accrual</option>
+                <option value="Opening Balance">Opening Balance</option>
+              </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="description">Description <span className="text-rose-500">*</span></label>
+              <input
+                type="text"
+                id="description"
+                name="description"
+                placeholder="Enter a description for this journal entry"
+                value={formData.description}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                required
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5" htmlFor="internalReference">Internal Reference / Tag</label>
+              <input
+                type="text"
+                id="internalReference"
+                name="internalReference"
+                placeholder="Optional internal reference or tag"
+                value={formData.internalReference}
+                onChange={handleChange}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+              />
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
+              <h2 className="text-lg font-semibold text-slate-800">Entry Lines</h2>
+              <button
+                type="button"
+                onClick={addEntry}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-100 text-indigo-700 font-medium hover:bg-indigo-200 transition-colors"
+              >
+                <Plus size={18} />
+                Add Line
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="min-w-full text-sm">
+                <thead>
+                  <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account <span className="text-rose-500">*</span></th>
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
+                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
+                    <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
+                    <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-16">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {formData.lines.map((entry, index) => (
+                    <tr key={index} className="hover:bg-indigo-50/30 transition-colors">
+                      <td className="px-4 py-3">
+                        {isLoadingAccounts ? (
+                          <div className="animate-pulse h-10 bg-slate-200 rounded-lg" />
+                        ) : (
+                          <select
+                            value={entry.accountId}
+                            onChange={(e) => handleEntryChange(index, 'accountId', e.target.value)}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                            required
+                          >
+                            <option value="">Select an account</option>
+                            {Object.entries(accountsByType).map(([type, accts]) => (
+                              <optgroup key={type} label={type}>
+                                {accts.map(account => (
+                                  <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          placeholder="Line description (optional)"
+                          value={entry.description}
+                          onChange={(e) => handleEntryChange(index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={entry.debit}
+                          onChange={(e) => handleEntryChange(index, 'debit', e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-indigo-500/50 text-amber-700"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={entry.credit}
+                          onChange={(e) => handleEntryChange(index, 'credit', e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 text-right focus:ring-2 focus:ring-indigo-500/50 text-emerald-700"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeEntry(index)}
+                          className="p-2 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors"
+                          title="Remove line"
                         >
-                          <option value="">Select an account</option>
-                          {/* Group accounts by type */}
-                          {Object.entries(accountsByType).map(([type, accts]) => (
-                            <optgroup key={type} label={type}>
-                              {accts.map(account => (
-                                <option key={account.id} value={account.id}>
-                                  {account.code} - {account.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </select>
+                          <Trash2 size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="border-t-2 border-slate-200 bg-slate-50/80 font-medium">
+                    <td colSpan={2} className="px-4 py-3 text-right text-slate-700">Totals:</td>
+                    <td className="px-4 py-3 text-right text-amber-700">{formatCurrency(totals.debit)}</td>
+                    <td className="px-4 py-3 text-right text-emerald-700">{formatCurrency(totals.credit)}</td>
+                    <td className="px-4 py-3" />
+                  </tr>
+                  <tr className="bg-slate-50/50">
+                    <td colSpan={3} className="px-4 py-3 text-right font-medium text-slate-700">Difference:</td>
+                    <td className={`px-4 py-3 text-right font-medium ${totals.isBalanced ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {totals.isBalanced ? (
+                        <span className="inline-flex items-center gap-1">
+                          <CheckCircle size={16} />
+                          Balanced
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1">
+                          <AlertCircle size={16} />
+                          {formatCurrency(totals.difference)}
+                        </span>
                       )}
                     </td>
-                    <td className="p-3">
-                      <input
-                        type="text"
-                        placeholder="Line description (optional)"
-                        value={entry.description}
-                        onChange={(e) => handleEntryChange(index, 'description', e.target.value)}
-                        className="border border-gray-300 p-2 w-full rounded"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={entry.debit}
-                        onChange={(e) => handleEntryChange(index, 'debit', e.target.value)}
-                        className="border border-gray-300 p-2 w-full rounded text-right"
-                      />
-                    </td>
-                    <td className="p-3">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        value={entry.credit}
-                        onChange={(e) => handleEntryChange(index, 'credit', e.target.value)}
-                        className="border border-gray-300 p-2 w-full rounded text-right"
-                      />
-                    </td>
-                    <td className="p-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => removeEntry(index)}
-                        className="text-red-500 hover:text-red-700"
-                        title="Remove line"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </td>
+                    <td className="px-4 py-3" />
                   </tr>
-                ))}
-                
-                {/* Totals row */}
-                <tr className="border-t-2 border-gray-300 font-medium">
-                  <td colSpan={2} className="p-3 text-right">
-                    Totals:
-                  </td>
-                  <td className="p-3 text-right">
-                    {formatCurrency(totals.debit)}
-                  </td>
-                  <td className="p-3 text-right">
-                    {formatCurrency(totals.credit)}
-                  </td>
-                  <td className="p-3"></td>
-                </tr>
-                
-                {/* Balance status row */}
-                <tr>
-                  <td colSpan={3} className="p-3 text-right font-medium">
-                    Difference:
-                  </td>
-                  <td className={`p-3 text-right font-medium ${totals.isBalanced ? 'text-green-600' : 'text-red-600'}`}>
-                    {totals.isBalanced ? (
-                      <span className="flex items-center justify-end">
-                        <CheckCircle size={16} className="mr-1" />
-                        Balanced
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-end">
-                        <AlertCircle size={16} className="mr-1" />
-                        {formatCurrency(totals.difference)}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3"></td>
-                </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex justify-end gap-4 mt-6">
-          <button
-            type="button"
-            onClick={handleCancel}
-            className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
-            disabled={isLoading}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-2"
-            disabled={isLoading || !totals.isBalanced || isPosted}
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
-                {isEditing ? 'Updating...' : 'Saving...'}
-              </>
-            ) : (
-              <>
-                <Save size={16} />
-                {isEditing ? 'Update Entry' : 'Save Entry'}
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-      
 
+          <div className="flex flex-wrap justify-end gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-medium hover:bg-slate-50 transition-colors disabled:opacity-50"
+              disabled={isLoading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !totals.isBalanced || isPosted}
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  {isEditing ? 'Updating...' : 'Saving...'}
+                </>
+              ) : (
+                <>
+                  <Save size={18} />
+                  {isEditing ? 'Update Entry' : 'Save Entry'}
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

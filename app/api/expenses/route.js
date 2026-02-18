@@ -570,21 +570,87 @@ export async function POST(request) {
     const amount = typeof body.amount === 'string' 
       ? parseFloat(body.amount.replace(/,/g, ''))
       : body.amount;
+    
     let expenseAccount = null;
+    let expenseCategory = null;
+    let selectedCategory = body.category;
+    let categoryId = null;
+
+    // Import normalization service
+    const { getOrCreateExpenseAccountForCategory } = await import('@/lib/expenseCategoryNormalization');
+
+    // First, try to find by expenseAccountId if provided
     if (body.expenseAccountId) {
       expenseAccount = await prisma.account.findFirst({
         where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' }
       });
+      
+      // If account found, try to find associated expense category
+      if (expenseAccount) {
+        try {
+          expenseCategory = await prisma.expenseCategory.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              accountId: expenseAccount.id
+            }
+          });
+          if (expenseCategory) {
+            categoryId = expenseCategory.id;
+            selectedCategory = expenseCategory.name;
+          }
+        } catch (error) {
+          // ExpenseCategory table might not exist, that's OK
+        }
+      }
     }
 
+    // If no account found yet, try to find by category name (ExpenseCategory)
     if (!expenseAccount && body.category) {
-      expenseAccount = await prisma.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          accountType: 'Expense',
-          accountName: { equals: body.category, mode: 'insensitive' }
+      try {
+        expenseCategory = await prisma.expenseCategory.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            name: { equals: body.category, mode: 'insensitive' }
+          },
+          include: {
+            account: true
+          }
+        });
+
+        if (expenseCategory && expenseCategory.account) {
+          expenseAccount = expenseCategory.account;
+          categoryId = expenseCategory.id;
+          selectedCategory = expenseCategory.name;
         }
-      });
+      } catch (error) {
+        // ExpenseCategory table might not exist, continue with normalization
+      }
+    }
+
+    // SILENT NORMALIZATION: Automatically map category to account code
+    // This ensures all categories (including duplicates) map to standard codes
+    if (!expenseAccount && body.category) {
+      try {
+        expenseAccount = await getOrCreateExpenseAccountForCategory(
+          user.tenantId,
+          body.category
+        );
+        selectedCategory = body.category; // Keep original category name visible to user
+      } catch (error) {
+        console.error('Error normalizing expense category:', error);
+        // Fall back to direct account lookup
+        expenseAccount = await prisma.account.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            accountType: 'Expense',
+            accountName: { equals: body.category, mode: 'insensitive' }
+          }
+        });
+        
+        if (expenseAccount) {
+          selectedCategory = expenseAccount.accountName;
+        }
+      }
     }
 
     if (!expenseAccount) {
@@ -593,8 +659,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    const selectedCategory = expenseAccount.accountName;
     const paymentMethod=body.paymentMethod
     const paymentStatus = body.paymentStatus || 'Fully paid';
     const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || amount) : amount;
@@ -612,6 +676,7 @@ export async function POST(request) {
           amount: amount,
           date: expenseDate,
           category: selectedCategory,
+          categoryId: categoryId,
           expenseAccountId: expenseAccount.id,
           paymentMethod,
           sourceAccountId: body.sourceAccountId || null,
@@ -670,11 +735,41 @@ export async function POST(request) {
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod,
+            supplierId: expense.supplierId || null,
+            paymentStatus: paymentStatus,
             tx,
           });
           console.log('✅ Journal entry created successfully:', journalEntry.id);
         } catch (journalError) {
           console.error('❌ Error creating journal entry for expense:', journalError);
+          console.error('Journal error details:', {
+            message: journalError.message,
+            stack: journalError.stack,
+            expenseId: expense.id,
+            tenantId: user.tenantId,
+          });
+          // Don't fail the expense creation if journal entry creation fails
+        }
+      } else if (paymentStatus === 'Pending' && expense.supplierId) {
+        // Create journal entry for unpaid supplier expense (Accounts Payable)
+        try {
+          console.log('🔥 About to create journal entry for unpaid supplier expense:', expense.id);
+          const journalEntry = await createExpenseJournalEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            expenseId: expense.id,
+            expenseDate: expenseDate,
+            amount: amount,
+            category: selectedCategory,
+            expenseAccountId: expenseAccount.id,
+            paymentMethod: null, // Not paid yet
+            supplierId: expense.supplierId,
+            paymentStatus: 'Pending',
+            tx,
+          });
+          console.log('✅ Journal entry created successfully for unpaid supplier expense:', journalEntry.id);
+        } catch (journalError) {
+          console.error('❌ Error creating journal entry for unpaid supplier expense:', journalError);
           console.error('Journal error details:', {
             message: journalError.message,
             stack: journalError.stack,

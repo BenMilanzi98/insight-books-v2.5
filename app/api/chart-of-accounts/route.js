@@ -1104,18 +1104,37 @@ export async function POST(request) {
     }
 
     // Check if account code already exists for this tenant
+    // Also check for case-insensitive matches and variations
     const existingAccount = await prisma.account.findFirst({
       where: {
         tenantId: user.tenantId,
-        accountCode: accountCode
+        OR: [
+          { accountCode: accountCode },
+          // Also check if account name matches (to prevent duplicates with different codes)
+          accountName ? { accountName: { equals: accountName, mode: 'insensitive' } } : {}
+        ].filter(condition => Object.keys(condition).length > 0)
       }
     });
 
     if (existingAccount) {
-      return NextResponse.json(
-        { error: 'Account code must be unique' },
-        { status: 400 }
-      );
+      if (existingAccount.accountCode === accountCode) {
+        return NextResponse.json(
+          { 
+            error: 'Account code must be unique',
+            details: `Account code ${accountCode} is already in use by account: ${existingAccount.accountName || existingAccount.accountCode}`
+          },
+          { status: 400 }
+        );
+      } else if (existingAccount.accountName && accountName && 
+                 existingAccount.accountName.toLowerCase() === accountName.toLowerCase()) {
+        return NextResponse.json(
+          { 
+            error: 'Account name already exists',
+            details: `An account with the name "${accountName}" already exists with code: ${existingAccount.accountCode}`
+          },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate parent account if provided
@@ -1155,30 +1174,78 @@ export async function POST(request) {
       );
     }
 
-    const account = await prisma.account.create({
-      data: {
-        accountCode,
-        accountName,
-        accountType: normalizedType,
-        accountSubtype: accountSubtype || null,
-        normalBalance: resolvedNormalBalance,
-        parentAccountId: parentAccountId || null,
-        description: description || null,
-        isActive,
-        tenantId: user.tenantId,
-        isSystem: false,
-        balance: 0
-      },
-      include: {
-        parentAccount: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true
+    // Validate posting rules: Ensure account type allows the specified normal balance
+    // This is already validated above, but we'll add additional checks here
+    const postingRules = {
+      'Asset': { normalBalance: 'Debit', canDebit: true, canCredit: false },
+      'Expense': { normalBalance: 'Debit', canDebit: true, canCredit: false },
+      'Liability': { normalBalance: 'Credit', canDebit: false, canCredit: true },
+      'Equity': { normalBalance: 'Credit', canDebit: false, canCredit: true },
+      'Revenue': { normalBalance: 'Credit', canDebit: false, canCredit: true },
+      'Income': { normalBalance: 'Credit', canDebit: false, canCredit: true }
+    };
+
+    const rule = postingRules[normalizedType];
+    if (rule && rule.normalBalance !== resolvedNormalBalance) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid posting rule',
+          details: `${normalizedType} accounts must have a ${rule.normalBalance} normal balance`
+        },
+        { status: 400 }
+      );
+    }
+
+    let account;
+    try {
+      account = await prisma.account.create({
+        data: {
+          accountCode,
+          accountName,
+          accountType: normalizedType,
+          accountSubtype: accountSubtype || null,
+          normalBalance: resolvedNormalBalance,
+          parentAccountId: parentAccountId || null,
+          description: description || null,
+          isActive,
+          tenantId: user.tenantId,
+          isSystem: false,
+          balance: 0
+        },
+        include: {
+          parentAccount: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true
+            }
           }
         }
+      });
+    } catch (createError) {
+      // Handle Prisma unique constraint errors
+      if (createError.code === 'P2002') {
+        const field = createError.meta?.target?.[0] || 'field';
+        let errorMessage = 'Account code must be unique';
+        let errorDetails = `The ${field} value is already in use.`;
+        
+        if (field === 'accountCode') {
+          errorMessage = 'Account code must be unique';
+          errorDetails = `Account code ${accountCode} is already in use.`;
+        } else if (field === 'accountName' || field === 'name') {
+          errorMessage = 'Account name must be unique';
+          errorDetails = `An account with the name "${accountName}" already exists.`;
+        }
+        
+        return NextResponse.json(
+          { error: errorMessage, details: errorDetails },
+          { status: 400 }
+        );
       }
-    });
+      
+      // Re-throw other errors
+      throw createError;
+    }
 
     return NextResponse.json({
       account,

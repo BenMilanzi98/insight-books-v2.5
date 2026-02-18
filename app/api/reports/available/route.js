@@ -106,6 +106,15 @@ export async function GET(request) {
         requiresTimeframe: true
       },
       {
+        id: 'pos-daily',
+        name: 'Daily POS Report',
+        description: 'Quick daily snapshot of POS sales, transactions, and payment breakdown',
+        icon: 'TrendingUp',
+        category: 'Sales',
+        lastGenerated: null,
+        requiresTimeframe: false
+      },
+      {
         id: 'sales-analysis',
         name: 'Sales Analysis Report',
         description: 'Analyze sales performance by time, product, customer, or salesperson',

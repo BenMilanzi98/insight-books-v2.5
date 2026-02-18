@@ -96,7 +96,9 @@ export async function GET(request) {
         updatedAt: true,
         _count: {
           select: {
-            expenses: true,
+            expenses: {
+              where: { isDeleted: false }
+            },
             supplierBills: true,
             supplierPayments: true,
             purchaseOrders: true,
@@ -105,8 +107,37 @@ export async function GET(request) {
       }
     });
 
+    // Update balances for all suppliers to ensure accuracy
+    const { updateSupplierBalance } = await import('@/lib/supplierService');
+    for (const supplier of suppliers) {
+      try {
+        await updateSupplierBalance(supplier.id, user.tenantId);
+      } catch (error) {
+        console.error(`Error updating balance for supplier ${supplier.id}:`, error);
+      }
+    }
+
+    // Fetch updated suppliers with refreshed balances
+    const updatedSuppliers = await prisma.supplier.findMany({
+      where: {
+        id: { in: suppliers.map(s => s.id) },
+        tenantId: user.tenantId
+      },
+      select: {
+        id: true,
+        currentBalance: true
+      }
+    });
+
+    // Merge updated balances
+    const balanceMap = new Map(updatedSuppliers.map(s => [s.id, s.currentBalance]));
+    const suppliersWithUpdatedBalances = suppliers.map(supplier => ({
+      ...supplier,
+      currentBalance: balanceMap.get(supplier.id) || supplier.currentBalance
+    }));
+
     return NextResponse.json({
-      suppliers,
+      suppliers: suppliersWithUpdatedBalances,
       pagination: {
         page,
         limit,

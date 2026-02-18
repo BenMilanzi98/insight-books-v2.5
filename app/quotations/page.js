@@ -31,6 +31,7 @@ import {
   FileCheck
 } from "lucide-react";
 import QuotationModal from "@/components/QuotationModal";
+import SendQuotationModal from "@/components/SendQuotationModal";
 import { 
   fetchQuotations, 
   createQuotation, 
@@ -133,8 +134,16 @@ const QuotationsPage = () => {
   const [captureInvoiceData, setCaptureInvoiceData] = useState(null);
   const [captureInvoiceType, setCaptureInvoiceType] = useState("capture");
   const [isCapturingPdf, setIsCapturingPdf] = useState(false);
-  const [isSendingQuotation, setIsSendingQuotation] = useState(false); // Add flag to prevent duplicate sends
-  
+  const [isSendingQuotation, setIsSendingQuotation] = useState(false);
+  const [sendQuotationModalOpen, setSendQuotationModalOpen] = useState(false);
+  const [selectedQuotationForSending, setSelectedQuotationForSending] = useState(null);
+  const [customQuotationMessage, setCustomQuotationMessage] = useState("");
+  const [sendQuotationAttachments, setSendQuotationAttachments] = useState([]);
+  const sendOnceForQuotationIdRef = useRef(null);
+  const pendingSendMessageRef = useRef(null);
+  const pendingSendAttachmentsRef = useRef([]);
+  const pendingSendOtherEmailsRef = useRef([]);
+
   // Notification state
   const [notification, setNotification] = useState(null);
   
@@ -370,35 +379,40 @@ const QuotationsPage = () => {
     console.error(`❌ File not available after ${maxRetries} attempts`);
     throw new Error('File not available after waiting');
   }
-  // Send quotation to client
-  const handleSendQuotation = async (id) => {
-    console.log(`🚀 handleSendQuotation called for quotation ${id}`);
-    
-    // Prevent duplicate sends
-    if (isCapturingPdf) {
-      console.log('⏳ Already capturing PDF, skipping...');
-      return;
-    }
-    
-    try {
-      setIsCapturingPdf(true);
-      const data = await downloadQuotation(id);
-      setCaptureInvoiceData(data);
-      setCaptureInvoiceType("save");
-      
-      console.log('✅ Capture data set, QuotationTemplateCapture will render');
-      
-      // Don't wait for file here - wait for the capture to complete first
-      // The file will be available after QuotationTemplateCapture finishes
-      
-      // Note: We'll wait for the file in the handleCaptureSuccess callback
-      // after the PDF is actually generated and saved
-      
-    } catch (error) {
-      console.error("Error sending quotation:", error);
-      showNotification("error", "Failed to send quotation. Please try again.");
-      setIsCapturingPdf(false);
-    }
+  // Send quotation to client - only open modal; capture starts when user clicks Send in modal
+  const handleSendQuotation = (quotation) => {
+    sendOnceForQuotationIdRef.current = null;
+    pendingSendMessageRef.current = null;
+    pendingSendAttachmentsRef.current = [];
+    pendingSendOtherEmailsRef.current = [];
+    setSelectedQuotationForSending(quotation);
+    setCustomQuotationMessage("");
+    setSendQuotationAttachments([]);
+    setSendQuotationModalOpen(true);
+  };
+
+  // When user clicks Send in modal: store message/attachments/otherEmails, close modal, then start PDF capture (email sends when capture completes)
+  const handleSendQuotationMessageSubmit = (message, files = [], otherEmails = []) => {
+    const quotation = selectedQuotationForSending;
+    if (!quotation) return;
+    setCustomQuotationMessage(message);
+    setSendQuotationAttachments(Array.isArray(files) ? files : []);
+    pendingSendMessageRef.current = message;
+    pendingSendAttachmentsRef.current = Array.isArray(files) ? files : [];
+    pendingSendOtherEmailsRef.current = Array.isArray(otherEmails) ? otherEmails : [];
+    setSendQuotationModalOpen(false);
+    (async () => {
+      try {
+        setIsCapturingPdf(true);
+        const data = await downloadQuotation(quotation.id);
+        setCaptureInvoiceData(data);
+        setCaptureInvoiceType("save");
+      } catch (error) {
+        console.error("Error starting quotation send process:", error);
+        showNotification("error", "Failed to start quotation send process. Please try again.");
+        setIsCapturingPdf(false);
+      }
+    })();
   };
   
   // Start conversion process
@@ -472,49 +486,49 @@ const QuotationsPage = () => {
       setIsCapturingPdf(false);
     }
   };
-  // Add handler functions for the capture component
   const handleCaptureSuccess = async () => {
-    if(captureInvoiceType==="save"){
-      // Prevent duplicate sends
-      if (isSendingQuotation) {
-        console.log('Quotation send already in progress, skipping...');
-        return;
-      }
-      
-      setIsSendingQuotation(true);
-      
-      // For save type, wait for file and then send email
-      try {
-        // Get the quotation ID from the capture data
-        const quotationId = captureInvoiceData?.quotation?.id;
-        if (quotationId) {
-          // Add a small delay to ensure the upload is complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Wait for the file to be available
-          await waitForFile(quotationId, "quotation");
-          
-          // Send the quotation email
-          await sendQuotation(quotationId);
-          
-          showNotification("success", "Quotation sent to client successfully");
-        }
-      } catch (error) {
-        console.error("Error in post-capture process:", error);
-        showNotification("error", "PDF generated but failed to send quotation. Please try again.");
-      } finally {
-        setIsSendingQuotation(false);
-      }
-    }else{
+    if (captureInvoiceType !== "save") {
       showNotification("success", "Quotation downloaded successfully");
+      setTimeout(() => {
+        setCaptureInvoiceData(null);
+        setIsCapturingPdf(false);
+      }, 1000);
+      return;
     }
-    
-    // Only clear the capture data after everything is complete
-    // This ensures the component stays mounted during the entire process
-    setTimeout(() => {
-      setCaptureInvoiceData(null);
-      setIsCapturingPdf(false);
-    }, 1000);
+    const quotationId = captureInvoiceData?.quotation?.id;
+    if (!quotationId) {
+      setTimeout(() => { setCaptureInvoiceData(null); setIsCapturingPdf(false); }, 1000);
+      return;
+    }
+    if (sendOnceForQuotationIdRef.current === quotationId) return;
+    sendOnceForQuotationIdRef.current = quotationId;
+    if (isSendingQuotation) return;
+    setIsSendingQuotation(true);
+
+    try {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await waitForFile(quotationId, "quotation");
+      const message = pendingSendMessageRef.current ?? customQuotationMessage ?? "";
+      const attachments = pendingSendAttachmentsRef.current ?? sendQuotationAttachments ?? [];
+      const otherEmails = pendingSendOtherEmailsRef.current ?? [];
+      const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+      await sendQuotation(quotationId, { message, attachments: hasAttachments ? attachments : undefined, otherEmails });
+      setSendQuotationAttachments([]);
+      pendingSendMessageRef.current = null;
+      pendingSendAttachmentsRef.current = [];
+      pendingSendOtherEmailsRef.current = [];
+      showNotification("success", "Quotation sent to client successfully");
+    } catch (error) {
+      console.error("Error in post-capture process:", error);
+      sendOnceForQuotationIdRef.current = null;
+      showNotification("error", "PDF generated but failed to send quotation. Please try again.");
+    } finally {
+      setIsSendingQuotation(false);
+      setTimeout(() => {
+        setCaptureInvoiceData(null);
+        setIsCapturingPdf(false);
+      }, 1000);
+    }
   };
   
   const handleCaptureError = (error) => {
@@ -916,7 +930,7 @@ const QuotationsPage = () => {
                             <button
                               className={`p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all ${isCapturingPdf ? 'opacity-50 cursor-not-allowed' : ''}`}
                               title={isCapturingPdf ? "Sending..." : "Send Quotation"}
-                              onClick={() => handleSendQuotation(quotation.id)}
+                              onClick={() => handleSendQuotation(quotation)}
                               disabled={isCapturingPdf}
                             >
                               <Send size={16} />
@@ -1091,6 +1105,16 @@ const QuotationsPage = () => {
             </div>
           </div>
         )}
+
+        {/* Send Quotation Modal */}
+        <SendQuotationModal
+          isOpen={sendQuotationModalOpen}
+          onClose={() => setSendQuotationModalOpen(false)}
+          quotation={selectedQuotationForSending}
+          isSending={isSendingQuotation}
+          companyName={brandingSettings?.companyName || 'Company'}
+          onMessageSubmit={handleSendQuotationMessageSubmit}
+        />
 
         {/* Quotation Template Capture */}
         {captureInvoiceData && (

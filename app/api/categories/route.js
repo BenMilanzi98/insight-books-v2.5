@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { ensureExpenseAccountsForTenant, EXPENSE_ACCOUNTS_TEMPLATE } from '@/lib/expenseCategoriesTemplate';
 
 // GET - Fetch categories for a tenant
 export async function GET(request) {
@@ -37,30 +38,123 @@ export async function GET(request) {
       });
       categories = inventoryCategories.map(cat => cat.name);
     } else {
-      // For expense categories, use Chart of Accounts (Expense type)
-      const expenseAccounts = await prisma.account.findMany({
-        where: {
-          tenantId: user.tenantId,
-          isActive: true,
-          accountType: 'Expense'
-        },
-        select: {
-          id: true,
-          accountCode: true,
-          accountName: true,
-          accountType: true
-        },
-        orderBy: {
-          accountCode: 'asc'
-        }
-      });
+      // Expense categories: show ALL expense accounts (ExpenseCategory + any Expense account from Chart of Accounts)
+      // Use accountId as id so filter and form (expenseAccountId) work correctly
+      const accountIdsFromCategories = new Set();
+      try {
+        const expenseCategories = await prisma.expenseCategory.findMany({
+          where: { tenantId: user.tenantId },
+          include: {
+            account: {
+              select: {
+                id: true,
+                accountCode: true,
+                accountName: true,
+                accountType: true,
+                isActive: true
+              }
+            }
+          },
+          orderBy: { name: 'asc' }
+        });
+        expenseCategories.forEach(cat => {
+          accountIdsFromCategories.add(cat.accountId);
+          categories.push({
+            id: cat.accountId,
+            code: cat.accountCode,
+            name: cat.name,
+            accountId: cat.accountId,
+            account: cat.account,
+            description: cat.description
+          });
+        });
+      } catch (expenseCatErr) {
+        console.warn('Categories API: expense categories unavailable:', expenseCatErr?.message || expenseCatErr);
+      }
 
-      categories = expenseAccounts.map(acc => ({
-        id: acc.id,
-        code: acc.accountCode,
-        name: acc.accountName,
-        type: acc.accountType
-      }));
+      // Add ALL expense accounts: ExpenseCategory (above) + Chart of Accounts
+      // Use BOTH type/subtype match AND code range 5000-5999, then merge by id so we never miss any
+      const accountSelect = {
+        id: true,
+        accountCode: true,
+        accountName: true,
+        name: true,
+        accountType: true,
+        accountSubtype: true,
+        isActive: true
+      };
+      const baseWhere = { tenantId: user.tenantId, isActive: true };
+      try {
+        let byTypeAccounts = [];
+        let byCodeAccounts = [];
+        const runQueries = async () => {
+          [byTypeAccounts, byCodeAccounts] = await Promise.all([
+            prisma.account.findMany({
+              where: {
+                ...baseWhere,
+                OR: [
+                  { accountType: { equals: 'Expense', mode: 'insensitive' } },
+                  { type: { equals: 'Expense', mode: 'insensitive' } },
+                  { accountSubtype: { equals: 'Cost of Sales', mode: 'insensitive' } },
+                  { accountSubtype: { equals: 'Operating Expense', mode: 'insensitive' } },
+                  { accountSubtype: { equals: 'Other Expense', mode: 'insensitive' } }
+                ]
+              },
+              select: accountSelect,
+              orderBy: { accountName: 'asc' }
+            }),
+            prisma.account.findMany({
+              where: {
+                ...baseWhere,
+                OR: [
+                  { accountCode: { gte: '5000', lte: '5999' } },
+                  { code: { gte: '5000', lte: '5999' } }
+                ]
+              },
+              select: accountSelect,
+              orderBy: { accountName: 'asc' }
+            })
+          ]);
+        };
+        await runQueries();
+        let byId = new Map();
+        [...byTypeAccounts, ...byCodeAccounts].forEach(acc => byId.set(acc.id, acc));
+        // Ensure template expense accounts exist for this tenant when any are missing (creates only missing ones).
+        // Fixes tenants who only see "just created" categories and never got the full template.
+        if (user.tenantId) {
+          const templateCodes = EXPENSE_ACCOUNTS_TEMPLATE.map((t) => t.code);
+          const existingTemplateCount = await prisma.account.count({
+            where: { tenantId: user.tenantId, accountCode: { in: templateCodes } }
+          });
+          if (existingTemplateCount < EXPENSE_ACCOUNTS_TEMPLATE.length) {
+            try {
+              await ensureExpenseAccountsForTenant(user.tenantId, prisma);
+              await runQueries();
+              byId = new Map();
+              [...byTypeAccounts, ...byCodeAccounts].forEach(acc => byId.set(acc.id, acc));
+            } catch (ensureErr) {
+              console.warn('Categories API: could not ensure expense accounts:', ensureErr?.message || ensureErr);
+            }
+          }
+        }
+        const seenIds = new Set(accountIdsFromCategories);
+        Array.from(byId.values()).forEach(acc => {
+          if (seenIds.has(acc.id)) return;
+          seenIds.add(acc.id);
+          const label = acc.accountName || acc.name || acc.accountCode || 'Unnamed';
+          categories.push({
+            id: acc.id,
+            code: acc.accountCode || '',
+            name: label,
+            accountId: acc.id,
+            account: acc,
+            description: null
+          });
+        });
+        categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      } catch (accountErr) {
+        console.warn('Categories API: expense accounts unavailable:', accountErr?.message || accountErr);
+      }
     }
 
     return NextResponse.json({
@@ -109,9 +203,15 @@ export async function POST(request) {
           tenantId: user.tenantId
         }
       });
+    } else if (type === 'expense') {
+      // Redirect to expense categories endpoint
+      return NextResponse.json(
+        { error: 'Please use /api/expense-categories to create expense categories' },
+        { status: 400 }
+      );
     } else {
       return NextResponse.json(
-        { error: 'Expense categories are managed in the Chart of Accounts.' },
+        { error: 'Invalid category type. Use "inventory" or "expense"' },
         { status: 400 }
       );
     }

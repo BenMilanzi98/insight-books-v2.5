@@ -21,7 +21,11 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:production": "prisma db push --accept-data-loss=false && prisma generate",
     "db:studio": "prisma studio",
-    "migrate:payment-accounts": "node scripts/migrate-payment-accounts.js"
+    "migrate:payment-accounts": "node scripts/migrate-payment-accounts.js",
+    "validate:expense-categories": "node scripts/validate-expense-categories.js",
+    "validate:data-integrity": "node scripts/validate-data-integrity.js",
+    "validate:quick": "node scripts/quick-validation.js",
+    "normalize:expenses": "node scripts/normalize-expense-categories.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -32,9 +36,11 @@
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "chart.js": "^4.5.0",
+    "exceljs": "^4.4.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.7",
     "drizzle-orm": "^0.40.1",
+    "exceljs": "^4.4.0",
     "google-auth-library": "^10.2.1",
     "html2canvas": "^1.4.1",
     "jsonwebtoken": "^9.0.2",

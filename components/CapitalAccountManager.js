@@ -5,7 +5,8 @@ import { paymentMethods } from "@/lib/paymentMethods";
 
 const CapitalAccountManager = () => {
   const [capitalAccount, setCapitalAccount] = useState(null);
-  const [paymentMethodBalances, setPaymentMethodBalances] = useState([]);
+  /** Actual payment accounts from /payments/management with real balances */
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [recentTransfers, setRecentTransfers] = useState([]);
   const [balanceHistory, setBalanceHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,11 +75,11 @@ const CapitalAccountManager = () => {
         });
       }
 
-      // Fetch payment method balances (same as PaymentModal)
-      const balancesResponse = await fetch('/api/payments/account-balances');
+      // Fetch actual payment accounts with balances (same as /payments and /payments/management)
+      const balancesResponse = await fetch('/api/payment-accounts/balances');
       if (balancesResponse.ok) {
         const balancesData = await balancesResponse.json();
-        setPaymentMethodBalances(balancesData.balances || []);
+        setPaymentAccounts(balancesData.accounts || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -88,7 +89,17 @@ const CapitalAccountManager = () => {
     }
   };
 
-  const getBalance = (key) => paymentMethodBalances.find((b) => b.account === key)?.balance ?? 0;
+  const getBalance = (accountIdOrKey) => {
+    const byId = paymentAccounts.find((a) => a.id === accountIdOrKey);
+    if (byId != null) return typeof byId.balance === 'number' ? byId.balance : parseFloat(byId.balance) || 0;
+    const byKey = paymentAccounts.find((a) => a.name && String(a.name).toLowerCase().replace(/\s+/g, '_') === accountIdOrKey);
+    if (byKey != null) return typeof byKey.balance === 'number' ? byKey.balance : parseFloat(byKey.balance) || 0;
+    return 0;
+  };
+  const getAccountName = (accountIdOrKey) =>
+    paymentAccounts.find((a) => a.id === accountIdOrKey)?.name ??
+    paymentMethods.find((m) => m.key === accountIdOrKey)?.name ??
+    accountIdOrKey;
 
   const handleSetInitialBalance = async () => {
     if (!initialBalance || parseFloat(initialBalance) <= 0) {
@@ -219,7 +230,7 @@ const CapitalAccountManager = () => {
       });
 
       if (response.ok) {
-        const destinationName = paymentMethods.find(m => m.key === transferData.destinationAccount)?.name || transferData.destinationAccount;
+        const destinationName = getAccountName(transferData.destinationAccount);
         setTransferSuccess(true);
         setSuccessMessage(`Successfully transferred MWK ${amount.toLocaleString()} to ${destinationName}`);
         
@@ -272,19 +283,18 @@ const CapitalAccountManager = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="flex flex-col items-center justify-center py-20">
+        <div className="w-12 h-12 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4" />
+        <p className="text-slate-500 font-medium">Loading capital account...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 text-red-700 p-4 rounded-md">
-        <p className="flex items-center">
-          <AlertCircle className="mr-2 h-5 w-5" />
-          {error}
-        </p>
+      <div className="rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 flex items-center gap-2 shadow-sm">
+        <AlertCircle className="h-5 w-5 shrink-0" />
+        {error}
       </div>
     );
   }
@@ -292,28 +302,31 @@ const CapitalAccountManager = () => {
   return (
     <div className="space-y-6">
       {/* Capital Account Overview */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-            <Wallet className="mr-2 h-6 w-6 text-blue-600" />
+      <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+          <h2 className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+            <Wallet className="h-6 w-6 text-indigo-600" />
             Capital Account
           </h2>
-          <div className="flex space-x-3">
+          <div className="flex flex-wrap gap-2">
             <button
+              type="button"
               onClick={() => setShowEditModal(true)}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 flex items-center"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition-colors"
             >
-              <Edit className="mr-2 h-4 w-4" />
+              <Edit className="h-4 w-4" />
               Edit Account
             </button>
             <button
+              type="button"
               onClick={() => setShowInitialBalanceModal(true)}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 flex items-center"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
             >
-              <DollarSign className="mr-2 h-4 w-4" />
+              <DollarSign className="h-4 w-4" />
               Set Initial Balance
             </button>
             <button
+              type="button"
               onClick={() => {
                 setIsTransferring(false);
                 setTransferSuccess(false);
@@ -321,68 +334,69 @@ const CapitalAccountManager = () => {
                 setError(null);
                 setShowTransferModal(true);
               }}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
             >
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <ArrowRightLeft className="h-4 w-4" />
               Transfer Funds
             </button>
             <a
               href="/capital-account/transfers"
-              className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 flex items-center"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-700 transition-colors"
             >
-              <ArrowRightLeft className="mr-2 h-4 w-4" />
+              <ArrowRightLeft className="h-4 w-4" />
               View Transfers
             </a>
             <button
+              type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 flex items-center"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
+              <Trash2 className="h-4 w-4" />
               Delete Account
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className={`p-4 rounded-lg ${(capitalAccount?.balance || 0) <= 0 ? 'bg-yellow-50 border-2 border-yellow-200' : 'bg-blue-50'}`}>
-            <div className="flex items-center">
-              <TrendingUp className={`h-8 w-8 ${(capitalAccount?.balance || 0) <= 0 ? 'text-yellow-600' : 'text-blue-600'}`} />
-              <div className="ml-3">
-                <p className={`text-sm font-medium ${(capitalAccount?.balance || 0) <= 0 ? 'text-yellow-600' : 'text-blue-600'}`}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          <div className={`p-5 rounded-xl ${(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-50 border border-amber-200' : 'bg-indigo-50 border border-indigo-100'}`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className={`text-sm font-medium uppercase tracking-wider ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-600' : 'text-indigo-600'}`}>
                   Current Balance
                 </p>
-                <p className={`text-2xl font-bold ${(capitalAccount?.balance || 0) <= 0 ? 'text-yellow-900' : 'text-blue-900'}`}>
+                <p className={`text-2xl font-bold mt-1 ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-indigo-900'}`}>
                   {formatCurrency(capitalAccount?.balance || 0)}
                 </p>
                 {(capitalAccount?.balance || 0) <= 0 && (
-                  <p className="text-xs text-yellow-700 mt-1">
-                    💡 Account is empty - ready for top-up
-                  </p>
+                  <p className="text-xs text-amber-700 mt-2">Account is empty — ready for top-up</p>
                 )}
               </div>
-            </div>
-          </div>
-
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <Check className="h-8 w-8 text-green-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-green-600">Account Status</p>
-                <p className="text-lg font-semibold text-green-900">
-                  {capitalAccount?.isActive ? 'Active' : 'Inactive'}
-                </p>
+              <div className={`p-3 rounded-xl ${(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100' : 'bg-indigo-100'}`}>
+                <TrendingUp className={`h-8 w-8 ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-600' : 'text-indigo-600'}`} />
               </div>
             </div>
           </div>
 
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center">
-              <Wallet className="h-8 w-8 text-purple-600" />
-              <div className="ml-3">
-                <p className="text-sm font-medium text-purple-600">Account Code</p>
-                <p className="text-lg font-semibold text-purple-900">
-                  {capitalAccount?.code || 'N/A'}
-                </p>
+          <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Account Status</p>
+                <p className="text-lg font-bold text-emerald-900 mt-1">{capitalAccount?.isActive ? 'Active' : 'Inactive'}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-100">
+                <Check className="h-8 w-8 text-emerald-600" />
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-xl bg-violet-50 border border-violet-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-violet-600 uppercase tracking-wider">Account Code</p>
+                <p className="text-lg font-bold text-violet-900 mt-1">{capitalAccount?.code || 'N/A'}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-violet-100">
+                <Wallet className="h-8 w-8 text-violet-600" />
               </div>
             </div>
           </div>
@@ -391,33 +405,30 @@ const CapitalAccountManager = () => {
 
       {/* Recent Transfers */}
       {recentTransfers.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 overflow-hidden">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <ArrowRightLeft className="mr-2 h-5 w-5 text-blue-600" />
+            <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <ArrowRightLeft className="h-5 w-5 text-indigo-600" />
               Recent Transfers
             </h3>
-            <a
-              href="/capital-account/transfers"
-              className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-            >
-              View All Transfers →
+            <a href="/capital-account/transfers" className="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+              View all transfers →
             </a>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 text-left">
-                  <th className="p-3 font-medium">Date</th>
-                  <th className="p-3 font-medium">Type</th>
-                  <th className="p-3 font-medium">Amount</th>
-                  <th className="p-3 font-medium">Reference</th>
-                  <th className="p-3 font-medium">Description</th>
+                <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {recentTransfers.map((transfer) => (
-                  <tr key={transfer.id} className="border-t border-gray-200 hover:bg-gray-50">
+                  <tr key={transfer.id} className="hover:bg-indigo-50/30 transition-colors">
                     <td className="p-3">{formatDate(transfer.date)}</td>
                     <td className="p-3">
                       <span className={`px-2 py-1 rounded-full text-xs ${
@@ -451,28 +462,20 @@ const CapitalAccountManager = () => {
 
       {/* Balance History Chart */}
       {balanceHistory.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-            <TrendingUp className="mr-2 h-5 w-5 text-green-600" />
+        <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-emerald-600" />
             Balance History (Last 30 Days)
           </h3>
-          <div className="h-64 flex items-end justify-between space-x-2">
+          <div className="h-64 flex items-end justify-between gap-1">
             {balanceHistory.map((record, index) => {
               const maxBalance = Math.max(...balanceHistory.map(r => r.balance));
               const height = maxBalance > 0 ? (record.balance / maxBalance) * 100 : 0;
-              
               return (
                 <div key={index} className="flex-1 flex flex-col items-center">
-                  <div 
-                    className="w-full bg-blue-500 rounded-t"
-                    style={{ height: `${height}%` }}
-                  ></div>
-                  <div className="text-xs text-gray-500 mt-2 text-center">
-                    {formatDate(record.date)}
-                  </div>
-                  <div className="text-xs font-medium text-gray-700 mt-1">
-                    {formatCurrency(record.balance)}
-                  </div>
+                  <div className="w-full bg-indigo-500 rounded-t transition-all" style={{ height: `${Math.max(height, 4)}%` }} />
+                  <div className="text-xs text-slate-500 mt-2 text-center truncate w-full">{formatDate(record.date)}</div>
+                  <div className="text-xs font-medium text-slate-700 mt-1">{formatCurrency(record.balance)}</div>
                 </div>
               );
             })}
@@ -708,10 +711,11 @@ const CapitalAccountManager = () => {
                     disabled={isTransferring || transferSuccess}
                   >
                     <option value="">Select destination account</option>
-                    {paymentMethods
-                      .map(method => (
-                        <option key={method.key} value={method.key}>
-                          {method.name} - Balance: MWK {formatCurrency(getBalance(method.key))}
+                    {paymentAccounts
+                      .filter((a) => a.isActive !== false)
+                      .map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} - Balance: MWK {formatCurrency(typeof acc.balance === 'number' ? acc.balance : parseFloat(acc.balance) || 0)}
                         </option>
                       ))
                     }
@@ -762,7 +766,7 @@ const CapitalAccountManager = () => {
                       </div>
                       <div className="flex flex-wrap gap-1">
                         <span className="font-medium">To:</span>
-                        <span>{paymentMethods.find(method => method.key === transferData.destinationAccount)?.name}</span>
+                        <span>{getAccountName(transferData.destinationAccount)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
                         <span className="font-medium">Amount:</span>

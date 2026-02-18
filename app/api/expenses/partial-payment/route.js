@@ -94,10 +94,30 @@ export async function POST(request) {
       }
     });
 
-    // Update account balance (subtract the payment amount)
-    if (paymentMethod && paymentMethod !== 'cash') {
-      // Note: You might want to implement updateAccountBalance function for expenses
-      // await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, "subtract");
+    // Create journal entry for payment if expense has a supplier
+    if (expense.supplierId) {
+      try {
+        const { createExpensePaymentJournalEntry } = await import('@/lib/transactionJournalHelpers');
+        await createExpensePaymentJournalEntry({
+          tenantId: user.tenantId,
+          userId: user.id,
+          expenseId: expense.id,
+          paymentId: payment.id,
+          paymentAmount: paymentAmount,
+          paymentMethod: paymentMethod,
+          paymentDate: new Date(paymentDate),
+          supplierId: expense.supplierId,
+          tx: prisma,
+        });
+        console.log('✅ Journal entry created for supplier expense payment:', payment.id);
+      } catch (journalError) {
+        console.error('❌ Error creating journal entry for supplier expense payment:', journalError);
+        // Don't fail the payment if journal entry creation fails
+      }
+    } else {
+      // Update account balance for non-supplier expenses
+      const { updateAccountBalance } = await import('@/lib/core');
+      await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, "subtract");
     }
 
     // Create audit log entry

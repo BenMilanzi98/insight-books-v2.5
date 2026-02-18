@@ -275,10 +275,16 @@ async function POST(request) {
         );
     }
 
+    // Handle different return structures from reversal functions
+    // Some return { reversal, taxReversals }, others return just the reversal object
+    const reversalData = result.reversal || result;
+    const taxReversals = result.taxReversals || [];
+    
     return NextResponse.json({
       success: true,
       message: `${transactionType} reversed successfully`,
-      reversal: result,
+      reversal: reversalData,
+      taxReversals: taxReversals,
       originalTransaction: transaction
     }, { status: 201 });
 

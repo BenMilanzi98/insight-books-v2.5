@@ -2,13 +2,14 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { EXPENSE_ACCOUNTS_TEMPLATE } from '@/lib/expenseCategoriesTemplate';
 
 const isFinanceAdmin = (user) => {
   const roleName = user?.role?.name?.toLowerCase() || '';
   return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
 };
 
-// Standard Chart of Accounts Template
+// Standard Chart of Accounts Template (non-expense; expense accounts from lib/expenseCategoriesTemplate.js)
 const STANDARD_COA_TEMPLATE = [
   // ASSETS
   { code: '1000', name: 'CURRENT ASSETS', type: 'Asset', subtype: 'Current Asset', normalBalance: 'Debit', parentCode: null },
@@ -66,39 +67,8 @@ const STANDARD_COA_TEMPLATE = [
   { code: '4520', name: 'Gain on Sale of Assets', type: 'Income', subtype: 'Other Income', normalBalance: 'Credit', parentCode: '4500' },
   { code: '4530', name: 'Miscellaneous Income', type: 'Income', subtype: 'Other Income', normalBalance: 'Credit', parentCode: '4500' },
 
-  // COST OF GOODS SOLD
-  { code: '5000', name: 'COST OF SALES', type: 'Expense', subtype: 'Cost of Sales', normalBalance: 'Debit', parentCode: null },
-  { code: '5010', name: 'Cost of Goods Sold', type: 'Expense', subtype: 'Cost of Sales', normalBalance: 'Debit', parentCode: '5000' },
-  { code: '5020', name: 'Freight In', type: 'Expense', subtype: 'Cost of Sales', normalBalance: 'Debit', parentCode: '5000' },
-  { code: '5030', name: 'Purchase Returns', type: 'Expense', subtype: 'Cost of Sales', normalBalance: 'Credit', parentCode: '5000' },
-
-  // EXPENSES
-  { code: '6000', name: 'OPERATING EXPENSES', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: null },
-  { code: '6010', name: 'Salaries & Wages Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6020', name: 'Rent Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6030', name: 'Utilities Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6031', name: 'Electricity', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6030' },
-  { code: '6032', name: 'Water', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6030' },
-  { code: '6033', name: 'Internet & Phone', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6030' },
-  { code: '6040', name: 'Office Supplies Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6050', name: 'Marketing & Advertising Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6060', name: 'Insurance Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6070', name: 'Repairs & Maintenance', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6080', name: 'Professional Fees', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6081', name: 'Accounting Fees', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6080' },
-  { code: '6082', name: 'Legal Fees', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6080' },
-  { code: '6090', name: 'Bank Charges', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6100', name: 'Depreciation Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6110', name: 'Bad Debt Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6120', name: 'Travel & Entertainment', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6130', name: 'Fuel & Vehicle Expenses', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6140', name: 'Training & Development', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-  { code: '6150', name: 'Miscellaneous Expenses', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'Debit', parentCode: '6000' },
-
-  { code: '7000', name: 'OTHER EXPENSES', type: 'Expense', subtype: 'Other Expense', normalBalance: 'Debit', parentCode: null },
-  { code: '7010', name: 'Interest Expense', type: 'Expense', subtype: 'Other Expense', normalBalance: 'Debit', parentCode: '7000' },
-  { code: '7020', name: 'Loss on Sale of Assets', type: 'Expense', subtype: 'Other Expense', normalBalance: 'Debit', parentCode: '7000' },
-  { code: '7030', name: 'Tax Expense', type: 'Expense', subtype: 'Other Expense', normalBalance: 'Debit', parentCode: '7000' }
+  // EXPENSE (5000–5999) — single source of truth from lib/expenseCategoriesTemplate.js
+  ...EXPENSE_ACCOUNTS_TEMPLATE
 ];
 
 // POST - Import standard COA template

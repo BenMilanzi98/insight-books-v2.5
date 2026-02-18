@@ -36,7 +36,6 @@ import {
   Printer,
   CreditCard,
   Smartphone,
-  TrendingUp,
   BarChart
 
 } from 'lucide-react';
@@ -87,6 +86,7 @@ const POSPage = () => {
     total: { count: 0, amount: '0' },
     voided: { count: 0, amount: '0' },
     refunded: { count: 0, amount: '0' },
+    taxCollected: { amount: '0' },
     byPaymentMethod: []
   });
   
@@ -1561,7 +1561,7 @@ const POSPage = () => {
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false,
-          accountId: product.accountId || accountIdToUse || defaultIncomeAccountId // Include accountId from product or use default
+          accountId: accountIdToUse || defaultIncomeAccountId // Always use default revenue account for POS transactions
           };
           
           // Validate accountId is present
@@ -2601,7 +2601,9 @@ const POSPage = () => {
       {/* Recent Sales Section - Full Width at Bottom */}
       <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500"></div>
-        <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6">Recent Sales</h2>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h2 className="text-xl lg:text-2xl font-bold text-gray-900">Recent Sales</h2>
+        </div>
           <div className="mb-6">
             <div className="relative">
               <input 

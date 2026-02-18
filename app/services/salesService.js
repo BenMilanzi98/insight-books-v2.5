@@ -251,7 +251,7 @@ export const voidSale = async (saleId, reason) => {
 };
 
 // Enhanced refund sale function with inventory restoration
-export const refundSale = async (saleId, reason) => {
+export const refundSale = async (saleId, reason, refundMethod = null) => {
   try {
     const response = await fetch(`/api/sales/${saleId}/refund`, {
       method: 'POST',
@@ -259,7 +259,8 @@ export const refundSale = async (saleId, reason) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        reason: reason || 'Sale refunded'
+        reason: reason || 'Sale refunded',
+        ...(refundMethod && { refundMethod })
       }),
     });
     

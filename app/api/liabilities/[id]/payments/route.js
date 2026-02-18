@@ -66,35 +66,105 @@ async function resolvePaymentAccount(client, tenantId, paymentMethod) {
   return fallback;
 }
 
-async function resolveLoanExpenseAccount(client, tenantId) {
-  const preferredCodes = ['7010', '7000'];
+/**
+ * Resolve the liability account for loan principal payments
+ * Principal payments should DEBIT the liability account (reducing the liability)
+ */
+async function resolveLiabilityAccount(client, tenantId, liabilityName = null) {
+  // Preferred account codes for loans/liabilities
+  const preferredCodes = ['2300', '2400', '2000', '2100'];
 
   for (const code of preferredCodes) {
     const account = await client.account.findFirst({
       where: {
         tenantId,
         accountCode: code,
+        accountType: 'Liability',
         isActive: true
       }
     });
     if (account) return account;
   }
 
-  const keywordAccount = await client.account.findFirst({
-    where: {
-      tenantId,
-      isActive: true,
-      accountType: 'Expense',
-      accountName: { contains: 'interest', mode: 'insensitive' }
-    }
-  });
-  if (keywordAccount) return keywordAccount;
+  // Try to find by keywords related to loans/liabilities
+  const keywords = ['loan', 'liability', 'payable', 'debt'];
+  for (const keyword of keywords) {
+    const account = await client.account.findFirst({
+      where: {
+        tenantId,
+        isActive: true,
+        accountType: 'Liability',
+        accountName: { contains: keyword, mode: 'insensitive' }
+      }
+    });
+    if (account) return account;
+  }
 
+  // Fallback: any active liability account
   return client.account.findFirst({
     where: {
       tenantId,
       isActive: true,
-      accountType: 'Expense'
+      accountType: 'Liability'
+    },
+    orderBy: { accountCode: 'asc' }
+  });
+}
+
+/**
+ * Resolve interest expense account for loan interest payments
+ * Interest payments should DEBIT an interest expense account (NOT COGS)
+ */
+async function resolveInterestExpenseAccount(client, tenantId) {
+  // Preferred account codes for interest expense (typically 7xxx range, but NOT COGS)
+  // COGS is typically 5000-5999, so we avoid that range
+  const preferredCodes = ['7010', '7000', '7020', '7100'];
+
+  for (const code of preferredCodes) {
+    const account = await client.account.findFirst({
+      where: {
+        tenantId,
+        accountCode: code,
+        isActive: true,
+        accountType: 'Expense',
+        // Explicitly exclude COGS accounts
+        NOT: [
+          { accountName: { contains: 'COGS', mode: 'insensitive' } },
+          { accountName: { contains: 'Cost of Goods Sold', mode: 'insensitive' } }
+        ]
+      }
+    });
+    if (account) return account;
+  }
+
+  // Try to find by interest keyword, but exclude COGS
+  const interestAccount = await client.account.findFirst({
+    where: {
+      tenantId,
+      isActive: true,
+      accountType: 'Expense',
+      accountName: { contains: 'interest', mode: 'insensitive' },
+      // Explicitly exclude COGS
+      NOT: [
+        { accountName: { contains: 'COGS', mode: 'insensitive' } },
+        { accountName: { contains: 'Cost of Goods Sold', mode: 'insensitive' } }
+      ]
+    }
+  });
+  if (interestAccount) return interestAccount;
+
+  // Fallback: any expense account that is NOT COGS
+  return client.account.findFirst({
+    where: {
+      tenantId,
+      isActive: true,
+      accountType: 'Expense',
+      // Explicitly exclude COGS accounts
+      NOT: [
+        { accountName: { contains: 'COGS', mode: 'insensitive' } },
+        { accountName: { contains: 'Cost of Goods Sold', mode: 'insensitive' } },
+        { accountCode: { startsWith: '5' } } // COGS typically in 5000-5999 range
+      ]
     },
     orderBy: { accountCode: 'asc' }
   });
@@ -262,29 +332,34 @@ export async function POST(request, { params }) {
         throw new Error('No asset account found for the selected payment method. Please configure the Chart of Accounts.');
       }
 
-      // Get separate expense accounts for principal and interest
-      const principalExpenseAccount = await resolveLoanExpenseAccount(tx, user.tenantId);
-      const interestExpenseAccount = await tx.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          isActive: true,
-          accountType: 'Expense',
-          accountName: { contains: 'interest', mode: 'insensitive' }
-        }
-      }) || principalExpenseAccount; // Fallback to same account if no interest account found
+      // Get the liability account for principal payment
+      // Principal payments DEBIT the liability account (reducing the liability balance)
+      const liabilityAccount = await resolveLiabilityAccount(tx, user.tenantId, liability.name);
+      
+      if (!liabilityAccount) {
+        throw new Error('Unable to find a liability account to record the loan principal payment. Please create a liability account (e.g., "Short-term Loans" or "Long-term Loans") in your Chart of Accounts.');
+      }
 
-      if (!principalExpenseAccount) {
-        throw new Error('Unable to find an expense account to record the loan payment. Please create an expense account in the Chart of Accounts.');
+      // Get interest expense account for interest payment
+      // Interest payments DEBIT an interest expense account (NOT COGS)
+      const interestExpenseAccount = await resolveInterestExpenseAccount(tx, user.tenantId);
+      
+      if (!interestExpenseAccount && interestPaid > 0) {
+        throw new Error('Unable to find an interest expense account to record the loan interest payment. Please create an interest expense account in your Chart of Accounts.');
       }
 
       // Create separate journal lines for principal and interest
+      // Correct accounting entry for loan repayment:
+      // - Debit: Liability Account (principal) - reduces liability
+      // - Debit: Interest Expense Account (interest) - records expense
+      // - Credit: Cash/Bank Account (total payment) - money going out
       const journalLines = [];
       let lineNumber = 1;
 
       if (principalPaid > 0) {
         journalLines.push({
           lineNumber: lineNumber++,
-          accountId: principalExpenseAccount.id,
+          accountId: liabilityAccount.id,
           debitAmount: principalPaid,
           creditAmount: 0,
           description: `Loan principal payment - ${liability.name}`
