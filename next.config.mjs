@@ -8,12 +8,6 @@ const nextConfig = {
     // Don't optimize images that come from our own domain/uploads
     unoptimized: false,
   },
-  // Increase body size limit for API routes (document uploads up to 20MB)
-  api: {
-    bodyParser: {
-      sizeLimit: '20mb',
-    },
-  },
   // Ensure static files are served correctly
   async headers() {
     return [

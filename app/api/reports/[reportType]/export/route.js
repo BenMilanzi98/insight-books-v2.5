@@ -166,7 +166,7 @@ export async function GET(request, { params }) {
         title = cashFlowExport.title || 'Cash Flow Statement (Direct Method)';
         break;
 
-      case 'stock-movement':
+      case 'stock-movement': {
         if (!startDate || !endDate) {
           return NextResponse.json(
             { error: 'Start date and end date are required for stock movement export' },
@@ -181,8 +181,8 @@ export async function GET(request, { params }) {
           searchParams.get('productId') || null,
           user.currentBranchId || null
         );
-        const { prepareExportData } = await import('@/lib/exportUtils');
-        const stockMovementExport = prepareExportData('stock-movement', stockMovementData);
+        const { prepareExportData: prepareExportDataStock } = await import('@/lib/exportUtils');
+        const stockMovementExport = prepareExportDataStock('stock-movement', stockMovementData);
         reportData = stockMovementExport.data;
         headers = stockMovementExport.headers || [
           { key: 'productName', label: 'Product' },
@@ -196,6 +196,7 @@ export async function GET(request, { params }) {
         ];
         title = stockMovementExport.title || 'Stock Movement Report';
         break;
+      }
 
       case 'pos-daily': {
         const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
