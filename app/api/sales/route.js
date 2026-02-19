@@ -737,9 +737,7 @@ export async function POST(request) {
               sale: {
                 connect: { id: sale.id }
               },
-              account: {
-                connect: { id: item.accountId }
-              },
+              accountId: item.accountId || null,
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,

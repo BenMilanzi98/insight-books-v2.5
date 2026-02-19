@@ -50,6 +50,25 @@ If you have no pending migrations and don’t need a backup for this run, you ca
 
 ---
 
+## 2b. "Income account is required" / Chart of Accounts (POS, sales)
+
+If you see: **"Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales."**
+
+Run the **Chart of Accounts seed** so every tenant has default accounts (including 4000 Revenue and 4100 Sales Revenue):
+
+```bash
+npm run db:seed:coa
+```
+
+This runs `prisma/seed/chartOfAccountsSeed.ts`: it finds all tenants and creates/updates the standard Chart of Accounts for each (Revenue 4000, Sales Revenue 4100, Cash, A/R, A/P, Expense, etc.). After it finishes, restart the app and try POS/sales again.
+
+**Alternative (if ts-node is not available):**
+```bash
+npx ts-node prisma/seed/chartOfAccountsSeed.ts
+```
+
+---
+
 ## 3. Subscriptions and access (fix 403 / 500 from access control)
 
 APIs use `requireStandardAccess`, which needs a valid subscription. If `diagnose-access.js` shows missing or bad subscriptions:
