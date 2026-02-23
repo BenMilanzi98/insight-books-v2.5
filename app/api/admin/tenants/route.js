@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
 
 const prisma = new PrismaClient();
 
@@ -16,24 +17,48 @@ export async function GET(request) {
       );
     }
 
-    // Fetch all tenants
-    const tenants = await prisma.tenant.findMany({
+    // Fetch all tenants with subscription data (same source of truth as tenant-management)
+    const tenantsRaw = await prisma.tenant.findMany({
       select: {
         id: true,
         name: true,
         subdomain: true,
         status: true,
+        subscriptionPlan: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        accountSubscriptions: {
+          orderBy: { createdAt: 'desc' },
+          select: {
+            isTrial: true,
+            isActive: true,
+            status: true,
+            trialEndDate: true,
+            expiresAt: true,
+            plan: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc'
       }
     });
 
+    const tenants = tenantsRaw.map((t) => {
+      const subscriptionStatus = getSubscriptionStatusFromSubscriptions(t.accountSubscriptions);
+      const currentSub = t.accountSubscriptions?.[0];
+      const plan = currentSub?.plan ?? t.subscriptionPlan ?? null;
+      const { accountSubscriptions, ...rest } = t;
+      return {
+        ...rest,
+        subscriptionStatus,
+        plan,
+      };
+    });
+
     return NextResponse.json({
       success: true,
-      tenants: tenants
+      tenants
     });
 
   } catch (error) {
