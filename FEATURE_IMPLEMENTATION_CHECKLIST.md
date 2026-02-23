@@ -183,7 +183,80 @@ This checklist aligns the codebase with **feature implementation.txt** and ensur
 
 ---
 
-## 16. How Features Relate
+## 15b. Feature implementation.txt – Cross-Check Summary
+
+| Area in feature implementation.txt | Status | Notes |
+|------------------------------------|--------|------|
+| **1. Product-Level Tax Management** | ✅ | Tax types, product tax assignment, POS auto-apply, receipts with tax breakdown; permissions (Admin/Manager create/assign, Cashier view). |
+| **2. Multi-Tax Accounts & Tax Tracking** | ✅ | TaxType per obligation; tax posted to linked account; Tax Management shows collected/paid/net; VAT Summary (Input/Output/Net). |
+| **3. Payment Processing** | ✅ | Payment accounts (user-defined); Cash default; split payments; reporting per account; `paymentMethodAccountMapping`, Payment Management. |
+| **Bug: Stock not saving (branch)** | ⚠️ | Stock APIs use branch; if KU branch missing, ensure branchId passed on save. |
+| **Bug: Stock movement across branches** | ✅ | `api/stock-transfers`; stock movement report; branch balances. |
+| **Bug: COGS** | ✅ | COGS from sales/invoices; posts to COGS account; dashboard & GL. |
+| **Bug: Remove accounts when creating taxes** | ✅ | Non-PAYE tax types can have accountId removed/set to null (PUT tax-types/[id]); PAYE requires account. |
+| **Bug: Combined taxes calculation** | ✅ | SaleItemTax per tax type; tax summary by rate; multi-tax stacking. |
+| **Bug: Salary advance** | ✅ | `api/salary-advances`, `/hr/advances`; deductions from payroll. |
+| **Bug: HR reports** | ✅ | `/hr/reports`; report generation. |
+| **Bug: PAYE default tax account** | ✅ | PAYE tax type linked to liability account; payroll posts to it. |
+| **i. Revenue Budget (Forecasting)** | ✅ | Budget model; manual revenue budgets; budget vs actual (`getActualRevenue`, budget reports); period lock. |
+| **ii. Stock movement across branches** | ✅ | Stock transfers; quantity out/in; audit trail; reports. |
+| **iii. Supplier management for expenses** | ✅ | Suppliers module; expenses reference supplier; supplier balance tracking. |
+| **iv. Transaction reversal** | ✅ | Reversals for sales/expenses/payments; no hard deletes; reason required; ledger/tax/payment adjusted. |
+| **v. Ledger system** | ✅ | General Ledger; all transactions post; read-only; by date/account. |
+| **vi. Journal entries** | ✅ | Manual adjustments; debit/credit/amount/reason; ledger impact. |
+| **vii. Period closing & opening** | ✅ | Accounting periods; close/lock; reopen with reason; audit. |
+| **Unified account codes / Expense categories from CoA** | ✅ | Expense categories from CoA; budgeting from CoA; normalization. |
+| **Client management** | ✅ | Balance reminder template; client account summary download; multi-email invoices; tenant email. |
+| **Invoicing & POS** | ✅ | Titles, order numbers; invoice attachments; tax lines on receipts/invoices/quotes. |
+| **HR benefits** | ✅ | Benefits & allowances; payroll integration; `/hr/benefits`. |
+| **Accounting checklist – Navigation** | ✅ | All accounting under one Accounting dropdown: GL, Receivables, Payables, Periods, CoA, Journal Entries, Capital, Trial Balance, Reversals. |
+| **Amwenye: Footer phone & bank** | ✅ | TenantSettings businessPhone, defaultBankDetails; Invoice/Quotation/Sale footer overrides. |
+| **Amwenye: MWK symbol** | ✅ | MWK in column headers and totals only (InvoiceTemplatePreview, PDF). |
+| **Amwenye: Decimal .00** | ✅ | Two decimals in UI; export/print use `formatAmountForExport`/`formatCurrencyForExport` (no .00). |
+| **Amwenye: PO goods & services** | ✅ | PO module with type, tax, totals, invoice upload, VAT integration, prices-include-tax toggle. |
+| **Amwenye: Tax in expenses** | ✅ | Expense taxAmount, taxRate; tracked for reporting. |
+| **Amwenye: Taxes from outflows** | ✅ | TenantSettings.taxOutflowAccountId; expense/supplier tax to outflow account. |
+| **Amwenye: Credit & Debit notes** | ✅ | CreditNote, DebitNote models; `/credit-debit-notes`; ledger entries; link to invoice/sale. |
+
+---
+
+## 15c. Data-layer verification (schema ↔ API)
+
+Verified that feature-specific schema fields are **written** in create/update APIs and **read** where needed:
+
+| Area | Persisted in API | Notes |
+|------|------------------|--------|
+| **Expense** | `taxAmount`, `taxRate`, `supplierId`, `purchaseOrderId`, `purchaseOrderItemId` | `app/api/expenses/route.js` create/update |
+| **Invoice** | `title`, `orderNumber`, `footerPhoneOverride`, `footerBankDetailsOverride` | `app/api/invoices/route.js`, `[id]/route.js` |
+| **Quotation** | `title`, `orderNumber`, `footerPhoneOverride`, `footerBankDetailsOverride` | Schema + quotation APIs |
+| **Sale** | `title`, `orderNumber`, `footerPhoneOverride`, `footerBankDetailsOverride`, `branchId` | Sale APIs |
+| **CreditNote / DebitNote** | `invoiceId`, `saleId`, `amount`, `reason`, `status`, `postedAt` | Post to ledger via `createCreditNoteJournalEntry` / `createDebitNoteJournalEntry` (Transaction `sourceType`/`sourceId`) |
+| **Budget / BudgetItem** | `expectedRevenue`, `periodType`, `startDate`, `endDate`, `budgetType`, `breakdowns`, `items` (accountId, branchId, etc.) | `app/api/budgets/route.js`, `lib/budgetService.js` |
+| **PurchaseOrder** | `pricesIncludeTax`, `supplierInvoiceUrl`, items: `taxTypeId`, `taxRate`, `taxAmount` | `app/api/purchases/orders/route.js`, `[id]/route.js`, `[id]/upload/route.js` |
+| **Client** | `additionalEmails` | `app/api/clients/route.js`, `[id]/route.js` (GET/POST/PATCH) |
+| **StockTransfer** | Full model (fromBranchId, toBranchId, productId, quantity, status, etc.) | `app/api/stock-transfers/route.js` |
+| **Payment / PaymentAllocation** | `PaymentAccount`; split payments via `PaymentAllocation` | Payment APIs use payment accounts and allocations |
+
+No schema fields identified as missing from create/update or read paths for the features in feature implementation.txt.
+
+---
+
+## 16. Purchase Order Module
+
+| Requirement | Status | Location / Notes |
+|-------------|--------|------------------|
+| PO Type selector: Inventory Purchase (receivables only) vs Goods & Services (hits expenses) | ✅ | `app/purchases/orders/page.js` – ORDER_TYPES; API uses `orderType`; expense sync only for services/mixed |
+| Line-level tax: Tax Type dropdown, Tax % editable, auto Tax Amount, auto Total Inclusive | ✅ | Order form: taxTypes from `/api/tax-types`; per-line `taxTypeId`, `taxRate`; totals use pricesIncludeTax when set |
+| Totals section: Subtotal, Total Tax, Grand Total | ✅ | Form section "Notes & Totals"; API stores subtotal, taxAmount, totalAmount |
+| Supplier Invoice Upload: PDF/Image, store against PO, link to Supplier Ledger | ✅ | `POST /api/purchases/orders/[id]/upload`; DetailDrawer: view/replace invoice, "View supplier ledger" → `/purchases/suppliers/[id]` |
+| Tax module: Purchase taxes → Input VAT, Sales → Output VAT, Net VAT payable | ✅ | `app/api/reports/tax-summary/route.js` – vatSummary (inputVat, outputVat, netVatPayable); Tax Management page shows VAT Summary |
+| Toggle: Prices Include Tax / Prices Exclude Tax | ✅ | `PurchaseOrder.pricesIncludeTax`; form checkbox; API computes line subtotal/tax from inclusive when set |
+
+**Cross-check:** PO create/update use `_lineSubtotal` for correct subtotal when pricesIncludeTax; expense sync in `lib/purchaseOrderExpenseSync.js` for services/mixed only.
+
+---
+
+## 17. How Features Relate
 
 - **Reversals** → undo **POS/Invoices** (sales, COGS, payments, tax).  
 - **COGS** → driven by **Inventory** and **Sales/Invoices**; posts to **Chart of Accounts** and **General Ledger**.  
@@ -195,6 +268,7 @@ This checklist aligns the codebase with **feature implementation.txt** and ensur
 - **Client management** → **Invoices** (multi-email, tenant sender); **balance reminder** and **account summary** use same tenant/client settings.  
 - **Invoicing/POS** → **Invoice/Quotation/Sale** schema (title, order number, attachments); tax on receipts/invoices.  
 - **HR benefits** → **Payroll** (allowances in gross pay and on payslips).
+- **Purchase orders** → **Suppliers**, **Expenses** (Goods & Services type), **Tax** (line-level tax type, Input VAT); **Supplier Bills** link to PO; invoice upload stored on PO; **Tax Management** shows Input/Output VAT and Net VAT payable.
 
 ---
 

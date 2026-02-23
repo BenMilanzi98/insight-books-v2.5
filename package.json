@@ -25,6 +25,7 @@
     "validate:expense-categories": "node scripts/validate-expense-categories.js",
     "validate:data-integrity": "node scripts/validate-data-integrity.js",
     "validate:quick": "node scripts/quick-validation.js",
+    "verify-system": "node scripts/verify-system.js",
     "normalize:expenses": "node scripts/normalize-expense-categories.js"
   },
   "dependencies": {

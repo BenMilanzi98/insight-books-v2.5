@@ -109,7 +109,9 @@ export async function GET(request, { params }) {
       address: tenant?.settings?.address || '',
       city: tenant?.settings?.city || '',
       phone: tenant?.settings?.phone || '',
-      email: tenant?.settings?.email || ''
+      email: tenant?.settings?.email || '',
+      businessPhone: tenant?.settings?.businessPhone || '',
+      defaultBankDetails: tenant?.settings?.defaultBankDetails || ''
     };
     
     // Prepare quotation data in the format expected by client-side PDF generator
@@ -156,7 +158,10 @@ export async function GET(request, { params }) {
       totalDiscountAmount: quotation.totalDiscountAmount || 0,
       taxAmount: quotation.taxAmount || 0,
       total: quotation.total || 0,
-      discount: quotation.discount || 0
+      discount: quotation.discount || 0,
+      // Footer overrides for phone and bank details
+      footerPhoneOverride: quotation.footerPhoneOverride ?? null,
+      footerBankDetailsOverride: quotation.footerBankDetailsOverride ?? null
     };
     
     // Return JSON with all necessary data for client-side PDF generation

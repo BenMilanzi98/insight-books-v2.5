@@ -47,7 +47,9 @@ const QuotationModal = ({
     validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     status: "Approved",
     notes: "",
-    discount: ""
+    discount: "",
+    footerPhoneOverride: "",
+    footerBankDetailsOverride: ""
   });
   
   const [clients, setClients] = useState([]);
@@ -150,7 +152,9 @@ const QuotationModal = ({
         validUntil: quotation.validUntil || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
         status: "Approved",
         notes: quotation.notes || "",
-        discount: parseFloat((quotation.discount || '0').toString().replace(/,/g, '')) || 0
+        discount: parseFloat((quotation.discount || '0').toString().replace(/,/g, '')) || 0,
+        footerPhoneOverride: quotation.footerPhoneOverride ?? "",
+        footerBankDetailsOverride: quotation.footerBankDetailsOverride ?? ""
       });
     }
   }, [quotation, mode]);
@@ -1058,6 +1062,35 @@ const QuotationModal = ({
                 onChange={handleChange}
                 placeholder="Add any additional notes or terms and conditions"
               ></textarea>
+            </div>
+            
+            <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
+              <p className="text-sm font-medium text-gray-700 mb-2">Footer overrides (optional)</p>
+              <p className="text-xs text-gray-500 mb-2">Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.</p>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">Footer phone</label>
+                  <input
+                    id="footerPhoneOverride"
+                    type="text"
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={formData.footerPhoneOverride || ""}
+                    onChange={(e) => setFormData({ ...formData, footerPhoneOverride: e.target.value })}
+                    placeholder="e.g. +265 1 234 567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">Footer bank details</label>
+                  <textarea
+                    id="footerBankDetailsOverride"
+                    rows={2}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={formData.footerBankDetailsOverride || ""}
+                    onChange={(e) => setFormData({ ...formData, footerBankDetailsOverride: e.target.value })}
+                    placeholder="Bank name, account name, number, branch..."
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </div>

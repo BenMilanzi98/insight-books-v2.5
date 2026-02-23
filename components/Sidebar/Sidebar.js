@@ -193,6 +193,8 @@ const navigationByPermission = {
           expandable: true,
           subItems: [
             { href: "/general-ledger", text: "General Ledger" },
+            { href: "/accounting/receivables", text: "Receivables" },
+            { href: "/accounting/payables", text: "Payables" },
             { href: "/chart-of-accounts", text: "Chart of Accounts" },
             { href: "/accounting-periods", text: "Accounting Periods" },
             { href: "/journal-entries", text: "Journal Entries" },
@@ -223,6 +225,14 @@ const navigationByPermission = {
             href: "/purchases/suppliers",
             icon: "purchases",
             text: "Purchases",
+            expandable: true,
+            subItems: [
+              { href: "/purchases/suppliers", text: "Suppliers" },
+              { href: "/purchases/orders", text: "Orders" },
+              { href: "/purchases/bills", text: "Bills" },
+              { href: "/purchases/payments", text: "Payments" },
+              { href: "/customization?tab=business", text: "Purchase taxes" },
+            ],
           },
         // HR Module temporarily commented out
         {
@@ -276,6 +286,7 @@ const navigationByPermission = {
     items: [
       { href: "/invoice", icon: "invoicing", text: "Invoicing", permission: "invoices.view" },
       { href: "/quotations", icon: "quotations", text: "Quotations", permission: "invoices.view" },
+      { href: "/credit-debit-notes", icon: "invoicing", text: "Credit & Debit Notes", permission: "invoices.view" },
     ]
   },
   clients: {
@@ -312,8 +323,11 @@ const navigationByPermission = {
         expandable: true,
         subItems: [
           { href: "/general-ledger", text: "General Ledger", permission: "generalLedger.view" },
+          { href: "/accounting/receivables", text: "Receivables" },
+          { href: "/accounting/payables", text: "Payables" },
           { href: "/accounting-periods", text: "Accounting Periods", permission: "journalEntries.view" },
           { href: "/journal-entries", text: "Journal Entries", permission: "journalEntries.view" },
+          { href: "/chart-of-accounts", text: "Chart of Accounts" },
           { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
           { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
           { href: "/transactions/reversals", text: "Reversals" },
@@ -671,6 +685,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         href: "/purchases/suppliers",
         icon: "purchases",
         text: "Purchases",
+        expandable: true,
+        subItems: [
+          { href: "/purchases/suppliers", text: "Suppliers" },
+          { href: "/purchases/orders", text: "Orders" },
+          { href: "/purchases/bills", text: "Bills" },
+          { href: "/purchases/payments", text: "Payments" },
+          { href: "/customization?tab=business", text: "Purchase taxes" },
+        ],
       });
     }
     
@@ -719,6 +741,8 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           expandable: true,
           subItems: [
             { href: "/general-ledger", text: "General Ledger" },
+            { href: "/accounting/receivables", text: "Receivables" },
+            { href: "/accounting/payables", text: "Payables" },
             { href: "/accounting-periods", text: "Accounting Periods" },
             { href: "/chart-of-accounts", text: "Chart of Accounts" },
             { href: "/journal-entries", text: "Journal Entries" },
@@ -1311,12 +1335,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
                           color: isActive(item.href) ? "white" : "rgba(255,255,255,0.7)",
                           backgroundColor: isActive(item.href) ? "rgba(49, 130, 206, 0.2)" : "transparent",
                           borderLeft: isActive(item.href) ? "3px solid #3182ce" : "3px solid transparent",
+                          borderTop: "1px solid transparent",
+                          borderRight: "1px solid transparent",
+                          borderBottom: "1px solid transparent",
                           gap: "12px",
                           position: "relative",
                           transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                           cursor: "pointer",
                           borderRadius: "8px",
-                          border: "1px solid transparent",
                           transform: "translateX(0)",
                         }}
                         onMouseEnter={(e) => {

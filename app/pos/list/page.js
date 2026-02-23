@@ -138,7 +138,7 @@ const SalesListPage = () => {
       });
     } catch (error) {
       console.error("Error loading sales:", error);
-      setError("Failed to load sales. Please try again.");
+      setError(error?.message || "Failed to load sales. Please try again.");
     } finally {
       setIsLoading(false);
     }

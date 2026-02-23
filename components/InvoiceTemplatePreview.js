@@ -1,10 +1,10 @@
 // components/InvoiceTemplatePreview.jsx
 import React from 'react';
 import { FileText, CheckCircle, Paperclip } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/invoiceCalculations';
+import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
 
-// Generate payment breakdown for Partial status invoices
-const renderPaymentBreakdown = (displayData) => {
+// Generate payment breakdown for Partial status invoices (currencyFmt: formatCurrency or formatCurrencyForExport for print)
+const renderPaymentBreakdown = (displayData, currencyFmt = formatCurrency) => {
   if (displayData.status !== 'Partial' || !displayData.paymentInfo || displayData.paymentInfo.paymentCount === 0) {
     return null;
   }
@@ -16,17 +16,17 @@ const renderPaymentBreakdown = (displayData) => {
         {displayData.payments.map((payment, index) => (
           <div key={payment.id || index} className="flex justify-between text-blue-700">
             <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-            <span className="font-medium">{formatCurrency(payment.amount)}</span>
+            <span className="font-medium">{currencyFmt(payment.amount)}</span>
           </div>
         ))}
         <div className="pt-2 mt-2 border-t border-blue-200">
           <div className="flex justify-between font-medium text-blue-800">
             <span>Total Paid:</span>
-            <span>{formatCurrency(displayData.paymentInfo.totalPaid)}</span>
+            <span>{currencyFmt(displayData.paymentInfo.totalPaid)}</span>
           </div>
           <div className="flex justify-between text-blue-700">
             <span>Outstanding:</span>
-            <span>{formatCurrency(displayData.paymentInfo.outstandingAmount)}</span>
+            <span>{currencyFmt(displayData.paymentInfo.outstandingAmount)}</span>
           </div>
         </div>
       </div>
@@ -44,6 +44,10 @@ const renderPaymentBreakdown = (displayData) => {
  * @param {boolean} props.isPrint - Whether this is for print preview
  */
 const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }) => {
+  // Export/print: no trailing .00 for tidy documents; UI: always two decimals
+  const formatAmountDisplay = isPrint ? formatAmountForExport : formatAmount;
+  const formatCurrencyDisplay = isPrint ? (amount, code) => formatCurrencyForExport(amount, code || 'MWK') : formatCurrency;
+
   // Parse template content
   const content = typeof template?.content === 'string' 
     ? JSON.parse(template.content) 
@@ -57,6 +61,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   
   // Use the primary color from template content or branding settings
   const primaryColor = content.primaryColor || branding?.primaryColor || '#4f46e5';
+  
+  // Footer: document override or default from settings (for invoice, quotation, receipt)
+  const footerPhone = (invoice?.footerPhoneOverride != null && invoice?.footerPhoneOverride !== '') ? invoice.footerPhoneOverride : (branding?.businessPhone || '');
+  const footerBankDetails = (invoice?.footerBankDetailsOverride != null && invoice?.footerBankDetailsOverride !== '') ? invoice.footerBankDetailsOverride : (branding?.defaultBankDetails || '');
+  const hasFooterContact = showFooter && (footerPhone.trim() || footerBankDetails.trim());
   
   // Sample invoice data for template preview (used when no invoice is provided)
   const sampleData = {
@@ -122,14 +131,22 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     dueDate: formatDate(invoice.dueDate),
     status: invoice.status,
     client: invoice.client,
-    items: invoice.items?.map(item => ({
-      ...item,
-      amount: item.quantity * item.unitPrice,
-      // Include line item discount information
-      lineTotal: item.quantity * item.unitPrice,
-      discountAmount: item.discountAmount || 0,
-      netAmount: (item.quantity * item.unitPrice) - (item.discountAmount || 0)
-    })),
+    items: invoice.items?.map(item => {
+      const lineTotal = item.quantity * item.unitPrice;
+      const discountAmount = item.discountAmount || 0;
+      const netAmount = lineTotal - discountAmount;
+      const lineTaxAmount = netAmount * ((item.taxRate || 0) / 100);
+      return {
+        ...item,
+        // Ensure line title: description or product name
+        description: (item.description && String(item.description).trim()) || (item.product && item.product.name) || 'Item',
+        amount: lineTotal - discountAmount + lineTaxAmount,
+        lineTotal,
+        discountAmount,
+        netAmount,
+        lineTaxAmount
+      };
+    }),
     // Use the stored discount values from the database
     discount: invoice.discount || 0, // Global discount
     totalDiscountAmount: invoice.totalDiscountAmount || 0, // Total of line item discounts
@@ -232,10 +249,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           <tr>
             <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
             <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tax Rate</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate (MWK)</th>
+            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount (MWK)</th>
+            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tax (MWK)</th>
+            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (MWK)</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-200 bg-white">
@@ -243,16 +260,22 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <tr key={index}>
               <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">{item.description}</td>
               <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{item.quantity}</td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
+              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatAmountDisplay(item.unitPrice)}</td>
               <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">
                 {item.discountAmount > 0 ? (
-                  <span className="text-red-600">-{formatCurrency(item.discountAmount)}</span>
+                  <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}
               </td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{item.taxRate}%</td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatCurrency(item.amount)}</td>
+              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
+                {item.taxRate > 0 ? (
+                  <span>{item.taxRate}% · {formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * ((item.taxRate || 0) / 100)))}</span>
+                ) : (
+                  <span className="text-gray-400">—</span>
+                )}
+              </td>
+              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -264,27 +287,27 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {displayData.totalDiscountAmount > 0 && (
             <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
               <span className="text-gray-600">Line Item Discounts:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.totalDiscountAmount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
             </div>
           )}
           {/* Show global discount if any */}
           {displayData.discount > 0 && (
             <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
               <span className="text-gray-600">Global Discount:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.discount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
             </div>
           )}
           <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
             <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">{formatCurrency(displayData.subtotal)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
           <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
             <span className="text-gray-600">Tax</span>
-            <span className="font-medium">{formatCurrency(displayData.taxAmount)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
           <div className="flex justify-between py-2 sm:py-3 text-sm sm:text-base lg:text-lg border-t border-gray-200" style={{ color: primaryColor }}>
             <span>Total</span>
-            <span>{formatCurrency(displayData.total)}</span>
+            <span>{formatCurrencyDisplay(displayData.total)}</span>
           </div>
           
           {/* Payment Information */}
@@ -295,14 +318,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               {/* Total Paid */}
               <div className="flex justify-between py-2">
                 <span className="text-gray-600">Total Paid:</span>
-                <span className="font-medium text-green-600">{formatCurrency(displayData.paymentInfo.totalPaid)}</span>
+                <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
               
               {/* Outstanding Amount */}
               {displayData.paymentInfo.outstandingAmount > 0 && (
                 <div className="flex justify-between py-2">
                   <span className="text-gray-600">Outstanding:</span>
-                  <span className="font-medium text-red-600">{formatCurrency(displayData.paymentInfo.outstandingAmount)}</span>
+                  <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
                 </div>
               )}
               
@@ -328,7 +351,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
                         <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-                        <span>{formatCurrency(payment.amount)}</span>
+                        <span>{formatCurrencyDisplay(payment.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -346,7 +369,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
             <div className="text-xs sm:text-sm text-gray-700">
               <p>{displayData.notes || "Thank you for your business!"}</p>
-              {renderPaymentBreakdown(displayData)}
+              {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
             </div>
           </div>
           <div className="text-right">
@@ -356,6 +379,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             </div>
             {showFooter && branding?.emailFooter && (
               <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
+            )}
+            {hasFooterContact && (
+              <div className="mt-3 text-xs text-gray-600 text-right space-y-0.5">
+                {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+                {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-right">{footerBankDetails.trim()}</pre>}
+              </div>
             )}
           </div>
         </div>
@@ -434,10 +463,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <tr style={{ backgroundColor: primaryColor + '15' }}>
               <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Item</th>
               <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Quantity</th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Rate</th>
-              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Discount</th>
-              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Tax Rate</th>
-              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Amount</th>
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Rate (MWK)</th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Discount (MWK)</th>
+              <th className="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Tax (MWK)</th>
+              <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">Amount (MWK)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200 bg-white">
@@ -445,16 +474,18 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               <tr key={index} className="hover:bg-gray-50">
                 <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.description}</td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-center">{item.quantity}</td>
-                <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
+                <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.unitPrice)}</td>
                 <td className="px-6 py-4 text-sm text-gray-500 text-center">
                   {item.discountAmount > 0 ? (
-                    <span className="text-red-600">-{formatCurrency(item.discountAmount)}</span>
+                    <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span>
                   ) : (
                     <span className="text-gray-400">-</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-500 text-center">{item.taxRate}%</td>
-                <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatCurrency(item.amount)}</td>
+                <td className="px-6 py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
+                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * (item.taxRate / 100)))}` : '—'}
+                </td>
+                <td className="px-6 py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
               </tr>
             ))}
           </tbody>
@@ -468,27 +499,27 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {displayData.totalDiscountAmount > 0 && (
             <div className="flex justify-between py-2">
               <span className="text-gray-600">Line Item Discounts:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.totalDiscountAmount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
             </div>
           )}
           {/* Show global discount if any */}
           {displayData.discount > 0 && (
             <div className="flex justify-between py-2">
               <span className="text-gray-600">Global Discount:</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.discount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
             </div>
           )}
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Subtotal:</span>
-            <span className="font-medium">{formatCurrency(displayData.subtotal)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Tax:</span>
-            <span className="font-medium">{formatCurrency(displayData.taxAmount)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
           <div className="flex justify-between py-2 text-lg font-bold mt-2 pt-2 border-t border-gray-300" style={{ color: primaryColor }}>
             <span>Total:</span>
-            <span>{formatCurrency(displayData.total)}</span>
+            <span>{formatCurrencyDisplay(displayData.total)}</span>
           </div>
           
           {/* Payment Information */}
@@ -499,14 +530,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               {/* Total Paid */}
               <div className="flex justify-between py-2">
                 <span className="text-gray-600">Total Paid:</span>
-                <span className="font-medium text-green-600">{formatCurrency(displayData.paymentInfo.totalPaid)}</span>
+                <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
               
               {/* Outstanding Amount */}
               {displayData.paymentInfo.outstandingAmount > 0 && (
                 <div className="flex justify-between py-2">
                   <span className="text-gray-600">Outstanding:</span>
-                  <span className="font-medium text-red-600">{formatCurrency(displayData.paymentInfo.outstandingAmount)}</span>
+                  <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
                 </div>
               )}
               
@@ -532,7 +563,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
                         <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-                        <span>{formatCurrency(payment.amount)}</span>
+                        <span>{formatCurrencyDisplay(payment.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -550,7 +581,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
             <div className="text-xs sm:text-sm text-gray-700">
               <p>{displayData.notes || "Thank you for your business!"}</p>
-              {renderPaymentBreakdown(displayData)}
+              {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
             </div>
           </div>
           <div className="text-right">
@@ -560,6 +591,12 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             </div>
             {showFooter && branding?.emailFooter && (
               <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
+            )}
+            {hasFooterContact && (
+              <div className="mt-3 text-xs text-gray-600 text-right space-y-0.5">
+                {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+                {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-right">{footerBankDetails.trim()}</pre>}
+              </div>
             )}
           </div>
         </div>
@@ -611,7 +648,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           <p className="text-sm">Title: {displayData.title || '—'}</p>
           <p className="text-sm">Order #: {displayData.orderNumber || '—'}</p>
           <p className="font-medium mt-1">Due Date: {displayData.dueDate}</p>
-          <p className="text-sm">Amount Due: {formatCurrency(displayData.total)}</p>
+          <p className="text-sm">Amount Due: {formatCurrencyDisplay(displayData.total)}</p>
           <p className="text-sm">Status: {displayData.status}</p>
         </div>
       </div>
@@ -622,10 +659,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           <tr>
             <th className="pb-3 text-left text-xs font-normal text-gray-500 uppercase tracking-wider">Description</th>
             <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Qty</th>
-            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Rate</th>
-            <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Discount</th>
-            <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Tax</th>
-            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Amount</th>
+            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Rate (MWK)</th>
+            <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Discount (MWK)</th>
+            <th className="pb-3 text-center text-xs font-normal text-gray-500 uppercase tracking-wider">Tax (MWK)</th>
+            <th className="pb-3 text-right text-xs font-normal text-gray-500 uppercase tracking-wider">Amount (MWK)</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
@@ -633,16 +670,18 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <tr key={index}>
               <td className="py-4 text-sm text-gray-900">{item.description}</td>
               <td className="py-4 text-sm text-gray-500 text-right">{item.quantity}</td>
-              <td className="py-4 text-sm text-gray-500 text-right">{formatCurrency(item.unitPrice)}</td>
+              <td className="py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.unitPrice)}</td>
               <td className="py-4 text-sm text-gray-500 text-center">
                 {item.discountAmount > 0 ? (
-                  <span className="text-red-600">-{formatCurrency(item.discountAmount)}</span>
+                  <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span>
                 ) : (
                   <span className="text-gray-400">-</span>
                 )}
               </td>
-              <td className="py-4 text-sm text-gray-500 text-center">{item.taxRate}%</td>
-              <td className="py-4 text-sm text-gray-500 text-right">{formatCurrency(item.amount)}</td>
+              <td className="py-4 text-sm text-gray-500 text-center" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
+                {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * (item.taxRate / 100)))}` : '—'}
+              </td>
+              <td className="py-4 text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -655,27 +694,27 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           {displayData.totalDiscountAmount > 0 && (
             <div className="flex justify-between py-2">
               <span className="text-gray-600">Line Item Discounts</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.totalDiscountAmount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
             </div>
           )}
           {/* Show global discount if any */}
           {displayData.discount > 0 && (
             <div className="flex justify-between py-2">
               <span className="text-gray-600">Global Discount</span>
-              <span className="font-medium text-red-600">-{formatCurrency(displayData.discount)}</span>
+              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
             </div>
           )}
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">{formatCurrency(displayData.subtotal)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
           </div>
           <div className="flex justify-between py-2">
             <span className="text-gray-600">Tax</span>
-            <span className="font-medium">{formatCurrency(displayData.taxAmount)}</span>
+            <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
           </div>
           <div className="flex justify-between py-2 text-lg" style={{ color: primaryColor }}>
             <span>Total</span>
-            <span>{formatCurrency(displayData.total)}</span>
+            <span>{formatCurrencyDisplay(displayData.total)}</span>
           </div>
           
           {/* Payment Information */}
@@ -686,14 +725,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               {/* Total Paid */}
               <div className="flex justify-between py-2">
                 <span className="text-gray-600">Total Paid:</span>
-                <span className="font-medium text-green-600">{formatCurrency(displayData.paymentInfo.totalPaid)}</span>
+                <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
               
               {/* Outstanding Amount */}
               {displayData.paymentInfo.outstandingAmount > 0 && (
                 <div className="flex justify-between py-2">
                   <span className="text-gray-600">Outstanding:</span>
-                  <span className="font-medium text-red-600">{formatCurrency(displayData.paymentInfo.outstandingAmount)}</span>
+                  <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
                 </div>
               )}
               
@@ -719,7 +758,7 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                     {displayData.payments.map((payment, index) => (
                       <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
                         <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-                        <span>{formatCurrency(payment.amount)}</span>
+                        <span>{formatCurrencyDisplay(payment.amount)}</span>
                       </div>
                     ))}
                   </div>
@@ -733,9 +772,15 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
       {/* Simple Footer with less content */}
       <div className="mt-12 pt-6 border-t border-gray-100 text-sm">
         <p>{displayData.notes || "Thank you for your business."}</p>
-        {renderPaymentBreakdown(displayData)}
+        {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
         {showFooter && branding?.emailFooter && (
           <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
+        )}
+        {hasFooterContact && (
+          <div className="mt-3 text-xs text-gray-600 space-y-0.5">
+            {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+            {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans">{footerBankDetails.trim()}</pre>}
+          </div>
         )}
       </div>
     </div>

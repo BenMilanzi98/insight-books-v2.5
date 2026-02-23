@@ -717,13 +717,23 @@ export async function GET(request, { params }) {
           ${sale.notes ? `<div style="margin-top: 4px; font-size: 8px;">Notes: ${sale.notes}</div>` : ''}
         </div>
         
-        <!-- ENHANCED: Footer with customizable business message -->
+        <!-- ENHANCED: Footer with customizable business message, phone and bank details -->
         <div class="footer">
           ${tenantSettings?.receiptFooter ? `
           <div class="custom-footer">${tenantSettings.receiptFooter}</div>
           ` : `
           <div class="custom-footer">Thank you for your business!</div>
           `}
+          ${(sale.footerPhoneOverride != null && sale.footerPhoneOverride !== '') ? `
+          <div class="business-info" style="margin-top: 4px;">Tel: ${sale.footerPhoneOverride}</div>
+          ` : tenantSettings?.businessPhone ? `
+          <div class="business-info" style="margin-top: 4px;">Tel: ${tenantSettings.businessPhone}</div>
+          ` : ''}
+          ${(sale.footerBankDetailsOverride != null && sale.footerBankDetailsOverride !== '') ? `
+          <div class="business-info" style="margin-top: 4px; white-space: pre-wrap;">${sale.footerBankDetailsOverride}</div>
+          ` : tenantSettings?.defaultBankDetails ? `
+          <div class="business-info" style="margin-top: 4px; white-space: pre-wrap;">${tenantSettings.defaultBankDetails}</div>
+          ` : ''}
           <div class="copyright">${new Date().getFullYear()} © ${sale.tenant.name} | insightbooksafrica.com</div>
         </div>
       </div>

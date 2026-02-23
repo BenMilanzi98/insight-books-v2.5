@@ -132,7 +132,7 @@ const AccountingPeriodsPage = () => {
   return (
     <PermissionGuard permission="journalEntries.view">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
-        <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-8 max-w-5xl pb-12">
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 pb-12">
           {roleDenied && (
             <div className="rounded-2xl bg-rose-50 border border-rose-200 p-6 sm:p-8 text-center shadow-sm">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />

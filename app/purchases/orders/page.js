@@ -1,6 +1,6 @@
  "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 
@@ -23,8 +23,12 @@ async function getOrders(params = {}) {
   const res = await fetch(`/api/purchases/orders?${searchParams.toString()}`, {
     cache: "no-store",
   });
-  if (!res.ok) throw new Error("Failed to fetch purchase orders");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error || `Failed to fetch purchase orders (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 async function createOrder(payload) {
@@ -72,7 +76,41 @@ function SummaryCard({ label, value, helper }) {
   );
 }
 
-function DetailDrawer({ order, onClose }) {
+async function fetchOrderById(id) {
+  const res = await fetch(`/api/purchases/orders/${id}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch order");
+  const data = await res.json();
+  return data.purchaseOrder;
+}
+
+function DetailDrawer({ order, onClose, onUploadSuccess }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !order?.id) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`/api/purchases/orders/${order.id}/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      onUploadSuccess?.(order.id);
+    } catch (err) {
+      setUploadError(err.message);
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!order) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/40">
@@ -92,6 +130,10 @@ function DetailDrawer({ order, onClose }) {
         <div className="space-y-6 p-6">
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="flex flex-wrap gap-6 text-sm">
+              <div>
+                <div className="text-xs uppercase text-gray-500">Order type</div>
+                <div className="mt-1 text-gray-900 capitalize">{order.orderType || "goods"}</div>
+              </div>
               <div>
                 <div className="text-xs uppercase text-gray-500">Status</div>
                 <div className="mt-1">
@@ -113,8 +155,23 @@ function DetailDrawer({ order, onClose }) {
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-gray-500">Total</div>
+                <div className="text-xs uppercase text-gray-500">Subtotal</div>
                 <div className="mt-1 text-gray-900">
+                  MWK {Number(order.subtotal ?? 0).toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-gray-500">Tax</div>
+                <div className="mt-1 text-gray-900">
+                  MWK {Number(order.taxAmount ?? 0).toLocaleString()}
+                  {order.taxRate != null && Number(order.taxRate) > 0 && (
+                    <span className="ml-1 text-gray-500">({Number(order.taxRate).toFixed(1)}%)</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-gray-500">Total</div>
+                <div className="mt-1 font-semibold text-gray-900">
                   MWK {Number(order.totalAmount || 0).toLocaleString()}
                 </div>
               </div>
@@ -127,34 +184,98 @@ function DetailDrawer({ order, onClose }) {
               <table className="min-w-full divide-y divide-gray-200 text-sm">
                 <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-2">Product</th>
+                    <th className="px-4 py-2">Type</th>
+                    <th className="px-4 py-2">Product / Description</th>
                     <th className="px-4 py-2">Qty</th>
                     <th className="px-4 py-2">Unit Cost</th>
+                    <th className="px-4 py-2 text-right">Tax %</th>
+                    <th className="px-4 py-2 text-right">Tax (MWK)</th>
                     <th className="px-4 py-2 text-right">Line Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
-                  {order.items?.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-2 text-gray-900">{item.description || "Product"}</td>
-                      <td className="px-4 py-2 text-gray-700">
-                        {Number(item.quantityOrdered || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-gray-700">
-                        MWK {Number(item.unitCost || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium text-gray-900">
-                        MWK{" "}
-                        {(
-                          Number(item.quantityOrdered || 0) * Number(item.unitCost || 0)
-                        ).toLocaleString()}
-                      </td>
-                    </tr>
-                  ))}
+                  {order.items?.map((item) => {
+                    const lineSub = Number(item.quantityOrdered || 0) * Number(item.unitCost || 0);
+                    const lineTax = Number(item.taxAmount || 0);
+                    const lineTotal = lineSub + lineTax;
+                    const taxPct = item.taxRate != null && Number(item.taxRate) !== 0 ? Number(item.taxRate) : (lineSub > 0 && lineTax > 0 ? (lineTax / lineSub) * 100 : 0);
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-4 py-2 text-gray-700 capitalize">{item.lineType || "goods"}</td>
+                        <td className="px-4 py-2 text-gray-900">{item.description || (item.product?.name) || "—"}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {Number(item.quantityOrdered || 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          MWK {Number(item.unitCost || 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-600">
+                          {taxPct > 0 ? `${taxPct.toFixed(1)}%` : "—"}
+                        </td>
+                        <td className="px-4 py-2 text-right text-gray-700">
+                          MWK {lineTax.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-gray-900">
+                          MWK {lineTotal.toLocaleString()}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
+                <tfoot className="bg-gray-50 font-medium text-gray-900">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-2 text-right text-sm text-gray-600">
+                      Subtotal (excl. tax)
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-700">—</td>
+                    <td className="px-4 py-2 text-right">
+                      MWK {Number(order.subtotal ?? 0).toLocaleString()}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={5} className="px-4 py-2 text-right text-sm text-gray-600">
+                      Total tax
+                    </td>
+                    <td className="px-4 py-2 text-right">
+                      MWK {Number(order.taxAmount ?? 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2 text-right">—</td>
+                  </tr>
+                  <tr className="border-t border-gray-200">
+                    <td colSpan={5} className="px-4 py-3 text-right text-sm uppercase text-gray-500">
+                      Total (incl. tax)
+                    </td>
+                    <td className="px-4 py-3 text-right">—</td>
+                    <td className="px-4 py-3 text-right font-semibold">
+                      MWK {Number(order.totalAmount ?? 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
+
+          {order.expenses?.length > 0 ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Linked expenses (services)</h3>
+              <div className="mt-2 space-y-3">
+                {order.expenses.map((exp) => (
+                  <div
+                    key={exp.id}
+                    className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                  >
+                    <div>
+                      <div className="font-medium text-gray-900">{exp.description}</div>
+                      <div className="text-xs text-gray-500">
+                        {exp.date ? format(new Date(exp.date), "dd MMM yyyy") : "—"} · {exp.status}
+                      </div>
+                    </div>
+                    <span className="font-medium text-gray-900">MWK {Number(exp.amount || 0).toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {order.receipts?.length ? (
             <div>
@@ -179,6 +300,59 @@ function DetailDrawer({ order, onClose }) {
               </div>
             </div>
           ) : null}
+
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700">Supplier Invoice & Ledger</h3>
+            <div className="mt-2 space-y-2">
+              {order.supplierInvoiceUrl ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={order.supplierInvoiceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    View supplier invoice
+                  </a>
+                  <span className="text-gray-500">|</span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
+                  >
+                    {uploading ? "Uploading…" : "Replace"}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,image/jpeg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={handleUpload}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {uploading ? "Uploading…" : "Attach supplier invoice (PDF/Image)"}
+                  </button>
+                </div>
+              )}
+              {uploadError && <p className="text-sm text-red-600">{uploadError}</p>}
+              {order.supplierId && (
+                <p className="text-xs text-gray-500">
+                  <a href={`/purchases/suppliers/${order.supplierId}`} className="text-indigo-600 hover:underline">
+                    View supplier ledger →
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -226,10 +400,16 @@ function FormSection({ title, description, children }) {
   );
 }
 
-function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }) {
+const ORDER_TYPES = [
+  { value: "goods", label: "Inventory Purchase (does not hit expenses; receivables only)" },
+  { value: "services", label: "Goods & Services Purchase (Hits Expenses)" },
+];
+
+function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [], initialData = null, onSave, onCancel }) {
   const isEdit = Boolean(initialData?.id);
   const [form, setForm] = useState(() => ({
     supplierId: initialData?.supplierId || "",
+    orderType: initialData?.orderType || "goods",
     poDate: initialData?.poDate
       ? format(new Date(initialData.poDate), "yyyy-MM-dd")
       : format(new Date(), "yyyy-MM-dd"),
@@ -238,11 +418,14 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
       : "",
     status: initialData?.status || "Draft",
     notes: initialData?.notes || "",
+    pricesIncludeTax: initialData?.pricesIncludeTax ?? false,
   }));
   const [items, setItems] = useState(() => {
     if (initialData?.items?.length) {
       return initialData.items.map((item) => ({
-        productId: item.productId,
+        lineType: item.lineType || (item.productId ? "goods" : "service"),
+        productId: item.productId || "",
+        expenseCategoryId: item.expenseCategoryId || "",
         description: item.description || "",
         quantityOrdered:
           item.quantityOrdered === undefined || item.quantityOrdered === null
@@ -252,9 +435,12 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
           item.unitCost === undefined || item.unitCost === null
             ? ""
             : String(item.unitCost),
+        taxTypeId: item.taxTypeId || "",
+        taxRate: item.taxRate != null ? String(item.taxRate) : "",
+        taxAmount: item.taxAmount != null ? String(item.taxAmount) : "",
       }));
     }
-    return [{ productId: "", quantityOrdered: "", unitCost: "", description: "" }];
+    return [{ lineType: "goods", productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" }];
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -263,6 +449,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
     if (!initialData) return;
     setForm({
       supplierId: initialData.supplierId || "",
+      orderType: initialData.orderType || "goods",
       poDate: initialData.poDate
         ? format(new Date(initialData.poDate), "yyyy-MM-dd")
         : format(new Date(), "yyyy-MM-dd"),
@@ -271,26 +458,46 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         : "",
       status: initialData.status || "Draft",
       notes: initialData.notes || "",
+      pricesIncludeTax: initialData.pricesIncludeTax ?? false,
     });
     setItems(
       (initialData.items || []).map((item) => ({
-        productId: item.productId,
+        lineType: item.lineType || (item.productId ? "goods" : "service"),
+        productId: item.productId || "",
+        expenseCategoryId: item.expenseCategoryId || "",
         description: item.description || "",
-        quantityOrdered: Number(item.quantityOrdered || 1),
-        unitCost: Number(item.unitCost || 0),
+        quantityOrdered: item.quantityOrdered != null ? String(item.quantityOrdered) : "1",
+        unitCost: item.unitCost != null ? String(item.unitCost) : "",
+        taxTypeId: item.taxTypeId || "",
+        taxRate: item.taxRate != null ? String(item.taxRate) : "",
+        taxAmount: item.taxAmount != null ? String(item.taxAmount) : "",
       }))
     );
   }, [initialData]);
 
-  const subtotal = useMemo(
-    () =>
-      items.reduce(
-        (sum, item) =>
-          sum + Number(item.quantityOrdered || 0) * Number(item.unitCost || 0),
-        0
-      ),
-    [items]
-  );
+  const { subtotal, totalTax, totalAmount } = useMemo(() => {
+    const pricesIncludeTax = form.pricesIncludeTax;
+    let sub = 0;
+    let tax = 0;
+    items.forEach((item) => {
+      const qty = Number(item.quantityOrdered || 0);
+      const unitCost = Number(item.unitCost || 0);
+      const taxRatePct = Number(item.taxRate || 0);
+      let lineSub;
+      let lineTax = Number(item.taxAmount || 0);
+      if (pricesIncludeTax && taxRatePct > 0) {
+        const lineTotalInclusive = qty * unitCost;
+        lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
+        lineTax = lineTotalInclusive - lineSub;
+      } else {
+        lineSub = qty * unitCost;
+        if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
+      }
+      sub += lineSub;
+      tax += lineTax;
+    });
+    return { subtotal: sub, totalTax: tax, totalAmount: sub + tax };
+  }, [items, form.pricesIncludeTax]);
 
   const handleChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -328,8 +535,11 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
     setItems((prev) => {
       const updated = prev.map((item, idx) => {
         if (idx === index) {
-          const newItem = { ...item, [key]: value };
-          
+          let newItem = { ...item, [key]: value };
+          if (key === "taxTypeId" && value) {
+            const taxType = taxTypes.find((t) => t.id === value);
+            if (taxType != null) newItem.taxRate = String(taxType.taxRate ?? "");
+          }
           // If product is being changed, auto-populate unit cost
           if (key === "productId" && value) {
             const selectedProduct = products.find((p) => p.id === value);
@@ -372,7 +582,11 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { productId: "", quantityOrdered: "", unitCost: "", description: "" }]);
+    const defaultLineType = form.orderType === "services" ? "service" : "goods";
+    setItems((prev) => [
+      ...prev,
+      { lineType: defaultLineType, productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" },
+    ]);
   };
 
   const removeItem = (index) => {
@@ -384,12 +598,35 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
     setSaving(true);
     setError(null);
     try {
-      const normalizedItems = items.map((item) => ({
-        ...item,
-        quantityOrdered: Number(item.quantityOrdered || 0),
-        unitCost: Number(item.unitCost || 0),
-      }));
-      await onSave({ ...form, items: normalizedItems });
+      const pricesIncludeTax = form.pricesIncludeTax;
+      const normalizedItems = items.map((item) => {
+        const qty = Number(item.quantityOrdered || 0);
+        const unitCost = Number(item.unitCost || 0);
+        const taxRatePct = Number(item.taxRate || 0);
+        let lineSub;
+        let taxAmount = Number(item.taxAmount || 0);
+        if (pricesIncludeTax && taxRatePct > 0) {
+          const lineTotalInclusive = qty * unitCost;
+          lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
+          taxAmount = lineTotalInclusive - lineSub;
+        } else {
+          lineSub = qty * unitCost;
+          if (taxAmount === 0 && taxRatePct > 0) taxAmount = lineSub * (taxRatePct / 100);
+        }
+        const lineType = form.orderType === "services" ? "service" : (item.lineType || (item.productId ? "goods" : "service"));
+        return {
+          lineType,
+          productId: item.productId || undefined,
+          expenseCategoryId: item.expenseCategoryId || undefined,
+          description: item.description?.trim() || undefined,
+          quantityOrdered: qty,
+          unitCost,
+          taxTypeId: item.taxTypeId || undefined,
+          taxRate: taxRatePct,
+          taxAmount,
+        };
+      });
+      await onSave({ ...form, orderType: form.orderType, pricesIncludeTax: form.pricesIncludeTax, items: normalizedItems });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -403,9 +640,25 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
 
       <FormSection
         title="Order Information"
-        description="Supplier, timing and status for this purchase request."
+        description="Supplier, order type, timing and status for this purchase request."
       >
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Order type
+            </label>
+            <select
+              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              value={form.orderType}
+              onChange={(e) => handleChange("orderType", e.target.value)}
+            >
+              {ORDER_TYPES.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">
               Supplier <span className="text-red-500">*</span>
@@ -457,88 +710,193 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
               onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
             />
           </div>
+          <div className="sm:col-span-2 flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={form.pricesIncludeTax}
+                onChange={(e) => handleChange("pricesIncludeTax", e.target.checked)}
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              <span className="text-sm font-medium text-gray-700">Prices include tax</span>
+            </label>
+            <span className="text-xs text-gray-500">(Otherwise prices exclude tax)</span>
+          </div>
         </div>
       </FormSection>
 
       <FormSection
         title="Line Items"
-        description="Each product row drives receiving, costing, and billing."
+        description={form.orderType === "goods" ? "Products for inventory/operations. Applicable taxes per line record the expense correctly." : form.orderType === "services" ? "Service lines link to expenses when the PO is approved. Add tax per line as applicable." : "Add goods (inventory) and/or services (expenses). Tax per line is applied when the PO is approved."}
       >
         <div className="space-y-3">
-          {items.map((item, idx) => (
-            <div
-              key={idx}
-              className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-5"
-            >
-              <div>
-                <label className="block text-xs font-medium text-gray-600">Product</label>
-                <select
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.productId}
-                  onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
-                  required
-                >
-                  <option value="">Select product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
+          {items.map((item, idx) => {
+            const isService = form.orderType === "services" || (item.lineType || "goods") === "service";
+            const pricesIncludeTax = form.pricesIncludeTax;
+            const qty = Number(item.quantityOrdered || 0);
+            const unitCost = Number(item.unitCost || 0);
+            const taxRatePct = Number(item.taxRate || 0);
+            let lineSub;
+            let lineTax = Number(item.taxAmount || 0);
+            if (pricesIncludeTax && taxRatePct > 0) {
+              const lineTotalInclusive = qty * unitCost;
+              lineSub = lineTotalInclusive / (1 + taxRatePct / 100);
+              lineTax = lineTotalInclusive - lineSub;
+            } else {
+              lineSub = qty * unitCost;
+              if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
+            }
+            const lineTotal = lineSub + lineTax;
+            return (
+              <div
+                key={idx}
+                className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 space-y-3"
+              >
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {(form.orderType === "mixed") && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Type</label>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        value={item.lineType || "goods"}
+                        onChange={(e) => handleItemChange(idx, "lineType", e.target.value)}
+                      >
+                        <option value="goods">Goods</option>
+                        <option value="service">Service</option>
+                      </select>
+                    </div>
+                  )}
+                  {!isService ? (
+                    <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
+                      <label className="block text-xs font-medium text-gray-600">Product <span className="text-red-500">*</span></label>
+                      <select
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        value={item.productId}
+                        onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
+                        required={!isService}
+                      >
+                        <option value="">Select product</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
+                        <label className="block text-xs font-medium text-gray-600">Description <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Maintenance, Consultancy"
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                          required={isService}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600">Expense category</label>
+                        <select
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                          value={item.expenseCategoryId}
+                          onChange={(e) => handleItemChange(idx, "expenseCategoryId", e.target.value)}
+                        >
+                          <option value="">—</option>
+                          {expenseCategories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+                  {isService && item.productId ? null : !isService ? (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600">Description</label>
+                      <input
+                        type="text"
+                        placeholder="Optional"
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        value={item.description}
+                        onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Quantity</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step={isService ? "0.01" : "1"}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={item.quantityOrdered}
+                      onChange={(e) => handleItemChange(idx, "quantityOrdered", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Unit cost</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={item.unitCost}
+                      onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Tax type</label>
+                    <select
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={item.taxTypeId}
+                      onChange={(e) => handleItemChange(idx, "taxTypeId", e.target.value)}
+                    >
+                      <option value="">— None</option>
+                      {taxTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.taxName} ({t.taxRate}%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600">Tax %</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0"
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                      value={item.taxRate}
+                      onChange={(e) => handleItemChange(idx, "taxRate", e.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
+                    <span>
+                      Total incl: MWK {lineTotal.toLocaleString()}
+                      {lineTax > 0 && (
+                        <span className="ml-1 block text-xs font-normal text-gray-500">
+                          tax: MWK {lineTax.toLocaleString()}
+                        </span>
+                      )}
+                    </span>
+                    {items.length > 1 && (
+                      <button type="button" className="text-xs text-red-600" onClick={() => removeItem(idx)}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600">Quantity</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.quantityOrdered}
-                  onChange={(e) => handleItemChange(idx, "quantityOrdered", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600">Unit Cost</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.unitCost}
-                  onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600">Description</label>
-                <input
-                  type="text"
-                  placeholder="Optional note"
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.description}
-                  onChange={(e) => handleItemChange(idx, "description", e.target.value)}
-                />
-              </div>
-              <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
-                <span>
-                  MWK{" "}
-                  {(
-                    Number(item.quantityOrdered || 0) * Number(item.unitCost || 0)
-                  ).toLocaleString()}
-                </span>
-                {items.length > 1 && (
-                  <button
-                    type="button"
-                    className="text-xs text-red-600"
-                    onClick={() => removeItem(idx)}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           <button
             type="button"
             onClick={addItem}
@@ -549,7 +907,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
         </div>
       </FormSection>
 
-      <FormSection title="Notes & Totals" description="Internal instructions and quick totals overview.">
+      <FormSection title="Notes & Totals" description="Internal instructions. Totals: Subtotal, Total Tax, Grand Total.">
         <div className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700">Notes</label>
@@ -561,13 +919,18 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
               placeholder="Delivery windows, approvals, offloading instructions…"
             />
           </div>
-          <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-indigo-700">Subtotal</p>
-              <p className="text-sm text-indigo-900">Products × unit cost</p>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
+              <span className="text-gray-600">Subtotal</span>
+              <span className="font-medium text-gray-900">MWK {subtotal.toLocaleString()}</span>
             </div>
-            <div className="text-lg font-semibold text-indigo-900">
-              MWK {subtotal.toLocaleString()}
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
+              <span className="text-gray-600">Total Tax</span>
+              <span className="font-medium text-gray-900">MWK {totalTax.toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+              <span className="text-xs uppercase tracking-wide text-indigo-700">Grand Total</span>
+              <span className="text-lg font-semibold text-indigo-900">MWK {totalAmount.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -597,6 +960,8 @@ export default function PurchaseOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [taxTypes, setTaxTypes] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
@@ -617,14 +982,18 @@ export default function PurchaseOrdersPage() {
   const loadInitialData = async () => {
     setLoading(true);
     try {
-      const [orderRes, supplierRes, productRes] = await Promise.all([
+      const [orderRes, supplierRes, productRes, categoriesRes, taxTypesRes] = await Promise.all([
         getOrders({ search, status: statusFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
         fetch("/api/stock").then((res) => res.json()),
+        fetch("/api/expense-categories").then((res) => res.ok ? res.json() : { categories: [] }),
+        fetch("/api/tax-types?status=Active").then((res) => res.ok ? res.json() : []).catch(() => []),
       ]);
       setOrders(orderRes.purchaseOrders ?? []);
       setSuppliers(supplierRes.suppliers ?? []);
       setProducts(productRes.products ?? []);
+      setExpenseCategories(categoriesRes.categories ?? []);
+      setTaxTypes(Array.isArray(taxTypesRes) ? taxTypesRes : (taxTypesRes?.taxTypes ?? taxTypesRes?.data ?? []));
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load purchase orders");
@@ -786,6 +1155,9 @@ export default function PurchaseOrdersPage() {
                     Status
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Tax
+                  </th>
+                  <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
                     Total
                   </th>
                   <th className="px-4 py-2 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -816,6 +1188,9 @@ export default function PurchaseOrdersPage() {
                       >
                         {order.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-gray-600">
+                      MWK {Number(order.taxAmount ?? 0).toLocaleString()}
                     </td>
                     <td className="px-4 py-2 text-right text-gray-900">
                       MWK {Number(order.totalAmount || 0).toLocaleString()}
@@ -872,6 +1247,8 @@ export default function PurchaseOrdersPage() {
             <OrderForm
               suppliers={suppliers}
               products={products}
+              expenseCategories={expenseCategories}
+              taxTypes={taxTypes}
               initialData={formMode === "edit" ? activeOrder : null}
               onSave={handleSaveOrder}
               onCancel={closeForm}
@@ -881,7 +1258,16 @@ export default function PurchaseOrdersPage() {
       )}
 
       {viewingOrder && (
-        <DetailDrawer order={viewingOrder} onClose={() => setViewingOrder(null)} />
+        <DetailDrawer
+          order={viewingOrder}
+          onClose={() => setViewingOrder(null)}
+          onUploadSuccess={async (id) => {
+            try {
+              const updated = await fetchOrderById(id);
+              setViewingOrder(updated);
+            } catch (_) {}
+          }}
+        />
       )}
 
       {deletingOrder && (

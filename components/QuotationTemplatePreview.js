@@ -32,9 +32,13 @@ const QuotationTemplatePreview = forwardRef(({
     }
   };
 
+  /** UI: always two decimals (.00). Export/print: no trailing .00 for tidy documents. */
   const formatCurrency = (amount) => {
-    return `${currency} ${Number(amount || 0).toLocaleString()}`;
+    return `${currency} ${Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: isPrint ? 0 : 2, maximumFractionDigits: 2 })}`;
   };
+  /** Number only for line items; MWK only in headers and totals */
+  const formatAmount = (amount) =>
+    Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: isPrint ? 0 : 2, maximumFractionDigits: 2 });
 
   return (
     <div ref={ref} className={`bg-white ${isPrint ? 'print:shadow-none' : 'shadow-lg'} max-w-4xl mx-auto`} style={{ fontFamily: 'Times New Roman, serif', lineHeight: '1.4' }}>
@@ -176,10 +180,10 @@ const QuotationTemplatePreview = forwardRef(({
               <tr className="border-b-2 border-gray-300">
                 <th className="text-left font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Description</th>
                 <th className="text-center font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Qty</th>
-                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Unit Price</th>
-                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Discount</th>
-                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Tax</th>
-                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Total</th>
+                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Unit Price (MWK)</th>
+                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Discount (MWK)</th>
+                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Tax (MWK)</th>
+                <th className="text-right font-semibold text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>Total (MWK)</th>
               </tr>
             </thead>
             <tbody>
@@ -200,11 +204,11 @@ const QuotationTemplatePreview = forwardRef(({
                       )}
                     </td>
                     <td className="text-center text-gray-700" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>{item.quantity}</td>
-                    <td className="text-right text-gray-700" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>{formatCurrency(item.unitPrice)}</td>
+                    <td className="text-right text-gray-700" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>{formatAmount(item.unitPrice)}</td>
                     <td className="text-right" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>
                       {discountAmount > 0 ? (
                         <div className="text-red-600" style={{ fontSize: '12pt', lineHeight: '1.4' }}>
-                          {formatCurrency(discountAmount)}
+                          {formatAmount(discountAmount)}
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -214,14 +218,14 @@ const QuotationTemplatePreview = forwardRef(({
                       {(item.taxRate || 0) > 0 ? (
                         <div className="text-gray-700" style={{ fontSize: '12pt', lineHeight: '1.4' }}>
                           <div>{item.taxRate}%</div>
-                          <div style={{ fontSize: '11pt', color: '#6b7280' }}>({formatCurrency(taxAmount)})</div>
+                          <div style={{ fontSize: '11pt', color: '#6b7280' }}>({formatAmount(taxAmount)})</div>
                         </div>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="text-right font-medium text-gray-900" style={{ padding: '8px 8px', fontSize: '12pt', lineHeight: '1.4', verticalAlign: 'middle' }}>
-                      {formatCurrency(finalAmount)}
+                      {formatAmount(finalAmount)}
                     </td>
                   </tr>
                 );
@@ -287,9 +291,20 @@ const QuotationTemplatePreview = forwardRef(({
           </div>
         )}
 
-        {/* Footer */}
+        {/* Footer with phone and bank details (default from settings or override per document) */}
         <div className="mt-4 pt-2 border-t border-gray-200 text-center text-gray-500" style={{ fontSize: '12pt' }}>
           <p>Thank you for considering our quotation!</p>
+          {(() => {
+            const footerPhone = (quotation?.footerPhoneOverride != null && quotation?.footerPhoneOverride !== '') ? quotation.footerPhoneOverride : (branding?.businessPhone || branding?.companyPhone || branding?.phone || '');
+            const footerBankDetails = (quotation?.footerBankDetailsOverride != null && quotation?.footerBankDetailsOverride !== '') ? quotation.footerBankDetailsOverride : (branding?.defaultBankDetails || '');
+            const hasFooterContact = footerPhone.trim() || footerBankDetails.trim();
+            return hasFooterContact ? (
+              <div className="mt-2 text-left max-w-md mx-auto space-y-0.5" style={{ fontSize: '11pt' }}>
+                {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+                {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
+              </div>
+            ) : null;
+          })()}
           {branding?.website && (
             <p style={{ marginTop: '2px' }}>Visit us at: {branding.website}</p>
           )}

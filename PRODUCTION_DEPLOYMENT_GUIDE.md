@@ -4,6 +4,8 @@
 
 This guide ensures **safe, zero-data-loss** database migrations to production.
 
+> **Short path:** For a concise, step-by-step “push to production without losing data” flow (backup → migrate deploy → generate → restart), see **[docs/PRODUCTION_PUSH_GUIDE.md](docs/PRODUCTION_PUSH_GUIDE.md)**.
+
 ---
 
 ## 📋 Pre-Deployment Checklist

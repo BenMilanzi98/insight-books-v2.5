@@ -507,19 +507,27 @@ export async function POST(request) {
     const result = await prisma.$transaction(async (tx) => {
       // Check products to determine if invoice has services
       let invoiceHasServices = false;
+      let productNameById = {};
       if (calculations.processedItems.some(item => item.productId)) {
         const productIds = calculations.processedItems
           .filter(item => item.productId)
           .map(item => item.productId);
         const products = await tx.product.findMany({
           where: { id: { in: productIds }, tenantId: user.tenantId },
-          select: { id: true, isService: true }
+          select: { id: true, isService: true, name: true }
         });
-        invoiceHasServices = products.some(p => p.isService) || 
+        productNameById = Object.fromEntries(products.map(p => [p.id, p.name]));
+        invoiceHasServices = products.some(p => p.isService) ||
           calculations.processedItems.some(item => !item.productId);
       } else {
         invoiceHasServices = true; // All custom items
       }
+
+      // Ensure every line has a clear title (item/service description)
+      const itemsWithTitles = calculations.processedItems.map(item => {
+        const desc = (item.description && String(item.description).trim()) || productNameById[item.productId] || 'Item';
+        return { ...item, description: desc };
+      });
 
       // Create the invoice with items
       const newInvoice = await tx.invoice.create({
@@ -540,8 +548,10 @@ export async function POST(request) {
           notes: body.notes,
           tenantId: user.tenantId,
           branchId: branchId,
+          footerPhoneOverride: body.footerPhoneOverride || null,
+          footerBankDetailsOverride: body.footerBankDetailsOverride || null,
           items: {
-            create: calculations.processedItems.map(item => ({
+            create: itemsWithTitles.map(item => ({
               description: item.description,
               quantity: Number(item.quantity),
               unitPrice: Number(item.unitPrice),

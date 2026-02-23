@@ -91,7 +91,9 @@ const InvoiceModal = ({
     status: "Draft",
     notes: "",
     discount: "",
-    templateId: selectedTemplate?.id || ""
+    templateId: selectedTemplate?.id || "",
+    footerPhoneOverride: "",
+    footerBankDetailsOverride: ""
   });
   
   const [clients, setClients] = useState([]);
@@ -208,7 +210,9 @@ const InvoiceModal = ({
         status: invoice.status,
         notes: invoice.notes || "",
         discount: parseFloat((invoice.discount || '0').toString().replace(/,/g, '')) || "",
-        templateId: invoice.templateId || selectedTemplate?.id || ""
+        templateId: invoice.templateId || selectedTemplate?.id || "",
+        footerPhoneOverride: invoice.footerPhoneOverride ?? "",
+        footerBankDetailsOverride: invoice.footerBankDetailsOverride ?? ""
       });
     }
   }, [invoice, mode]);
@@ -694,7 +698,9 @@ const InvoiceModal = ({
         status: "Draft",
         notes: "",
         discount: "",
-        templateId: selectedTemplate?.id || ""
+        templateId: selectedTemplate?.id || "",
+        footerPhoneOverride: "",
+        footerBankDetailsOverride: ""
       });
       onClose();
     } catch (error) {
@@ -970,19 +976,11 @@ const InvoiceModal = ({
                               <Search className="w-4 h-4 text-gray-400" />
                             </div>
 
-                            <div className="mt-2">
-                              <input
-                                type="text"
-                                readOnly
-                                disabled
-                                className="w-full p-2 border border-gray-200 rounded-md text-sm bg-gray-50 text-gray-600 cursor-not-allowed"
-                                value={revenueAccount ? `${revenueAccount.accountCode || '4000'} - ${revenueAccount.accountName || revenueAccount.name || 'Revenue'}` : '4000 - Revenue'}
-                                title="Income account is fixed to 4000 - Revenue"
-                              />
-                              {errors[`items.${index}.accountId`] && (
-                                <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>
-                              )}
-                            </div>
+                            {/* Revenue account fixed to 4000 - Revenue; hidden to reduce UI confusion */}
+                            <input type="hidden" name={`items.${index}.accountId`} value={revenueAccount?.id || ''} />
+                            {errors[`items.${index}.accountId`] && (
+                              <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.accountId`]}</p>
+                            )}
                             
                             {/* Enhanced Product combobox dropdown - POS Style */}
                             {showProductDropdown && activeSearchIndex === index && (
@@ -1253,6 +1251,35 @@ const InvoiceModal = ({
                 onChange={handleChange}
                 placeholder="Add any additional notes or payment instructions"
               ></textarea>
+            </div>
+            
+            <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
+              <p className="text-sm font-medium text-gray-700 mb-2">Footer overrides (optional)</p>
+              <p className="text-xs text-gray-500 mb-2">Override the default phone and bank details shown in the document footer. Leave blank to use settings defaults.</p>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerPhoneOverride">Footer phone</label>
+                  <input
+                    id="footerPhoneOverride"
+                    type="text"
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={formData.footerPhoneOverride || ""}
+                    onChange={(e) => setFormData({ ...formData, footerPhoneOverride: e.target.value })}
+                    placeholder="e.g. +265 1 234 567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-0.5" htmlFor="footerBankDetailsOverride">Footer bank details</label>
+                  <textarea
+                    id="footerBankDetailsOverride"
+                    rows={2}
+                    className="w-full p-2 border border-gray-300 rounded-md text-sm"
+                    value={formData.footerBankDetailsOverride || ""}
+                    onChange={(e) => setFormData({ ...formData, footerBankDetailsOverride: e.target.value })}
+                    placeholder="Bank name, account name, number, branch..."
+                  />
+                </div>
+              </div>
             </div>
           </form>
         </div>

@@ -64,6 +64,8 @@ export async function GET(request) {
       businessEmail: settings?.businessEmail,
       buildingName: settings?.buildingName,
       receiptFooter: settings?.receiptFooter,
+      defaultBankDetails: settings?.defaultBankDetails,
+      taxOutflowAccountId: settings?.taxOutflowAccountId ?? null,
       
       // Notification settings
       emailNotifications: settings?.emailNotifications,
@@ -124,29 +126,30 @@ export async function PUT(request) {
     
     // Parse the request body
     const body = await request.json();
-    
-    // Split into tenant fields and settings fields
-    const tenantFields = {
+
+    // Only include defined values so Prisma doesn't receive undefined
+    const omitUndefined = (obj) =>
+      Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+
+    const tenantFields = omitUndefined({
       name: body.name,
       primaryColor: body.primaryColor,
       secondaryColor: body.secondaryColor,
       logoUrl: body.logoUrl,
       faviconUrl: body.faviconUrl,
-    };
-    
-    const settingsFields = {
+    });
+
+    const settingsFields = omitUndefined({
       emailFooter: body.emailFooter,
       customDomain: body.customDomain,
-      
-      // Business Address Information for receipts
       businessAddress: body.businessAddress,
       businessCity: body.businessCity,
       businessPhone: body.businessPhone,
       businessEmail: body.businessEmail,
       buildingName: body.buildingName,
       receiptFooter: body.receiptFooter,
-      
-      // Notification settings
+      defaultBankDetails: body.defaultBankDetails,
+      taxOutflowAccountId: body.taxOutflowAccountId === '' ? null : body.taxOutflowAccountId,
       emailNotifications: body.emailNotifications,
       smsNotifications: body.smsNotifications,
       inAppNotifications: body.inAppNotifications,
@@ -156,32 +159,32 @@ export async function PUT(request) {
       invoiceReminders: body.invoiceReminders,
       lowStockAlerts: body.lowStockAlerts,
       paymentReceipts: body.paymentReceipts,
-    };
-    
-    // Update the tenant record
-    await prisma.tenant.update({
-      where: { id: user.tenantId },
-      data: tenantFields
     });
-    
-    // Update or create the settings record
+
+    if (Object.keys(tenantFields).length > 0) {
+      await prisma.tenant.update({
+        where: { id: user.tenantId },
+        data: tenantFields
+      });
+    }
+
+    const createPayload = {
+      tenantId: user.tenantId,
+      taxEnabled: true,
+      defaultTaxRate: 0,
+      currencyCode: 'MWK',
+      invoicePrefix: 'INV',
+      invoiceTemplate: 'default',
+      enabledModules: ['invoicing', 'clients', 'expenses']
+    };
+    Object.assign(createPayload, settingsFields);
+
     await prisma.tenantSettings.upsert({
       where: { tenantId: user.tenantId },
       update: settingsFields,
-      create: {
-        ...settingsFields,
-        tenantId: user.tenantId,
-        // Set defaults for required fields
-        taxEnabled: true,
-        defaultTaxRate: 0,
-        currencyCode: 'MWK',
-        invoicePrefix: 'INV',
-        invoiceTemplate: 'default',
-        enabledModules: ['invoicing', 'clients', 'expenses']
-      }
+      create: createPayload
     });
-    
-    // Create an audit log entry
+
     await prisma.auditLog.create({
       data: {
         action: 'TENANT_SETTINGS_UPDATED',
@@ -190,10 +193,7 @@ export async function PUT(request) {
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
-          updatedFields: {
-            ...tenantFields,
-            ...settingsFields
-          }
+          updatedFields: { ...tenantFields, ...settingsFields }
         })
       }
     });
@@ -204,8 +204,11 @@ export async function PUT(request) {
     });
   } catch (error) {
     console.error('Error updating tenant settings:', error);
+    const message = process.env.NODE_ENV === 'development'
+      ? (error?.message || String(error))
+      : 'Failed to update settings. Please try again.';
     return NextResponse.json(
-      { error: 'Failed to update settings. Please try again.' },
+      { error: message },
       { status: 500 }
     );
   }

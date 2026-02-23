@@ -383,6 +383,38 @@ export async function GET(request) {
     );
     
     const netTaxLiability = totalCollectedTax - totalTaxPaid;
+
+    // Input VAT: tax on purchases (Supplier Bills + Purchase Order line tax in period)
+    const supplierBillsInPeriod = await prisma.supplierBill.findMany({
+      where: {
+        tenantId: user.tenantId,
+        billDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate)
+        }
+      },
+      select: { taxAmount: true }
+    });
+    const inputVatFromBills = supplierBillsInPeriod.reduce((sum, b) => sum + (Number(b.taxAmount) || 0), 0);
+
+    const poItemsInPeriod = await prisma.purchaseOrderItem.findMany({
+      where: {
+        purchaseOrder: {
+          tenantId: user.tenantId,
+          poDate: {
+            gte: new Date(startDate),
+            lte: new Date(endDate)
+          }
+        }
+      },
+      select: { taxAmount: true }
+    });
+    const inputVatFromPOs = poItemsInPeriod.reduce((sum, i) => sum + (Number(i.taxAmount) || 0), 0);
+    const inputVat = inputVatFromBills + inputVatFromPOs;
+
+    // Output VAT = tax collected on sales/invoices
+    const outputVat = totalCollectedTax;
+    const netVatPayable = outputVat - inputVat;
     
     return NextResponse.json({
       period: {
@@ -398,7 +430,14 @@ export async function GET(request) {
         expenses: taxExpenses,
         totalTaxPaid
       },
-      netTaxLiability
+      netTaxLiability,
+      vatSummary: {
+        inputVat,
+        inputVatFromBills,
+        inputVatFromPOs,
+        outputVat,
+        netVatPayable
+      }
     });
   } catch (error) {
     console.error('Error generating tax summary:', error);

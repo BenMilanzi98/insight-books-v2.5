@@ -83,7 +83,7 @@ export async function GET(request, { params }) {
     // Await params for Next.js 15 compatibility
     const { id: invoiceId } = await params;
     
-    // Fetch invoice with client and items
+    // Fetch invoice with client and items (include product so line title can fallback to product name)
     const invoice = await prisma.invoice.findUnique({
       where: { 
         id: invoiceId,
@@ -91,7 +91,11 @@ export async function GET(request, { params }) {
       },
       include: {
         client: true,
-        items: true,
+        items: {
+          include: {
+            product: { select: { name: true } }
+          }
+        },
         payments: {
           select: {
             id: true,
@@ -139,9 +143,16 @@ export async function GET(request, { params }) {
       isPartiallyPaid
     });
     
+    // Ensure each line has a display title (description or product name)
+    const itemsWithTitle = (invoice.items || []).map((item) => ({
+      ...item,
+      description: (item.description && String(item.description).trim()) || (item.product && item.product.name) || 'Item'
+    }));
+
     // Format the response to include prepared by info and payment details
     const formattedInvoice = {
       ...invoice,
+      items: itemsWithTitle,
       preparedBy: invoice.createdBy?.name || 'N/A',
       preparedById: invoice.createdBy?.id || null,
       paymentInfo: {
@@ -282,12 +293,29 @@ export async function PUT(request, { params }) {
           totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
           total: calculations.total,
           status: body.status,
-          notes: body.notes
+          notes: body.notes,
+          footerPhoneOverride: body.footerPhoneOverride ?? undefined,
+          footerBankDetailsOverride: body.footerBankDetailsOverride ?? undefined
         }
       });
       
-      // 2. Handle invoice items
-      
+      // 2. Handle invoice items — ensure every line has a title (description or product name)
+      const productIds = calculations.processedItems
+        .filter(item => item.productId)
+        .map(item => item.productId);
+      let productNameById = {};
+      if (productIds.length > 0) {
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds }, tenantId: user.tenantId },
+          select: { id: true, name: true }
+        });
+        productNameById = Object.fromEntries(products.map(p => [p.id, p.name]));
+      }
+      const itemsWithTitles = calculations.processedItems.map(item => {
+        const desc = (item.description && String(item.description).trim()) || productNameById[item.productId] || 'Item';
+        return { ...item, description: desc };
+      });
+
       // Delete all existing items
       await tx.invoiceItem.deleteMany({
         where: { invoiceId }
@@ -295,15 +323,15 @@ export async function PUT(request, { params }) {
       
       // Create new items
       const items = await Promise.all(
-        calculations.processedItems.map(item => 
+        itemsWithTitles.map(item =>
           tx.invoiceItem.create({
             data: {
               invoiceId,
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
-              taxRate: Number(item.taxRate || 0), // Convert to number
-              discountRate: 0, // Legacy field, keep for backward compatibility
+              taxRate: Number(item.taxRate || 0),
+              discountRate: 0,
               discountAmount: item.discountAmount || 0,
               netAmount: item.netAmount || 0,
               amount: item.amount,

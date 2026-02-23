@@ -157,6 +157,8 @@ const QuotationsPage = () => {
     dateTo: null,
     clientId: null
   });
+  // Ref so "Apply Filters" always uses the latest values (avoids stale state when clicking Apply quickly)
+  const filterConfigRef = useRef(filterConfig);
   const [pagePermissions, setPagePermissions] = useState({  
     canApproveQuotations:false,
     canCreateQuotations:false,
@@ -223,10 +225,10 @@ const QuotationsPage = () => {
     loadBrandingSettings(); // Enhanced: Load branding settings
   }, []);
   
-  // Reload quotations when filters change
+  // Reload quotations when filters, sort, page, search, or status tab change
   useEffect(() => {
     loadQuotations();
-  }, [currentPage, sortConfig, filterConfig, searchQuery]);
+  }, [currentPage, sortConfig, filterConfig, searchQuery, activeTab]);
   
   // Filter quotations based on active tab
   useEffect(() => {
@@ -245,8 +247,9 @@ const QuotationsPage = () => {
     }
   }, [notification]);
   
-  // Fetch quotations from API
-  const loadQuotations = async () => {
+  // Fetch quotations from API (filterOverrides: use when Apply is clicked so we use latest filter values)
+  const loadQuotations = async (filterOverrides = null) => {
+    const filters = filterOverrides !== null ? filterOverrides : filterConfig;
     setIsLoading(true);
     try {
       const response = await fetchQuotations({
@@ -255,8 +258,10 @@ const QuotationsPage = () => {
         sortBy: sortConfig.field,
         sortOrder: sortConfig.direction,
         status: activeTab !== "all" ? activeTab : undefined,
-        search: searchQuery,
-        ...filterConfig
+        search: searchQuery || undefined,
+        dateFrom: filters.dateFrom || undefined,
+        dateTo: filters.dateTo || undefined,
+        clientId: filters.clientId || undefined
       });
       
       setQuotations(response.quotations || []);
@@ -612,22 +617,28 @@ const QuotationsPage = () => {
     loadClients();
   }, []);
 
-  // Handle filter change
+  // Handle filter change (keep ref in sync so Apply always has latest)
   const handleFilterChange = (field, value) => {
-    setFilterConfig(prev => ({ ...prev, [field]: value }));
+    setFilterConfig(prev => {
+      const next = { ...prev, [field]: value || null };
+      filterConfigRef.current = next;
+      return next;
+    });
   };
 
-  // Apply filters
+  // Apply filters (use ref so we never send stale filter state)
   const applyFilters = () => {
     setFilterOpen(false);
-    loadQuotations();
+    loadQuotations(filterConfigRef.current);
   };
 
   // Reset filters
   const resetFilters = () => {
-    setFilterConfig({ dateFrom: null, dateTo: null, clientId: null });
+    const cleared = { dateFrom: null, dateTo: null, clientId: null };
+    setFilterConfig(cleared);
+    filterConfigRef.current = cleared;
     setFilterOpen(false);
-    loadQuotations();
+    loadQuotations(cleared);
   };
 
   // Handle sort change
@@ -710,12 +721,12 @@ const QuotationsPage = () => {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           {/* Tabs */}
           <div className="flex flex-wrap gap-2 p-4 border-b border-gray-100 bg-gray-50/50">
-            <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")} label="All" count={quotations.length} />
-            <TabButton active={activeTab === "pending"} onClick={() => setActiveTab("pending")} label="Pending" />
-            <TabButton active={activeTab === "approved"} onClick={() => setActiveTab("approved")} label="Approved" />
-            <TabButton active={activeTab === "draft"} onClick={() => setActiveTab("draft")} label="Drafts" />
-            <TabButton active={activeTab === "converted"} onClick={() => setActiveTab("converted")} label="Converted" />
-            <TabButton active={activeTab === "expired"} onClick={() => setActiveTab("expired")} label="Expired" />
+            <TabButton active={activeTab === "all"} onClick={() => { setActiveTab("all"); setCurrentPage(1); }} label="All" count={quotations.length} />
+            <TabButton active={activeTab === "pending"} onClick={() => { setActiveTab("pending"); setCurrentPage(1); }} label="Pending" />
+            <TabButton active={activeTab === "approved"} onClick={() => { setActiveTab("approved"); setCurrentPage(1); }} label="Approved" />
+            <TabButton active={activeTab === "draft"} onClick={() => { setActiveTab("draft"); setCurrentPage(1); }} label="Drafts" />
+            <TabButton active={activeTab === "converted"} onClick={() => { setActiveTab("converted"); setCurrentPage(1); }} label="Converted" />
+            <TabButton active={activeTab === "expired"} onClick={() => { setActiveTab("expired"); setCurrentPage(1); }} label="Expired" />
           </div>
 
           {/* Search and Filters */}

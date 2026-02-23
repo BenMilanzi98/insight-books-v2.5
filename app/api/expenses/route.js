@@ -566,10 +566,12 @@ export async function POST(request) {
       );
     }
     
-    // Parse amount - convert string to number if needed
-    const amount = typeof body.amount === 'string' 
+    // Parse amount (total incl. tax) - convert string to number if needed
+    let amount = typeof body.amount === 'string'
       ? parseFloat(body.amount.replace(/,/g, ''))
       : body.amount;
+    const taxAmount = body.taxAmount != null ? Number(body.taxAmount) : 0;
+    const taxRate = body.taxRate != null ? Number(body.taxRate) : 0;
     
     let expenseAccount = null;
     let expenseCategory = null;
@@ -674,6 +676,8 @@ export async function POST(request) {
         data: {
           description: body.description,
           amount: amount,
+          taxAmount: taxAmount,
+          taxRate: taxRate,
           date: expenseDate,
           category: selectedCategory,
           categoryId: categoryId,
@@ -732,6 +736,7 @@ export async function POST(request) {
             expenseId: expense.id,
             expenseDate: paymentDate,
             amount: paymentAmount,
+            taxAmount: taxAmount || 0,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod,
@@ -760,6 +765,7 @@ export async function POST(request) {
             expenseId: expense.id,
             expenseDate: expenseDate,
             amount: amount,
+            taxAmount: taxAmount || 0,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod: null, // Not paid yet

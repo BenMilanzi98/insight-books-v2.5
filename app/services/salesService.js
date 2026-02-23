@@ -21,12 +21,13 @@ export const fetchSales = async (params = {}) => {
     const url = `/api/sales${queryString ? `?${queryString}` : ''}`;
     
     const response = await fetch(url);
+    const data = await response.json().catch(() => ({}));
     
     if (!response.ok) {
-      throw new Error(`Error fetching sales: ${response.statusText}`);
+      const message = data?.error || response.statusText || 'Failed to fetch sales';
+      throw new Error(message);
     }
     
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error('Error fetching sales:', error);

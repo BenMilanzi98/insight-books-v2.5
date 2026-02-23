@@ -86,11 +86,11 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 10;
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
-    const status = searchParams.get('status');
-    const clientId = searchParams.get('clientId');
-    const search = searchParams.get('search');
-    const dateFrom = searchParams.get('dateFrom');
-    const dateTo = searchParams.get('dateTo');
+    const status = searchParams.get('status')?.trim() || null;
+    const clientId = searchParams.get('clientId')?.trim() || null;
+    const search = searchParams.get('search')?.trim() || null;
+    const dateFrom = searchParams.get('dateFrom')?.trim() || null;
+    const dateTo = searchParams.get('dateTo')?.trim() || null;
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -100,9 +100,22 @@ export async function GET(request) {
       tenantId: user.tenantId
     };
     
-    // Add status filter if provided
+    // Add status filter if provided (map tab/lowercase to DB values; "expired" = Expired or Rejected)
     if (status) {
-      where.status = status;
+      const statusLower = status.toLowerCase();
+      if (statusLower === 'expired') {
+        where.status = { in: ['Expired', 'Rejected'] };
+      } else {
+        const statusMap = {
+          pending: 'Pending',
+          approved: 'Approved',
+          draft: 'Draft',
+          converted: 'Converted',
+          rejected: 'Rejected'
+        };
+        const dbStatus = statusMap[statusLower] || status;
+        where.status = dbStatus;
+      }
     }
     
     // Add client filter if provided
@@ -372,6 +385,8 @@ export async function POST(request) {
         status: body.status || 'Draft',
         notes: body.notes,
         tenantId: user.tenantId,
+        footerPhoneOverride: body.footerPhoneOverride || null,
+        footerBankDetailsOverride: body.footerBankDetailsOverride || null,
         items: {
           create: calculations.processedItems.map(item => ({
             description: item.description,

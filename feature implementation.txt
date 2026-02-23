@@ -1,3 +1,4 @@
+
 Feature Summary: Product-Level Tax Management for Inventory & POS
 Overview
 This feature allows businesses to define their own taxes and assign one or multiple taxes to individual products within the inventory module. Once configured, taxes are automatically applied during POS sales and clearly itemized on receipts, ensuring transparency and compliance.
@@ -1118,8 +1119,174 @@ Automatically map categories (including duplicates) to standard Chart of Account
 Ensure historical transactions remain unchanged and reports use account codes for grouping
 
 
+From Amwenye Azako 
+
+1. Phone Numbers and Bank Details in Footer
+The system should allow users to set default phone numbers and bank account details in their settings.
+
+
+When creating invoices or quotes, these details should automatically appear in the footer.
+
+
+Users should have the option to override these details per document if necessary.
 
 
 
+2. MWK Currency Symbol
+The currency symbol “MWK” should not appear on every figure in the invoice or quote.
 
+
+It should only appear:
+
+
+In the column headers for amounts
+
+
+At the totals section
+
+
+This keeps the document clean while still indicating the currency.
+
+
+
+3. Decimal Formatting (.00)
+Amounts should display two decimal places (.00) in the system for consistency.
+
+
+When exporting documents (PDF or print), the .00 should not be visible to keep the document tidy.
+
+
+
+4. Purchase Orders for Services and Goods
+The system should allow purchase orders for both goods and services.
+
+
+Goods examples: fuel, cement, materials for operations or production.
+
+
+Services: maintenance, consultancy, etc.
+
+
+Each purchase order should include applicable taxes so the expense is recorded correctly.
+
+
+Approved POs should link directly to expenses and inventory/operations, depending on the type.
+
+
+
+5. Tax Elements in Expenses
+When recording expenses, the system should allow separate entry of tax components.
+
+
+Taxes should automatically be tracked in the system for reporting and reconciliation.
+
+
+This ensures that the expense record reflects both the net cost and tax paid.
+
+
+
+6. Taxes from Outflows
+All outgoing payments (expenses, supplier payments) that include taxes should:
+
+
+Record the tax portion separately
+
+
+Accumulate it in a tax management account
+
+
+These taxes can then be offset against collected taxes for correct accounting and reporting.
+
+
+
+7. Credit Notes and Debit Notes
+Credit Note: Issued to reduce the amount a customer owes (e.g., returned goods or discounts).
+
+
+Debit Note: Issued to increase the amount a customer owes (e.g., undercharged invoice, extra services).
+
+
+Implementation:
+
+
+Each note should be linked to the original invoice or sale.
+
+
+The system should automatically adjust customer balance.
+
+
+All notes must generate ledger entries to update accounts receivable and revenue.
+
+
+A clear audit trail should be maintained for reporting and compliance.
+
+
+Purchase Order Module
+Add PO Type selector:
+
+
+Inventory Purchase (does not hit expenses receivables only)
+
+
+Goods & Services Purchase (Hits Expenses)
+
+
+Add Tax Handling at line level:
+
+
+Tax Type dropdown
+
+
+Tax % editable
+
+
+Auto calculate Tax Amount
+
+
+Auto calculate Total Inclusive
+
+
+Add Totals section:
+
+
+Subtotal
+
+
+Total Tax
+
+
+Grand Total
+
+
+Add Supplier Invoice Upload:
+
+
+Attach PDF/Image
+
+
+Store against PO
+
+
+Link to Supplier Ledger
+
+
+Integrate with Tax Management Module:
+
+
+Purchase taxes → Record as Input VAT
+
+
+Sales taxes → Record as Output VAT
+
+
+Calculate Net VAT payable
+
+
+Add toggle:
+
+
+Prices Include Tax
+
+
+Prices Exclude Tax
 

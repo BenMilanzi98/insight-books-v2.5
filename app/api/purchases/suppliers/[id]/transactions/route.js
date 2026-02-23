@@ -17,8 +17,15 @@ export async function GET(request, { params }) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (user.tenantId == null) {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
-    const { id: supplierId } = params;
+    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const supplierId = resolvedParams?.id;
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     
     const dateFrom = searchParams.get('dateFrom');
@@ -267,9 +274,7 @@ export async function GET(request, { params }) {
     });
   } catch (error) {
     console.error('Error fetching supplier transactions:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch supplier transactions. Please try again.' },
-      { status: 500 }
-    );
+    const message = process.env.NODE_ENV === 'development' ? (error?.message || String(error)) : 'Failed to fetch supplier transactions. Please try again.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

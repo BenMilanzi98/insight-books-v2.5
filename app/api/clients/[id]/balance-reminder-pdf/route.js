@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import { getBalanceReminderContent } from '@/lib/balanceReminderService';
 
-function formatCurrency(amount, currencyCode = 'USD') {
-  return amount.toLocaleString('en-US', { style: 'currency', currency: currencyCode });
+// Balance reminder document always shows amounts in USD
+function formatCurrency(amount) {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
 /**
@@ -89,8 +90,12 @@ export async function GET(request, context) {
       doc.text(totalLabel, margin + 4, boxY + 16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(formatCurrency(content.totalBalance, content.currencyCode), margin + 4, boxY + 22);
+      doc.text(formatCurrency(content.totalBalance), margin + 4, boxY + 22);
+      doc.setFontSize(8);
+      doc.setTextColor(75, 85, 99);
+      doc.text('(USD)', margin + 4, boxY + 27);
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
       doc.text(`Invoices: ${content.invoiceCount}`, margin + 70, boxY + 16);
       doc.text(`Oldest due: ${content.oldestInvoiceDate}`, margin + 70, boxY + 22);
       y = boxY + 28 + 12;
@@ -104,11 +109,11 @@ export async function GET(request, context) {
         const tableData = content.invoices.map(inv => [
           inv.invoiceNumber,
           new Date(inv.dueDate).toLocaleDateString(),
-          formatCurrency(inv.balanceDue, content.currencyCode)
+          formatCurrency(inv.balanceDue)
         ]);
         autoTable(doc, {
           startY: y,
-          head: [['Invoice', 'Due date', 'Amount due']],
+          head: [['Invoice', 'Due date', 'Amount due (USD)']],
           body: tableData,
           theme: 'plain',
           headStyles: { fillColor: [59, 130, 246], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },

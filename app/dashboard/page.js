@@ -796,14 +796,16 @@ const BusinessOwnerDashboard = () => {
   // Error state
   if (error) {
     return (
-      <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-lg font-bold text-gray-800 mb-2">Error Loading Dashboard</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+        <div className="text-center max-w-md w-full bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-200/80 p-8">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-5">
+            <AlertCircle className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Error Loading Dashboard</h2>
+          <p className="text-gray-600 text-sm mb-6">{error}</p>
           <button 
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+            className="px-5 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
           >
             Try Again
           </button>
@@ -818,36 +820,32 @@ const BusinessOwnerDashboard = () => {
 
   // Loading state when user doesn't have permission yet
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="mb-6">
-          <div className="inline-block">
-            <div className="relative w-16 h-16 mb-4">
-              <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-              <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+      <div className="text-center max-w-sm">
+        <div className="relative w-16 h-16 mx-auto mb-6">
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
         </div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Loading Dashboard</h2>
-        <p className="text-gray-600 mb-2">Please wait while we prepare your dashboard</p>
-        <p className="text-sm text-gray-500">Verifying permissions and loading your data...</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Loading Dashboard</h2>
+        <p className="text-gray-600 text-sm mb-1">Preparing your dashboard</p>
+        <p className="text-xs text-gray-500">Verifying permissions and loading data...</p>
       </div>
     </div>
   );
 
   function renderDashboard() {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-blue-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+        <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Dashboard Header */}
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <div className="flex items-center gap-3">
-              <div className="w-1 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
-              <div>
-                <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900">Dashboard</h1>
-                <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  Overview of performance, cash position, receivables, payables, and inventory.
+              <div className="flex-shrink-0 w-1 h-8 sm:h-9 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-gray-900">Dashboard</h1>
+                <p className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-2">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse flex-shrink-0"></span>
+                  <span>Overview of performance, cash position, receivables, payables, and inventory.</span>
                 </p>
               </div>
             </div>
@@ -884,16 +882,16 @@ const BusinessOwnerDashboard = () => {
           )}
 
           {/* Business Overview Card */}
-          <div className="mb-8 relative">
+          <div className="mb-6 sm:mb-8 relative">
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
               <div className="p-6 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5 rounded-t-2xl border-b border-gray-100">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 ring-4 ring-white/50">
-                      <Building className="h-7 w-7 text-white" />
+                  <div className="flex items-center space-x-4 min-w-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 flex-shrink-0 bg-gradient-to-br from-blue-500 via-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 ring-4 ring-white/50">
+                      <Building className="h-6 w-6 sm:h-7 sm:w-7 text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-xl font-bold text-gray-900">
+                    <div className="min-w-0">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 truncate">
                         {tenantInfo?.name || 'Loading...'}
                       </h3>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
@@ -976,18 +974,18 @@ const BusinessOwnerDashboard = () => {
           </div>
 
           {/* Daily Metrics Section */}
-          <div className="mb-8">
-            <div className="flex items-center justify-between mb-5">
+          <div className="mb-6 sm:mb-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200 ring-2 ring-white/50">
+                <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200 ring-2 ring-white/50">
                   <Clock size={20} className="text-white" />
                 </div>
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Today's Performance</h2>
+                <div className="min-w-0">
+                  <h2 className="text-lg sm:text-xl font-bold text-gray-900">Today's Performance</h2>
                   <p className="text-xs text-gray-500">Real-time metrics comparison</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg border border-gray-200 flex-shrink-0">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
                 <span className="text-xs text-gray-600 font-medium">
                   {dailyPerformance ? 
@@ -1076,7 +1074,7 @@ const BusinessOwnerDashboard = () => {
           </div>
           
           {/* Financial Summary Cards */}
-          <div className="mb-8">
+          <div className="mb-6 sm:mb-8">
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
                 <BarChart3 size={20} className="text-white" />
@@ -1144,16 +1142,16 @@ const BusinessOwnerDashboard = () => {
           
 
           {/* Main Dashboard Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
             {/* Income & Expenses Bar Chart */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-400 via-purple-500 to-violet-500"></div>
-              <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-indigo-500/5 via-transparent to-purple-500/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200">
                     <BarChart3 size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800">Income & Expense Overview</h2>
+                  <h2 className="font-bold text-gray-800 truncate">Income & Expense Overview</h2>
                 </div>
                 <a href="/reports/" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-indigo-100 text-indigo-600 rounded-lg text-sm font-medium transition-all duration-200">
                   Detailed Report 
@@ -1171,12 +1169,12 @@ const BusinessOwnerDashboard = () => {
             {/* Expense Breakdown Pie Chart */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-red-500 to-rose-500"></div>
-              <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-orange-500/5 via-transparent to-red-500/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-orange-500/5 via-transparent to-red-500/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-orange-400 to-red-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
                     <Wallet size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800">Expenses Breakdown</h2>
+                  <h2 className="font-bold text-gray-800 truncate">Expenses Breakdown</h2>
                 </div>
                 <a href="/expenses" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-orange-100 text-orange-600 rounded-lg text-sm font-medium transition-all duration-200">
                   View Details 
@@ -1194,12 +1192,12 @@ const BusinessOwnerDashboard = () => {
             {/* Accounts Receivable */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-400 via-emerald-500 to-teal-500"></div>
-              <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-green-500/5 via-transparent to-emerald-500/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-green-500/5 via-transparent to-emerald-500/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-green-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-200">
                     <DollarSign size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800">Accounts Receivable</h2>
+                  <h2 className="font-bold text-gray-800 truncate">Accounts Receivable</h2>
                 </div>
                 <a href="/accounting/receivables" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-green-100 text-green-600 rounded-lg text-sm font-medium transition-all duration-200">
                   View More 
@@ -1207,7 +1205,7 @@ const BusinessOwnerDashboard = () => {
                 </a>
               </div>
               <div className="p-5">
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Receivables</p>
                     <div className="text-xl font-bold text-gray-900">
@@ -1229,9 +1227,9 @@ const BusinessOwnerDashboard = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h3 className="text-sm font-semibold text-gray-700">Aging Summary</h3>
-                    <div className="flex items-center gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-green-500 rounded-full mr-1.5 shadow-sm shadow-green-300"></div>
                         <span className="text-gray-500">Current</span>
@@ -1293,12 +1291,12 @@ const BusinessOwnerDashboard = () => {
             {/* Accounts Payable */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible relative">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-400 via-rose-500 to-pink-500"></div>
-              <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-red-500/5 via-transparent to-rose-500/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gradient-to-br from-red-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 bg-gradient-to-r from-red-500/5 via-transparent to-rose-500/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-red-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-red-200">
                     <CreditCard size={20} className="text-white" />
                   </div>
-                  <h2 className="font-bold text-gray-800">Accounts Payable</h2>
+                  <h2 className="font-bold text-gray-800 truncate">Accounts Payable</h2>
                 </div>
                 <a href="/accounting/payables" className="group flex items-center gap-1 px-3 py-1.5 bg-gray-100 hover:bg-red-100 text-red-600 rounded-lg text-sm font-medium transition-all duration-200">
                   View More 
@@ -1306,7 +1304,7 @@ const BusinessOwnerDashboard = () => {
                 </a>
               </div>
               <div className="p-5">
-                <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 text-center">
                     <p className="text-xs text-gray-500 mb-1">Total Payables</p>
                     <div className="text-xl font-bold text-gray-900">
@@ -1328,9 +1326,9 @@ const BusinessOwnerDashboard = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                     <h3 className="text-sm font-semibold text-gray-700">Aging Summary</h3>
-                    <div className="flex items-center gap-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
                       <div className="flex items-center">
                         <div className="w-2.5 h-2.5 bg-green-500 rounded-full mr-1.5 shadow-sm shadow-green-300"></div>
                         <span className="text-gray-500">Current</span>
@@ -1392,13 +1390,13 @@ const BusinessOwnerDashboard = () => {
           </div>
 
           {/* Stock Alerts Section */}
-          <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
-            <div className="p-5 border-b border-gray-100/50 flex justify-between items-center bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
+          <div className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
+            <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-wrap justify-between items-center gap-3 bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-200">
                   <AlertTriangle size={20} className="text-white" />
                 </div>
-                <h2 className="font-bold text-gray-800">Stock Alerts</h2>
+                <h2 className="font-bold text-gray-800 truncate">Stock Alerts</h2>
               </div>
               <button
                 onClick={refreshDashboard}

@@ -114,21 +114,29 @@ export async function GET(request) {
       });
     }
     
+    // Require tenant context so we never return empty due to null tenantId
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'No tenant context. Please log in again or select a tenant.', sales: [], pagination: { page: 1, limit, totalCount: 0, totalPages: 0 } },
+        { status: 400 }
+      );
+    }
+    
     // Calculate pagination
     const skip = (page - 1) * limit;
     
     // Build filter object for Prisma
     const where = {
-      tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
+      tenantId, // Filter by tenant ID for multi-tenancy
     };
     
-    // Add branch filter - use provided branchId or user's current branch
+    // Add branch filter only when explicitly requested (branchId query param).
+    // Do not auto-filter by user.currentBranchId: otherwise sales with branchId null
+    // (e.g. created before branch was set or with no branch) are excluded and history appears empty.
     const branchId = searchParams.get('branchId');
     if (branchId) {
       where.branchId = branchId;
-    } else if (user?.currentBranchId) {
-      // Auto-filter by user's current branch if no branchId provided
-      where.branchId = user.currentBranchId;
     }
     
     // Add status filter if provided
@@ -164,8 +172,10 @@ export async function GET(request) {
     // Get total count for pagination
     const totalCount = await prisma.sale.count({ where });
     
-    // Build sort object for Prisma
-    const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
+    // Whitelist sort field to avoid Prisma errors and use a valid Sale field
+    const validSortFields = ['saleDate', 'createdAt', 'updatedAt', 'total', 'saleNumber', 'status'];
+    const safeSortBy = validSortFields.includes(sortBy) ? sortBy : 'saleDate';
+    const orderBy = { [safeSortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
     // Fetch sales with related data
     const sales = await prisma.sale.findMany({
@@ -584,15 +594,27 @@ export async function POST(request) {
         paymentAccounts.forEach(acc => paymentAccountsMap.set(acc.id, acc));
       }
 
-      // Pre-fetch Chart of Accounts account for payment method to avoid queries inside transaction
+      // Pre-fetch Chart of Accounts account(s) for payment to avoid queries inside transaction
       let paymentCoAAccount = null;
-      if (paymentMethodInput) {
+      let paymentDebitLines = null; // For split payments: [{ accountId, amount }]
+      const { getAccountForPaymentMethod } = await import('@/lib/paymentMethodAccountMapping');
+      if (paymentAllocations.length > 1) {
+        // Split payments: resolve each allocation to CoA account
         try {
-          const { getAccountForPaymentMethod } = await import('@/lib/paymentMethodAccountMapping');
+          paymentDebitLines = await Promise.all(
+            paymentAllocations.map(async (alloc) => {
+              const coaAccount = await getAccountForPaymentMethod(user.tenantId, alloc.paymentAccountId);
+              return { accountId: coaAccount.id, amount: Number(alloc.amount) };
+            })
+          );
+        } catch (error) {
+          console.warn('⚠️ Could not pre-fetch payment debit lines for split payments:', error.message);
+        }
+      } else if (paymentMethodInput) {
+        try {
           paymentCoAAccount = await getAccountForPaymentMethod(user.tenantId, paymentMethodInput);
         } catch (error) {
           console.warn('⚠️ Could not pre-fetch payment CoA account, will try inside transaction:', error.message);
-          // Continue - will try inside transaction as fallback
         }
       }
 
@@ -732,17 +754,13 @@ export async function POST(request) {
             // Calculate item amount
             const amount = item.quantity * item.unitPrice;
             
-            // Create the sale item with enhanced fields
-            const saleItemData = {
-              sale: {
-                connect: { id: sale.id }
-              },
-              accountId: item.accountId || null,
+            // Base fields for sale item (no account yet - try both shapes for Prisma client compatibility)
+            const baseSaleItemData = {
+              sale: { connect: { id: sale.id } },
               description: item.description,
               quantity: item.quantity,
               unitPrice: item.unitPrice,
               amount: amount,
-              // Enhanced fields
               taxRate: item.taxRate || 0,
               taxAmount: item.taxAmount || 0,
               taxDescription: item.taxDescription || null,
@@ -751,49 +769,39 @@ export async function POST(request) {
               isCustom: item.isCustom || false,
               customProductData: item.customProductData || null
             };
-
-            // Connect to product only if it's not a custom product
             if (!item.isCustom && item.productId) {
-              saleItemData.product = {
-                connect: { id: item.productId }
-              };
+              baseSaleItemData.product = { connect: { id: item.productId } };
             }
-            
-            // Create sale item first
+
+            // Try accountId first (some Prisma clients only accept scalar); then account connect (others only relation)
             let saleItem;
+            const withAccountId = { ...baseSaleItemData, accountId: item.accountId || null };
+            const withAccountConnect = item.accountId
+              ? { ...baseSaleItemData, account: { connect: { id: item.accountId } } }
+              : baseSaleItemData;
+
             try {
-              saleItem = await tx.saleItem.create({
-                data: saleItemData
-              });
-            } catch (error) {
-              console.error('❌ SaleItem creation failed:', {
-                message: error.message,
-                code: error.code,
-                meta: error.meta,
-                accountId: item.accountId,
-                saleItemData: JSON.stringify(saleItemData, null, 2)
-              });
-              
-              // Check if error is due to missing accountId column
-              if (error.message?.includes('Unknown argument `accountId`') || 
-                  error.message?.includes('Unknown column') ||
-                  error.code === 'P2009') {
+              saleItem = await tx.saleItem.create({ data: withAccountId });
+            } catch (firstError) {
+              const msg = firstError?.message || '';
+              if (msg.includes('Unknown argument `accountId`') || msg.includes('Unknown column') || firstError?.code === 'P2009') {
+                try {
+                  saleItem = await tx.saleItem.create({ data: withAccountConnect });
+                } catch (secondError) {
+                  console.error('❌ SaleItem creation failed (both accountId and account connect):', secondError?.message);
+                  throw new Error(
+                    'Account validation failed. Please ensure all sale items have valid income accounts from Chart of Accounts. ' +
+                    'If the error persists, run: node scripts/run-accountid-migration.js then npx prisma generate and restart the app.'
+                  );
+                }
+              } else if (firstError?.code === 'P2003') {
                 throw new Error(
-                  'Database schema is missing the accountId column on SaleItem table. ' +
-                  'Please run: node scripts/run-accountid-migration.js'
+                  `Invalid accountId: ${item.accountId}. The account does not exist in Chart of Accounts. Please ensure the account exists and is active.`
                 );
+              } else {
+                console.error('❌ SaleItem creation failed:', firstError?.message);
+                throw firstError;
               }
-              
-              // Check if error is due to invalid accountId (foreign key constraint)
-              if (error.code === 'P2003') {
-                throw new Error(
-                  `Invalid accountId: ${item.accountId}. The account does not exist in Chart of Accounts. ` +
-                  'Please ensure the account exists and is active.'
-                );
-              }
-              
-              // Re-throw original error for other cases
-              throw error;
             }
             
             // Create individual tax records if taxBreakdown is provided
@@ -1147,13 +1155,14 @@ export async function POST(request) {
                 saleDate: paymentDate,
                 totalAmount: finalTotal,
                 items,
-                paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
+                paymentMethod: paymentMethodInput,
                 hasServices,
                 cogsAmount: totalCOGS,
-                paymentAccount: paymentCoAAccount, // Pass pre-fetched account to avoid query inside transaction
-                standardAccounts: standardAccounts, // Pass pre-fetched standard accounts to avoid queries inside transaction
-                referenceNumber: referenceNumber, // Pass pre-generated reference number to avoid query inside transaction
-                cogsReferenceNumber: cogsReferenceNumber, // Pass pre-generated COGS reference number to avoid query inside transaction
+                paymentAccount: paymentDebitLines ? null : paymentCoAAccount,
+                paymentDebitLines: paymentDebitLines || null,
+                standardAccounts: standardAccounts,
+                referenceNumber: referenceNumber,
+                cogsReferenceNumber: cogsReferenceNumber,
                 tx,
               });
             } catch (journalError) {

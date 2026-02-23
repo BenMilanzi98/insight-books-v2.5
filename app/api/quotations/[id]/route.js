@@ -139,6 +139,8 @@ export async function GET(request, { params }) {
       taxAmount: quotation.taxAmount,
       status: quotation.status,
       notes: quotation.notes,
+      footerPhoneOverride: quotation.footerPhoneOverride ?? null,
+      footerBankDetailsOverride: quotation.footerBankDetailsOverride ?? null,
       items: quotation.items.map(item => ({
         id: item.id,
         description: item.description,
@@ -225,6 +227,8 @@ export async function PUT(request, { params }) {
           total: total,
           status: body.status || existingQuotation.status,
           notes: body.notes,
+          footerPhoneOverride: body.footerPhoneOverride !== undefined ? body.footerPhoneOverride : existingQuotation.footerPhoneOverride,
+          footerBankDetailsOverride: body.footerBankDetailsOverride !== undefined ? body.footerBankDetailsOverride : existingQuotation.footerBankDetailsOverride,
           items: {
             create: processedItems.map(item => ({
               description: item.description,

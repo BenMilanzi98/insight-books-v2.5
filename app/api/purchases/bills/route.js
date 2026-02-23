@@ -7,6 +7,8 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { createFifoBatch } from '@/lib/fifoCosting';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { getTaxOutflowAccount } from '@/lib/transactionJournalHelpers';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
 const BILL_TYPES = ['inventory', 'expense'];
@@ -497,9 +499,15 @@ async function finalizeExpenseBill(tx, bill, tenantId, userId) {
   const entryDate = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
   const referenceNumber = await generateReferenceNumber(tx, tenantId, entryDate);
 
+  const billTotal = Number(bill.totalAmount || 0);
+  const billTax = Number(bill.taxAmount || 0);
+  const expenseTotal = billTotal - billTax;
+  const taxAccount = billTax > 0 ? await getTaxOutflowAccount(tenantId, tx) : null;
+  const scale = billTotal > 0 && billTax > 0 && taxAccount ? expenseTotal / billTotal : 1;
+
   const lines = [];
-  
-  // Create debit lines for each expense account
+  let lineNum = 1;
+
   for (const item of bill.items) {
     if (!item.expenseAccountId) continue;
 
@@ -515,21 +523,31 @@ async function finalizeExpenseBill(tx, bill, tenantId, userId) {
       throw new Error(`Expense account not found: ${item.expenseAccountId}`);
     }
 
+    const itemDebit = Number(item.lineTotal || 0) * scale;
     lines.push({
-      lineNumber: lines.length + 1,
+      lineNumber: lineNum++,
       accountId: expenseAccount.id,
-      debitAmount: Number(item.lineTotal || 0),
+      debitAmount: itemDebit,
       creditAmount: 0,
       description: item.description || `Expense - ${bill.billNumber}`
     });
   }
 
-  // Add credit line for Accounts Payable
+  if (billTax > 0 && taxAccount) {
+    lines.push({
+      lineNumber: lineNum++,
+      accountId: taxAccount.id,
+      debitAmount: billTax,
+      creditAmount: 0,
+      description: `Tax on bill - ${bill.billNumber}`
+    });
+  }
+
   lines.push({
-    lineNumber: lines.length + 1,
+    lineNumber: lineNum,
     accountId: apAccount.id,
     debitAmount: 0,
-    creditAmount: bill.totalAmount,
+    creditAmount: billTotal,
     description: `Accounts Payable - ${bill.supplier.supplierName}`
   });
 
@@ -550,8 +568,19 @@ async function finalizeExpenseBill(tx, bill, tenantId, userId) {
       lines: {
         create: lines
       }
-    }
+    },
+    include: { lines: true }
   });
+
+  // Update account balances for all lines (expense debits, tax debit, AP credit)
+  for (const line of transaction.lines) {
+    await updateAccountBalanceOnTransaction(
+      line.accountId,
+      line.debitAmount,
+      line.creditAmount,
+      tx
+    );
+  }
 
   // Link journal entry to bill
   await tx.supplierBill.update({

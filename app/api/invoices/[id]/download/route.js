@@ -122,7 +122,9 @@ export async function GET(request, { params }) {
       address: tenant?.settings?.address || '',
       city: tenant?.settings?.city || '',
       phone: tenant?.settings?.phone || '',
-      email: tenant?.settings?.email || ''
+      email: tenant?.settings?.email || '',
+      businessPhone: tenant?.settings?.businessPhone || '',
+      defaultBankDetails: tenant?.settings?.defaultBankDetails || ''
     };
     
     // Calculate payment information

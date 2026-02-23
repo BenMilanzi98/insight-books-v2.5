@@ -564,10 +564,11 @@ export async function POST(request) {
         if (sourceAccountRecord) {
           const sourceDetails = await getAccountBalanceDetails(sourceAccount, user.tenantId);
           sourceBalance = sourceDetails.balance || 0;
-          // Use stored Account.balance when transaction-based balance is 0 (e.g. capital initial balance)
-          if (sourceBalance === 0 && sourceAccountRecord.balance != null) {
+          // Use the higher of transaction-based balance or stored Account.balance so capital account
+          // (and other accounts) respect the displayed balance when it differs from transaction lines
+          if (sourceAccountRecord.balance != null) {
             const stored = parseFloat(sourceAccountRecord.balance);
-            if (!Number.isNaN(stored) && stored > 0) sourceBalance = stored;
+            if (!Number.isNaN(stored) && stored > sourceBalance) sourceBalance = stored;
           }
         } else if (sourcePaymentAccountRecord) {
           const accountBalance = await prisma.accountBalance.findFirst({

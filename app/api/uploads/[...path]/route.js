@@ -24,13 +24,19 @@ export async function GET(request, { params }) {
       );
     }
     
-    // Check if file exists
+    // When file is missing, return 200 with a 1x1 transparent PNG so img doesn't 404 and client can show fallback
     if (!existsSync(normalizedPath)) {
-      console.error(`File not found: ${normalizedPath}`);
-      return NextResponse.json(
-        { error: 'File not found' },
-        { status: 404 }
+      const transparentPng = Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64'
       );
+      return new NextResponse(transparentPng, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=60',
+          'Content-Length': transparentPng.length.toString(),
+        },
+      });
     }
     
     // Read the file

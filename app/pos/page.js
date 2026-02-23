@@ -416,7 +416,7 @@ const POSPage = () => {
       setRecentSales(response.sales || []);
     } catch (error) {
       console.error("Error loading sales:", error);
-      setSalesError("Failed to load recent sales");
+      setSalesError(error?.message || "Failed to load recent sales");
     } finally {
       setIsLoadingSales(false);
     }

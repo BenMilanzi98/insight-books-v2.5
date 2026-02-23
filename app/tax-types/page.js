@@ -375,7 +375,7 @@ export default function TaxTypesPage() {
           <div>
             <p className="text-sm text-blue-800 font-medium">How it works</p>
             <p className="text-sm text-blue-600 mt-1">
-              Each tax type is linked to an account (usually a Liability account). When taxes are calculated from transactions, they are automatically posted to the linked account.
+              Each tax type is linked to an account (usually a Liability account). <strong>Taxes collected</strong> come from sales and invoices; <strong>taxes paid</strong> come from purchases (purchase orders, expenses, supplier bills). Net payable = collected − paid.
             </p>
           </div>
         </div>
@@ -485,13 +485,20 @@ export default function TaxTypesPage() {
                     
                     {balance.totalCollected !== undefined && (
                       <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                        <span className="text-sm text-gray-600">Collected</span>
+                        <span className="text-sm text-gray-600">Taxes collected (sales)</span>
                         <span className="font-semibold text-blue-600">
                           {formatCurrency(balance.totalCollected)}
                         </span>
                       </div>
                     )}
-                    
+                    {balance.totalPaid !== undefined && (
+                      <div className="flex items-center justify-between bg-amber-50 rounded-lg px-3 py-2">
+                        <span className="text-sm text-gray-600">Taxes paid (purchases)</span>
+                        <span className="font-semibold text-amber-700">
+                          {formatCurrency(balance.totalPaid)}
+                        </span>
+                      </div>
+                    )}
                     {balance.netPayable !== undefined && (
                       <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                         <span className="text-sm text-gray-600">Net Payable</span>

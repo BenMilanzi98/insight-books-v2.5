@@ -249,12 +249,22 @@ const CapitalAccountManager = () => {
           setError(null);
         }, 2000);
       } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create transfer');
+        const errorData = await response.json().catch(() => ({}));
+        let message = errorData.error || 'Failed to create transfer';
+        // Format "Available: X, Required: Y" for readability
+        const match = message.match(/Available: ([\d.]+), Required: ([\d.]+)/);
+        if (match) {
+          const available = parseFloat(match[1]);
+          const required = parseFloat(match[2]);
+          message = `Insufficient balance in source account. Available: ${formatCurrency(available)}, Required: ${formatCurrency(required)}`;
+        }
+        throw new Error(message);
       }
     } catch (error) {
-      console.error('Error creating transfer:', error);
-      setError(error.message);
+      if (error?.message && !error.message.includes('Insufficient balance')) {
+        console.error('Error creating transfer:', error);
+      }
+      setError(error?.message || 'Failed to create transfer');
       setIsTransferring(false);
     }
   };

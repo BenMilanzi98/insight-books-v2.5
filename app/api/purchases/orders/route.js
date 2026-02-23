@@ -4,8 +4,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { syncExpensesFromPurchaseOrder } from '@/lib/purchaseOrderExpenseSync';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
+const ORDER_TYPES = ['goods', 'services', 'mixed'];
 
 async function generatePurchaseOrderNumber() {
   // Generate a globally unique PO-XXXXX number to avoid collisions across tenants
@@ -18,32 +20,47 @@ async function generatePurchaseOrderNumber() {
   return number;
 }
 
-function validateItems(items) {
+function getLineType(item) {
+  const t = (item.lineType || '').toLowerCase();
+  if (t === 'service' || t === 'goods') return t;
+  return item.productId ? 'goods' : 'service';
+}
+
+function validateItems(items, orderType = 'goods') {
   if (!Array.isArray(items) || items.length === 0) {
     throw new Error('Purchase order items are required');
   }
   items.forEach((item, idx) => {
-    if (!item.productId) throw new Error(`Item ${idx + 1}: productId is required`);
-    if (item.quantityOrdered === undefined || Number(item.quantityOrdered) <= 0) {
-      throw new Error(`Item ${idx + 1}: quantityOrdered must be greater than zero`);
+    const lineType = getLineType(item);
+    if (lineType === 'goods') {
+      if (!item.productId) throw new Error(`Item ${idx + 1}: productId is required for goods lines`);
+    } else {
+      if (!item.description?.trim()) throw new Error(`Item ${idx + 1}: description is required for service lines`);
     }
-    if (item.unitCost === undefined || Number(item.unitCost) < 0) {
-      throw new Error(`Item ${idx + 1}: unitCost cannot be negative`);
-    }
+    const qty = Number(item.quantityOrdered ?? 0);
+    if (qty <= 0) throw new Error(`Item ${idx + 1}: quantityOrdered must be greater than zero`);
+    if (Number(item.unitCost ?? 0) < 0) throw new Error(`Item ${idx + 1}: unitCost cannot be negative`);
   });
 }
 
 function parsePagination(searchParams) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
-  const limit = Math.min(parseInt(searchParams.get('limit') || '25', 10), 100);
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '25', 10), 1), 500);
   return { page, limit };
 }
 
-function parseSort(searchParams) {
+function buildOrderBy(searchParams) {
   const sort = searchParams.get('sort') || 'poDate';
   const order = searchParams.get('order') === 'desc' ? 'desc' : 'asc';
-  const allowed = ['poDate', 'poNumber', 'status', 'totalAmount', 'supplierName'];
-  return { [allowed.includes(sort) ? sort : 'poDate']: order };
+  const primary = { poDate: 'desc' };
+  const secondary = { poNumber: 'asc' };
+  // Use only scalar fields for orderBy to avoid relation-orderBy issues across Prisma/DB versions
+  if (sort === 'poDate') return [{ poDate: order }, secondary];
+  if (sort === 'poNumber') return [{ poNumber: order }, primary, secondary];
+  if (sort === 'status') return [{ status: order }, primary, secondary];
+  if (sort === 'totalAmount') return [{ totalAmount: order }, primary, secondary];
+  if (sort === 'supplierName') return [primary, secondary]; // client can sort by supplierName if needed
+  return [primary, secondary];
 }
 
 export async function GET(request) {
@@ -53,10 +70,11 @@ export async function GET(request) {
 
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (user.tenantId == null) return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
 
     const { searchParams } = new URL(request.url);
     const { page, limit } = parsePagination(searchParams);
-    const orderBy = parseSort(searchParams);
+    const orderByClause = buildOrderBy(searchParams);
     const status = searchParams.get('status');
     const supplierId = searchParams.get('supplierId');
     const search = searchParams.get('search');
@@ -72,17 +90,42 @@ export async function GET(request) {
     }
 
     const totalCount = await prisma.purchaseOrder.count({ where });
-    const purchaseOrders = await prisma.purchaseOrder.findMany({
-      where,
-      orderBy: [{ poDate: orderBy.poDate || 'desc' }, orderBy],
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        supplier: { select: { supplierName: true, supplierCode: true } },
-        items: true,
-        receipts: { select: { id: true, receiptNumber: true, receiptDate: true } }
+    const includeFull = {
+      supplier: { select: { supplierName: true, supplierCode: true } },
+      items: true,
+      receipts: { select: { id: true, receiptNumber: true, receiptDate: true } },
+      expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
+    };
+    let purchaseOrders;
+    try {
+      purchaseOrders = await prisma.purchaseOrder.findMany({
+        where,
+        orderBy: orderByClause,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: includeFull
+      });
+    } catch (queryError) {
+      console.error('Error fetching purchase orders (with expenses):', queryError?.message || queryError);
+      // Fallback: retry without expenses include (e.g. if Expense.purchaseOrderId column is missing)
+      try {
+        const { expenses: _e, ...includeWithoutExpenses } = includeFull;
+        purchaseOrders = await prisma.purchaseOrder.findMany({
+          where,
+          orderBy: orderByClause,
+          skip: (page - 1) * limit,
+          take: limit,
+          include: includeWithoutExpenses
+        });
+        purchaseOrders = purchaseOrders.map((po) => ({ ...po, expenses: [] }));
+      } catch (fallbackError) {
+        console.error('Error fetching purchase orders (fallback):', fallbackError?.message || fallbackError);
+        const message = process.env.NODE_ENV === 'development'
+          ? (fallbackError?.message || String(fallbackError))
+          : 'Failed to fetch purchase orders.';
+        return NextResponse.json({ error: message }, { status: 500 });
       }
-    });
+    }
 
     return NextResponse.json({
       purchaseOrders,
@@ -95,7 +138,8 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching purchase orders:', error);
-    return NextResponse.json({ error: 'Failed to fetch purchase orders.' }, { status: 500 });
+    const message = process.env.NODE_ENV === 'development' ? (error?.message || String(error)) : 'Failed to fetch purchase orders.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
@@ -115,7 +159,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'poDate is required' }, { status: 400 });
     }
 
-    validateItems(body.items);
+    const orderType = ORDER_TYPES.includes(body.orderType) ? body.orderType : 'goods';
+    validateItems(body.items, orderType);
 
     const supplier = await prisma.supplier.findFirst({
       where: { id: body.supplierId, tenantId: user.tenantId }
@@ -124,30 +169,89 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
 
-    // Validate product IDs exist and belong to the tenant
+    // Validate product IDs only for items that have productId (goods lines)
     const productIds = [...new Set((body.items || []).map((it) => it.productId).filter(Boolean))];
-    if (productIds.length === 0) {
-      return NextResponse.json({ error: 'No valid productIds provided in items' }, { status: 400 });
+    if (productIds.length > 0) {
+      const products = await prisma.product.findMany({ where: { id: { in: productIds }, tenantId: user.tenantId } });
+      if (products.length !== productIds.length) {
+        const foundIds = new Set(products.map((p) => p.id));
+        const missing = productIds.filter((id) => !foundIds.has(id));
+        return NextResponse.json({ error: `Products not found or not accessible: ${missing.join(', ')}` }, { status: 400 });
+      }
     }
-    const products = await prisma.product.findMany({ where: { id: { in: productIds }, tenantId: user.tenantId } });
-    if (products.length !== productIds.length) {
-      const foundIds = new Set(products.map((p) => p.id));
-      const missing = productIds.filter((id) => !foundIds.has(id));
-      return NextResponse.json({ error: `Products not found or not accessible: ${missing.join(', ')}` }, { status: 400 });
+
+    // Validate expense category IDs for service lines if provided
+    const expenseCategoryIds = [...new Set((body.items || []).map((it) => it.expenseCategoryId).filter(Boolean))];
+    if (expenseCategoryIds.length > 0) {
+      const categories = await prisma.expenseCategory.findMany({
+        where: { id: { in: expenseCategoryIds }, tenantId: user.tenantId }
+      });
+      if (categories.length !== expenseCategoryIds.length) {
+        const found = new Set(categories.map((c) => c.id));
+        const missing = expenseCategoryIds.filter((id) => !found.has(id));
+        return NextResponse.json({ error: `Expense categories not found: ${missing.join(', ')}` }, { status: 400 });
+      }
+    }
+
+    // Validate tax type IDs if provided (line-level tax)
+    const taxTypeIds = [...new Set((body.items || []).map((it) => it.taxTypeId).filter(Boolean))];
+    if (taxTypeIds.length > 0) {
+      const taxTypes = await prisma.taxType.findMany({
+        where: { id: { in: taxTypeIds }, tenantId: user.tenantId, status: 'Active' }
+      });
+      if (taxTypes.length !== taxTypeIds.length) {
+        const found = new Set(taxTypes.map((t) => t.id));
+        const missing = taxTypeIds.filter((id) => !found.has(id));
+        return NextResponse.json({ error: `Tax types not found or inactive: ${missing.join(', ')}` }, { status: 400 });
+      }
     }
 
     const poNumber = body.poNumber?.trim() || await generatePurchaseOrderNumber();
-    const subtotal = body.items.reduce(
-      (sum, item) => sum + Number(item.quantityOrdered) * Number(item.unitCost),
-      0
-    );
-    const taxAmount = body.taxRate ? subtotal * (Number(body.taxRate) / 100) : 0;
+    const pricesIncludeTax = Boolean(body.pricesIncludeTax);
+
+    // Build items with per-line tax: taxTypeId, taxRate (editable), taxAmount (auto), support pricesIncludeTax
+    const itemRows = body.items.map((item, index) => {
+      const lineType = getLineType(item);
+      const qty = Number(item.quantityOrdered ?? 0);
+      const unitCost = Number(item.unitCost ?? 0);
+      const taxRatePct = Number(item.taxRate ?? 0);
+      let lineSubtotal;
+      let lineTaxAmount = Number(item.taxAmount ?? 0);
+      if (pricesIncludeTax && taxRatePct > 0) {
+        const lineTotalInclusive = qty * unitCost;
+        lineSubtotal = lineTotalInclusive / (1 + taxRatePct / 100);
+        lineTaxAmount = lineTotalInclusive - lineSubtotal;
+      } else {
+        lineSubtotal = qty * unitCost;
+        if (lineTaxAmount === 0 && taxRatePct > 0) {
+          lineTaxAmount = lineSubtotal * (taxRatePct / 100);
+        }
+      }
+      return {
+        lineNumber: index + 1,
+        lineType,
+        productId: item.productId || null,
+        expenseCategoryId: item.expenseCategoryId || null,
+        description: item.description?.trim() || null,
+        quantityOrdered: new Prisma.Decimal(qty),
+        unitCost: new Prisma.Decimal(unitCost),
+        taxTypeId: item.taxTypeId && String(item.taxTypeId).trim() ? item.taxTypeId : null,
+        taxRate: taxRatePct,
+        taxAmount: lineTaxAmount,
+        _lineSubtotal: lineSubtotal
+      };
+    });
+
+    const subtotal = itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0);
+    const taxAmount = itemRows.reduce((sum, row) => sum + row.taxAmount, 0);
     const totalAmount = subtotal + taxAmount;
+    const headerTaxRate = subtotal > 0 ? (taxAmount / subtotal) * 100 : (body.taxRate ?? 0);
 
     const purchaseOrder = await prisma.purchaseOrder.create({
       data: {
         tenantId: user.tenantId,
         supplierId: supplier.id,
+        orderType,
         poNumber,
         poDate: new Date(body.poDate),
         expectedDeliveryDate: body.expectedDeliveryDate ? new Date(body.expectedDeliveryDate) : null,
@@ -155,24 +259,29 @@ export async function POST(request) {
         paymentTerms: body.paymentTerms ?? supplier.paymentTerms ?? 30,
         currency: body.currency || supplier.currency || 'MWK',
         subtotal,
-        taxRate: body.taxRate ?? 0,
+        taxRate: headerTaxRate,
         taxAmount,
         totalAmount,
-        status: 'Approved', // Always save as Approved
+        status: 'Approved',
         approvedById: user.id,
         approvedDate: new Date(),
         notes: body.notes || null,
         termsAndConditions: body.termsAndConditions || null,
+        pricesIncludeTax,
+        supplierInvoiceUrl: body.supplierInvoiceUrl || null,
         createdById: user.id,
         items: {
-          create: body.items.map((item, index) => ({
-            lineNumber: index + 1,
-            productId: item.productId,
-            description: item.description || null,
-            quantityOrdered: new Prisma.Decimal(item.quantityOrdered ?? 0),
-            unitCost: new Prisma.Decimal(item.unitCost ?? 0),
-            taxRate: item.taxRate ?? 0,
-            taxAmount: item.taxAmount ?? 0
+          create: itemRows.map((row) => ({
+            lineNumber: row.lineNumber,
+            lineType: row.lineType,
+            productId: row.productId,
+            expenseCategoryId: row.expenseCategoryId,
+            description: row.description,
+            quantityOrdered: row.quantityOrdered,
+            unitCost: row.unitCost,
+            taxTypeId: row.taxTypeId,
+            taxRate: row.taxRate,
+            taxAmount: row.taxAmount
           }))
         }
       },
@@ -181,6 +290,24 @@ export async function POST(request) {
         items: true
       }
     });
+
+    // Link approved service POs to expenses (one expense per service line, with tax in amount)
+    if ((orderType === 'services' || orderType === 'mixed') && purchaseOrder.status === 'Approved') {
+      try {
+        await syncExpensesFromPurchaseOrder(purchaseOrder.id, user.tenantId, user.id);
+        const refetched = await prisma.purchaseOrder.findFirst({
+          where: { id: purchaseOrder.id, tenantId: user.tenantId },
+          include: {
+            supplier: { select: { supplierName: true, supplierCode: true } },
+            items: true,
+            expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
+          }
+        });
+        if (refetched) return NextResponse.json({ purchaseOrder: refetched }, { status: 201 });
+      } catch (syncErr) {
+        console.error('PO expense sync after create:', syncErr);
+      }
+    }
 
     return NextResponse.json({ purchaseOrder }, { status: 201 });
   } catch (error) {

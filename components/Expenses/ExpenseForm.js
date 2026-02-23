@@ -18,6 +18,8 @@ const ExpenseForm = ({
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
+    taxAmount: '',
+    taxRate: '',
     date: new Date().toISOString().split('T')[0],
     expenseAccountId: '',
     supplierId: '',
@@ -80,9 +82,13 @@ const ExpenseForm = ({
         ? expense.amount.replace(/,/g, '')
         : expense.amount;
 
+      const taxAmt = expense.taxAmount != null ? expense.taxAmount : '';
+      const taxRt = expense.taxRate != null ? expense.taxRate : '';
       setFormData({
         description: expense.description || '',
         amount: formattedAmount || '',
+        taxAmount: taxAmt === '' ? '' : (typeof taxAmt === 'number' ? taxAmt : parseFloat(taxAmt) || ''),
+        taxRate: taxRt === '' ? '' : (typeof taxRt === 'number' ? taxRt : parseFloat(taxRt) || ''),
         date: expense.date || new Date().toISOString().split('T')[0],
         expenseAccountId: expense.expenseAccountId || '',
         supplierId: expense.supplierId || '',
@@ -115,28 +121,29 @@ const ExpenseForm = ({
   const handleChange = (e) => {
     const { name, value } = e.target;
     
-    // For amount field, allow empty string or convert to number
     let processedValue;
-    if (name === 'amount') {
-      processedValue = value === '' ? '' : parseFloat(value) || '';
+    if (name === 'amount' || name === 'taxAmount' || name === 'taxRate') {
+      processedValue = value === '' ? '' : (parseFloat(value) ?? '');
     } else {
       processedValue = value;
     }
+
+    setFormData(prev => {
+      const next = { ...prev, [name]: processedValue };
+      // If total (amount) or tax rate changed, optionally sync tax amount from rate (tax-inclusive)
+      if (name === 'amount' && typeof processedValue === 'number' && processedValue > 0 && prev.taxRate !== '' && typeof prev.taxRate === 'number' && prev.taxRate > 0) {
+        next.taxAmount = processedValue - processedValue / (1 + prev.taxRate / 100);
+      }
+      if (name === 'taxRate' && typeof processedValue === 'number' && processedValue > 0 && typeof prev.amount === 'number' && prev.amount > 0) {
+        next.taxAmount = prev.amount - prev.amount / (1 + processedValue / 100);
+      }
+      return next;
+    });
     
-    setFormData(prev => ({
-      ...prev,
-      [name]: processedValue
-    }));
-    
-    // Clear error for this field when user changes it
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: null }));
     }
-    
-    // Mark form as touched
-    if (!formTouched) {
-      setFormTouched(true);
-    }
+    if (!formTouched) setFormTouched(true);
   };
 
 
@@ -150,6 +157,10 @@ const ExpenseForm = ({
     
     if (formData.amount === '' || formData.amount <= 0) {
       newErrors.amount = 'Amount is required and must be greater than zero';
+    }
+    const taxAmt = typeof formData.taxAmount === 'number' ? formData.taxAmount : parseFloat(formData.taxAmount);
+    if (formData.taxAmount !== '' && !isNaN(taxAmt) && taxAmt >= parseFloat(formData.amount)) {
+      newErrors.taxAmount = 'Tax amount must be less than total amount';
     }
     
     if (!formData.date) {
@@ -186,15 +197,16 @@ const ExpenseForm = ({
     if (validateForm()) {
       // Format data for submission
       const selectedAccount = availableCategories.find(acc => acc.id === formData.expenseAccountId);
+      const taxAmountNum = formData.taxAmount !== '' && !isNaN(parseFloat(formData.taxAmount)) ? parseFloat(formData.taxAmount) : 0;
+      const taxRateNum = formData.taxRate !== '' && !isNaN(parseFloat(formData.taxRate)) ? parseFloat(formData.taxRate) : 0;
       const submission = {
         ...formData,
-        // Ensure amount is a number
         amount: parseFloat(formData.amount),
+        taxAmount: taxAmountNum,
+        taxRate: taxRateNum,
         category: selectedAccount?.name || expense?.category || '',
         expenseAccountId: formData.expenseAccountId,
-        // Handle payment method - set to null for pending expenses
         paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,
-        // Handle payment status fields
         paidAmount: formData.paymentStatus === 'Partially' ? parseFloat(formData.paidAmount) : null,
         paymentReference: formData.paymentStatus === 'Partially' ? (formData.paymentReference || null) : null
       };
@@ -245,10 +257,10 @@ const ExpenseForm = ({
             )}
           </div>
 
-          {/* Amount Field */}
+          {/* Total Amount (incl. tax) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Amount (MK)*
+              Total amount (MK) incl. tax*
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -270,11 +282,57 @@ const ExpenseForm = ({
                 <AlertCircle className="h-4 w-4 mr-1" />
                 {errors.amount}
               </p>
-            ) : (
-              <p className="mt-1 text-xs text-gray-500">
-                Display: MK {formatAmountDisplay(formData.amount)}
+            ) : null}
+          </div>
+
+          {/* Tax amount (optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tax amount (MK)
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <span className="text-gray-500">MK</span>
+              </div>
+              <input
+                type="text"
+                name="taxAmount"
+                value={formData.taxAmount === 0 || formData.taxAmount === '' ? '' : formData.taxAmount}
+                onChange={handleChange}
+                className={`w-full p-2 pl-10 border rounded-md ${
+                  errors.taxAmount ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="0.00"
+              />
+            </div>
+            {errors.taxAmount && (
+              <p className="mt-1 text-sm text-red-600 flex items-center">
+                <AlertCircle className="h-4 w-4 mr-1" />
+                {errors.taxAmount}
               </p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              Net cost (excl. tax): MK {formatAmountDisplay((parseFloat(formData.amount) || 0) - (parseFloat(formData.taxAmount) || 0))}
+            </p>
+          </div>
+
+          {/* Tax rate % (optional) - when entered, tax amount is derived from total (tax-inclusive) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tax rate (%)
+            </label>
+            <input
+              type="text"
+              name="taxRate"
+              value={formData.taxRate === 0 || formData.taxRate === '' ? '' : formData.taxRate}
+              onChange={handleChange}
+              className="w-full p-2 border border-gray-300 rounded-md"
+              placeholder="e.g. 16.5"
+              step="0.01"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Enter rate if total is tax-inclusive; tax amount will be calculated.
+            </p>
           </div>
 
           {/* Date Field */}

@@ -662,16 +662,21 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
                     animation: "spin 1s linear infinite"
                   }}></div>
                 ) : user?.tenant?.logoUrl ? (
-                  // Show logo if available
-                  <img 
+                  // Show logo if available; on error or 1x1 placeholder (missing file) show initials
+                  <img
                     src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
                       ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
                       : user.tenant.logoUrl}
                     alt="Logo"
                     onError={(e) => {
-                      // Fallback gracefully if the logo file is missing or returns 404
                       e.target.onerror = null;
-                      e.target.src = '/api/placeholder/40/40';
+                      e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                    }}
+                    onLoad={(e) => {
+                      const img = e.target;
+                      if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
+                        img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                      }
                     }}
                     style={{
                       borderRadius: "50%",
@@ -746,12 +751,22 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
                           animation: "spin 1s linear infinite"
                         }}></div>
                       ) : user?.tenant?.logoUrl ? (
-                        // Show logo if available
-                        <img 
+                        // Show logo if available; on error or 1x1 placeholder (missing file) show initials
+                        <img
                           src={typeof window !== 'undefined' && user.tenant.logoUrl?.startsWith('/uploads/')
                             ? `/api/uploads/${user.tenant.logoUrl.replace(/^\/+uploads\//, '')}`
                             : user.tenant.logoUrl}
                           alt="Logo"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                          }}
+                          onLoad={(e) => {
+                            const img = e.target;
+                            if (img.naturalWidth <= 1 && img.naturalHeight <= 1) {
+                              img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40"><rect width="40" height="40" fill="%233b82f6" rx="20"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="white" font-size="14" font-weight="600" font-family="system-ui">' + (user?.name ? getInitials(user.name) : '?') + '</text></svg>');
+                            }
+                          }}
                           style={{
                             borderRadius: "50%",
                             objectFit: "cover"

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { 
   Paintbrush, 
   Bell, 
@@ -26,7 +27,12 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
-  Building2
+  Building2,
+  MapPin,
+  Phone,
+  Mail,
+  Landmark,
+  Receipt
 } from "lucide-react";
 import InvoiceTemplatePreview from '@/components/InvoiceTemplatePreview';
 import { validateBrandingSettings, validateFileUpload, logoValidationOptions, faviconValidationOptions } from '@/lib/validation';
@@ -95,9 +101,11 @@ const defaultBusinessSettings = {
   businessEmail: "",
   buildingName: "",
   receiptFooter: "Thank you for your business!",
+  defaultBankDetails: "", // Shown in invoice, quotation and receipt footers
+  taxOutflowAccountId: "", // Account where tax from expenses/supplier bills accumulates (for offset vs collected tax)
 };
 
-export default function SystemCustomization() {
+function CustomizationContent() {
   // Toast state
   const [toast, setToast] = useState({
     show: false,
@@ -107,7 +115,14 @@ export default function SystemCustomization() {
     duration: 3000
   });
   
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get("tab") || "";
   const [activeTab, setActiveTab] = useState("branding");
+  useEffect(() => {
+    if (tabFromUrl === "business" || tabFromUrl === "invoices" || tabFromUrl === "notifications") {
+      setActiveTab((prev) => (prev === tabFromUrl ? prev : tabFromUrl));
+    }
+  }, [tabFromUrl]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -129,6 +144,7 @@ export default function SystemCustomization() {
   const [notificationSettings, setNotificationSettings] = useState(defaultNotificationSettings);
   const [businessSettings, setBusinessSettings] = useState(defaultBusinessSettings);
   const [invoiceTemplates, setInvoiceTemplates] = useState([]);
+  const [taxOutflowAccountOptions, setTaxOutflowAccountOptions] = useState([]);
   const [originalSettings, setOriginalSettings] = useState({
     brand: defaultBrandSettings,
     notifications: defaultNotificationSettings,
@@ -174,14 +190,18 @@ export default function SystemCustomization() {
     loadAllSettings();
   }, []);
   
-  // Check for changes
+  // Check for changes — only call setHasChanges when the computed value actually changes to avoid update loops
+  const hasChangesRef = useRef(false);
   useEffect(() => {
     const brandChanged = JSON.stringify(brandSettings) !== JSON.stringify(originalSettings.brand);
     const notificationsChanged = JSON.stringify(notificationSettings) !== JSON.stringify(originalSettings.notifications);
     const businessChanged = JSON.stringify(businessSettings) !== JSON.stringify(originalSettings.business);
     const templatesChanged = JSON.stringify(invoiceTemplates) !== JSON.stringify(originalSettings.templates);
-    
-    setHasChanges(brandChanged || notificationsChanged || businessChanged || templatesChanged || logoFile || faviconFile);
+    const next = !!(brandChanged || notificationsChanged || businessChanged || templatesChanged || logoFile || faviconFile);
+    if (hasChangesRef.current !== next) {
+      hasChangesRef.current = next;
+      setHasChanges(next);
+    }
   }, [brandSettings, notificationSettings, businessSettings, invoiceTemplates, logoFile, faviconFile, originalSettings]);
   
   // API service for settings
@@ -197,18 +217,17 @@ export default function SystemCustomization() {
   };
 
   const saveTenantSettings = async (settings) => {
-    try {
-      const response = await fetch('/api/tenant/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings)
-      });
-      if (!response.ok) throw new Error('Failed to save tenant settings');
-      return await response.json();
-    } catch (error) {
-      console.error('Error saving tenant settings:', error);
-      throw error;
+    const response = await fetch('/api/tenant/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const msg = data?.error || `Failed to save tenant settings (${response.status})`;
+      throw new Error(msg);
     }
+    return data;
   };
 
   const uploadFile = async (file, type) => {
@@ -294,12 +313,25 @@ export default function SystemCustomization() {
         businessEmail: tenantData.businessEmail || defaultBusinessSettings.businessEmail,
         buildingName: tenantData.buildingName || defaultBusinessSettings.buildingName,
         receiptFooter: tenantData.receiptFooter || defaultBusinessSettings.receiptFooter,
+        defaultBankDetails: tenantData.defaultBankDetails ?? defaultBusinessSettings.defaultBankDetails,
+        taxOutflowAccountId: tenantData.taxOutflowAccountId ?? defaultBusinessSettings.taxOutflowAccountId,
       };
       setBusinessSettings(businessData);
       
       // Load invoice templates
       const templatesData = await fetchInvoiceTemplates();
       setInvoiceTemplates(templatesData.templates || []);
+
+      // Load accounts for tax outflow dropdown (optional; may 403 if user lacks finance role)
+      try {
+        const accRes = await fetch('/api/chart-of-accounts?limit=500');
+        if (accRes.ok) {
+          const accData = await accRes.json();
+          setTaxOutflowAccountOptions(accData.accounts || []);
+        }
+      } catch (_) {
+        setTaxOutflowAccountOptions([]);
+      }
       
       // Set original data for change detection
       setOriginalSettings({
@@ -596,6 +628,8 @@ export default function SystemCustomization() {
         businessEmail: businessSettings.businessEmail,
         buildingName: businessSettings.buildingName,
         receiptFooter: businessSettings.receiptFooter,
+        defaultBankDetails: businessSettings.defaultBankDetails,
+        taxOutflowAccountId: businessSettings.taxOutflowAccountId || undefined,
       };
       
       // Save tenant settings
@@ -1356,127 +1390,195 @@ export default function SystemCustomization() {
         
         {/* Business Tab */}
         {activeTab === 'business' && (
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-medium text-gray-900">Business Information</h2>
+          <div className="space-y-8 pb-4">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 tracking-tight">Business & tax settings</h2>
+                <p className="mt-1 text-sm text-gray-500 max-w-xl">Contact details, banking, and defaults for invoices, quotations, and receipts.</p>
+              </div>
+              <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 shrink-0">
+                <Building2 className="w-6 h-6" />
+              </div>
             </div>
-            
-            <div className="bg-white shadow-sm overflow-hidden border border-gray-200 sm:rounded-lg p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-5">
+
+            {/* Contact & location */}
+            <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600">
+                    <MapPin className="w-5 h-5" />
+                  </div>
                   <div>
-                    <label htmlFor="businessAddress" className="block text-sm font-medium text-gray-700 mb-1">
-                      Business Address
-                    </label>
+                    <h3 className="text-sm font-semibold text-gray-900">Contact & location</h3>
+                    <p className="text-xs text-gray-500">Address, phone, and email used in document footers</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="businessAddress" className="block text-sm font-medium text-gray-700 mb-1.5">Business address</label>
                     <input
                       id="businessAddress"
                       type="text"
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
-                        errors.businessAddress ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
+                      placeholder="Street, area, P.O. Box"
+                      className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                        errors.businessAddress ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
                       value={businessSettings.businessAddress}
                       onChange={(e) => handleBusinessChange('businessAddress', e.target.value)}
                     />
-                    {errors.businessAddress && (
-                      <p className="mt-1 text-sm text-red-600">{errors.businessAddress}</p>
-                    )}
+                    {errors.businessAddress && <p className="mt-1.5 text-xs text-red-600">{errors.businessAddress}</p>}
                   </div>
-                  
                   <div>
-                    <label htmlFor="businessCity" className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
+                    <label htmlFor="businessCity" className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
                     <input
                       id="businessCity"
                       type="text"
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
-                        errors.businessCity ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
+                      placeholder="e.g. Blantyre"
+                      className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                        errors.businessCity ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
                       value={businessSettings.businessCity}
                       onChange={(e) => handleBusinessChange('businessCity', e.target.value)}
                     />
-                    {errors.businessCity && (
-                      <p className="mt-1 text-sm text-red-600">{errors.businessCity}</p>
-                    )}
+                    {errors.businessCity && <p className="mt-1.5 text-xs text-red-600">{errors.businessCity}</p>}
                   </div>
-                  
                   <div>
-                    <label htmlFor="businessPhone" className="block text-sm font-medium text-gray-700 mb-1">
-                      Phone Number
-                    </label>
-                    <input
-                      id="businessPhone"
-                      type="text"
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
-                        errors.businessPhone ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
-                      }`}
-                      value={businessSettings.businessPhone}
-                      onChange={(e) => handleBusinessChange('businessPhone', e.target.value)}
-                    />
-                    {errors.businessPhone && (
-                      <p className="mt-1 text-sm text-red-600">{errors.businessPhone}</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="businessEmail" className="block text-sm font-medium text-gray-700 mb-1">
-                      Email Address
-                    </label>
-                    <input
-                      id="businessEmail"
-                      type="email"
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
-                        errors.businessEmail ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
-                      }`}
-                      value={businessSettings.businessEmail}
-                      onChange={(e) => handleBusinessChange('businessEmail', e.target.value)}
-                    />
-                    {errors.businessEmail && (
-                      <p className="mt-1 text-sm text-red-600">{errors.businessEmail}</p>
-                    )}
-                  </div>
-                  
-                  <div>
-                    <label htmlFor="buildingName" className="block text-sm font-medium text-gray-700 mb-1">
-                      Building Name (if applicable)
-                    </label>
+                    <label htmlFor="buildingName" className="block text-sm font-medium text-gray-700 mb-1.5">Building / premise (optional)</label>
                     <input
                       id="buildingName"
                       type="text"
-                      className={`shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md ${
-                        errors.buildingName ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : ''
+                      placeholder="Building or floor"
+                      className={`w-full px-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                        errors.buildingName ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
                       }`}
                       value={businessSettings.buildingName}
                       onChange={(e) => handleBusinessChange('buildingName', e.target.value)}
                     />
-                    {errors.buildingName && (
-                      <p className="mt-1 text-sm text-red-600">{errors.buildingName}</p>
-                    )}
+                    {errors.buildingName && <p className="mt-1.5 text-xs text-red-600">{errors.buildingName}</p>}
                   </div>
-                </div>
-                
-                <div className="space-y-5">
-                  <div>
-                    <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1">
-                      Receipt Footer Text
-                    </label>
-                    <textarea
-                      id="receiptFooter"
-                      value={businessSettings.receiptFooter}
-                      onChange={(e) => handleBusinessChange('receiptFooter', e.target.value)}
-                      rows={3}
-                      className="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                    />
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 sm:col-span-2">
+                    <div className="flex-1 min-w-0">
+                      <label htmlFor="businessPhone" className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          id="businessPhone"
+                          type="tel"
+                          placeholder="+265 ..."
+                          className={`w-full pl-10 pr-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                            errors.businessPhone ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
+                          }`}
+                          value={businessSettings.businessPhone}
+                          onChange={(e) => handleBusinessChange('businessPhone', e.target.value)}
+                        />
+                      </div>
+                      {errors.businessPhone && <p className="mt-1.5 text-xs text-red-600">{errors.businessPhone}</p>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <label htmlFor="businessEmail" className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                        <input
+                          id="businessEmail"
+                          type="email"
+                          placeholder="contact@company.com"
+                          className={`w-full pl-10 pr-3.5 py-2.5 text-sm rounded-lg border bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 ${
+                            errors.businessEmail ? 'border-red-300 focus:ring-red-500/20 focus:border-red-500' : 'border-gray-200'
+                          }`}
+                          value={businessSettings.businessEmail}
+                          onChange={(e) => handleBusinessChange('businessEmail', e.target.value)}
+                        />
+                      </div>
+                      {errors.businessEmail && <p className="mt-1.5 text-xs text-red-600">{errors.businessEmail}</p>}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="flex items-start space-x-2 text-sm text-gray-500 bg-gray-50 p-4 rounded-md border border-gray-200">
-              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium text-gray-900">About Business Information</p>
-                <p className="mt-1">Provide your business's contact and location information. This will be displayed on all receipts and invoices.</p>
+            </section>
+
+            {/* Banking & tax */}
+            <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600">
+                    <Landmark className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Banking & tax</h3>
+                    <p className="text-xs text-gray-500">Default bank details and purchase tax account</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">Default bank account details</label>
+                    <p className="text-xs text-gray-500 mb-2">Shown in invoice, quotation and receipt footers. Override per document when needed.</p>
+                    <textarea
+                      id="defaultBankDetails"
+                      rows={5}
+                      placeholder={`Bank: Standard Bank\nAccount name: Your Company Ltd\nAccount number: 1234567890\nBranch: Blantyre`}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[120px]"
+                      value={businessSettings.defaultBankDetails}
+                      onChange={(e) => handleBusinessChange('defaultBankDetails', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="taxOutflowAccountId" className="block text-sm font-medium text-gray-700 mb-1.5">Tax outflow account (optional)</label>
+                    <p className="text-xs text-gray-500 mb-2">Where tax from expenses and supplier bills is recorded. Leave empty to use the default tax account.</p>
+                    <select
+                      id="taxOutflowAccountId"
+                      value={businessSettings.taxOutflowAccountId || ""}
+                      onChange={(e) => handleBusinessChange('taxOutflowAccountId', e.target.value)}
+                      className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    >
+                      <option value="">— Use default tax account —</option>
+                      {taxOutflowAccountOptions.map((acc) => (
+                        <option key={acc.id} value={acc.id}>{acc.accountCode} – {acc.accountName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* Document defaults */}
+            <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-slate-100 text-slate-600">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Document defaults</h3>
+                    <p className="text-xs text-gray-500">Footer text for receipts</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                <label htmlFor="receiptFooter" className="block text-sm font-medium text-gray-700 mb-1.5">Receipt footer text</label>
+                <textarea
+                  id="receiptFooter"
+                  rows={3}
+                  placeholder="Thank you for your business!"
+                  className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[80px]"
+                  value={businessSettings.receiptFooter}
+                  onChange={(e) => handleBusinessChange('receiptFooter', e.target.value)}
+                />
+              </div>
+            </section>
+
+            {/* Info callout */}
+            <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 to-indigo-50/50 p-4 sm:p-5">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-blue-100 text-blue-600 shrink-0">
+                <Info className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900">About business information</p>
+                <p className="mt-1 text-sm text-gray-600 leading-relaxed">Contact and bank details appear in the footers of invoices, quotations, and receipts. You can override them per document when creating or editing.</p>
               </div>
             </div>
           </div>
@@ -1542,5 +1644,24 @@ export default function SystemCustomization() {
       `}</style>
     </div>
     </PermissionGuard>
+  );
+}
+
+function CustomizationFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center gap-3">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <p className="text-sm text-gray-500">Loading customization...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function SystemCustomization() {
+  return (
+    <Suspense fallback={<CustomizationFallback />}>
+      <CustomizationContent />
+    </Suspense>
   );
 }

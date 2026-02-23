@@ -229,6 +229,88 @@ export async function GET(request) {
         }
       }
 
+      // --- Taxes PAID (purchases): PO items by tax type, expenses and supplier bills when single tax type ---
+      // 1. Purchase order items with this tax type (input VAT on purchases)
+      const poItemsWithTax = await prisma.purchaseOrderItem.findMany({
+        where: {
+          taxTypeId: taxType.id,
+          taxAmount: { gt: 0 },
+          purchaseOrder: {
+            tenantId: user.tenantId,
+            status: { not: 'Cancelled' },
+            ...(Object.keys(dateFilter).length > 0 && { poDate: dateFilter }),
+          },
+        },
+        select: {
+          taxAmount: true,
+          purchaseOrder: { select: { poDate: true } },
+        },
+      });
+      for (const row of poItemsWithTax) {
+        const amt = Number(row.taxAmount || 0);
+        if (amt <= 0) continue;
+        totalPaid += amt;
+        const d = row.purchaseOrder?.poDate;
+        if (d) {
+          const dateKey = groupBy === 'day'
+            ? (d instanceof Date ? d : new Date(d)).toISOString().split('T')[0]
+            : `${(d instanceof Date ? d : new Date(d)).getFullYear()}-${String((d instanceof Date ? d : new Date(d)).getMonth() + 1).padStart(2, '0')}`;
+          if (!breakdownMap.has(dateKey)) {
+            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
+          }
+          breakdownMap.get(dateKey).paid += amt;
+        }
+      }
+
+      // 2. Expenses with tax (when only one active tax type, treat all expense tax as this type)
+      if (activeTaxTypeCount === 1) {
+        const expensesWithTax = await prisma.expense.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            taxAmount: { gt: 0 },
+            isDeleted: false,
+            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+          }),
+          select: { date: true, taxAmount: true },
+        });
+        for (const ex of expensesWithTax) {
+          const amt = Number(ex.taxAmount || 0);
+          if (amt <= 0) continue;
+          totalPaid += amt;
+          const d = ex.date instanceof Date ? ex.date : new Date(ex.date);
+          const dateKey = groupBy === 'day'
+            ? d.toISOString().split('T')[0]
+            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!breakdownMap.has(dateKey)) {
+            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
+          }
+          breakdownMap.get(dateKey).paid += amt;
+        }
+
+        // 3. Supplier bills with tax (input VAT)
+        const billsWithTax = await prisma.supplierBill.findMany({
+          where: {
+            tenantId: user.tenantId,
+            taxAmount: { gt: 0 },
+            ...(Object.keys(dateFilter).length > 0 && { billDate: dateFilter }),
+          },
+          select: { billDate: true, taxAmount: true },
+        });
+        for (const bill of billsWithTax) {
+          const amt = Number(bill.taxAmount || 0);
+          if (amt <= 0) continue;
+          totalPaid += amt;
+          const d = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
+          const dateKey = groupBy === 'day'
+            ? d.toISOString().split('T')[0]
+            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!breakdownMap.has(dateKey)) {
+            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
+          }
+          breakdownMap.get(dateKey).paid += amt;
+        }
+      }
+
       // Also check for tax transactions (in case they exist)
       const transactions = await prisma.transaction.findMany({
         where: addBranchFilter(user, {

@@ -355,28 +355,28 @@ const UsersTable = ({
 }) => {
   if (loading && usersData.length === 0) {
     return (
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <div className="min-w-full divide-y divide-gray-200">
-          <div className="bg-gray-50 flex">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="min-w-full divide-y divide-gray-100">
+          <div className="bg-gray-50/80 flex">
             {columns.map((col, index) => (
-              <div key={index} className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">
-                <Skeleton className="h-6 w-3/4" />
+              <div key={index} className="py-3.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">
+                <Skeleton className="h-5 w-3/4 rounded" />
               </div>
             ))}
-            <div className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-              <Skeleton className="h-6 w-full" />
+            <div className="py-3.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+              <Skeleton className="h-5 w-full rounded" />
             </div>
           </div>
-          <div className="bg-white divide-y divide-gray-200">
+          <div className="bg-white divide-y divide-gray-100">
             {Array(5).fill(0).map((_, rowIndex) => (
               <div key={rowIndex} className="flex">
                 {columns.map((col, colIndex) => (
                   <div key={colIndex} className="py-4 px-4 flex-1">
-                    <Skeleton className={`h-5 ${colIndex === 0 ? 'w-3/4' : 'w-1/2'}`} />
+                    <Skeleton className={`h-5 rounded ${colIndex === 0 ? 'w-3/4' : 'w-1/2'}`} />
                   </div>
                 ))}
                 <div className="py-4 px-4 w-24">
-                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full rounded" />
                 </div>
               </div>
             ))}
@@ -388,11 +388,11 @@ const UsersTable = ({
   
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-lg my-4">
-        <AlertCircle size={24} className="text-red-500 mb-2" />
-        <p className="text-red-700 mb-4">{error}</p>
+      <div className="flex flex-col items-center justify-center p-10 bg-red-50/80 border border-red-200 rounded-xl">
+        <AlertCircle size={28} className="text-red-500 mb-3" />
+        <p className="text-red-700 mb-5 text-center max-w-sm">{error}</p>
         <button 
-          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+          className="px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           onClick={() => onRefresh()}
         >
           Retry
@@ -403,13 +403,17 @@ const UsersTable = ({
   
   if (usersData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-200 rounded-lg my-4">
-        <User size={24} className="text-gray-400 mb-2" />
-        <p className="text-gray-500 mb-4">No users found</p>
+      <div className="flex flex-col items-center justify-center p-10 bg-gray-50/80 border border-gray-200 rounded-xl">
+        <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <User size={28} className="text-gray-400" />
+        </div>
+        <p className="text-gray-600 font-medium mb-1">No users found</p>
+        <p className="text-sm text-gray-500 mb-5">Try adjusting your search or filters</p>
         <button 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           onClick={onAddUser}
         >
+          <Plus size={18} className="mr-2" />
           Add User
         </button>
       </div>
@@ -417,35 +421,35 @@ const UsersTable = ({
   }
   
   return (
-    <div className="overflow-x-auto border border-gray-200 rounded-lg">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <table className="min-w-full divide-y divide-gray-100">
+        <thead className="bg-gray-50/80">
           <tr>
             {columns.map(column => (
               <th 
                 key={column.key}
                 onClick={() => column.sortable && onSort(column.key)}
-                className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''}`}
+                className={`px-4 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''}`}
               >
                 <div className="flex items-center">
                   <span>{column.label}</span>
-                  {column.sortable && <ArrowUpDown size={14} className="ml-1" />}
+                  {column.sortable && <ArrowUpDown size={14} className="ml-1 opacity-70" />}
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
+            <th className="px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white divide-y divide-gray-100">
           {usersData.map(user => (
-            <tr key={user.id} className="hover:bg-gray-50">
+            <tr key={user.id} className="hover:bg-gray-50/80 transition-colors">
               {columns.map(column => {
                 if (column.key === "name") {
                   return (
-                    <td key={column.key} className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-medium mr-3">
-                          {user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : '?'}
+                    <td key={column.key} className="px-4 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                          {user.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?'}
                         </div>
                         <span className="font-medium text-gray-900">{user.name}</span>
                       </div>
@@ -489,6 +493,13 @@ const UsersTable = ({
                       {formatDate(user[column.key])}
                     </td>
                   );
+                } else if (column.key === "email") {
+                  const email = user[column.key] || user.email || "—";
+                  return (
+                    <td key={column.key} className="px-4 py-3.5 text-sm text-gray-600 max-w-[200px]">
+                      <span className="block truncate" title={email}>{email}</span>
+                    </td>
+                  );
                 } else if (column.key === "department") {
                   return (
                     <td key={column.key} className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -513,54 +524,52 @@ const UsersTable = ({
                     <MoreVertical size={16} />
                   </button>
                   {actionMenuOpen === user.id && (
-                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 action-menu">
-                      <div className="py-1">
+                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-10 action-menu py-1">
                         {actions.view.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onViewDetails(user)}
                           >
-                            <Eye size={14} className="mr-2" />
+                            <Eye size={16} className="text-gray-400" />
                             <span>{actions.view.label}</span>
                           </button>
                         )}
                         {actions.edit.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onEditUser(user)}
                           >
-                            <Edit size={14} className="mr-2" />
+                            <Edit size={16} className="text-gray-400" />
                             <span>{actions.edit.label}</span>
                           </button>
                         )}
                         {actions.email.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onSendEmail(user.id)}
                           >
-                            <Mail size={14} className="mr-2" />
+                            <Mail size={16} className="text-gray-400" />
                             <span>{actions.email.label}</span>
                           </button>
                         )}
                         {actions.resetPassword.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onResetPassword(user.id)}
                           >
-                            <Lock size={14} className="mr-2" />
+                            <Lock size={16} className="text-gray-400" />
                             <span>{actions.resetPassword.label}</span>
                           </button>
                         )}
                         {actions.delete.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                             onClick={() => onDeleteUser(user.id)}
                           >
-                            <Trash2 size={14} className="mr-2" />
+                            <Trash2 size={16} className="text-gray-400" />
                             <span>{actions.delete.label}</span>
                           </button>
                         )}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -623,28 +632,28 @@ const getDisplayPermissions = (permissions) => {
 };
   if (loading && rolesData.length === 0) {
     return (
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <div className="min-w-full divide-y divide-gray-200">
-          <div className="bg-gray-50 flex">
+      <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+        <div className="min-w-full divide-y divide-gray-100">
+          <div className="bg-gray-50/80 flex">
             {columns.map((col, index) => (
-              <div key={index} className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">
-                <Skeleton className="h-6 w-3/4" />
+              <div key={index} className="py-3.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider flex-1">
+                <Skeleton className="h-5 w-3/4 rounded" />
               </div>
             ))}
-            <div className="py-3 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-              <Skeleton className="h-6 w-full" />
+            <div className="py-3.5 px-4 w-24">
+              <Skeleton className="h-5 w-full rounded" />
             </div>
           </div>
-          <div className="bg-white divide-y divide-gray-200">
+          <div className="bg-white divide-y divide-gray-100">
             {Array(5).fill(0).map((_, rowIndex) => (
               <div key={rowIndex} className="flex">
                 {columns.map((col, colIndex) => (
                   <div key={colIndex} className="py-4 px-4 flex-1">
-                    <Skeleton className={`h-5 ${colIndex === 0 ? 'w-3/4' : 'w-1/2'}`} />
+                    <Skeleton className={`h-5 rounded ${colIndex === 0 ? 'w-3/4' : 'w-1/2'}`} />
                   </div>
                 ))}
                 <div className="py-4 px-4 w-24">
-                  <Skeleton className="h-5 w-full" />
+                  <Skeleton className="h-5 w-full rounded" />
                 </div>
               </div>
             ))}
@@ -656,11 +665,11 @@ const getDisplayPermissions = (permissions) => {
   
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-red-50 border border-red-200 rounded-lg my-4">
-        <AlertCircle size={24} className="text-red-500 mb-2" />
-        <p className="text-red-700 mb-4">{error}</p>
+      <div className="flex flex-col items-center justify-center p-10 bg-red-50/80 border border-red-200 rounded-xl">
+        <AlertCircle size={28} className="text-red-500 mb-3" />
+        <p className="text-red-700 text-center max-w-sm mb-5">{error}</p>
         <button 
-          className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+          className="px-4 py-2.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
           onClick={() => onRefresh()}
         >
           Retry
@@ -671,13 +680,17 @@ const getDisplayPermissions = (permissions) => {
   
   if (rolesData.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-200 rounded-lg my-4">
-        <Shield size={24} className="text-gray-400 mb-2" />
-        <p className="text-gray-500 mb-4">No roles found</p>
+      <div className="flex flex-col items-center justify-center p-10 bg-gray-50/80 border border-gray-200 rounded-xl">
+        <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+          <Shield size={28} className="text-gray-400" />
+        </div>
+        <p className="text-gray-600 font-medium mb-1">No roles found</p>
+        <p className="text-sm text-gray-500 mb-5">Create a role to assign permissions to users.</p>
         <button 
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          className="inline-flex items-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
           onClick={onAddRole}
         >
+          <Plus size={16} className="mr-2" />
           Add Role
         </button>
       </div>
@@ -685,28 +698,28 @@ const getDisplayPermissions = (permissions) => {
   }
   
   return (
-    <div className="overflow-x-auto border border-gray-200 rounded-lg">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <table className="min-w-full divide-y divide-gray-100">
+        <thead className="bg-gray-50/80">
           <tr>
             {columns.map(column => (
               <th 
                 key={column.key}
                 onClick={() => column.sortable && onSort(column.key)}
-                className={`px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer hover:bg-gray-100' : ''} ${column.key === "permissions" ? 'w-1/3' : ''}`}
+                className={`px-4 py-3.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${column.sortable ? 'cursor-pointer hover:bg-gray-100 transition-colors' : ''} ${column.key === "permissions" ? 'w-1/3' : ''}`}
               >
                 <div className="flex items-center">
                   <span>{column.label}</span>
-                  {column.sortable && <ArrowUpDown size={14} className="ml-1" />}
+                  {column.sortable && <ArrowUpDown size={14} className="ml-1 opacity-70" />}
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
+            <th className="px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white divide-y divide-gray-100">
           {rolesData.map(role => (
-            <tr key={role.id} className="hover:bg-gray-50">
+            <tr key={role.id} className="hover:bg-gray-50/80 transition-colors">
               {columns.map(column => {
                 if (column.key === "name") {
                   return (
@@ -811,45 +824,43 @@ const getDisplayPermissions = (permissions) => {
                     <MoreVertical size={16} />
                   </button>
                   {actionMenuOpen === role.id && (
-                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 focus:outline-none z-10 action-menu">
-                      <div className="py-1">
+                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-10 action-menu py-1">
                         {actions.view.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onViewDetails(role)}
                           >
-                            <Eye size={14} className="mr-2" />
+                            <Eye size={16} className="text-gray-400" />
                             <span>{actions.view.label}</span>
                           </button>
                         )}
                         {actions.edit.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onEditRole(role)}
                           >
-                            <Edit size={14} className="mr-2" />
+                            <Edit size={16} className="text-gray-400" />
                             <span>{actions.edit.label}</span>
                           </button>
                         )}
                         {actions.assignUsers.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
                             onClick={() => onAssignUsers(role.id)}
                           >
-                            <Users size={14} className="mr-2" />
+                            <Users size={16} className="text-gray-400" />
                             <span>{actions.assignUsers.label}</span>
                           </button>
                         )}
                         {actions.delete.enabled && (
                           <button 
-                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 flex items-center"
+                            className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors"
                             onClick={() => onDeleteRole(role.id)}
                           >
-                            <Trash2 size={14} className="mr-2" />
+                            <Trash2 size={16} className="text-gray-400" />
                             <span>{actions.delete.label}</span>
                           </button>
                         )}
-                      </div>
                     </div>
                   )}
                 </div>
@@ -2259,117 +2270,119 @@ const toggleModulePermissions = (module) => {
   
   return (
     <PermissionGuard permission="users.view">
-    <div className="w-full max-w-full bg-white p-4">
-      {/* Header Section */}
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{mergedConfig.header.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">{mergedConfig.header.description}</p>
+    <div className="w-full max-w-full min-h-screen bg-gray-50/60">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        {/* Header Section */}
+        <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">{mergedConfig.header.title}</h1>
+            <p className="text-sm text-gray-500 mt-1.5 max-w-xl">{mergedConfig.header.description}</p>
+          </div>
+          <div className="flex-shrink-0">
+            {activeTab === "users" && mergedConfig.actions.addUser.enabled && (
+              <button 
+                className="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                onClick={() => setShowAddUserModal(true)}
+              >
+                <Plus size={18} className="mr-2" />
+                <span>{mergedConfig.actions.addUser.label}</span>
+              </button>
+            )}
+            {activeTab === "roles" && mergedConfig.actions.addRole.enabled && (
+              <button 
+                className="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                onClick={() => setShowAddRoleModal(true)}
+              >
+                <Plus size={18} className="mr-2" />
+                <span>{mergedConfig.actions.addRole.label}</span>
+              </button>
+            )}
+          </div>
         </div>
-        <div>
-          {activeTab === "users" && mergedConfig.actions.addUser.enabled && (
-            <button 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              onClick={() => setShowAddUserModal(true)}
-            >
-              <Plus size={16} className="mr-2" />
-              <span>{mergedConfig.actions.addUser.label}</span>
-            </button>
-          )}
-          {activeTab === "roles" && mergedConfig.actions.addRole.enabled && (
-            <button 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              onClick={() => setShowAddRoleModal(true)}
-            >
-              <Plus size={16} className="mr-2" />
-              <span>{mergedConfig.actions.addRole.label}</span>
-            </button>
-          )}
-        </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <div className="flex space-x-8">
-          {mergedConfig.tabs.users.enabled && (
-            <button 
-              className={`py-4 px-1 flex items-center space-x-2 border-b-2 font-medium text-sm ${
-                activeTab === "users"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-              onClick={() => setActiveTab("users")}
-            >
-              {mergedConfig.tabs.users.icon}
-              <span>{mergedConfig.tabs.users.label}</span>
-              {loading && activeTab !== "users" ? (
-                <span className="ml-2 px-2.5 py-0.5 text-xs rounded-full bg-gray-100">
-                  <Skeleton className="w-6 h-5" />
-                </span>
-              ) : (
-                <span className="ml-2 px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                  {totalUsers}
-                </span>
-              )}
-            </button>
-          )}
-          {mergedConfig.tabs.roles.enabled && (
-            <button 
-              className={`py-4 px-1 flex items-center space-x-2 border-b-2 font-medium text-sm ${
-                activeTab === "roles"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-              onClick={() => setActiveTab("roles")}
-            >
-              {mergedConfig.tabs.roles.icon}
-              <span>{mergedConfig.tabs.roles.label}</span>
-              {loading && activeTab !== "roles" ? (
-                <span className="ml-2 px-2.5 py-0.5 text-xs rounded-full bg-gray-100">
-                  <Skeleton className="w-6 h-5" />
-                </span>
-              ) : (
-                <span className="ml-2 px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-                  {rolesData.length}
-                </span>
-              )}
-            </button>
-          )}
+        {/* Tabs */}
+        <div className="mb-6 bg-white rounded-t-xl border border-gray-200 border-b-0 shadow-sm">
+          <div className="flex gap-0 px-1 pt-1">
+            {mergedConfig.tabs.users.enabled && (
+              <button 
+                className={`py-3.5 px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors ${
+                  activeTab === "users"
+                    ? "bg-white text-blue-600 border border-b-0 border-gray-200 -mb-px border-b-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+                onClick={() => setActiveTab("users")}
+              >
+                {mergedConfig.tabs.users.icon}
+                <span>{mergedConfig.tabs.users.label}</span>
+                {loading && activeTab !== "users" ? (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100">
+                    <Skeleton className="w-6 h-4 inline-block" />
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium">
+                    {totalUsers}
+                  </span>
+                )}
+              </button>
+            )}
+            {mergedConfig.tabs.roles.enabled && (
+              <button 
+                className={`py-3.5 px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors ${
+                  activeTab === "roles"
+                    ? "bg-white text-blue-600 border border-b-0 border-gray-200 -mb-px border-b-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+                onClick={() => setActiveTab("roles")}
+              >
+                {mergedConfig.tabs.roles.icon}
+                <span>{mergedConfig.tabs.roles.label}</span>
+                {loading && activeTab !== "roles" ? (
+                  <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100">
+                    <Skeleton className="w-6 h-4 inline-block" />
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 font-medium">
+                    {rolesData.length}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
 
       {/* Users Tab Content */}
       {activeTab === "users" && mergedConfig.tabs.users.enabled && (
-        <>
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6">
           {/* Controls */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-grow">
+          <div className="flex flex-col lg:flex-row gap-4 mb-6">
+            <div className="relative flex-grow min-w-0">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
               </div>
               <input
                 type="text"
                 placeholder="Search users..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50/50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white sm:text-sm transition-colors"
                 value={searchTerm}
                 onChange={handleSearchChange}
               />
             </div>
             
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               {mergedConfig.filters.status.enabled && (
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Filter size={16} className="mr-1" />
-                    <span>Status:</span>
-                  </div>
-                  <div className="flex space-x-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-600 flex items-center gap-1.5">
+                    <Filter size={16} className="text-gray-400" />
+                    Status
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
                     {mergedConfig.filters.status.options.map(status => (
                       <button 
                         key={status}
-                        className={`px-2.5 py-1.5 text-sm rounded-md ${
+                        className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
                           filterStatus === status
-                            ? "bg-blue-100 text-blue-800 font-medium"
+                            ? "bg-blue-600 text-white shadow-sm"
                             : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                         }`}
                         onClick={() => handleFilterChange("status", status)}
@@ -2382,14 +2395,14 @@ const toggleModulePermissions = (module) => {
               )}
               
               {mergedConfig.filters.role.enabled && rolesData.length > 0 && (
-                <div className="flex items-center space-x-2">
-                  <div className="flex items-center text-sm text-gray-600">
-                    <Shield size={16} className="mr-1" />
-                    <span>Role:</span>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-gray-600 flex items-center gap-1.5">
+                    <Shield size={16} className="text-gray-400" />
+                    Role
+                  </span>
                   <div className="relative">
                     <select
-                      className="pl-3 pr-8 py-1.5 text-sm bg-gray-100 border-gray-200 rounded-md appearance-none focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="pl-3 pr-9 py-2 text-sm border border-gray-300 rounded-lg bg-gray-50/50 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white"
                       value={filterRole}
                       onChange={(e) => handleFilterChange("role", e.target.value)}
                     >
@@ -2400,38 +2413,38 @@ const toggleModulePermissions = (module) => {
                         </option>
                       ))}
                     </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none">
                       <ChevronDown size={14} className="text-gray-400" />
                     </div>
                   </div>
                 </div>
               )}
-            </div>
-            
-            <div className="flex space-x-2 ml-auto">
-              {mergedConfig.actions.export.enabled && (
-                <button 
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  onClick={handleExport}
-                  disabled={loading}
-                >
-                  <Download size={16} className="mr-2" />
-                  <span>{mergedConfig.actions.export.label}</span>
-                </button>
-              )}
-              {mergedConfig.actions.refresh.enabled && (
-                <button 
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  onClick={handleRefresh}
-                  disabled={loading}
-                >
-                  {loading ? 
-                    <Loader size={16} className="animate-spin mr-2" /> : 
-                    <RefreshCw size={16} className="mr-2" />
-                  }
-                  <span>{mergedConfig.actions.refresh.label}</span>
-                </button>
-              )}
+              
+              <div className="flex gap-2 ml-auto">
+                {mergedConfig.actions.export.enabled && (
+                  <button 
+                    className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    onClick={handleExport}
+                    disabled={loading}
+                  >
+                    <Download size={16} className="mr-2" />
+                    <span>{mergedConfig.actions.export.label}</span>
+                  </button>
+                )}
+                {mergedConfig.actions.refresh.enabled && (
+                  <button 
+                    className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    onClick={handleRefresh}
+                    disabled={loading}
+                  >
+                    {loading ? 
+                      <Loader size={16} className="animate-spin mr-2" /> : 
+                      <RefreshCw size={16} className="mr-2" />
+                    }
+                    <span>{mergedConfig.actions.refresh.label}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2457,28 +2470,29 @@ const toggleModulePermissions = (module) => {
 
           {/* Pagination */}
           {mergedConfig.pagination.enabled && usersData.length > 0 && (
-            <div className="flex items-center justify-between mt-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
               <button 
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="order-2 sm:order-1 inline-flex items-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 disabled={currentPage === 1 || loading}
                 onClick={() => handlePageChange(currentPage - 1)}
               >
                 Previous
               </button>
-              <div className="text-sm text-gray-700">
+              <div className="order-1 sm:order-2 text-sm text-gray-600">
                 {loading ? (
                   <Skeleton className="w-40 h-6" />
                 ) : (
                   <>
-                    Page {currentPage} of {totalPages} 
+                    <span className="font-medium text-gray-800">Page {currentPage}</span>
+                    <span className="mx-1">of {totalPages}</span>
                     {mergedConfig.pagination.showTotalItems && (
-                      <span className="text-gray-500"> (Showing {usersData.length} of {totalUsers} users)</span>
+                      <span className="text-gray-500"> · {usersData.length} of {totalUsers} users</span>
                     )}
                   </>
                 )}
               </div>
               <button 
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="order-3 inline-flex items-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 disabled={currentPage === totalPages || loading}
                 onClick={() => handlePageChange(currentPage + 1)}
               >
@@ -2486,31 +2500,33 @@ const toggleModulePermissions = (module) => {
               </button>
             </div>
           )}
-        </>
+        </div>
+        </div>
       )}
 
       {/* Roles Tab Content */}
       {activeTab === "roles" && mergedConfig.tabs.roles.enabled && (
-        <>
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6">
           {/* Controls */}
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-grow">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+            <div className="relative flex-grow min-w-0">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
               </div>
               <input
                 type="text"
                 placeholder="Search roles..."
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50/50 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:bg-white sm:text-sm transition-colors"
                 value={searchTerm}
                 onChange={handleSearchChange}
               />
             </div>
             
-            <div className="flex space-x-2 ml-auto">
+            <div className="flex gap-2">
               {mergedConfig.actions.export.enabled && (
                 <button 
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                   onClick={handleExport}
                   disabled={loading}
                 >
@@ -2520,7 +2536,7 @@ const toggleModulePermissions = (module) => {
               )}
               {mergedConfig.actions.refresh.enabled && (
                 <button 
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                   onClick={handleRefresh}
                   disabled={loading}
                 >
@@ -2551,7 +2567,8 @@ const toggleModulePermissions = (module) => {
             onAddRole={() => setShowAddRoleModal(true)}
             onRefresh={handleRefresh}
           />
-        </>
+        </div>
+        </div>
       )}
 
 {/* Add User Modal */}
@@ -3594,7 +3611,7 @@ const toggleModulePermissions = (module) => {
   />
 )}
 
-
+      </div>
     </div>
     </PermissionGuard>
   );

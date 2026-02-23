@@ -581,8 +581,12 @@ async function getOrders(params = {}) {
   const res = await fetch(`/api/purchases/orders?${searchParams.toString()}`, {
     cache: "no-store",
   });
-  if (!res.ok) throw new Error("Failed to fetch purchase orders");
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error || `Failed to fetch purchase orders (${res.status})`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
 async function createOrder(payload) {

@@ -95,9 +95,10 @@ export async function GET(request) {
       saleDate: dateFilter
     };
     
-    // Add branch filter - use user's current branch if available
-    if (user?.currentBranchId) {
-      baseFilter.branchId = user.currentBranchId;
+    // Add branch filter only when explicitly requested (so stats match visible sales history)
+    const branchId = searchParams.get('branchId');
+    if (branchId) {
+      baseFilter.branchId = branchId;
     }
     
     // Completed, non-refunded sales only (for revenue and tax collected)

@@ -351,16 +351,20 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
     logoUrl = `${baseUrl}${logoUrl}`;
   }
-  // Generate HTML for invoice items
+  // Generate HTML for invoice items with per-line tax breakdown (VAT, withholding, etc. visible)
   const itemsHtml = invoice.items.map(item => {
-    const amount = item.quantity * item.unitPrice;
+    const lineTotal = item.quantity * item.unitPrice;
+    const taxRate = Number(item.taxRate) || 0;
+    const lineTaxAmount = lineTotal * (taxRate / 100);
+    const taxLabel = taxRate > 0 ? `Tax (${taxRate}%): ${formatCurrency(lineTaxAmount)}` : '—';
+    const title = (item.description && String(item.description).trim()) || 'Item';
     return `
       <tr style="border-bottom: 1px solid #eee;">
-        <td style="padding: 10px;">${item.description}</td>
+        <td style="padding: 10px;">${title}</td>
         <td style="padding: 10px; text-align: center;">${item.quantity}</td>
         <td style="padding: 10px; text-align: right;">${formatCurrency(item.unitPrice)}</td>
-        <td style="padding: 10px; text-align: center;">${item.taxRate}%</td>
-        <td style="padding: 10px; text-align: right;">${formatCurrency(amount)}</td>
+        <td style="padding: 10px; text-align: right; font-size: 11px; color: #4b5563;">${taxLabel}</td>
+        <td style="padding: 10px; text-align: right;">${formatCurrency(lineTotal)}</td>
       </tr>
     `;
   }).join('');

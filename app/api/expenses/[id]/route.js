@@ -43,6 +43,9 @@ async function getExpenseWithValidation(id, userId, tenantId) {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       }),
+      // Tax elements for reporting/reconciliation (always include)
+      taxAmount: expense.taxAmount ?? 0,
+      taxRate: expense.taxRate ?? 0,
       // Format the date for display
       date: expense.date.toISOString().split('T')[0],
       // Map attachments to the expected format
@@ -147,6 +150,8 @@ export async function PUT(request, { params }) {
     // Only include fields that are provided in the request
     if (body.description !== undefined) updateData.description = body.description;
     if (amount !== undefined) updateData.amount = amount;
+    if (body.taxAmount !== undefined) updateData.taxAmount = Number(body.taxAmount);
+    if (body.taxRate !== undefined) updateData.taxRate = Number(body.taxRate);
     if (body.date !== undefined) updateData.date = new Date(body.date);
     if (body.category !== undefined && !updateData.category) updateData.category = body.category;
     if (body.merchant !== undefined) updateData.merchant = body.merchant;

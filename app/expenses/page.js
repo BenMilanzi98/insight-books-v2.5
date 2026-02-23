@@ -1849,6 +1849,11 @@ const handleFileUpload = async (e) => {
                     </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-right">
                             <span className="text-sm font-bold text-gray-900">MK {expense.amount}</span>
+                            {expense.taxAmount != null && Number(expense.taxAmount) > 0 && (
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                Net: MK {((typeof expense.amount === 'number' ? expense.amount : parseFloat(String(expense.amount).replace(/,/g, '')) || 0) - Number(expense.taxAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Tax: MK {Number(expense.taxAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            )}
                     </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-center">
                       <PaymentStatusBadge 

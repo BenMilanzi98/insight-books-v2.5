@@ -2973,7 +2973,7 @@ const InventoryManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{((pagination.currentPage - 1) * pagination.pageSize) + 1}</span> to <span className="font-semibold text-gray-900">{Math.min(pagination.currentPage * pagination.pageSize, pagination.totalItems)}</span> of <span className="font-semibold text-gray-900">{pagination.totalItems}</span> products
+                Showing <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> to <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> of <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span> products
               </span>
               
               <div className="flex items-center gap-2">

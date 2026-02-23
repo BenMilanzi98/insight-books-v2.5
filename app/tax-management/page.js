@@ -463,6 +463,42 @@ export default function TaxManagement() {
                     </div>
                   </div>
 
+                  {/* VAT Summary: Purchase taxes → Input VAT, Sales taxes → Output VAT, Net VAT payable */}
+                  {taxData.vatSummary != null && (
+                    <div className="mb-6">
+                      <h3 className="text-sm font-semibold text-gray-700 mb-3">VAT Summary</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                          <p className="text-xs font-medium text-slate-600 uppercase">Input VAT (Purchases)</p>
+                          <p className="text-xl font-bold text-slate-800 mt-1">
+                            {formatCurrency(taxData.vatSummary.inputVat)}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            From supplier bills &amp; POs
+                          </p>
+                        </div>
+                        <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                          <p className="text-xs font-medium text-slate-600 uppercase">Output VAT (Sales)</p>
+                          <p className="text-xl font-bold text-slate-800 mt-1">
+                            {formatCurrency(taxData.vatSummary.outputVat)}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            Tax collected on sales/invoices
+                          </p>
+                        </div>
+                        <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
+                          <p className="text-xs font-medium text-indigo-700 uppercase">Net VAT Payable</p>
+                          <p className="text-xl font-bold text-indigo-800 mt-1">
+                            {formatCurrency(taxData.vatSummary.netVatPayable)}
+                          </p>
+                          <p className="text-xs text-indigo-600 mt-1">
+                            Output VAT − Input VAT
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Tax Summary Chart */}
                   <TaxSummaryChart taxData={taxData} />
                 </>
