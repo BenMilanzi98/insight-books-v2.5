@@ -116,12 +116,39 @@ echo ""
 echo -e "${BLUE}Step 2: Converting backup to SQL and restoring (FKs disabled during load)...${NC}"
 
 TMP_SQL="/tmp/restore_data_$$.sql"
-# Extract data as SQL from custom-format dump (no -F: use archive's format; -f file = output script)
+# Extract data as SQL from custom-format dump
 PGPASSWORD="$PGPASSWORD" pg_restore --data-only --no-owner --no-acl -f "$TMP_SQL" "$BACKUP_FILE" 2>>/tmp/restore_data_only.log || true
 
+# If native pg_restore failed due to unsupported archive version, try Docker (newer pg_restore)
+if [ ! -f "$TMP_SQL" ] || [ ! -s "$TMP_SQL" ]; then
+  if grep -q "unsupported version" /tmp/restore_data_only.log 2>/dev/null; then
+    echo -e "${YELLOW}Native pg_restore doesn't support this dump format. Trying with Docker (postgres:latest)...${NC}"
+    BACKUP_ABS="$(cd "$(dirname "$BACKUP_FILE")" 2>/dev/null && pwd)/$(basename "$BACKUP_FILE")"
+    BACKUP_ABS="${BACKUP_ABS:-$PROJECT_ROOT/$BACKUP_FILE}"
+    BACKUP_DIR="$(dirname "$BACKUP_ABS")"
+    TMP_SQL_DOCKER="$BACKUP_DIR/restore_data_docker_$$.sql"
+    if command -v docker >/dev/null 2>&1; then
+      if docker run --rm -v "$BACKUP_DIR:/backup" postgres:latest pg_restore --data-only --no-owner --no-acl -f "/backup/restore_data_docker_$$.sql" "/backup/$(basename "$BACKUP_FILE")" 2>>/tmp/restore_data_only.log; then
+        TMP_SQL="$TMP_SQL_DOCKER"
+      fi
+    fi
+    if [ ! -f "$TMP_SQL" ] || [ ! -s "$TMP_SQL" ]; then
+      echo -e "${RED}Docker restore failed or Docker not available.${NC}"
+      echo -e "${YELLOW}Create the dump with a matching pg_dump version, e.g. on the source machine:${NC}"
+      echo '  docker run --rm -v $(pwd):/out -e PGPASSWORD postgres:18 pg_dump -h host -U user -d dbname -F c -f /out/localdb.dump'
+      rm -f "$TMP_SQL_DOCKER"
+      exit 1
+    fi
+  else
+    echo -e "${RED}Failed to convert backup to SQL. Check /tmp/restore_data_only.log${NC}"
+    rm -f "$TMP_SQL"
+    exit 1
+  fi
+fi
+
 if [ -f "$TMP_SQL" ] && [ -s "$TMP_SQL" ]; then
-  (echo "SET session_replication_role = replica;"; cat "$TMP_SQL"; echo "SET session_replication_role = DEFAULT;") | PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=0 2>&1 | tee /tmp/restore_data_only.log
-  rm -f "$TMP_SQL"
+  (echo "SET session_replication_role = replica;"; cat "$TMP_SQL"; echo "SET session_replication_role = DEFAULT;") | PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=0 2>&1 | tee -a /tmp/restore_data_only.log
+  rm -f "$TMP_SQL" "$BACKUP_DIR/restore_data_docker_$$.sql" 2>/dev/null
   echo -e "${GREEN}✅ Data restore completed.${NC}"
 else
   echo -e "${RED}Failed to convert backup to SQL. Check /tmp/restore_data_only.log${NC}"

@@ -172,12 +172,7 @@ echo ""
 # Remove schema parameter for pg_restore
 DB_URL_FOR_RESTORE=$(echo "$DATABASE_URL" | sed 's/?schema=[^&]*//' | sed 's/&schema=[^&]*//')
 
-# Restore with options:
-# -c: clean (drop) existing objects before creating
-# --if-exists: don't error if object doesn't exist
-# --no-owner: don't try to set ownership
-# --no-acl: don't try to set access privileges
-# -v: verbose
+# Restore with options: -c clean, --if-exists, --no-owner, --no-acl
 PGPASSWORD="$DB_PASS" pg_restore \
     -d "$DB_URL_FOR_RESTORE" \
     --clean \
@@ -185,23 +180,26 @@ PGPASSWORD="$DB_PASS" pg_restore \
     --no-owner \
     --no-acl \
     -v \
-    "$BACKUP_FILE" 2>&1 | tee /tmp/restore.log || {
-    
-    # Check if it's just warnings about existing objects (which is OK)
-    if grep -q "ERROR" /tmp/restore.log; then
+    "$BACKUP_FILE" 2>&1 | tee /tmp/restore.log || true
+
+# If dump format version unsupported, data was not restored — tell user to run data-only with Docker
+if grep -q "unsupported version" /tmp/restore.log 2>/dev/null; then
+    echo ""
+    echo -e "${YELLOW}⚠️  pg_restore reported 'unsupported version' — data may not have been restored.${NC}"
+    echo -e "${YELLOW}   Run the following to load data (uses Docker if needed):${NC}"
+    echo "   echo yes | ./scripts/restore-data-only.sh $BACKUP_FILE"
+    echo ""
+fi
+
+# Check for other restore errors
+if grep -q "ERROR" /tmp/restore.log 2>/dev/null; then
+    if ! grep -q "unsupported version" /tmp/restore.log 2>/dev/null; then
         echo ""
         echo -e "${RED}ERROR: Restore encountered errors${NC}"
         echo "Check /tmp/restore.log for details"
-        echo ""
-        echo "Common issues:"
-        echo "  - Schema mismatch (backup schema doesn't match new schema)"
-        echo "  - Missing columns in backup data"
-        echo "  - Foreign key constraint violations"
         exit 1
-    else
-        echo -e "${YELLOW}⚠️  Restore completed with warnings (may be normal)${NC}"
     fi
-}
+fi
 
 echo ""
 echo -e "${GREEN}✅ Data restored from backup${NC}"
