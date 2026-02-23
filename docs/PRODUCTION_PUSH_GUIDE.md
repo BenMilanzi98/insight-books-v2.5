@@ -197,6 +197,7 @@ Use this only if a migration or deploy caused a critical issue and you need to r
 | **`pg_dump: command not found`** | Install PostgreSQL client: `apt install postgresql-client` (or equivalent). |
 | **`DATABASE_URL` not found** | Ensure `.env` exists in the project root and contains `DATABASE_URL=...`. |
 | **Connection refused / authentication failed** | Check host, port, user, password, and (if required) `?sslmode=require` in `DATABASE_URL`. Run `./scripts/diagnose-db-connection.sh` if available. |
+| **P3005: "The database schema is not empty"** | Your DB has tables but no Prisma migration history (e.g. restored from backup). **Baseline** the DB: run `./scripts/baseline-production-migrations.sh` once. It marks all existing migrations as applied without running SQL. After that, `npx prisma migrate deploy` will report "up to date" and future deploys work normally. Only run the baseline script when the DB schema already matches the migrations. |
 | **Migration failed (e.g. column already exists)** | Do not re-run deploy blindly. Check the migration SQL; you may need to mark it as applied: `npx prisma migrate resolve --applied <migration_name>`, or fix the migration and redeploy. Prefer fixing in dev and adding a new migration. |
 | **"Migration not found" or history mismatch** | Use with care: `npx prisma migrate resolve --applied <migration_name>` or `--rolled-back` only if you understand the state. Prefer restoring from backup and fixing migrations in dev. |
 
