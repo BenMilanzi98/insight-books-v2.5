@@ -147,8 +147,11 @@ if [ ! -f "$TMP_SQL" ] || [ ! -s "$TMP_SQL" ]; then
 fi
 
 if [ -f "$TMP_SQL" ] && [ -s "$TMP_SQL" ]; then
-  (echo "SET session_replication_role = replica;"; cat "$TMP_SQL"; echo "SET session_replication_role = DEFAULT;") | PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=0 2>&1 | tee -a /tmp/restore_data_only.log
-  rm -f "$TMP_SQL" "$BACKUP_DIR/restore_data_docker_$$.sql" 2>/dev/null
+  # Write full script to a file and run with psql -f so COPY ... FROM stdin and \N \. are handled correctly (piping breaks them)
+  TMP_FULL="/tmp/restore_data_full_$$.sql"
+  { echo "SET session_replication_role = replica;"; cat "$TMP_SQL"; echo "SET session_replication_role = DEFAULT;"; } > "$TMP_FULL"
+  PGPASSWORD="$PGPASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=0 -f "$TMP_FULL" 2>&1 | tee -a /tmp/restore_data_only.log
+  rm -f "$TMP_FULL" "$TMP_SQL" "$BACKUP_DIR/restore_data_docker_$$.sql" 2>/dev/null
   echo -e "${GREEN}✅ Data restore completed.${NC}"
 else
   echo -e "${RED}Failed to convert backup to SQL. Check /tmp/restore_data_only.log${NC}"
