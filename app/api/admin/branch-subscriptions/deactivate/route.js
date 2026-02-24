@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function POST(request) {
   try {
@@ -71,10 +69,8 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error deactivating branch subscription:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to deactivate branch subscription' },
+      { success: false, error: 'Failed to deactivate branch subscription', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

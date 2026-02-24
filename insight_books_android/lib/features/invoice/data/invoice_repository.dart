@@ -24,11 +24,8 @@ class InvoiceRepository {
         },
       );
 
-      print('DEBUG: Invoices API response: ${response.data}');
-
       final List invoicesJson =
           response.data['invoices'] ?? response.data['data'] ?? [];
-      print('DEBUG: Parsed invoices list length: ${invoicesJson.length}');
       return invoicesJson.map((json) {
         final Map<String, dynamic> data = Map<String, dynamic>.from(json);
 

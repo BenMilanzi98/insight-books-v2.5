@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function GET(request) {
   try {
@@ -68,11 +66,9 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching branch subscriptions:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch branch subscriptions' },
+      { success: false, error: 'Failed to fetch branch subscriptions', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -219,10 +215,8 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error creating branch subscription:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create branch subscription' },
+      { success: false, error: 'Failed to create branch subscription', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

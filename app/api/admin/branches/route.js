@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function GET(request) {
   try {
@@ -58,10 +56,8 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching branches:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch branches' },
+      { success: false, error: 'Failed to fetch branches', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

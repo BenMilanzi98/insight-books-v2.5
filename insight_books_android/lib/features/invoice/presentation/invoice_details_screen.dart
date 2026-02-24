@@ -27,7 +27,7 @@ class InvoiceDetailsScreen extends ConsumerWidget {
                   ref.invalidate(invoiceDetailsProvider(invoiceId)),
             ),
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
         ],
       ),
@@ -76,7 +76,7 @@ class InvoiceDetailsScreen extends ConsumerWidget {
               )
             : null,
         loading: () => null,
-        error: (_, __) => null,
+        error: (_, _) => null,
       ),
     );
   }
@@ -256,20 +256,20 @@ class _InvoiceDetailsContent extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            invoice.client?.name ?? 'Unknown Customer',
+            invoice.client.name,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
-          if (invoice.client?.email != null) ...[
+          if (invoice.client.email != null) ...[
             const SizedBox(height: 4),
             Text(
-              invoice.client!.email,
+              invoice.client.email!,
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
-          if (invoice.client?.phone != null) ...[
+          if (invoice.client.phone != null) ...[
             const SizedBox(height: 4),
             Text(
-              invoice.client!.phone,
+              invoice.client.phone!,
               style: TextStyle(color: Colors.grey[600]),
             ),
           ],
@@ -287,7 +287,7 @@ class _InvoiceDetailsContent extends StatelessWidget {
         children: [
           for (var item in invoice.items)
             ListTile(
-              title: Text(item.product?.name ?? 'General Item'),
+              title: Text(item.product.name),
               subtitle: Text(
                 '${item.quantity.toStringAsFixed(0)} x ${NumberFormat.currency(symbol: invoice.currency == 'MWK' ? 'MK' : '\$').format(item.unitPrice)}',
               ),
@@ -463,7 +463,8 @@ class _InfoRow extends StatelessWidget {
 
 class _SummaryRow extends StatelessWidget {
   final String label;
-  final String value;
+  final double value;
+  final String currency;
   final bool isBold;
   final double fontSize;
   final Color? valueColor;
@@ -471,6 +472,7 @@ class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.label,
     required this.value,
+    required this.currency,
     this.isBold = false,
     this.fontSize = 14,
     this.valueColor,
@@ -478,6 +480,9 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currencySymbol = currency == 'MWK' ? 'MK' : '\$';
+    final formatter = NumberFormat.currency(symbol: currencySymbol);
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -492,7 +497,7 @@ class _SummaryRow extends StatelessWidget {
             ),
           ),
           Text(
-            value,
+            formatter.format(value),
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,

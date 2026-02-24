@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
-
-const prisma = new PrismaClient();
 
 export async function GET(request) {
   try {
@@ -45,8 +43,9 @@ export async function GET(request) {
     });
 
     const tenants = tenantsRaw.map((t) => {
-      const subscriptionStatus = getSubscriptionStatusFromSubscriptions(t.accountSubscriptions);
-      const currentSub = t.accountSubscriptions?.[0];
+      const subs = Array.isArray(t.accountSubscriptions) ? t.accountSubscriptions : [];
+      const subscriptionStatus = getSubscriptionStatusFromSubscriptions(subs);
+      const currentSub = subs[0];
       const plan = currentSub?.plan ?? t.subscriptionPlan ?? null;
       const { accountSubscriptions, ...rest } = t;
       return {
@@ -64,11 +63,9 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching tenants:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch tenants' },
+      { success: false, error: 'Failed to fetch tenants', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -203,10 +200,8 @@ export async function POST(request) {
   } catch (error) {
     console.error('Admin tenant creation error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to create tenant' },
+      { success: false, error: 'Failed to create tenant', details: process.env.NODE_ENV === 'development' ? error.message : undefined },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 } 

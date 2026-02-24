@@ -15,10 +15,9 @@ class MainLayout extends StatelessWidget {
     // Map routes to bottom nav indices
     int calculateSelectedIndex() {
       if (location == '/dashboard') return 0;
-      if (location == '/invoice') return 1;
-      if (location == '/pos') return 2;
-      if (location == '/switch-tenant') return 3;
-      if (location == '/account') return 4;
+      if (location == '/pos') return 1;
+      if (location == '/switch-tenant') return 2;
+      if (location == '/account') return 3;
       return 0;
     }
 
@@ -40,15 +39,12 @@ class MainLayout extends StatelessWidget {
                     context.go('/dashboard');
                     break;
                   case 1:
-                    context.go('/invoice');
-                    break;
-                  case 2:
                     context.go('/pos');
                     break;
-                  case 3:
+                  case 2:
                     context.go('/switch-tenant');
                     break;
-                  case 4:
+                  case 3:
                     context.go('/account');
                     break;
                 }
@@ -60,10 +56,6 @@ class MainLayout extends StatelessWidget {
                 BottomNavigationBarItem(
                   icon: Icon(Icons.dashboard),
                   label: 'Home',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.receipt),
-                  label: 'Invoicing',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.point_of_sale),

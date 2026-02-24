@@ -5,6 +5,8 @@ import 'package:insightbooks_android/features/account/presentation/providers/acc
 import 'package:insightbooks_android/features/account/domain/user_model.dart';
 import 'package:insightbooks_android/features/account/domain/business_settings.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -139,17 +141,17 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
   }
 }
 
-class _ProfileTab extends StatefulWidget {
+class _ProfileTab extends ConsumerStatefulWidget {
   final User? user;
   final Function(User) onSave;
 
   const _ProfileTab({this.user, required this.onSave});
 
   @override
-  State<_ProfileTab> createState() => _ProfileTabState();
+  ConsumerState<_ProfileTab> createState() => _ProfileTabState();
 }
 
-class _ProfileTabState extends State<_ProfileTab> {
+class _ProfileTabState extends ConsumerState<_ProfileTab> {
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
 
@@ -233,7 +235,20 @@ class _ProfileTabState extends State<_ProfileTab> {
             const SizedBox(height: 16),
             OutlinedButton(
               onPressed: () {
-                // TODO: Implement change password dialog
+                showDialog(
+                  context: context,
+                  builder: (context) => ChangePasswordDialog(
+                    onConfirm: (current, newPass, confirm) {
+                      ref
+                          .read(accountProvider.notifier)
+                          .updatePassword(
+                            currentPassword: current,
+                            newPassword: newPass,
+                            confirmPassword: confirm,
+                          );
+                    },
+                  ),
+                );
               },
               child: const Text('Change Password'),
             ),
@@ -272,17 +287,108 @@ class _ProfileTabState extends State<_ProfileTab> {
   }
 }
 
-class _BusinessTab extends StatefulWidget {
+class ChangePasswordDialog extends StatefulWidget {
+  final void Function(String current, String newPass, String confirm) onConfirm;
+
+  const ChangePasswordDialog({super.key, required this.onConfirm});
+
+  @override
+  State<ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
+  final _currentController = TextEditingController();
+  final _newController = TextEditingController();
+  final _confirmController = TextEditingController();
+
+  @override
+  void dispose() {
+    _currentController.dispose();
+    _newController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Change Password'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _currentController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Current password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _newController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'New password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _confirmController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Confirm new password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final current = _currentController.text;
+            final newPass = _newController.text;
+            final confirm = _confirmController.text;
+            if (newPass != confirm) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('New password and confirm do not match')),
+              );
+              return;
+            }
+            if (current.isEmpty || newPass.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Please fill all fields')),
+              );
+              return;
+            }
+            widget.onConfirm(current, newPass, confirm);
+            if (context.mounted) Navigator.of(context).pop();
+          },
+          child: const Text('Change Password'),
+        ),
+      ],
+    );
+  }
+}
+
+class _BusinessTab extends ConsumerStatefulWidget {
   final BusinessSettings? settings;
   final Function(BusinessSettings) onSave;
 
   const _BusinessTab({this.settings, required this.onSave});
 
   @override
-  State<_BusinessTab> createState() => _BusinessTabState();
+  ConsumerState<_BusinessTab> createState() => _BusinessTabState();
 }
 
-class _BusinessTabState extends State<_BusinessTab> {
+class _BusinessTabState extends ConsumerState<_BusinessTab> {
   late TextEditingController _nameController;
 
   @override
@@ -295,6 +401,22 @@ class _BusinessTabState extends State<_BusinessTab> {
   void dispose() {
     _nameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAndUploadImage(BuildContext context, {required bool isLogo}) async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null || !mounted) return;
+    final path = file.path;
+    if (path == null || path.isEmpty) return;
+    final settings = widget.settings;
+    if (settings == null) return;
+    final notifier = ref.read(accountProvider.notifier);
+    if (isLogo) {
+      await notifier.updateBusinessSettings(settings, logoPath: path);
+    } else {
+      await notifier.updateBusinessSettings(settings, faviconPath: path);
+    }
   }
 
   @override
@@ -378,9 +500,7 @@ class _BusinessTabState extends State<_BusinessTab> {
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(
-                    onPressed: () {
-                      // TODO: Implement image picker
-                    },
+                    onPressed: () => _pickAndUploadImage(context, isLogo: true),
                     icon: const Icon(LucideIcons.upload),
                     label: const Text('Upload New Logo'),
                   ),
@@ -410,9 +530,8 @@ class _BusinessTabState extends State<_BusinessTab> {
                   ),
                   const SizedBox(height: 8),
                   TextButton.icon(
-                    onPressed: () {
-                      // TODO: Implement image picker
-                    },
+                    onPressed: () =>
+                        _pickAndUploadImage(context, isLogo: false),
                     icon: const Icon(LucideIcons.upload),
                     label: const Text('Upload New Favicon'),
                   ),
@@ -864,8 +983,19 @@ class _SubscriptionTab extends StatelessWidget {
           ),
           const SizedBox(height: 24),
           OutlinedButton.icon(
-            onPressed: () {
-              // TODO: Redirect to web for billing management
+            onPressed: () async {
+              final url = Uri.parse('https://insightbooksafrica.com/billing');
+              if (await canLaunchUrl(url)) {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              } else {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not open billing page'),
+                    ),
+                  );
+                }
+              }
             },
             icon: const Icon(LucideIcons.externalLink),
             label: const Text('Manage Billing on Web'),
