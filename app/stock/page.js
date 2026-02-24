@@ -4620,7 +4620,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         const response = await fetch('/api/tax-types?status=Active');
         if (response.ok) {
           const data = await response.json();
-          setTaxTypes(data);
+          setTaxTypes(Array.isArray(data?.taxTypes) ? data.taxTypes : (Array.isArray(data) ? data : []));
         }
       } catch (error) {
         console.error('Error fetching tax types:', error);
@@ -4648,8 +4648,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
             const data = await response.json();
             console.log('Fetched tax data:', data);
             // API returns { taxes: [...] } or sometimes [] when table missing
-            const list = Array.isArray(data) ? data : (data?.taxes ?? []);
-            const taxIds = list.map(pt => pt.taxTypeId ?? pt.id);
+            const list = Array.isArray(data) ? data : (Array.isArray(data?.taxes) ? data.taxes : []);
+            const taxIds = list.map(pt => pt.taxTypeId ?? pt.id).filter(Boolean);
             console.log('Setting selectedTaxIds to:', taxIds);
             setFormData(prev => ({ ...prev, selectedTaxIds: taxIds }));
           } else {
@@ -5243,13 +5243,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                 </label>
                 {taxesLoading ? (
                   <div className="text-sm text-gray-500">Loading taxes...</div>
-                ) : taxTypes.length === 0 ? (
+                ) : !Array.isArray(taxTypes) || taxTypes.length === 0 ? (
                   <div className="text-sm text-gray-500 p-3 bg-gray-50 rounded-md">
                     No active tax types available. <a href="/tax-types" className="text-blue-600 hover:underline">Create tax types</a> first.
                   </div>
                 ) : (
                   <div className="space-y-2 p-3 border border-gray-300 rounded-md bg-gray-50 max-h-48 overflow-y-auto">
-                    {taxTypes.map((tax) => (
+                    {(Array.isArray(taxTypes) ? taxTypes : []).map((tax) => (
                       <label key={tax.id} className="flex items-center space-x-2 cursor-pointer hover:bg-white p-2 rounded">
                         <input
                           type="checkbox"
