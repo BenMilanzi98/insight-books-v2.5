@@ -1668,6 +1668,8 @@ const EmployeeManagement = () => {
   const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [statistics, setStatistics] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -1842,8 +1844,18 @@ const EmployeeManagement = () => {
         const detail = data.details ? ` (${data.details})` : '';
         throw new Error(`${data.error || 'Failed to import employees'}${detail}`);
       }
-      setImportResults(data);
-      await loadEmployees();
+      const created = data.createdCount ?? 0;
+      const skipped = data.skippedCount ?? 0;
+      const errCount = data.errors?.length ?? 0;
+      setError(null);
+      setShowImportModal(false);
+      setImportFile(null);
+      setImportResults(null);
+      setSuccessMessage(
+        `Import complete. Created: ${created}, Skipped: ${skipped}${errCount > 0 ? `, ${errCount} row(s) had errors.` : '.'}`
+      );
+      setTimeout(() => setSuccessMessage(''), 5000);
+      await loadEmployees(1);
     } catch (error) {
       console.error('Error importing employees:', error);
       setError(error.message || 'Failed to import employees');
@@ -1978,7 +1990,7 @@ const EmployeeManagement = () => {
   const handleDeleteEmployee = async (employeeId, e) => {
     if (e) e.stopPropagation();
     
-    if (confirm("Are you sure you want to delete this employee?")) {
+    if (confirm("Deactivate this employee? They will be marked inactive and kept in the system (use 'Delete selected' for multiple to remove permanently).")) {
       try {
         const response = await fetch(`/api/employees/${employeeId}`, {
           method: 'DELETE',
@@ -2001,6 +2013,56 @@ const EmployeeManagement = () => {
         console.error(`Error deleting employee ${employeeId}:`, error);
         alert("Failed to delete employee. Please try again.");
       }
+    }
+  };
+
+  const toggleSelectEmployee = (id) => {
+    setSelectedEmployeeIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedEmployeeIds.size === filteredEmployees.length) {
+      setSelectedEmployeeIds(new Set());
+    } else {
+      setSelectedEmployeeIds(new Set(filteredEmployees.map((e) => e.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedEmployeeIds);
+    if (ids.length === 0) {
+      alert("Please select at least one employee.");
+      return;
+    }
+    const confirmMsg = ids.length === 1
+      ? "Permanently delete this employee? They will be removed from the system (not just deactivated)."
+      : `Permanently delete ${ids.length} employees? They will be removed from the system (not just deactivated).`;
+    if (!confirm(confirmMsg)) return;
+    setIsBulkDeleting(true);
+    try {
+      const response = await fetch("/api/employees/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to delete employees");
+      }
+      setSelectedEmployeeIds(new Set());
+      setSuccessMessage(`${ids.length} employee(s) permanently deleted`);
+      setTimeout(() => setSuccessMessage(""), 3000);
+      loadEmployees();
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      alert(error.message || "Failed to delete employees. Please try again.");
+    } finally {
+      setIsBulkDeleting(false);
     }
   };
 
@@ -2315,6 +2377,16 @@ const EmployeeManagement = () => {
             <CreditCard size={16} />
             <span>Generate ID Cards</span>
           </button>
+          {selectedEmployeeIds.size > 0 && (
+            <button
+              className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center gap-2 hover:bg-red-700 disabled:opacity-50"
+              onClick={handleBulkDelete}
+              disabled={isBulkDeleting}
+            >
+              <Trash2 size={16} />
+              <span>{isBulkDeleting ? "Deleting…" : `Delete selected (${selectedEmployeeIds.size})`}</span>
+            </button>
+          )}
           <button 
             className="px-4 py-2 bg-blue-600 text-white rounded-md flex items-center gap-2 hover:bg-blue-700"
             onClick={handleAddEmployee}
@@ -2466,6 +2538,15 @@ const EmployeeManagement = () => {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-3 text-left w-10">
+                    <input
+                      type="checkbox"
+                      checked={filteredEmployees.length > 0 && selectedEmployeeIds.size === filteredEmployees.length}
+                      onChange={toggleSelectAll}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      title="Select all"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Employee ID</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job Title</th>
@@ -2482,6 +2563,15 @@ const EmployeeManagement = () => {
                     key={employee.id} 
                     className="hover:bg-gray-50"
                   >
+                    <td className="px-4 py-4 w-10">
+                      <input
+                        type="checkbox"
+                        checked={selectedEmployeeIds.has(employee.id)}
+                        onChange={() => toggleSelectEmployee(employee.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                    </td>
                     <td className="px-4 py-4 text-sm">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium flex-shrink-0">
@@ -3326,7 +3416,12 @@ const EmployeeManagement = () => {
               <h2 className="text-xl font-semibold text-gray-900">Import Employees</h2>
               <button
                 className="text-gray-500 hover:text-gray-700"
-                onClick={() => setShowImportModal(false)}
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResults(null);
+                  setError(null);
+                }}
               >
                 <X size={20} />
               </button>
@@ -3370,7 +3465,12 @@ const EmployeeManagement = () => {
               <button
                 type="button"
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                onClick={() => setShowImportModal(false)}
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResults(null);
+                  setError(null);
+                }}
                 disabled={isImporting}
               >
                 Close

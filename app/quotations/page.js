@@ -670,7 +670,7 @@ const QuotationsPage = () => {
 
   return (
     <PermissionGuard permission="quotations.view">   
-      <div className="p-4 sm:p-6 max-w-7xl mx-auto">
+      <div className="p-4 sm:p-6 w-full">
         {/* Success notification */}
         {successMessage && (
           <div className="fixed top-6 right-6 bg-emerald-50 border-l-4 border-emerald-500 text-emerald-800 p-4 rounded-lg shadow-lg z-50 flex items-center animate-fadeIn max-w-md">
