@@ -1,0 +1,99 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+import 'package:insightbooks_android/features/auth/presentation/login_screen.dart';
+import 'package:insightbooks_android/features/dashboard/presentation/dashboard_screen.dart';
+import 'package:insightbooks_android/features/pos/presentation/pos_screen.dart';
+import 'package:insightbooks_android/features/tenant/presentation/business_list_screen.dart';
+import 'package:insightbooks_android/features/account/presentation/account_screen.dart';
+import 'package:insightbooks_android/features/invoice/presentation/invoice_list_screen.dart';
+import 'package:insightbooks_android/features/invoice/presentation/create_invoice_screen.dart';
+import 'package:insightbooks_android/features/invoice/presentation/invoice_details_screen.dart';
+import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+
+final routerProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
+  return GoRouter(
+    initialLocation: '/dashboard',
+    redirect: (context, state) {
+      final isLoading = authState.isLoading;
+      final isAuthenticated = authState.value ?? false;
+
+      final isGoingToLogin = state.matchedLocation == '/login';
+
+      if (isLoading) {
+        return null;
+      }
+
+      if (!isAuthenticated && !isGoingToLogin) {
+        return '/login';
+      }
+
+      if (isAuthenticated && isGoingToLogin) {
+        return '/dashboard';
+      }
+
+      return null;
+    },
+    routes: [
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      ShellRoute(
+        builder: (context, state, child) {
+          return MainLayout(child: child);
+        },
+        routes: [
+          GoRoute(
+            path: '/dashboard',
+            builder: (context, state) => const DashboardScreen(),
+          ),
+          GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
+          GoRoute(
+            path: '/invoice',
+            builder: (context, state) => const InvoiceListScreen(),
+          ),
+          GoRoute(
+            path: '/invoice/create',
+            builder: (context, state) => const CreateInvoiceScreen(),
+          ),
+          GoRoute(
+            path: '/invoice/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return InvoiceDetailsScreen(invoiceId: id);
+            },
+          ),
+          GoRoute(
+            path: '/expenses',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('Expenses Screen'))),
+          ),
+          GoRoute(
+            path: '/payments',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('Payments Screen'))),
+          ),
+          GoRoute(
+            path: '/reports',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('Reports Screen'))),
+          ),
+          GoRoute(
+            path: '/stock',
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: Text('Stock Screen'))),
+          ),
+          GoRoute(
+            path: '/account',
+            builder: (context, state) => const AccountScreen(),
+          ),
+          GoRoute(
+            path: '/switch-tenant',
+            builder: (context, state) => const BusinessListScreen(),
+          ),
+        ],
+      ),
+    ],
+  );
+});

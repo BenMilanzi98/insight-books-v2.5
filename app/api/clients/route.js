@@ -209,13 +209,20 @@ export async function POST(request) {
       }
     }
     
+    // Parse additionalEmails: accept array or comma/semicolon-separated string
+    const parseAdditionalEmails = (v) => {
+      if (!v) return [];
+      if (Array.isArray(v)) return v.map((e) => String(e).trim()).filter(Boolean);
+      return String(v).split(/[,;]/).map((e) => e.trim()).filter(Boolean);
+    };
+
     // Create the client
     const client = await prisma.client.create({
       data: {
         name: body.name,
         contactPerson: body.contactPerson || null,
-        email: body.email && body.email.trim() ? body.email : null,
-        additionalEmails: body.additionalEmails && Array.isArray(body.additionalEmails) ? body.additionalEmails : [],
+        email: body.email && body.email.trim() ? body.email.trim() : null,
+        additionalEmails: parseAdditionalEmails(body.additionalEmails),
         phone: body.phone && body.phone.trim() ? body.phone : null,
         address: body.address || null,
         tenant: { connect: { id: user.tenantId } }

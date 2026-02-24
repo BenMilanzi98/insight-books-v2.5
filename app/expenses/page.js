@@ -1199,7 +1199,16 @@ const handleFileUpload = async (e) => {
     try {
       const response = await fetch('/api/categories?type=expense');
       const data = response.ok ? await response.json() : {};
-      setCategories(Array.isArray(data.categories) ? data.categories : []);
+      const raw = Array.isArray(data.categories) ? data.categories : [];
+      // Dedupe by id so UI never shows duplicate categories
+      const seen = new Set();
+      const categoriesDeduped = raw.filter((c) => {
+        const id = c?.id ?? c?.accountId;
+        if (seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      setCategories(categoriesDeduped);
     } catch (error) {
       console.error('Error loading categories:', error);
       setCategories([]);
@@ -3402,7 +3411,15 @@ const ReceiptVerificationModal = ({ isOpen, onClose, receiptData, onSubmit, isLo
         const response = await fetch('/api/categories?type=expense');
         if (response.ok) {
           const data = await response.json();
-          setAvailableAccounts(Array.isArray(data.categories) ? data.categories : []);
+          const raw = Array.isArray(data.categories) ? data.categories : [];
+          const seen = new Set();
+          const deduped = raw.filter((c) => {
+            const id = c?.id ?? c?.accountId;
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+          setAvailableAccounts(deduped);
         }
       } catch (error) {
         console.error('Error loading expense accounts:', error);

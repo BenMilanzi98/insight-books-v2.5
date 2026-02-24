@@ -69,7 +69,19 @@ export const createInvoice = async (invoiceData) => {
       const errorText = await response.text();
       console.error("🚀 INVOICE SERVICE ERROR:", response.status, response.statusText);
       console.error("🚀 INVOICE SERVICE ERROR BODY:", errorText);
-      throw new Error(`Error creating invoice: ${response.statusText}`);
+      let message = `Error creating invoice: ${response.statusText}`;
+      try {
+        const body = JSON.parse(errorText);
+        if (body?.error && typeof body.error === 'string') {
+          message = body.error;
+        }
+        if (body?.details?.code === 'PERIOD_LOCKED') {
+          message = body.error;
+        }
+      } catch (_) {}
+      const err = new Error(message);
+      err.code = response.status === 403 ? 'PERIOD_LOCKED' : undefined;
+      throw err;
     }
     
     const data = await response.json();

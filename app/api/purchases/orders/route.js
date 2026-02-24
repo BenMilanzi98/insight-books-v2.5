@@ -52,15 +52,11 @@ function parsePagination(searchParams) {
 function buildOrderBy(searchParams) {
   const sort = searchParams.get('sort') || 'poDate';
   const order = searchParams.get('order') === 'desc' ? 'desc' : 'asc';
-  const primary = { poDate: 'desc' };
-  const secondary = { poNumber: 'asc' };
-  // Use only scalar fields for orderBy to avoid relation-orderBy issues across Prisma/DB versions
-  if (sort === 'poDate') return [{ poDate: order }, secondary];
-  if (sort === 'poNumber') return [{ poNumber: order }, primary, secondary];
-  if (sort === 'status') return [{ status: order }, primary, secondary];
-  if (sort === 'totalAmount') return [{ totalAmount: order }, primary, secondary];
-  if (sort === 'supplierName') return [primary, secondary]; // client can sort by supplierName if needed
-  return [primary, secondary];
+  // Single-key orderBy to avoid Prisma/DB issues with multi-field sort
+  if (sort === 'poNumber') return { poNumber: order };
+  if (sort === 'status') return { status: order };
+  if (sort === 'totalAmount') return { totalAmount: order };
+  return { poDate: order };
 }
 
 export async function GET(request) {
@@ -72,7 +68,23 @@ export async function GET(request) {
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     if (user.tenantId == null) return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
 
-    const { searchParams } = new URL(request.url);
+    let searchParams;
+    try {
+      const raw = request.nextUrl ?? request.url;
+      if (!raw) throw new Error('Request URL is missing');
+      if (typeof raw === 'object' && raw.searchParams) {
+        searchParams = raw.searchParams;
+      } else {
+        const urlStr = String(raw);
+        searchParams = urlStr.includes('?') ? new URL(urlStr.startsWith('http') ? urlStr : `http://localhost${urlStr.startsWith('/') ? urlStr : '/' + urlStr}`).searchParams : new URLSearchParams();
+      }
+    } catch (urlError) {
+      console.error('GET /api/purchases/orders URL parse error:', urlError);
+      return NextResponse.json(
+        { error: process.env.NODE_ENV === 'development' ? (urlError?.message || 'Invalid request URL') : 'Bad request' },
+        { status: 400 }
+      );
+    }
     const { page, limit } = parsePagination(searchParams);
     const orderByClause = buildOrderBy(searchParams);
     const status = searchParams.get('status');

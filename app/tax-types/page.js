@@ -30,6 +30,7 @@ export default function TaxTypesPage() {
   const [taxTypes, setTaxTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [taxBalances, setTaxBalances] = useState({});
+  const [defaultTaxAccountId, setDefaultTaxAccountId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -74,37 +75,50 @@ export default function TaxTypesPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [taxTypesRes, accountsRes, balancesRes] = await Promise.all([
+      const [taxTypesRes, accountsRes, balancesRes, settingsRes] = await Promise.all([
         fetch("/api/tax-types"),
-        fetch("/api/chart-of-accounts"),
-        fetch("/api/tax-accounts/balances").catch(() => null)
+        fetch("/api/tax-types/accounts").catch(() => ({ ok: false })), // Tax-eligible accounts (no finance role required)
+        fetch("/api/tax-accounts/balances").catch(() => null),
+        fetch("/api/settings/tax").catch(() => null)
       ]);
 
-      if (!taxTypesRes.ok) throw new Error("Failed to load tax types");
-      if (!accountsRes.ok) throw new Error("Failed to load accounts");
+      if (!taxTypesRes.ok) {
+        const errBody = await taxTypesRes.json().catch(() => ({}));
+        throw new Error(errBody.error || "Failed to load tax types");
+      }
 
       const taxTypesData = await taxTypesRes.json();
-      const accountsData = await accountsRes.json();
+      const taxList = Array.isArray(taxTypesData) ? taxTypesData : (taxTypesData.taxTypes || []);
+      setTaxTypes(taxList);
 
-      setTaxTypes(taxTypesData);
-      
-      const filteredAccounts = (accountsData.accounts || accountsData).filter(
-        acc => acc.accountType === "Liability" || acc.accountType === "Asset"
-      );
-      setAccounts(filteredAccounts);
+      if (accountsRes.ok) {
+        const accountsData = await accountsRes.json();
+        const list = accountsData.accounts ?? accountsData ?? [];
+        setAccounts(Array.isArray(list) ? list : []);
+      } else {
+        setAccounts([]);
+      }
 
       if (balancesRes && balancesRes.ok) {
         const balancesData = await balancesRes.json();
         const balancesMap = {};
-        balancesData.taxAccounts?.forEach(acc => {
-          balancesMap[acc.taxType.id] = {
-            totalCollected: acc.totalCollected,
-            totalPaid: acc.totalPaid,
-            netPayable: acc.netPayable,
-            currentBalance: acc.currentBalance,
-          };
+        (balancesData.taxAccounts || []).forEach(acc => {
+          const id = acc.taxType?.id;
+          if (id) {
+            balancesMap[id] = {
+              totalCollected: acc.totalCollected,
+              totalPaid: acc.totalPaid,
+              netPayable: acc.netPayable,
+              currentBalance: acc.currentBalance,
+            };
+          }
         });
         setTaxBalances(balancesMap);
+      }
+
+      if (settingsRes && settingsRes.ok) {
+        const settings = await settingsRes.json();
+        setDefaultTaxAccountId(settings.taxOutflowAccountId || null);
       }
     } catch (err) {
       setError(err.message);
@@ -189,7 +203,7 @@ export default function TaxTypesPage() {
       taxCode: "",
       taxRate: "",
       calculationType: "Percentage",
-      accountId: "",
+      accountId: defaultTaxAccountId || "",
       status: "Active"
     });
   };

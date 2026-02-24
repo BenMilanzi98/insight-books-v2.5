@@ -36,7 +36,8 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
+    const url = request.nextUrl ?? request.url;
+    const searchParams = (typeof url === 'object' && url?.searchParams) ? url.searchParams : new URL(typeof url === 'string' ? url : '', 'http://localhost').searchParams;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = Math.min(parseInt(searchParams.get('limit') || '25', 10), 100);
     const search = searchParams.get('search')?.trim();

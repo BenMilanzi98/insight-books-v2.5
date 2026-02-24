@@ -43,19 +43,25 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Client ID, to, subject and message are required' }, { status: 400 });
     }
 
+    // Support multiple recipients: comma- or semicolon-separated
+    const toAddresses = String(to)
+      .split(/[,;]/)
+      .map((e) => e.trim())
+      .filter((e) => e && e.includes('@'));
+
     // Validate client belongs to tenant and optionally update email if missing
     const client = await prisma.client.findFirst({
       where: { id: clientId, tenantId: user.tenantId },
-      select: { id: true, email: true, name: true }
+      select: { id: true, email: true, additionalEmails: true, name: true }
     });
 
     if (!client) {
       return NextResponse.json({ error: 'Client not found' }, { status: 404 });
     }
 
-    // If client email is missing and provided "to" differs, update it
-    if (!client.email && to) {
-      await prisma.client.update({ where: { id: clientId }, data: { email: to } });
+    const primaryTo = toAddresses[0] || String(to).trim();
+    if (!client.email && primaryTo) {
+      await prisma.client.update({ where: { id: clientId }, data: { email: primaryTo } });
     }
 
     // Fetch tenant branding if available
@@ -104,10 +110,11 @@ export async function POST(request) {
     const senderFrom = `"${companyName}" <${tenantEmail}>`;
     
     const transporter = createTransport();
+    const recipients = toAddresses.length > 0 ? toAddresses : [String(to).trim()];
     await transporter.sendMail({
       from: senderFrom,
       replyTo: replyTo || tenantEmail,
-      to,
+      to: recipients,
       subject,
       html: emailHtml,
       attachments
@@ -121,7 +128,7 @@ export async function POST(request) {
         entityId: clientId,
         userId: user.id,
         tenantId: user.tenantId,
-        details: JSON.stringify({ to, subject })
+        details: JSON.stringify({ to: recipients, subject })
       }
     });
 

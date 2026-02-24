@@ -157,11 +157,11 @@ export async function GET(request) {
       account: t.accountId ? accountMap.get(t.accountId) ?? null : null,
     }));
 
-    return NextResponse.json(taxTypesWithAccount);
+    return NextResponse.json({ taxTypes: taxTypesWithAccount });
   } catch (error) {
     console.error('Error fetching tax types:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch tax types' },
+      { error: 'Failed to fetch tax types', taxTypes: [] },
       { status: 500 }
     );
   }
@@ -211,6 +211,12 @@ export async function POST(request) {
     if (Number.isNaN(parsedRate)) {
       return NextResponse.json(
         { error: 'taxRate must be a valid number' },
+        { status: 400 }
+      );
+    }
+    if (parsedRate < 0 || parsedRate > 100) {
+      return NextResponse.json(
+        { error: 'taxRate must be between 0 and 100 (e.g. 16.5 or 17.5)' },
         { status: 400 }
       );
     }

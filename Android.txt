@@ -1,0 +1,1071 @@
+Here is the **complete Technical Specification Document** for your application.
+
+---
+
+# 📘 Technical Specification Document
+
+## InsightBooks Africa Mobile Application
+
+**Base API URL:**
+
+```
+https://development.insightbooksafrica.com
+```
+
+---
+
+# 1️⃣ Project Overview
+
+## 1.1 Purpose
+
+To design and develop a modern, scalable, production-ready mobile application for InsightBooks Africa using:
+
+* **Stitch MCP** (UI generation & structured component scaffolding)
+* **Dart/Flutter MCP** (App logic & architecture implementation)
+
+The application will replicate the structure of the existing project while delivering a premium mobile experience inspired by the Crypto Trading Mobile App design from Dribbble.
+
+---
+
+# 2️⃣ Design & UX Specification
+
+## 2.1 Design Inspiration
+
+Inspired by:
+
+* Crypto Trading Mobile App
+
+## 2.2 Design Principles
+
+* Clean, modern fintech aesthetic
+* Card-based layouts
+* Soft shadows & rounded corners (12–20px radius)
+* Subtle gradients
+* Micro-interactions & animations
+* Elevated UI hierarchy
+* Consistent spacing (8pt grid system)
+
+## 2.3 Branding
+
+* Colors must strictly follow project logo palette
+* Centralized theme configuration:
+
+  * Primary color
+  * Secondary color
+  * Accent color
+  * Success, Warning, Error states
+* Dark/light mode support (optional if brand allows)
+
+---
+
+# 3️⃣ Technical Architecture
+
+## 3.1 Technology Stack
+
+* Flutter (latest stable)
+* Dart
+* Stitch MCP (UI generation)
+* Flutter MCP (logic & structure)
+
+## 3.2 Architecture Pattern
+
+Clean Architecture:
+
+```
+lib/
+ ├── core/
+ ├── config/
+ ├── features/
+ │    ├── auth/
+ │    ├── dashboard/
+ │    ├── pos/
+ │    ├── accounting/
+ │    ├── hr/
+ │    └── ...
+ ├── shared/
+ └── main.dart
+```
+
+### Layers
+
+1. Presentation
+2. Domain
+3. Data
+4. Core (API, interceptors, utilities)
+
+---
+
+# 4️⃣ API Configuration
+
+## 4.1 Base URL
+
+```
+https://development.insightbooksafrica.com
+```
+
+## 4.2 API Client
+
+* Use Dio or http client
+* Centralized API service
+* Interceptors:
+
+  * Auth token injection
+  * Error handling
+  * Logging (dev only)
+
+## 4.3 Token Management
+
+* Secure storage
+* Auto-refresh if supported
+* Logout clears storage
+
+---
+
+# 5️⃣ Navigation Structure
+
+## 5.1 Routing
+
+* Centralized route management
+* Named routes
+* Role-based route visibility
+
+## 5.2 Post-Login Layout
+
+Main Scaffold:
+
+* Sidebar Navigation Drawer
+* Top App Bar
+* Content Area
+
+### Sidebar Features
+
+* Icons + labels
+* Active state highlight
+* Collapsible (tablet)
+* Smooth animated transitions
+
+---
+
+# 6️⃣ Screens & Functional Modules
+
+---
+
+## 6.1 Splash Screen
+
+* Animated logo reveal
+* Gradient background
+* Fade-in transition
+* Token check
+* Redirect:
+
+  * Authenticated → `/dashboard`
+  * Not authenticated → `/auth/login`
+
+---
+
+## 6.2 Authentication
+
+### Login Screen
+
+Route: `/auth/login`
+
+**Endpoint:**
+POST `/auth/login`
+
+**Features:**
+
+* Email field
+* Password field
+* Validation
+* Loading state
+* Error snackbar
+* Secure token storage
+* Navigate to `/dashboard` on success
+
+---
+
+# 7️⃣ Core Modules & Routes
+
+---
+
+## 7.1 Dashboard
+
+Route: `/dashboard`
+
+### Features
+
+* Revenue summary card
+* Expenses summary card
+* Profit/Loss card
+* Charts (line, pie, bar)
+* Recent transactions
+* Quick actions
+
+---
+
+## 7.2 POS
+
+Route: `/pos`
+
+* Product listing
+* Cart management
+* Payment selection
+* Receipt generation
+* Invoice linking
+
+---
+
+## 7.3 Quotations
+
+Route: `/quotations`
+
+* Create quotation
+* Edit quotation
+* Convert to invoice
+* Search & filter
+* Pagination
+
+---
+
+## 7.4 Invoices
+
+Route: `/invoice`
+
+* Invoice creation
+* Invoice list
+* Status tracking
+* PDF generation
+* Payment linking
+
+---
+
+## 7.5 Expenses
+
+Route: `/expenses`
+
+* Add expense
+* Categorize expense
+* Attach receipt
+* Filter by date/category
+
+---
+
+## 7.6 Payments
+
+Route: `/payments`
+
+* Record payments
+* Payment methods
+* Transaction history
+
+---
+
+## 7.7 Financial Reports
+
+Route: `/reports`
+
+* Profit & Loss
+* Balance Sheet
+* Cash Flow
+* Export functionality
+
+---
+
+## 7.8 Client Management
+
+Route: `/clients`
+
+* Add client
+* Edit client
+* Client ledger
+* Search & filter
+
+---
+
+## 7.9 Assets & Liabilities
+
+Route: `/asset-management`
+
+* Asset listing
+* Depreciation tracking
+* Liability tracking
+
+---
+
+## 7.10 HR & Payroll
+
+All HR modules:
+
+* Employee Management
+* Payroll Processing
+* Leave Management
+* Salary Structures
+* Payslip Generation
+
+---
+
+## 7.11 Stock Management
+
+Route: `/stock`
+
+* Product inventory
+* Low stock alerts
+* Warehouse tracking
+
+---
+
+## 7.12 Budgeting
+
+Route: `/budget`
+
+* Create budget
+* Budget tracking
+* Variance analysis
+
+---
+
+## 7.13 Branches
+
+Route: `/branches`
+
+* Branch creation
+* Branch assignment
+* Performance comparison
+
+---
+
+## 7.14 Purchases
+
+* Purchase orders
+* Supplier management
+* Goods received notes
+* Payment tracking
+
+---
+
+## 7.15 Tax Management
+
+Route: `/tax-types`
+
+* Tax creation
+* Tax assignment
+* Tax reports
+
+---
+
+## 7.16 Accounting
+
+Full accounting module:
+
+* Chart of Accounts
+* Journals
+* Ledger
+* Trial Balance
+* Reconciliation
+
+---
+
+## 7.17 User & Role Management
+
+Route: `/users`
+
+* User creation
+* Role assignment
+* Permission management
+* Role-based access control
+
+---
+
+# 8️⃣ State Management
+
+Recommended: Riverpod (or Bloc if preferred)
+
+Requirements:
+
+* Global auth state
+* Role state
+* Pagination state
+* Error states
+* Loading states
+
+---
+
+# 9️⃣ UI Component Library
+
+Reusable Components:
+
+* Primary Button
+* Secondary Button
+* Card Widget
+* Chart Widget
+* Form Input Field
+* Dropdown
+* Data Table
+* Skeleton Loader
+* Confirmation Dialog
+* Snackbar/Toast
+
+---
+
+# 🔟 Security Requirements
+
+* Secure token storage
+* Role-based route guards
+* Logout clears session
+* Prevent navigation without authentication
+* API error handling
+
+---
+
+# 1️⃣1️⃣ Performance Requirements
+
+* Lazy loading
+* Pagination
+* Efficient rebuilds
+* Optimized state listeners
+* Skeleton loading UI
+
+---
+
+# 1️⃣2️⃣ Animations & UX Enhancements
+
+* Page transitions
+* Drawer animation
+* Button ripple animations
+* Smooth chart loading
+* Subtle hover effects (tablet/web)
+
+---
+
+# 1️⃣3️⃣ Error Handling
+
+* Network error screen
+* 401 auto logout
+* 500 retry state
+* Empty state illustrations
+
+---
+
+# 1️⃣4️⃣ Testing Strategy
+
+* Unit tests (domain layer)
+* Widget tests
+* Integration tests
+* API mock testing
+
+---
+
+# 1️⃣5️⃣ Deployment Configuration
+
+* Dev environment → Base URL:
+  `https://development.insightbooksafrica.com`
+* Environment config file
+* Production environment support
+* App versioning strategy
+
+---
+
+# 1️⃣6️⃣ Non-Functional Requirements
+
+* Scalable architecture
+* Modular feature separation
+* Easy API extension
+* Clean code standards
+* Documentation comments
+
+---
+
+# ✅ Final Deliverable
+
+A fully structured Flutter application that is:
+
+* Modern
+* Responsive
+* Secure
+* Scalable
+* Inspired by fintech UI aesthetics
+* Fully aligned with project route structure
+* Ready for backend API integration
+
+---
+
+Below is the complete **Flutter Folder Blueprint** and **Feature-by-Feature Implementation Breakdown** for the InsightBooks Africa Mobile Application.
+
+Base API:
+`https://development.insightbooksafrica.com`
+
+---
+
+# 📂 FULL FLUTTER FOLDER BLUEPRINT
+
+This follows **Clean Architecture + Feature-Based Modular Structure** for scalability.
+
+---
+
+# 📁 Root Structure
+
+```
+lib/
+│
+├── main.dart
+├── app.dart
+│
+├── config/
+│   ├── routes/
+│   ├── theme/
+│   ├── env/
+│   └── constants/
+│
+├── core/
+│   ├── api/
+│   ├── error/
+│   ├── network/
+│   ├── utils/
+│   ├── services/
+│   └── guards/
+│
+├── shared/
+│   ├── widgets/
+│   ├── components/
+│   ├── layouts/
+│   └── models/
+│
+├── features/
+│   ├── splash/
+│   ├── auth/
+│   ├── dashboard/
+│   ├── pos/
+│   ├── quotations/
+│   ├── invoices/
+│   ├── expenses/
+│   ├── payments/
+│   ├── reports/
+│   ├── clients/
+│   ├── asset_management/
+│   ├── hr_payroll/
+│   ├── stock/
+│   ├── budget/
+│   ├── branches/
+│   ├── purchases/
+│   ├── tax_types/
+│   ├── accounting/
+│   └── users_roles/
+│
+└── l10n/
+```
+
+---
+
+# 🔹 1. CONFIG LAYER
+
+## 📁 config/routes/
+
+```
+routes.dart
+route_names.dart
+app_router.dart
+```
+
+Responsibilities:
+
+* Centralized named routes
+* Role-based route visibility
+* Route guards (auth required)
+
+---
+
+## 📁 config/theme/
+
+```
+app_theme.dart
+colors.dart
+typography.dart
+spacing.dart
+shadows.dart
+```
+
+Responsibilities:
+
+* Logo-based color palette
+* Dark/light theme
+* Fintech-style card design
+* Border radius standards
+
+---
+
+## 📁 config/env/
+
+```
+environment.dart
+```
+
+```dart
+class Environment {
+  static const baseUrl = "https://development.insightbooksafrica.com";
+}
+```
+
+---
+
+# 🔹 2. CORE LAYER
+
+## 📁 core/api/
+
+```
+api_client.dart
+api_endpoints.dart
+api_interceptor.dart
+```
+
+Responsibilities:
+
+* Dio/http setup
+* Token injection
+* 401 auto logout
+* Logging (dev only)
+
+---
+
+## 📁 core/error/
+
+```
+exceptions.dart
+failures.dart
+error_handler.dart
+```
+
+---
+
+## 📁 core/network/
+
+```
+network_info.dart
+connectivity_service.dart
+```
+
+---
+
+## 📁 core/services/
+
+```
+secure_storage_service.dart
+local_cache_service.dart
+```
+
+---
+
+## 📁 core/guards/
+
+```
+auth_guard.dart
+role_guard.dart
+```
+
+---
+
+# 🔹 3. SHARED LAYER
+
+## 📁 shared/widgets/
+
+Reusable UI:
+
+```
+primary_button.dart
+secondary_button.dart
+app_card.dart
+loading_indicator.dart
+skeleton_loader.dart
+app_snackbar.dart
+confirmation_dialog.dart
+```
+
+---
+
+## 📁 shared/components/
+
+```
+data_table_widget.dart
+chart_widget.dart
+pagination_widget.dart
+search_bar.dart
+status_badge.dart
+```
+
+---
+
+## 📁 shared/layouts/
+
+```
+main_layout.dart
+auth_layout.dart
+sidebar.dart
+responsive_wrapper.dart
+```
+
+---
+
+# 🔹 4. FEATURE MODULE STRUCTURE (STANDARD TEMPLATE)
+
+Every feature follows:
+
+```
+feature_name/
+│
+├── data/
+│   ├── datasource/
+│   ├── models/
+│   └── repositories/
+│
+├── domain/
+│   ├── entities/
+│   ├── repositories/
+│   └── usecases/
+│
+├── presentation/
+│   ├── screens/
+│   ├── widgets/
+│   ├── providers/ (Riverpod)
+│   └── controllers/
+│
+└── feature_routes.dart
+```
+
+---
+
+# 🧱 FEATURE-BY-FEATURE IMPLEMENTATION BREAKDOWN
+
+---
+
+# 1️⃣ Splash Feature
+
+### Flow:
+
+* App Launch
+* Check Secure Storage for token
+* If token exists → `/dashboard`
+* Else → `/auth/login`
+
+### Files:
+
+```
+features/splash/presentation/screens/splash_screen.dart
+```
+
+---
+
+# 2️⃣ Auth Feature
+
+Route: `/auth/login`
+
+### API:
+
+POST `/auth/login`
+
+### Layers:
+
+### Data:
+
+* AuthModel
+* AuthRemoteDatasource
+* AuthRepositoryImpl
+
+### Domain:
+
+* LoginUseCase
+* AuthEntity
+
+### Presentation:
+
+* LoginScreen
+* AuthProvider
+* Form validation
+* Loading state
+
+### Success:
+
+* Store token securely
+* Update AuthState
+* Navigate to Dashboard
+
+---
+
+# 3️⃣ Dashboard Feature
+
+Route: `/dashboard`
+
+### API Calls:
+
+* Summary endpoint
+* Reports overview
+* Recent transactions
+
+### UI Components:
+
+* Summary Cards
+* Revenue Chart
+* Expense Chart
+* Quick Action Grid
+
+### State:
+
+* DashboardProvider
+* Loading + Error state
+
+---
+
+# 4️⃣ POS Feature
+
+Route: `/pos`
+
+### Functionalities:
+
+* Product fetch
+* Add to cart
+* Quantity update
+* Apply tax
+* Checkout
+* Generate invoice
+
+### State:
+
+* CartProvider
+* POSProvider
+
+---
+
+# 5️⃣ Quotations Feature
+
+Route: `/quotations`
+
+### Functionalities:
+
+* List quotations
+* Create quotation
+* Convert to invoice
+* Pagination
+
+---
+
+# 6️⃣ Invoices Feature
+
+Route: `/invoice`
+
+### Functionalities:
+
+* Create invoice
+* Invoice listing
+* Status tracking
+* Mark as paid
+* PDF generation
+
+---
+
+# 7️⃣ Expenses Feature
+
+Route: `/expenses`
+
+### Functionalities:
+
+* Add expense
+* Attach file
+* Filter by category/date
+
+---
+
+# 8️⃣ Payments Feature
+
+Route: `/payments`
+
+### Functionalities:
+
+* Record payment
+* Payment history
+* Link payment to invoice
+
+---
+
+# 9️⃣ Reports Feature
+
+Route: `/reports`
+
+### Reports:
+
+* Profit & Loss
+* Balance Sheet
+* Cash Flow
+* Export
+
+---
+
+# 🔟 Clients Feature
+
+Route: `/clients`
+
+### Functionalities:
+
+* Add client
+* Edit client
+* View ledger
+* Search/filter
+
+---
+
+# 1️⃣1️⃣ Assets & Liabilities
+
+Route: `/asset-management`
+
+### Functionalities:
+
+* Create asset
+* Depreciation tracking
+* Liability records
+
+---
+
+# 1️⃣2️⃣ HR & Payroll
+
+Modules:
+
+* Employees
+* Payroll
+* Leave
+* Salary Structures
+* Payslips
+
+Each as sub-feature within hr_payroll/
+
+---
+
+# 1️⃣3️⃣ Stock Feature
+
+Route: `/stock`
+
+### Functionalities:
+
+* Inventory listing
+* Low stock alert
+* Warehouse allocation
+
+---
+
+# 1️⃣4️⃣ Budget Feature
+
+Route: `/budget`
+
+### Functionalities:
+
+* Create budget
+* Compare actual vs budget
+* Variance reports
+
+---
+
+# 1️⃣5️⃣ Branches Feature
+
+Route: `/branches`
+
+### Functionalities:
+
+* Add branch
+* Assign users
+* Performance comparison
+
+---
+
+# 1️⃣6️⃣ Purchases Feature
+
+Modules:
+
+* Purchase Orders
+* Suppliers
+* GRN
+* Payment tracking
+
+---
+
+# 1️⃣7️⃣ Tax Types Feature
+
+Route: `/tax-types`
+
+### Functionalities:
+
+* Create tax
+* Assign tax
+* Tax reports
+
+---
+
+# 1️⃣8️⃣ Accounting Feature
+
+Modules:
+
+* Chart of Accounts
+* Journals
+* Ledger
+* Trial Balance
+* Reconciliation
+
+---
+
+# 1️⃣9️⃣ Users & Roles Feature
+
+Route: `/users`
+
+### Functionalities:
+
+* Create user
+* Assign role
+* Permission management
+* Role-based route filtering
+
+---
+
+# 🔐 Role-Based Access Flow
+
+1. Login → Get user + role
+2. Store role in state
+3. Sidebar renders based on role
+4. RouteGuard validates access
+
+---
+
+# 📊 State Management Blueprint (Riverpod)
+
+Global Providers:
+
+* authProvider
+* roleProvider
+* themeProvider
+* connectivityProvider
+
+Feature Providers:
+
+* dashboardProvider
+* posProvider
+* invoiceProvider
+* etc.
+
+---
+
+# 🚀 Scalability Strategy
+
+* Each feature isolated
+* Independent repository per module
+* Shared API client
+* Central error handler
+* Lazy loading routes
+* Modular testing
+
+---
+
+# ✅ FINAL RESULT
+
+This blueprint ensures:
+
+✔ Enterprise-grade architecture
+✔ Clean modular separation
+✔ Easy API scaling
+✔ Feature isolation
+✔ Secure authentication
+✔ Responsive & animated UI
+✔ Maintainable long-term growth

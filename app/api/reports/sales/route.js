@@ -15,8 +15,9 @@ export async function GET(request) {
       );
     }
     
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
+    // Get query parameters (support both request.url and request.nextUrl)
+    const url = request.nextUrl ?? request.url;
+    const searchParams = typeof url === 'object' && url.searchParams ? url.searchParams : new URL(typeof url === 'string' ? url : url?.toString() || '', 'http://localhost').searchParams;
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const groupBy = searchParams.get('groupBy') || 'day';

@@ -6,7 +6,7 @@ import prisma from '@/lib/prisma';
 export async function POST(request) {
   try {
     const body = await request.json();
-   
+
     // Basic validation
     if (!body.email || !body.password) {
       return NextResponse.json(
@@ -14,7 +14,7 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-   
+
     // Find the user by email
     const user = await prisma.user.findFirst({
       where: { email: body.email },
@@ -29,7 +29,7 @@ export async function POST(request) {
         }
       }
     });
-   
+
     // Check if user exists
     if (!user) {
       return NextResponse.json(
@@ -37,10 +37,10 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-    
+
     // Compare password using bcrypt instead of direct comparison
     const passwordMatch = await bcrypt.compare(body.password, user.password);
-    
+
     // Check if password matches
     if (!passwordMatch) {
       return NextResponse.json(
@@ -48,7 +48,7 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-   
+
     // Check if user account is active
     if (!user.isActive) {
       return NextResponse.json(
@@ -56,7 +56,7 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-   
+
     // Check if tenant account is active (for tenant users)
     if (user.tenantId && user.tenant?.status !== 'active') {
       return NextResponse.json(
@@ -64,7 +64,7 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-   
+
     // Create session data
     const sessionData = {
       userId: user.id,
@@ -73,10 +73,10 @@ export async function POST(request) {
       role: user.role,
       tenantId: user.tenantId
     };
-   
+
     // In a real app, you'd encrypt and sign this data
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-   
+
     // Set session cookie
     cookies().set({
       name: 'session',
@@ -86,13 +86,13 @@ export async function POST(request) {
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
-   
+
     // Update last login timestamp
     await prisma.user.update({
       where: { id: user.id },
       data: { lastLogin: new Date() }
     });
-   
+
     // Log login activity
     await prisma.auditLog.create({
       data: {
@@ -103,13 +103,15 @@ export async function POST(request) {
         tenantId: user.tenantId
       }
     });
-   
+
     // Return success with user info (excluding password)
     return NextResponse.json({
       success: true,
+      token: session, // Provided for mobile app authentication
       user: {
         id: user.id,
         name: user.name,
+
         email: user.email,
         role: user.role,
         tenant: user.tenant ? {

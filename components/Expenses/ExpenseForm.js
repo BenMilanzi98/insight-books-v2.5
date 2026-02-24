@@ -73,6 +73,22 @@ const ExpenseForm = ({
     loadCategories(); // NEW: Load categories
   }, []);
 
+  // Default tax rate for new expense (from tenant settings; avoids hardcoded 16.5%)
+  useEffect(() => {
+    if (expense) return;
+    let cancelled = false;
+    fetch('/api/settings/tax')
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (cancelled || !data || data.defaultTaxRate == null) return;
+        const rate = Number(data.defaultTaxRate);
+        if (Number.isNaN(rate) || rate < 0 || rate > 100) return;
+        setFormData((prev) => (prev.taxRate === '' ? { ...prev, taxRate: rate } : prev));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [expense]);
+
   // Initialize form with expense data if it exists
   useEffect(() => {
     if (expense) {
@@ -322,13 +338,15 @@ const ExpenseForm = ({
               Tax rate (%)
             </label>
             <input
-              type="text"
+              type="number"
               name="taxRate"
               value={formData.taxRate === 0 || formData.taxRate === '' ? '' : formData.taxRate}
               onChange={handleChange}
               className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="e.g. 16.5"
+              placeholder="e.g. 16.5 or 17.5"
               step="0.01"
+              min="0"
+              max="100"
             />
             <p className="mt-1 text-xs text-gray-500">
               Enter rate if total is tax-inclusive; tax amount will be calculated.

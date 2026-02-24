@@ -738,8 +738,21 @@ export async function POST(request) {
       code: error.code,
       meta: error.meta
     });
+
+    // Period lock: return 403 with a clear message so the UI can show it
+    if (error.code === 'PERIOD_LOCKED') {
+      const base = error.message || `Cannot post in closed accounting period: ${error.period?.periodName || 'unknown'}.`;
+      const message = base.includes('Reopen') ? base : `${base} Reopen the period in Accounting Periods to post this invoice.`;
+      return NextResponse.json(
+        {
+          error: message,
+          details: { code: 'PERIOD_LOCKED', periodName: error.period?.periodName }
+        },
+        { status: 403 }
+      );
+    }
     
-    // Return more detailed error in development
+    // Generic server error
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? `Failed to create invoice: ${error.message}` 
       : 'Failed to create invoice. Please try again.';

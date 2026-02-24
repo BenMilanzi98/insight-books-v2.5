@@ -25,15 +25,17 @@ export async function GET(request) {
       return NextResponse.json({
         taxEnabled: true,
         defaultTaxRate: 16.5, // Default VAT rate in Malawi
-        currencyCode: 'MWK'
+        currencyCode: 'MWK',
+        taxOutflowAccountId: null
       });
     }
     
-    // Return tax-related settings
+    // Return tax-related settings (including default input tax account for expense/purchase tax)
     return NextResponse.json({
       taxEnabled: tenantSettings.taxEnabled,
       defaultTaxRate: tenantSettings.defaultTaxRate,
-      currencyCode: tenantSettings.currencyCode
+      currencyCode: tenantSettings.currencyCode,
+      taxOutflowAccountId: tenantSettings.taxOutflowAccountId ?? null
     });
   } catch (error) {
     console.error('Error fetching tax settings:', error);
@@ -74,19 +76,22 @@ export async function PUT(request) {
       );
     }
     
+    const updateData = {
+      taxEnabled: body.taxEnabled !== undefined ? body.taxEnabled : true,
+      defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : 16.5,
+      currencyCode: body.currencyCode || 'MWK',
+    };
+    if (body.taxOutflowAccountId !== undefined) {
+      updateData.taxOutflowAccountId = body.taxOutflowAccountId || null;
+    }
+
     // Update or create settings
     const settings = await prisma.tenantSettings.upsert({
       where: { tenantId: user.tenantId },
-      update: {
-        taxEnabled: body.taxEnabled !== undefined ? body.taxEnabled : true,
-        defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : 16.5,
-        currencyCode: body.currencyCode || 'MWK'
-      },
+      update: updateData,
       create: {
         tenantId: user.tenantId,
-        taxEnabled: body.taxEnabled !== undefined ? body.taxEnabled : true,
-        defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : 16.5,
-        currencyCode: body.currencyCode || 'MWK'
+        ...updateData,
       }
     });
     
@@ -101,7 +106,8 @@ export async function PUT(request) {
         details: JSON.stringify({
           taxEnabled: settings.taxEnabled,
           defaultTaxRate: settings.defaultTaxRate,
-          currencyCode: settings.currencyCode
+          currencyCode: settings.currencyCode,
+          taxOutflowAccountId: settings.taxOutflowAccountId ?? null
         })
       }
     });
@@ -111,7 +117,8 @@ export async function PUT(request) {
       settings: {
         taxEnabled: settings.taxEnabled,
         defaultTaxRate: settings.defaultTaxRate,
-        currencyCode: settings.currencyCode
+        currencyCode: settings.currencyCode,
+        taxOutflowAccountId: settings.taxOutflowAccountId ?? null
       }
     });
   } catch (error) {

@@ -1,6 +1,5 @@
 // components/InvoiceTemplatePreview.jsx
-import React from 'react';
-import { FileText, CheckCircle, Paperclip } from 'lucide-react';
+import React, { useState } from 'react';
 import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
 
 // Generate payment breakdown for Partial status invoices (currencyFmt: formatCurrency or formatCurrencyForExport for print)
@@ -44,6 +43,15 @@ const renderPaymentBreakdown = (displayData, currencyFmt = formatCurrency) => {
  * @param {boolean} props.isPrint - Whether this is for print preview
  */
 const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }) => {
+  const [logoError, setLogoError] = useState(false);
+  const [logoLoaded, setLogoLoaded] = useState(false);
+  // Reset logo state when branding/logoUrl changes
+  const logoUrl = branding?.logoUrl && String(branding.logoUrl).trim() ? String(branding.logoUrl).trim() : null;
+  React.useEffect(() => {
+    setLogoError(false);
+    setLogoLoaded(false);
+  }, [logoUrl]);
+
   // Export/print: no trailing .00 for tidy documents; UI: always two decimals
   const formatAmountDisplay = isPrint ? formatAmountForExport : formatAmount;
   const formatCurrencyDisplay = isPrint ? (amount, code) => formatCurrencyForExport(amount, code || 'MWK') : formatCurrency;
@@ -61,6 +69,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   
   // Use the primary color from template content or branding settings
   const primaryColor = content.primaryColor || branding?.primaryColor || '#4f46e5';
+  const hasLogoUrl = !!logoUrl;
+  // Only show logo image after it has loaded successfully; until then show company name (avoids green broken-image placeholder)
+  const showLogoImage = showLogo && hasLogoUrl && !logoError && logoLoaded;
+  const showCompanyName = !hasLogoUrl || logoError || (hasLogoUrl && !logoLoaded);
+  const hasLogoAreaContent = showLogoImage || showCompanyName;
   
   // Footer: document override or default from settings (for invoice, quotation, receipt)
   const footerPhone = (invoice?.footerPhoneOverride != null && invoice?.footerPhoneOverride !== '') ? invoice.footerPhoneOverride : (branding?.businessPhone || '');
@@ -179,215 +192,144 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     });
   }
   
-  // Generate template preview based on style
+  // Generate template preview based on style — redesigned for clarity and hierarchy
   const renderStandardTemplate = () => (
-    <div className={`bg-white ${isPrint ? '' : 'border border-gray-200 rounded-lg'} p-4 sm:p-6 lg:p-8 mx-auto max-w-3xl text-xs sm:text-sm md:text-base lg:text-lg`}>
-      <div className="flex justify-between mb-4 sm:mb-6 lg:mb-8">
-        <div>
-          <h2 className="text-lg sm:text-xl lg:text-2xl font-bold" style={{ color: primaryColor }}>INVOICE</h2>
-          <p className="text-gray-500 mt-1 text-xs sm:text-sm">#{displayData.invoiceNumber}</p>
-        </div>
-        <div>
-          {showLogo && branding?.logoUrl && (
-            <img 
-              src={branding.logoUrl?.startsWith('/uploads/')
-                ? `/api/uploads/${branding.logoUrl.replace(/^\/+uploads\//, '')}`
-                : branding.logoUrl} 
-              alt="Company Logo" 
-              className="h-12 sm:h-16 lg:h-20 object-contain"
-            />
-          )}
-          {(!showLogo || !branding?.logoUrl) && branding?.companyName && (
-            <div className="text-base sm:text-lg lg:text-xl font-bold">{branding.companyName}</div>
-          )}
-        </div>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-4 sm:mb-6 lg:mb-8">
-        <div>
-          <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Bill To:</h3>
-          <p className="font-medium text-xs sm:text-sm">{displayData.client?.name}</p>
-          {displayData.client?.contactPerson && (
-            <p className="text-xs sm:text-sm">Attn: {displayData.client.contactPerson}</p>
-          )}
-          {displayData.client?.address && displayData.client.address !== '' && (
-            <p className="text-xs sm:text-sm">{displayData.client.address}</p>
-          )}
-          <p className="text-xs sm:text-sm">{displayData.client?.email}</p>
-          {displayData.client?.phone && displayData.client.phone !== '' && (
-            <p className="text-xs sm:text-sm">Phone: {displayData.client.phone}</p>
-          )}
-        </div>
-        <div>
-          <div className="grid grid-cols-2 gap-2 sm:gap-4">
-            <div className="col-span-2">
-              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Title:</h3>
-              <p className="text-xs sm:text-sm">{displayData.title || '—'}</p>
-            </div>
-            <div className="col-span-2">
-              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Order #:</h3>
-              <p className="text-xs sm:text-sm">{displayData.orderNumber || '—'}</p>
-            </div>
-            <div>
-              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Invoice Date:</h3>
-              <p className="text-xs sm:text-sm">{displayData.issueDate}</p>
-            </div>
-            <div>
-              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Due Date:</h3>
-              <p className="text-xs sm:text-sm">{displayData.dueDate}</p>
-            </div>
-            <div className="col-span-2">
-              <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Status:</h3>
-              <p className="text-xs sm:text-sm">{displayData.status}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <table className="min-w-full border-separate" style={{ borderSpacing: 0 }}>
-        <thead>
-          <tr>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rate (MWK)</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Discount (MWK)</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tax (MWK)</th>
-            <th className="border-b-2 border-gray-200 bg-gray-50 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount (MWK)</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200 bg-white">
-          {displayData.items?.map((item, index) => (
-            <tr key={index}>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm font-medium text-gray-900">{item.description}</td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{item.quantity}</td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatAmountDisplay(item.unitPrice)}</td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">
-                {item.discountAmount > 0 ? (
-                  <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span>
-                ) : (
-                  <span className="text-gray-400">-</span>
+    <div className={`bg-white ${isPrint ? '' : 'border border-gray-200 rounded-xl shadow-sm'} mx-auto max-w-3xl overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      {/* Header: accent bar + company and doc type */}
+      <div className="border-l-4 px-6 pt-6 pb-4" style={{ borderLeftColor: primaryColor }}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            {hasLogoAreaContent && (
+              <div className="relative">
+                {/* Only render img when we have a logo URL and it has not failed (avoids green broken-image placeholder) */}
+                {hasLogoUrl && !logoError && (
+                  <img
+                    src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
+                    alt=""
+                    className={showLogoImage ? 'h-11 object-contain max-h-14' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
+                    onLoad={() => setLogoLoaded(true)}
+                    onError={() => setLogoError(true)}
+                  />
                 )}
-              </td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right" title={item.taxRate > 0 ? `VAT/Tax ${item.taxRate}%` : null}>
-                {item.taxRate > 0 ? (
-                  <span>{item.taxRate}% · {formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * ((item.taxRate || 0) / 100)))}</span>
-                ) : (
-                  <span className="text-gray-400">—</span>
+                {/* When no logo or logo failed: show business name */}
+                {showCompanyName && (
+                  <p className="text-lg font-semibold text-gray-900 tracking-tight">{branding?.companyName || branding?.name || 'Business'}</p>
                 )}
-              </td>
-              <td className="px-3 sm:px-4 lg:px-6 py-2 sm:py-4 text-xs sm:text-sm text-gray-500 text-right">{formatAmountDisplay(item.amount)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      
-      <div className="mt-4 sm:mt-6 lg:mt-8 flex justify-end">
-        <div className="w-48 sm:w-56 lg:w-64 text-right">
-          {/* Show line item discounts if any */}
-          {displayData.totalDiscountAmount > 0 && (
-            <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
-              <span className="text-gray-600">Line Item Discounts:</span>
-              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span>
-            </div>
-          )}
-          {/* Show global discount if any */}
-          {displayData.discount > 0 && (
-            <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
-              <span className="text-gray-600">Global Discount:</span>
-              <span className="font-medium text-red-600">-{formatCurrencyDisplay(displayData.discount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
-            <span className="text-gray-600">Subtotal</span>
-            <span className="font-medium">{formatCurrencyDisplay(displayData.subtotal)}</span>
-          </div>
-          <div className="flex justify-between py-1 sm:py-2 text-xs sm:text-sm">
-            <span className="text-gray-600">Tax</span>
-            <span className="font-medium">{formatCurrencyDisplay(displayData.taxAmount)}</span>
-          </div>
-          <div className="flex justify-between py-2 sm:py-3 text-sm sm:text-base lg:text-lg border-t border-gray-200" style={{ color: primaryColor }}>
-            <span>Total</span>
-            <span>{formatCurrencyDisplay(displayData.total)}</span>
-          </div>
-          
-          {/* Payment Information */}
-          {displayData.paymentInfo && displayData.paymentInfo.paymentCount > 0 && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Information</h4>
-              
-              {/* Total Paid */}
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Total Paid:</span>
-                <span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span>
               </div>
-              
-              {/* Outstanding Amount */}
-              {displayData.paymentInfo.outstandingAmount > 0 && (
-                <div className="flex justify-between py-2">
-                  <span className="text-gray-600">Outstanding:</span>
-                  <span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span>
-                </div>
-              )}
-              
-              {/* Payment Status */}
-              <div className="flex justify-between py-2">
-                <span className="text-gray-600">Status:</span>
-                <span className={`font-medium ${
-                  displayData.paymentInfo.isFullyPaid ? 'text-green-600' : 
-                  displayData.paymentInfo.isPartiallyPaid ? 'text-yellow-600' : 
-                  'text-red-600'
-                }`}>
-                  {displayData.paymentInfo.isFullyPaid ? 'Fully Paid' : 
-                   displayData.paymentInfo.isPartiallyPaid ? 'Partially Paid' : 
-                   'Unpaid'}
-                </span>
-              </div>
-              
-              {/* Payment History */}
-              {displayData.payments && displayData.payments.length > 0 && (
-                <div className="mt-3">
-                  <h5 className="text-xs font-medium text-gray-500 mb-2">Payment History:</h5>
-                  <div className="space-y-1">
-                    {displayData.payments.map((payment, index) => (
-                      <div key={payment.id || index} className="flex justify-between text-xs text-gray-600">
-                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-                        <span>{formatCurrencyDisplay(payment.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Footer */}
-      <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-          <div>
-            <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
-            <div className="text-xs sm:text-sm text-gray-700">
-              <p>{displayData.notes || "Thank you for your business!"}</p>
-              {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
-            </div>
+            )}
           </div>
           <div className="text-right">
-            <div className="flex items-center justify-end space-x-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-xs sm:text-sm text-green-600">Invoice Generated</span>
+            <p className="text-2xl font-bold tracking-tight text-gray-900">Invoice</p>
+            <p className="text-sm text-gray-500 mt-0.5">#{displayData.invoiceNumber}</p>
+            <span className="inline-block mt-2 px-2.5 py-1 text-xs font-medium rounded-md bg-gray-100 text-gray-700">{displayData.status}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bill To + Invoice Details in a clean grid */}
+      <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 bg-gray-50/60">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Bill to</p>
+          <p className="font-semibold text-gray-900">{displayData.client?.name}</p>
+          {displayData.client?.contactPerson && <p className="text-sm text-gray-600">Attn: {displayData.client.contactPerson}</p>}
+          {displayData.client?.address && displayData.client.address !== '' && <p className="text-sm text-gray-600 mt-1">{displayData.client.address}</p>}
+          <p className="text-sm text-gray-600">{displayData.client?.email}</p>
+          {displayData.client?.phone && displayData.client.phone !== '' && <p className="text-sm text-gray-600">Tel: {displayData.client.phone}</p>}
+        </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div>
+              <p className="text-gray-500">Order #</p>
+              <p className="text-gray-900">{displayData.orderNumber || '—'}</p>
             </div>
-            {showFooter && branding?.emailFooter && (
-              <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
+            <div>
+              <p className="text-gray-500">Issue date</p>
+              <p className="text-gray-900">{displayData.issueDate}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Due date</p>
+              <p className="text-gray-900">{displayData.dueDate}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Line items */}
+      <div className="px-6 py-5">
+        <h2 className="text-center text-lg font-semibold text-gray-900 mb-4">{displayData.title?.trim() || 'Invoice'}</h2>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b-2 border-gray-200">
+              <th className="text-left py-3 font-semibold text-gray-700">Item</th>
+              <th className="text-right py-3 font-semibold text-gray-700 w-16">Qty</th>
+              <th className="text-right py-3 font-semibold text-gray-700">Rate</th>
+              <th className="text-right py-3 font-semibold text-gray-700">Discount</th>
+              <th className="text-right py-3 font-semibold text-gray-700">Tax</th>
+              <th className="text-right py-3 font-semibold text-gray-700">Amount</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {displayData.items?.map((item, index) => (
+              <tr key={index} className={index % 2 === 1 ? 'bg-gray-50/50' : ''}>
+                <td className="py-3.5 text-gray-900 font-medium">{item.description}</td>
+                <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
+                <td className="py-3.5 text-right text-gray-600">{formatAmountDisplay(item.unitPrice)}</td>
+                <td className="py-3.5 text-right">{item.discountAmount > 0 ? <span className="text-red-600">-{formatAmountDisplay(item.discountAmount)}</span> : <span className="text-gray-400">—</span>}</td>
+                <td className="py-3.5 text-right text-gray-600" title={item.taxRate > 0 ? `VAT ${item.taxRate}%` : null}>
+                  {item.taxRate > 0 ? `${item.taxRate}% · ${formatAmountDisplay(item.lineTaxAmount ?? ((item.netAmount ?? (item.quantity * item.unitPrice - (item.discountAmount || 0))) * ((item.taxRate || 0) / 100)))}` : '—'}
+                </td>
+                <td className="py-3.5 text-right font-medium text-gray-900">{formatAmountDisplay(item.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Totals card */}
+        <div className="mt-6 flex justify-end">
+          <div className="w-64 rounded-lg border border-gray-200 bg-gray-50/80 p-4 text-sm">
+            {displayData.totalDiscountAmount > 0 && (
+              <div className="flex justify-between py-1.5 text-gray-600"><span>Line discounts</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.totalDiscountAmount)}</span></div>
             )}
-            {hasFooterContact && (
-              <div className="mt-3 text-xs text-gray-600 text-right space-y-0.5">
-                {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
-                {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-right">{footerBankDetails.trim()}</pre>}
+            {displayData.discount > 0 && (
+              <div className="flex justify-between py-1.5 text-gray-600"><span>Discount</span><span className="text-red-600 font-medium">-{formatCurrencyDisplay(displayData.discount)}</span></div>
+            )}
+            <div className="flex justify-between py-1.5 text-gray-600"><span>Subtotal</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.subtotal)}</span></div>
+            <div className="flex justify-between py-1.5 text-gray-600"><span>Tax</span><span className="font-medium text-gray-900">{formatCurrencyDisplay(displayData.taxAmount)}</span></div>
+            <div className="flex justify-between py-3 mt-1 border-t-2 border-gray-200" style={{ color: primaryColor }}>
+              <span className="font-bold">Total</span>
+              <span className="font-bold">{formatCurrencyDisplay(displayData.total)}</span>
+            </div>
+            {displayData.paymentInfo && displayData.paymentInfo.paymentCount > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
+                <div className="flex justify-between text-gray-600"><span>Paid</span><span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span></div>
+                {displayData.paymentInfo.outstandingAmount > 0 && (
+                  <div className="flex justify-between text-gray-600"><span>Outstanding</span><span className="font-medium text-red-600">{formatCurrencyDisplay(displayData.paymentInfo.outstandingAmount)}</span></div>
+                )}
+                {displayData.payments?.length > 0 && (
+                  <div className="pt-1">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Payment history</p>
+                    {displayData.payments.map((payment, i) => (
+                      <div key={payment.id || i} className="flex justify-between text-xs text-gray-600"><span>{formatDate(payment.paymentDate)} · {payment.paymentMethod}</span><span>{formatCurrencyDisplay(payment.amount)}</span></div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
+      </div>
+
+      {/* Notes + footer */}
+      <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
+        <p className="text-gray-700 whitespace-pre-line">{displayData.notes || "Thank you for your business!"}</p>
+        {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+        {hasFooterContact && (
+          <div className="mt-4 text-gray-500 space-y-0.5">
+            {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+            {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans">{footerBankDetails.trim()}</pre>}
+          </div>
+        )}
+        {showFooter && branding?.emailFooter && <p className="mt-2 text-gray-500">{branding.emailFooter}</p>}
       </div>
     </div>
   );
@@ -401,17 +343,21 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <h2 className="text-3xl font-bold text-white">INVOICE</h2>
             <p className="text-white opacity-80 mt-1">#{displayData.invoiceNumber}</p>
           </div>
-          {showLogo && branding?.logoUrl && (
-            <img 
-              src={branding.logoUrl?.startsWith('/uploads/')
-                ? `/api/uploads/${branding.logoUrl.replace(/^\/+uploads\//, '')}`
-                : branding.logoUrl} 
-              alt="Company Logo" 
-              className="h-16 object-contain bg-white p-2 rounded"
-            />
-          )}
-          {(!showLogo || !branding?.logoUrl) && branding?.companyName && (
-            <div className="text-2xl font-bold text-white">{branding.companyName}</div>
+          {hasLogoAreaContent && (
+            <>
+              {hasLogoUrl && !logoError && (
+                <img
+                  src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
+                  alt=""
+                  className={showLogoImage ? 'h-16 object-contain bg-white p-2 rounded' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
+                  onLoad={() => setLogoLoaded(true)}
+                  onError={() => setLogoError(true)}
+                />
+              )}
+              {showCompanyName && (
+                <div className="text-2xl font-bold text-white">{branding?.companyName || branding?.name || 'Business'}</div>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -445,15 +391,14 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <p>{displayData.dueDate}</p>
             <p className="font-medium">Status:</p>
             <p className="flex items-center">
-              {displayData.status === 'Paid' ? (
-                <>
-                  <CheckCircle className="h-4 w-4 mr-1 text-green-500" /> Paid
-                </>
-              ) : displayData.status}
+              {displayData.status}
             </p>
           </div>
         </div>
       </div>
+      
+      {/* Invoice title centered above the items table */}
+      <h2 className="text-center text-2xl font-bold my-6" style={{ color: primaryColor }}>{displayData.title?.trim() || 'Invoice'}</h2>
       
       {/* Line Items */}
       <div className="mb-8">
@@ -574,31 +519,23 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Footer */}
+      {/* Footer: contact info left-aligned (matches quotation) */}
       <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-          <div>
-            <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
-            <div className="text-xs sm:text-sm text-gray-700">
-              <p>{displayData.notes || "Thank you for your business!"}</p>
-              {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
-            </div>
+        <div className="text-left">
+          <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
+          <div className="text-xs sm:text-sm text-gray-700">
+            <p>{displayData.notes || "Thank you for your business!"}</p>
+            {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
           </div>
-          <div className="text-right">
-            <div className="flex items-center justify-end space-x-2">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              <span className="text-xs sm:text-sm text-green-600">Invoice Generated</span>
+          {hasFooterContact && (
+            <div className="mt-3 text-xs text-gray-600 text-left space-y-0.5">
+              {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+              {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
             </div>
-            {showFooter && branding?.emailFooter && (
-              <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
-            )}
-            {hasFooterContact && (
-              <div className="mt-3 text-xs text-gray-600 text-right space-y-0.5">
-                {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
-                {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-right">{footerBankDetails.trim()}</pre>}
-              </div>
-            )}
-          </div>
+          )}
+          {showFooter && branding?.emailFooter && (
+            <p className="mt-2 text-xs text-gray-500 text-left">{branding.emailFooter}</p>
+          )}
         </div>
       </div>
     </div>
@@ -613,14 +550,21 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
             <h2 className="text-2xl font-normal" style={{ color: primaryColor }}>Invoice #{displayData.invoiceNumber}</h2>
             <p className="text-gray-500 mt-1">Issued: {displayData.issueDate}</p>
           </div>
-          {showLogo && branding?.logoUrl && (
-            <img 
-              src={branding.logoUrl?.startsWith('/uploads/')
-                ? `/api/uploads/${branding.logoUrl.replace(/^\/+uploads\//, '')}`
-                : branding.logoUrl} 
-              alt="Company Logo" 
-              className="h-10 object-contain"
-            />
+          {hasLogoAreaContent && (
+            <>
+              {hasLogoUrl && !logoError && (
+                <img
+                  src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
+                  alt=""
+                  className={showLogoImage ? 'h-10 object-contain' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
+                  onLoad={() => setLogoLoaded(true)}
+                  onError={() => setLogoError(true)}
+                />
+              )}
+              {showCompanyName && (
+                <div className="text-lg font-bold text-gray-900">{branding?.companyName || branding?.name || 'Business'}</div>
+              )}
+            </>
           )}
         </div>
         
@@ -652,6 +596,9 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           <p className="text-sm">Status: {displayData.status}</p>
         </div>
       </div>
+      
+      {/* Invoice title centered above the items table */}
+      <h2 className="text-center text-2xl font-bold my-6" style={{ color: primaryColor }}>{displayData.title?.trim() || 'Invoice'}</h2>
       
       {/* Line Items - Simplified table */}
       <table className="min-w-full">
@@ -769,17 +716,17 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Simple Footer with less content */}
-      <div className="mt-12 pt-6 border-t border-gray-100 text-sm">
+      {/* Simple Footer: left-aligned (matches quotation) */}
+      <div className="mt-12 pt-6 border-t border-gray-100 text-sm text-left">
         <p>{displayData.notes || "Thank you for your business."}</p>
         {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
         {showFooter && branding?.emailFooter && (
           <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
         )}
         {hasFooterContact && (
-          <div className="mt-3 text-xs text-gray-600 space-y-0.5">
+          <div className="mt-3 text-xs text-gray-600 space-y-0.5 text-left">
             {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
-            {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans">{footerBankDetails.trim()}</pre>}
+            {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
           </div>
         )}
       </div>

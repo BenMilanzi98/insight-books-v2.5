@@ -79,6 +79,7 @@ export async function GET(request) {
         continue;
       }
 
+      try {
       // Calculate tax collected from SALES (since tax transactions don't exist)
       // Exclude refunded sales so their tax is not counted as collected
       const salesWithTax = await prisma.sale.findMany({
@@ -429,6 +430,26 @@ export async function GET(request) {
         currentBalance: taxType.account.balance || 0,
         breakdown: Array.from(breakdownMap.values()).sort((a, b) => a.period.localeCompare(b.period)),
       });
+      } catch (perTypeErr) {
+        console.warn('Tax account balance for', taxType.taxId || taxType.id, perTypeErr?.message || perTypeErr);
+        taxAccountBalances.push({
+          taxType: {
+            id: taxType.id,
+            taxId: taxType.taxId,
+            taxName: taxType.taxName,
+            taxCode: taxType.taxCode,
+            taxRate: taxType.taxRate,
+            calculationType: taxType.calculationType,
+          },
+          account: taxType.account,
+          totalCollected: 0,
+          totalPaid: 0,
+          totalRefunded: 0,
+          netPayable: 0,
+          currentBalance: taxType.account?.balance ?? 0,
+          breakdown: [],
+        });
+      }
     }
 
     // Calculate summary totals

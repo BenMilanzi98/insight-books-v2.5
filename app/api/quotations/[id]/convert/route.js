@@ -142,11 +142,12 @@ export async function POST(request, { params }) {
       }
     });
     
-    // Update the quotation status to 'Converted'
+    // Update the quotation status to 'Converted' and link to the new invoice
     await prisma.quotation.update({
       where: { id: quotationId },
       data: {
         status: 'Converted',
+        invoiceId: newInvoice.id,
         notes: `${quotation.notes ? quotation.notes + ' ' : ''}Converted to invoice ${invoiceNumber}.`
       }
     });

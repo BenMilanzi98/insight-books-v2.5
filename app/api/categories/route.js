@@ -38,12 +38,41 @@ export async function GET(request) {
       });
       categories = inventoryCategories.map(cat => cat.name);
     } else {
-      // Expense categories: show ALL expense accounts (ExpenseCategory + any Expense account from Chart of Accounts)
-      // Use accountId as id so filter and form (expenseAccountId) work correctly
-      const accountIdsFromCategories = new Set();
+      // Expense categories: only for the current tenant; one entry per logical name (dedupe by normalized name)
+      if (!user.tenantId) {
+        return NextResponse.json({ categories: [], type: 'expense' });
+      }
+      const tenantId = user.tenantId;
+
+      const categoriesById = new Map();
+      const toEntry = (id, code, name, account, description, fromExpenseCategory = false) => {
+        const entry = {
+          id,
+          code: code || '',
+          name: name || 'Unnamed',
+          accountId: id,
+          account: account ?? null,
+          description: description ?? null
+        };
+        if (fromExpenseCategory) entry._fromExpenseCategory = true;
+        return entry;
+      };
+
+      // Normalize name for deduplication so "Bank Charges", "5190 - Bank Charges", "Marketing & Advertising Expense" collapse to one
+      const normalizeName = (s) => {
+        let n = (s || '')
+          .replace(/^\d+\s*-\s*/, '')  // strip leading "CODE - "
+          .replace(/\s*&\s*/g, ' and ') // "Marketing & Advertising" -> "Marketing and Advertising"
+          .trim()
+          .toLowerCase()
+          .replace(/\s+expense(s)?\s*$/i, '')  // strip trailing " expense" or " expenses"
+          .replace(/\s+/g, ' ');               // collapse multiple spaces
+        return n.trim() || (s || '').toLowerCase();
+      };
+
       try {
         const expenseCategories = await prisma.expenseCategory.findMany({
-          where: { tenantId: user.tenantId },
+          where: { tenantId },
           include: {
             account: {
               select: {
@@ -58,22 +87,14 @@ export async function GET(request) {
           orderBy: { name: 'asc' }
         });
         expenseCategories.forEach(cat => {
-          accountIdsFromCategories.add(cat.accountId);
-          categories.push({
-            id: cat.accountId,
-            code: cat.accountCode,
-            name: cat.name,
-            accountId: cat.accountId,
-            account: cat.account,
-            description: cat.description
-          });
+          const id = cat.accountId;
+          if (categoriesById.has(id)) return;
+          categoriesById.set(id, toEntry(id, cat.accountCode, cat.name, cat.account, cat.description, true));
         });
       } catch (expenseCatErr) {
         console.warn('Categories API: expense categories unavailable:', expenseCatErr?.message || expenseCatErr);
       }
 
-      // Add ALL expense accounts: ExpenseCategory (above) + Chart of Accounts
-      // Use BOTH type/subtype match AND code range 5000-5999, then merge by id so we never miss any
       const accountSelect = {
         id: true,
         accountCode: true,
@@ -83,7 +104,7 @@ export async function GET(request) {
         accountSubtype: true,
         isActive: true
       };
-      const baseWhere = { tenantId: user.tenantId, isActive: true };
+      const baseWhere = { tenantId, isActive: true };
       try {
         let byTypeAccounts = [];
         let byCodeAccounts = [];
@@ -117,44 +138,92 @@ export async function GET(request) {
           ]);
         };
         await runQueries();
-        let byId = new Map();
-        [...byTypeAccounts, ...byCodeAccounts].forEach(acc => byId.set(acc.id, acc));
-        // Ensure template expense accounts exist for this tenant when any are missing (creates only missing ones).
-        // Fixes tenants who only see "just created" categories and never got the full template.
-        if (user.tenantId) {
-          const templateCodes = EXPENSE_ACCOUNTS_TEMPLATE.map((t) => t.code);
-          const existingTemplateCount = await prisma.account.count({
-            where: { tenantId: user.tenantId, accountCode: { in: templateCodes } }
-          });
-          if (existingTemplateCount < EXPENSE_ACCOUNTS_TEMPLATE.length) {
-            try {
-              await ensureExpenseAccountsForTenant(user.tenantId, prisma);
-              await runQueries();
-              byId = new Map();
-              [...byTypeAccounts, ...byCodeAccounts].forEach(acc => byId.set(acc.id, acc));
-            } catch (ensureErr) {
-              console.warn('Categories API: could not ensure expense accounts:', ensureErr?.message || ensureErr);
-            }
+        const accountsById = new Map();
+        [...byTypeAccounts, ...byCodeAccounts].forEach(acc => accountsById.set(acc.id, acc));
+        const templateCodes = EXPENSE_ACCOUNTS_TEMPLATE.map((t) => t.code);
+        const existingTemplateCount = await prisma.account.count({
+          where: { tenantId, accountCode: { in: templateCodes } }
+        });
+        if (existingTemplateCount < EXPENSE_ACCOUNTS_TEMPLATE.length) {
+          try {
+            await ensureExpenseAccountsForTenant(tenantId, prisma);
+            await runQueries();
+            accountsById.clear();
+            [...byTypeAccounts, ...byCodeAccounts].forEach(acc => accountsById.set(acc.id, acc));
+          } catch (ensureErr) {
+            console.warn('Categories API: could not ensure expense accounts:', ensureErr?.message || ensureErr);
           }
         }
-        const seenIds = new Set(accountIdsFromCategories);
-        Array.from(byId.values()).forEach(acc => {
-          if (seenIds.has(acc.id)) return;
-          seenIds.add(acc.id);
+        accountsById.forEach((acc, id) => {
+          if (categoriesById.has(id)) return;
           const label = acc.accountName || acc.name || acc.accountCode || 'Unnamed';
-          categories.push({
-            id: acc.id,
-            code: acc.accountCode || '',
-            name: label,
-            accountId: acc.id,
-            account: acc,
-            description: null
-          });
+          categoriesById.set(id, toEntry(id, acc.accountCode || acc.code, label, acc, null, false));
         });
-        categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       } catch (accountErr) {
         console.warn('Categories API: expense accounts unavailable:', accountErr?.message || accountErr);
       }
+
+      let list = Array.from(categoriesById.values());
+      // Deduplicate by normalized name: keep one per logical name (prefer ExpenseCategory entry, else smallest code)
+      const byNormalizedName = new Map();
+      list
+        .sort((a, b) => {
+          const aNorm = normalizeName(a.name);
+          const bNorm = normalizeName(b.name);
+          if (aNorm !== bNorm) return aNorm.localeCompare(bNorm);
+          if (a._fromExpenseCategory !== b._fromExpenseCategory) return a._fromExpenseCategory ? -1 : 1;
+          return (a.code || '').localeCompare(b.code || '');
+        })
+        .forEach((cat) => {
+          const key = normalizeName(cat.name);
+          if (byNormalizedName.has(key)) return;
+          byNormalizedName.set(key, cat);
+        });
+
+      // Merge similar categories: when one name is a clear variant of another (e.g. "tax" vs "tax expense", "marketing" vs "marketing and advertising"), keep the more specific (longer) one. Avoid merging generic "expense" into everything.
+      const keys = [...byNormalizedName.keys()];
+      const isVariantOf = (shortKey, longKey) => {
+        if (longKey.length <= shortKey.length || !longKey.includes(shortKey)) return false;
+        // Long is "short + expense(s)" or "short + something" (word boundary)
+        if (longKey === shortKey + ' expense' || longKey === shortKey + ' expenses') return true;
+        if (longKey.startsWith(shortKey + ' ')) return true;
+        if (longKey.endsWith(' ' + shortKey)) return true;
+        return false;
+      };
+      const getCanonicalKey = (key) => {
+        let best = key;
+        for (const other of keys) {
+          if (other.length <= best.length) continue;
+          if (isVariantOf(key, other)) best = other; // key is short form of other
+        }
+        return best;
+      };
+      const merged = new Map();
+      for (const [key, cat] of byNormalizedName) {
+        const canon = getCanonicalKey(key);
+        const existing = merged.get(canon);
+        if (!existing) {
+          merged.set(canon, cat);
+          continue;
+        }
+        const existingNorm = normalizeName(existing.name);
+        if (cat._fromExpenseCategory && !existing._fromExpenseCategory) merged.set(canon, cat);
+        else if (!cat._fromExpenseCategory && existing._fromExpenseCategory) { /* keep existing */ }
+        else if (key.length > existingNorm.length) merged.set(canon, cat);
+        else if (key.length === existingNorm.length && (cat.code || '').localeCompare(existing.code || '') < 0) merged.set(canon, cat);
+      }
+
+      // Prefer display name without "CODE - " prefix so dropdown shows "Bank Charges" not "5190 - Bank Charges"
+      const cleanDisplayName = (name) => {
+        if (!name || typeof name !== 'string') return name || 'Unnamed';
+        const withoutCode = name.replace(/^\d+\s*-\s*/, '').trim();
+        return withoutCode || name;
+      };
+      categories = Array.from(merged.values()).map(({ _fromExpenseCategory, ...cat }) => ({
+        ...cat,
+        name: cleanDisplayName(cat.name),
+      }));
+      categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }
 
     return NextResponse.json({

@@ -15,7 +15,8 @@ export async function GET(request) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
+    const url = request.nextUrl ?? request.url;
+    const searchParams = typeof url === 'object' && url.searchParams ? url.searchParams : new URL(String(url || '').startsWith('http') ? url : `http://localhost${String(url || '').startsWith('/') ? url : '/'}`, 'http://localhost').searchParams;
     let date = searchParams.get('date');
     if (!date) {
       const t = new Date();

@@ -7,7 +7,7 @@
 import { formatCurrency } from '@/lib/currencyUtils';
 
 // Helper function to get date ranges based on timeframe
-const getDateRange = (timeframe, customDateRange = null) => {
+const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
   // Handle custom date range
   if (timeframe === 'custom' && customDateRange && customDateRange.startDate && customDateRange.endDate) {
     return {

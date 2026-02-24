@@ -186,7 +186,12 @@ export async function PUT(request, { params }) {
     if (body.name !== undefined) updateData.name = body.name;
     if (body.contactPerson !== undefined) updateData.contactPerson = body.contactPerson;
     if (body.email !== undefined) updateData.email = body.email;
-    if (body.additionalEmails !== undefined) updateData.additionalEmails = Array.isArray(body.additionalEmails) ? body.additionalEmails : [];
+    if (body.additionalEmails !== undefined) {
+      const v = body.additionalEmails;
+      updateData.additionalEmails = Array.isArray(v)
+        ? v.map((e) => String(e).trim()).filter(Boolean)
+        : String(v ?? '').split(/[,;]/).map((e) => e.trim()).filter(Boolean);
+    }
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.address !== undefined) updateData.address = body.address;
     

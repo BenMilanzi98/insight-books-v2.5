@@ -109,8 +109,9 @@ export default function RootLayout({ children }) {
             {!shouldHideLayout && <AppBar toggleSidebar={toggleSidebar} isMobile={isMobile} sidebarOpen={sidebarOpen} />}
             <main
               style={{
-                padding: shouldHideLayout ? "0" : "24px",
+                padding: shouldHideLayout ? "0" : "24px 32px 24px 32px",
                 flex: 1,
+                maxWidth: "100%",
               }}
             >
               {children}

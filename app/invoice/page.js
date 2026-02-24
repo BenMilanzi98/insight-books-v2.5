@@ -493,7 +493,10 @@ const InvoicingPage = () => {
       return result.invoice;
     } catch (error) {
       console.error("Error submitting invoice:", error);
-      alert("Failed to save invoice. Please try again.");
+      const message = error?.message && error.message !== "Error creating invoice: Internal Server Error"
+        ? error.message
+        : "Failed to save invoice. Please try again.";
+      alert(message);
       return undefined;
     }
   };

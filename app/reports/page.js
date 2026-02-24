@@ -1214,7 +1214,7 @@ const FinancialReportingPage = () => {
   return (
     <PermissionGuard permission="reports.view">
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="mx-auto w-full max-w-[100rem] px-4 sm:px-6 lg:px-10 xl:px-12 2xl:px-16 py-6 sm:py-8">
           {/* Error message */}
           {error && activeReport !== 'summary' && activeReport !== 'report' && (
             <div className="mb-4 sm:mb-6 p-4 border border-red-200 bg-red-50 rounded-xl text-red-700 flex items-center shadow-sm">

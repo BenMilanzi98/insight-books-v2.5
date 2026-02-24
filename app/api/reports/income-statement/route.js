@@ -20,8 +20,9 @@ export async function GET(request) {
       );
     }
     
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
+    // Get query parameters (Next.js: use nextUrl when available)
+    const url = request.nextUrl ?? request.url;
+    const searchParams = (typeof url === 'object' && url && url.searchParams) ? url.searchParams : new URL(url && typeof url === 'string' ? url : '', 'http://localhost').searchParams;
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const compare = searchParams.get('compare') === 'true';

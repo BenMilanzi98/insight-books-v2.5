@@ -85,36 +85,38 @@ export async function GET(request) {
       }
     });
 
-    // Resolve balance for one payment account
+    // Resolve balance for one payment account. New accounts must show 0; only use id or explicit normalized name, not type-based CoA fallback for user-created accounts.
     const getBalanceForPaymentAccount = (account) => {
       const id = account.id;
       const name = account.name || '';
       const normalized = normalizeName(name);
       const accountType = (account.accountType || '').toLowerCase();
 
-      // 1) AccountBalance keyed by PaymentAccount.id (allocations may use id)
+      // 1) AccountBalance keyed by PaymentAccount.id (primary for allocations)
       let balance = balanceByKey.get(id);
       if (balance !== undefined && balance !== null) return balance;
 
-      // 2) AccountBalance keyed by normalized name (e.g. "bank_transfer")
+      // 2) AccountBalance keyed by this account's normalized name only (explicit record for this account)
       balance = balanceByNormalized.get(normalized);
-      if (balance !== undefined && balance !== null && balance !== 0) return balance;
+      if (balance !== undefined && balance !== null) return balance;
 
-      // 3) Map name/type to standard key and use AccountBalance (first match)
-      const standardKeys = getStandardKeysForNameAndType(name, accountType);
-      for (const key of standardKeys) {
-        const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
-        if (b !== undefined && b !== null && b !== 0) return b;
+      // 3) For system accounts only: map to CoA so default "Cash" shows ledger balance. User-created accounts default to 0.
+      if (account.isSystem) {
+        const standardKeys = getStandardKeysForNameAndType(name, accountType);
+        for (const key of standardKeys) {
+          const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
+          if (b !== undefined && b !== null && b !== 0) return b;
+        }
+        const codes = getAccountCodesForNameAndType(name, accountType);
+        let sum = 0;
+        for (const code of codes) {
+          const b = balanceByCode.get(code);
+          if (b !== undefined && b !== null) sum += b;
+        }
+        if (codes.length) return sum;
       }
 
-      // 4) Use Chart of Accounts balance (actual cash/bank ledger); sum when multiple codes map to same bucket (e.g. Cash = 1000+1010)
-      const codes = getAccountCodesForNameAndType(name, accountType);
-      let sum = 0;
-      for (const code of codes) {
-        const b = balanceByCode.get(code);
-        if (b !== undefined && b !== null) sum += b;
-      }
-      return sum;
+      return 0;
     };
 
     const accountsWithBalances = paymentAccounts.map(account => ({
