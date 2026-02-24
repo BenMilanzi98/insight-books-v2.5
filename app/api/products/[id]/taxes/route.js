@@ -72,9 +72,9 @@ export async function GET(request, { params }) {
 
       return NextResponse.json({ taxes });
     } catch (error) {
-      // If table doesn't exist, return empty array
+      // If table doesn't exist, return same shape as success for consistent frontend handling
       if (error.message?.includes('does not exist') || error.message?.includes('Unknown model')) {
-        return NextResponse.json([]);
+        return NextResponse.json({ taxes: [] });
       }
       throw error;
     }

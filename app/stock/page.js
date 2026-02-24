@@ -4647,7 +4647,9 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
           if (response.ok) {
             const data = await response.json();
             console.log('Fetched tax data:', data);
-            const taxIds = data.map(pt => pt.taxTypeId);
+            // API returns { taxes: [...] } or sometimes [] when table missing
+            const list = Array.isArray(data) ? data : (data?.taxes ?? []);
+            const taxIds = list.map(pt => pt.taxTypeId ?? pt.id);
             console.log('Setting selectedTaxIds to:', taxIds);
             setFormData(prev => ({ ...prev, selectedTaxIds: taxIds }));
           } else {
