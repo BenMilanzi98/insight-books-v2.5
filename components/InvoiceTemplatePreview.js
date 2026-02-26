@@ -319,18 +319,26 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
 
-      {/* Notes + footer */}
-      <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
-        <p className="text-gray-700 whitespace-pre-line">{displayData.notes || "Thank you for your business!"}</p>
-        {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+      {/* Notes (custom notes only) */}
+      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+        <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
+          {displayData.notes && <p className="text-gray-700 whitespace-pre-line">{displayData.notes}</p>}
+          {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+        </div>
+      )}
+
+      {/* Footer: contact info + centered thank-you */}
+      <footer className="px-6 py-6 mt-auto border-t border-gray-200 bg-gray-50/60 text-sm">
         {hasFooterContact && (
-          <div className="mt-4 text-gray-500 space-y-0.5">
+          <div className="text-gray-500 space-y-0.5 mb-4">
             {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
             {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans">{footerBankDetails.trim()}</pre>}
           </div>
         )}
-        {showFooter && branding?.emailFooter && <p className="mt-2 text-gray-500">{branding.emailFooter}</p>}
-      </div>
+        <p className="text-center text-gray-600 font-medium mt-4">
+          {showFooter && branding?.emailFooter ? branding.emailFooter : "Thank you for your business!"}
+        </p>
+      </footer>
     </div>
   );
   
@@ -519,25 +527,29 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Footer: contact info left-aligned (matches quotation) */}
-      <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200">
-        <div className="text-left">
+      {/* Notes (custom notes only) */}
+      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+        <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200 text-left">
           <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
           <div className="text-xs sm:text-sm text-gray-700">
-            <p>{displayData.notes || "Thank you for your business!"}</p>
+            {displayData.notes && <p>{displayData.notes}</p>}
             {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
           </div>
-          {hasFooterContact && (
-            <div className="mt-3 text-xs text-gray-600 text-left space-y-0.5">
-              {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
-              {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
-            </div>
-          )}
-          {showFooter && branding?.emailFooter && (
-            <p className="mt-2 text-xs text-gray-500 text-left">{branding.emailFooter}</p>
-          )}
         </div>
-      </div>
+      )}
+
+      {/* Footer: contact info + centered thank-you */}
+      <footer className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200">
+        {hasFooterContact && (
+          <div className="text-xs text-gray-600 text-left space-y-0.5 mb-4">
+            {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
+            {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
+          </div>
+        )}
+        <p className="text-center text-sm text-gray-600 font-medium mt-4">
+          {showFooter && branding?.emailFooter ? branding.emailFooter : "Thank you for your business!"}
+        </p>
+      </footer>
     </div>
   );
   
@@ -716,20 +728,26 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Simple Footer: left-aligned (matches quotation) */}
-      <div className="mt-12 pt-6 border-t border-gray-100 text-sm text-left">
-        <p>{displayData.notes || "Thank you for your business."}</p>
-        {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
-        {showFooter && branding?.emailFooter && (
-          <p className="mt-2 text-xs text-gray-500">{branding.emailFooter}</p>
-        )}
+      {/* Notes (custom notes only) */}
+      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+        <div className="mt-8 pt-6 border-t border-gray-100 text-sm text-left">
+          {displayData.notes && <p>{displayData.notes}</p>}
+          {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+        </div>
+      )}
+
+      {/* Footer: contact info + centered thank-you */}
+      <footer className="mt-12 pt-6 border-t border-gray-100 text-sm">
         {hasFooterContact && (
-          <div className="mt-3 text-xs text-gray-600 space-y-0.5 text-left">
+          <div className="text-xs text-gray-600 space-y-0.5 mb-4 text-left">
             {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
             {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans text-left">{footerBankDetails.trim()}</pre>}
           </div>
         )}
-      </div>
+        <p className="text-center text-gray-600 font-medium mt-4">
+          {showFooter && branding?.emailFooter ? branding.emailFooter : "Thank you for your business!"}
+        </p>
+      </footer>
     </div>
   );
   

@@ -180,18 +180,26 @@ const QuotationTemplatePreview = forwardRef(({
         </div>
       </div>
 
-      {/* Notes + footer */}
-      <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
-        {quotation?.notes && <p className="text-gray-700 whitespace-pre-line mb-3">{quotation.notes}</p>}
+      {/* Notes (custom notes only) */}
+      {quotation?.notes && (
+        <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
+          <p className="text-gray-700 whitespace-pre-line">{quotation.notes}</p>
+        </div>
+      )}
+
+      {/* Footer: contact info + centered thank-you */}
+      <footer className="px-6 py-6 mt-auto border-t border-gray-200 bg-gray-50/60 text-sm">
         {hasFooterContact && (
-          <div className="text-gray-500 space-y-0.5">
+          <div className="text-gray-500 space-y-0.5 mb-4">
             {footerPhone.trim() && <p>Tel: {footerPhone.trim()}</p>}
             {footerBankDetails.trim() && <pre className="whitespace-pre-wrap font-sans">{footerBankDetails.trim()}</pre>}
             {branding?.website && <p>Visit: {branding.website}</p>}
           </div>
         )}
-        <p className="mt-3 text-gray-600">Thank you for considering our quotation.</p>
-      </div>
+        <p className="text-center text-gray-600 font-medium mt-4">
+          {branding?.emailFooter || "Thank you for your business!"}
+        </p>
+      </footer>
     </div>
   );
 });

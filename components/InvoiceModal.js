@@ -671,10 +671,12 @@ const InvoiceModal = ({
           
           return {
             ...item,
+            description: item.description || "",
             quantity: finalQuantity,
             unitPrice: parseFloat(item.unitPrice) || 0,
             taxRate: parseFloat(item.taxRate) || 0,
             discountAmount: parseFloat(item.discountAmount) || 0,
+            accountId: item.accountId || revenueAccount?.id || "",
             // Include unit quantities for unit-based products
             unitQuantities: hasUnitManagement(item.product) ? (unitQuantities[index] || {}) : null
           };

@@ -103,11 +103,11 @@ export const updateInvoice = async (invoiceId, invoiceData) => {
       body: JSON.stringify(invoiceData),
     });
     
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(`Error updating invoice: ${response.statusText}`);
+      const message = data?.error || `Error updating invoice: ${response.statusText}`;
+      throw new Error(message);
     }
-    
-    const data = await response.json();
     return data;
   } catch (error) {
     console.error(`Error updating invoice ${invoiceId}:`, error);

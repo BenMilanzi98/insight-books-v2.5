@@ -217,8 +217,62 @@ export async function PUT(request, { params }) {
     
     const body = await request.json();
 
+    if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
+      return NextResponse.json(
+        { error: 'Invoice must have at least one item.' },
+        { status: 400 }
+      );
+    }
+
+    // Resolve default income account for items missing accountId (e.g. from older data or UI race)
+    let defaultAccountId = null;
+    const missingAccountId = body.items.some(item => !item.accountId);
+    if (missingAccountId) {
+      const incomeOrRevenue = {
+        tenantId: user.tenantId,
+        isActive: true,
+        OR: [
+          { accountType: 'Income' },
+          { accountType: 'Revenue' }
+        ]
+      };
+      const defaultAccount = await prisma.account.findFirst({
+        where: {
+          ...incomeOrRevenue,
+          AND: [
+            {
+              OR: [
+                { accountCode: '4000' },
+                { name: { contains: 'Revenue', mode: 'insensitive' } },
+                { accountName: { contains: 'Revenue', mode: 'insensitive' } }
+              ]
+            }
+          ]
+        },
+        select: { id: true }
+      });
+      defaultAccountId = defaultAccount?.id || null;
+      if (!defaultAccountId) {
+        const anyIncome = await prisma.account.findFirst({
+          where: incomeOrRevenue,
+          select: { id: true }
+        });
+        defaultAccountId = anyIncome?.id || null;
+      }
+      if (!defaultAccountId) {
+        return NextResponse.json(
+          { error: 'Each invoice item must reference an income account. Please add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.' },
+          { status: 400 }
+        );
+      }
+    }
+    const normalizedItems = body.items.map(item => ({
+      ...item,
+      accountId: item.accountId || defaultAccountId
+    }));
+
     // Enhanced validation for each item
-    for (const item of body.items) {
+    for (const item of normalizedItems) {
       if (!item.description || item.quantity <= 0 || item.unitPrice < 0) {
         return NextResponse.json(
           { error: 'All items must have valid description, quantity, and unit price' },
@@ -257,13 +311,16 @@ export async function PUT(request, { params }) {
       }
     }
 
-    const incomeAccountIds = body.items.map(item => item.accountId).filter(Boolean);
+    const incomeAccountIds = normalizedItems.map(item => item.accountId).filter(Boolean);
     const incomeAccounts = await prisma.account.findMany({
       where: {
         tenantId: user.tenantId,
         id: { in: incomeAccountIds },
         isActive: true,
-        accountType: 'Income'
+        OR: [
+          { accountType: 'Income' },
+          { accountType: 'Revenue' }
+        ]
       },
       select: { id: true }
     });
@@ -276,7 +333,7 @@ export async function PUT(request, { params }) {
     }
 
     // Enhanced calculation using the new function
-    const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
+    const calculations = calculateInvoiceTotals(normalizedItems, body.discount || 0);
 
     // Create a transaction to update invoice and items
     const updatedInvoice = await prisma.$transaction(async (tx) => {
