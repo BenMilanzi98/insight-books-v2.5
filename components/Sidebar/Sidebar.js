@@ -229,6 +229,7 @@ const navigationByPermission = {
             subItems: [
               { href: "/purchases/suppliers", text: "Suppliers" },
               { href: "/purchases/orders", text: "Orders" },
+              { href: "/purchases/receipts", text: "Receipts" },
               { href: "/purchases/bills", text: "Bills" },
               { href: "/purchases/payments", text: "Payments" },
               { href: "/customization?tab=business", text: "Purchase taxes" },
@@ -689,6 +690,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         subItems: [
           { href: "/purchases/suppliers", text: "Suppliers" },
           { href: "/purchases/orders", text: "Orders" },
+          { href: "/purchases/receipts", text: "Receipts" },
           { href: "/purchases/bills", text: "Bills" },
           { href: "/purchases/payments", text: "Payments" },
           { href: "/customization?tab=business", text: "Purchase taxes" },

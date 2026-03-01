@@ -205,17 +205,81 @@ export async function GET(request) {
               }
             }
           }
+        },
+        inventoryBatchConsumptions: {
+          include: {
+            batch: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                  }
+                }
+              }
+            }
+          }
         }
       }
     });
     
     // Format the sales data for the response
     const formattedSales = sales.map(sale => {
-      const productSummary = sale.items.map(item => {
-        const label = item.product?.name || item.description || 'Item';
-        const qty = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 0;
-        return `${label} (x${qty})`;
-      }).join(', ');
+      // Handle both old and new sales data structures
+      const productSummary = sale.items && sale.items.length > 0
+        ? sale.items
+            .filter(item => item !== null && item !== undefined)
+            .map(item => {
+              let label = 'Item';
+              
+              // Prioritize product name from relationship if it exists
+              if (item.product && item.product.name && item.product.name.trim() !== '') {
+                label = item.product.name;
+              }
+              // For older sales where product relationship might not be properly established,
+              // the product name might be stored in the description field
+              else if (item.description && item.description.trim() !== '') {
+                label = item.description.trim();
+              }
+              // Handle custom product data
+              else if (item.customProductData) {
+                if (typeof item.customProductData === 'string' && item.customProductData.trim() !== '') {
+                  label = item.customProductData.trim();
+                } else if (typeof item.customProductData === 'object') {
+                  if (item.customProductData.name && item.customProductData.name.trim() !== '') {
+                    label = item.customProductData.name.trim();
+                  } else if (item.customProductData.description && item.customProductData.description.trim() !== '') {
+                    label = item.customProductData.description.trim();
+                  } else {
+                    label = item.isCustom ? 'Custom Item' : 'Item';
+                  }
+                } else {
+                  label = item.isCustom ? 'Custom Item' : 'Item';
+                }
+              }
+              // If it's marked as custom, use that
+              else if (item.isCustom) {
+                label = 'Custom Item';
+              }
+              // Final fallback - for very old sales where the product name might be stored differently
+              else {
+                // Check if there's any other field that might contain product information
+                label = item.description || 'Item';
+              }
+              
+              const qty = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 0;
+              return `${label} (x${qty})`;
+            }).join(', ').trim() || 'Items listed'
+        : (() => {
+            // Fallback: count products from inventory batch consumptions
+            const consumptions = sale.inventoryBatchConsumptions || [];
+            if (consumptions.length > 0) {
+              const uniqueProducts = new Set(consumptions.map(c => c.batch?.product?.id || c.batchId));
+              const totalQty = consumptions.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
+              return `${uniqueProducts.size} product${uniqueProducts.size !== 1 ? 's' : ''} (${totalQty} items sold)`;
+            }
+            return sale.total ? `Sale total: MK ${Number(sale.total).toLocaleString()} (no item details available)` : 'No items';
+          })();
       
       return {
         id: sale.id,

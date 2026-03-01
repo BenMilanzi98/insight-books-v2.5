@@ -220,6 +220,7 @@ export async function POST(request) {
 
     const poNumber = body.poNumber?.trim() || await generatePurchaseOrderNumber();
     const pricesIncludeTax = Boolean(body.pricesIncludeTax);
+    const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
     // Build items with per-line tax: taxTypeId, taxRate (editable), taxAmount (auto), support pricesIncludeTax
     const itemRows = body.items.map((item, index) => {
@@ -239,6 +240,8 @@ export async function POST(request) {
           lineTaxAmount = lineSubtotal * (taxRatePct / 100);
         }
       }
+      lineSubtotal = round2(lineSubtotal);
+      lineTaxAmount = round2(lineTaxAmount);
       return {
         lineNumber: index + 1,
         lineType,
@@ -254,10 +257,12 @@ export async function POST(request) {
       };
     });
 
-    const subtotal = itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0);
-    const taxAmount = itemRows.reduce((sum, row) => sum + row.taxAmount, 0);
-    const totalAmount = subtotal + taxAmount;
-    const headerTaxRate = subtotal > 0 ? (taxAmount / subtotal) * 100 : (body.taxRate ?? 0);
+    let subtotal = itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0);
+    let taxAmount = itemRows.reduce((sum, row) => sum + row.taxAmount, 0);
+    subtotal = round2(subtotal);
+    taxAmount = round2(taxAmount);
+    const totalAmount = round2(subtotal + taxAmount);
+    const headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
 
     const purchaseOrder = await prisma.purchaseOrder.create({
       data: {

@@ -137,6 +137,16 @@ const POSPage = () => {
     description: ""
   });
   
+  // Tax types for manual tax application
+  const [posTaxTypes, setPosTaxTypes] = useState([]);
+  const [taxAccounts, setTaxAccounts] = useState([]);
+  const [openTaxDropdownId, setOpenTaxDropdownId] = useState(null);
+  const [posTaxSearch, setPosTaxSearch] = useState('');
+  const [isAddingPosTax, setIsAddingPosTax] = useState(false);
+  const [newPosTax, setNewPosTax] = useState({ taxName: '', taxRate: '', accountId: '' });
+  const [addingPosTaxLoading, setAddingPosTaxLoading] = useState(false);
+  const taxDropdownRef = useRef(null);
+
   // Void/Refund modals
   const [showVoidModal, setShowVoidModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -186,6 +196,128 @@ const POSPage = () => {
   
     fetchPermissions();
   }, []);
+  // Fetch active tax types for manual tax application
+  const fetchPosTaxTypes = async () => {
+    try {
+      const res = await fetch('/api/tax-types?status=Active');
+      if (res.ok) {
+        const data = await res.json();
+        setPosTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
+      }
+    } catch (err) {
+      console.error('Error loading tax types:', err);
+    }
+  };
+
+  const fetchPosTaxAccounts = async () => {
+    try {
+      const res = await fetch('/api/tax-types/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        setTaxAccounts(Array.isArray(data.accounts) ? data.accounts : []);
+      }
+    } catch (err) {
+      console.error('Error loading tax accounts:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosTaxTypes();
+  }, []);
+
+  // Close tax dropdown on outside click
+  useEffect(() => {
+    const handleTaxClickOutside = (e) => {
+      if (taxDropdownRef.current && !taxDropdownRef.current.contains(e.target)) {
+        setOpenTaxDropdownId(null);
+        setIsAddingPosTax(false);
+        setPosTaxSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleTaxClickOutside);
+    return () => document.removeEventListener('mousedown', handleTaxClickOutside);
+  }, []);
+
+  // Apply a tax type to a cart item
+  const applyTaxToProduct = (productId, taxType) => {
+    setSelectedProducts(prev => prev.map(product => {
+      if (product.id !== productId) return product;
+      const taxes = [{
+        id: taxType.id, taxId: taxType.taxId, taxName: taxType.taxName,
+        taxCode: taxType.taxCode, taxRate: Number(taxType.taxRate),
+        calculationType: taxType.calculationType || 'Percentage'
+      }];
+      const taxCalc = calculateSaleItemTaxes({
+        quantity: product.quantity || 1,
+        unitPrice: product.price,
+        discountAmount: product.discountAmount || 0,
+        taxes
+      });
+      return {
+        ...product,
+        taxes,
+        taxAmount: taxCalc.totalTaxAmount,
+        taxBreakdown: taxCalc.taxBreakdown,
+        taxDescription: taxType.taxName
+      };
+    }));
+    setOpenTaxDropdownId(null);
+    setPosTaxSearch('');
+  };
+
+  // Remove tax from a cart item
+  const removeTaxFromProduct = (productId) => {
+    setSelectedProducts(prev => prev.map(product => {
+      if (product.id !== productId) return product;
+      return {
+        ...product,
+        taxes: [],
+        taxAmount: 0,
+        taxBreakdown: [],
+        taxDescription: ''
+      };
+    }));
+  };
+
+  // Create a new tax type from POS
+  const handleCreatePosTaxType = async () => {
+    if (!newPosTax.taxName.trim() || newPosTax.taxRate === '' || !newPosTax.accountId) return;
+    setAddingPosTaxLoading(true);
+    try {
+      const taxId = newPosTax.taxName.trim().toUpperCase().replace(/\s+/g, '-');
+      const res = await fetch('/api/tax-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taxId,
+          taxName: newPosTax.taxName.trim(),
+          taxRate: parseFloat(newPosTax.taxRate),
+          calculationType: 'Percentage',
+          accountId: newPosTax.accountId,
+          status: 'Active',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to create tax type');
+        return;
+      }
+      const created = await res.json();
+      await fetchPosTaxTypes();
+      // Apply the newly created tax to the product that has the dropdown open
+      if (openTaxDropdownId) {
+        applyTaxToProduct(openTaxDropdownId, created);
+      }
+      setIsAddingPosTax(false);
+      setNewPosTax({ taxName: '', taxRate: '', accountId: '' });
+    } catch (err) {
+      console.error('Error creating tax type:', err);
+      alert('Failed to create tax type');
+    } finally {
+      setAddingPosTaxLoading(false);
+    }
+  };
+
   // Load branches and auto-select user's current branch from session
   const loadBranches = async () => {
     try {
@@ -2259,14 +2391,120 @@ const POSPage = () => {
                                   </div>
                                 </div>
                               ))}
-                              <div className="pt-1 border-t border-gray-200 mt-1">
+                              <div className="pt-1 border-t border-gray-200 mt-1 flex items-center justify-end gap-1">
                                 <div className="font-bold text-gray-900">
                                   {formatCurrency(product.taxAmount || 0)}
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeTaxFromProduct(product.id)}
+                                  className="text-gray-400 hover:text-red-500 ml-1"
+                                  title="Remove tax"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
                               </div>
                             </div>
                           ) : (
-                            <div className="text-gray-400 text-xs">No tax</div>
+                            <div className="relative" ref={openTaxDropdownId === product.id ? taxDropdownRef : null}>
+                              <button
+                                type="button"
+                                onClick={() => { setOpenTaxDropdownId(openTaxDropdownId === product.id ? null : product.id); setIsAddingPosTax(false); setPosTaxSearch(''); }}
+                                className="text-xs text-blue-600 hover:text-blue-800 border border-dashed border-blue-300 hover:border-blue-500 rounded px-2 py-1 transition-colors flex items-center gap-1"
+                              >
+                                <Plus className="w-3 h-3" /> Add tax
+                              </button>
+                              {openTaxDropdownId === product.id && (
+                                <div className="absolute z-50 right-0 mt-1 w-56 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+                                  {!isAddingPosTax ? (
+                                    <>
+                                      <div className="p-2 border-b border-gray-200 flex items-center space-x-2">
+                                        <input
+                                          type="text"
+                                          placeholder="Search taxes..."
+                                          value={posTaxSearch}
+                                          onChange={(e) => setPosTaxSearch(e.target.value)}
+                                          className="flex-1 p-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => { setIsAddingPosTax(true); fetchPosTaxAccounts(); }}
+                                          className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                          title="Add new tax type"
+                                        >
+                                          <Plus className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                      <div className="max-h-40 overflow-y-auto">
+                                        {posTaxTypes
+                                          .filter(t => t.taxName.toLowerCase().includes(posTaxSearch.toLowerCase()))
+                                          .map(t => (
+                                            <button
+                                              key={t.id}
+                                              type="button"
+                                              onClick={() => applyTaxToProduct(product.id, t)}
+                                              className="w-full px-3 py-2 text-left hover:bg-gray-100 text-xs text-gray-900"
+                                            >
+                                              {t.taxName} <span className="text-gray-500">({t.taxRate}%)</span>
+                                            </button>
+                                          ))}
+                                        {posTaxTypes.filter(t => t.taxName.toLowerCase().includes(posTaxSearch.toLowerCase())).length === 0 && (
+                                          <div className="px-3 py-2 text-gray-500 text-xs">No tax types found</div>
+                                        )}
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div className="p-3 space-y-2">
+                                      <p className="text-xs font-medium text-gray-700">Create new tax type</p>
+                                      <input
+                                        type="text"
+                                        placeholder="Tax name (e.g. VAT)"
+                                        value={newPosTax.taxName}
+                                        onChange={(e) => setNewPosTax(prev => ({ ...prev, taxName: e.target.value }))}
+                                        className="w-full p-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      />
+                                      <input
+                                        type="number"
+                                        placeholder="Rate % (e.g. 16.5)"
+                                        value={newPosTax.taxRate}
+                                        onChange={(e) => setNewPosTax(prev => ({ ...prev, taxRate: e.target.value }))}
+                                        className="w-full p-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        step="0.01" min="0" max="100"
+                                      />
+                                      <select
+                                        value={newPosTax.accountId}
+                                        onChange={(e) => setNewPosTax(prev => ({ ...prev, accountId: e.target.value }))}
+                                        className="w-full p-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                      >
+                                        <option value="">Select tax account</option>
+                                        {taxAccounts.map(acc => (
+                                          <option key={acc.id} value={acc.id}>
+                                            {acc.accountCode ? `${acc.accountCode} - ` : ''}{acc.accountName || acc.name} ({acc.accountType})
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <div className="flex items-center justify-end space-x-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => { setIsAddingPosTax(false); setNewPosTax({ taxName: '', taxRate: '', accountId: '' }); }}
+                                          className="px-2 py-1 text-xs text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handleCreatePosTaxType}
+                                          disabled={!newPosTax.taxName.trim() || newPosTax.taxRate === '' || !newPosTax.accountId || addingPosTaxLoading}
+                                          className="px-2 py-1 text-xs text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          {addingPosTaxLoading ? 'Saving...' : 'Save'}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm">

@@ -126,6 +126,8 @@ export async function PUT(request, { params }) {
     let taxAmount = purchaseOrder.taxAmount ?? 0;
     let headerTaxRate = purchaseOrder.taxRate ?? 0;
 
+    const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
     if (body.items) {
       const taxTypeIds = [...new Set(body.items.map((it) => it.taxTypeId).filter(Boolean))];
       if (taxTypeIds.length > 0) {
@@ -153,6 +155,8 @@ export async function PUT(request, { params }) {
             lineTaxAmount = lineSubtotal * (taxRatePct / 100);
           }
         }
+        lineSubtotal = round2(lineSubtotal);
+        lineTaxAmount = round2(lineTaxAmount);
         return {
           lineNumber: index + 1,
           lineType,
@@ -167,9 +171,9 @@ export async function PUT(request, { params }) {
           _lineSubtotal: lineSubtotal
         };
       });
-      subtotal = itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0);
-      taxAmount = itemRows.reduce((sum, row) => sum + row.taxAmount, 0);
-      headerTaxRate = subtotal > 0 ? (taxAmount / subtotal) * 100 : (body.taxRate ?? 0);
+      subtotal = round2(itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0));
+      taxAmount = round2(itemRows.reduce((sum, row) => sum + row.taxAmount, 0));
+      headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
       data.items = {
         deleteMany: { purchaseOrderId: purchaseOrder.id },
         create: itemRows.map((row) => ({
@@ -189,7 +193,7 @@ export async function PUT(request, { params }) {
 
     data.subtotal = subtotal;
     data.taxAmount = taxAmount;
-    data.totalAmount = subtotal + taxAmount;
+    data.totalAmount = round2(subtotal + taxAmount);
     data.taxRate = headerTaxRate;
 
     const updated = await prisma.purchaseOrder.update({

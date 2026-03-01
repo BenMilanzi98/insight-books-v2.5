@@ -62,7 +62,30 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "purchaseOrderId" && value) {
+      const selectedPO = purchaseOrders.find((po) => po.id === value);
+      setForm((prev) => ({
+        ...prev,
+        purchaseOrderId: value,
+        ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
+      }));
+      if (selectedPO?.items?.length) {
+        const goodsItems = selectedPO.items.filter(
+          (line) => line.productId && (line.lineType || "goods") === "goods"
+        );
+        if (goodsItems.length > 0) {
+          setItems(
+            goodsItems.map((line) => ({
+              productId: line.productId,
+              quantityReceived: Number(line.quantityOrdered ?? 0) || 1,
+              unitCost: Number(line.unitCost ?? 0) || 0,
+            }))
+          );
+        }
+      }
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const handleItemChange = (index, key, value) => {

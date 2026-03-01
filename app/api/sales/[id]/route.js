@@ -39,6 +39,21 @@ async function getSaleWithValidation(id, userId, tenantId) {
         orderBy: {
           id: 'asc'
         }
+      },
+      inventoryBatchConsumptions: {
+        include: {
+          batch: {
+            include: {
+              product: {
+                select: {
+                  id: true,
+                  name: true,
+                  sku: true,
+                }
+              }
+            }
+          }
+        }
       }
     }
   });
@@ -61,6 +76,33 @@ async function getSaleWithValidation(id, userId, tenantId) {
   const actualTaxAmount = itemTaxTotal > 0 ? itemTaxTotal : sale.taxAmount;
   const actualTaxRate = itemTaxTotal > 0 ? displayTaxRate : sale.taxRate;
 
+  // Build items list - use SaleItems if available, otherwise reconstruct from batch consumptions
+  let formattedItems = sale.items.map(item => ({
+    ...item,
+    unitPrice: item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    amount: item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    taxAmount: (item.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    rawUnitPrice: item.unitPrice,
+    rawAmount: item.amount,
+    rawTaxAmount: item.taxAmount || 0
+  }));
+
+  // Fallback: get product quantities from batch consumptions for old sales
+  let batchProducts = [];
+  if (formattedItems.length === 0 && sale.inventoryBatchConsumptions?.length > 0) {
+    const productMap = {};
+    for (const c of sale.inventoryBatchConsumptions) {
+      const productId = c.batch?.product?.id || c.batchId;
+      const qty = Number(c.quantity) || 0;
+      if (productMap[productId]) {
+        productMap[productId] += qty;
+      } else {
+        productMap[productId] = qty;
+      }
+    }
+    batchProducts = Object.values(productMap).map(quantity => ({ quantity }));
+  }
+
   return {
     sale: {
       ...sale,
@@ -76,16 +118,9 @@ async function getSaleWithValidation(id, userId, tenantId) {
       rawSubtotal: sale.subtotal,
       rawTaxAmount: actualTaxAmount,
       rawTotal: sale.total,
-      // Format item amounts
-      items: sale.items.map(item => ({
-        ...item,
-        unitPrice: item.unitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        amount: item.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        taxAmount: (item.taxAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-        rawUnitPrice: item.unitPrice,
-        rawAmount: item.amount,
-        rawTaxAmount: item.taxAmount || 0
-      }))
+      items: formattedItems,
+      // Product names recovered from inventory records (for old sales without SaleItems)
+      batchProducts,
     }
   };
 }

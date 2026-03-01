@@ -480,6 +480,7 @@ const handleDeleteSale = async () => {
             )}
             
             <h3 className="text-lg font-semibold mb-3">Sale Items</h3>
+            {sale.items && sale.items.length > 0 ? (
             <div className="border border-gray-200 rounded-md overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -502,6 +503,37 @@ const handleDeleteSale = async () => {
                 </tbody>
               </table>
             </div>
+            ) : sale.batchProducts && sale.batchProducts.length > 0 ? (
+            <div>
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-3">
+                <p className="text-sm text-amber-800">This sale was recorded before item-level tracking was enabled. Product names are labeled generically because the original item details were not stored.</p>
+              </div>
+              <div className="border border-gray-200 rounded-md overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {sale.batchProducts.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm">Product {index + 1}</td>
+                        <td className="px-4 py-3 text-sm text-right">{item.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">See sale summary for totals.</p>
+            </div>
+            ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+              <p className="text-sm text-blue-800">Item details are not available for this sale. This sale was recorded before item-level tracking was enabled.</p>
+              <p className="text-sm text-blue-600 mt-1">The sale summary totals shown on the right are still accurate.</p>
+            </div>
+            )}
           </div>
         </div>
 

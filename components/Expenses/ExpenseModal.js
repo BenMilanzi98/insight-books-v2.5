@@ -100,7 +100,7 @@ const ExpenseModal = ({
                       <div className="text-xl font-bold">MK {expense.amount}</div>
                       {(expense.taxAmount != null && Number(expense.taxAmount) > 0) && (
                         <div className="text-sm text-gray-600 mt-1">
-                          Net: MK {typeof expense.amount === 'string' ? (parseFloat(expense.amount.replace(/,/g, '')) - Number(expense.taxAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : (Number(expense.amount) - Number(expense.taxAmount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} · Tax: MK {Number(expense.taxAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{expense.taxRate != null && Number(expense.taxRate) > 0 ? ` (${Number(expense.taxRate).toFixed(1)}%)` : ''}
+                          Tax: MK {Number(expense.taxAmount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{expense.taxRate != null && Number(expense.taxRate) > 0 ? ` (${Number(expense.taxRate).toFixed(1)}%)` : ''} · Total: MK {((typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)) + (Number(expense.taxAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                       )}
                       {renderStatus(expense.status)}
@@ -113,9 +113,9 @@ const ExpenseModal = ({
                   <h5 className="text-sm font-medium text-gray-500 mb-2">Amount breakdown</h5>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                     <div>
-                      <span className="text-gray-500">Net cost (excl. tax)</span>
+                      <span className="text-gray-500">Amount</span>
                       <p className="font-medium text-gray-900">
-                        MK {((typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)) - (Number(expense.taxAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        MK {(typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                     <div>
@@ -129,7 +129,9 @@ const ExpenseModal = ({
                     </div>
                     <div>
                       <span className="text-gray-500">Total (incl. tax)</span>
-                      <p className="font-semibold text-gray-900">MK {expense.amount}</p>
+                      <p className="font-semibold text-gray-900">
+                        MK {((typeof expense.amount === 'string' ? parseFloat(expense.amount.replace(/,/g, '')) : Number(expense.amount)) + (Number(expense.taxAmount) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
                     </div>
                   </div>
                 </div>

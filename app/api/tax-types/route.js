@@ -281,7 +281,7 @@ export async function POST(request) {
       );
     }
 
-    // Create tax type
+    // Create tax type (avoid include to prevent Prisma relation mismatches)
     const taxType = await prisma.taxType.create({
       data: {
         taxId,
@@ -292,16 +292,6 @@ export async function POST(request) {
         accountId: accountId || null,
         status,
         tenantId: user.tenantId,
-      },
-      include: {
-        account: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-            accountType: true,
-          },
-        },
       },
     });
 

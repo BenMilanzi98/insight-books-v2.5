@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { Save, AlertCircle, Loader } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Save, AlertCircle, Loader, ChevronDown, Plus, X } from 'lucide-react';
 import { usePaymentAccounts } from '@/hooks/usePaymentAccounts';
 import DynamicCategorySelect from '@/components/DynamicCategorySelect';
 import SupplierExpenseSelect from '@/components/purchases/SupplierExpenseSelect';
@@ -33,7 +33,18 @@ const ExpenseForm = ({
   // Validation state
   const [errors, setErrors] = useState({});
   const [formTouched, setFormTouched] = useState(false);
-  
+
+  // Tax types state
+  const [taxTypes, setTaxTypes] = useState([]);
+  const [taxDropdownOpen, setTaxDropdownOpen] = useState(false);
+  const [taxSearch, setTaxSearch] = useState('');
+  const [isAddingTax, setIsAddingTax] = useState(false);
+  const [newTax, setNewTax] = useState({ taxName: '', taxRate: '', accountId: '' });
+  const [taxAccounts, setTaxAccounts] = useState([]);
+  const [addingTaxLoading, setAddingTaxLoading] = useState(false);
+  const [selectedTaxTypeId, setSelectedTaxTypeId] = useState('');
+  const taxDropdownRef = useRef(null);
+
   // NEW: State for adding new categories
   const [availableCategories, setAvailableCategories] = useState([]);
 
@@ -73,38 +84,53 @@ const ExpenseForm = ({
     loadCategories(); // NEW: Load categories
   }, []);
 
-  // Default tax rate for new expense (from tenant settings; avoids hardcoded 16.5%)
+  // Fetch active tax types
+  const fetchTaxTypes = async () => {
+    try {
+      const res = await fetch('/api/tax-types?status=Active');
+      if (res.ok) {
+        const data = await res.json();
+        setTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
+      }
+    } catch (err) {
+      console.error('Error loading tax types:', err);
+    }
+  };
+
   useEffect(() => {
-    if (expense) return;
-    let cancelled = false;
-    fetch('/api/settings/tax')
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (cancelled || !data || data.defaultTaxRate == null) return;
-        const rate = Number(data.defaultTaxRate);
-        if (Number.isNaN(rate) || rate < 0 || rate > 100) return;
-        setFormData((prev) => (prev.taxRate === '' ? { ...prev, taxRate: rate } : prev));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [expense]);
+    fetchTaxTypes();
+  }, []);
+
+  // Close tax dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (taxDropdownRef.current && !taxDropdownRef.current.contains(e.target)) {
+        setTaxDropdownOpen(false);
+        setIsAddingTax(false);
+        setTaxSearch('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Initialize form with expense data if it exists
   useEffect(() => {
     if (expense) {
       // Format amount to show as a plain number in the input field 
       // (assuming amount comes in as a formatted string with commas)
-      const formattedAmount = typeof expense.amount === 'string' 
-        ? expense.amount.replace(/,/g, '')
-        : expense.amount;
+      const rawAmount = typeof expense.amount === 'string'
+        ? parseFloat(expense.amount.replace(/,/g, ''))
+        : Number(expense.amount);
+      const formattedAmount = Number.isNaN(rawAmount) ? '' : rawAmount;
 
-      const taxAmt = expense.taxAmount != null ? expense.taxAmount : '';
-      const taxRt = expense.taxRate != null ? expense.taxRate : '';
+      const rawTaxAmt = expense.taxAmount != null ? Number(expense.taxAmount) : '';
+      const rawTaxRt = expense.taxRate != null ? Number(expense.taxRate) : '';
       setFormData({
         description: expense.description || '',
-        amount: formattedAmount || '',
-        taxAmount: taxAmt === '' ? '' : (typeof taxAmt === 'number' ? taxAmt : parseFloat(taxAmt) || ''),
-        taxRate: taxRt === '' ? '' : (typeof taxRt === 'number' ? taxRt : parseFloat(taxRt) || ''),
+        amount: formattedAmount,
+        taxAmount: rawTaxAmt === '' || Number.isNaN(rawTaxAmt) ? '' : rawTaxAmt,
+        taxRate: rawTaxRt === '' || Number.isNaN(rawTaxRt) ? '' : rawTaxRt,
         date: expense.date || new Date().toISOString().split('T')[0],
         expenseAccountId: expense.expenseAccountId || '',
         supplierId: expense.supplierId || '',
@@ -117,6 +143,15 @@ const ExpenseForm = ({
       });
     }
   }, [expense]);
+
+  // When editing, try to match existing taxRate to a tax type
+  useEffect(() => {
+    if (expense && taxTypes.length > 0 && formData.taxRate !== '' && !selectedTaxTypeId) {
+      const rate = Number(formData.taxRate);
+      const match = taxTypes.find(t => Number(t.taxRate) === rate);
+      if (match) setSelectedTaxTypeId(match.id);
+    }
+  }, [expense, taxTypes, formData.taxRate]);
 
   // useEffect(() => {
   //   async function fetchAccounts() {
@@ -133,13 +168,93 @@ const ExpenseForm = ({
   //   fetchAccounts();
   // }, []);
 
+  // Handle selecting a tax type from the dropdown
+  const handleSelectTaxType = (taxType) => {
+    const rate = Number(taxType.taxRate) || 0;
+    setSelectedTaxTypeId(taxType.id);
+    setFormData(prev => {
+      const next = { ...prev, taxRate: rate };
+      if (typeof prev.amount === 'number' && prev.amount > 0 && rate > 0) {
+        next.taxAmount = Math.round((prev.amount * rate / 100) * 100) / 100;
+      } else {
+        next.taxAmount = '';
+      }
+      return next;
+    });
+    setTaxDropdownOpen(false);
+    setTaxSearch('');
+    if (!formTouched) setFormTouched(true);
+  };
+
+  // Clear tax selection
+  const handleClearTax = () => {
+    setSelectedTaxTypeId('');
+    setFormData(prev => ({ ...prev, taxRate: '', taxAmount: '' }));
+    if (!formTouched) setFormTouched(true);
+  };
+
+  // Fetch tax-eligible accounts for the inline create form
+  const fetchTaxAccounts = async () => {
+    try {
+      const res = await fetch('/api/tax-types/accounts');
+      if (res.ok) {
+        const data = await res.json();
+        setTaxAccounts(Array.isArray(data.accounts) ? data.accounts : []);
+      }
+    } catch (err) {
+      console.error('Error loading tax accounts:', err);
+    }
+  };
+
+  // Handle creating a new tax type inline
+  const handleCreateTaxType = async () => {
+    if (!newTax.taxName.trim() || newTax.taxRate === '' || !newTax.accountId) return;
+    setAddingTaxLoading(true);
+    try {
+      const taxId = newTax.taxName.trim().toUpperCase().replace(/\s+/g, '-');
+      const res = await fetch('/api/tax-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taxId,
+          taxName: newTax.taxName.trim(),
+          taxRate: parseFloat(newTax.taxRate),
+          calculationType: 'Percentage',
+          accountId: newTax.accountId,
+          status: 'Active',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to create tax type');
+        return;
+      }
+      const created = await res.json();
+      await fetchTaxTypes();
+      handleSelectTaxType(created);
+      setIsAddingTax(false);
+      setNewTax({ taxName: '', taxRate: '', accountId: '' });
+    } catch (err) {
+      console.error('Error creating tax type:', err);
+      alert('Failed to create tax type');
+    } finally {
+      setAddingTaxLoading(false);
+    }
+  };
+
   // Handle input changes
   const handleChange = (e) => {
     const { name, value } = e.target;
     
     let processedValue;
     if (name === 'amount' || name === 'taxAmount' || name === 'taxRate') {
-      processedValue = value === '' ? '' : (parseFloat(value) ?? '');
+      if (value === '') {
+        processedValue = '';
+      } else {
+        const stripped = String(value).replace(/,/g, '');
+        const parsed = parseFloat(stripped);
+        processedValue = Number.isNaN(parsed) ? '' : parsed;
+      }
     } else {
       processedValue = value;
     }
@@ -148,10 +263,10 @@ const ExpenseForm = ({
       const next = { ...prev, [name]: processedValue };
       // If total (amount) or tax rate changed, optionally sync tax amount from rate (tax-inclusive)
       if (name === 'amount' && typeof processedValue === 'number' && processedValue > 0 && prev.taxRate !== '' && typeof prev.taxRate === 'number' && prev.taxRate > 0) {
-        next.taxAmount = processedValue - processedValue / (1 + prev.taxRate / 100);
+        next.taxAmount = Math.round((processedValue * prev.taxRate / 100) * 100) / 100;
       }
       if (name === 'taxRate' && typeof processedValue === 'number' && processedValue > 0 && typeof prev.amount === 'number' && prev.amount > 0) {
-        next.taxAmount = prev.amount - prev.amount / (1 + processedValue / 100);
+        next.taxAmount = Math.round((prev.amount * processedValue / 100) * 100) / 100;
       }
       return next;
     });
@@ -273,10 +388,10 @@ const ExpenseForm = ({
             )}
           </div>
 
-          {/* Total Amount (incl. tax) */}
+          {/* Amount (excl. tax) */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Total amount (MK) incl. tax*
+              Amount (MK)*
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -328,28 +443,139 @@ const ExpenseForm = ({
               </p>
             )}
             <p className="mt-1 text-xs text-gray-500">
-              Net cost (excl. tax): MK {formatAmountDisplay((parseFloat(formData.amount) || 0) - (parseFloat(formData.taxAmount) || 0))}
+              Total (incl. tax): MK {formatAmountDisplay((parseFloat(formData.amount) || 0) + (parseFloat(formData.taxAmount) || 0))}
             </p>
           </div>
 
-          {/* Tax rate % (optional) - when entered, tax amount is derived from total (tax-inclusive) */}
+          {/* Tax rate % (optional) - dropdown from tax-types */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tax rate (%)
             </label>
-            <input
-              type="number"
-              name="taxRate"
-              value={formData.taxRate === 0 || formData.taxRate === '' ? '' : formData.taxRate}
-              onChange={handleChange}
-              className="w-full p-2 border border-gray-300 rounded-md"
-              placeholder="e.g. 16.5 or 17.5"
-              step="0.01"
-              min="0"
-              max="100"
-            />
+            <div className="relative" ref={taxDropdownRef}>
+              <button
+                type="button"
+                onClick={() => { setTaxDropdownOpen(!taxDropdownOpen); setIsAddingTax(false); setTaxSearch(''); }}
+                className={`w-full p-2 border border-gray-300 rounded-md bg-white text-left focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${taxDropdownOpen ? 'ring-2 ring-blue-500 border-blue-500' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className={selectedTaxTypeId ? 'text-gray-900' : 'text-gray-500'}>
+                    {selectedTaxTypeId
+                      ? (() => { const t = taxTypes.find(t => t.id === selectedTaxTypeId); return t ? `${t.taxName} (${t.taxRate}%)` : `${formData.taxRate}%`; })()
+                      : formData.taxRate !== '' && formData.taxRate !== 0
+                        ? `${formData.taxRate}%`
+                        : 'Select tax type'}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {(selectedTaxTypeId || (formData.taxRate !== '' && formData.taxRate !== 0)) && (
+                      <span
+                        role="button"
+                        onClick={(e) => { e.stopPropagation(); handleClearTax(); }}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </span>
+                    )}
+                    <ChevronDown size={16} className={`text-gray-400 transition-transform ${taxDropdownOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </div>
+              </button>
+
+              {taxDropdownOpen && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-hidden">
+                  {!isAddingTax ? (
+                    <>
+                      <div className="p-2 border-b border-gray-200 flex items-center space-x-2">
+                        <input
+                          type="text"
+                          placeholder="Search tax types..."
+                          value={taxSearch}
+                          onChange={(e) => setTaxSearch(e.target.value)}
+                          className="flex-1 p-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => { setIsAddingTax(true); fetchTaxAccounts(); }}
+                          className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                          title="Add new tax type"
+                        >
+                          <Plus size={16} />
+                        </button>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {taxTypes
+                          .filter(t => t.taxName.toLowerCase().includes(taxSearch.toLowerCase()))
+                          .map(t => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => handleSelectTaxType(t)}
+                              className={`w-full px-3 py-2 text-left hover:bg-gray-100 text-sm ${t.id === selectedTaxTypeId ? 'bg-blue-50 text-blue-700' : 'text-gray-900'}`}
+                            >
+                              {t.taxName} <span className="text-gray-500">({t.taxRate}%)</span>
+                            </button>
+                          ))}
+                        {taxTypes.filter(t => t.taxName.toLowerCase().includes(taxSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-gray-500 text-sm">No tax types found</div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-3 space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Create new tax type</p>
+                      <input
+                        type="text"
+                        placeholder="Tax name (e.g. VAT)"
+                        value={newTax.taxName}
+                        onChange={(e) => setNewTax(prev => ({ ...prev, taxName: e.target.value }))}
+                        className="w-full p-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Rate % (e.g. 16.5)"
+                        value={newTax.taxRate}
+                        onChange={(e) => setNewTax(prev => ({ ...prev, taxRate: e.target.value }))}
+                        className="w-full p-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                      />
+                      <select
+                        value={newTax.accountId}
+                        onChange={(e) => setNewTax(prev => ({ ...prev, accountId: e.target.value }))}
+                        className="w-full p-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      >
+                        <option value="">Select tax account</option>
+                        {taxAccounts.map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.accountCode ? `${acc.accountCode} - ` : ''}{acc.accountName || acc.name} ({acc.accountType})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => { setIsAddingTax(false); setNewTax({ taxName: '', taxRate: '', accountId: '' }); }}
+                          className="px-2 py-1 text-sm text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCreateTaxType}
+                          disabled={!newTax.taxName.trim() || newTax.taxRate === '' || !newTax.accountId || addingTaxLoading}
+                          className="px-2 py-1 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {addingTaxLoading ? 'Saving...' : 'Save'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
             <p className="mt-1 text-xs text-gray-500">
-              Enter rate if total is tax-inclusive; tax amount will be calculated.
+              Select a tax type; tax amount will be calculated from the total.
             </p>
           </div>
 

@@ -663,7 +663,8 @@ export async function POST(request) {
     }
     const paymentMethod=body.paymentMethod
     const paymentStatus = body.paymentStatus || 'Fully paid';
-    const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || amount) : amount;
+    const totalWithTax = amount + (taxAmount || 0);
+    const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || totalWithTax) : totalWithTax;
     const expenseDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.date);
     
     // Resolve branchId from request or user's default branch

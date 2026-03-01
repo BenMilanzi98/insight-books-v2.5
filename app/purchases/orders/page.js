@@ -475,6 +475,8 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
     );
   }, [initialData]);
 
+  const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
   const { subtotal, totalTax, totalAmount } = useMemo(() => {
     const pricesIncludeTax = form.pricesIncludeTax;
     let sub = 0;
@@ -493,10 +495,14 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         lineSub = qty * unitCost;
         if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
       }
-      sub += lineSub;
-      tax += lineTax;
+      sub += round2(lineSub);
+      tax += round2(lineTax);
     });
-    return { subtotal: sub, totalTax: tax, totalAmount: sub + tax };
+    return {
+      subtotal: round2(sub),
+      totalTax: round2(tax),
+      totalAmount: round2(sub + tax),
+    };
   }, [items, form.pricesIncludeTax]);
 
   const handleChange = (name, value) => {
@@ -623,7 +629,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           unitCost,
           taxTypeId: item.taxTypeId || undefined,
           taxRate: taxRatePct,
-          taxAmount,
+          taxAmount: round2(taxAmount),
         };
       });
       await onSave({ ...form, orderType: form.orderType, pricesIncludeTax: form.pricesIncludeTax, items: normalizedItems });
@@ -746,7 +752,9 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               lineSub = qty * unitCost;
               if (lineTax === 0 && taxRatePct > 0) lineTax = lineSub * (taxRatePct / 100);
             }
-            const lineTotal = lineSub + lineTax;
+            const lineSubR = round2(lineSub);
+            const lineTaxR = round2(lineTax);
+            const lineTotal = lineSubR + lineTaxR;
             return (
               <div
                 key={idx}
@@ -880,10 +888,10 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   </div>
                   <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
                     <span>
-                      Total incl: MWK {lineTotal.toLocaleString()}
-                      {lineTax > 0 && (
+                      Total incl: MWK {lineTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {lineTaxR > 0 && (
                         <span className="ml-1 block text-xs font-normal text-gray-500">
-                          tax: MWK {lineTax.toLocaleString()}
+                          tax: MWK {lineTaxR.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       )}
                     </span>
@@ -921,16 +929,16 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           </div>
           <div className="space-y-2">
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
-              <span className="text-gray-600">Subtotal</span>
-              <span className="font-medium text-gray-900">MWK {subtotal.toLocaleString()}</span>
+              <span className="text-gray-600">Subtotal (excl. tax)</span>
+              <span className="font-medium text-gray-900">MWK {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">
               <span className="text-gray-600">Total Tax</span>
-              <span className="font-medium text-gray-900">MWK {totalTax.toLocaleString()}</span>
+              <span className="font-medium text-gray-900">MWK {totalTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
               <span className="text-xs uppercase tracking-wide text-indigo-700">Grand Total</span>
-              <span className="text-lg font-semibold text-indigo-900">MWK {totalAmount.toLocaleString()}</span>
+              <span className="text-lg font-semibold text-indigo-900">MWK {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
           </div>
         </div>
