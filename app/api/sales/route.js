@@ -271,14 +271,26 @@ export async function GET(request) {
               return `${label} (x${qty})`;
             }).join(', ').trim() || 'Items listed'
         : (() => {
-            // Fallback: count products from inventory batch consumptions
+            // Fallback 1: get product names from inventory batch consumptions (288 sales)
             const consumptions = sale.inventoryBatchConsumptions || [];
             if (consumptions.length > 0) {
-              const uniqueProducts = new Set(consumptions.map(c => c.batch?.product?.id || c.batchId));
-              const totalQty = consumptions.reduce((sum, c) => sum + (Number(c.quantity) || 0), 0);
-              return `${uniqueProducts.size} product${uniqueProducts.size !== 1 ? 's' : ''} (${totalQty} items sold)`;
+              const productMap = {};
+              for (const c of consumptions) {
+                const name = c.batch?.product?.name || 'Item';
+                const qty = Number(c.quantity) || 0;
+                if (productMap[name]) productMap[name] += qty;
+                else productMap[name] = qty;
+              }
+              return Object.entries(productMap)
+                .map(([name, qty]) => `${name} (x${qty})`)
+                .join(', ');
             }
-            return sale.total ? `Sale total: MK ${Number(sale.total).toLocaleString()} (no item details available)` : 'No items';
+            // Fallback 2: use originalReference as category/product label (2,580 historical sales)
+            if (sale.originalReference) {
+              return sale.originalReference;
+            }
+            // Fallback 3: show sale total for sales with no recoverable item data
+            return sale.total ? `MK ${Number(sale.total).toLocaleString()} sale` : 'No items';
           })();
       
       return {

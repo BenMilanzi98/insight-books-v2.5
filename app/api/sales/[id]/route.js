@@ -87,20 +87,17 @@ async function getSaleWithValidation(id, userId, tenantId) {
     rawTaxAmount: item.taxAmount || 0
   }));
 
-  // Fallback: get product quantities from batch consumptions for old sales
+  // Fallback: get product names/quantities from batch consumptions for old sales
   let batchProducts = [];
   if (formattedItems.length === 0 && sale.inventoryBatchConsumptions?.length > 0) {
     const productMap = {};
     for (const c of sale.inventoryBatchConsumptions) {
-      const productId = c.batch?.product?.id || c.batchId;
+      const name = c.batch?.product?.name || 'Item';
       const qty = Number(c.quantity) || 0;
-      if (productMap[productId]) {
-        productMap[productId] += qty;
-      } else {
-        productMap[productId] = qty;
-      }
+      if (productMap[name]) productMap[name] += qty;
+      else productMap[name] = qty;
     }
-    batchProducts = Object.values(productMap).map(quantity => ({ quantity }));
+    batchProducts = Object.entries(productMap).map(([name, quantity]) => ({ name, quantity }));
   }
 
   return {
