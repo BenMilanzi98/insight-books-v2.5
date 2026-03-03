@@ -14,20 +14,52 @@ import {
   CheckCircle,
   AlertCircle,
   Clock,
-  User
+  User,
+  FileText,
+  CreditCard,
+  X
 } from 'lucide-react';
-import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
+import { SUBSCRIPTION_PLANS, EIS_PLANS } from '@/lib/subscriptionConfig';
 
 export default function AdminSubscriptions() {
+  const [activeTab, setActiveTab] = useState('subscriptions');
   const [subscriptions, setSubscriptions] = useState([]);
+  const [eisSubscriptions, setEisSubscriptions] = useState([]);
+  const [eisStats, setEisStats] = useState({
+    total: 0,
+    active: 0,
+    expired: 0,
+    monthly: 0,
+    yearly: 0,
+    monthlyActive: 0,
+    yearlyActive: 0,
+    totalRevenue: 0
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [eisStatusFilter, setEisStatusFilter] = useState('all');
+  const [eisPlanFilter, setEisPlanFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEISActivateModal, setShowEISActivateModal] = useState(false);
+  const [showEISDeactivateModal, setShowEISDeactivateModal] = useState(false);
+  const [showEISViewModal, setShowEISViewModal] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState(null);
+  const [eisFormData, setEisFormData] = useState({
+    tenantId: '',
+    plan: 'eis-monthly',
+    amount: '',
+    currency: 'MWK',
+    status: 'Active',
+    isActive: true,
+    expiresAt: '',
+    paymentMethod: 'bank',
+    notes: ''
+  });
+  const [deactivateReason, setDeactivateReason] = useState('');
   const [formData, setFormData] = useState({
     tenantId: '',
     plan: '1month',
@@ -67,6 +99,7 @@ export default function AdminSubscriptions() {
     fetchTenants();
     fetchBranchSubscriptions();
     fetchAllBranches();
+    fetchEISSubscriptions();
   }, []);
 
   const fetchSubscriptions = async () => {
@@ -134,6 +167,44 @@ export default function AdminSubscriptions() {
       }
     } catch (error) {
       console.error('Error fetching branches:', error);
+    }
+  };
+
+  const fetchEISSubscriptions = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (eisStatusFilter !== 'all') {
+        params.append('status', eisStatusFilter);
+      }
+      if (eisPlanFilter !== 'all') {
+        params.append('planType', eisPlanFilter);
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+
+      const response = await fetch(`/api/admin/eis-subscriptions?${params}`, {
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setEisSubscriptions(data.subscriptions || []);
+        setEisStats(data.stats || {
+          total: 0,
+          active: 0,
+          expired: 0,
+          monthly: 0,
+          yearly: 0,
+          monthlyActive: 0,
+          yearlyActive: 0,
+          totalRevenue: 0
+        });
+      } else {
+        console.error('Failed to fetch EIS subscriptions');
+      }
+    } catch (error) {
+      console.error('Error fetching EIS subscriptions:', error);
     }
   };
 
@@ -406,6 +477,95 @@ export default function AdminSubscriptions() {
     setShowBranchActivateModal(true);
   };
 
+  // EIS Handlers
+  const handleActivateEISSubscription = async (e) => {
+    e.preventDefault();
+
+    try {
+      const response = await fetch('/api/admin/eis-subscriptions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(eisFormData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowEISActivateModal(false);
+        resetEISForm();
+        fetchEISSubscriptions();
+        alert('EIS Subscription activated successfully!');
+      } else {
+        alert(`Failed to activate EIS subscription: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Network error. Please try again.');
+      console.error('Activate EIS error:', error);
+    }
+  };
+
+  const handleDeactivateEISSubscription = async () => {
+    try {
+      const response = await fetch('/api/admin/eis-subscriptions/deactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          subscriptionId: selectedSubscription?.id,
+          deactivateReason
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setShowEISDeactivateModal(false);
+        setSelectedSubscription(null);
+        setDeactivateReason('');
+        fetchEISSubscriptions();
+        alert('EIS Subscription deactivated successfully!');
+      } else {
+        alert(`Failed to deactivate EIS subscription: ${result.error}`);
+      }
+    } catch (error) {
+      alert('Network error. Please try again.');
+      console.error('Deactivate EIS error:', error);
+    }
+  };
+
+  const resetEISForm = () => {
+    setEisFormData({
+      tenantId: '',
+      plan: 'eis-monthly',
+      amount: '',
+      currency: 'MWK',
+      status: 'Active',
+      isActive: true,
+      expiresAt: '',
+      paymentMethod: 'bank',
+      notes: ''
+    });
+  };
+
+  const openEISActivateModal = () => {
+    resetEISForm();
+    setShowEISActivateModal(true);
+  };
+
+  const openEISViewModal = (subscription) => {
+    setSelectedSubscription(subscription);
+    setShowEISViewModal(true);
+  };
+
+  const openEISDeactivateModal = (subscription) => {
+    setSelectedSubscription(subscription);
+    setDeactivateReason('');
+    setShowEISDeactivateModal(true);
+  };
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'Pending': 'bg-yellow-100 text-yellow-800',
@@ -518,7 +678,7 @@ export default function AdminSubscriptions() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Subscription Management</h1>
@@ -526,14 +686,42 @@ export default function AdminSubscriptions() {
             Manage all system subscriptions, create new ones, and monitor subscription status
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Add Subscription
-        </button>
+        <div className="mt-4 sm:mt-0 flex gap-2">
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'subscriptions'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Subscriptions
+          </button>
+          <button
+            onClick={() => setActiveTab('eis')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'eis'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            EIS Subscriptions
+          </button>
+          {activeTab === 'subscriptions' && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Subscription
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Tab Content */}
+      {activeTab === 'subscriptions' && (
+        <>
 
       {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1522,6 +1710,293 @@ export default function AdminSubscriptions() {
                 >
                   Delete
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      </>
+      )}
+
+      {/* EIS Subscriptions Section */}
+      {activeTab === 'eis' && (
+        <div className="space-y-6">
+          {/* EIS Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 p-4 rounded-lg text-white">
+              <div className="text-center">
+                <p className="text-sm font-medium text-indigo-100">Total EIS</p>
+                <p className="text-3xl font-bold">{eisStats.total}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-green-500 to-green-600 p-4 rounded-lg text-white">
+              <div className="text-center">
+                <p className="text-sm font-medium text-green-100">Active</p>
+                <p className="text-3xl font-bold">{eisStats.active}</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-4 rounded-lg text-white">
+              <div className="text-center">
+                <p className="text-sm font-medium text-amber-100">Monthly</p>
+                <p className="text-3xl font-bold">{eisStats.monthlyActive}</p>
+                <p className="text-xs text-amber-100">of {eisStats.monthly} total</p>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-lg text-white">
+              <div className="text-center">
+                <p className="text-sm font-medium text-blue-100">Yearly</p>
+                <p className="text-3xl font-bold">{eisStats.yearlyActive}</p>
+                <p className="text-xs text-blue-100">of {eisStats.yearly} total</p>
+              </div>
+            </div>
+          </div>
+
+          {/* EIS Filters and Search */}
+          <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by tenant name, subdomain, TPIN..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      fetchEISSubscriptions();
+                    }}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={eisStatusFilter}
+                  onChange={(e) => {
+                    setEisStatusFilter(e.target.value);
+                    fetchEISSubscriptions();
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="expired">Expired</option>
+                </select>
+                <select
+                  value={eisPlanFilter}
+                  onChange={(e) => {
+                    setEisPlanFilter(e.target.value);
+                    fetchEISSubscriptions();
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                >
+                  <option value="all">All Plans</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <button
+                  onClick={fetchEISSubscriptions}
+                  className="px-3 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  title="Refresh"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* EIS Subscriptions Table */}
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">EIS Subscriptions</h3>
+                <p className="text-sm text-gray-500">MRA Electronic Invoice System subscriptions</p>
+              </div>
+              <button
+                onClick={openEISActivateModal}
+                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Activate EIS
+              </button>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tenant</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plan Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">TPIN</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Started</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expires</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {eisSubscriptions.length > 0 ? (
+                    eisSubscriptions.map((subscription) => (
+                      <tr key={subscription.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{subscription.tenant?.name || 'Unknown'}</div>
+                          <div className="text-sm text-gray-500">{subscription.tenant?.subdomain || 'No subdomain'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${subscription.planType === 'monthly' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                            {subscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(subscription.status)}`}>
+                            {subscription.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{subscription.currency} {(subscription.amount || 0).toLocaleString()}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{subscription.tenant?.tpin || '-'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{subscription.startedAt ? new Date(subscription.startedAt).toLocaleDateString() : '-'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{subscription.expiresAt ? new Date(subscription.expiresAt).toLocaleDateString() : 'N/A'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button onClick={() => openEISViewModal(subscription)} className="text-indigo-600 hover:text-indigo-900 p-1" title="View details">
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            {subscription.isActive && (
+                              <button onClick={() => openEISDeactivateModal(subscription)} className="text-red-600 hover:text-red-900 p-1" title="Deactivate">
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="px-6 py-12 text-center text-gray-500">No EIS subscriptions found</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EIS Activate Modal */}
+      {showEISActivateModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Activate EIS Subscription</h3>
+                <button onClick={() => setShowEISActivateModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <AlertCircle className="h-6 w-6" />
+                </button>
+              </div>
+              <form onSubmit={handleActivateEISSubscription} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Tenant *</label>
+                    <select required value={eisFormData.tenantId} onChange={(e) => setEisFormData(prev => ({ ...prev, tenantId: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
+                      <option value="">Select a tenant</option>
+                      {tenants.map((tenant) => (<option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.subdomain})</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Plan *</label>
+                    <select required value={eisFormData.plan} onChange={(e) => setEisFormData(prev => ({ ...prev, plan: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
+                      <option value="eis-monthly">EIS Monthly (MK150,000/month)</option>
+                      <option value="eis-yearly">EIS Yearly (MK950,000/year)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                    <input type="number" value={eisFormData.amount} onChange={(e) => setEisFormData(prev => ({ ...prev, amount: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="150000" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                    <select value={eisFormData.paymentMethod} onChange={(e) => setEisFormData(prev => ({ ...prev, paymentMethod: e.target.value }))} className="w-full border border-gray-300 rounded-md px-3 py-2">
+                      <option value="bank">Bank Transfer</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="card">Credit/Debit Card</option>
+                      <option value="cash">Cash</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea value={eisFormData.notes} onChange={(e) => setEisFormData(prev => ({ ...prev, notes: e.target.value }))} rows={3} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Reason for activation..." />
+                </div>
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button type="button" onClick={() => setShowEISActivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                  <button type="submit" className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Activate EIS</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EIS Deactivate Modal */}
+      {showEISDeactivateModal && selectedSubscription && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <AlertCircle className="mx-auto h-12 w-12 text-red-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Deactivate EIS Subscription</h3>
+              <p className="text-sm text-gray-500 mb-4">Deactivate EIS for <strong>{selectedSubscription.tenant?.name || 'Unknown Tenant'}</strong>?</p>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1 text-left">Reason (optional)</label>
+                <textarea value={deactivateReason} onChange={(e) => setDeactivateReason(e.target.value)} rows={2} className="w-full border border-gray-300 rounded-md px-3 py-2" placeholder="Reason for deactivation..." />
+              </div>
+              <div className="flex justify-center space-x-3">
+                <button onClick={() => setShowEISDeactivateModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Cancel</button>
+                <button onClick={handleDeactivateEISSubscription} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">Deactivate</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EIS View Modal */}
+      {showEISViewModal && selectedSubscription && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">EIS Subscription Details</h3>
+                <button onClick={() => setShowEISViewModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <AlertCircle className="h-6 w-6" />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-sm text-gray-500">Tenant</p><p className="font-medium">{selectedSubscription.tenant?.name}</p></div>
+                  <div><p className="text-sm text-gray-500">Subdomain</p><p className="font-medium">{selectedSubscription.tenant?.subdomain}</p></div>
+                  <div><p className="text-sm text-gray-500">TPIN</p><p className="font-medium">{selectedSubscription.tenant?.tpin || '-'}</p></div>
+                  <div><p className="text-sm text-gray-500">Plan</p><p className="font-medium">{selectedSubscription.planType === 'monthly' ? 'Monthly' : 'Yearly'}</p></div>
+                  <div><p className="text-sm text-gray-500">Status</p><span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(selectedSubscription.status)}`}>{selectedSubscription.status}</span></div>
+                  <div><p className="text-sm text-gray-500">Amount</p><p className="font-medium">{selectedSubscription.currency} {(selectedSubscription.amount || 0).toLocaleString()}</p></div>
+                  <div><p className="text-sm text-gray-500">Started</p><p className="font-medium">{selectedSubscription.startedAt ? new Date(selectedSubscription.startedAt).toLocaleDateString() : '-'}</p></div>
+                  <div><p className="text-sm text-gray-500">Expires</p><p className="font-medium">{selectedSubscription.expiresAt ? new Date(selectedSubscription.expiresAt).toLocaleDateString() : 'N/A'}</p></div>
+                </div>
+                {selectedSubscription.txRef && (<div><p className="text-sm text-gray-500">Transaction Ref</p><p className="font-medium text-xs">{selectedSubscription.txRef}</p></div>)}
+              </div>
+              <div className="flex justify-end mt-6">
+                <button onClick={() => setShowEISViewModal(false)} className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">Close</button>
               </div>
             </div>
           </div>

@@ -107,10 +107,6 @@ const QuotationTemplatePreview = forwardRef(({
           {quotation?.client?.address && <p className="text-sm text-gray-600 mt-1 whitespace-pre-line">{quotation.client.address}</p>}
         </div>
         <div className="space-y-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Title</p>
-            <p className="text-gray-900 font-medium">{quotation?.title ?? '—'}</p>
-          </div>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <div><p className="text-gray-500">Order #</p><p className="text-gray-900">{quotation?.orderNumber ?? '—'}</p></div>
             <div><p className="text-gray-500">Date</p><p className="text-gray-900">{formatDate(quotation?.issueDate)}</p></div>
@@ -129,6 +125,8 @@ const QuotationTemplatePreview = forwardRef(({
 
       {/* Line items */}
       <div className="px-6 py-5">
+        {/* Centered title above items table */}
+        <h2 className="text-center text-lg font-semibold text-gray-900 mb-4">{quotation?.title?.trim() || 'Quotation'}</h2>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b-2 border-gray-200">

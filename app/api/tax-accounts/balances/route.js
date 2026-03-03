@@ -6,6 +6,12 @@ import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 /**
  * GET /api/tax-accounts/balances
  * Get balances for all tax accounts with daily/monthly breakdowns
+ * 
+ * Tax data storage:
+ * - Sales: SaleItemTax links to TaxType (reliable)
+ * - Invoices: Invoice.taxAmount only (NOT linked to TaxType)
+ * - Purchase Orders: PurchaseOrderItem.taxTypeId links to TaxType (reliable)
+ * - Expenses: Expense.taxAmount only (NOT linked to TaxType)
  */
 export async function GET(request) {
   try {
@@ -22,394 +28,303 @@ export async function GET(request) {
     const endDate = searchParams.get('endDate');
     const groupBy = searchParams.get('groupBy') || 'month';
 
-    // Build date filter - EXACTLY like individual page
-    const dateFilter = {};
-    if (startDate && endDate) {
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      dateFilter.gte = start;
-      dateFilter.lte = end;
-    }
+    const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    const dateFilter = { gte: start, lte: end };
 
-    // Get all active tax types (no include to avoid Prisma relation mismatches)
-    const taxTypesRaw = await prisma.taxType.findMany({
+    const taxTypes = await prisma.taxType.findMany({
       where: {
         tenantId: user.tenantId,
         status: 'Active',
       },
+      include: {
+        account: {
+          select: {
+            id: true,
+            accountCode: true,
+            accountName: true,
+            accountType: true,
+            balance: true,
+          },
+        },
+      },
     });
 
-    // Load accounts separately
-    const accountIds = [...new Set(taxTypesRaw.map((t) => t.accountId).filter(Boolean))];
-    const accounts = accountIds.length
-      ? await prisma.account.findMany({
-          where: { id: { in: accountIds } },
-          select: { id: true, accountCode: true, accountName: true, accountType: true, balance: true },
-        })
-      : [];
-    const accountMap = new Map(accounts.map((a) => [a.id, a]));
-
-    const taxTypes = taxTypesRaw.map((t) => ({
-      ...t,
-      account: t.accountId ? accountMap.get(t.accountId) ?? null : null,
-    }));
-
+    const nonPayeTaxTypes = taxTypes.filter(t => Number(t.taxRate) > 0);
     const taxAccountBalances = [];
 
     for (const taxType of taxTypes) {
-      if (!taxType.accountId || !taxType.account) {
-        taxAccountBalances.push({
-          taxType: {
-            id: taxType.id,
-            taxId: taxType.taxId,
-            taxName: taxType.taxName,
-            taxCode: taxType.taxCode,
-            taxRate: taxType.taxRate,
-            calculationType: taxType.calculationType,
-          },
-          account: null,
-          totalCollected: 0,
-          totalPaid: 0,
-          totalRefunded: 0,
-          netPayable: 0,
-          currentBalance: 0,
-          breakdown: [],
-        });
-        continue;
-      }
-
-      try {
-      // Calculate tax collected from SALES (since tax transactions don't exist)
-      // Exclude refunded sales so their tax is not counted as collected
-      const salesWithTax = await prisma.sale.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: { in: ['completed', 'paid'] },
-          refundedAt: null,
-          ...(Object.keys(dateFilter).length > 0 && {
-            saleDate: dateFilter,
-          }),
-          items: {
-            some: {
-              taxAmount: { gt: 0 },
-            },
-          },
-        }),
-        include: {
-          items: {
-            where: {
-              taxAmount: { gt: 0 },
-            },
-            include: {
-              product: {
-                include: {
-                  productTaxes: {
-                    where: {
-                      taxTypeId: taxType.id,
-                    },
-                    include: {
-                      taxType: true,
-                    },
-                  },
-                },
-              },
-              itemTaxes: {
-                where: {
-                  taxTypeId: taxType.id,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      // Count active tax types for fallback logic
-      const activeTaxTypeCount = await prisma.taxType.count({
-        where: {
-          tenantId: user.tenantId,
-          status: 'Active',
-        },
-      });
-
-      // Calculate totals from sales
       let totalCollected = 0;
       let totalPaid = 0;
       let totalRefunded = 0;
       const breakdownMap = new Map();
+      const taxTypeRate = Number(taxType.taxRate);
+      const isOnlyNonPayeTaxType = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
+      const isFirstNonPayeTaxType = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
 
-      // Process sales - check if item belongs to this tax type
-      for (const sale of salesWithTax) {
-        for (const item of sale.items) {
-          // Check if this item's tax belongs to this tax type
-          // Priority: 1) SaleItemTax records (most accurate), 2) ProductTax link, 3) If only one tax type exists, assume it's this one
-          let taxAmountForThisType = 0;
-          
-          if (item.itemTaxes && item.itemTaxes.length > 0) {
-            // Has SaleItemTax records - use the specific tax amount for this tax type
-            const taxForThisType = item.itemTaxes.find(it => it.taxTypeId === taxType.id);
-            if (taxForThisType) {
-              taxAmountForThisType = Number(taxForThisType.taxAmount || 0);
-            }
-          } else if (item.product && item.product.productTaxes && item.product.productTaxes.length > 0) {
-            // Check ProductTax link - calculate tax amount proportionally
-            const productTaxForThisType = item.product.productTaxes.find(pt => pt.taxTypeId === taxType.id);
-            if (productTaxForThisType && productTaxForThisType.taxType) {
-              const taxTypeData = productTaxForThisType.taxType;
-              // Calculate tax amount based on calculation type
-              const itemSubtotal = (item.quantity || 0) * (item.unitPrice || 0);
-              const itemBaseAmount = itemSubtotal - (item.discountAmount || 0);
-              
-              if (taxTypeData.calculationType === 'Fixed') {
-                taxAmountForThisType = Number(taxTypeData.taxRate || 0) * (item.quantity || 1);
-              } else {
-                // Percentage calculation
-                taxAmountForThisType = itemBaseAmount * (Number(taxTypeData.taxRate || 0) / 100);
-              }
-            }
-          } else {
-            // Fallback: If there's only one active tax type, assume all tax belongs to this one
-            if (activeTaxTypeCount === 1 && item.taxAmount > 0) {
-              taxAmountForThisType = Number(item.taxAmount || 0);
-            }
-          }
+      const addToBreakdown = (date, field, amount) => {
+        const d = new Date(date);
+        const dateKey = groupBy === 'day'
+          ? d.toISOString().split('T')[0]
+          : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!breakdownMap.has(dateKey)) {
+          breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
+        }
+        breakdownMap.get(dateKey)[field] += amount;
+      };
 
-          if (taxAmountForThisType > 0) {
-            const saleDate = sale.saleDate instanceof Date ? sale.saleDate : new Date(sale.saleDate);
-            const dateKey = groupBy === 'day' 
-              ? saleDate.toISOString().split('T')[0]
-              : `${saleDate.getFullYear()}-${String(saleDate.getMonth() + 1).padStart(2, '0')}`;
+      // ========== TAX COLLECTED FROM SALES (SaleItemTax) ==========
+      const salesAccountedFor = new Set();
+      try {
+        const saleItemTaxes = await prisma.saleItemTax.findMany({
+          where: { taxTypeId: taxType.id },
+          include: {
+            saleItem: {
+              include: {
+                sale: {
+                  select: {
+                    id: true, saleDate: true, refundedAt: true,
+                    branchId: true, status: true,
+                  },
+                },
+              },
+            },
+          },
+        });
 
-            if (!breakdownMap.has(dateKey)) {
-              breakdownMap.set(dateKey, {
-                period: dateKey,
-                collected: 0,
-                paid: 0,
-                refunded: 0,
-                net: 0,
-              });
-            }
-            breakdownMap.get(dateKey).collected += taxAmountForThisType;
-            totalCollected += taxAmountForThisType;
+        for (const sit of saleItemTaxes) {
+          const sale = sit.saleItem?.sale;
+          if (!sale) continue;
+          if (sale.refundedAt) continue;
+          if (sale.status === 'void') continue;
+
+          const branchId = user?.currentBranchId || null;
+          if (branchId && sale.branchId && sale.branchId !== branchId) continue;
+
+          const saleDate = new Date(sale.saleDate);
+          if (saleDate < start || saleDate > end) continue;
+
+          const taxAmt = Number(sit.taxAmount || 0);
+          if (taxAmt > 0) {
+            totalCollected += taxAmt;
+            salesAccountedFor.add(sale.id);
+            addToBreakdown(saleDate, 'collected', taxAmt);
           }
         }
+      } catch (err) {
+        console.warn('Tax balances: SaleItemTax query failed for', taxType.taxId, err?.message);
       }
 
-      // Include tax collected from paid/completed invoices (when only one tax type, allocate all invoice tax to it)
-      if (activeTaxTypeCount === 1) {
-        const invoicesWithTax = await prisma.invoice.findMany({
+      // ========== TAX COLLECTED FROM SALES (fallback: sale-level taxAmount) ==========
+      try {
+        const salesWithTax = await prisma.sale.findMany({
           where: addBranchFilter(user, {
             tenantId: user.tenantId,
-            status: { in: ['Paid', 'Completed'] },
+            OR: [
+              { taxAmount: { gt: 0 } },
+              { taxRate: { gt: 0 } },
+            ],
             refundedAt: null,
-            taxAmount: { gt: 0 },
-            ...(Object.keys(dateFilter).length > 0 && {
+            status: { not: 'void' },
+            saleDate: dateFilter,
+          }),
+          select: { id: true, saleDate: true, taxAmount: true, taxRate: true },
+        });
+
+        for (const sale of salesWithTax) {
+          if (salesAccountedFor.has(sale.id)) continue;
+
+          const saleTaxRate = Number(sale.taxRate || 0);
+          const saleTaxAmount = Number(sale.taxAmount || 0);
+          if (saleTaxAmount <= 0) continue;
+
+          const rateMatches = taxTypeRate > 0 && Math.abs(saleTaxRate - taxTypeRate) < 0.01;
+          const isLegacyData = saleTaxRate === 0 && saleTaxAmount > 0;
+          const hasAnyTaxTypeWithMatchingRate = nonPayeTaxTypes.some(t =>
+            Math.abs(Number(t.taxRate) - saleTaxRate) < 0.01
+          );
+
+          if (rateMatches || isOnlyNonPayeTaxType ||
+              (isLegacyData && isFirstNonPayeTaxType && taxTypeRate > 0) ||
+              (!hasAnyTaxTypeWithMatchingRate && isFirstNonPayeTaxType)) {
+            totalCollected += saleTaxAmount;
+            addToBreakdown(sale.saleDate, 'collected', saleTaxAmount);
+          }
+        }
+      } catch (err) {
+        console.warn('Tax balances: Sale fallback query failed for', taxType.taxId, err?.message);
+      }
+
+      // ========== TAX COLLECTED FROM INVOICES ==========
+      try {
+        if (isOnlyNonPayeTaxType || (isFirstNonPayeTaxType && taxTypeRate > 0)) {
+          const invoicesWithTax = await prisma.invoice.findMany({
+            where: addBranchFilter(user, {
+              tenantId: user.tenantId,
+              status: { in: ['Paid', 'paid', 'Completed', 'completed'] },
+              refundedAt: null,
+              taxAmount: { gt: 0 },
               issueDate: dateFilter,
             }),
-          }),
-          select: { issueDate: true, taxAmount: true },
-        });
-        for (const inv of invoicesWithTax) {
-          const amt = Number(inv.taxAmount || 0);
-          if (amt <= 0) continue;
-          totalCollected += amt;
-          const d = inv.issueDate instanceof Date ? inv.issueDate : new Date(inv.issueDate);
-          const dateKey = groupBy === 'day'
-            ? d.toISOString().split('T')[0]
-            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          if (!breakdownMap.has(dateKey)) {
-            breakdownMap.set(dateKey, {
-              period: dateKey,
-              collected: 0,
-              paid: 0,
-              refunded: 0,
-              net: 0,
-            });
+            select: { id: true, issueDate: true, taxAmount: true },
+          });
+
+          for (const inv of invoicesWithTax) {
+            const taxAmt = Number(inv.taxAmount || 0);
+            if (taxAmt > 0) {
+              totalCollected += taxAmt;
+              addToBreakdown(inv.issueDate, 'collected', taxAmt);
+            }
           }
-          breakdownMap.get(dateKey).collected += amt;
         }
+      } catch (err) {
+        console.warn('Tax balances: Invoice query failed for', taxType.taxId, err?.message);
       }
 
-      // --- Taxes PAID (purchases): PO items by tax type, expenses and supplier bills when single tax type ---
-      // 1. Purchase order items with this tax type (input VAT on purchases)
-      const poItemsWithTax = await prisma.purchaseOrderItem.findMany({
-        where: {
-          taxTypeId: taxType.id,
-          taxAmount: { gt: 0 },
-          purchaseOrder: {
-            tenantId: user.tenantId,
-            status: { not: 'Cancelled' },
-            ...(Object.keys(dateFilter).length > 0 && { poDate: dateFilter }),
+      // ========== TAX PAID FROM PURCHASE ORDERS ==========
+      try {
+        const poItemsWithTax = await prisma.purchaseOrderItem.findMany({
+          where: {
+            taxTypeId: taxType.id,
+            taxAmount: { gt: 0 },
+            purchaseOrder: {
+              tenantId: user.tenantId,
+              status: { notIn: ['Cancelled', 'Draft'] },
+              poDate: dateFilter,
+            },
           },
-        },
-        select: {
-          taxAmount: true,
-          purchaseOrder: { select: { poDate: true } },
-        },
-      });
-      for (const row of poItemsWithTax) {
-        const amt = Number(row.taxAmount || 0);
-        if (amt <= 0) continue;
-        totalPaid += amt;
-        const d = row.purchaseOrder?.poDate;
-        if (d) {
-          const dateKey = groupBy === 'day'
-            ? (d instanceof Date ? d : new Date(d)).toISOString().split('T')[0]
-            : `${(d instanceof Date ? d : new Date(d)).getFullYear()}-${String((d instanceof Date ? d : new Date(d)).getMonth() + 1).padStart(2, '0')}`;
-          if (!breakdownMap.has(dateKey)) {
-            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
+          include: {
+            purchaseOrder: {
+              select: { id: true, poDate: true, status: true },
+            },
+          },
+        });
+
+        for (const poItem of poItemsWithTax) {
+          const po = poItem.purchaseOrder;
+          if (!po) continue;
+          const taxAmt = Number(poItem.taxAmount || 0);
+          if (taxAmt > 0) {
+            totalPaid += taxAmt;
+            addToBreakdown(po.poDate, 'paid', taxAmt);
           }
-          breakdownMap.get(dateKey).paid += amt;
         }
+      } catch (err) {
+        console.warn('Tax balances: PO items query failed for', taxType.taxId, err?.message);
       }
 
-      // 2. Expenses with tax (when only one active tax type, treat all expense tax as this type)
-      if (activeTaxTypeCount === 1) {
+      // ========== TAX PAID FROM EXPENSES ==========
+      try {
+        const isFirstNonPaye = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
+        const isOnlyNonPaye = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
+
         const expensesWithTax = await prisma.expense.findMany({
           where: addBranchFilter(user, {
             tenantId: user.tenantId,
-            taxAmount: { gt: 0 },
+            OR: [
+              { taxAmount: { gt: 0 } },
+              { taxRate: { gt: 0 } },
+            ],
             isDeleted: false,
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
-          }),
-          select: { date: true, taxAmount: true },
-        });
-        for (const ex of expensesWithTax) {
-          const amt = Number(ex.taxAmount || 0);
-          if (amt <= 0) continue;
-          totalPaid += amt;
-          const d = ex.date instanceof Date ? ex.date : new Date(ex.date);
-          const dateKey = groupBy === 'day'
-            ? d.toISOString().split('T')[0]
-            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          if (!breakdownMap.has(dateKey)) {
-            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
-          }
-          breakdownMap.get(dateKey).paid += amt;
-        }
-
-        // 3. Supplier bills with tax (input VAT)
-        const billsWithTax = await prisma.supplierBill.findMany({
-          where: {
-            tenantId: user.tenantId,
-            taxAmount: { gt: 0 },
-            ...(Object.keys(dateFilter).length > 0 && { billDate: dateFilter }),
-          },
-          select: { billDate: true, taxAmount: true },
-        });
-        for (const bill of billsWithTax) {
-          const amt = Number(bill.taxAmount || 0);
-          if (amt <= 0) continue;
-          totalPaid += amt;
-          const d = bill.billDate instanceof Date ? bill.billDate : new Date(bill.billDate);
-          const dateKey = groupBy === 'day'
-            ? d.toISOString().split('T')[0]
-            : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          if (!breakdownMap.has(dateKey)) {
-            breakdownMap.set(dateKey, { period: dateKey, collected: 0, paid: 0, refunded: 0, net: 0 });
-          }
-          breakdownMap.get(dateKey).paid += amt;
-        }
-      }
-
-      // Also check for tax transactions (in case they exist)
-      const transactions = await prisma.transaction.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: 'posted',
-          ...(Object.keys(dateFilter).length > 0 && {
             date: dateFilter,
           }),
-          lines: {
-            some: {
-              accountId: taxType.accountId,
-            },
-          },
-        }),
-        select: {
-          id: true,
-          date: true,
-          sourceType: true,
-          sourceId: true,
-          description: true,
-          lines: {
+          select: { date: true, taxAmount: true, taxRate: true },
+        });
+
+        for (const ex of expensesWithTax) {
+          const expTaxRate = Number(ex.taxRate || 0);
+          const expTaxAmount = Number(ex.taxAmount || 0);
+          if (expTaxAmount <= 0) continue;
+
+          const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
+          const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
+
+          if (rateMatches || isOnlyNonPaye || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
+            totalPaid += expTaxAmount;
+            addToBreakdown(ex.date, 'paid', expTaxAmount);
+          }
+        }
+      } catch (err) {
+        console.warn('Tax balances: Expense query failed for', taxType.taxId, err?.message);
+      }
+
+      // ========== CHECK TRANSACTIONS FOR TAX PAYMENTS/REFUNDS ==========
+      try {
+        if (taxType.accountId) {
+          const transactions = await prisma.transaction.findMany({
             where: {
-              accountId: taxType.accountId,
+              tenantId: user.tenantId,
+              status: 'posted',
+              date: dateFilter,
+              lines: {
+                some: { accountId: taxType.accountId },
+              },
             },
             select: {
-              debitAmount: true,
-              creditAmount: true,
-              description: true,
+              id: true,
+              date: true,
+              sourceType: true,
+              lines: {
+                where: { accountId: taxType.accountId },
+                select: { debitAmount: true, creditAmount: true },
+              },
             },
-          },
-        },
-        orderBy: {
-          date: 'desc',
-        },
-      });
-
-      const isLiability = taxType.account.accountType === 'Liability';
-      const isAsset = taxType.account.accountType === 'Asset';
-
-      transactions.forEach(tx => {
-        const line = tx.lines[0];
-        if (!line) return;
-
-        const debitAmount = line.debitAmount || 0;
-        const creditAmount = line.creditAmount || 0;
-        const netAmount = creditAmount - debitAmount;
-
-        const dateKey = groupBy === 'day' 
-          ? tx.date.toISOString().split('T')[0]
-          : `${tx.date.getFullYear()}-${String(tx.date.getMonth() + 1).padStart(2, '0')}`;
-
-        if (!breakdownMap.has(dateKey)) {
-          breakdownMap.set(dateKey, {
-            period: dateKey,
-            collected: 0,
-            paid: 0,
-            refunded: 0,
-            net: 0,
           });
-        }
-        const periodData = breakdownMap.get(dateKey);
 
-        if (tx.sourceType?.startsWith('Tax-')) {
-          // Tax transactions from tax service (Tax-Payroll, Tax-Sale, etc.)
-          if (isLiability) {
-            if (creditAmount > 0) {
-              totalCollected += creditAmount;
-              periodData.collected += creditAmount;
-            } else if (debitAmount > 0) {
-              totalRefunded += debitAmount;
-              periodData.refunded += debitAmount;
+          const isLiability = taxType.account?.accountType === 'Liability';
+          const isAsset = taxType.account?.accountType === 'Asset';
+
+          for (const tx of transactions) {
+            const line = tx.lines[0];
+            if (!line) continue;
+
+            const debitAmount = Number(line.debitAmount || 0);
+            const creditAmount = Number(line.creditAmount || 0);
+
+            if (tx.sourceType === 'TaxPayment') {
+              const paymentAmount = isLiability ? debitAmount : creditAmount;
+              if (paymentAmount > 0) {
+                totalPaid += paymentAmount;
+                addToBreakdown(tx.date, 'paid', paymentAmount);
+              }
             }
-          } else if (isAsset) {
-            if (debitAmount > 0) {
-              totalCollected += debitAmount;
-              periodData.collected += debitAmount;
-            } else if (creditAmount > 0) {
-              totalRefunded += creditAmount;
-              periodData.refunded += creditAmount;
+            // Supplier payment tax: debit to Liability = input VAT paid
+            else if (tx.sourceType === 'Tax-SupplierPayment') {
+              const paidAmt = isLiability ? debitAmount : creditAmount;
+              if (paidAmt > 0) {
+                totalPaid += paidAmt;
+                addToBreakdown(tx.date, 'paid', paidAmt);
+              }
+            }
+            // Tax-Sale and Tax-Invoice are already counted via direct aggregation above
+            else if (tx.sourceType?.startsWith('Tax-') &&
+                     tx.sourceType !== 'Tax-Sale' &&
+                     tx.sourceType !== 'Tax-Invoice' &&
+                     tx.sourceType !== 'Tax-SupplierPayment') {
+              if (isLiability) {
+                if (creditAmount > 0) {
+                  totalCollected += creditAmount;
+                  addToBreakdown(tx.date, 'collected', creditAmount);
+                } else if (debitAmount > 0) {
+                  totalRefunded += debitAmount;
+                  addToBreakdown(tx.date, 'refunded', debitAmount);
+                }
+              } else if (isAsset) {
+                if (debitAmount > 0) {
+                  totalCollected += debitAmount;
+                  addToBreakdown(tx.date, 'collected', debitAmount);
+                } else if (creditAmount > 0) {
+                  totalRefunded += creditAmount;
+                  addToBreakdown(tx.date, 'refunded', creditAmount);
+                }
+              }
             }
           }
-        } else if (tx.sourceType === 'Payroll' && isLiability && creditAmount > 0) {
-          // Payroll transactions that credit tax liability accounts (PAYE, NPS, etc.)
-          // This handles cases where tax was posted directly in payroll transaction
-          // Check if this is a PAYE account by name
-          const accountName = (taxType.account.accountName || taxType.account.name || '').toLowerCase();
-          if (accountName.includes('paye') || taxType.taxName?.toLowerCase().includes('paye')) {
-            totalCollected += creditAmount;
-            periodData.collected += creditAmount;
-          }
-        } else if (tx.sourceType === 'TaxPayment') {
-          const paymentAmount = isLiability ? debitAmount : creditAmount;
-          totalPaid += paymentAmount;
-          periodData.paid += paymentAmount;
         }
-
-        periodData.net += netAmount;
-      });
+      } catch (err) {
+        console.warn('Tax balances: Transaction query failed for', taxType.taxId, err?.message);
+      }
 
       const netPayable = totalCollected - totalPaid - totalRefunded;
 
@@ -427,32 +342,11 @@ export async function GET(request) {
         totalPaid,
         totalRefunded,
         netPayable,
-        currentBalance: taxType.account.balance || 0,
+        currentBalance: taxType.account?.balance || 0,
         breakdown: Array.from(breakdownMap.values()).sort((a, b) => a.period.localeCompare(b.period)),
       });
-      } catch (perTypeErr) {
-        console.warn('Tax account balance for', taxType.taxId || taxType.id, perTypeErr?.message || perTypeErr);
-        taxAccountBalances.push({
-          taxType: {
-            id: taxType.id,
-            taxId: taxType.taxId,
-            taxName: taxType.taxName,
-            taxCode: taxType.taxCode,
-            taxRate: taxType.taxRate,
-            calculationType: taxType.calculationType,
-          },
-          account: taxType.account,
-          totalCollected: 0,
-          totalPaid: 0,
-          totalRefunded: 0,
-          netPayable: 0,
-          currentBalance: taxType.account?.balance ?? 0,
-          breakdown: [],
-        });
-      }
     }
 
-    // Calculate summary totals
     const summary = {
       totalTaxAccounts: taxAccountBalances.length,
       totalCollected: taxAccountBalances.reduce((sum, acc) => sum + acc.totalCollected, 0),
@@ -460,18 +354,18 @@ export async function GET(request) {
       totalRefunded: taxAccountBalances.reduce((sum, acc) => sum + acc.totalRefunded, 0),
       totalNetPayable: 0,
     };
-    
     summary.totalNetPayable = summary.totalCollected - summary.totalPaid - summary.totalRefunded;
 
     return NextResponse.json({
       period: {
-        startDate: dateFilter.gte?.toISOString().split('T')[0],
-        endDate: dateFilter.lte?.toISOString().split('T')[0],
+        startDate: start.toISOString().split('T')[0],
+        endDate: end.toISOString().split('T')[0],
         groupBy,
       },
       summary,
       taxAccounts: taxAccountBalances,
     });
+
   } catch (error) {
     console.error('Error fetching tax account balances:', error);
     return NextResponse.json(

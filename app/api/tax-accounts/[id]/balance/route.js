@@ -67,12 +67,12 @@ export async function GET(request, { params }) {
       dateFilter.lte = end;
     }
 
-    // Calculate tax collected from SALES (since tax transactions don't exist)
-    // Exclude refunded sales so their tax is not counted as collected
-    const salesWithTax = await prisma.sale.findMany({
+    // Calculate tax collected from SALES
+    // Strategy 1: Sales with SaleItems that have tax
+    const salesWithItemTax = await prisma.sale.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
-        status: { in: ['completed', 'paid'] },
+        status: { notIn: ['void', 'Void'] },
         refundedAt: null,
         ...(Object.keys(dateFilter).length > 0 && {
           saleDate: dateFilter,
@@ -111,15 +111,44 @@ export async function GET(request, { params }) {
       },
     });
 
-    // Count active tax types for fallback logic
-    const activeTaxTypeCount = await prisma.taxType.count({
+    // Strategy 2: Sales with sale-level taxAmount but no SaleItems (old sales)
+    const salesWithSaleLevelTax = await prisma.sale.findMany({
+      where: addBranchFilter(user, {
+        tenantId: user.tenantId,
+        status: { notIn: ['void', 'Void'] },
+        refundedAt: null,
+        taxAmount: { gt: 0 },
+        items: { none: {} },
+        ...(Object.keys(dateFilter).length > 0 && {
+          saleDate: dateFilter,
+        }),
+      }),
+      select: {
+        id: true,
+        saleNumber: true,
+        saleDate: true,
+        taxAmount: true,
+        taxRate: true,
+      },
+    });
+
+    // Merge both into salesWithTax for processing
+    const salesWithTax = salesWithItemTax;
+
+    // Count active non-PAYE tax types for fallback logic
+    const activeTaxTypes = await prisma.taxType.findMany({
       where: {
         tenantId: user.tenantId,
         status: 'Active',
       },
+      select: { id: true, taxRate: true },
     });
+    const activeTaxTypeCount = activeTaxTypes.length;
+    const activeNonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
+    const isOnlyNonPaye = activeNonPayeTypes.length === 1 && activeNonPayeTypes[0].id === taxType.id;
+    const isFirstNonPaye = activeNonPayeTypes.length > 0 && activeNonPayeTypes[0].id === taxType.id;
 
-    // Get only tax-related transactions for this tax account (TaxPayment)
+    // Get tax-related transactions for this tax account (TaxPayment + Tax-SupplierPayment)
     const transactions = await prisma.transaction.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
@@ -127,7 +156,7 @@ export async function GET(request, { params }) {
         ...(Object.keys(dateFilter).length > 0 && {
           date: dateFilter,
         }),
-        sourceType: 'TaxPayment',
+        sourceType: { in: ['TaxPayment', 'Tax-SupplierPayment'] },
         lines: {
           some: {
             accountId: taxType.accountId,
@@ -226,12 +255,44 @@ export async function GET(request, { params }) {
       }
     }
 
-    // Include tax collected from paid/completed invoices when only one tax type exists
-    if (activeTaxTypeCount === 1) {
+    // Process sale-level tax for old sales without SaleItems
+    const taxTypeRate = Number(taxType.taxRate);
+    if (taxTypeRate > 0) {
+      for (const sale of salesWithSaleLevelTax) {
+        const saleTaxRate = Number(sale.taxRate || 0);
+        const rateMatches = Math.abs(saleTaxRate - taxTypeRate) < 0.01;
+
+        if (rateMatches || isOnlyNonPaye) {
+          const taxAmt = Number(sale.taxAmount || 0);
+          if (taxAmt > 0) {
+            totalCollected += taxAmt;
+            const debitAmt = isAsset ? taxAmt : 0;
+            const creditAmt = isLiability ? taxAmt : 0;
+            salesTransactions.push({
+              id: `sale-level-${sale.id}`,
+              reference: sale.saleNumber || `SALE-${sale.id}`,
+              date: sale.saleDate,
+              description: `Tax Collection - ${sale.saleNumber || 'Sale'}`,
+              sourceType: 'Tax-Sale',
+              sourceId: sale.id,
+              transactionType: 'collected',
+              debitAmount: debitAmt,
+              creditAmount: creditAmt,
+              netAmount: creditAmt - debitAmt,
+              createdBy: 'System',
+              runningBalance: 0,
+            });
+          }
+        }
+      }
+    }
+
+    // Include tax collected from paid/completed invoices
+    if (isOnlyNonPaye || isFirstNonPaye) {
       const invoicesWithTax = await prisma.invoice.findMany({
         where: addBranchFilter(user, {
           tenantId: user.tenantId,
-          status: { in: ['Paid', 'Completed'] },
+          status: { in: ['Paid', 'paid', 'Completed', 'completed'] },
           refundedAt: null,
           taxAmount: { gt: 0 },
           ...(Object.keys(dateFilter).length > 0 && {
@@ -263,6 +324,105 @@ export async function GET(request, { params }) {
       }
     }
 
+    // ========== TAX PAID FROM PURCHASE ORDERS ==========
+    const poTransactions = [];
+    try {
+      const poItemsWithTax = await prisma.purchaseOrderItem.findMany({
+        where: {
+          taxTypeId: taxType.id,
+          taxAmount: { gt: 0 },
+          purchaseOrder: {
+            tenantId: user.tenantId,
+            status: { notIn: ['Cancelled', 'Draft'] },
+            ...(Object.keys(dateFilter).length > 0 && { poDate: dateFilter }),
+          },
+        },
+        include: {
+          purchaseOrder: {
+            select: { id: true, poNumber: true, poDate: true },
+          },
+        },
+      });
+
+      for (const poItem of poItemsWithTax) {
+        const po = poItem.purchaseOrder;
+        if (!po) continue;
+        const taxAmt = Number(poItem.taxAmount || 0);
+        if (taxAmt > 0) {
+          totalPaid += taxAmt;
+          const debitAmt = isLiability ? taxAmt : 0;
+          const creditAmt = isAsset ? taxAmt : 0;
+          poTransactions.push({
+            id: `po-${po.id}-${poItem.id}`,
+            reference: po.poNumber || `PO-${po.id}`,
+            date: po.poDate,
+            description: `Tax Paid - ${po.poNumber || 'Purchase Order'}`,
+            sourceType: 'Tax-PurchaseOrder',
+            sourceId: po.id,
+            transactionType: 'paid',
+            debitAmount: debitAmt,
+            creditAmount: creditAmt,
+            netAmount: creditAmt - debitAmt,
+            createdBy: 'System',
+            runningBalance: 0,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Tax balance detail: PO items query failed', err?.message);
+    }
+
+    // ========== TAX PAID FROM EXPENSES ==========
+    const expenseTransactions = [];
+    try {
+      const taxTypeRate = Number(taxType.taxRate);
+      const isOnlyNonPayeType = activeNonPayeTypes.length === 1 && activeNonPayeTypes[0].id === taxType.id;
+
+      const expensesWithTax = await prisma.expense.findMany({
+        where: addBranchFilter(user, {
+          tenantId: user.tenantId,
+          OR: [
+            { taxAmount: { gt: 0 } },
+            { taxRate: { gt: 0 } },
+          ],
+          isDeleted: false,
+          ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+        }),
+        select: { id: true, description: true, date: true, taxAmount: true, taxRate: true },
+      });
+
+      for (const ex of expensesWithTax) {
+        const expTaxRate = Number(ex.taxRate || 0);
+        const expTaxAmount = Number(ex.taxAmount || 0);
+        if (expTaxAmount <= 0) continue;
+
+        const rateMatches = taxTypeRate > 0 && Math.abs(expTaxRate - taxTypeRate) < 0.01;
+        const isLegacyData = expTaxRate === 0 && expTaxAmount > 0;
+
+        if (rateMatches || isOnlyNonPayeType || (isLegacyData && isFirstNonPaye && taxTypeRate > 0)) {
+          totalPaid += expTaxAmount;
+          const debitAmt = isLiability ? expTaxAmount : 0;
+          const creditAmt = isAsset ? expTaxAmount : 0;
+          expenseTransactions.push({
+            id: `expense-${ex.id}`,
+            reference: `EXP-${ex.id}`,
+            date: ex.date,
+            description: `Tax Paid - Expense: ${ex.description || ''}`.trim(),
+            sourceType: 'Tax-Expense',
+            sourceId: ex.id,
+            transactionType: 'paid',
+            debitAmount: debitAmt,
+            creditAmount: creditAmt,
+            netAmount: creditAmt - debitAmt,
+            createdBy: 'System',
+            runningBalance: 0,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Tax balance detail: Expense query failed', err?.message);
+    }
+
     // Map TaxPayment transactions
     const paymentTransactions = transactions.map(tx => {
       const line = tx.lines[0];
@@ -292,8 +452,8 @@ export async function GET(request, { params }) {
       };
     }).filter(tx => tx !== null);
 
-    // Combine sales transactions and payment transactions
-    const allTransactions = [...salesTransactions, ...paymentTransactions];
+    // Combine all transaction types
+    const allTransactions = [...salesTransactions, ...poTransactions, ...expenseTransactions, ...paymentTransactions];
     
     // Sort by date (oldest first for balance calculation)
     allTransactions.sort((a, b) => {

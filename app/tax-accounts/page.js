@@ -96,15 +96,24 @@ export default function TaxAccountsPage() {
   };
 
   const loadData = async () => {
-    if (!startDate || !endDate) return;
+    // Use default dates if not set (handles initial load timing issues)
+    let effectiveStartDate = startDate;
+    let effectiveEndDate = endDate;
+    
+    if (!effectiveStartDate || !effectiveEndDate) {
+      // Set default dates for the current month
+      const now = new Date();
+      effectiveStartDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      effectiveEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+    }
     
     setIsLoading(true);
     setError(null);
     
     try {
       const params = new URLSearchParams({
-        startDate,
-        endDate,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate,
         groupBy,
       });
       
@@ -292,6 +301,9 @@ export default function TaxAccountsPage() {
             </select>
           </div>
         </div>
+        <p className="text-xs text-gray-500 mt-2">
+          Showing balances for {startDate} to {endDate}. Use the same period on Tax Types so numbers match.
+        </p>
       </div>
 
       {/* Summary Cards */}

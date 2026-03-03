@@ -32,8 +32,9 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 1. Provide seamless MRA EIS integration as a premium feature
 2. Offer dedicated subscription plans (Monthly/Yearly) for EIS features
 3. Enable admin management of EIS subscriptions via `/insightbooks/billing/subscriptions`
-4. Ensure MRA compliance and approval
-5. Maintain high performance and reliability
+4. Enable tenants to configure TPIN in `/account`
+5. Ensure MRA compliance and approval
+6. Maintain high performance and reliability
 
 ### Key Features
 - **EIS-Enabled Subscription Plans**: Separate plans with EIS capabilities
@@ -42,6 +43,7 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 - **Validation**: Pre-submission validation against MRA rules
 - **Reporting**: MRA-compliant reports and summaries
 - **Audit Trail**: Complete logging for compliance
+- **TPIN Management**: Configure Taxpayer Identification Number per tenant
 
 ---
 
@@ -56,7 +58,7 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
    - Certificate files (if required)
 
 2. **MRA Registration**:
-   - Taxpayer Identification Number (TPIN)
+   - Taxpayer Identification Number (TPIN) - 8 digits
    - Business registration certificate
    - MRA EIS enrollment confirmation
 
@@ -69,11 +71,13 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 - Environment variables configured
 
 ### Existing System Components
-- ✅ Subscription management system
+- ✅ Subscription management system (lib/subscriptionConfig.js)
 - ✅ Admin billing interface (`/insightbooks/billing/subscriptions`)
 - ✅ Payment gateway integration (PayChangu)
 - ✅ Email notification system
 - ✅ Multi-tenant architecture
+- ✅ Account settings page (`/account`)
+- ✅ Tenant settings (TenantSettings model)
 
 ---
 
@@ -98,8 +102,8 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 │   - Authentication                  │
 │   - Invoice Formatting              │
 │   - Validation                      │
-│   - Submission                      │
-│   - Retry Logic                     │
+│   - Submission                     │
+│   - Retry Logic                    │
 └────────┬────────────────────────────┘
          │
          ▼
@@ -132,7 +136,7 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 
 #### 4. Subscription Integration
 **Location**: `lib/subscriptionService.js` (extended)
-- EIS plan detection
+- EIS plan detection (using existing `EIS_PLANS`, `EIS_PLAN_IDS`)
 - Feature flagging based on subscription
 - Usage tracking
 
@@ -141,6 +145,7 @@ The Malawi Revenue Authority (MRA) Electronic Invoice System (EIS) is a mandator
 - User-facing EIS interface
 - Admin management tools
 - Status dashboards
+- TPIN configuration in `/account`
 
 ---
 
@@ -178,6 +183,31 @@ model AccountSubscription {
   @@index([expiresAt])
   @@index([isTrial])
   @@index([trialEndDate])
+}
+```
+
+#### Tenant Table Updates Required
+Add TPIN field to support MRA compliance:
+
+```prisma
+// Add to existing Tenant model
+model Tenant {
+  // ... existing fields ...
+  tpin            String?   // Taxpayer Identification Number for MRA EIS
+  eisEnabled      Boolean   @default(false)  // Whether EIS is enabled for this tenant
+  // ... existing relations ...
+}
+```
+
+#### TenantSettings Table Updates Required
+```prisma
+// Add to existing TenantSettings model
+model TenantSettings {
+  // ... existing fields ...
+  tpin            String?   // Taxpayer Identification Number for MRA EIS
+  eisApiKey       String?   // Encrypted API key for MRA EIS
+  eisClientSecret String?   // Encrypted client secret
+  // ... existing fields ...
 }
 ```
 
@@ -221,8 +251,8 @@ model EISConfiguration {
   id                String    @id @default(cuid())
   tenantId          String    @unique
   clientId          String
-  clientSecret      String
-  apiKey            String?
+  clientSecret      String    // Should be encrypted
+  apiKey            String?   // Should be encrypted
   environment       String    // sandbox | production
   isActive          Boolean   @default(true)
   lastSyncAt        DateTime?
@@ -282,6 +312,15 @@ model EISUsage {
 Create: `prisma/migrations/20250101_add_eis_tables.sql`
 
 ```sql
+-- Add TPIN column to Tenant table
+ALTER TABLE "Tenant" ADD COLUMN "tpin" VARCHAR(20);
+ALTER TABLE "Tenant" ADD COLUMN "eisEnabled" BOOLEAN NOT NULL DEFAULT false;
+
+-- Add TPIN and EIS credentials to TenantSettings
+ALTER TABLE "TenantSettings" ADD COLUMN "tpin" VARCHAR(20);
+ALTER TABLE "TenantSettings" ADD COLUMN "eisApiKey" TEXT;
+ALTER TABLE "TenantSettings" ADD COLUMN "eisClientSecret" TEXT;
+
 -- EISInvoice table
 CREATE TABLE "EISInvoice" (
     "id" VARCHAR(255) NOT NULL,
@@ -383,88 +422,16 @@ CREATE INDEX "EISUsage_monthYear_idx" ON "EISUsage"("monthYear");
 Add to `prisma/schema.prisma`:
 
 ```prisma
-model EISInvoice {
-  id                String    @id @default(cuid())
-  tenantId          String
-  subscriptionId    String?
-  invoiceNumber     String    @unique
-  mraInvoiceId      String?
-  invoiceDate       DateTime
-  totalAmount       Float
-  taxAmount         Float
-  status            String
-  submissionId      String?
-  submittedAt       DateTime?
-  responseData      Json?
-  errorMessage      String?
-  retryCount        Int       @default(0)
-  lastRetryAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+// Add to Tenant model
+tpin           String?   // Taxpayer Identification Number for MRA EIS
+eisEnabled    Boolean   @default(false)  // Whether EIS is enabled for this tenant
 
-  tenant            Tenant    @relation(fields: [tenantId], references: [id])
-  subscription      AccountSubscription? @relation(fields: [subscriptionId], references: [id])
+// Add to TenantSettings model  
+tpin           String?   // Taxpayer Identification Number for MRA EIS
+eisApiKey     String?   // Encrypted API key for MRA EIS
+eisClientSecret String? // Encrypted client secret
 
-  @@index([tenantId])
-  @@index([status])
-  @@index([invoiceNumber])
-  @@index([submittedAt])
-  @@index([mraInvoiceId])
-}
-
-model EISConfiguration {
-  id                String    @id @default(cuid())
-  tenantId          String    @unique
-  clientId          String
-  clientSecret      String
-  apiKey            String?
-  environment       String
-  isActive          Boolean   @default(true)
-  lastSyncAt        DateTime?
-  syncStatus        String?
-  settings          Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  tenant            Tenant    @relation(fields: [tenantId], references: [id])
-
-  @@index([tenantId])
-  @@index([environment])
-}
-
-model EISSubmissionLog {
-  id                String    @id @default(cuid())
-  tenantId          String
-  invoiceId         String
-  requestPayload    Json
-  responsePayload   Json
-  status            String
-  errorCode         String?
-  errorMessage      String?
-  durationMs        Int
-  createdAt         DateTime  @default(now())
-
-  @@index([tenantId])
-  @@index([invoiceId])
-  @@index([createdAt])
-}
-
-model EISUsage {
-  id                String    @id @default(cuid())
-  tenantId          String
-  monthYear         String    // YYYY-MM
-  invoiceCount      Int       @default(0)
-  submissionCount   Int       @default(0)
-  approvedCount     Int       @default(0)
-  rejectedCount     Int       @default(0)
-  totalAmount       Float     @default(0)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@unique([tenantId, monthYear])
-  @@index([tenantId])
-  @@index([monthYear])
-}
+// EISInvoice, EISConfiguration, EISSubmissionLog, EISUsage models (as defined above)
 ```
 
 Run migration:
@@ -477,23 +444,21 @@ npx prisma generate
 
 ## Subscription Plans Configuration
 
-### EIS Subscription Plans
+### Existing EIS Subscription Plans
 
-Add EIS-specific plans to `lib/subscriptionConfig.js`:
+The system already has EIS plans configured in [`lib/subscriptionConfig.js`](lib/subscriptionConfig.js:52). There are two simple plans - Monthly and Yearly:
 
 ```javascript
 export const SUBSCRIPTION_PLANS = {
-  // Existing plans...
-  ONE_MONTH: { ... },
-  ONE_YEAR: { ... },
+  // ... existing plans (ONE_MONTH, ONE_YEAR) ...
 
-  // EIS Plans
-  EIS_STANDARD_MONTHLY: {
-    id: 'eis-standard-monthly',
-    name: 'EIS Standard Monthly',
-    displayName: 'EIS Standard - Monthly',
-    price: 15000, // MWK 15,000
-    priceFormatted: 'MK15,000',
+  // EIS Plans - Monthly and Yearly
+  EIS_MONTHLY: {
+    id: 'eis-monthly',
+    name: 'EIS Monthly',
+    displayName: 'EIS - Monthly',
+    price: 150000, // MWK 150,000 per month
+    priceFormatted: 'MK150,000',
     period: 'month',
     periodDisplay: '/month',
     currency: 'MWK',
@@ -517,12 +482,12 @@ export const SUBSCRIPTION_PLANS = {
     }
   },
 
-  EIS_STANDARD_YEARLY: {
-    id: 'eis-standard-yearly',
-    name: 'EIS Standard Yearly',
-    displayName: 'EIS Standard - Yearly',
-    price: 150000, // MWK 150,000 (Save MK30,000)
-    priceFormatted: 'MK150,000',
+  EIS_YEARLY: {
+    id: 'eis-yearly',
+    name: 'EIS Yearly',
+    displayName: 'EIS - Yearly',
+    price: 950000, // MWK 950,000 per year
+    priceFormatted: 'MK950,000',
     period: 'year',
     periodDisplay: '/year',
     currency: 'MWK',
@@ -540,107 +505,40 @@ export const SUBSCRIPTION_PLANS = {
     popular: false,
     highlight: false,
     badge: 'EIS',
-    savings: 'Save MK30,000 with annual plan',
+    savings: 'Save MK850,000 with annual plan',
     requiresEIS: true,
     eisQuota: {
       monthlyInvoices: Infinity,
       apiCalls: 120000
     }
-  },
-
-  EIS_PROFESSIONAL_MONTHLY: {
-    id: 'eis-professional-monthly',
-    name: 'EIS Professional Monthly',
-    displayName: 'EIS Professional - Monthly',
-    price: 35000, // MWK 35,000
-    priceFormatted: 'MK35,000',
-    period: 'month',
-    periodDisplay: '/month',
-    currency: 'MWK',
-    features: [
-      "All Standard Features",
-      "MRA EIS Integration",
-      "Electronic Invoice Submission",
-      "Invoice Status Tracking",
-      "MRA Validation",
-      "EIS Reports & Analytics",
-      "Unlimited Invoices",
-      "Priority Support (24/7)",
-      "Multi-Branch EIS",
-      "Custom Invoice Templates",
-      "API Access",
-      "Dedicated Account Manager"
-    ],
-    popular: false,
-    highlight: true,
-    badge: 'EIS Pro',
-    requiresEIS: true,
-    eisQuota: {
-      monthlyInvoices: Infinity,
-      apiCalls: 50000,
-      customTemplates: true,
-      multiBranch: true
-    }
-  },
-
-  EIS_PROFESSIONAL_YEARLY: {
-    id: 'eis-professional-yearly',
-    name: 'EIS Professional Yearly',
-    displayName: 'EIS Professional - Yearly',
-    price: 350000, // MWK 350,000 (Save MK70,000)
-    priceFormatted: 'MK350,000',
-    period: 'year',
-    periodDisplay: '/year',
-    currency: 'MWK',
-    features: [
-      "All Standard Features",
-      "MRA EIS Integration",
-      "Electronic Invoice Submission",
-      "Invoice Status Tracking",
-      "MRA Validation",
-      "EIS Reports & Analytics",
-      "Unlimited Invoices",
-      "Priority Support (24/7)",
-      "Multi-Branch EIS",
-      "Custom Invoice Templates",
-      "API Access",
-      "Dedicated Account Manager",
-      "3 Months Free"
-    ],
-    popular: true,
-    highlight: true,
-    badge: 'EIS Pro',
-    savings: 'Save MK70,000 with annual plan',
-    requiresEIS: true,
-    eisQuota: {
-      monthlyInvoices: Infinity,
-      apiCalls: 600000,
-      customTemplates: true,
-      multiBranch: true
-    }
   }
 };
 
 export const EIS_PLANS = {
-  STANDARD_MONTHLY: 'eis-standard-monthly',
-  STANDARD_YEARLY: 'eis-standard-yearly',
-  PROFESSIONAL_MONTHLY: 'eis-professional-monthly',
-  PROFESSIONAL_YEARLY: 'eis-professional-yearly'
+  MONTHLY: 'eis-monthly',
+  YEARLY: 'eis-yearly'
 };
 
 export const EIS_PLAN_IDS = [
-  EIS_PLANS.STANDARD_MONTHLY,
-  EIS_PLANS.STANDARD_YEARLY,
-  EIS_PLANS.PROFESSIONAL_MONTHLY,
-  EIS_PLANS.PROFESSIONAL_YEARLY
+  EIS_PLANS.MONTHLY,
+  EIS_PLANS.YEARLY
 ];
+```
 
-// Helper function to check if plan requires EIS
+### Existing Helper Functions
+The following functions already exist in [`lib/subscriptionConfig.js`](lib/subscriptionConfig.js:202):
+
+```javascript
+/**
+ * Check if plan requires EIS
+ */
 export function isEISPlan(planId) {
   return EIS_PLAN_IDS.includes(planId);
 }
 
-// Helper function to get EIS quota for a plan
+/**
+ * Get EIS quota for a plan
+ */
 export function getEISQuota(planId) {
   const plan = SUBSCRIPTION_PLANS[planId];
   if (plan && plan.requiresEIS) {
@@ -652,9 +550,11 @@ export function getEISQuota(planId) {
 
 ### Update Subscription Service
 
-In `lib/subscriptionService.js`, add:
+Add to [`lib/subscriptionService.js`](lib/subscriptionService.js):
 
 ```javascript
+import { EIS_PLAN_IDS, getEISQuota } from './subscriptionConfig';
+
 /**
  * Check if tenant has EIS-enabled subscription
  */
@@ -666,7 +566,7 @@ export async function hasEISAccess(tenantId) {
       isActive: true,
       isTrial: false,
       plan: {
-        in: EIS_PLAN_IDS // From subscriptionConfig
+        in: EIS_PLAN_IDS // ['eis-monthly', 'eis-yearly']
       },
       expiresAt: {
         gt: now
@@ -717,9 +617,11 @@ export async function canSubmitEISInvoice(tenantId) {
 
 ## API Integration
 
-### MRA EIS API Endpoints (Typical)
+### MRA EIS API Endpoints
 
-Based on common MRA EIS implementations, expect these endpoints:
+**Note**: The following endpoints are based on common MRA EIS implementations. Verify against the actual API documentation at:
+- Swagger: https://eis-api.mra.mw/swagger/index.html
+- API Guide: https://dev-eis-api.mra.mw/docs/
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -731,8 +633,6 @@ Based on common MRA EIS implementations, expect these endpoints:
 | `/reports/vat-summary` | GET | VAT summary report |
 | `/reports/paye-summary` | GET | PAYE summary report |
 | `/system/health` | GET | API health check |
-
-**Note**: The actual endpoints will be from the MRA documentation you provide.
 
 ### EIS Service Implementation
 
@@ -811,15 +711,15 @@ class EISService {
       invoiceDate: invoice.invoiceDate.toISOString().split('T')[0],
       seller: {
         name: tenant.name,
-        tpin: tenant.tpin, // Taxpayer Identification Number
-        address: tenant.address,
-        email: tenant.email,
-        phone: tenant.phone
+        tpin: tenant.tpin, // Taxpayer Identification Number - REQUIRED
+        address: tenant.settings?.businessAddress || '',
+        email: tenant.settings?.businessEmail || tenant.email,
+        phone: tenant.settings?.businessPhone || ''
       },
       buyer: {
         name: invoice.customerName,
-        tpin: invoice.customerTPIN,
-        address: invoice.customerAddress
+        tpin: invoice.customerTPIN || '',
+        address: invoice.customerAddress || ''
       },
       items: invoice.items.map(item => ({
         description: item.description,
@@ -835,7 +735,7 @@ class EISService {
         total: invoice.total
       },
       currency: invoice.currency || 'MWK',
-      paymentMethod: invoice.paymentMethod
+      paymentMethod: invoice.paymentMethod || 'Cash'
     };
   }
 
@@ -962,19 +862,13 @@ class EISService {
   }
 
   /**
-   * Get tenant details
+   * Get tenant details including TPIN
    */
   async getTenant(tenantId) {
     const tenant = await prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: {
-        id: true,
-        name: true,
-        subdomain: true,
-        tpin: true,
-        address: true,
-        email: true,
-        phone: true
+      include: {
+        settings: true
       }
     });
     
@@ -998,7 +892,9 @@ class EISService {
         }
       },
       include: {
-        tenant: true
+        tenant: {
+          include: { settings: true }
+        }
       }
     });
 
@@ -1048,7 +944,7 @@ class EISService {
         invoiceCount: { increment: 1 },
         submissionCount: { increment: 1 },
         [status === 'Approved' ? 'approvedCount' : 'rejectedCount']: { increment: 1 },
-        totalAmount: { increment: 0 } // Will be updated separately
+        totalAmount: { increment: 0 }
       },
       create: {
         tenantId,
@@ -1076,6 +972,7 @@ Create the following API routes:
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
+import { encrypt, decrypt } from '@/lib/encryption';
 
 export async function GET(request) {
   try {
@@ -1095,7 +992,18 @@ export async function GET(request) {
       where: { tenantId }
     });
 
-    return NextResponse.json({ config });
+    // Don't return encrypted secrets
+    if (config) {
+      return NextResponse.json({ 
+        config: {
+          ...config,
+          clientSecret: config.clientSecret ? '***' : null,
+          apiKey: config.apiKey ? '***' : null
+        }
+      });
+    }
+
+    return NextResponse.json({ config: null });
   } catch (error) {
     console.error('Error fetching EIS config:', error);
     return NextResponse.json({ error: 'Failed to fetch configuration' }, { status: 500 });
@@ -1103,60 +1011,60 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const userItem = await getUserFromSession(request);
+  if (!userItem) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+
   try {
-    const admin = await getAdminFromRequest(request);
-    if (!admin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const body = await request.json();
-    const { tenantId, clientId, clientSecret, apiKey, environment, isActive, settings } = body;
+    const { clientId, clientSecret, apiKey, environment, isActive, settings } = body;
 
-    if (!tenantId || !clientId || !clientSecret) {
+    if (!clientId || !clientSecret) {
       return NextResponse.json(
-        { error: 'Missing required fields: tenantId, clientId, clientSecret' },
+        { error: 'Missing required fields: clientId, clientSecret' },
         { status: 400 }
       );
     }
 
-    // Verify tenant exists
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
-    });
+    const tenantId = userItem.tenantId;
 
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
-    }
+    // Encrypt sensitive data
+    const encryptedClientSecret = encrypt(clientSecret);
+    const encryptedApiKey = apiKey ? encrypt(apiKey) : null;
 
     // Create or update configuration
     const config = await prisma.eISConfiguration.upsert({
       where: { tenantId },
       update: {
         clientId,
-        clientSecret,
-        apiKey,
-        environment,
-        isActive,
+        clientSecret: encryptedClientSecret,
+        apiKey: encryptedApiKey,
+        environment: environment || 'sandbox',
+        isActive: isActive !== false,
         settings,
         updatedAt: new Date()
       },
       create: {
         tenantId,
         clientId,
-        clientSecret,
-        apiKey,
+        clientSecret: encryptedClientSecret,
+        apiKey: encryptedApiKey,
         environment: environment || 'sandbox',
         isActive: isActive !== false,
         settings
       }
     });
 
-    return NextResponse.json({ success: true, config });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving EIS config:', error);
     return NextResponse.json({ error: 'Failed to save configuration' }, { status: 500 });
   }
 }
+
+// Helper function for user authentication (add to lib/auth.js)
+import { getUserFromSession } from '@/lib/auth';
 ```
 
 #### 2. EIS Invoice Submission
@@ -1167,6 +1075,7 @@ import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/auth';
 import eisService from '@/lib/eisService';
 import { hasEISAccess, canSubmitEISInvoice } from '@/lib/subscriptionService';
+import prisma from '@/lib/prisma';
 
 export async function POST(request) {
   try {
@@ -1216,10 +1125,22 @@ export async function POST(request) {
     // Submit to MRA
     const result = await eisService.submitInvoice(user.tenantId, invoiceData);
 
+    // Get active subscription for this tenant
+    const subscription = await prisma.accountSubscription.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        isActive: true,
+        plan: {
+          in: ['eis-monthly', 'eis-yearly']
+        }
+      }
+    });
+
     // Create EIS invoice record
     await prisma.eISInvoice.create({
       data: {
         tenantId: user.tenantId,
+        subscriptionId: subscription?.id,
         invoiceNumber: invoiceData.invoiceNumber,
         mraInvoiceId: result.mraInvoiceId,
         invoiceDate: new Date(invoiceData.invoiceDate),
@@ -1254,6 +1175,7 @@ export async function POST(request) {
 import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/auth';
 import eisService from '@/lib/eisService';
+import prisma from '@/lib/prisma';
 
 export async function GET(request, { params }) {
   try {
@@ -1266,7 +1188,10 @@ export async function GET(request, { params }) {
     
     const invoice = await prisma.eISInvoice.findFirst({
       where: {
-        id,
+        OR: [
+          { id },
+          { submissionId: id }
+        ],
         tenantId: user.tenantId
       }
     });
@@ -1289,6 +1214,11 @@ export async function GET(request, { params }) {
             updatedAt: new Date()
           }
         });
+
+        // Update usage if approved/rejected
+        if (status.status === 'Approved' || status.status === 'Rejected') {
+          await eisService.updateUsageStats(user.tenantId, status.status);
+        }
       }
 
       return NextResponse.json({
@@ -1315,6 +1245,7 @@ export async function GET(request, { params }) {
 ```javascript
 import { NextResponse } from 'next/server';
 import { getSessionUser } from '@/lib/auth';
+import prisma from '@/lib/prisma';
 
 export async function GET(request) {
   try {
@@ -1377,7 +1308,72 @@ export async function GET(request) {
 
 ## Frontend Implementation
 
-### 1. EIS Configuration Page
+### 1. TPIN Configuration in Account Page
+
+**Path**: `app/account/page.js`
+
+Add TPIN field to the Business Info tab. Update the existing form:
+
+```javascript
+// In the Business Information section, add:
+<div>
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    Taxpayer Identification Number (TPIN) *
+  </label>
+  <input
+    type="text"
+    value={settings.tpin || ''}
+    onChange={(e) => handleChange('tpin', e.target.value)}
+    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+    placeholder="12345678"
+    maxLength={8}
+    minLength={8}
+  />
+  <p className="mt-1 text-xs text-gray-500">
+    8-digit TPIN from Malawi Revenue Authority (required for MRA EIS)
+  </p>
+</div>
+```
+
+Update `settings` state to include TPIN:
+```javascript
+const [settings, setSettings] = useState({
+  // ... existing fields ...
+  tpin: '',  // Add this
+});
+```
+
+Update `loadSettings` to fetch TPIN:
+```javascript
+const loadSettings = async () => {
+  // ... existing load logic ...
+  
+  setSettings({
+    // ... existing fields ...
+    tpin: tenantData.tpin || '',
+  });
+};
+```
+
+Update `handleSubmit` to save TPIN:
+```javascript
+const handleSubmit = async (e) => {
+  // ... existing logic ...
+  
+  const tenantResponse = await fetch("/api/tenant/settings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      // ... existing fields ...
+      tpin: settings.tpin,
+    }),
+  });
+};
+```
+
+Create API endpoint to update TPIN: `app/api/tenant/settings/route.js`
+
+### 2. EIS Configuration Page
 
 **Path**: `app/eis/config/page.js`
 
@@ -1391,7 +1387,8 @@ import {
   EyeOff,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  Shield
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
@@ -1421,8 +1418,8 @@ export default function EISConfigPage() {
         if (data.config) {
           setConfig({
             clientId: data.config.clientId || '',
-            clientSecret: data.config.clientSecret || '',
-            apiKey: data.config.apiKey || '',
+            clientSecret: data.config.clientSecret === '***' ? '' : data.config.clientSecret || '',
+            apiKey: data.config.apiKey === '***' ? '' : data.config.apiKey || '',
             environment: data.config.environment || 'sandbox',
             isActive: data.config.isActive !== false
           });
@@ -1479,10 +1476,15 @@ export default function EISConfigPage() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">MRA EIS Configuration</h1>
-        <p className="text-gray-600 mt-2">
-          Configure your MRA Electronic Invoice System integration
-        </p>
+        <div className="flex items-center">
+          <Shield className="h-8 w-8 text-indigo-600 mr-3" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">MRA EIS Configuration</h1>
+            <p className="text-gray-600 mt-1">
+              Configure your MRA Electronic Invoice System integration
+            </p>
+          </div>
+        </div>
       </div>
 
       {message && (
@@ -1623,7 +1625,7 @@ export default function EISConfigPage() {
 }
 ```
 
-### 2. EIS Invoices Dashboard
+### 3. EIS Invoices Dashboard
 
 **Path**: `app/eis/invoices/page.js`
 
@@ -1886,16 +1888,13 @@ export default function EISInvoicesPage() {
 }
 ```
 
-### 3. Update Subscription Management Page
+### 4. Update Subscription Management Page
 
-The existing `/insightbooks/billing/subscriptions` page already has comprehensive functionality. We need to add EIS-specific features:
-
-**Enhancements needed**:
+The existing [`/insightbooks/billing/subscriptions`](app/insightbooks/billing/subscriptions/page.js) page already has comprehensive functionality. Add EIS-specific features:
 
 1. **Filter EIS subscriptions**: Add a filter for EIS plans
 2. **EIS Configuration quick link**: Add button to configure EIS for tenant
 3. **EIS Usage display**: Show EIS invoice count in subscription details
-4. **Bulk actions**: Activate/deactivate EIS for multiple tenants
 
 Add to the existing page:
 
@@ -1953,6 +1952,7 @@ const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 32 bytes for AES-256
 const IV_LENGTH = 16;
 
 export function encrypt(text) {
+  if (!text) return null;
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
@@ -1961,6 +1961,7 @@ export function encrypt(text) {
 }
 
 export function decrypt(encryptedText) {
+  if (!encryptedText) return null;
   const parts = encryptedText.split(':');
   const iv = Buffer.from(parts[0], 'hex');
   const encrypted = parts[1];
@@ -2052,6 +2053,7 @@ await logEISEvent(user.tenantId, user.id, 'INVOICE_SUBMIT', {
 - Implement data retention policies (7 years as per MRA requirements)
 - Provide data export/deletion capabilities
 - Encrypt all personal data
+- TPIN validation (8 digits, numeric only)
 
 ---
 
@@ -2091,9 +2093,12 @@ describe('EIS Service', () => {
       id: 'tenant-1',
       name: 'Test Company',
       tpin: '12345678',
-      address: 'Blantyre, Malawi',
-      email: 'test@example.com',
-      phone: '+265123456789'
+      settings: {
+        businessAddress: 'Blantyre, Malawi',
+        businessEmail: 'test@example.com',
+        businessPhone: '+265123456789'
+      },
+      email: 'test@example.com'
     };
 
     const transformed = eisService.transformInvoice(invoice, tenant);
@@ -2236,6 +2241,7 @@ describe('EIS Integration', () => {
    - Access control mechanisms
    - Audit trail functionality
    - Backup and recovery procedures
+   - TPIN validation and management
 
 ### Submission Package
 
@@ -2252,6 +2258,7 @@ Contents:
 - Data formats (sample requests/responses)
 - Error handling strategy
 - Security implementation details
+- TPIN management workflow
 
 #### 2. Test Results
 ```
@@ -2475,6 +2482,7 @@ Set up alerts for:
 - MRA API downtime
 - Authentication failures
 - Unusual submission patterns
+- TPIN validation failures
 
 ### 4. Logging
 
@@ -2537,16 +2545,29 @@ curl -X POST https://dev-eis-api.mra.mw/auth/token \
   -d '{"client_id":"YOUR_ID","client_secret":"YOUR_SECRET","grant_type":"client_credentials"}'
 ```
 
-#### 2. Quota Exceeded
+#### 2. TPIN Validation Errors
+**Symptom**: Invoices failing validation
+
+**Causes**:
+- TPIN not set in account settings
+- TPIN format incorrect (must be 8 digits)
+- TPIN not registered with MRA
+
+**Solution**:
+- Navigate to `/account` and verify TPIN is set
+- TPIN must be exactly 8 digits
+- Contact MRA to verify TPIN registration
+
+#### 3. Quota Exceeded
 **Symptom**: `429 Too Many Requests`
 
 **Solution**:
-- Check tenant's subscription plan
+- Check tenant's subscription plan at `/insightbooks/billing/subscriptions`
 - Upgrade to higher EIS plan
 - Implement rate limiting on your side
 - Contact MRA for quota increase if needed
 
-#### 3. Invoice Validation Errors
+#### 4. Invoice Validation Errors
 **Symptom**: `400 Bad Request` with validation errors
 
 **Solution**:
@@ -2556,7 +2577,7 @@ curl -X POST https://dev-eis-api.mra.mw/auth/token \
 - Check date format (YYYY-MM-DD)
 - Verify tax calculations
 
-#### 4. Slow Submissions
+#### 5. Slow Submissions
 **Symptom**: Submissions taking > 30 seconds
 
 **Solution**:
@@ -2565,7 +2586,7 @@ curl -X POST https://dev-eis-api.mra.mw/auth/token \
 - Check network connectivity
 - Contact MRA support for API performance issues
 
-#### 5. Duplicate Submissions
+#### 6. Duplicate Submissions
 **Symptom**: Same invoice submitted multiple times
 
 **Solution**:
@@ -2603,6 +2624,12 @@ SELECT * FROM "EISUsage"
 WHERE "tenantId" = 'tenant-id' 
 ORDER BY "monthYear" DESC;
 EOF
+
+# Check tenant TPIN
+npx prisma db execute --stdin <<EOF
+SELECT id, name, tpin, "eisEnabled" FROM "Tenant" 
+WHERE tpin IS NOT NULL;
+EOF
 ```
 
 ### Support Contacts
@@ -2621,9 +2648,9 @@ EOF
 
 ## Appendices
 
-### Appendix A: MRA EIS API Specification (Template)
+### Appendix A: MRA EIS API Specification
 
-Since the actual API documentation is external, here's a template based on common EIS APIs:
+**Note**: Verify actual endpoints at https://eis-api.mra.mw/swagger/index.html
 
 #### Authentication
 ```
@@ -2702,7 +2729,7 @@ Based on MRA requirements:
 1. **Required Fields**:
    - Invoice number (unique, max 50 chars)
    - Invoice date (not future, not older than 1 year)
-   - Seller TPIN (8 digits, registered with MRA)
+   - Seller TPIN (8 digits, registered with MRA) - **CRITICAL**
    - Buyer details (name mandatory, TPIN if registered)
    - At least one line item
 
@@ -2722,22 +2749,20 @@ Based on MRA requirements:
 
 ### Appendix C: Subscription Plan Comparison
 
-| Feature | Standard Monthly | Standard Yearly | Pro Monthly | Pro Yearly |
-|---------|------------------|-----------------|-------------|------------|
-| Price | MK15,000/mo | MK150,000/yr | MK35,000/mo | MK350,000/yr |
-| Invoices | Unlimited | Unlimited | Unlimited | Unlimited |
-| API Calls | 10,000/mo | 120,000/yr | 50,000/mo | 600,000/yr |
-| Multi-Branch | ❌ | ❌ | ✅ | ✅ |
-| Custom Templates | ❌ | ❌ | ✅ | ✅ |
-| Priority Support | ✅ | ✅ | 24/7 | 24/7 |
-| Dedicated Manager | ❌ | ❌ | ✅ | ✅ |
-| Savings | - | 2 months free | - | 3 months free |
+| Feature | Monthly | Yearly |
+|---------|---------|--------|
+| Price | MK150,000/mo | MK950,000/yr |
+| Invoices | Unlimited | Unlimited |
+| API Calls | 10,000/mo | 120,000/yr |
+| Priority Support | ✅ | ✅ |
+| Savings | - | Save MK850,000 |
 
 ### Appendix D: Implementation Checklist
 
 #### Phase 1: Setup & Configuration
+- [ ] Add TPIN field to Tenant and TenantSettings models
 - [ ] Create EIS database tables
-- [ ] Update subscriptionConfig.js with EIS plans
+- [ ] Update subscriptionConfig.js with EIS plans (DONE)
 - [ ] Implement encryption utilities
 - [ ] Set up environment variables
 - [ ] Configure MRA sandbox credentials
@@ -2750,6 +2775,7 @@ Based on MRA requirements:
 - [ ] Add retry logic and error handling
 
 #### Phase 3: Frontend Development
+- [ ] Add TPIN field to /account page
 - [ ] Build EIS configuration page
 - [ ] Create invoices dashboard
 - [ ] Add EIS section to subscription management
@@ -2793,6 +2819,7 @@ Based on MRA requirements:
   "name": "Acme Corporation",
   "subdomain": "acme",
   "tpin": "12345678",
+  "eisEnabled": true,
   "address": "P.O. Box 123, Blantyre, Malawi",
   "email": "accounts@acme.mw",
   "phone": "+265 1 234 567",
@@ -2837,17 +2864,19 @@ This implementation guide provides a comprehensive roadmap for integrating MRA E
 1. **Follow MRA specifications exactly** - Use the official API documentation
 2. **Maintain separation** - EIS plans are distinct from regular subscriptions
 3. **Ensure compliance** - Implement all security and audit requirements
-4. **Test thoroughly** - Use sandbox extensively before production
-5. **Monitor continuously** - Set up alerts for all critical metrics
+4. **TPIN Management** - Configure TPIN in `/account` for each tenant
+5. **Test thoroughly** - Use sandbox extensively before production
+6. **Monitor continuously** - Set up alerts for all critical metrics
 
 For questions or clarifications, refer to:
-- MRA EIS Technical Documentation (official)
+- MRA EIS Technical Documentation (official): https://eis-api.mra.mw/swagger/index.html
+- MRA EIS API Guide: https://dev-eis-api.mra.mw/docs/
 - InsightBooks internal documentation
 - This implementation guide (latest version)
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-01-15  
-**Next Review**: 2025-04-15
+**Document Version**: 2.0  
+**Last Updated**: 2026-03-02  
+**Next Review**: 2026-06-02
 
 ---
 
@@ -2856,3 +2885,4 @@ For questions or clarifications, refer to:
 | Version | Date | Changes | Author |
 |---------|------|---------|--------|
 | 1.0 | 2025-01-15 | Initial draft | InsightBooks Team |
+| 2.0 | 2026-03-02 | Enhanced with codebase alignment, TPIN management, subscription integration | InsightBooks Team |

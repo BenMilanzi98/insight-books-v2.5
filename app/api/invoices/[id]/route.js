@@ -479,6 +479,30 @@ export async function PUT(request, { params }) {
               }
             }
 
+            // Resolve taxTypeId so invoice tax is posted to the correct TaxType account
+            let invoiceTaxTypeId = null;
+            const invoiceTaxAmount = Number(invoice.taxAmount || 0);
+            if (invoiceTaxAmount > 0) {
+              try {
+                const activeTaxTypes = await tx.taxType.findMany({
+                  where: { tenantId: user.tenantId, status: 'Active' },
+                });
+                const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
+                const itemTaxRates = calculations.processedItems
+                  .map(i => Number(i.taxRate || 0))
+                  .filter(r => r > 0);
+                const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
+                if (primaryRate > 0) {
+                  invoiceTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
+                    || nonPayeTypes[0]?.id || null;
+                } else {
+                  invoiceTaxTypeId = nonPayeTypes[0]?.id || null;
+                }
+              } catch (taxLookupErr) {
+                console.warn('Could not resolve taxTypeId for invoice update:', taxLookupErr?.message);
+              }
+            }
+
             await createInvoiceJournalEntry({
               tenantId: user.tenantId,
               userId: user.id,
@@ -489,6 +513,8 @@ export async function PUT(request, { params }) {
               items: calculations.processedItems,
               hasServices: invoiceHasServices,
               cogsAmount: totalCOGS,
+              taxAmount: invoiceTaxAmount,
+              taxTypeId: invoiceTaxTypeId,
               tx,
             });
           }

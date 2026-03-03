@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain } from 'lucide-react';
-import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
+import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 
 export default function LandingPage() {
   return (
@@ -654,7 +654,7 @@ function TestimonialsSection() {
 
 // Pricing Section
 function PricingSection() {
-  const plans = SUBSCRIPTION_PLANS_ARRAY;
+  const plans = PUBLIC_SUBSCRIPTION_PLANS;
 
   // Enhanced features list with new features highlighted
   const allFeatures = [

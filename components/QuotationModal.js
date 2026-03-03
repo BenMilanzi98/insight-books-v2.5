@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2, ChevronDown, Info, Search, Loader } from "lucide-react";
+import { X, Plus, Trash2, ChevronDown, Info, Search, Loader, Package, Tag, Edit2, Check, XCircle } from "lucide-react";
 import { calculateTax, calculateSubtotal, calculateTotal } from "@/lib/invoiceCalculations"; // Reuse the same calculations
 import ClientModal from "./ClientModal";
 import ClientSearchCombobox from "./ClientSearchCombobox";
@@ -63,6 +63,12 @@ const QuotationModal = ({
   const [productsError, setProductsError] = useState(null);
   const [errors, setErrors] = useState({});
   const [showClientModal, setShowClientModal] = useState(false);
+  
+  // NEW: Tax types state
+  const [taxTypes, setTaxTypes] = useState([]);
+  const [isLoadingTaxTypes, setIsLoadingTaxTypes] = useState(false);
+  const [showNewTaxForm, setShowNewTaxForm] = useState(false);
+  const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
   
   // Unit management state
   const [unitQuantities, setUnitQuantities] = useState({});
@@ -196,6 +202,20 @@ const QuotationModal = ({
         
         // Load products using enhanced method
         await loadProducts();
+
+        // NEW: Load tax types
+        setIsLoadingTaxTypes(true);
+        try {
+          const taxTypesResponse = await fetch('/api/tax-types');
+          if (taxTypesResponse.ok) {
+            const taxTypesData = await taxTypesResponse.json();
+            setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
+          }
+        } catch (taxError) {
+          console.error('Error loading tax types:', taxError);
+        } finally {
+          setIsLoadingTaxTypes(false);
+        }
       } catch (error) {
         console.error("Error loading form data:", error);
       }
@@ -309,6 +329,62 @@ const QuotationModal = ({
       const newErrors = { ...errors };
       delete newErrors[`items.${index}.${field}`];
       setErrors(newErrors);
+    }
+  };
+
+  // NEW: Handle tax type selection for an item
+  const handleTaxTypeChange = (index, taxTypeId) => {
+    const updatedItems = [...formData.items];
+    
+    if (!taxTypeId || taxTypeId === '') {
+      // Clear tax if empty selection
+      updatedItems[index] = {
+        ...updatedItems[index],
+        taxRate: 0,
+        selectedTaxTypeId: '',
+        productTaxes: []
+      };
+    } else {
+      const selectedTax = taxTypes.find(t => t.id === taxTypeId);
+      if (selectedTax) {
+        updatedItems[index] = {
+          ...updatedItems[index],
+          taxRate: selectedTax.taxRate || 0,
+          selectedTaxTypeId: taxTypeId,
+          productTaxes: [selectedTax]
+        };
+      }
+    }
+    
+    setFormData({ ...formData, items: updatedItems });
+  };
+
+  // NEW: Add new tax type
+  const handleAddNewTax = async () => {
+    if (!newTaxData.name.trim()) {
+      alert('Please enter a tax name');
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/tax-types', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTaxData)
+      });
+      
+      if (response.ok) {
+        const createdTax = await response.json();
+        setTaxTypes(prev => [...prev, createdTax]);
+        setShowNewTaxForm(false);
+        setNewTaxData({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Failed to create tax type');
+      }
+    } catch (error) {
+      console.error('Error creating tax type:', error);
+      alert('Failed to create tax type');
     }
   };
 
@@ -448,9 +524,10 @@ const QuotationModal = ({
         newErrors[`items.${index}.unitPrice`] = "Unit price cannot be negative";
       }
       
-      if (item.taxRate < 0 || item.taxRate > 100) {
-        newErrors[`items.${index}.taxRate`] = "Tax rate must be between 0 and 100";
-      }
+      // Tax is now optional with dropdown - users can select "No Tax"
+      // if (item.taxRate < 0 || item.taxRate > 100) {
+      //   newErrors[`items.${index}.taxRate"] = "Tax rate must be between 0 and 100";
+      // }
       
       // Validate that per-item discount doesn't exceed unit price (only if discount is provided)
       if (item.discountAmount && item.discountAmount !== "") {
@@ -663,23 +740,6 @@ const QuotationModal = ({
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="title">
-                  Quotation title <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
-                  value={formData.title}
-                  onChange={handleChange}
-                  placeholder="e.g. Consulting services, Project XYZ"
-                />
-                {errors.title && (
-                  <p className="text-red-500 text-xs mt-1">{errors.title}</p>
-                )}
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1" htmlFor="orderNumber">
                   Order number
                 </label>
@@ -746,6 +806,26 @@ const QuotationModal = ({
               </div>
             </div>
             <hr className="my-6" />
+            
+            {/* Title above items table - like invoice */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1 text-center" htmlFor="title">
+                Quotation title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="title"
+                name="title"
+                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                value={formData.title}
+                onChange={handleChange}
+                placeholder="e.g. Consulting services, Project XYZ"
+              />
+              {errors.title && (
+                <p className="text-red-500 text-xs mt-1 text-center">{errors.title}</p>
+              )}
+            </div>
+            
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold">Quotation Items</h3>
               <button
@@ -937,18 +1017,98 @@ const QuotationModal = ({
                         )}
                       </td>
                       <td className="px-2 py-2 whitespace-nowrap">
-                        <input
-                          type="number"
-                          className={`w-16 p-2 border rounded-md text-sm ${errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'}`}
-                          value={item.taxRate || ''}
-                          max="100"
-                          step="0.1"
-                          onChange={(e) => handleItemChange(index, "taxRate", e.target.value)}
-                          title="Enter the tax rate as a percentage (0-100%)"
-                        />
-                        {errors[`items.${index}.taxRate`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`items.${index}.taxRate`]}</p>
-                        )}
+                        <div className="flex flex-col">
+                          <div className="relative">
+                            <select
+                              className={`w-24 p-2 border rounded-md text-sm ${errors[`items.${index}.taxRate`] ? 'border-red-500' : 'border-gray-300'}`}
+                              value={item.selectedTaxTypeId || ''}
+                              onChange={(e) => handleTaxTypeChange(index, e.target.value)}
+                              title="Select a tax type for this item"
+                            >
+                              <option value="">No Tax</option>
+                              {isLoadingTaxTypes ? (
+                                <option value="" disabled>Loading...</option>
+                              ) : (
+                                taxTypes.map(tax => (
+                                  <option key={tax.id} value={tax.id}>
+                                    {tax.taxRate ? `${tax.taxName || tax.taxId} (${tax.taxRate}%)` : (tax.taxName || tax.taxId)}
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            <button
+                              type="button"
+                              className="ml-1 text-blue-600 hover:text-blue-800 text-xs"
+                              onClick={() => setShowNewTaxForm(!showNewTaxForm)}
+                              title="Add new tax type"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                          
+                          {/* NEW TAX FORM */}
+                          {showNewTaxForm && (
+                            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-xs">
+                              <div className="font-medium text-blue-900 mb-1">Add New Tax</div>
+                              <div className="space-y-1">
+                                <input
+                                  type="text"
+                                  placeholder="Tax name (e.g., VAT)"
+                                  className="w-full p-1 border border-gray-300 rounded text-xs"
+                                  value={newTaxData.name}
+                                  onChange={(e) => setNewTaxData({...newTaxData, name: e.target.value})}
+                                />
+                                <div className="flex gap-1">
+                                  <input
+                                    type="number"
+                                    placeholder="Rate"
+                                    className="w-16 p-1 border border-gray-300 rounded text-xs"
+                                    value={newTaxData.taxRate}
+                                    onChange={(e) => setNewTaxData({...newTaxData, taxRate: parseFloat(e.target.value) || 0})}
+                                  />
+                                  <select
+                                    className="p-1 border border-gray-300 rounded text-xs"
+                                    value={newTaxData.calculationType}
+                                    onChange={(e) => setNewTaxData({...newTaxData, calculationType: e.target.value})}
+                                  >
+                                    <option value="Percentage">%</option>
+                                    <option value="Fixed">Fixed</option>
+                                  </select>
+                                  <button
+                                    type="button"
+                                    className="p-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                    onClick={handleAddNewTax}
+                                  >
+                                    <Check className="w-3 h-3" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="p-1 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
+                                    onClick={() => {
+                                      setShowNewTaxForm(false);
+                                      setNewTaxData({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
+                                    }}
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Display applied taxes */}
+                          {item.productTaxes && item.productTaxes.length > 0 && (
+                            <div className="mt-1 text-xs text-gray-600">
+                              <div className="font-medium mb-0.5">Applied:</div>
+                              {item.productTaxes.map((tax, taxIdx) => (
+                                <div key={taxIdx} className="text-xs">
+                                  {tax.taxName || tax.taxId || tax.name}: {tax.taxRate}%
+                                  {tax.calculationType === 'Fixed' && ' (Fixed)'}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-right font-medium">
                         {formatCurrency(calculateQuotationItemTotals(item).amount)}

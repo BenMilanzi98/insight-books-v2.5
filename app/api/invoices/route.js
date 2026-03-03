@@ -657,6 +657,29 @@ export async function POST(request) {
             console.warn(`⚠️ ${productsWithoutCost.length} products have no cost information:`, productsWithoutCost);
           }
 
+          // Resolve taxTypeId so invoice tax is posted to the correct TaxType account
+          let invoiceTaxTypeId = null;
+          if (calculations.taxAmount > 0) {
+            try {
+              const activeTaxTypes = await tx.taxType.findMany({
+                where: { tenantId: user.tenantId, status: 'Active' },
+              });
+              const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
+              const itemTaxRates = calculations.processedItems
+                .map(i => Number(i.taxRate || 0))
+                .filter(r => r > 0);
+              const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
+              if (primaryRate > 0) {
+                invoiceTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
+                  || nonPayeTypes[0]?.id || null;
+              } else {
+                invoiceTaxTypeId = nonPayeTypes[0]?.id || null;
+              }
+            } catch (taxLookupErr) {
+              console.warn('Could not resolve taxTypeId for invoice:', taxLookupErr?.message);
+            }
+          }
+
           await createInvoiceJournalEntry({
             tenantId: user.tenantId,
             userId: user.id,
@@ -667,10 +690,12 @@ export async function POST(request) {
             items: calculations.processedItems,
             hasServices: invoiceHasServices,
             cogsAmount: totalCOGS,
+            taxAmount: calculations.taxAmount,
+            taxTypeId: invoiceTaxTypeId,
             tx,
           });
           
-          console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}`);
+          console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}, tax: MK ${calculations.taxAmount}`);
         } catch (journalError) {
           console.error('Error creating journal entry for invoice:', journalError);
           throw journalError;

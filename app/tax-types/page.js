@@ -59,11 +59,59 @@ export default function TaxTypesPage() {
   const [reversedTaxesStart, setReversedTaxesStart] = useState('');
   const [reversedTaxesEnd, setReversedTaxesEnd] = useState('');
   const [exportingReversedTaxes, setExportingReversedTaxes] = useState(false);
+  // Balance period: same options as /tax-accounts so numbers match when same period is selected
+  const [balancePeriod, setBalancePeriod] = useState('thisMonth');
+  const getDefaultBalanceDates = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+  };
+  const defaultBalanceDates = getDefaultBalanceDates();
+  const [balanceStartDate, setBalanceStartDate] = useState(defaultBalanceDates.start);
+  const [balanceEndDate, setBalanceEndDate] = useState(defaultBalanceDates.end);
+
+  const setBalancePeriodDates = () => {
+    const now = new Date();
+    let start, end;
+    switch (balancePeriod) {
+      case 'today':
+        start = new Date(now);
+        end = new Date(now);
+        break;
+      case 'thisWeek':
+        start = new Date(now);
+        start.setDate(now.getDate() - now.getDay());
+        end = new Date(now);
+        break;
+      case 'thisMonth':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        break;
+      case 'lastMonth':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0);
+        break;
+      case 'thisYear':
+        start = new Date(now.getFullYear(), 0, 1);
+        end = new Date(now.getFullYear(), 11, 31);
+        break;
+      case 'custom':
+        return;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    }
+    setBalanceStartDate(start.toISOString().split('T')[0]);
+    setBalanceEndDate(end.toISOString().split('T')[0]);
+  };
 
   useEffect(() => {
-    loadData();
-    
-    // Set default date range (last 30 days)
+    setBalancePeriodDates();
+  }, [balancePeriod]);
+
+  useEffect(() => {
+    // Set default date range for reports (last 30 days)
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30);
@@ -71,14 +119,26 @@ export default function TaxTypesPage() {
     setReportStartDate(startDate.toISOString().split('T')[0]);
   }, []);
 
+  useEffect(() => {
+    if (balanceStartDate && balanceEndDate) {
+      loadData();
+    }
+  }, [balanceStartDate, balanceEndDate]);
+
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
+    const balanceParams = new URLSearchParams();
+    if (balanceStartDate) balanceParams.set('startDate', balanceStartDate);
+    if (balanceEndDate) balanceParams.set('endDate', balanceEndDate);
+    const balanceUrl = balanceParams.toString()
+      ? `/api/tax-accounts/balances?${balanceParams.toString()}`
+      : '/api/tax-accounts/balances';
     try {
       const [taxTypesRes, accountsRes, balancesRes, settingsRes] = await Promise.all([
         fetch("/api/tax-types"),
         fetch("/api/tax-types/accounts").catch(() => ({ ok: false })), // Tax-eligible accounts (no finance role required)
-        fetch("/api/tax-accounts/balances").catch(() => null),
+        fetch(balanceUrl).catch(() => null),
         fetch("/api/settings/tax").catch(() => null)
       ]);
 
@@ -409,6 +469,46 @@ export default function TaxTypesPage() {
           {success}
         </div>
       )}
+
+      {/* Balance period: align with /tax-accounts so same period shows same numbers */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-sm font-medium text-gray-700">Balance period:</span>
+          <select
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            value={balancePeriod}
+            onChange={(e) => setBalancePeriod(e.target.value)}
+          >
+            <option value="today">Today</option>
+            <option value="thisWeek">This Week</option>
+            <option value="thisMonth">This Month</option>
+            <option value="lastMonth">Last Month</option>
+            <option value="thisYear">This Year</option>
+            <option value="custom">Custom Range</option>
+          </select>
+          {balancePeriod === 'custom' && (
+            <>
+              <input
+                type="date"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                value={balanceStartDate}
+                onChange={(e) => setBalanceStartDate(e.target.value)}
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="date"
+                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                value={balanceEndDate}
+                onChange={(e) => setBalanceEndDate(e.target.value)}
+              />
+            </>
+          )}
+          <span className="text-xs text-gray-500">
+            Collected / Paid / Net for {balanceStartDate} to {balanceEndDate}
+            {balancePeriod !== 'custom' && ' — same period as Tax Accounts when same option is selected'}
+          </span>
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">

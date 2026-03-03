@@ -7,6 +7,9 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { createSupplierPaymentEntry } from '@/lib/purchaseAccounting';
 import { updateAccountBalance } from '@/lib/core';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
+import { generateReferenceNumber } from '@/lib/journalService';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
 function parsePagination(searchParams) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
@@ -72,6 +75,8 @@ function normalizePaymentMethod(method) {
   return method.toString().trim().toLowerCase().replace(/\s+/g, '_') || 'cash';
 }
 
+const round2 = (n) => Math.round(Number(n) * 100) / 100;
+
 export async function POST(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -103,7 +108,8 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Invalid allocation entry' }, { status: 400 });
       }
       const bill = await prisma.supplierBill.findFirst({
-        where: { id: allocation.billId, tenantId: user.tenantId, supplierId: supplier.id }
+        where: { id: allocation.billId, tenantId: user.tenantId, supplierId: supplier.id },
+        include: { items: { select: { taxRate: true, taxAmount: true } } },
       });
       if (!bill) {
         return NextResponse.json({ error: `Bill ${allocation.billId} not found` }, { status: 404 });
@@ -240,6 +246,112 @@ export async function POST(request) {
         where: { id: payment.id },
         data: { journalEntryId: journalEntry?.journalEntryId || journalEntry?.id || null }
       });
+
+      // Post tax entries for bills with tax to the respective tax account
+      for (const { bill, amount } of allocations) {
+        try {
+          const billTax = Number(bill.taxAmount || 0);
+          const billTotal = Number(bill.totalAmount || 0);
+          if (billTax <= 0 || billTotal <= 0) continue;
+
+          // If bill is linked to a PO whose items already track tax via taxTypeId,
+          // skip to avoid double-counting (PO item tax is aggregated separately).
+          if (bill.purchaseOrderId) {
+            const trackedPOItems = await tx.purchaseOrderItem.count({
+              where: {
+                purchaseOrderId: bill.purchaseOrderId,
+                taxTypeId: { not: null },
+                taxAmount: { gt: 0 },
+              },
+            });
+            if (trackedPOItems > 0) continue;
+          }
+
+          const proportionalTax = round2((amount / billTotal) * billTax);
+          if (proportionalTax <= 0) continue;
+
+          // Resolve tax type: from bill's PO items, bill item taxRate match, or first active
+          let taxTypeId = null;
+
+          if (bill.purchaseOrderId) {
+            const poItem = await tx.purchaseOrderItem.findFirst({
+              where: { purchaseOrderId: bill.purchaseOrderId, taxTypeId: { not: null } },
+              select: { taxTypeId: true },
+            });
+            taxTypeId = poItem?.taxTypeId || null;
+          }
+
+          if (!taxTypeId) {
+            // Try matching by tax rate from bill items
+            const billItem = bill.items?.find((i) => Number(i.taxRate || 0) > 0);
+            if (billItem) {
+              const matchingTaxType = await tx.taxType.findFirst({
+                where: {
+                  tenantId: user.tenantId,
+                  status: 'Active',
+                  taxRate: Number(billItem.taxRate),
+                },
+                select: { id: true },
+              });
+              taxTypeId = matchingTaxType?.id || null;
+            }
+          }
+
+          if (!taxTypeId) {
+            const fallbackTax = await tx.taxType.findFirst({
+              where: { tenantId: user.tenantId, status: 'Active', taxRate: { gt: 0 } },
+              select: { id: true },
+            });
+            taxTypeId = fallbackTax?.id || null;
+          }
+
+          if (!taxTypeId) continue;
+
+          const taxType = await tx.taxType.findUnique({
+            where: { id: taxTypeId },
+            include: { account: true },
+          });
+          if (!taxType?.account) continue;
+
+          const payDate = new Date(body.paymentDate);
+          await assertPeriodOpen(user.tenantId, payDate, tx);
+          const taxRef = await generateReferenceNumber(tx, user.tenantId, payDate);
+
+          // Purchase input tax: Debit Liability (reduces net tax owed) or Credit Asset
+          const isLiability = taxType.account.accountType === 'Liability';
+          const debitAmt = isLiability ? proportionalTax : 0;
+          const creditAmt = isLiability ? 0 : proportionalTax;
+
+          await tx.transaction.create({
+            data: {
+              tenantId: user.tenantId,
+              date: payDate,
+              reference: taxRef,
+              description: `Input tax paid - ${bill.billNumber} - ${supplier.supplierName}`,
+              entryType: 'Regular',
+              status: 'posted',
+              sourceType: 'Tax-SupplierPayment',
+              sourceId: payment.id,
+              createdById: user.id,
+              postedById: user.id,
+              postedDate: new Date(),
+              lines: {
+                create: [{
+                  lineNumber: 1,
+                  accountId: taxType.account.id,
+                  debitAmount: debitAmt,
+                  creditAmount: creditAmt,
+                  description: `Input tax: ${taxType.taxName} - ${bill.billNumber}`,
+                }],
+              },
+            },
+          });
+
+          await updateAccountBalanceOnTransaction(taxType.account.id, debitAmt, creditAmt, tx);
+        } catch (taxErr) {
+          console.error('Supplier payment: tax posting failed for bill', bill.id, taxErr);
+        }
+      }
 
       return payment;
     });

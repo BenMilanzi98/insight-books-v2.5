@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import OTPVerification from "@/components/auth/OTPVerification";
 import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
-import { SUBSCRIPTION_PLANS_ARRAY } from '@/lib/subscriptionConfig';
+import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 
 const Signup = () => {
   const router = useRouter();
@@ -102,9 +102,9 @@ const Signup = () => {
     }
   }, []);
 
-  // Updated plans to match landing page
+  // Updated plans - use public plans only (no EIS)
   const plans = {
-    monthly: SUBSCRIPTION_PLANS_ARRAY.filter(plan => plan.id !== 'tailor').map(plan => ({
+    monthly: PUBLIC_SUBSCRIPTION_PLANS.filter(plan => plan.period === 'month').map(plan => ({
       id: plan.id,
       name: plan.name,
       price: plan.priceFormatted,
@@ -112,7 +112,7 @@ const Signup = () => {
       features: plan.features,
       ...(plan.savings && { savings: plan.savings })
     })),
-    annually: SUBSCRIPTION_PLANS_ARRAY.filter(plan => plan.id !== 'tailor').map(plan => ({
+    annually: PUBLIC_SUBSCRIPTION_PLANS.filter(plan => plan.period === 'year').map(plan => ({
       id: plan.id,
       name: plan.name,
       price: plan.priceFormatted,
