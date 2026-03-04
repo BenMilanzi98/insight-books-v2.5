@@ -880,33 +880,66 @@ export async function POST(request) {
               }
             }
             
-            // Create individual tax records if taxBreakdown is provided
-            if (item.taxBreakdown && Array.isArray(item.taxBreakdown) && item.taxBreakdown.length > 0) {
-              try {
-                await Promise.all(
-                  item.taxBreakdown.map(tax => 
+            // Create individual tax records from taxBreakdown, or fallback from item taxAmount
+            const itemTaxAmount = Number(item.taxAmount || 0);
+            const itemTaxRate = Number(item.taxRate || 0);
+            try {
+              if (item.taxBreakdown && Array.isArray(item.taxBreakdown) && item.taxBreakdown.length > 0) {
+                const creates = [];
+                for (const tax of item.taxBreakdown) {
+                  const taxTypeId = (tax.taxTypeId || tax.id || '').toString().trim();
+                  const taxAmt = Number(tax.taxAmount);
+                  if (!taxTypeId || !(taxAmt > 0)) continue;
+                  const taxCode = (tax.taxCode != null && String(tax.taxCode).trim() !== '') ? String(tax.taxCode) : '';
+                  creates.push(
                     tx.saleItemTax.create({
                       data: {
                         saleItemId: saleItem.id,
-                        taxTypeId: tax.taxTypeId,
-                        taxName: tax.taxName,
-                        taxCode: tax.taxCode,
-                        taxRate: tax.taxRate,
-                        taxAmount: tax.taxAmount
+                        taxTypeId,
+                        taxName: tax.taxName || 'Tax',
+                        taxCode,
+                        taxRate: Number(tax.taxRate) || 0,
+                        taxAmount: taxAmt
                       }
                     })
-                  )
-                );
-              } catch (error) {
-                // If table doesn't exist, log warning but don't fail the sale
-                if (error.message?.includes('does not exist') || error.message?.includes('Unknown model')) {
-                  console.warn('SaleItemTax table does not exist. Run migration to enable detailed tax tracking.');
-                } else {
-                  throw error;
+                  );
+                }
+                if (creates.length > 0) await Promise.all(creates);
+              } else if (itemTaxAmount > 0) {
+                // Fallback: item has tax but no taxBreakdown — match tax type by rate when possible
+                const activeTaxTypes = await tx.taxType.findMany({
+                  where: { tenantId: user.tenantId, status: 'Active' },
+                  orderBy: { taxRate: 'desc' }
+                });
+                let chosenTaxType = null;
+                if (itemTaxRate > 0 && activeTaxTypes.length > 0) {
+                  chosenTaxType = activeTaxTypes.find(t => Math.abs(Number(t.taxRate) - itemTaxRate) < 0.01) || activeTaxTypes[0];
+                } else if (activeTaxTypes.length > 0) {
+                  chosenTaxType = activeTaxTypes[0];
+                }
+                if (chosenTaxType) {
+                  const taxCode = (chosenTaxType.taxCode != null && String(chosenTaxType.taxCode).trim() !== '') ? String(chosenTaxType.taxCode) : '';
+                  await tx.saleItemTax.create({
+                    data: {
+                      saleItemId: saleItem.id,
+                      taxTypeId: chosenTaxType.id,
+                      taxName: chosenTaxType.taxName,
+                      taxCode,
+                      taxRate: Number(chosenTaxType.taxRate) || 0,
+                      taxAmount: itemTaxAmount
+                    }
+                  });
                 }
               }
+            } catch (error) {
+              // If table doesn't exist, log warning but don't fail the sale
+              if (error.message?.includes('does not exist') || error.message?.includes('Unknown model')) {
+                console.warn('SaleItemTax table does not exist. Run migration to enable detailed tax tracking.');
+              } else {
+                throw error;
+              }
             }
-            
+
             return saleItem;
           })
         );

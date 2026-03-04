@@ -739,6 +739,7 @@ model Expense {
   supplierId              String?
   purchaseOrderId         String?
   purchaseOrderItemId     String?
+  taxTypeId               String?
   // Reversal fields
   isReversal              Boolean                   @default(false)
   reversedTransactionId   String?
@@ -754,6 +755,7 @@ model Expense {
   supplier                Supplier?                 @relation(fields: [supplierId], references: [id])
   expenseCategory         ExpenseCategory?          @relation(fields: [categoryId], references: [id])
   tenant                  Tenant                    @relation(fields: [tenantId], references: [id])
+  taxType                 TaxType?                  @relation(fields: [taxTypeId], references: [id])
   purchaseOrder            PurchaseOrder?            @relation(fields: [purchaseOrderId], references: [id])
   expenseAttachments      ExpenseAttachment[]
   payments                Payment[]
@@ -772,6 +774,7 @@ model Expense {
   @@index([expenseAccountId])
   @@index([isReversal])
   @@index([reversedTransactionId])
+  @@index([taxTypeId])
 }
 
 model ExpenseAttachment {
@@ -1756,6 +1759,7 @@ model TaxType {
   productTaxes        ProductTax[]
   saleItemTaxes       SaleItemTax[]
   purchaseOrderItems  PurchaseOrderItem[]
+  expenses            Expense[]
   account             Account             @relation("TaxTypeAccount", fields: [accountId], references: [id])
   tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 

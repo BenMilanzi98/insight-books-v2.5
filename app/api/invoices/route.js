@@ -42,8 +42,11 @@ function calculateInvoiceTotals(items, globalDiscount = 0) {
       discountAmount: Number(perItemDiscount.toFixed(2)),
       netAmount: Number(netLineAmount.toFixed(2)),
       amount: Number(finalAmount.toFixed(2)),
+      taxAmount: Number(lineTaxAmount.toFixed(2)),
       productId: item.productId || null,
-      accountId: item.accountId
+      accountId: item.accountId,
+      selectedTaxTypeId: item.selectedTaxTypeId || null,
+      productTaxes: item.productTaxes || [],
     };
   });
   
@@ -657,29 +660,7 @@ export async function POST(request) {
             console.warn(`⚠️ ${productsWithoutCost.length} products have no cost information:`, productsWithoutCost);
           }
 
-          // Resolve taxTypeId so invoice tax is posted to the correct TaxType account
-          let invoiceTaxTypeId = null;
-          if (calculations.taxAmount > 0) {
-            try {
-              const activeTaxTypes = await tx.taxType.findMany({
-                where: { tenantId: user.tenantId, status: 'Active' },
-              });
-              const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
-              const itemTaxRates = calculations.processedItems
-                .map(i => Number(i.taxRate || 0))
-                .filter(r => r > 0);
-              const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
-              if (primaryRate > 0) {
-                invoiceTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
-                  || nonPayeTypes[0]?.id || null;
-              } else {
-                invoiceTaxTypeId = nonPayeTypes[0]?.id || null;
-              }
-            } catch (taxLookupErr) {
-              console.warn('Could not resolve taxTypeId for invoice:', taxLookupErr?.message);
-            }
-          }
-
+          // Create invoice journal entry (revenue + COGS, without tax — tax posted separately per type)
           await createInvoiceJournalEntry({
             tenantId: user.tenantId,
             userId: user.id,
@@ -690,10 +671,83 @@ export async function POST(request) {
             items: calculations.processedItems,
             hasServices: invoiceHasServices,
             cogsAmount: totalCOGS,
-            taxAmount: calculations.taxAmount,
-            taxTypeId: invoiceTaxTypeId,
+            taxAmount: 0, // Tax handled separately below
+            taxTypeId: null,
             tx,
           });
+
+          // Post tax per tax type from item data
+          if (calculations.taxAmount > 0) {
+            const { autoPostTaxEntry } = await import('@/lib/taxCalculationService');
+
+            // Group items by tax type and sum their tax amounts
+            const taxByType = {};
+            for (const item of calculations.processedItems) {
+              const taxTypeId = item.selectedTaxTypeId;
+              if (taxTypeId && Number(item.taxAmount) > 0) {
+                if (!taxByType[taxTypeId]) taxByType[taxTypeId] = { taxTypeId, totalTax: 0 };
+                taxByType[taxTypeId].totalTax += Number(item.taxAmount);
+              }
+            }
+
+            const perTypeTaxTotal = Object.values(taxByType).reduce((s, t) => s + t.totalTax, 0);
+
+            // Post tax for each identified tax type
+            for (const { taxTypeId, totalTax } of Object.values(taxByType)) {
+              try {
+                await autoPostTaxEntry({
+                  tenantId: user.tenantId,
+                  userId: user.id,
+                  taxTypeId,
+                  taxAmount: totalTax,
+                  transactionDate: issueDate,
+                  sourceType: 'Invoice',
+                  sourceId: newInvoice.id,
+                  description: `Tax for invoice ${invoiceNumber}`,
+                  tx,
+                });
+              } catch (taxPostErr) {
+                console.warn(`Failed to post tax for type ${taxTypeId} on invoice ${invoiceNumber}:`, taxPostErr?.message);
+              }
+            }
+
+            // Fallback: if no per-item taxTypeId but invoice has tax, use rate-matching
+            const unmatchedTax = calculations.taxAmount - perTypeTaxTotal;
+            if (unmatchedTax > 0.01) {
+              try {
+                const activeTaxTypes = await tx.taxType.findMany({
+                  where: { tenantId: user.tenantId, status: 'Active' },
+                });
+                const nonPayeTypes = activeTaxTypes.filter(t => Number(t.taxRate) > 0);
+                const itemTaxRates = calculations.processedItems
+                  .map(i => Number(i.taxRate || 0))
+                  .filter(r => r > 0);
+                const primaryRate = itemTaxRates.length > 0 ? itemTaxRates[0] : 0;
+                let fallbackTaxTypeId = null;
+                if (primaryRate > 0) {
+                  fallbackTaxTypeId = nonPayeTypes.find(t => Math.abs(Number(t.taxRate) - primaryRate) < 0.01)?.id
+                    || nonPayeTypes[0]?.id || null;
+                } else {
+                  fallbackTaxTypeId = nonPayeTypes[0]?.id || null;
+                }
+                if (fallbackTaxTypeId) {
+                  await autoPostTaxEntry({
+                    tenantId: user.tenantId,
+                    userId: user.id,
+                    taxTypeId: fallbackTaxTypeId,
+                    taxAmount: unmatchedTax,
+                    transactionDate: issueDate,
+                    sourceType: 'Invoice',
+                    sourceId: newInvoice.id,
+                    description: `Tax for invoice ${invoiceNumber} (fallback)`,
+                    tx,
+                  });
+                }
+              } catch (fallbackErr) {
+                console.warn('Could not post fallback tax for invoice:', fallbackErr?.message);
+              }
+            }
+          }
           
           console.log(`✅ Journal entry created for invoice ${invoiceNumber} with COGS: MK ${totalCOGS}, tax: MK ${calculations.taxAmount}`);
         } catch (journalError) {

@@ -1,111 +1,117 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../domain/invoice_model.dart';
 import '../../data/invoice_repository.dart';
+import '../../domain/invoice_model.dart';
 
 part 'invoice_provider.g.dart';
 
 class InvoicePageState {
   final List<Invoice> invoices;
+  final InvoiceStatistics? statistics;
   final bool isLoading;
+  final bool isStatsLoading;
   final String? error;
   final String searchQuery;
   final String statusFilter;
-  final bool isSubmitting;
 
-  InvoicePageState({
+  const InvoicePageState({
     this.invoices = const [],
+    this.statistics,
     this.isLoading = false,
+    this.isStatsLoading = false,
     this.error,
     this.searchQuery = '',
     this.statusFilter = 'all',
-    this.isSubmitting = false,
   });
 
   InvoicePageState copyWith({
     List<Invoice>? invoices,
+    InvoiceStatistics? statistics,
     bool? isLoading,
+    bool? isStatsLoading,
     String? error,
     String? searchQuery,
     String? statusFilter,
-    bool? isSubmitting,
   }) {
     return InvoicePageState(
       invoices: invoices ?? this.invoices,
+      statistics: statistics ?? this.statistics,
       isLoading: isLoading ?? this.isLoading,
-      error: error ?? this.error,
+      isStatsLoading: isStatsLoading ?? this.isStatsLoading,
+      error: error,
       searchQuery: searchQuery ?? this.searchQuery,
       statusFilter: statusFilter ?? this.statusFilter,
-      isSubmitting: isSubmitting ?? this.isSubmitting,
     );
   }
 }
 
-@riverpod
+@Riverpod(keepAlive: true)
 class InvoiceController extends _$InvoiceController {
   @override
   InvoicePageState build() {
-    // Start initial fetch
-    Future.microtask(() => fetchInvoices());
-    return InvoicePageState(isLoading: true);
+    loadAll();
+    return const InvoicePageState(isLoading: true);
   }
 
-  Future<void> fetchInvoices({String? search, String? status}) async {
-    final query = search ?? state.searchQuery;
-    final filter = status ?? state.statusFilter;
+  Future<void> loadAll() async {
+    fetchInvoices();
+    fetchStatistics();
+  }
 
+  Future<void> fetchInvoices() async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final repo = ref.read(invoiceRepositoryProvider);
-      final invoices = await repo.fetchInvoices(search: query, status: filter);
-
-      if (!ref.mounted) return;
-
+      final invoices = await repo.fetchInvoices(
+        search: state.searchQuery.isEmpty ? null : state.searchQuery,
+        status: state.statusFilter == 'all' ? null : state.statusFilter,
+      );
       state = state.copyWith(invoices: invoices, isLoading: false);
     } catch (e) {
-      if (!ref.mounted) return;
-      state = state.copyWith(error: e.toString(), isLoading: false);
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> fetchStatistics() async {
+    state = state.copyWith(isStatsLoading: true);
+    try {
+      final repo = ref.read(invoiceRepositoryProvider);
+      final stats = await repo.fetchStatistics();
+      state = state.copyWith(statistics: stats, isStatsLoading: false);
+    } catch (e) {
+      state = state.copyWith(isStatsLoading: false);
     }
   }
 
   void setSearchQuery(String query) {
-    state = state.copyWith(searchQuery: query, isLoading: true);
+    state = state.copyWith(searchQuery: query);
     fetchInvoices();
   }
 
   void setStatusFilter(String status) {
-    state = state.copyWith(statusFilter: status, isLoading: true);
+    state = state.copyWith(statusFilter: status);
     fetchInvoices();
   }
 
-  Future<bool> createInvoice(CreateInvoiceRequest request) async {
-    state = state.copyWith(isSubmitting: true, error: null);
+  Future<void> createInvoice(CreateInvoiceRequest request) async {
+    state = state.copyWith(isLoading: true);
     try {
-      final repository = ref.read(invoiceRepositoryProvider);
-      await repository.createInvoice(request);
-
-      if (!ref.mounted) return true;
-
-      state = state.copyWith(isSubmitting: false);
-      fetchInvoices(); // Refresh list
-      return true;
+      final repo = ref.read(invoiceRepositoryProvider);
+      await repo.createInvoice(request);
+      await loadAll();
     } catch (e) {
-      if (!ref.mounted) return false;
-      state = state.copyWith(isSubmitting: false, error: e.toString());
-      return false;
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
-  Future<void> updateStatus(String id, String status) async {
+  Future<void> deleteInvoice(String id) async {
     try {
-      final repository = ref.read(invoiceRepositoryProvider);
-      await repository.updateInvoiceStatus(id, status);
-      fetchInvoices(); // Refresh list
+      final repo = ref.read(invoiceRepositoryProvider);
+      await repo.deleteInvoice(id);
+      await loadAll();
     } catch (e) {
       state = state.copyWith(error: e.toString());
+      rethrow;
     }
-  }
-
-  void clearError() {
-    state = state.copyWith(error: null);
   }
 }

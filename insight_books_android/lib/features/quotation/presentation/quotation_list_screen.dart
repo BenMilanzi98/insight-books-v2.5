@@ -2,16 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../domain/invoice_model.dart';
-import 'providers/invoice_provider.dart';
+import '../domain/quotation_model.dart';
+import 'providers/quotation_provider.dart';
 
-class InvoiceListScreen extends ConsumerWidget {
-  const InvoiceListScreen({super.key});
+class QuotationListScreen extends ConsumerWidget {
+  const QuotationListScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(invoiceControllerProvider);
-    final notifier = ref.read(invoiceControllerProvider.notifier);
+    final state = ref.watch(quotationControllerProvider);
+    final notifier = ref.read(quotationControllerProvider.notifier);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -19,19 +19,16 @@ class InvoiceListScreen extends ConsumerWidget {
         onRefresh: () => notifier.loadAll(),
         child: CustomScrollView(
           slivers: [
-            // ── Statistics Cards ──
             if (state.statistics != null)
               SliverToBoxAdapter(
                 child: _StatisticsRow(statistics: state.statistics!),
               ),
-
-            // ── Search Bar ──
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: 'Search invoices…',
+                    hintText: 'Search by quotation # or client…',
                     prefixIcon: const Icon(Icons.search),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -44,8 +41,6 @@ class InvoiceListScreen extends ConsumerWidget {
                 ),
               ),
             ),
-
-            // ── Status Filter Chips ──
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -66,20 +61,8 @@ class InvoiceListScreen extends ConsumerWidget {
                         onTap: notifier.setStatusFilter,
                       ),
                       _StatusChip(
-                        label: 'Paid',
-                        value: 'Paid',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Overdue',
-                        value: 'Overdue',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Partial',
-                        value: 'Partial',
+                        label: 'Approved',
+                        value: 'Approved',
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
@@ -89,13 +72,23 @@ class InvoiceListScreen extends ConsumerWidget {
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
+                      _StatusChip(
+                        label: 'Converted',
+                        value: 'Converted',
+                        current: state.statusFilter,
+                        onTap: notifier.setStatusFilter,
+                      ),
+                      _StatusChip(
+                        label: 'Expired',
+                        value: 'expired',
+                        current: state.statusFilter,
+                        onTap: notifier.setStatusFilter,
+                      ),
                     ],
                   ),
                 ),
               ),
             ),
-
-            // ── List ──
             if (state.isLoading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
@@ -113,12 +106,12 @@ class InvoiceListScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Failed to load invoices',
+                        'Failed to load quotations',
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 8),
                       FilledButton.tonalIcon(
-                        onPressed: () => notifier.fetchInvoices(),
+                        onPressed: () => notifier.fetchQuotations(),
                         icon: const Icon(Icons.refresh),
                         label: const Text('Retry'),
                       ),
@@ -126,25 +119,25 @@ class InvoiceListScreen extends ConsumerWidget {
                   ),
                 ),
               )
-            else if (state.invoices.isEmpty)
+            else if (state.quotations.isEmpty)
               SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.receipt_long_outlined,
+                        Icons.description_outlined,
                         size: 64,
                         color: theme.colorScheme.outline,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'No invoices found',
+                        'No quotations found',
                         style: theme.textTheme.titleMedium,
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Create your first invoice',
+                        'Create your first quotation',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.outline,
                         ),
@@ -155,37 +148,59 @@ class InvoiceListScreen extends ConsumerWidget {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                 sliver: SliverList.separated(
-                  itemCount: state.invoices.length,
+                  itemCount: state.quotations.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
-                    final invoice = state.invoices[index];
-                    return _InvoiceCard(
-                      invoice: invoice,
-                      onTap: () => context.push('/invoice/${invoice.id}'),
-                      onDelete:
-                          (invoice.status == 'Draft' ||
-                              invoice.status == 'Pending')
-                          ? () => _confirmDelete(context, ref, invoice)
+                    final q = state.quotations[index];
+                    return _QuotationCard(
+                      quotation: q,
+                      onTap: () => context.push('/quotation/${q.id}'),
+                      onDelete: (q.status == 'Draft')
+                          ? () => _confirmDelete(context, ref, q)
                           : null,
                     );
                   },
                 ),
               ),
-
-            // Bottom padding
+            if (!state.isLoading &&
+                state.quotations.isNotEmpty &&
+                state.totalPages > 1)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: state.currentPage > 1
+                            ? () => notifier.setPage(state.currentPage - 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_left),
+                      ),
+                      Text(
+                        'Page ${state.currentPage} of ${state.totalPages}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      IconButton(
+                        onPressed: state.currentPage < state.totalPages
+                            ? () => notifier.setPage(state.currentPage + 1)
+                            : null,
+                        icon: const Icon(Icons.chevron_right),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             const SliverToBoxAdapter(child: SizedBox(height: 80)),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/invoice/create'),
+        onPressed: () => context.push('/quotation/create'),
         icon: const Icon(Icons.add),
-        label: const Text('New Invoice'),
+        label: const Text('New Quotation'),
       ),
     );
   }
@@ -193,14 +208,14 @@ class InvoiceListScreen extends ConsumerWidget {
   Future<void> _confirmDelete(
     BuildContext context,
     WidgetRef ref,
-    Invoice invoice,
+    Quotation quotation,
   ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Invoice'),
+        title: const Text('Delete Quotation'),
         content: Text(
-          'Delete invoice ${invoice.invoiceNumber}? This cannot be undone.',
+          'Delete quotation ${quotation.quotationNumber}? This cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -220,37 +235,33 @@ class InvoiceListScreen extends ConsumerWidget {
     if (confirmed == true && context.mounted) {
       try {
         await ref
-            .read(invoiceControllerProvider.notifier)
-            .deleteInvoice(invoice.id);
+            .read(quotationControllerProvider.notifier)
+            .deleteQuotation(quotation.id);
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quotation deleted')),
+          );
         }
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete: $e')),
+          );
         }
       }
     }
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  Statistics Row
-// ═══════════════════════════════════════════════════
-
 class _StatisticsRow extends StatelessWidget {
-  final InvoiceStatistics statistics;
+  final QuotationStatistics statistics;
 
   const _StatisticsRow({required this.statistics});
 
   @override
   Widget build(BuildContext context) {
     final formatter = NumberFormat.compactCurrency(
-      symbol: 'MK',
+      symbol: 'MK ',
       decimalDigits: 0,
     );
     return SingleChildScrollView(
@@ -259,35 +270,35 @@ class _StatisticsRow extends StatelessWidget {
       child: Row(
         children: [
           _StatCard(
-            label: 'Paid',
-            count: statistics.paid.count,
-            amount: formatter.format(statistics.paid.amount),
-            color: Colors.green,
-            icon: Icons.check_circle_outline,
-          ),
-          const SizedBox(width: 10),
-          _StatCard(
             label: 'Pending',
             count: statistics.pending.count,
-            amount: formatter.format(statistics.pending.amount),
+            amount: formatter.format(statistics.pending.total),
             color: Colors.orange,
             icon: Icons.schedule,
           ),
           const SizedBox(width: 10),
           _StatCard(
-            label: 'Overdue',
-            count: statistics.overdue.count,
-            amount: formatter.format(statistics.overdue.amount),
-            color: Colors.red,
-            icon: Icons.warning_amber_outlined,
+            label: 'Approved',
+            count: statistics.approved.count,
+            amount: formatter.format(statistics.approved.total),
+            color: Colors.green,
+            icon: Icons.check_circle_outline,
           ),
           const SizedBox(width: 10),
           _StatCard(
-            label: 'Partial',
-            count: statistics.partial.count,
-            amount: formatter.format(statistics.partial.amount),
+            label: 'Converted',
+            count: statistics.converted.count,
+            amount: formatter.format(statistics.converted.total),
             color: Colors.blue,
-            icon: Icons.pie_chart_outline,
+            icon: Icons.call_made,
+          ),
+          const SizedBox(width: 10),
+          _StatCard(
+            label: 'Expired',
+            count: statistics.expired.count,
+            amount: formatter.format(statistics.expired.total),
+            color: Colors.red,
+            icon: Icons.warning_amber_outlined,
           ),
         ],
       ),
@@ -342,10 +353,13 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               amount,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             Text(
-              '$count invoice${count == 1 ? '' : 's'}',
+              '$count quotation${count == 1 ? '' : 's'}',
               style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             ),
           ],
@@ -354,10 +368,6 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-
-// ═══════════════════════════════════════════════════
-//  Status Filter Chip
-// ═══════════════════════════════════════════════════
 
 class _StatusChip extends StatelessWidget {
   final String label;
@@ -387,17 +397,13 @@ class _StatusChip extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  Invoice Card
-// ═══════════════════════════════════════════════════
-
-class _InvoiceCard extends StatelessWidget {
-  final Invoice invoice;
+class _QuotationCard extends StatelessWidget {
+  final Quotation quotation;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
 
-  const _InvoiceCard({
-    required this.invoice,
+  const _QuotationCard({
+    required this.quotation,
     required this.onTap,
     this.onDelete,
   });
@@ -410,8 +416,7 @@ class _InvoiceCard extends StatelessWidget {
       symbol: 'MK ',
       decimalDigits: 2,
     );
-
-    final statusColor = _statusColor(invoice.status);
+    final statusColor = _statusColor(quotation.status);
 
     Widget card = Card(
       elevation: 0,
@@ -429,12 +434,11 @@ class _InvoiceCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Row 1: Invoice number + Status chip
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      invoice.invoiceNumber,
+                      quotation.quotationNumber,
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
@@ -450,7 +454,7 @@ class _InvoiceCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      invoice.status,
+                      quotation.status,
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
@@ -461,8 +465,6 @@ class _InvoiceCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-
-              // Row 2: Client + date
               Row(
                 children: [
                   Icon(
@@ -473,7 +475,7 @@ class _InvoiceCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      invoice.client.name,
+                      quotation.client,
                       style: theme.textTheme.bodySmall,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -486,7 +488,7 @@ class _InvoiceCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    'Due ${dateFormat.format(invoice.dueDate)}',
+                    'Valid ${dateFormat.format(DateTime.tryParse(quotation.validUntil) ?? DateTime.now())}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.outline,
                     ),
@@ -494,24 +496,20 @@ class _InvoiceCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-
-              // Row 3: Total + paid info
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      currencyFormat.format(invoice.total),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  if (invoice.totalPaid > 0 && invoice.status != 'Paid')
-                    Text(
-                      'Paid: ${currencyFormat.format(invoice.totalPaid)}',
-                      style: TextStyle(fontSize: 12, color: Colors.green[700]),
-                    ),
-                ],
+              Text(
+                quotation.title,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                currencyFormat.format(quotation.amount),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -519,14 +517,13 @@ class _InvoiceCard extends StatelessWidget {
       ),
     );
 
-    // Wrap with Dismissible for delete
     if (onDelete != null) {
       card = Dismissible(
-        key: ValueKey(invoice.id),
+        key: ValueKey(quotation.id),
         direction: DismissDirection.endToStart,
         confirmDismiss: (_) async {
           onDelete!();
-          return false; // handled by the callback
+          return false;
         },
         background: Container(
           alignment: Alignment.centerRight,
@@ -540,28 +537,22 @@ class _InvoiceCard extends StatelessWidget {
         child: card,
       );
     }
-
     return card;
   }
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
-      case 'paid':
+      case 'approved':
         return Colors.green;
       case 'pending':
-      case 'sent':
         return Colors.orange;
-      case 'overdue':
-        return Colors.red;
       case 'draft':
         return Colors.grey;
-      case 'partial':
+      case 'converted':
         return Colors.blue;
-      case 'void':
-        return Colors.brown;
-      case 'refunded':
-      case 'partially_refunded':
-        return Colors.purple;
+      case 'expired':
+      case 'rejected':
+        return Colors.red;
       default:
         return Colors.grey;
     }

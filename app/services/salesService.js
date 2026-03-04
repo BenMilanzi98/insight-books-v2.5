@@ -118,6 +118,8 @@ export const createSale = async (saleData) => {
           price: Number(item.unitPrice),
           description: String(item.description)
         } : null,
+        // Include tax breakdown for detailed tax tracking per tax type
+        taxBreakdown: item.taxBreakdown || [],
         // Include accountId for Chart of Accounts requirement
         accountId: item.accountId || null,
         // Include unit quantities for unit-managed products

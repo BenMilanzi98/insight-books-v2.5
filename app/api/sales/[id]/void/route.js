@@ -192,6 +192,39 @@ export async function POST(request, { params }) {
         // Continue without failing the transaction
       }
 
+      // Reverse tax postings for voided sale
+      try {
+        const saleItemTaxes = await tx.saleItemTax.findMany({
+          where: { saleItem: { saleId: sale.id } },
+          select: { taxTypeId: true, taxAmount: true, taxName: true },
+        });
+        const taxesByType = {};
+        saleItemTaxes.forEach(tax => {
+          if (!taxesByType[tax.taxTypeId]) {
+            taxesByType[tax.taxTypeId] = { taxTypeId: tax.taxTypeId, taxAmount: 0, taxName: tax.taxName };
+          }
+          taxesByType[tax.taxTypeId].taxAmount += Number(tax.taxAmount || 0);
+        });
+        for (const taxData of Object.values(taxesByType)) {
+          if (taxData.taxAmount > 0) {
+            const { reverseAutoPostTaxEntry } = await import('@/lib/taxCalculationService');
+            await reverseAutoPostTaxEntry({
+              tenantId: user.tenantId,
+              userId: user.id,
+              taxTypeId: taxData.taxTypeId,
+              taxAmount: taxData.taxAmount,
+              transactionDate: new Date(),
+              sourceType: 'SaleVoid',
+              sourceId: sale.id,
+              description: `Tax reversal for voided sale ${sale.saleNumber}`,
+              tx,
+            });
+          }
+        }
+      } catch (taxReversalError) {
+        console.error('Error reversing tax for voided sale:', taxReversalError);
+      }
+
       // Create audit log
       await tx.auditLog.create({
         data: {

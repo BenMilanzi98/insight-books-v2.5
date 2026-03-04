@@ -408,7 +408,7 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
     final file = await picker.pickImage(source: ImageSource.gallery);
     if (file == null || !mounted) return;
     final path = file.path;
-    if (path == null || path.isEmpty) return;
+    if (path.isEmpty) return;
     final settings = widget.settings;
     if (settings == null) return;
     final notifier = ref.read(accountProvider.notifier);

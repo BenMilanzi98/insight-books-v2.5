@@ -15,12 +15,17 @@ abstract class Invoice with _$Invoice {
     required double totalTax,
     required double totalDiscount,
     required double total,
-    required String status, // 'draft', 'sent', 'paid', 'overdue', 'cancelled'
+    required String status,
     required DateTime dueDate,
     required DateTime createdAt,
+    DateTime? issueDate,
     @Default('MWK') String currency,
     String? terms,
     String? notes,
+    @Default(0) double totalPaid,
+    @Default(0) double remainingBalance,
+    @Default(0) double amountDue,
+    @Default([]) List<InvoicePayment> payments,
   }) = _Invoice;
 
   factory Invoice.fromJson(Map<String, dynamic> json) =>
@@ -43,6 +48,47 @@ abstract class InvoiceItem with _$InvoiceItem {
 
   factory InvoiceItem.fromJson(Map<String, dynamic> json) =>
       _$InvoiceItemFromJson(json);
+}
+
+@freezed
+abstract class InvoicePayment with _$InvoicePayment {
+  const factory InvoicePayment({
+    required String id,
+    required double amount,
+    required String paymentMethod,
+    String? paymentDate,
+    String? reference,
+    String? notes,
+    @Default('Completed') String status,
+  }) = _InvoicePayment;
+
+  factory InvoicePayment.fromJson(Map<String, dynamic> json) =>
+      _$InvoicePaymentFromJson(json);
+}
+
+@freezed
+abstract class InvoiceStatistics with _$InvoiceStatistics {
+  const factory InvoiceStatistics({
+    required InvoiceStatBucket paid,
+    required InvoiceStatBucket pending,
+    required InvoiceStatBucket overdue,
+    required InvoiceStatBucket partial,
+    required InvoiceStatBucket draft,
+  }) = _InvoiceStatistics;
+
+  factory InvoiceStatistics.fromJson(Map<String, dynamic> json) =>
+      _$InvoiceStatisticsFromJson(json);
+}
+
+@freezed
+abstract class InvoiceStatBucket with _$InvoiceStatBucket {
+  const factory InvoiceStatBucket({
+    @Default(0) int count,
+    @Default(0) double amount,
+  }) = _InvoiceStatBucket;
+
+  factory InvoiceStatBucket.fromJson(Map<String, dynamic> json) =>
+      _$InvoiceStatBucketFromJson(json);
 }
 
 @freezed

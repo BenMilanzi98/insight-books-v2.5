@@ -335,6 +335,7 @@ const ExpenseForm = ({
         amount: parseFloat(formData.amount),
         taxAmount: taxAmountNum,
         taxRate: taxRateNum,
+        taxTypeId: selectedTaxTypeId || null,
         category: selectedAccount?.name || expense?.category || '',
         expenseAccountId: formData.expenseAccountId,
         paymentMethod: formData.paymentStatus === 'Pending' ? null : formData.paymentMethod,

@@ -20,7 +20,7 @@ final class InvoiceControllerProvider
         argument: null,
         retry: null,
         name: r'invoiceControllerProvider',
-        isAutoDispose: true,
+        isAutoDispose: false,
         dependencies: null,
         $allTransitiveDependencies: null,
       );
@@ -41,7 +41,7 @@ final class InvoiceControllerProvider
   }
 }
 
-String _$invoiceControllerHash() => r'd0774ae84ed827db23b6f45bcc9063422f1da04e';
+String _$invoiceControllerHash() => r'077c335a8e8e85fd927e75b197341fc634c05299';
 
 abstract class _$InvoiceController extends $Notifier<InvoicePageState> {
   InvoicePageState build();

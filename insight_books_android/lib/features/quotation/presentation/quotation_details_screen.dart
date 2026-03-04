@@ -1,0 +1,686 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../data/quotation_repository.dart';
+import '../domain/quotation_model.dart';
+import 'providers/quotation_details_provider.dart';
+import 'providers/quotation_provider.dart';
+
+class QuotationDetailsScreen extends ConsumerWidget {
+  final String quotationId;
+
+  const QuotationDetailsScreen({super.key, required this.quotationId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quotationAsync = ref.watch(quotationDetailsProvider(quotationId));
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Quotation Details'),
+        actions: [
+          quotationAsync.whenOrNull(
+            data: (quotation) => PopupMenuButton<String>(
+              onSelected: (action) =>
+                  _handleAction(context, ref, quotation, action),
+              itemBuilder: (ctx) => _buildMenuItems(quotation),
+              icon: const Icon(Icons.more_vert),
+            ),
+          ) ?? const SizedBox.shrink(),
+        ],
+      ),
+      body: quotationAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 48,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Failed to load quotation',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              FilledButton.tonalIcon(
+                onPressed: () =>
+                    ref.invalidate(quotationDetailsProvider(quotationId)),
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+        data: (quotation) => _QuotationDetailsBody(
+          quotation: quotation,
+          quotationId: quotationId,
+        ),
+      ),
+    );
+  }
+
+  List<PopupMenuEntry<String>> _buildMenuItems(Quotation quotation) {
+    final items = <PopupMenuEntry<String>>[];
+    final status = quotation.status;
+
+    if (status != 'Converted') {
+      items.add(
+        const PopupMenuItem(
+          value: 'send',
+          child: ListTile(
+            leading: Icon(Icons.send_outlined, color: Colors.blue),
+            title: Text('Send to Client'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
+
+    if (status == 'Approved') {
+      items.add(
+        const PopupMenuItem(
+          value: 'convert',
+          child: ListTile(
+            leading: Icon(Icons.call_made, color: Colors.green),
+            title: Text('Convert to Invoice'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
+
+    if (status != 'Converted') {
+      items.add(
+        const PopupMenuItem(
+          value: 'duplicate',
+          child: ListTile(
+            leading: Icon(Icons.copy, color: Colors.purple),
+            title: Text('Duplicate'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+      items.add(
+        const PopupMenuItem(
+          value: 'edit',
+          child: ListTile(
+            leading: Icon(Icons.edit_outlined, color: Colors.orange),
+            title: Text('Edit'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
+
+    if (status == 'Draft') {
+      items.add(
+        const PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.delete_outline, color: Colors.red),
+            title: Text('Delete'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
+
+    return items;
+  }
+
+  Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+    String action,
+  ) async {
+    switch (action) {
+      case 'send':
+        await _showSendDialog(context, ref, quotation);
+        break;
+      case 'convert':
+        await _showConvertDialog(context, ref, quotation);
+        break;
+      case 'duplicate':
+        await _duplicateQuotation(context, ref, quotation);
+        break;
+      case 'edit':
+        if (context.mounted) {
+          context.push('/quotation/${quotation.id}/edit');
+        }
+        break;
+      case 'delete':
+        await _showDeleteDialog(context, ref, quotation);
+        break;
+    }
+  }
+
+  Future<void> _showSendDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    final messageCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send Quotation'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Send quotation ${quotation.quotationNumber} to ${quotation.client}?',
+            ),
+            if (quotation.clientEmail == null || quotation.clientEmail!.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'Client does not have an email address configured.',
+                  style: TextStyle(color: Colors.orange),
+                ),
+              )
+            else ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: messageCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Message (optional)',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref.read(quotationRepositoryProvider).sendQuotation(
+              quotation.id,
+              message: messageCtrl.text.trim().isEmpty
+                  ? null
+                  : messageCtrl.text.trim(),
+            );
+        ref.invalidate(quotationDetailsProvider(quotationId));
+        ref.invalidate(quotationControllerProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quotation sent')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                e.toString().contains('PDF')
+                    ? 'PDF not ready. Generate from web app first.'
+                    : 'Failed to send: $e',
+              ),
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _showConvertDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Convert to Invoice'),
+        content: Text(
+          'Convert quotation ${quotation.quotationNumber} to an invoice? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Convert'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        final result = await ref
+            .read(quotationRepositoryProvider)
+            .convertToInvoice(quotation.id);
+        ref.invalidate(quotationDetailsProvider(quotationId));
+        ref.invalidate(quotationControllerProvider);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Converted to invoice ${result.invoiceNumber}',
+              ),
+            ),
+          );
+          context.go('/invoice/${result.invoiceId}');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _duplicateQuotation(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    try {
+      final duplicated = await ref
+          .read(quotationControllerProvider.notifier)
+          .duplicateQuotation(quotation.id);
+      if (context.mounted && duplicated != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Quotation duplicated')),
+        );
+        context.go('/quotation/${duplicated.id}');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showDeleteDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Quotation'),
+        content: Text(
+          'Delete quotation ${quotation.quotationNumber}? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(quotationControllerProvider.notifier)
+            .deleteQuotation(quotation.id);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Quotation deleted')),
+          );
+          context.go('/quotation');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')),
+          );
+        }
+      }
+    }
+  }
+}
+
+class _QuotationDetailsBody extends StatelessWidget {
+  final Quotation quotation;
+  final String quotationId;
+
+  const _QuotationDetailsBody({
+    required this.quotation,
+    required this.quotationId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currencyFormat = NumberFormat.currency(
+      symbol: 'MK ',
+      decimalDigits: 2,
+    );
+    final statusColor = _statusColor(quotation.status);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+              side: BorderSide(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          quotation.quotationNumber,
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          quotation.status,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: statusColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    quotation.title,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const Divider(height: 24),
+                  _DetailRow(
+                    label: 'Client',
+                    value: quotation.client,
+                    icon: Icons.person_outline,
+                  ),
+                  if (quotation.clientEmail != null &&
+                      quotation.clientEmail!.isNotEmpty)
+                    _DetailRow(
+                      label: 'Email',
+                      value: quotation.clientEmail!,
+                      icon: Icons.email_outlined,
+                    ),
+                  if (quotation.clientPhone != null &&
+                      quotation.clientPhone!.isNotEmpty)
+                    _DetailRow(
+                      label: 'Phone',
+                      value: quotation.clientPhone!,
+                      icon: Icons.phone_outlined,
+                    ),
+                  _DetailRow(
+                    label: 'Date',
+                    value: quotation.date,
+                    icon: Icons.calendar_today_outlined,
+                  ),
+                  _DetailRow(
+                    label: 'Valid until',
+                    value: quotation.validUntil,
+                    icon: Icons.event_outlined,
+                  ),
+                  if (quotation.preparedBy != null)
+                    _DetailRow(
+                      label: 'Prepared by',
+                      value: quotation.preparedBy!,
+                      icon: Icons.badge_outlined,
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Items',
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...quotation.items.map((item) => Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: theme.colorScheme.outlineVariant
+                        .withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.description,
+                              style:
+                                  theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${item.quantity} × ${currencyFormat.format(item.unitPrice)}'
+                              '${item.taxRate > 0 ? ' + ${item.taxRate}% tax' : ''}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.outline,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        currencyFormat.format(item.amount),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )),
+          const SizedBox(height: 16),
+          Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerLow,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _SummaryRow('Subtotal', currencyFormat.format(quotation.subtotal)),
+                  if (quotation.taxAmount > 0)
+                    _SummaryRow('Tax', currencyFormat.format(quotation.taxAmount)),
+                  if (quotation.discount > 0)
+                    _SummaryRow(
+                      'Discount',
+                      '-${currencyFormat.format(quotation.discount)}',
+                    ),
+                  const Divider(height: 16),
+                  _SummaryRow(
+                    'Total',
+                    currencyFormat.format(quotation.amount),
+                    bold: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (quotation.notes != null && quotation.notes!.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Notes',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              quotation.notes!,
+              style: theme.textTheme.bodyMedium,
+            ),
+          ],
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Colors.green;
+      case 'pending':
+        return Colors.orange;
+      case 'draft':
+        return Colors.grey;
+      case 'converted':
+        return Colors.blue;
+      case 'expired':
+      case 'rejected':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: theme.colorScheme.outline),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+                Text(value, style: theme.textTheme.bodyMedium),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+
+  const _SummaryRow(this.label, this.value, {this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: bold
+                ? theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodyMedium,
+          ),
+          Text(
+            value,
+            style: bold
+                ? theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  )
+                : theme.textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -700,6 +700,8 @@ export async function POST(request) {
           historicalDate: body.historicalDate ? new Date(body.historicalDate) : null,
           migrationBatch: body.migrationBatch || null,
           originalReference: body.originalReference || null,
+          // Tax type linking
+          taxTypeId: body.taxTypeId || null,
           // Supplier linking
           supplierId: body.supplierId || null,
         }
@@ -738,6 +740,7 @@ export async function POST(request) {
             expenseDate: paymentDate,
             amount: paymentAmount,
             taxAmount: taxAmount || 0,
+            taxTypeId: body.taxTypeId || null,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod,
@@ -767,6 +770,7 @@ export async function POST(request) {
             expenseDate: expenseDate,
             amount: amount,
             taxAmount: taxAmount || 0,
+            taxTypeId: body.taxTypeId || null,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod: null, // Not paid yet

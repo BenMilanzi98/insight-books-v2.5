@@ -9,9 +9,9 @@ import { addBranchFilter } from '@/lib/dashboardBranchFilter';
  * 
  * Tax data storage:
  * - Sales: SaleItemTax links to TaxType (reliable)
- * - Invoices: Invoice.taxAmount only (NOT linked to TaxType)
+ * - Invoices: Tax-Invoice transactions per TaxType (via autoPostTaxEntry)
  * - Purchase Orders: PurchaseOrderItem.taxTypeId links to TaxType (reliable)
- * - Expenses: Expense.taxAmount only (NOT linked to TaxType)
+ * - Expenses: Expense.taxTypeId links to TaxType (new), fallback via rate matching
  */
 export async function GET(request) {
   try {
@@ -97,12 +97,16 @@ export async function GET(request) {
           const sale = sit.saleItem?.sale;
           if (!sale) continue;
           if (sale.refundedAt) continue;
-          if (sale.status === 'void') continue;
+          const statusLower = (sale.status || '').toString().toLowerCase();
+          // Only exclude void sales; include completed, paid, and any other status
+          if (statusLower === 'void') continue;
 
-          const branchId = user?.currentBranchId || null;
-          if (branchId && sale.branchId && sale.branchId !== branchId) continue;
+          const branchId = user?.currentBranchId ?? null;
+          // When user has a branch selected, exclude only sales that belong to a different branch (include same branch or no branch)
+          if (branchId && sale.branchId != null && sale.branchId !== branchId) continue;
 
           const saleDate = new Date(sale.saleDate);
+          if (Number.isNaN(saleDate.getTime())) continue;
           if (saleDate < start || saleDate > end) continue;
 
           const taxAmt = Number(sit.taxAmount || 0);
@@ -126,7 +130,7 @@ export async function GET(request) {
               { taxRate: { gt: 0 } },
             ],
             refundedAt: null,
-            status: { not: 'void' },
+            status: { notIn: ['void', 'Void'] },
             saleDate: dateFilter,
           }),
           select: { id: true, saleDate: true, taxAmount: true, taxRate: true },
@@ -157,6 +161,53 @@ export async function GET(request) {
       }
 
       // ========== TAX COLLECTED FROM INVOICES ==========
+      // Invoice tax is tracked via Tax-Invoice transactions (posted by autoPostTaxEntry).
+      // These transactions are linked to the correct tax account per tax type.
+      // We collect invoice IDs that have Tax-Invoice postings so we can fall back for unposted ones.
+      const invoicesAccountedFor = new Set();
+      try {
+        if (taxType.accountId) {
+          const taxInvoiceTxns = await prisma.transaction.findMany({
+            where: {
+              tenantId: user.tenantId,
+              status: 'posted',
+              sourceType: 'Tax-Invoice',
+              date: dateFilter,
+              lines: {
+                some: { accountId: taxType.accountId },
+              },
+            },
+            select: {
+              id: true,
+              date: true,
+              sourceId: true,
+              lines: {
+                where: { accountId: taxType.accountId },
+                select: { debitAmount: true, creditAmount: true },
+              },
+            },
+          });
+
+          const isLiability = taxType.account?.accountType === 'Liability';
+          for (const txn of taxInvoiceTxns) {
+            const line = txn.lines[0];
+            if (!line) continue;
+            const creditAmount = Number(line.creditAmount || 0);
+            const debitAmount = Number(line.debitAmount || 0);
+            const taxAmt = isLiability ? creditAmount : debitAmount;
+            if (taxAmt > 0) {
+              totalCollected += taxAmt;
+              addToBreakdown(txn.date, 'collected', taxAmt);
+              if (txn.sourceId) invoicesAccountedFor.add(txn.sourceId);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Tax balances: Tax-Invoice transaction query failed for', taxType.taxId, err?.message);
+      }
+
+      // Fallback: For invoices without Tax-Invoice transactions, use direct aggregation
+      // (only for first/only non-PAYE tax type to avoid double-counting across types)
       try {
         if (isOnlyNonPayeTaxType || (isFirstNonPayeTaxType && taxTypeRate > 0)) {
           const invoicesWithTax = await prisma.invoice.findMany({
@@ -171,6 +222,7 @@ export async function GET(request) {
           });
 
           for (const inv of invoicesWithTax) {
+            if (invoicesAccountedFor.has(inv.id)) continue;
             const taxAmt = Number(inv.taxAmount || 0);
             if (taxAmt > 0) {
               totalCollected += taxAmt;
@@ -179,7 +231,7 @@ export async function GET(request) {
           }
         }
       } catch (err) {
-        console.warn('Tax balances: Invoice query failed for', taxType.taxId, err?.message);
+        console.warn('Tax balances: Invoice fallback query failed for', taxType.taxId, err?.message);
       }
 
       // ========== TAX PAID FROM PURCHASE ORDERS ==========
@@ -219,9 +271,33 @@ export async function GET(request) {
         const isFirstNonPaye = nonPayeTaxTypes.length > 0 && nonPayeTaxTypes[0].id === taxType.id;
         const isOnlyNonPaye = nonPayeTaxTypes.length === 1 && nonPayeTaxTypes[0].id === taxType.id;
 
+        // First: expenses directly linked to this tax type via taxTypeId
+        const expensesDirectlyLinked = new Set();
+        const directExpenses = await prisma.expense.findMany({
+          where: addBranchFilter(user, {
+            tenantId: user.tenantId,
+            taxTypeId: taxType.id,
+            taxAmount: { gt: 0 },
+            isDeleted: false,
+            date: dateFilter,
+          }),
+          select: { id: true, date: true, taxAmount: true },
+        });
+
+        for (const ex of directExpenses) {
+          const expTaxAmount = Number(ex.taxAmount || 0);
+          if (expTaxAmount > 0) {
+            totalPaid += expTaxAmount;
+            addToBreakdown(ex.date, 'paid', expTaxAmount);
+            expensesDirectlyLinked.add(ex.id);
+          }
+        }
+
+        // Then: fallback for expenses without taxTypeId (legacy data)
         const expensesWithTax = await prisma.expense.findMany({
           where: addBranchFilter(user, {
             tenantId: user.tenantId,
+            taxTypeId: null,
             OR: [
               { taxAmount: { gt: 0 } },
               { taxRate: { gt: 0 } },
@@ -229,10 +305,11 @@ export async function GET(request) {
             isDeleted: false,
             date: dateFilter,
           }),
-          select: { date: true, taxAmount: true, taxRate: true },
+          select: { id: true, date: true, taxAmount: true, taxRate: true },
         });
 
         for (const ex of expensesWithTax) {
+          if (expensesDirectlyLinked.has(ex.id)) continue;
           const expTaxRate = Number(ex.taxRate || 0);
           const expTaxAmount = Number(ex.taxAmount || 0);
           if (expTaxAmount <= 0) continue;
@@ -265,6 +342,7 @@ export async function GET(request) {
               id: true,
               date: true,
               sourceType: true,
+              sourceId: true,
               lines: {
                 where: { accountId: taxType.accountId },
                 select: { debitAmount: true, creditAmount: true },
@@ -297,9 +375,42 @@ export async function GET(request) {
                 addToBreakdown(tx.date, 'paid', paidAmt);
               }
             }
-            // Tax-Sale and Tax-Invoice are already counted via direct aggregation above
+            // Tax-Sale: count only for sales NOT already covered by SaleItemTax direct aggregation
+            else if (tx.sourceType === 'Tax-Sale') {
+              if (tx.sourceId && !salesAccountedFor.has(tx.sourceId)) {
+                if (isLiability) {
+                  if (creditAmount > 0) {
+                    totalCollected += creditAmount;
+                    addToBreakdown(tx.date, 'collected', creditAmount);
+                  }
+                } else if (isAsset) {
+                  if (debitAmount > 0) {
+                    totalCollected += debitAmount;
+                    addToBreakdown(tx.date, 'collected', debitAmount);
+                  }
+                }
+              }
+            }
+            // Tax-Invoice is now counted above via dedicated query
+            // Handle tax reversals from refunds/voids explicitly
+            else if (tx.sourceType === 'Tax-SaleRefund' || tx.sourceType === 'Tax-SaleVoid' ||
+                     tx.sourceType === 'Tax-InvoiceRefund' || tx.sourceType === 'Tax-InvoiceVoid') {
+              // Reversals: for Liability accounts, debit reduces collected tax
+              // For Asset accounts, credit reduces collected tax
+              if (isLiability) {
+                if (debitAmount > 0) {
+                  totalRefunded += debitAmount;
+                  addToBreakdown(tx.date, 'refunded', debitAmount);
+                }
+              } else if (isAsset) {
+                if (creditAmount > 0) {
+                  totalRefunded += creditAmount;
+                  addToBreakdown(tx.date, 'refunded', creditAmount);
+                }
+              }
+            }
+            // Handle remaining Tax-* sourceTypes (generic)
             else if (tx.sourceType?.startsWith('Tax-') &&
-                     tx.sourceType !== 'Tax-Sale' &&
                      tx.sourceType !== 'Tax-Invoice' &&
                      tx.sourceType !== 'Tax-SupplierPayment') {
               if (isLiability) {

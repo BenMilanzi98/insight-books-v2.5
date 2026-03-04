@@ -10,6 +10,9 @@ import 'package:insightbooks_android/features/account/presentation/account_scree
 import 'package:insightbooks_android/features/invoice/presentation/invoice_list_screen.dart';
 import 'package:insightbooks_android/features/invoice/presentation/create_invoice_screen.dart';
 import 'package:insightbooks_android/features/invoice/presentation/invoice_details_screen.dart';
+import 'package:insightbooks_android/features/quotation/presentation/quotation_list_screen.dart';
+import 'package:insightbooks_android/features/quotation/presentation/quotation_details_screen.dart';
+import 'package:insightbooks_android/features/quotation/presentation/create_quotation_screen.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -62,6 +65,28 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) {
               final id = state.pathParameters['id']!;
               return InvoiceDetailsScreen(invoiceId: id);
+            },
+          ),
+          GoRoute(
+            path: '/quotation',
+            builder: (context, state) => const QuotationListScreen(),
+          ),
+          GoRoute(
+            path: '/quotation/create',
+            builder: (context, state) => const CreateQuotationScreen(),
+          ),
+          GoRoute(
+            path: '/quotation/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return QuotationDetailsScreen(quotationId: id);
+            },
+          ),
+          GoRoute(
+            path: '/quotation/:id/edit',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return CreateQuotationScreen(quotationId: id);
             },
           ),
           GoRoute(

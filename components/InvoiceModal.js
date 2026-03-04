@@ -754,6 +754,8 @@ const InvoiceModal = ({
             taxRate: parseFloat(item.taxRate) || 0,
             discountAmount: parseFloat(item.discountAmount) || 0,
             accountId: item.accountId || revenueAccount?.id || "",
+            selectedTaxTypeId: item.selectedTaxTypeId || '',
+            productTaxes: item.productTaxes || [],
             // Include unit quantities for unit-based products
             unitQuantities: hasUnitManagement(item.product) ? (unitQuantities[index] || {}) : null
           };

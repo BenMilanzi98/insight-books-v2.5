@@ -12,12 +12,12 @@ class MainLayout extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final isDesktop = MediaQuery.of(context).size.width > 800;
 
-    // Map routes to bottom nav indices
+    // Map routes to bottom nav indices: Home, POS, Invoicing, Quotations
     int calculateSelectedIndex() {
       if (location == '/dashboard') return 0;
       if (location == '/pos') return 1;
-      if (location == '/switch-tenant') return 2;
-      if (location == '/account') return 3;
+      if (location.startsWith('/invoice')) return 2;
+      if (location.startsWith('/quotation')) return 3;
       return 0;
     }
 
@@ -42,10 +42,10 @@ class MainLayout extends StatelessWidget {
                     context.go('/pos');
                     break;
                   case 2:
-                    context.go('/switch-tenant');
+                    context.go('/invoice');
                     break;
                   case 3:
-                    context.go('/account');
+                    context.go('/quotation');
                     break;
                 }
               },
@@ -62,12 +62,12 @@ class MainLayout extends StatelessWidget {
                   label: 'POS',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.business_center),
-                  label: 'Businesses',
+                  icon: Icon(Icons.receipt),
+                  label: 'Invoicing',
                 ),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.person),
-                  label: 'Account',
+                  icon: Icon(Icons.description),
+                  label: 'Quotations',
                 ),
               ],
             ),
@@ -134,6 +134,12 @@ class AppDrawer extends StatelessWidget {
                     title: 'Invoicing',
                     icon: Icons.receipt,
                     route: '/invoice',
+                    currentRoute: currentRoute,
+                  ),
+                  _NavItem(
+                    title: 'Quotations',
+                    icon: Icons.description,
+                    route: '/quotation',
                     currentRoute: currentRoute,
                   ),
                   _NavItem(

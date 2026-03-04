@@ -295,6 +295,53 @@ export async function POST(request) {
         data: { transactionId: refundTransaction.id }
       });
 
+      // Reverse tax postings for refunded invoice
+      try {
+        const { reverseAutoPostTaxEntry } = await import('@/lib/taxCalculationService');
+        // Find original Tax-Invoice transactions for this invoice
+        const taxTransactions = await tx.transaction.findMany({
+          where: {
+            sourceType: 'Tax-Invoice',
+            sourceId: invoiceId,
+            tenantId: user.tenantId,
+            status: 'posted',
+          },
+          include: { lines: true },
+        });
+
+        for (const taxTxn of taxTransactions) {
+          for (const line of taxTxn.lines) {
+            const taxAmt = Number(line.creditAmount || 0) || Number(line.debitAmount || 0);
+            if (taxAmt <= 0) continue;
+
+            // Find the tax type that uses this account
+            const taxType = await tx.taxType.findFirst({
+              where: { accountId: line.accountId, tenantId: user.tenantId, status: 'Active' },
+            });
+            if (!taxType) continue;
+
+            // Scale reversal if partial refund
+            const refundRatio = refundAmount / invoice.total;
+            const reversalAmount = Number((taxAmt * refundRatio).toFixed(2));
+            if (reversalAmount <= 0) continue;
+
+            await reverseAutoPostTaxEntry({
+              tenantId: user.tenantId,
+              userId: user.id,
+              taxTypeId: taxType.id,
+              taxAmount: reversalAmount,
+              transactionDate: refundDate,
+              sourceType: 'InvoiceRefund',
+              sourceId: invoiceId,
+              description: `Tax reversal for refund of invoice ${invoice.invoiceNumber}`,
+              tx,
+            });
+          }
+        }
+      } catch (taxReversalError) {
+        console.error('Error reversing tax for refunded invoice:', taxReversalError);
+      }
+
       // Create audit log
       await tx.auditLog.create({
         data: {
