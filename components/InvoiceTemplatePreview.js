@@ -45,11 +45,19 @@ const renderPaymentBreakdown = (displayData, currencyFmt = formatCurrency) => {
 const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }) => {
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
-  // Reset logo state when branding/logoUrl changes
+  // Only treat as having a logo when we have a non-empty URL; otherwise show business name only
   const logoUrl = branding?.logoUrl && String(branding.logoUrl).trim() ? String(branding.logoUrl).trim() : null;
+  // Preload logo so we never render a broken img (no green square); reset when URL changes
   React.useEffect(() => {
     setLogoError(false);
     setLogoLoaded(false);
+    if (!logoUrl) return;
+    const img = new Image();
+    const src = logoUrl.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl;
+    img.onload = () => setLogoLoaded(true);
+    img.onerror = () => setLogoError(true);
+    img.src = src;
+    return () => { img.src = ''; };
   }, [logoUrl]);
 
   // Export/print: no trailing .00 for tidy documents; UI: always two decimals
@@ -70,9 +78,10 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
   // Use the primary color from template content or branding settings
   const primaryColor = content.primaryColor || branding?.primaryColor || '#4f46e5';
   const hasLogoUrl = !!logoUrl;
-  // Only show logo image after it has loaded successfully; until then show company name (avoids green broken-image placeholder)
+  // Only show logo image after it has loaded successfully; otherwise show business name (no green/broken placeholder)
   const showLogoImage = showLogo && hasLogoUrl && !logoError && logoLoaded;
   const showCompanyName = !hasLogoUrl || logoError || (hasLogoUrl && !logoLoaded);
+  // When no logo is available, show only business name (no image/placeholder)
   const hasLogoAreaContent = showLogoImage || showCompanyName;
   
   // Footer: document override or default from settings (for invoice, quotation, receipt)
@@ -201,17 +210,15 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           <div className="min-w-0">
             {hasLogoAreaContent && (
               <div className="relative">
-                {/* Only render img when we have a logo URL and it has not failed (avoids green broken-image placeholder) */}
-                {hasLogoUrl && !logoError && (
+                {/* Only render img when logo has loaded successfully (preloaded in useEffect); avoids green broken-image */}
+                {showLogoImage && (
                   <img
                     src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
                     alt=""
-                    className={showLogoImage ? 'h-11 object-contain max-h-14' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
-                    onLoad={() => setLogoLoaded(true)}
-                    onError={() => setLogoError(true)}
+                    className="h-11 object-contain max-h-14"
                   />
                 )}
-                {/* When no logo or logo failed: show business name */}
+                {/* When logo is not available or failed: show business name only (no green square) */}
                 {showCompanyName && (
                   <p className="text-lg font-semibold text-gray-900 tracking-tight">{branding?.companyName || branding?.name || 'Business'}</p>
                 )}
@@ -353,13 +360,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           </div>
           {hasLogoAreaContent && (
             <>
-              {hasLogoUrl && !logoError && (
+              {showLogoImage && (
                 <img
                   src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
                   alt=""
-                  className={showLogoImage ? 'h-16 object-contain bg-white p-2 rounded' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
-                  onLoad={() => setLogoLoaded(true)}
-                  onError={() => setLogoError(true)}
+                  className="h-16 object-contain bg-white p-2 rounded"
                 />
               )}
               {showCompanyName && (
@@ -564,13 +569,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           </div>
           {hasLogoAreaContent && (
             <>
-              {hasLogoUrl && !logoError && (
+              {showLogoImage && (
                 <img
                   src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
                   alt=""
-                  className={showLogoImage ? 'h-10 object-contain' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
-                  onLoad={() => setLogoLoaded(true)}
-                  onError={() => setLogoError(true)}
+                  className="h-10 object-contain"
                 />
               )}
               {showCompanyName && (

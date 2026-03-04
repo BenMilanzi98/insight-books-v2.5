@@ -29,12 +29,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       symbol: 'MWK ',
       decimalDigits: 2,
     );
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.9,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -44,9 +45,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Checkout',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -62,9 +63,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
               padding: const EdgeInsets.all(24),
               children: [
                 // Customer Selection
-                const Text(
+                Text(
                   'Customer',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 const SizedBox(height: 12),
                 InkWell(
@@ -73,23 +74,20 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey[300]!),
+                      border: Border.all(color: colorScheme.outline.withValues(alpha: 0.5)),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.person_outline,
-                          color: Color(0xFF3B82F6),
-                        ),
+                        Icon(Icons.person_outline, color: colorScheme.primary),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             posState.selectedClient?.name ?? 'Walk-in Customer',
-                            style: const TextStyle(fontWeight: FontWeight.w500),
+                            style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
                           ),
                         ),
-                        const Icon(Icons.chevron_right, color: Colors.grey),
+                        Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant),
                       ],
                     ),
                   ),
@@ -98,9 +96,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 const SizedBox(height: 32),
 
                 // Payment Method
-                const Text(
+                Text(
                   'Payment Method',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 const SizedBox(height: 12),
                 _buildPaymentMethodTile(
@@ -127,9 +125,9 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                 const SizedBox(height: 32),
 
                 // Notes
-                const Text(
+                Text(
                   'Sale Notes (Optional)',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -139,11 +137,11 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                     hintText: 'Add any additional information...',
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: Colors.grey[300]!),
+                      borderSide: BorderSide(color: colorScheme.outline),
                     ),
                   ),
                 ),
@@ -155,10 +153,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: colorScheme.shadow.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, -4),
                 ),
@@ -171,15 +169,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Total Payable',
-                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                        style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
                       ),
                       Text(
                         currencyFormat.format(posState.total),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -193,20 +192,21 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           ? null
                           : () => _processPayment(context, posNotifier),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3B82F6),
-                        foregroundColor: Colors.white,
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         elevation: 0,
                       ),
                       child: posState.isSubmitting
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
+                          ? CircularProgressIndicator(color: colorScheme.onPrimary)
+                          : Text(
                               'Complete Sale',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
+                                color: colorScheme.onPrimary,
                               ),
                             ),
                     ),
@@ -222,6 +222,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
   Widget _buildPaymentMethodTile(String id, String label, IconData icon) {
     final isSelected = _paymentMethod == id;
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: InkWell(
@@ -230,10 +231,10 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF3B82F6).withValues(alpha: 0.05)
-                : Colors.white,
+                ? colorScheme.primary.withValues(alpha: 0.15)
+                : colorScheme.surface,
             border: Border.all(
-              color: isSelected ? const Color(0xFF3B82F6) : Colors.grey[300]!,
+              color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.5),
               width: isSelected ? 2 : 1,
             ),
             borderRadius: BorderRadius.circular(12),
@@ -242,19 +243,19 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             children: [
               Icon(
                 icon,
-                color: isSelected ? const Color(0xFF3B82F6) : Colors.grey,
+                color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Text(
                 label,
                 style: TextStyle(
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? const Color(0xFF3B82F6) : Colors.black87,
+                  color: isSelected ? colorScheme.primary : colorScheme.onSurface,
                 ),
               ),
               const Spacer(),
               if (isSelected)
-                const Icon(Icons.check_circle, color: Color(0xFF3B82F6)),
+                Icon(Icons.check_circle, color: colorScheme.primary),
             ],
           ),
         ),
@@ -271,34 +272,36 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Select Customer',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+        return Container(
+          height: MediaQuery.of(sheetContext).size.height * 0.7,
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Select Customer',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: cs.onSurface),
+                    ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close),
+                    icon: Icon(Icons.close, color: cs.onSurface),
                   ),
                 ],
               ),
             ),
-            const Divider(),
+            Divider(color: cs.outline),
             ListTile(
-              leading: const Icon(Icons.person_add_disabled),
-              title: const Text('Walk-in Customer'),
+              leading: Icon(Icons.person_add_disabled, color: cs.onSurfaceVariant),
+              title: Text('Walk-in Customer', style: TextStyle(color: cs.onSurface)),
               onTap: () {
                 notifier.selectClient(null);
                 Navigator.pop(context);
@@ -307,12 +310,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             Expanded(
               child: ListView.builder(
                 itemCount: state.clients.length,
-                itemBuilder: (context, index) {
+                itemBuilder: (ctx, index) {
                   final client = state.clients[index];
                   return ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: Text(client.name),
-                    subtitle: Text(client.phone ?? client.email ?? ''),
+                    leading: CircleAvatar(child: Icon(Icons.person, color: cs.onSurface)),
+                    title: Text(client.name, style: TextStyle(color: cs.onSurface)),
+                    subtitle: Text(client.phone ?? client.email ?? '', style: TextStyle(color: cs.onSurfaceVariant)),
                     onTap: () {
                       notifier.selectClient(client);
                       Navigator.pop(context);
@@ -323,7 +326,8 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
             ),
           ],
         ),
-      ),
+        );
+      },
     );
   }
 

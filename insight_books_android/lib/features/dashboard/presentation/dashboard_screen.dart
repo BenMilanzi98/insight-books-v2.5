@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_controller.dart';
+import 'package:insightbooks_android/features/tenant/domain/tenant_models.dart';
+import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/widgets/cash_flow_chart.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/widgets/recent_transactions_table.dart';
@@ -19,8 +22,9 @@ class DashboardScreen extends ConsumerWidget {
     final dashboardState = ref.watch(dashboardControllerProvider);
     final controller = ref.read(dashboardControllerProvider.notifier);
 
+    final theme = Theme.of(context);
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: theme.scaffoldBackgroundColor,
       drawer: const AppDrawer(),
       body: CustomScrollView(
         slivers: [
@@ -33,7 +37,7 @@ class DashboardScreen extends ConsumerWidget {
                 height: 400,
                 child: Center(child: CircularProgressIndicator()),
               ),
-              error: (err, stack) => _buildErrorState(err, ref),
+              error: (err, stack) => _buildErrorState(context, err, ref),
             ),
           ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
@@ -43,27 +47,42 @@ class DashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildAppBar(BuildContext context, WidgetRef ref) {
+    final tenantState = ref.watch(tenantProvider);
+    final matching = tenantState.currentTenantId != null
+        ? tenantState.tenants
+            .where((t) => t.id == tenantState.currentTenantId)
+        : <Tenant>[];
+    final currentTenant = matching.isEmpty ? null : matching.first;
+    final businessName = currentTenant?.name.trim();
+    final title =
+        (businessName != null && businessName.isNotEmpty)
+            ? '$businessName Dashboard'
+            : 'Dashboard';
+
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     return SliverAppBar(
       expandedHeight: 120.0,
       floating: false,
       pinned: true,
       elevation: 0,
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-        title: const Text(
-          'Insights Dashboard',
+        title: Text(
+          title,
           style: TextStyle(
-            color: Colors.black87,
+            color: colorScheme.onSurface,
             fontWeight: FontWeight.bold,
             fontSize: 18,
           ),
         ),
-        background: Container(color: Colors.white),
+        background: Container(color: colorScheme.surface),
       ),
       actions: [
+        const ThemeToggleButton(),
         IconButton(
-          icon: const Icon(Icons.logout, color: Colors.black87),
+          icon: Icon(Icons.logout_rounded, color: colorScheme.onSurface),
           onPressed: () => ref.read(authStateProvider.notifier).logout(),
         ),
       ],
@@ -82,10 +101,11 @@ class DashboardScreen extends ConsumerWidget {
       'thisYear': 'Yearly',
     };
 
+    final colorScheme = Theme.of(context).colorScheme;
     return SliverToBoxAdapter(
       child: Container(
         height: 60,
-        color: Colors.white,
+        color: colorScheme.surface,
         child: ListView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -99,9 +119,9 @@ class DashboardScreen extends ConsumerWidget {
                 onSelected: (selected) {
                   if (selected) controller.setDateRange(entry.key);
                 },
-                selectedColor: Theme.of(context).primaryColor,
+                selectedColor: colorScheme.primary,
                 labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black87,
+                  color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -154,16 +174,17 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildErrorState(Object err, WidgetRef ref) {
+  Widget _buildErrorState(BuildContext context, Object err, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
     return SizedBox(
       height: 400,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            Icon(Icons.error_outline, size: 48, color: colorScheme.error),
             const SizedBox(height: 16),
-            Text('Error: $err', textAlign: TextAlign.center),
+            Text('Error: $err', textAlign: TextAlign.center, style: TextStyle(color: colorScheme.onSurface)),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () =>

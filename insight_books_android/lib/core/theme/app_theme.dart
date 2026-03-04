@@ -44,6 +44,8 @@ class AppTheme {
       onSecondary: Colors.white,
       onSurface: textPrimaryLight,
       onError: Colors.white,
+      outline: borderLight,
+      surfaceContainerHighest: const Color(0xFFE5E7EB),
     ),
     scaffoldBackgroundColor: backgroundLight,
     appBarTheme: const AppBarTheme(
@@ -69,6 +71,16 @@ class AppTheme {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       ),
     ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surfaceLight,
+      border: const OutlineInputBorder(),
+      enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: borderLight)),
+      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: primary, width: 2)),
+      labelStyle: const TextStyle(color: textSecondaryLight),
+      hintStyle: const TextStyle(color: textSecondaryLight),
+    ),
+    dividerColor: borderLight,
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: textPrimaryLight),
       bodyMedium: TextStyle(color: textPrimaryLight),
@@ -79,7 +91,7 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     colorScheme: ColorScheme.dark(
-      primary: primary,
+      primary: accent,
       secondary: secondary,
       surface: surfaceDark,
       error: error,
@@ -87,6 +99,8 @@ class AppTheme {
       onSecondary: Colors.white,
       onSurface: textPrimaryDark,
       onError: Colors.white,
+      outline: borderDark,
+      surfaceContainerHighest: const Color(0xFF374151),
     ),
     scaffoldBackgroundColor: backgroundDark,
     appBarTheme: const AppBarTheme(
@@ -98,7 +112,7 @@ class AppTheme {
     cardTheme: CardThemeData(
       color: surfaceDark,
       elevation: 2,
-      shadowColor: Colors.black.withValues(alpha: 0.2),
+      shadowColor: Colors.black.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: borderDark, width: 1),
@@ -111,6 +125,37 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surfaceDark,
+      border: const OutlineInputBorder(),
+      enabledBorder: const OutlineInputBorder(borderSide: BorderSide(color: borderDark)),
+      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: accent, width: 2)),
+      labelStyle: const TextStyle(color: textSecondaryDark),
+      hintStyle: const TextStyle(color: textSecondaryDark),
+    ),
+    dividerColor: borderDark,
+    listTileTheme: const ListTileThemeData(
+      textColor: textPrimaryDark,
+      iconColor: textSecondaryDark,
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: surfaceDark,
+      selectedColor: primary.withValues(alpha: 0.3),
+      labelStyle: const TextStyle(color: textPrimaryDark),
+      secondaryLabelStyle: const TextStyle(color: textPrimaryDark),
+      side: const BorderSide(color: borderDark),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: surfaceDark,
+      contentTextStyle: const TextStyle(color: textPrimaryDark),
+      behavior: SnackBarBehavior.floating,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: surfaceDark,
+      titleTextStyle: const TextStyle(color: textPrimaryDark, fontSize: 20, fontWeight: FontWeight.w600),
+      contentTextStyle: const TextStyle(color: textPrimaryDark),
     ),
     textTheme: const TextTheme(
       bodyLarge: TextStyle(color: textPrimaryDark),

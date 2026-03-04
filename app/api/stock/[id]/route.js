@@ -24,6 +24,9 @@ async function getProductWithValidation(id, tenantId) {
       image: true,
       price: true,
       cost: true,
+      averageCost: true,
+      lastPurchaseCost: true,
+      totalStockValue: true,
       taxRate: true,
       isService: true,
       createdAt: true,
@@ -124,6 +127,13 @@ async function getProductWithValidation(id, tenantId) {
       };
     });
   
+  // Cost precedence: lastPurchaseCost, then cost, then averageCost (same as list/statistics)
+  const costPrice = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+  const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+  const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
+    ? totalStockValueStored
+    : (effectiveStockLevel * costPrice);
+
   return {
     product: {
       ...product,
@@ -133,7 +143,8 @@ async function getProductWithValidation(id, tenantId) {
       quantityInStock: effectiveStockLevel, // For display purposes
       originalStockLevel: stockLevel, // Original product stock level for editing
       unitPrice: product.price,
-      costPrice: product.cost || 0,
+      costPrice,
+      totalStockValue,
       status,
       image: product.image || `/api/placeholder/80/80`,
       imageUrl: product.image || `/api/placeholder/80/80`, // Add imageUrl for consistency
@@ -308,6 +319,10 @@ export async function PUT(request, { params }) {
       computedTaxRate = body.taxRate !== undefined ? body.taxRate : result.product.taxRate;
     }
     
+    // Resolve new cost for recalcing totalStockValue
+    const newCost = body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost);
+    const numericCost = Number(newCost) || 0;
+
     // Prepare update data with all available fields
     const updateData = {
       name: body.name !== undefined ? body.name : result.product.name,
@@ -321,7 +336,9 @@ export async function PUT(request, { params }) {
       cost: body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost),
       taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
-      image: imagePath
+      image: imagePath,
+      // Recalculate inventory value when cost or stock changes so /stock shows correct value
+      totalStockValue: newStockLevel * numericCost
     };
     
     // Start a transaction to update product and log the change

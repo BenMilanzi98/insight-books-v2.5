@@ -164,6 +164,15 @@ export async function GET(request) {
           };
         });
       
+      // Cost precedence: lastPurchaseCost, then cost, then averageCost (same as statistics)
+      const costPrice = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+      // Use stored totalStockValue only when it is set and positive; otherwise compute from cost × stock so
+      // inventory value is correct when cost was added later or totalStockValue was never synced
+      const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+      const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
+        ? totalStockValueStored
+        : (stockLevel * costPrice);
+
       // Return product with additional fields
       return {
         ...product,
@@ -178,7 +187,8 @@ export async function GET(request) {
         // Computed fields
         quantityInStock: stockLevel,
         unitPrice: product.price,
-        costPrice: product.cost || 0,
+        costPrice,
+        totalStockValue,
         status,
         // Ensure image fields
         image: product.image || `/api/placeholder/80/80`,

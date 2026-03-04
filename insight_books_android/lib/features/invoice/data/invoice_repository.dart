@@ -13,22 +13,39 @@ class InvoiceRepository {
 
   InvoiceRepository(this._dio);
 
-  Future<List<Invoice>> fetchInvoices({String? search, String? status}) async {
+  Future<List<Invoice>> fetchInvoices({
+    String? search,
+    String? status,
+    int? page,
+    int? limit,
+  }) async {
     try {
       final response = await _dio.get(
         '/api/invoices',
-        queryParameters: {
-          if (search != null && search.isNotEmpty) 'search': search,
-          if (status != null && status != 'all' && status.isNotEmpty)
-            'status': status,
+        queryParameters: <String, dynamic>{
+          ...? (search != null && search.isNotEmpty) ? {'search': search} : null,
+          ...? (status != null && status != 'all' && status.isNotEmpty)
+              ? {'status': status}
+              : null,
+          ...? page != null ? {'page': page} : null,
+          ...? limit != null ? {'limit': limit} : null,
         },
       );
 
-      final List invoicesJson =
-          response.data['invoices'] ?? response.data['data'] ?? [];
-      return invoicesJson.map((json) {
-        return _parseInvoice(Map<String, dynamic>.from(json));
-      }).toList();
+      final data = response.data;
+      if (data == null || data is! Map) return [];
+
+      final dynamic raw = data['invoices'] ?? data['data'];
+      final List invoicesJson = raw is List ? raw : [];
+      final List<Invoice> result = [];
+      for (final e in invoicesJson) {
+        try {
+          result.add(_parseInvoice(Map<String, dynamic>.from(e as Map)));
+        } catch (_) {
+          continue;
+        }
+      }
+      return result;
     } catch (e) {
       rethrow;
     }
@@ -49,9 +66,39 @@ class InvoiceRepository {
     }
   }
 
+  /// Fetches the default income account ID required by the API for each invoice item.
+  Future<String> _getDefaultIncomeAccountId() async {
+    final response = await _dio.get('/api/chart-of-accounts/income-accounts');
+    final data = response.data;
+    if (data == null || data is! Map) {
+      throw Exception('No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.');
+    }
+    final accounts = data['accounts'];
+    if (accounts == null || accounts is! List || accounts.isEmpty) {
+      throw Exception('No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.');
+    }
+    final first = accounts.first;
+    if (first is! Map) return (first as dynamic).toString();
+    final id = first['id'];
+    if (id == null || id.toString().isEmpty) {
+      throw Exception('Invalid income account. Add an Income account in Chart of Accounts.');
+    }
+    return id.toString();
+  }
+
   Future<Invoice> createInvoice(CreateInvoiceRequest request) async {
     try {
-      final response = await _dio.post('/api/invoices', data: request.toJson());
+      final defaultAccountId = await _getDefaultIncomeAccountId();
+      final body = request.toJson();
+      final items = body['items'] as List<dynamic>? ?? [];
+      final itemsWithAccount = items.map<Map<String, dynamic>>((e) {
+        final map = Map<String, dynamic>.from(e as Map);
+        map['accountId'] = defaultAccountId;
+        return map;
+      }).toList();
+      body['items'] = itemsWithAccount;
+
+      final response = await _dio.post('/api/invoices', data: body);
       final Map<String, dynamic> data =
           response.data['invoice'] ?? response.data;
       return _parseInvoice(Map<String, dynamic>.from(data));
@@ -71,8 +118,17 @@ class InvoiceRepository {
   Future<InvoiceStatistics> fetchStatistics() async {
     try {
       final response = await _dio.get('/api/invoices/statistics');
-      final data = Map<String, dynamic>.from(response.data);
-
+      final raw = response.data;
+      if (raw == null || raw is! Map) {
+        return const InvoiceStatistics(
+          paid: InvoiceStatBucket(),
+          pending: InvoiceStatBucket(),
+          overdue: InvoiceStatBucket(),
+          partial: InvoiceStatBucket(),
+          draft: InvoiceStatBucket(),
+        );
+      }
+      final data = Map<String, dynamic>.from(raw);
       return InvoiceStatistics(
         paid: _parseStatBucket(data['paid']),
         pending: _parseStatBucket(data['pending']),

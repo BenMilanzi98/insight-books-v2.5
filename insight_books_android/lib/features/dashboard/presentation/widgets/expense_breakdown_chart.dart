@@ -12,16 +12,19 @@ class ExpenseBreakdownChart extends StatelessWidget {
   Widget build(BuildContext context) {
     if (categories.isEmpty) return const SizedBox.shrink();
 
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: colorScheme.shadow.withValues(alpha: 0.12),
               blurRadius: 20,
               offset: const Offset(0, 10),
             ),
@@ -30,9 +33,13 @@ class ExpenseBreakdownChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Expenses Breakdown',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
             const SizedBox(height: 24),
             SizedBox(
@@ -80,9 +87,9 @@ class ExpenseBreakdownChart extends StatelessWidget {
                       Expanded(
                         child: Text(
                           category.category,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 14,
-                            color: Colors.black87,
+                            color: colorScheme.onSurface,
                           ),
                         ),
                       ),
@@ -91,9 +98,10 @@ class ExpenseBreakdownChart extends StatelessWidget {
                           symbol: 'MWK ',
                           decimalDigits: 0,
                         ).format(category.amount),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ],

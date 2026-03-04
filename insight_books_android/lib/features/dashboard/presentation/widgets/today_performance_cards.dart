@@ -10,6 +10,7 @@ class TodayPerformanceCards extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -35,7 +36,7 @@ class TodayPerformanceCards extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Column(
+              Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -43,12 +44,12 @@ class TodayPerformanceCards extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                   Text(
                     "Real-time metrics comparison",
-                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -61,6 +62,7 @@ class TodayPerformanceCards extends StatelessWidget {
               return Row(
                 children: [
                   _buildMetricCard(
+                    context,
                     title: "Today's Revenue",
                     amount: today.revenue,
                     change: today.revenueChange,
@@ -71,6 +73,7 @@ class TodayPerformanceCards extends StatelessWidget {
                   ),
                   const SizedBox(width: 12),
                   _buildMetricCard(
+                    context,
                     title: "Today's Expenses",
                     amount: today.expenses,
                     change: today.expensesChange,
@@ -88,7 +91,8 @@ class TodayPerformanceCards extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricCard({
+  Widget _buildMetricCard(
+    BuildContext context, {
     required String title,
     required double amount,
     required double change,
@@ -102,21 +106,22 @@ class TodayPerformanceCards extends StatelessWidget {
       decimalDigits: 0,
     );
     final isIncrease = change >= 0;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       width: width,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: color.withValues(alpha: 0.1),
+            color: color.withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
         ],
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.3), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,13 +166,13 @@ class TodayPerformanceCards extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          Text(title, style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant)),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               currencyFormat.format(amount),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
             ),
           ),
           const SizedBox(height: 12),

@@ -13,6 +13,9 @@ import 'package:insightbooks_android/features/invoice/presentation/invoice_detai
 import 'package:insightbooks_android/features/quotation/presentation/quotation_list_screen.dart';
 import 'package:insightbooks_android/features/quotation/presentation/quotation_details_screen.dart';
 import 'package:insightbooks_android/features/quotation/presentation/create_quotation_screen.dart';
+import 'package:insightbooks_android/features/expense/presentation/expense_list_screen.dart';
+import 'package:insightbooks_android/features/expense/presentation/expense_details_screen.dart';
+import 'package:insightbooks_android/features/expense/presentation/create_expense_screen.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
@@ -91,8 +94,25 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/expenses',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('Expenses Screen'))),
+            builder: (context, state) => const ExpenseListScreen(),
+          ),
+          GoRoute(
+            path: '/expenses/create',
+            builder: (context, state) => const CreateExpenseScreen(),
+          ),
+          GoRoute(
+            path: '/expenses/:id',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return ExpenseDetailsScreen(expenseId: id);
+            },
+          ),
+          GoRoute(
+            path: '/expenses/:id/edit',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return CreateExpenseScreen(expenseId: id);
+            },
           ),
           GoRoute(
             path: '/payments',

@@ -19,7 +19,6 @@ final dioProvider = Provider<Dio>((ref) {
     ),
   );
 
-  // Add Auth Interceptor
   dio.interceptors.add(AuthInterceptor(ref));
 
   // Add logging interceptor for development
@@ -28,44 +27,39 @@ final dioProvider = Provider<Dio>((ref) {
   return dio;
 });
 
-class AuthInterceptor extends Interceptor {
+class AuthInterceptor extends QueuedInterceptor {
   final Ref ref;
 
   AuthInterceptor(this.ref);
 
   @override
-  void onRequest(
+  Future<void> onRequest(
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    final storageService = ref.read(storageServiceProvider);
-
-    // We send both token and cookie (whichever is retrieved successfully from login)
-    // The web API might rely on the `cookie` header.
-    final token = await storageService.getToken();
-    final cookie = await storageService.getCookie();
-
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
+    try {
+      final storageService = ref.read(storageServiceProvider);
+      final token = await storageService.getToken();
+      final cookie = await storageService.getCookie();
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
+      if (cookie != null) {
+        options.headers['Cookie'] = cookie;
+      }
+    } catch (_) {
+      // Still send request; server may return 401
     }
-
-    if (cookie != null) {
-      options.headers['Cookie'] = cookie;
-    }
-
-    super.onRequest(options, handler);
+    handler.next(options);
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) async {
+  void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401) {
-      // Handle Unauthorized (Token expired, etc.)
       final storageService = ref.read(storageServiceProvider);
-      await storageService.clearAuth();
-
-      // Trigger a redirect to login here via Riverpod
+      storageService.clearAuth();
       ref.read(authStateProvider.notifier).forceLogout();
     }
-    super.onError(err, handler);
+    handler.next(err);
   }
 }

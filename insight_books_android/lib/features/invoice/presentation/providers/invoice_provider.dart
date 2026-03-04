@@ -48,13 +48,11 @@ class InvoicePageState {
 class InvoiceController extends _$InvoiceController {
   @override
   InvoicePageState build() {
-    loadAll();
     return const InvoicePageState(isLoading: true);
   }
 
   Future<void> loadAll() async {
-    fetchInvoices();
-    fetchStatistics();
+    await Future.wait([fetchInvoices(), fetchStatistics()]);
   }
 
   Future<void> fetchInvoices() async {
@@ -64,6 +62,8 @@ class InvoiceController extends _$InvoiceController {
       final invoices = await repo.fetchInvoices(
         search: state.searchQuery.isEmpty ? null : state.searchQuery,
         status: state.statusFilter == 'all' ? null : state.statusFilter,
+        page: 1,
+        limit: 20,
       );
       state = state.copyWith(invoices: invoices, isLoading: false);
     } catch (e) {

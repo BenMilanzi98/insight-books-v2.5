@@ -48,6 +48,9 @@ export async function GET(request) {
         name: true,
         stockLevel: true,
         cost: true,
+        averageCost: true,
+        lastPurchaseCost: true,
+        totalStockValue: true,
         reorderPoint: true
       }
     });
@@ -58,10 +61,13 @@ export async function GET(request) {
     let totalValue = 0;
    
     products.forEach(product => {
-      // Calculate inventory value using correct field names
-      const stockLevel = product.stockLevel || 0;
-      const cost = product.cost || 0;
-      totalValue += stockLevel * cost;
+      // Calculate inventory value: use totalStockValue only when set and > 0, else cost × stock
+      // so that adding cost later or never-synced totalStockValue still shows correct value
+      const stockLevel = Number(product.stockLevel) || 0;
+      const cost = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+      const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+      const productValue = (stored != null && stored > 0) ? stored : (stockLevel * cost);
+      totalValue += productValue;
      
       // Count low stock and out of stock items
       // Use the same logic as stock alerts API

@@ -2,19 +2,49 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
+import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_provider.dart';
 
-class InvoiceListScreen extends ConsumerWidget {
+class InvoiceListScreen extends ConsumerStatefulWidget {
   const InvoiceListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<InvoiceListScreen> createState() => _InvoiceListScreenState();
+}
+
+class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(invoiceControllerProvider.notifier).loadAll();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(invoiceControllerProvider);
     final notifier = ref.read(invoiceControllerProvider.notifier);
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: const AppDrawer(),
+      appBar: AppBar(
+        title: const Text('Invoicing'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        elevation: 0,
+        actions: const [ThemeToggleButton()],
+      ),
       body: RefreshIndicator(
         onRefresh: () => notifier.loadAll(),
         child: CustomScrollView(
@@ -103,26 +133,42 @@ class InvoiceListScreen extends ConsumerWidget {
             else if (state.error != null)
               SliverFillRemaining(
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: theme.colorScheme.error,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Failed to load invoices',
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      FilledButton.tonalIcon(
-                        onPressed: () => notifier.fetchInvoices(),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: theme.colorScheme.error,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Failed to load invoices',
+                          style: theme.textTheme.titleMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                        if (state.error != null && state.error!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            state.error!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        FilledButton.tonalIcon(
+                          onPressed: () => notifier.loadAll(),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               )

@@ -20,6 +20,7 @@ class CashFlowChart extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final colorScheme = Theme.of(context).colorScheme;
     final maxIncome = incomeData.isEmpty
         ? 0.0
         : incomeData.map((e) => e.amount).reduce((a, b) => a > b ? a : b);
@@ -32,11 +33,11 @@ class CashFlowChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: 0.1),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -45,16 +46,20 @@ class CashFlowChart extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Income & Expenses',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              _buildLegend('Income', Colors.green),
+              _buildLegend(context, 'Income', Colors.green),
               const SizedBox(width: 16),
-              _buildLegend('Expenses', Colors.red),
+              _buildLegend(context, 'Expenses', Colors.red),
             ],
           ),
           const SizedBox(height: 24),
@@ -66,7 +71,7 @@ class CashFlowChart extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) => FlLine(
-                    color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
+                    color: colorScheme.outline.withValues(alpha: 0.2),
                     strokeWidth: 1,
                   ),
                 ),
@@ -89,8 +94,8 @@ class CashFlowChart extends StatelessWidget {
                             padding: const EdgeInsets.only(top: 8.0),
                             child: Text(
                               labels[index],
-                              style: const TextStyle(
-                                color: Colors.grey,
+                              style: TextStyle(
+                                color: colorScheme.onSurfaceVariant,
                                 fontSize: 10,
                               ),
                             ),
@@ -108,8 +113,8 @@ class CashFlowChart extends StatelessWidget {
                         if (value == 0) return const SizedBox.shrink();
                         return Text(
                           _formatCompact(value),
-                          style: const TextStyle(
-                            color: Colors.grey,
+                          style: TextStyle(
+                            color: colorScheme.onSurfaceVariant,
                             fontSize: 10,
                           ),
                         );
@@ -149,7 +154,8 @@ class CashFlowChart extends StatelessWidget {
     );
   }
 
-  Widget _buildLegend(String label, Color color) {
+  Widget _buildLegend(BuildContext context, String label, Color color) {
+    final secondary = Theme.of(context).colorScheme.onSurfaceVariant;
     return Row(
       children: [
         Container(
@@ -158,7 +164,7 @@ class CashFlowChart extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: TextStyle(fontSize: 12, color: secondary)),
       ],
     );
   }

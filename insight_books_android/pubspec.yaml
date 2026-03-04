@@ -45,7 +45,9 @@ dependencies:
   json_annotation: ^4.11.0
   lucide_icons: ^0.257.0
   image_picker: ^1.0.7
+  file_picker: ^8.1.6
   url_launcher: ^6.2.5
+  shared_preferences: ^2.3.3
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +63,16 @@ dev_dependencies:
   riverpod_generator: ^4.0.3
   freezed: ^3.2.5
   json_serializable: ^6.13.0
+  flutter_launcher_icons: ^0.14.3
+
+# App icon: use 1024x1024 source for sharp scaling. Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/app_icon.png"
+  # Adaptive icon keeps the graphic clearly visible on modern launchers
+  adaptive_icon_background: "#1e3a5f"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -15,12 +15,13 @@ class CartSheet extends ConsumerWidget {
       symbol: 'MWK ',
       decimalDigits: 2,
     );
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
@@ -30,9 +31,9 @@ class CartSheet extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Review Cart',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -46,7 +47,7 @@ class CartSheet extends ConsumerWidget {
           // Items List
           Expanded(
             child: posState.cart.isEmpty
-                ? const Center(child: Text('Your cart is empty'))
+                ? Center(child: Text('Your cart is empty', style: TextStyle(color: colorScheme.onSurfaceVariant)))
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: posState.cart.length,
@@ -67,10 +68,10 @@ class CartSheet extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: colorScheme.surface,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: colorScheme.shadow.withValues(alpha: 0.1),
                   blurRadius: 10,
                   offset: const Offset(0, -4),
                 ),
@@ -80,26 +81,17 @@ class CartSheet extends ConsumerWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildSummaryRow(
-                    'Subtotal',
-                    currencyFormat.format(posState.subtotal),
-                  ),
+                  _buildSummaryRow(context, 'Subtotal', currencyFormat.format(posState.subtotal)),
                   if (posState.totalDiscount > 0)
                     _buildSummaryRow(
+                      context,
                       'Discount',
                       '- ${currencyFormat.format(posState.totalDiscount)}',
-                      color: Colors.red,
+                      color: colorScheme.error,
                     ),
-                  _buildSummaryRow(
-                    'Tax',
-                    currencyFormat.format(posState.totalTax),
-                  ),
+                  _buildSummaryRow(context, 'Tax', currencyFormat.format(posState.totalTax)),
                   const Divider(height: 24),
-                  _buildSummaryRow(
-                    'Total',
-                    currencyFormat.format(posState.total),
-                    isTotal: true,
-                  ),
+                  _buildSummaryRow(context, 'Total', currencyFormat.format(posState.total), isTotal: true),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
@@ -109,8 +101,8 @@ class CartSheet extends ConsumerWidget {
                           ? () => _showCheckout(context)
                           : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF3B82F6),
-                        foregroundColor: Colors.white,
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -135,11 +127,15 @@ class CartSheet extends ConsumerWidget {
   }
 
   Widget _buildSummaryRow(
+    BuildContext context,
     String label,
     String value, {
     bool isTotal = false,
     Color? color,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final labelColor = color ?? (isTotal ? colorScheme.onSurface : colorScheme.onSurfaceVariant);
+    final valueColor = color ?? colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Row(
@@ -150,15 +146,15 @@ class CartSheet extends ConsumerWidget {
             style: TextStyle(
               fontSize: isTotal ? 18 : 14,
               fontWeight: isTotal ? FontWeight.bold : FontWeight.normal,
-              color: color ?? (isTotal ? Colors.black : Colors.grey[600]),
+              color: labelColor,
             ),
           ),
           Text(
             value,
             style: TextStyle(
               fontSize: isTotal ? 20 : 14,
-              fontWeight: isTotal ? FontWeight.bold : FontWeight.bold,
-              color: color ?? Colors.black,
+              fontWeight: FontWeight.bold,
+              color: valueColor,
             ),
           ),
         ],
@@ -194,12 +190,13 @@ class _CartItemTile extends StatelessWidget {
       decimalDigits: 2,
     );
     final product = item.product;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[200]!),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -210,11 +207,11 @@ class _CartItemTile extends StatelessWidget {
               children: [
                 Text(
                   product.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
                 Text(
                   currencyFormat.format(product.price),
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
                 ),
               ],
             ),
@@ -222,10 +219,7 @@ class _CartItemTile extends StatelessWidget {
           Row(
             children: [
               IconButton(
-                icon: const Icon(
-                  Icons.remove_circle_outline,
-                  color: Colors.red,
-                ),
+                icon: Icon(Icons.remove_circle_outline, color: colorScheme.error),
                 onPressed: () => onUpdateQuantity(item.quantity - 1),
               ),
               SizedBox(
@@ -233,21 +227,18 @@ class _CartItemTile extends StatelessWidget {
                 child: Text(
                   item.quantity.toInt().toString(),
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
               ),
               IconButton(
-                icon: const Icon(
-                  Icons.add_circle_outline,
-                  color: Color(0xFF3B82F6),
-                ),
+                icon: Icon(Icons.add_circle_outline, color: colorScheme.primary),
                 onPressed: () => onUpdateQuantity(item.quantity + 1),
               ),
             ],
           ),
           const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.grey),
+            icon: Icon(Icons.delete_outline, color: colorScheme.onSurfaceVariant),
             onPressed: onRemove,
           ),
         ],

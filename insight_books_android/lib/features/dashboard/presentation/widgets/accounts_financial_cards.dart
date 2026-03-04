@@ -49,16 +49,17 @@ class AccountsFinancialCards extends StatelessWidget {
       symbol: 'MWK ',
       decimalDigits: 0,
     );
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.05),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withValues(alpha: 0.1)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: colorScheme.shadow.withValues(alpha: 0.08),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -84,31 +85,32 @@ class AccountsFinancialCards extends StatelessWidget {
                   const SizedBox(width: 12),
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
                     ),
                   ),
                 ],
               ),
-              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+              Icon(Icons.chevron_right, color: colorScheme.onSurfaceVariant, size: 20),
             ],
           ),
           const SizedBox(height: 20),
           Row(
             children: [
-              _buildMetricItem('Total', report.current, Colors.grey[800]!),
-              _buildMetricItem('Not Due', report.notDue, Colors.green),
-              _buildMetricItem('Overdue', report.overdue, Colors.red),
+              _buildMetricItem(context, 'Total', report.current, colorScheme.onSurface),
+              _buildMetricItem(context, 'Not Due', report.notDue, Colors.green),
+              _buildMetricItem(context, 'Overdue', report.overdue, Colors.red),
             ],
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'Aging Summary',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Colors.grey,
+              color: colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),
@@ -126,7 +128,7 @@ class AccountsFinancialCards extends StatelessWidget {
             ];
             final barColor = index < agingColors.length
                 ? agingColors[index]
-                : Colors.grey;
+                : colorScheme.onSurfaceVariant;
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
@@ -137,16 +139,17 @@ class AccountsFinancialCards extends StatelessWidget {
                     children: [
                       Text(
                         period.range,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: colorScheme.onSurfaceVariant,
                         ),
                       ),
                       Text(
                         currencyFormat.format(period.amount),
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
                         ),
                       ),
                     ],
@@ -156,7 +159,7 @@ class AccountsFinancialCards extends StatelessWidget {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: percentage,
-                      backgroundColor: Colors.grey[100],
+                      backgroundColor: colorScheme.surfaceContainerHighest,
                       valueColor: AlwaysStoppedAnimation<Color>(barColor),
                       minHeight: 6,
                     ),
@@ -170,16 +173,17 @@ class AccountsFinancialCards extends StatelessWidget {
     );
   }
 
-  Widget _buildMetricItem(String label, double amount, Color color) {
+  Widget _buildMetricItem(BuildContext context, String label, double amount, Color color) {
     final currencyFormat = NumberFormat.currency(
       symbol: 'MWK ',
       decimalDigits: 0,
     );
+    final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
           const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,

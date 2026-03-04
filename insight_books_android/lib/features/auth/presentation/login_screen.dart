@@ -32,9 +32,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/dashboard');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Login failed. Please check your credentials.'),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Login failed. Please check your credentials.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
       }

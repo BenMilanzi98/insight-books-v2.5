@@ -16,18 +16,20 @@ class ReceiptScreen extends StatelessWidget {
     final total = sale['total_amount'] ?? 0;
     final client = sale['client'] ?? {};
     final items = (sale['items'] as List?) ?? [];
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
         elevation: 0,
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
             onPressed: () =>
                 Navigator.of(context).popUntil((route) => route.isFirst),
-            icon: const Icon(Icons.close, color: Colors.black87),
+            icon: Icon(Icons.close, color: colorScheme.onSurface),
           ),
         ],
       ),
@@ -35,60 +37,57 @@ class ReceiptScreen extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 80),
+            Icon(Icons.check_circle, color: Colors.green, size: 80),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Sale Successful',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               'Receipt #${sale['id'] ?? 'N/A'}',
-              style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 32),
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.grey[50],
+                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey[200]!),
+                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.4)),
               ),
               child: Column(
                 children: [
-                  _buildRow(
-                    'Total Amount',
-                    currencyFormat.format(total),
-                    isBold: true,
+                  _buildRow(context, 'Total Amount', currencyFormat.format(total), isBold: true),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Divider(color: colorScheme.outline),
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Divider(),
-                  ),
-                  _buildRow('Customer', client['name'] ?? 'Walk-in Customer'),
+                  _buildRow(context, 'Customer', client['name'] ?? 'Walk-in Customer'),
                   const SizedBox(height: 12),
                   _buildRow(
+                    context,
                     'Date',
                     DateFormat('MMM dd, yyyy HH:mm').format(DateTime.now()),
                   ),
                   const SizedBox(height: 12),
-                  _buildRow('Payment Status', 'Paid', color: Colors.green),
+                  _buildRow(context, 'Payment Status', 'Paid', color: Colors.green),
                 ],
               ),
             ),
             const SizedBox(height: 32),
-            const Align(
+            Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 'Items',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: colorScheme.onSurface,
                 ),
               ),
             ),
@@ -101,7 +100,7 @@ class ReceiptScreen extends StatelessWidget {
                     Text(
                       '${item['quantity'] ?? 1}x',
                       style: TextStyle(
-                        color: Colors.grey[600],
+                        color: colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -109,12 +108,12 @@ class ReceiptScreen extends StatelessWidget {
                     Expanded(
                       child: Text(
                         item['product_name'] ?? 'Product',
-                        style: const TextStyle(color: Colors.black87),
+                        style: TextStyle(color: colorScheme.onSurface),
                       ),
                     ),
                     Text(
                       currencyFormat.format(item['total'] ?? 0),
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      style: TextStyle(fontWeight: FontWeight.w500, color: colorScheme.onSurface),
                     ),
                   ],
                 ),
@@ -126,29 +125,29 @@ class ReceiptScreen extends StatelessWidget {
               height: 56,
               child: ElevatedButton(
                 onPressed: () {
-                  // In a real app, this would open the PDF link
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Opening PDF Receipt...')),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF3B82F6),
-                  foregroundColor: Colors.white,
+                  backgroundColor: colorScheme.primary,
+                  foregroundColor: colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                   elevation: 0,
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.picture_as_pdf),
-                    SizedBox(width: 12),
+                    Icon(Icons.picture_as_pdf, color: colorScheme.onPrimary),
+                    const SizedBox(width: 12),
                     Text(
                       'View PDF Receipt',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
+                        color: colorScheme.onPrimary,
                       ),
                     ),
                   ],
@@ -163,8 +162,8 @@ class ReceiptScreen extends StatelessWidget {
                 onPressed: () =>
                     Navigator.of(context).popUntil((route) => route.isFirst),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF3B82F6)),
-                  foregroundColor: const Color(0xFF3B82F6),
+                  side: BorderSide(color: colorScheme.primary),
+                  foregroundColor: colorScheme.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -182,21 +181,23 @@ class ReceiptScreen extends StatelessWidget {
   }
 
   Widget _buildRow(
+    BuildContext context,
     String label,
     String value, {
     bool isBold = false,
     Color? color,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 15)),
+        Text(label, style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 15)),
         Text(
           value,
           style: TextStyle(
             fontWeight: isBold ? FontWeight.bold : FontWeight.w500,
             fontSize: isBold ? 18 : 15,
-            color: color ?? Colors.black87,
+            color: color ?? colorScheme.onSurface,
           ),
         ),
       ],

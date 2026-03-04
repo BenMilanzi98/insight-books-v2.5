@@ -10,9 +10,17 @@ const QuotationTemplatePreview = forwardRef(({
   const [logoError, setLogoError] = useState(false);
   const [logoLoaded, setLogoLoaded] = useState(false);
   const logoUrl = branding?.logoUrl && String(branding.logoUrl).trim() ? String(branding.logoUrl).trim() : null;
+  // Preload logo so we never render a broken img (no green square); when no logo, show business name only
   React.useEffect(() => {
     setLogoError(false);
     setLogoLoaded(false);
+    if (!logoUrl) return;
+    const img = new Image();
+    const src = logoUrl.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl;
+    img.onload = () => setLogoLoaded(true);
+    img.onerror = () => setLogoError(true);
+    img.src = src;
+    return () => { img.src = ''; };
   }, [logoUrl]);
 
   const hasLogoUrl = !!logoUrl;
@@ -64,13 +72,11 @@ const QuotationTemplatePreview = forwardRef(({
           <div className="min-w-0">
             {hasLogoAreaContent && (
               <>
-                {hasLogoUrl && !logoError && (
+                {showLogoImage && (
                   <img
                     src={logoUrl?.startsWith('/uploads/') ? `/api/uploads/${logoUrl.replace(/^\/+uploads\//, '')}` : logoUrl}
                     alt=""
-                    className={showLogoImage ? 'h-11 object-contain max-h-14' : 'opacity-0 absolute w-0 h-0 overflow-hidden pointer-events-none'}
-                    onLoad={() => setLogoLoaded(true)}
-                    onError={() => setLogoError(true)}
+                    className="h-11 object-contain max-h-14"
                   />
                 )}
                 {showCompanyName && (

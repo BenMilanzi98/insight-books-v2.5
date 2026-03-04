@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
+import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import '../domain/quotation_model.dart';
 import 'providers/quotation_provider.dart';
 
@@ -15,6 +17,21 @@ class QuotationListScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      drawer: const AppDrawer(),
+      appBar: AppBar(
+        title: const Text('Quotations'),
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+        elevation: 0,
+        actions: const [ThemeToggleButton()],
+      ),
       body: RefreshIndicator(
         onRefresh: () => notifier.loadAll(),
         child: CustomScrollView(
