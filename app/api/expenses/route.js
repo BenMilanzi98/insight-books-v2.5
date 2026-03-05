@@ -696,42 +696,56 @@ export async function POST(request) {
     const categoryForCreate = (selectedCategory != null && String(selectedCategory).trim()) ? String(selectedCategory).trim() : 'Uncategorized';
     const statusForCreate = body.status != null ? String(body.status).trim() : 'Pending';
 
+    // Base create data (required and commonly supported fields)
+    const expenseCreateData = {
+      description: description || 'Expense',
+      amount: amount,
+      taxAmount: taxAmount,
+      taxRate: taxRate,
+      date: expenseDate,
+      category: categoryForCreate,
+      categoryId: categoryId,
+      expenseAccountId: expenseAccount.id,
+      paymentMethod,
+      sourceAccountId: body.sourceAccountId || null,
+      merchant: body.merchant != null ? String(body.merchant) : null,
+      status: statusForCreate,
+      notes: body.notes || null,
+      submittedById: user.id,
+      tenantId: user.tenantId,
+      branchId: branchId,
+      paymentStatus: paymentStatus,
+      paidAmount: body.paidAmount || null,
+      paymentReference: body.paymentReference || null,
+      isHistorical: body.isHistorical || false,
+      historicalDate: body.historicalDate ? new Date(body.historicalDate) : null,
+      migrationBatch: body.migrationBatch || null,
+      originalReference: body.originalReference || null,
+    };
+    // Optional relation fields (supported when Prisma client is generated from current schema)
+    if (body.taxTypeId != null && String(body.taxTypeId).trim() !== '') {
+      expenseCreateData.taxTypeId = body.taxTypeId;
+    }
+    if (body.supplierId != null && String(body.supplierId).trim() !== '') {
+      expenseCreateData.supplierId = body.supplierId;
+    }
+
     // Create the expense in a transaction
     const result = await prisma.$transaction(async (tx) => {
-      // Create the expense
-      const expense = await tx.expense.create({
-        data: {
-          description: description || 'Expense',
-          amount: amount,
-          taxAmount: taxAmount,
-          taxRate: taxRate,
-          date: expenseDate,
-          category: categoryForCreate,
-          categoryId: categoryId,
-          expenseAccountId: expenseAccount.id,
-          paymentMethod,
-          sourceAccountId: body.sourceAccountId || null,
-          merchant: body.merchant != null ? String(body.merchant) : null,
-          status: statusForCreate,
-          notes: body.notes || null,
-          submittedById: user.id,
-          tenantId: user.tenantId,
-          branchId: branchId,
-          // Payment status fields
-          paymentStatus: paymentStatus,
-          paidAmount: body.paidAmount || null,
-          paymentReference: body.paymentReference || null,
-          // Historical expense fields
-          isHistorical: body.isHistorical || false,
-          historicalDate: body.historicalDate ? new Date(body.historicalDate) : null,
-          migrationBatch: body.migrationBatch || null,
-          originalReference: body.originalReference || null,
-          // Tax type linking
-          taxTypeId: body.taxTypeId || null,
-          // Supplier linking
-          supplierId: body.supplierId || null,
+      // Create the expense (retry without optional relation fields if client is from older schema)
+      let expense;
+      try {
+        expense = await tx.expense.create({ data: expenseCreateData });
+      } catch (createErr) {
+        const isUnknownArg = createErr?.message && typeof createErr.message === 'string' &&
+          (createErr.message.includes('Unknown argument') || createErr.message.includes('taxTypeId') || createErr.message.includes('supplierId'));
+        if (isUnknownArg && (expenseCreateData.taxTypeId != null || expenseCreateData.supplierId != null)) {
+          const { taxTypeId: _t, supplierId: _s, ...fallbackData } = expenseCreateData;
+          expense = await tx.expense.create({ data: fallbackData });
+        } else {
+          throw createErr;
         }
-      });
+      }
       
       // 🔐 Create payment only if not pending
       let newPayment = null;
