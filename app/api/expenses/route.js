@@ -661,8 +661,11 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    const paymentMethod=body.paymentMethod
     const paymentStatus = body.paymentStatus || 'Fully paid';
+    // Default payment method when missing so Payment.create and journal/balance updates don't throw (500)
+    const paymentMethod = (body.paymentMethod != null && String(body.paymentMethod).trim() !== '')
+      ? String(body.paymentMethod).trim()
+      : 'cash';
     const totalWithTax = amount + (taxAmount || 0);
     const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || totalWithTax) : totalWithTax;
     const expenseDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.date);
@@ -724,11 +727,16 @@ export async function POST(request) {
             status: 'Completed',
             tenantId: user.tenantId,
             branchId: branchId,
-            type: "expense",
+            type: 'expense',
             sourceAccount: paymentMethod || null
           }
         });
-        await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, "subtract");
+        try {
+          await updateAccountBalance(user.tenantId, paymentMethod, paymentAmount, 'subtract');
+        } catch (balanceError) {
+          console.error('Error updating account balance (expense):', balanceError);
+          // Don't fail expense creation if balance update fails (e.g. no AccountBalance row yet)
+        }
 
         // Create journal entry for expense
         try {
@@ -833,8 +841,9 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating expense:', error);
+    const message = error?.message || 'Failed to create expense. Please try again.';
     return NextResponse.json(
-      { error: 'Failed to create expense. Please try again.' },
+      { error: message },
       { status: 500 }
     );
   }

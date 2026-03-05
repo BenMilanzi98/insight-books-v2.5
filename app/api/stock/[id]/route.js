@@ -338,7 +338,7 @@ export async function PUT(request, { params }) {
       isService: body.isService !== undefined ? body.isService : result.product.isService,
       image: imagePath,
       // Recalculate inventory value when cost or stock changes so /stock shows correct value
-      totalStockValue: newStockLevel * numericCost
+      totalStockValue: (Number(newStockLevel) || 0) * numericCost
     };
     
     // Start a transaction to update product and log the change
@@ -563,6 +563,12 @@ export async function PUT(request, { params }) {
         };
       });
 
+    // Compute cost using same priority as GET routes
+    const resolvedCostPrice = Number(updated.lastPurchaseCost) || updated.cost || Number(updated.averageCost) || 0;
+    const resolvedTotalStockValue = (updated.totalStockValue != null && Number(updated.totalStockValue) > 0)
+      ? Number(updated.totalStockValue)
+      : (Number(effectiveStockLevel) * resolvedCostPrice);
+
     // Return updated product with computed fields
     return NextResponse.json({
       message: 'Product updated successfully',
@@ -578,7 +584,8 @@ export async function PUT(request, { params }) {
         quantityInStock: effectiveStockLevel, // For display purposes (total of all units)
         originalStockLevel: updated.stockLevel, // Original database stock level for editing
         unitPrice: updated.price,
-        costPrice: updated.cost || 0,
+        costPrice: resolvedCostPrice,
+        totalStockValue: resolvedTotalStockValue,
         status,
         image: updated.image || `/api/placeholder/80/80`,
         imageUrl: updated.image || `/api/placeholder/80/80`,
