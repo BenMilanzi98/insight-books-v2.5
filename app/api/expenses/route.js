@@ -568,8 +568,14 @@ export async function POST(request) {
     
     // Parse amount (total incl. tax) - convert string to number if needed
     let amount = typeof body.amount === 'string'
-      ? parseFloat(body.amount.replace(/,/g, ''))
-      : body.amount;
+      ? parseFloat(String(body.amount).replace(/,/g, ''))
+      : Number(body.amount);
+    if (typeof amount !== 'number' || isNaN(amount) || amount < 0) {
+      return NextResponse.json(
+        { error: 'Amount must be a valid positive number.' },
+        { status: 400 }
+      );
+    }
     const taxAmount = body.taxAmount != null ? Number(body.taxAmount) : 0;
     const taxRate = body.taxRate != null ? Number(body.taxRate) : 0;
     
@@ -667,29 +673,46 @@ export async function POST(request) {
       ? String(body.paymentMethod).trim()
       : 'cash';
     const totalWithTax = amount + (taxAmount || 0);
-    const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount || totalWithTax) : totalWithTax;
-    const expenseDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.date);
+    const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount ?? totalWithTax) : totalWithTax;
+    const rawDate = body.historicalDate ?? body.date;
+    const expenseDate = rawDate ? new Date(rawDate) : new Date();
+    if (Number.isNaN(expenseDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date. Please provide a valid date.' },
+        { status: 400 }
+      );
+    }
     
-    // Resolve branchId from request or user's default branch
-    const branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    // Resolve branchId from request or user's default branch (don't 500 on invalid branch)
+    let branchId = null;
+    try {
+      branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    } catch (branchError) {
+      console.warn('Expense POST: resolveBranchId failed, using null:', branchError?.message);
+    }
     
+    // Coerce required string fields so Prisma never receives wrong types
+    const description = body.description != null ? String(body.description).trim() : '';
+    const categoryForCreate = (selectedCategory != null && String(selectedCategory).trim()) ? String(selectedCategory).trim() : 'Uncategorized';
+    const statusForCreate = body.status != null ? String(body.status).trim() : 'Pending';
+
     // Create the expense in a transaction
     const result = await prisma.$transaction(async (tx) => {
       // Create the expense
       const expense = await tx.expense.create({
         data: {
-          description: body.description,
+          description: description || 'Expense',
           amount: amount,
           taxAmount: taxAmount,
           taxRate: taxRate,
           date: expenseDate,
-          category: selectedCategory,
+          category: categoryForCreate,
           categoryId: categoryId,
           expenseAccountId: expenseAccount.id,
           paymentMethod,
           sourceAccountId: body.sourceAccountId || null,
-          merchant: body.merchant || null,
-          status: body.status || 'Pending', // Default status is pending
+          merchant: body.merchant != null ? String(body.merchant) : null,
+          status: statusForCreate,
           notes: body.notes || null,
           submittedById: user.id,
           tenantId: user.tenantId,
@@ -804,22 +827,26 @@ export async function POST(request) {
 
     const expense = result.expense;
     const newPayment = result.payment;
-    // Create an audit log entry
-    await prisma.auditLog.create({
-      data: {
-        action: 'EXPENSE_CREATED',
-        entityType: 'EXPENSE',
-        entityId: expense.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          description: expense.description,
-          amount: expense.amount,
-          category: expense.category
-        })
-      }
-    });
-    
+    // Create an audit log entry (non-blocking; don't fail the request if this fails)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'EXPENSE_CREATED',
+          entityType: 'EXPENSE',
+          entityId: expense.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            description: expense.description,
+            amount: expense.amount,
+            category: expense.category
+          })
+        }
+      });
+    } catch (auditError) {
+      console.warn('Audit log create failed (expense still created):', auditError?.message);
+    }
+
     // Return the created expense
     return NextResponse.json(
       { 

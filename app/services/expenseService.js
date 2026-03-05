@@ -93,12 +93,13 @@ export const createExpenseWithAttachments = async (expenseData, attachments) => 
         },
         body: JSON.stringify(expenseData),
       });
-      
+
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`Error creating expense: ${response.statusText}`);
+        const message = data?.error || response.statusText || 'Failed to create expense';
+        throw new Error(message);
       }
-      
-      const data = await response.json();
+
       return data;
     } catch (error) {
       console.error('Error creating expense:', error);
