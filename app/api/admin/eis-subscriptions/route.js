@@ -58,7 +58,6 @@ export async function GET(request) {
             name: true,
             subdomain: true,
             status: true,
-            tpin: true,
             settings: {
               select: {
                 businessEmail: true
@@ -86,7 +85,6 @@ export async function GET(request) {
       filteredSubscriptions = filteredSubscriptions.filter(sub => 
         sub.tenant?.name?.toLowerCase().includes(searchLower) ||
         sub.tenant?.subdomain?.toLowerCase().includes(searchLower) ||
-        sub.tenant?.tpin?.toLowerCase().includes(searchLower) ||
         sub.tenant?.settings?.businessEmail?.toLowerCase().includes(searchLower) ||
         sub.txRef?.toLowerCase().includes(searchLower)
       );
@@ -121,7 +119,6 @@ export async function GET(request) {
               name: subscription.tenant.name,
               subdomain: subscription.tenant.subdomain,
               status: subscription.tenant.status,
-              tpin: subscription.tenant.tpin,
               email: subscription.tenant.settings?.businessEmail || null
             }
           : null,
@@ -273,8 +270,7 @@ export async function POST(request) {
             id: true,
             name: true,
             subdomain: true,
-            status: true,
-            tpin: true
+            status: true
           }
         }
       }

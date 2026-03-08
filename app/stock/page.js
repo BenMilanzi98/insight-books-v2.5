@@ -54,6 +54,8 @@ import {
   StockTransfersList,
   StockPerBranch,
 } from "@/components/StockTransfer";
+import { fetchStockMovement, exportReport } from "@/app/services/financialReportingService";
+import { StockMovementReport } from "@/components/FinancialReportComponents";
 
 // Main Stock Management Component
 const InventoryManagement = () => {
@@ -118,6 +120,15 @@ const InventoryManagement = () => {
   const [stockByBranch, setStockByBranch] = useState([]);
   const [branches, setBranches] = useState([]);
   const [transfersLoading, setTransfersLoading] = useState(false);
+
+  // Stock Movement Report (in-page)
+  const [stockMovementReportOpen, setStockMovementReportOpen] = useState(false);
+  const [stockMovementReportData, setStockMovementReportData] = useState(null);
+  const [stockMovementReportLoading, setStockMovementReportLoading] = useState(false);
+  const [stockMovementReportError, setStockMovementReportError] = useState(null);
+  const [stockMovementReportTimeframe, setStockMovementReportTimeframe] = useState('thisMonth');
+  const [stockMovementReportProductId, setStockMovementReportProductId] = useState(null);
+  const [stockMovementReportCustomDateRange, setStockMovementReportCustomDateRange] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({  
     canCreateInventory: false,
     canDeleteInventory:false, 
@@ -1783,7 +1794,62 @@ const InventoryManagement = () => {
       showToast("error", "Failed to export inventory", error.message);
     }
   };
-  
+
+  // Load Stock Movement Report data (used when opening report or refreshing)
+  const loadStockMovementReport = useCallback(async () => {
+    setStockMovementReportLoading(true);
+    setStockMovementReportError(null);
+    try {
+      const data = await fetchStockMovement({
+        timeframe: stockMovementReportTimeframe,
+        productId: stockMovementReportProductId || undefined,
+        customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
+      });
+      setStockMovementReportData(data);
+    } catch (err) {
+      console.error("Stock movement report error:", err);
+      setStockMovementReportError(err?.message || "Failed to load stock movement report.");
+      setStockMovementReportData(null);
+    } finally {
+      setStockMovementReportLoading(false);
+    }
+  }, [stockMovementReportTimeframe, stockMovementReportProductId, stockMovementReportCustomDateRange]);
+
+  // When report is open, fetch when timeframe/product/date range changes
+  useEffect(() => {
+    if (stockMovementReportOpen) {
+      loadStockMovementReport();
+    }
+  }, [stockMovementReportOpen, stockMovementReportTimeframe, stockMovementReportProductId, stockMovementReportCustomDateRange, loadStockMovementReport]);
+
+  // Open Stock Movement Report (fetch is triggered by useEffect)
+  const handleOpenStockMovementReport = useCallback(() => {
+    setStockMovementReportError(null);
+    setStockMovementReportData(null);
+    setStockMovementReportOpen(true);
+  }, []);
+
+  const handleStockMovementTimeframeChange = useCallback((tf) => {
+    setStockMovementReportTimeframe(tf);
+  }, []);
+
+  const handleStockMovementExport = useCallback(async (format) => {
+    try {
+      await exportReport('stock-movement', format, {
+        timeframe: stockMovementReportTimeframe,
+        customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
+        productId: stockMovementReportProductId || undefined,
+      });
+      showToast("success", "Export complete", `Stock movement report downloaded as ${format.toUpperCase()}`);
+    } catch (err) {
+      showToast("error", "Export failed", err?.message || "Failed to export report.");
+    }
+  }, [stockMovementReportTimeframe, stockMovementReportCustomDateRange, stockMovementReportProductId]);
+
+  const handleCloseStockMovementReport = useCallback(() => {
+    setStockMovementReportOpen(false);
+  }, []);
+
   // Format currency in Malawi Kwacha
   const formatCurrency = (amount) => {
     // Check if amount is a number
@@ -2555,8 +2621,51 @@ const InventoryManagement = () => {
             <Truck size={16} />
             <span className="text-sm">Transfers</span>
           </button>
+
+          {/* Stock Movement Report */}
+          <button
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium ${
+              stockMovementReportOpen
+                ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-md'
+                : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:shadow-sm'
+            }`}
+            onClick={handleOpenStockMovementReport}
+          >
+            <FileText size={16} />
+            <span className="text-sm">Stock Movement Report</span>
+          </button>
         </div>
       </div>
+
+      {/* Stock Movement Report (in-page) */}
+      {stockMovementReportOpen && (
+        <div className="mb-6 lg:mb-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-slate-50">
+            <h2 className="text-lg font-semibold text-gray-900">Stock Movement Report</h2>
+            <button
+              type="button"
+              onClick={handleCloseStockMovementReport}
+              className="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+              aria-label="Close report"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="p-4">
+            <StockMovementReport
+              data={stockMovementReportData}
+              loading={stockMovementReportLoading}
+              error={stockMovementReportError}
+              timeframe={stockMovementReportTimeframe}
+              onTimeframeChange={handleStockMovementTimeframeChange}
+              onRefresh={loadStockMovementReport}
+              onExport={handleStockMovementExport}
+              productId={stockMovementReportProductId}
+              onProductFilterChange={setStockMovementReportProductId}
+            />
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex flex-col items-center justify-center bg-white rounded-xl shadow-sm border border-gray-100 py-16">

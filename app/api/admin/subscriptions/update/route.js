@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function POST(request) {
   try {
@@ -84,24 +82,26 @@ export async function POST(request) {
 
     console.log('Subscription and tenant found, proceeding with update');
 
-    // Update subscription
+    // Build update data: only include defined fields to avoid Prisma errors
+    const updateData = {
+      tenantId,
+      plan,
+      amount: parseFloat(amount),
+      startedAt: isActive ? (existingSubscription.startedAt || new Date()) : existingSubscription.startedAt
+    };
+    if (currency != null) updateData.currency = currency;
+    if (status != null) updateData.status = status;
+    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
+    if (notes !== undefined) updateData.notes = notes;
+    if (typeof isActive === 'boolean') updateData.isActive = isActive;
+    if (typeof isTrial === 'boolean') updateData.isTrial = isTrial;
+    if (trialStartDate != null) updateData.trialStartDate = new Date(trialStartDate);
+    if (trialEndDate != null) updateData.trialEndDate = new Date(trialEndDate);
+    if (expiresAt != null) updateData.expiresAt = new Date(expiresAt);
+
     const subscription = await prisma.accountSubscription.update({
       where: { id: subscriptionId },
-      data: {
-        tenantId,
-        plan,
-        amount: parseFloat(amount),
-        currency,
-        status,
-        paymentMethod,
-        notes,
-        isActive,
-        isTrial,
-        trialStartDate: trialStartDate ? new Date(trialStartDate) : null,
-        trialEndDate: trialEndDate ? new Date(trialEndDate) : null,
-        expiresAt: expiresAt ? new Date(expiresAt) : null,
-        startedAt: isActive ? (existingSubscription.startedAt || new Date()) : existingSubscription.startedAt
-      },
+      data: updateData,
       include: {
         tenant: {
           select: {
@@ -142,10 +142,8 @@ export async function POST(request) {
   } catch (error) {
     console.error('Error updating subscription:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update subscription: ' + error.message },
+      { success: false, error: 'Failed to update subscription: ' + (error?.message || 'Unknown error') },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

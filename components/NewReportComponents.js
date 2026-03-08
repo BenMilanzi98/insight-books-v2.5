@@ -231,7 +231,7 @@ export const StockMovementReport = ({
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.totals?.qtyOut ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{productMovement.closingBalance ?? 0}</td>
                       <td className="px-4 py-2.5 text-sm text-slate-600">
-                        Net: {(productMovement.totals?.qtyIn ?? 0) - (productMovement.totals?.qtyOut ?? 0)}
+                        Net: {productMovement.totals?.netDisplay ?? Math.abs((productMovement.totals?.qtyIn ?? 0) - (productMovement.totals?.qtyOut ?? 0))} ({productMovement.totals?.netDirection === 'out' ? 'out' : 'in'})
                       </td>
                     </tr>
                   </tbody>
