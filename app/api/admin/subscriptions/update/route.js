@@ -82,26 +82,26 @@ export async function POST(request) {
 
     console.log('Subscription and tenant found, proceeding with update');
 
-    // Build update data: only include defined fields to avoid Prisma errors
-    const updateData = {
+    // Build update payload: only include defined fields to avoid Prisma errors
+    const prismaUpdatePayload = {
       tenantId,
       plan,
       amount: parseFloat(amount),
       startedAt: isActive ? (existingSubscription.startedAt || new Date()) : existingSubscription.startedAt
     };
-    if (currency != null) updateData.currency = currency;
-    if (status != null) updateData.status = status;
-    if (paymentMethod !== undefined) updateData.paymentMethod = paymentMethod;
-    if (notes !== undefined) updateData.notes = notes;
-    if (typeof isActive === 'boolean') updateData.isActive = isActive;
-    if (typeof isTrial === 'boolean') updateData.isTrial = isTrial;
-    if (trialStartDate != null) updateData.trialStartDate = new Date(trialStartDate);
-    if (trialEndDate != null) updateData.trialEndDate = new Date(trialEndDate);
-    if (expiresAt != null) updateData.expiresAt = new Date(expiresAt);
+    if (currency != null) prismaUpdatePayload.currency = currency;
+    if (status != null) prismaUpdatePayload.status = status;
+    if (paymentMethod !== undefined) prismaUpdatePayload.paymentMethod = paymentMethod;
+    if (notes !== undefined) prismaUpdatePayload.notes = notes;
+    if (typeof isActive === 'boolean') prismaUpdatePayload.isActive = isActive;
+    if (typeof isTrial === 'boolean') prismaUpdatePayload.isTrial = isTrial;
+    if (trialStartDate != null) prismaUpdatePayload.trialStartDate = new Date(trialStartDate);
+    if (trialEndDate != null) prismaUpdatePayload.trialEndDate = new Date(trialEndDate);
+    if (expiresAt != null) prismaUpdatePayload.expiresAt = new Date(expiresAt);
 
     const subscription = await prisma.accountSubscription.update({
       where: { id: subscriptionId },
-      data: updateData,
+      data: prismaUpdatePayload,
       include: {
         tenant: {
           select: {
