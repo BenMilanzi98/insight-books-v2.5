@@ -2,15 +2,22 @@ import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
 
+/** Return a Date if the value is a valid date string/number; otherwise undefined (so we don't pass Invalid Date to Prisma). */
+function parseDate(value) {
+  if (value == null || value === '') return undefined;
+  const d = new Date(value);
+  return Number.isFinite(d.getTime()) ? d : undefined;
+}
+
 export async function POST(request) {
   try {
     console.log('Update subscription endpoint called');
-    
+
     const body = await request.json();
     console.log('Request body:', body);
-    
+
     const { subscriptionId, ...updateData } = body;
-    
+
     if (!subscriptionId) {
       return NextResponse.json(
         { success: false, error: 'Subscription ID is required' },
@@ -45,9 +52,17 @@ export async function POST(request) {
     } = updateData;
 
     // Validate required fields
-    if (!tenantId || !plan || !amount) {
+    if (!tenantId || !plan || (amount !== 0 && !amount)) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields: tenantId, plan, and amount are required' },
+        { status: 400 }
+      );
+    }
+
+    const parsedAmount = parseFloat(amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+      return NextResponse.json(
+        { success: false, error: 'Amount must be a valid non-negative number' },
         { status: 400 }
       );
     }
@@ -82,22 +97,25 @@ export async function POST(request) {
 
     console.log('Subscription and tenant found, proceeding with update');
 
-    // Build update payload: only include defined fields to avoid Prisma errors
+    // Build update payload: only include defined fields; use valid dates only to avoid Prisma errors
     const prismaUpdatePayload = {
       tenantId,
-      plan,
-      amount: parseFloat(amount),
+      plan: String(plan).trim() || existingSubscription.plan,
+      amount: parsedAmount,
       startedAt: isActive ? (existingSubscription.startedAt || new Date()) : existingSubscription.startedAt
     };
-    if (currency != null) prismaUpdatePayload.currency = currency;
-    if (status != null) prismaUpdatePayload.status = status;
-    if (paymentMethod !== undefined) prismaUpdatePayload.paymentMethod = paymentMethod;
-    if (notes !== undefined) prismaUpdatePayload.notes = notes;
+    if (currency != null && String(currency).trim() !== '') prismaUpdatePayload.currency = String(currency).trim();
+    if (status != null && String(status).trim() !== '') prismaUpdatePayload.status = String(status).trim();
+    if (paymentMethod !== undefined) prismaUpdatePayload.paymentMethod = paymentMethod ? String(paymentMethod).trim() : null;
+    if (notes !== undefined) prismaUpdatePayload.notes = notes != null ? String(notes).trim() || null : undefined;
     if (typeof isActive === 'boolean') prismaUpdatePayload.isActive = isActive;
     if (typeof isTrial === 'boolean') prismaUpdatePayload.isTrial = isTrial;
-    if (trialStartDate != null) prismaUpdatePayload.trialStartDate = new Date(trialStartDate);
-    if (trialEndDate != null) prismaUpdatePayload.trialEndDate = new Date(trialEndDate);
-    if (expiresAt != null) prismaUpdatePayload.expiresAt = new Date(expiresAt);
+    const parsedTrialStart = parseDate(trialStartDate);
+    if (parsedTrialStart) prismaUpdatePayload.trialStartDate = parsedTrialStart;
+    const parsedTrialEnd = parseDate(trialEndDate);
+    if (parsedTrialEnd) prismaUpdatePayload.trialEndDate = parsedTrialEnd;
+    const parsedExpires = parseDate(expiresAt);
+    if (parsedExpires) prismaUpdatePayload.expiresAt = parsedExpires;
 
     const subscription = await prisma.accountSubscription.update({
       where: { id: subscriptionId },
