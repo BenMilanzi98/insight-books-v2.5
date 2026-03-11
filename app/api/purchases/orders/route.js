@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { syncExpensesFromPurchaseOrder } from '@/lib/purchaseOrderExpenseSync';
+import { createBillFromApprovedServicePO } from '@/lib/purchaseOrderToBill';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed'];
@@ -308,10 +309,14 @@ export async function POST(request) {
       }
     });
 
-    // Link approved service POs to expenses (one expense per service line, with tax in amount)
+    // Link approved service POs to expenses and create a Bill so it appears in Bills/Payables
     if ((orderType === 'services' || orderType === 'mixed') && purchaseOrder.status === 'Approved') {
       try {
         await syncExpensesFromPurchaseOrder(purchaseOrder.id, user.tenantId, user.id);
+        const { bill, created } = await createBillFromApprovedServicePO(purchaseOrder.id, user.tenantId, user.id);
+        if (created && bill) {
+          console.log(`Created Bill ${bill.billNumber} from approved PO ${purchaseOrder.poNumber} for payment processing`);
+        }
         const refetched = await prisma.purchaseOrder.findFirst({
           where: { id: purchaseOrder.id, tenantId: user.tenantId },
           include: {
@@ -322,7 +327,7 @@ export async function POST(request) {
         });
         if (refetched) return NextResponse.json({ purchaseOrder: refetched }, { status: 201 });
       } catch (syncErr) {
-        console.error('PO expense sync after create:', syncErr);
+        console.error('PO expense/bill sync after create:', syncErr);
       }
     }
 

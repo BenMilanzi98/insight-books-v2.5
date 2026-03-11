@@ -113,8 +113,9 @@ const InvoiceModal = ({
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [createdInvoice, setCreatedInvoice] = useState(null);
   
-  // NEW: Tax types state
+  // NEW: Tax types state and default for inflow (sales/invoices) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
+  const [defaultTaxTypeForInflow, setDefaultTaxTypeForInflow] = useState(null);
   const [isLoadingTaxTypes, setIsLoadingTaxTypes] = useState(false);
   const [showNewTaxForm, setShowNewTaxForm] = useState(false);
   const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
@@ -233,6 +234,23 @@ const InvoiceModal = ({
     }
   }, [revenueAccount?.id]);
 
+  // Auto-populate default tax (inflow) on initial item when creating a new invoice
+  useEffect(() => {
+    if (mode === "edit" || !defaultTaxTypeForInflow) return;
+    if (formData.items.length !== 1) return;
+    const first = formData.items[0];
+    if (first.selectedTaxTypeId) return;
+    setFormData(prev => ({
+      ...prev,
+      items: [{
+        ...prev.items[0],
+        taxRate: String(defaultTaxTypeForInflow.taxRate ?? 0),
+        selectedTaxTypeId: defaultTaxTypeForInflow.id,
+        productTaxes: [defaultTaxTypeForInflow]
+      }]
+    }));
+  }, [defaultTaxTypeForInflow?.id, mode]);
+
   // Update template selection when available templates change
   useEffect(() => {
     if (templates.length && !formData.templateId) {
@@ -299,13 +317,20 @@ const InvoiceModal = ({
           console.error('Failed to fetch income accounts:', accountsResponse.status, accountsResponse.statusText);
         }
 
-        // NEW: Load tax types
+        // NEW: Load tax types and default tax for inflow (sales/invoices)
         setIsLoadingTaxTypes(true);
         try {
-          const taxTypesResponse = await fetch('/api/tax-types');
+          const [taxTypesResponse, taxDefaultsResponse] = await Promise.all([
+            fetch('/api/tax-types'),
+            fetch('/api/settings/tax-defaults').catch(() => null)
+          ]);
           if (taxTypesResponse.ok) {
             const taxTypesData = await taxTypesResponse.json();
             setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
+          }
+          if (taxDefaultsResponse?.ok) {
+            const defaults = await taxDefaultsResponse.json();
+            setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
           }
         } catch (taxError) {
           console.error('Error loading tax types:', taxError);
@@ -601,22 +626,22 @@ const InvoiceModal = ({
     setFormData({ ...formData, discount });
   };
   
-  // Add a new item (income account fixed to 4000 - Revenue)
+  // Add a new item (income account fixed to 4000 - Revenue); auto-apply default tax inflow
   const addItem = () => {
+    const defaultTax = defaultTaxTypeForInflow;
+    const newItem = {
+      description: "",
+      quantity: "",
+      unitPrice: "",
+      taxRate: defaultTax ? String(defaultTax.taxRate ?? 0) : "0",
+      discountAmount: "",
+      accountId: revenueAccount?.id || "",
+      productTaxes: defaultTax ? [defaultTax] : [],
+      selectedTaxTypeId: defaultTax?.id ?? ""
+    };
     setFormData({
       ...formData,
-      items: [
-        ...formData.items,
-        { 
-          description: "", 
-          quantity: "", 
-          unitPrice: "", 
-          taxRate: "0",
-          discountAmount: "",
-          accountId: revenueAccount?.id || "",
-          productTaxes: []
-        }
-      ]
+      items: [...formData.items, newItem]
     });
   };
   
@@ -963,7 +988,7 @@ const InvoiceModal = ({
                   {templates.length === 0 && (
                     <div className="flex items-center ml-2 text-blue-500 text-sm">
                       <Info className="h-4 w-4 mr-1" />
-                      <span>No templates available. Create them in System Customization.</span>
+                      <span>No templates available. Create them in Account & business.</span>
                     </div>
                   )}
                 </div>

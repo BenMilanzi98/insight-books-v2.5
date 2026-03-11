@@ -15,6 +15,15 @@ function isUnknownPrismaFieldError(err, fieldName) {
   return msg.includes(`Unknown argument \`${fieldName}\``) || msg.includes(`Unknown argument "${fieldName}"`);
 }
 
+/** Read NPS rate from raw query row; Prisma/PostgreSQL may return column names in lowercase. */
+function npsRateFromRow(row, field, fallback = 5) {
+  if (!row || typeof row !== 'object') return fallback;
+  const camel = field === 'employee' ? row.npsEmployeeRatePercent : row.npsEmployerRatePercent;
+  const lower = field === 'employee' ? row.npsemployeeratepercent : row.npsemployerratepercent;
+  const v = Number(camel ?? lower ?? fallback);
+  return Number.isFinite(v) ? v : fallback;
+}
+
 async function getOrCreateTenantSettings(tenantId) {
   const existing = await prisma.tenantSettings.findUnique({ where: { tenantId } });
   if (existing) return existing;
@@ -50,8 +59,8 @@ export async function GET(request) {
       const row = Array.isArray(rows) ? rows[0] : null;
       if (row) {
         return NextResponse.json({
-          npsEmployeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
-          npsEmployerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
+          npsEmployeeRatePercent: npsRateFromRow(row, 'employee', 5),
+          npsEmployerRatePercent: npsRateFromRow(row, 'employer', 5),
         });
       }
     } catch (e) {
@@ -122,8 +131,8 @@ export async function PUT(request) {
             const row = Array.isArray(rows) ? rows[0] : null;
             updated = {
               ...settings,
-              npsEmployeeRatePercent: row?.npsEmployeeRatePercent ?? employeeRate,
-              npsEmployerRatePercent: row?.npsEmployerRatePercent ?? employerRate,
+              npsEmployeeRatePercent: row ? npsRateFromRow(row, 'employee', employeeRate) : employeeRate,
+              npsEmployerRatePercent: row ? npsRateFromRow(row, 'employer', employerRate) : employerRate,
             };
           } catch {
             updated = {

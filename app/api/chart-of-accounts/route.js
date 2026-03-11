@@ -776,8 +776,8 @@ export async function GET(request) {
           console.log(`✅ Matched COGS account: ${accountCode} - ${account.accountName || account.name}, value: ${totalCOGS}`);
         }
 
-        // Salaries Expense (code 5400 or name contains "salaries" or "wages")
-        if ((accountCode === '5400' || accountCode.startsWith('5400') ||
+        // Salaries Expense - standard code 5230 (used in payroll; shown and traced in chart of accounts)
+        if ((accountCode === '5230' || accountCode.startsWith('5230') ||
              accountName.includes('salaries') || 
              accountName.includes('wages')) && 
             (accountType === 'EXPENSE' || accountType === 'Expense')) {
@@ -798,13 +798,13 @@ export async function GET(request) {
           'rent': '5200',
           'rent expense': '5200',
           
-          // Utilities Expense (5300)
-          'utilities': '5300',
-          'utilities expense': '5300',
-          'electricity': '5300',
-          'water': '5300',
-          'internet': '5300',
-          'phone': '5300',
+          // Utilities Expense (5200)
+          'utilities': '5200',
+          'utilities expense': '5200',
+          'electricity': '5200',
+          'water': '5200',
+          'internet': '5200',
+          'phone': '5200',
           
           // Marketing/Advertising (could be 5100 or separate)
           'advertising': '5100', // Map to Office Expenses for now, or create 6050
@@ -855,8 +855,8 @@ export async function GET(request) {
               return catName.includes('rent');
             });
           }
-          // Utilities Expense (5300)
-          else if (accountCode === '5300' || accountName.includes('utilities')) {
+          // Utilities Expense (5200)
+          else if (accountCode === '5200' || accountName.includes('utilities')) {
             matchedExpenses = expensesByCategory.filter(e => {
               const catName = (e.category || '').toLowerCase();
               return catName.includes('utilities') || 
@@ -866,7 +866,13 @@ export async function GET(request) {
                      catName.includes('phone');
             });
           }
-          // Salaries Expense (5400) - already handled above
+          // Salaries Expense (5230) - trace salary/wages/payroll expenses and payroll transactions
+          else if (accountCode === '5230' || (accountName && accountName.toLowerCase().includes('salaries expense'))) {
+            matchedExpenses = expensesByCategory.filter(e => {
+              const catName = (e.category || '').toLowerCase();
+              return catName.includes('salar') || catName.includes('wages') || catName.includes('payroll');
+            });
+          }
           // Depreciation Expense (5500)
           else if (accountCode === '5500' || accountName.includes('depreciation')) {
             // Depreciation expense is the annual depreciation, not accumulated

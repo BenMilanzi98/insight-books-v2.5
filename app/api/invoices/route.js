@@ -6,6 +6,8 @@ import { createInvoiceJournalEntry, createInvoicePaymentJournalEntry } from '@/l
 import { requireStandardAccess } from '@/lib/accessControl';
 import { calculateCOGS } from '@/lib/inventoryCosting';
 import { resolveBranchId } from '@/lib/branchHelpers';
+import { hasEISAccess } from '@/lib/subscriptionService';
+import eisService from '@/lib/eisService';
 
 // Enhanced helper function to calculate invoice totals with discounts
 function calculateInvoiceTotals(items, globalDiscount = 0) {
@@ -800,9 +802,45 @@ export async function POST(request) {
       updatedAt: newInvoice.updatedAt
     };
     
+    // MRA EIS: auto-submit invoice to MRA for EIS-enabled tenants (fire-and-forget)
+    let eisResult = null;
+    if (newInvoice.status !== 'Draft') {
+      try {
+        const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { eisEnabled: true } });
+        if (tenant?.eisEnabled) {
+          const eisAccess = await hasEISAccess(user.tenantId);
+          if (eisAccess) {
+            eisResult = await eisService.submitInvoice(user.tenantId, {
+              invoiceNumber: newInvoice.invoiceNumber,
+              invoiceDate: newInvoice.issueDate,
+              customerName: newInvoice.client?.name || '',
+              customerTPIN: '',
+              items: (newInvoice.items || []).map(item => ({
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                taxRate: item.taxRate || 0
+              })),
+              subtotal: Number(newInvoice.subtotal),
+              taxTotal: Number(newInvoice.taxAmount || 0),
+              total: Number(newInvoice.total),
+              paymentMethod: 'Bank Transfer'
+            }, 'invoice', newInvoice.id);
+            console.log('✅ EIS: Invoice submitted to MRA:', eisResult?.submissionId);
+          }
+        }
+      } catch (eisErr) {
+        console.error('⚠️ EIS invoice submission failed (invoice still saved):', eisErr.message);
+      }
+    }
+
+    formattedInvoice.eis = eisResult
+      ? { submissionId: eisResult.submissionId, status: eisResult.status }
+      : null;
+
     // Return the created invoice
     return NextResponse.json(
-      { 
+      {
         message: 'Invoice created successfully',
         invoice: formattedInvoice
       },

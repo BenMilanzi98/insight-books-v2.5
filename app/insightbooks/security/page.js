@@ -102,14 +102,19 @@ const SecurityPage = () => {
         body: JSON.stringify({ settings: securitySettings }),
       });
 
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         setSaveStatus("success");
         setTimeout(() => setSaveStatus(""), 3000);
       } else {
-        setSaveStatus("error");
+        const message = data?.error
+          || (response.status === 401 ? 'You must be signed in to save security settings.'
+            : response.status === 403 ? 'You do not have permission to change security settings.'
+              : `Settings could not be saved (${response.status}). Please try again.`);
+        setSaveStatus(message);
       }
     } catch (error) {
-      setSaveStatus("error");
+      setSaveStatus(error.message || 'Network or server error. Check your connection and try again.');
       console.error('Failed to save settings:', error);
     } finally {
       setIsLoading(false);
@@ -196,15 +201,15 @@ const SecurityPage = () => {
         }`}>
           <div className="flex">
             {saveStatus === 'success' ? (
-              <CheckCircle className="h-5 w-5 text-green-400" />
+              <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
             ) : (
-              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <AlertTriangle className="h-5 w-5 text-red-400 flex-shrink-0" />
             )}
             <div className="ml-3">
               <h3 className={`text-sm font-medium ${
                 saveStatus === 'success' ? 'text-green-800' : 'text-red-800'
               }`}>
-                {saveStatus === 'success' ? 'Settings saved successfully!' : 'Failed to save settings'}
+                {saveStatus === 'success' ? 'Settings saved successfully!' : saveStatus}
               </h3>
             </div>
           </div>

@@ -24,7 +24,7 @@ export default function BranchesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  const [includeInactive, setIncludeInactive] = useState(false);
+  const [includeInactive, setIncludeInactive] = useState(true);
 
   const [pagePermissions, setPagePermissions] = useState({
     canCreate: false,
@@ -47,7 +47,7 @@ export default function BranchesPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/branches?includeInactive=${includeInactive ? "true" : "false"}`, { cache: "no-store" });
+      const res = await fetch("/api/branches", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to load branches");
       setBranches(json?.branches || []);
@@ -71,7 +71,7 @@ export default function BranchesPage() {
   useEffect(() => {
     loadBranches();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [includeInactive]);
+  }, []);
 
   const openCreate = () => {
     setEditBranch(null);

@@ -14,17 +14,12 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const includeInactive = searchParams.get('includeInactive') === 'true';
-
     // Auto-deactivate expired branch subscriptions so the UI stays correct.
     await syncBranchActiveStatus(user.tenantId);
 
+    // Return both active and inactive branches by default for /branches visibility
     const branches = await prisma.branch.findMany({
-      where: {
-        tenantId: user.tenantId,
-        ...(includeInactive ? {} : { isActive: true }),
-      },
+      where: { tenantId: user.tenantId },
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     });
 

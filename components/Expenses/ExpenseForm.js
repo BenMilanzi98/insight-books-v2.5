@@ -34,8 +34,10 @@ const ExpenseForm = ({
   const [errors, setErrors] = useState({});
   const [formTouched, setFormTouched] = useState(false);
 
-  // Tax types state
+  // Tax types state and default for outflow (expenses/purchases) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
+  const [defaultTaxTypeForOutflow, setDefaultTaxTypeForOutflow] = useState(null);
+  const [defaultTaxOutflowAccountId, setDefaultTaxOutflowAccountId] = useState(null);
   const [taxDropdownOpen, setTaxDropdownOpen] = useState(false);
   const [taxSearch, setTaxSearch] = useState('');
   const [isAddingTax, setIsAddingTax] = useState(false);
@@ -84,13 +86,21 @@ const ExpenseForm = ({
     loadCategories(); // NEW: Load categories
   }, []);
 
-  // Fetch active tax types
+  // Fetch active tax types and default tax for outflow (expenses)
   const fetchTaxTypes = async () => {
     try {
-      const res = await fetch('/api/tax-types?status=Active');
-      if (res.ok) {
-        const data = await res.json();
+      const [taxRes, defaultsRes] = await Promise.all([
+        fetch('/api/tax-types?status=Active'),
+        fetch('/api/settings/tax-defaults').catch(() => null)
+      ]);
+      if (taxRes.ok) {
+        const data = await taxRes.json();
         setTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
+      }
+      if (defaultsRes?.ok) {
+        const defaults = await defaultsRes.json();
+        setDefaultTaxTypeForOutflow(defaults.defaultTaxTypeForOutflow || null);
+        setDefaultTaxOutflowAccountId(defaults.taxOutflowAccountId || null);
       }
     } catch (err) {
       console.error('Error loading tax types:', err);
@@ -100,6 +110,25 @@ const ExpenseForm = ({
   useEffect(() => {
     fetchTaxTypes();
   }, []);
+
+  // Auto-populate default tax (outflow) once when creating a new expense
+  const appliedDefaultTaxRef = useRef(false);
+  useEffect(() => {
+    if (expense || !defaultTaxTypeForOutflow || appliedDefaultTaxRef.current) return;
+    appliedDefaultTaxRef.current = true;
+    setSelectedTaxTypeId(defaultTaxTypeForOutflow.id);
+    const rate = Number(defaultTaxTypeForOutflow.taxRate) || 0;
+    setFormData(prev => {
+      const next = { ...prev, taxRate: rate };
+      if (typeof prev.amount === 'number' && prev.amount > 0 && rate > 0) {
+        next.taxAmount = Math.round((prev.amount * rate / 100) * 100) / 100;
+      } else if (prev.amount !== '' && prev.amount !== undefined && rate > 0) {
+        const amt = Number(prev.amount);
+        if (!Number.isNaN(amt) && amt > 0) next.taxAmount = Math.round((amt * rate / 100) * 100) / 100;
+      }
+      return next;
+    });
+  }, [defaultTaxTypeForOutflow?.id, expense]);
 
   // Close tax dropdown on outside click
   useEffect(() => {
@@ -496,7 +525,7 @@ const ExpenseForm = ({
                         />
                         <button
                           type="button"
-                          onClick={() => { setIsAddingTax(true); fetchTaxAccounts(); }}
+                          onClick={() => { setIsAddingTax(true); fetchTaxAccounts(); setNewTax(prev => ({ ...prev, accountId: defaultTaxOutflowAccountId || prev.accountId })); }}
                           className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
                           title="Add new tax type"
                         >

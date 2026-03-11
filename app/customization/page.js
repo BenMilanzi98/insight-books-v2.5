@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { 
   Paintbrush, 
   Bell, 
@@ -1659,9 +1659,16 @@ function CustomizationFallback() {
 }
 
 export default function SystemCustomization() {
+  const router = useRouter();
+  useEffect(() => {
+    // Customization has moved to Account (system configuration). Redirect so old links work.
+    router.replace("/account?tab=business");
+  }, [router]);
   return (
     <Suspense fallback={<CustomizationFallback />}>
-      <CustomizationContent />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-gray-600">Redirecting to Account & business...</p>
+      </div>
     </Suspense>
   );
 }

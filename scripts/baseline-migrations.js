@@ -7,7 +7,8 @@
  *
  * Prerequisites:
  * - Database is already in the desired schema state (e.g. created with db push or manual SQL).
- * - If the taxOutflowAccountId column is missing, add it first:
+ * - If tax account columns are missing, add them first:
+ *   ALTER TABLE "TenantSettings" ADD COLUMN IF NOT EXISTS "taxInflowAccountId" TEXT;
  *   ALTER TABLE "TenantSettings" ADD COLUMN IF NOT EXISTS "taxOutflowAccountId" TEXT;
  */
 

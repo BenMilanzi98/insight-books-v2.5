@@ -101,9 +101,9 @@ export async function GET(request) {
         LIMIT 1
       `;
       const row = Array.isArray(rows) ? rows[0] : null;
-      if (row) {
-        fallbackEmployeeRate = Number(row.npsEmployeeRatePercent ?? 5) || 5;
-        fallbackEmployerRate = Number(row.npsEmployerRatePercent ?? 5) || 5;
+      if (row && typeof row === 'object') {
+        fallbackEmployeeRate = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5) || 5;
+        fallbackEmployerRate = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5) || 5;
       }
     } catch (e) {
       console.warn('Pension report raw rate read failed, falling back to defaults:', e?.message || e);

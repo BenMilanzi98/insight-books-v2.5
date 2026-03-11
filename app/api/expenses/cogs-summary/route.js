@@ -58,7 +58,7 @@ export async function GET(request) {
       }
     });
 
-    // Get COGS posted via sales & invoices
+    // Get COGS posted via sales & invoices (calculated from sale/invoice items)
     const cogsTransactionStats = await getCOGSTransactionStats(
       user.tenantId,
       defaultStartDate,
@@ -66,9 +66,33 @@ export async function GET(request) {
       user?.currentBranchId || null
     );
 
+    // Ledger-based COGS: sum of TransactionLine debits to COGS accounts (matches actual posted entries)
+    const cogsAccountIds = (cogsTransactionStats.accounts || []).map((a) => a.id).filter(Boolean);
+    let totalCOGSFromLedger = 0;
+    if (cogsAccountIds.length > 0) {
+      const ledgerAgg = await prisma.transactionLine.aggregate({
+        where: {
+          accountId: { in: cogsAccountIds },
+          debitAmount: { gt: 0 },
+          transaction: {
+            tenantId: user.tenantId,
+            status: 'posted',
+            date: { gte: defaultStartDate, lte: defaultEndDate },
+            ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {})
+          }
+        },
+        _sum: { debitAmount: true }
+      });
+      totalCOGSFromLedger = Number(ledgerAgg._sum?.debitAmount ?? 0);
+    }
+
+    // Use ledger total when available so expense tracking matches the books; fallback to calculated
+    const totalCOGSTransactions = totalCOGSFromLedger > 0
+      ? totalCOGSFromLedger
+      : cogsTransactionStats.totalAmount;
+
     // Calculate totals
     const totalCOGSExpenses = cogsExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-    const totalCOGSTransactions = cogsTransactionStats.totalAmount;
 
     // Calculate productCount - count unique products that have COGS transactions in this period
     // Get products from sales that have COGS transactions
@@ -178,7 +202,7 @@ export async function GET(request) {
       summary: {
         totalCOGSExpenses,
         totalCOGSTransactions,
-        totalCOGS: totalCOGSTransactions, // Use only transactions, not expenses + transactions
+        totalCOGS: totalCOGSTransactions, // Ledger-based (TransactionLine) or calculated from sales/invoices
         expenseCount: cogsExpenses.length,
         transactionCount: cogsTransactionStats.transactionCount,
         productCount: productCount, // Count of products with COGS in this period

@@ -481,8 +481,19 @@ export async function GET(request) {
       department: employee.department
     }));
     
-    // Get total count
+    // Get total count (with current filters including status)
     const totalCount = await prisma.employee.count({ where });
+
+    // Build base where for stats (same filters but without status) so active/inactive counts are correct
+    const whereForStats = { tenantId: user.tenantId };
+    if (search) whereForStats.OR = where.OR;
+    if (department && department !== 'All') whereForStats.department = department;
+    if (employmentType && employmentType !== 'All') whereForStats.employmentType = employmentType;
+
+    const [activeCount, inactiveCount] = await Promise.all([
+      prisma.employee.count({ where: { ...whereForStats, isActive: true } }),
+      prisma.employee.count({ where: { ...whereForStats, isActive: false } }),
+    ]);
     
     return NextResponse.json({
       employees: formattedEmployees,
@@ -491,6 +502,10 @@ export async function GET(request) {
         limit,
         totalCount,
         totalPages: Math.ceil(totalCount / limit),
+      },
+      statistics: {
+        activeCount,
+        inactiveCount,
       },
     });
     

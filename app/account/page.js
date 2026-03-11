@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { 
   User, 
   Building, 
@@ -16,10 +17,15 @@ import {
   Bell,
   Shield,
   Image,
-  FileImage
+  FileImage,
+  Landmark
 } from "lucide-react";
 
-export default function Account() {
+const VALID_TABS = ["business", "receipt", "account", "notifications", "legal"];
+
+function AccountContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [settings, setSettings] = useState({
     // Account Information
     name: "",
@@ -32,6 +38,9 @@ export default function Account() {
     primaryColor: "#4f46e5",
     secondaryColor: "#7c3aed",
     
+    // MRA EIS
+    tpin: "",
+
     // Business Address for Receipts
     buildingName: "",
     businessAddress: "",
@@ -42,14 +51,11 @@ export default function Account() {
     // Receipt Customization
     receiptFooter: "",
     
-    // Banking Details (from customization)
-    defaultBankDetails: {
-      bankName: "",
-      accountNumber: "",
-      accountName: ""
-    },
+    // Banking Details (from customization) - single string as on /customization?tab=business
+    defaultBankDetails: "",
     
-    // Tax Outflow Account (from customization)
+    // Default tax accounts (inflow = collected from sales/invoices; outflow = paid on expenses/purchases)
+    taxInflowAccountId: "",
     taxOutflowAccountId: "",
     
     // Other Settings
@@ -75,9 +81,15 @@ export default function Account() {
   // NEW: For tax outflow account selection
   const [taxOutflowAccountOptions, setTaxOutflowAccountOptions] = useState([]);
 
+  // Keep activeTab in sync with URL (e.g. /account?tab=business)
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && VALID_TABS.includes(t)) setActiveTab(t);
+  }, [searchParams]);
+
   useEffect(() => {
     loadSettings();
-    loadTaxOutflowAccounts();
+    loadTaxAccountOptions();
   }, []);
 
   const loadSettings = async () => {
@@ -119,14 +131,20 @@ export default function Account() {
         faviconUrl: cleanLogoUrl(accountData.faviconUrl),
         primaryColor: accountData.primaryColor || tenantData.primaryColor || "#4f46e5",
         secondaryColor: accountData.secondaryColor || tenantData.secondaryColor || "#7c3aed",
+        tpin: accountData.tpin || tenantData.tpin || "",
         buildingName: tenantData.buildingName || "",
         businessAddress: tenantData.businessAddress || "",
         businessCity: tenantData.businessCity || "",
         businessPhone: tenantData.businessPhone || "",
         businessEmail: tenantData.businessEmail || "",
         receiptFooter: tenantData.receiptFooter || "",
-        // NEW: Load banking details and tax outflow account
-        defaultBankDetails: tenantData.defaultBankDetails || { bankName: "", accountNumber: "", accountName: "" },
+        // NEW: Load banking details and tax outflow account (string, like customization)
+        defaultBankDetails: (typeof tenantData.defaultBankDetails === 'string')
+          ? tenantData.defaultBankDetails
+          : (tenantData.defaultBankDetails && typeof tenantData.defaultBankDetails === 'object')
+            ? [tenantData.defaultBankDetails.bankName && `Bank: ${tenantData.defaultBankDetails.bankName}`, tenantData.defaultBankDetails.accountNumber && `Account number: ${tenantData.defaultBankDetails.accountNumber}`, tenantData.defaultBankDetails.accountName && `Account name: ${tenantData.defaultBankDetails.accountName}`].filter(Boolean).join('\n')
+            : "",
+        taxInflowAccountId: tenantData.taxInflowAccountId || "",
         taxOutflowAccountId: tenantData.taxOutflowAccountId || "",
         emailFooter: accountData.emailFooter || tenantData.emailFooter || "",
         currencyCode: tenantData.currencyCode || "MWK",
@@ -145,8 +163,8 @@ export default function Account() {
     }
   };
 
-  // NEW: Load accounts for tax outflow dropdown
-  const loadTaxOutflowAccounts = async () => {
+  // Load chart-of-accounts for default tax inflow/outflow dropdowns
+  const loadTaxAccountOptions = async () => {
     try {
       const accRes = await fetch('/api/chart-of-accounts?limit=500');
       if (accRes.ok) {
@@ -172,16 +190,6 @@ export default function Account() {
     }
   };
 
-  // NEW: Handler for bank details
-  const handleBankDetailsChange = (field, value) => {
-    setSettings(prev => ({
-      ...prev,
-      defaultBankDetails: {
-        ...prev.defaultBankDetails,
-        [field]: value
-      }
-    }));
-  };
 
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
@@ -280,9 +288,12 @@ export default function Account() {
         body: accountFormData
       });
 
+      const accountErrorData = await accountResponse.json().catch(() => ({}));
       if (!accountResponse.ok) {
-        const errorData = await accountResponse.json();
-        throw new Error(errorData.error || 'Failed to save account settings');
+        const msg = accountErrorData?.error
+          || (accountResponse.status === 401 ? 'You must be signed in to save account settings.'
+            : `Account settings could not be saved (${accountResponse.status}). Please try again.`);
+        throw new Error(msg);
       }
 
       console.log('Account settings saved successfully');
@@ -295,6 +306,7 @@ export default function Account() {
         },
         body: JSON.stringify({
           name: settings.name,
+          tpin: settings.tpin || null,
           // Remove logoUrl - it's already handled by the POST request above
           primaryColor: settings.primaryColor,
           secondaryColor: settings.secondaryColor,
@@ -304,9 +316,8 @@ export default function Account() {
           businessPhone: settings.businessPhone,
           businessEmail: settings.businessEmail,
           receiptFooter: settings.receiptFooter,
-          // NEW: Save banking details and tax outflow account
+          // Default bank details (tax accounts 2041/2045 are fixed and not editable)
           defaultBankDetails: settings.defaultBankDetails,
-          taxOutflowAccountId: settings.taxOutflowAccountId,
           emailFooter: settings.emailFooter,
           currencyCode: settings.currencyCode,
           taxEnabled: settings.taxEnabled,
@@ -314,9 +325,12 @@ export default function Account() {
         }),
       });
 
+      const tenantErrorData = await tenantResponse.json().catch(() => ({}));
       if (!tenantResponse.ok) {
-        const errorData = await tenantResponse.json();
-        throw new Error(errorData.error || 'Failed to save tenant settings');
+        const msg = tenantErrorData?.error
+          || (tenantResponse.status === 401 ? 'You must be signed in to save tenant settings.'
+            : `Tenant settings could not be saved (${tenantResponse.status}). Please try again.`);
+        throw new Error(msg);
       }
 
       console.log('Tenant settings saved successfully');
@@ -355,7 +369,8 @@ export default function Account() {
       console.log('All settings saved successfully');
     } catch (error) {
       console.error('Error saving settings:', error);
-      setSaveStatus({ type: 'error', message: error.message || 'Failed to save settings. Please try again.' });
+      const message = error.message || 'Network or server error. Check your connection and try again.';
+      setSaveStatus({ type: 'error', message });
     } finally {
       setIsSaving(false);
     }
@@ -395,21 +410,10 @@ export default function Account() {
       })()
     : '';
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-gray-600">Loading account settings...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto p-6">
-        {/* Header */}
+        {/* Header - always visible */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Account Settings</h1>
           <p className="text-gray-600">Manage your business information, receipt settings, and account preferences.</p>
@@ -431,29 +435,44 @@ export default function Account() {
           </div>
         )}
 
-        {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-          <div className="flex overflow-x-auto">
+        {/* Tab Navigation - always visible so users can see and switch tabs */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+          <div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50/80" role="tablist">
             {tabs.map((tab) => {
               const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center px-6 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'border-blue-500 text-blue-600 bg-blue-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    router.replace(`/account?tab=${tab.id}`, { scroll: false });
+                  }}
+                  className={`flex items-center px-5 py-4 text-sm font-medium border-b-2 transition-colors whitespace-nowrap min-w-0 ${
+                    isActive
+                      ? 'border-blue-500 text-blue-700 bg-white shadow-sm -mb-px'
+                      : 'border-transparent text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                   }`}
                 >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {tab.label}
+                  <Icon className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
         </div>
 
+        {isLoading ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-12 flex items-center justify-center min-h-[320px]">
+            <div className="text-center">
+              <Loader2 className="w-10 h-10 animate-spin mx-auto mb-4 text-blue-600" />
+              <p className="text-gray-600">Loading account settings...</p>
+            </div>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit}>
           {/* Business Information Tab */}
           {activeTab === "business" && (
@@ -673,81 +692,76 @@ export default function Account() {
                       <p className="mt-1 text-sm text-red-600">{errors.businessEmail}</p>
                     )}
                   </div>
-                </div>
-              </div>
 
-              {/* Banking & Tax Section - NEW from customization */}
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                <div className="flex items-center mb-6">
-                  <Settings className="w-6 h-6 text-green-600 mr-3" />
-                  <h2 className="text-xl font-semibold text-gray-900">Banking & Tax Settings</h2>
-                </div>
-                <p className="text-sm text-gray-600 mb-6">
-                  These details will appear on your invoices and receipts for payment processing.
-                </p>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Bank Name
+                      Taxpayer Identification Number (TPIN)
                     </label>
                     <input
                       type="text"
-                      value={settings.defaultBankDetails.bankName}
-                      onChange={(e) => handleBankDetailsChange('bankName', e.target.value)}
+                      value={settings.tpin}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 8);
+                        handleChange('tpin', val);
+                      }}
                       className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., National Bank, Stanbic Bank"
+                      placeholder="12345678"
+                      maxLength={8}
                     />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Account Number
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.defaultBankDetails.accountNumber}
-                      onChange={(e) => handleBankDetailsChange('accountNumber', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., 1234567890"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Account Name
-                    </label>
-                    <input
-                      type="text"
-                      value={settings.defaultBankDetails.accountName}
-                      onChange={(e) => handleBankDetailsChange('accountName', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="e.g., Your Company Name"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Tax Outflow Account
-                    </label>
-                    <select
-                      value={settings.taxOutflowAccountId}
-                      onChange={(e) => handleChange('taxOutflowAccountId', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">-- Select Tax Outflow Account --</option>
-                      {taxOutflowAccountOptions.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.accountCode} - {account.name}
-                        </option>
-                      ))}
-                    </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      Account to record tax payments (e.g., VAT, PAYE)
+                      8-digit TPIN from Malawi Revenue Authority (required for MRA EIS integration)
                     </p>
                   </div>
                 </div>
               </div>
+
+              {/* Banking & tax - exactly as /customization?tab=business */}
+              <section className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600">
+                      <Landmark className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Banking & tax</h3>
+                      <p className="text-xs text-gray-500">Default bank details and default tax accounts (inflow & outflow). These defaults are used in Tax types, Tax accounts, and for tracking tax on invoices, expenses and purchases.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4 sm:p-6 space-y-6">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div>
+                      <label htmlFor="defaultBankDetails" className="block text-sm font-medium text-gray-700 mb-1.5">Default bank account details</label>
+                      <p className="text-xs text-gray-500 mb-2">Shown in invoice, quotation and receipt footers. Override per document when needed.</p>
+                      <textarea
+                        id="defaultBankDetails"
+                        name="defaultBankDetails"
+                        rows={5}
+                        placeholder={`Bank: Standard Bank\nAccount name: Your Company Ltd\nAccount number: 1234567890\nBranch: Blantyre`}
+                        className="w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-gray-50/50 focus:bg-white transition-colors placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-y min-h-[120px]"
+                        value={settings.defaultBankDetails || ""}
+                        onChange={(e) => handleChange('defaultBankDetails', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Default tax accounts (fixed)</h4>
+                      <p className="text-xs text-gray-500 mb-4">Tax is always recorded to these system accounts. They cannot be changed by tenants.</p>
+                      <div className="space-y-4">
+                        <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
+                          <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
+                          <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
             </div>
           )}
 
@@ -1019,7 +1033,23 @@ export default function Account() {
             </div>
           )}
         </form>
+        )}
       </div>
     </div>
+  );
+}
+
+export default function Account() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+          <p className="text-gray-600">Loading account...</p>
+        </div>
+      </div>
+    }>
+      <AccountContent />
+    </Suspense>
   );
 }

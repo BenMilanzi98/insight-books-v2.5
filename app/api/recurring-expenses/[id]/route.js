@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
 const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
   if (expenseAccountId) {
@@ -227,6 +228,10 @@ export async function PUT(request, { params }) {
       );
     }
     
+    // Normalize to 1st and last day of month for correct monthly reporting and consistency
+    const normalizedStartDate = startOfMonth(startDate);
+    const normalizedEndDate = endDate ? endOfMonth(endDate) : null;
+    
     // Import calculateNextRunDate from the main route
     // For now, we'll calculate it here (should be in a shared lib)
     const calculateNextRunDate = (expenseData) => {
@@ -262,9 +267,6 @@ export async function PUT(request, { params }) {
       return start;
     };
     
-    // Calculate next run date
-    const nextRunDate = calculateNextRunDate(body);
-    
     // Update the recurring expense
     const updatedExpense = await prisma.recurringExpense.update({
       where: { id: expenseId },
@@ -276,12 +278,12 @@ export async function PUT(request, { params }) {
         frequency: body.frequency,
         dayOfMonth: body.frequency === 'monthly' ? body.dayOfMonth : null,
         dayOfWeek: body.frequency === 'weekly' ? body.dayOfWeek : null,
-        startDate: startDate,
-        endDate: endDate,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
         occurrences: body.endType === 'occurrences' ? body.occurrences : null,
         remainingOccurrences: body.endType === 'occurrences' ? body.occurrences : null,
         endType: body.endType,
-        nextRunDate: nextRunDate,
+        nextRunDate: calculateNextRunDate({ ...body, startDate: normalizedStartDate }),
         notes: body.notes || null,
       }
     });

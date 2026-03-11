@@ -2,6 +2,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { hasEISAccess } from '@/lib/subscriptionService';
+import eisService from '@/lib/eisService';
 
 // POST - Convert a quotation to an invoice
 export async function POST(request, { params }) {
@@ -194,11 +196,42 @@ export async function POST(request, { params }) {
       }))
     };
     
+    // MRA EIS: auto-submit converted invoice to MRA for EIS-enabled tenants (fire-and-forget)
+    let eisResult = null;
+    try {
+      const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { eisEnabled: true } });
+      if (tenant?.eisEnabled) {
+        const eisAccess = await hasEISAccess(user.tenantId);
+        if (eisAccess) {
+          eisResult = await eisService.submitInvoice(user.tenantId, {
+            invoiceNumber: newInvoice.invoiceNumber,
+            invoiceDate: newInvoice.issueDate,
+            customerName: newInvoice.client?.name || quotation.client?.name || '',
+            customerTPIN: '',
+            items: (newInvoice.items || []).map(item => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: item.taxRate || 0
+            })),
+            subtotal: Number(newInvoice.subtotal),
+            taxTotal: Number(newInvoice.taxAmount || 0),
+            total: Number(newInvoice.total),
+            paymentMethod: 'Bank Transfer'
+          }, 'quotation-convert', newInvoice.id);
+          console.log('✅ EIS: Converted invoice submitted to MRA:', eisResult?.submissionId);
+        }
+      }
+    } catch (eisErr) {
+      console.error('⚠️ EIS quotation-convert submission failed (invoice still saved):', eisErr.message);
+    }
+
     return NextResponse.json({
       message: 'Quotation successfully converted to invoice',
       invoice: formattedInvoice,
       invoiceId: newInvoice.id,
-      invoiceNumber: newInvoice.invoiceNumber
+      invoiceNumber: newInvoice.invoiceNumber,
+      eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null
     });
   } catch (error) {
     console.error(`Error converting quotation to invoice:`, error);

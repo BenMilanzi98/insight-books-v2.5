@@ -6,7 +6,7 @@
 
 import { formatCurrency } from '@/lib/currencyUtils';
 
-// Helper function to get date ranges based on timeframe
+// Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
   // Handle custom date range
   if (timeframe === 'custom' && customDateRange && customDateRange.startDate && customDateRange.endDate) {

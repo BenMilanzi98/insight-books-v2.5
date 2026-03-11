@@ -337,9 +337,8 @@ export async function GET(request) {
         if (account.accountType === 'Expense' && accountCode !== '5000') {
           const categoryMap = {
             '5100': ['office', 'advertising', 'equipment'],
-            '5200': ['rent'],
-            '5300': ['utilities'],
-            '5400': ['salaries', 'wages', 'payroll'],
+            '5200': ['rent', 'utilities'],
+            '5230': ['salaries', 'wages', 'payroll'],
             '5500': ['depreciation']
           };
           

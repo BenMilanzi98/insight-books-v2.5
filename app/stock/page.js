@@ -657,53 +657,13 @@ const InventoryManagement = () => {
       };
       
       const data = await inventoryService.fetchProducts(params).catch(() => {
-        // Show warning toast for fallback
-        showToast("warning", "Using demo data", "API connection failed");
-        
-        // Fallback to dummy data
-        const filteredInventory = initialInventory.filter(item => {
-          const matchesSearch = !searchTerm || 
-            item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            item.sku.toLowerCase().includes(searchTerm.toLowerCase());
-          
-          const matchesCategory = categoryFilter === "All" || 
-            (categoryFilter === "Uncategorized" && !item.category) || 
-            item.category === categoryFilter;
-          const matchesStatus = statusFilter === "All" || item.status === statusFilter;
-          const matchesLocation = locationFilter === "All" || item.location === locationFilter;
-          
-          return matchesSearch && matchesCategory && matchesStatus && matchesLocation;
-        });
-        
-        // Sort the inventory
-        const sortedInventory = [...filteredInventory].sort((a, b) => {
-          let valueA = a[sortField];
-          let valueB = b[sortField];
-          
-          // Make sure we're comparing the right data types
-          if (typeof valueA === 'string') {
-            valueA = valueA.toLowerCase();
-            valueB = valueB.toLowerCase();
-          }
-          
-          if (sortDirection === 'asc') {
-            return valueA > valueB ? 1 : -1;
-          } else {
-            return valueA < valueB ? 1 : -1;
-          }
-        });
-        
-        // Apply pagination for fallback data
-        const startIndex = (pagination.currentPage - 1) * pagination.pageSize;
-        const endIndex = startIndex + pagination.pageSize;
-        const paginatedInventory = sortedInventory.slice(startIndex, endIndex);
-        
-        return { 
-          products: paginatedInventory,
+        showToast("warning", "Could not load products", "API connection failed. Please try again.");
+        return {
+          products: [],
           pagination: {
-            totalItems: sortedInventory.length,
-            totalPages: Math.ceil(sortedInventory.length / pagination.pageSize),
-            currentPage: pagination.currentPage,
+            totalItems: 0,
+            totalPages: 1,
+            currentPage: 1,
             pageSize: pagination.pageSize
           }
         };
@@ -999,7 +959,7 @@ const InventoryManagement = () => {
       // Clear existing transactions first
       setProductTransactions([]);
       
-      const data = await inventoryService.getTransactions({ productId, limit: 100 }).catch((err) => {
+      const data = await inventoryService.getTransactions({ productId, limit: 500 }).catch((err) => {
         console.error('Error fetching transactions:', err);
         // Return empty array on error
         return { transactions: [] };
@@ -3390,6 +3350,23 @@ const InventoryManagement = () => {
                       <span className="text-sm text-gray-500">Last Updated</span>
                       <div className="font-medium">{formatDate(selectedItem.lastUpdated)}</div>
                     </div>
+                    <div className="md:col-span-2">
+                      <span className="text-sm text-gray-500">Barcodes</span>
+                      <div className="font-medium flex flex-wrap gap-2 mt-0.5">
+                        {(selectedItem.barcodes && selectedItem.barcodes.length > 0)
+                          ? selectedItem.barcodes.map((bc, i) => (
+                              <span key={i} className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-800 text-sm rounded font-mono">{bc}</span>
+                            ))
+                          : (selectedItem.barcode ? (
+                              <span className="inline-flex px-2 py-0.5 bg-slate-100 text-slate-800 text-sm rounded font-mono">{selectedItem.barcode}</span>
+                            ) : (
+                              <span className="text-gray-400">None</span>
+                            ))}
+                      </div>
+                      {selectedItem.barcodes?.length > 0 && (
+                        <p className="text-xs text-gray-500 mt-1">Any of these can be used in POS to search for this product.</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -3505,6 +3482,7 @@ const InventoryManagement = () => {
               <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
                 <div className="px-4 py-3 border-b border-gray-200">
                   <h3 className="font-medium text-lg">Stock Movement History</h3>
+                  <p className="text-xs text-gray-500 mt-1">Complete timeline of stock ins, stock outs, and adjustments for accurate tracking and auditability.</p>
                 </div>
                 
                 <div className="max-h-96 overflow-y-auto">
@@ -4666,7 +4644,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     supplier: "",
     weight: "",
     dimensions: "",
-    barcode: "",
+    barcodes: [],
     tags: [],
     // Unit management fields
     unitManagementEnabled: false,
@@ -4680,8 +4658,10 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
   const [imageFile, setImageFile] = useState(null);
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
+  const barcodeInputRef = useRef(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [newTag, setNewTag] = useState("");
+  const [newBarcode, setNewBarcode] = useState("");
   
   // Unit management state
   const [baseUnits, setBaseUnits] = useState([]);
@@ -4817,10 +4797,10 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         batchNumber: "",
         supplier: "",
         weight: "",
-        dimensions: "",
-        barcode: "",
-        tags: [],
-        unitManagementEnabled: false,
+    dimensions: "",
+    barcodes: [],
+    tags: [],
+    unitManagementEnabled: false,
         selectedBaseUnit: null,
         selectedUnits: [],
         unitConfigurations: {},
@@ -4934,7 +4914,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         supplier: product.supplier || "",
         weight: product.weight || "",
         dimensions: product.dimensions || "",
-        barcode: product.barcode || "",
+        barcodes: Array.isArray(product.barcodes) ? product.barcodes : (product.barcode ? [product.barcode] : []),
         tags: product.tags || [],
         // Unit management fields
         ...unitManagementData
@@ -4990,7 +4970,26 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       tags: prev.tags.filter(tag => tag !== tagToRemove)
     }));
   };
-  
+
+  const handleAddBarcode = () => {
+    const b = newBarcode.trim();
+    if (b && !formData.barcodes.includes(b)) {
+      setFormData(prev => ({
+        ...prev,
+        barcodes: [...prev.barcodes, b]
+      }));
+      setNewBarcode("");
+      barcodeInputRef.current?.focus();
+    }
+  };
+
+  const handleRemoveBarcode = (barcodeToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      barcodes: prev.barcodes.filter(b => b !== barcodeToRemove)
+    }));
+  };
+
   // Handle image file change
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -5178,6 +5177,49 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                     placeholder="Enter product name"
                   />
                   {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+                </div>
+
+                {/* Barcodes – right after name; Enter or Add lets you add another */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Barcodes</label>
+                  <p className="text-xs text-gray-500 mb-2">Add one or more barcodes. Press Enter or Add to add another; each can be used in POS to search for this product.</p>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      ref={barcodeInputRef}
+                      type="text"
+                      value={newBarcode}
+                      onChange={(e) => setNewBarcode(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddBarcode())}
+                      className="flex-1 p-2 border border-gray-300 rounded-md"
+                      placeholder="Scan or enter barcode, then Enter or Add"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddBarcode}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  {formData.barcodes.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.barcodes.map((bc, index) => (
+                        <span
+                          key={index}
+                          className="inline-flex items-center px-2 py-1 bg-slate-100 text-slate-800 text-sm rounded font-mono"
+                        >
+                          {bc}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBarcode(bc)}
+                            className="ml-1 text-slate-600 hover:text-slate-800"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 
                 <div>
@@ -5524,18 +5566,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   onChange={handleChange}
                   className="w-full p-2 border border-gray-300 rounded-md"
                   placeholder="e.g., 10x5x2"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
-                <input
-                  type="text"
-                  name="barcode"
-                  value={formData.barcode}
-                  onChange={handleChange}
-                  className="w-full p-2 border border-gray-300 rounded-md"
-                  placeholder="Product barcode"
                 />
               </div>
               

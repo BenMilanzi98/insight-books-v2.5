@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -216,7 +216,7 @@ export async function GET(request) {
       });
       const cogsAccountIds = cogsAccounts.map(acc => acc.id);
 
-      const [invoices, expenses, cogsData] = await Promise.all([
+      const [invoices, expenses, loanPayments, cogsData] = await Promise.all([
         // Revenue should only include actual payments received, not pending invoices
         prisma.payment.aggregate({
           where: addBranchFilter(user, {
@@ -227,45 +227,25 @@ export async function GET(request) {
           }),
           _sum: { amount: true }
         }),
-        // Only count actual payments made for expenses, not pending expenses
-        // Include both regular expenses and loan payments (principal and interest)
-        // Exclude payments linked to deleted expenses
-        // STRICT: Only show expenses from selected branch
-        // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
+        // Operating expenses: includes payroll, approved expenses, and supplier/PO expenses (unassigned branch).
+        prisma.expense.aggregate({
+          where: addBranchFilterIncludeUnassigned(user, {
+            tenantId,
+            status: 'Approved',
+            isDeleted: false,
+            isReversal: false,
+            date: { gte: filterStartDate, lte: filterEndDate }
+          }),
+          _sum: { amount: true }
+        }),
+        // Loan payments (not always stored as Expense) so dashboard still reflects them
         prisma.payment.aggregate({
-          where: (() => {
-            if (user?.currentBranchId) {
-              // When branch is selected, require expense to have matching branchId
-              // Payment branchId is optional (for legacy data compatibility)
-              return {
-                tenantId,
-                type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
-                status: 'Completed',
-                paymentDate: { gte: filterStartDate, lte: filterEndDate },
-                OR: [
-                  { 
-                    expense: { 
-                      isDeleted: false,
-                      branchId: user.currentBranchId // STRICT: Expense must have matching branchId
-                    } 
-                  },
-                  { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
-                ]
-              };
-            }
-            
-            // No branch selected, show all
-            return {
-              tenantId,
-              type: { in: ['expense', 'Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
-              status: 'Completed',
-              paymentDate: { gte: filterStartDate, lte: filterEndDate },
-              OR: [
-                { expense: { isDeleted: false } },
-                { type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] } }
-              ]
-            };
-          })(),
+          where: {
+            tenantId,
+            type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
+            status: 'Completed',
+            paymentDate: { gte: filterStartDate, lte: filterEndDate }
+          },
           _sum: { amount: true }
         }),
         // Get COGS from transaction lines that debit COGS accounts - filter by transaction branchId
@@ -288,7 +268,8 @@ export async function GET(request) {
       ]);
 
       const cogsAmount = Number(cogsData._sum.debitAmount || 0);
-      const totalExpenses = (expenses._sum.amount || 0) + cogsAmount;
+      const loanPaymentAmount = Number(loanPayments._sum.amount || 0);
+      const totalExpenses = (expenses._sum.amount || 0) + loanPaymentAmount + cogsAmount;
 
       return {
         income: (invoices._sum.amount || 0),

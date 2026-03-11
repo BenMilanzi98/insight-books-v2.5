@@ -41,6 +41,8 @@ const STANDARD_COA_TEMPLATE = [
   { code: '2020', name: 'Accrued Expenses', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
   { code: '2030', name: 'Salaries Payable', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
   { code: '2040', name: 'Tax Payable', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
+  { code: '2041', name: 'Tax Inflow (Collected)', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
+  { code: '2045', name: 'Tax Outflow (Paid)', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
   { code: '2050', name: 'Short-term Loans', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
   { code: '2060', name: 'Unearned Revenue', type: 'Liability', subtype: 'Current Liability', normalBalance: 'Credit', parentCode: '2000' },
 

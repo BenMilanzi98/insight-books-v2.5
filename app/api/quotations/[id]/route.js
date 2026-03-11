@@ -147,6 +147,8 @@ export async function GET(request, { params }) {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         taxRate: item.taxRate,
+        discountAmount: item.discountAmount,
+        netAmount: item.netAmount,
         amount: item.amount,
         productId: item.productId
       }))

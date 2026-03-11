@@ -30,7 +30,9 @@ export default function TaxTypesPage() {
   const [taxTypes, setTaxTypes] = useState([]);
   const [accounts, setAccounts] = useState([]);
   const [taxBalances, setTaxBalances] = useState({});
-  const [defaultTaxAccountId, setDefaultTaxAccountId] = useState(null);
+  const [defaultTaxInflowAccountId, setDefaultTaxInflowAccountId] = useState(null);
+  const [defaultTaxOutflowAccountId, setDefaultTaxOutflowAccountId] = useState(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -178,7 +180,8 @@ export default function TaxTypesPage() {
 
       if (settingsRes && settingsRes.ok) {
         const settings = await settingsRes.json();
-        setDefaultTaxAccountId(settings.taxOutflowAccountId || null);
+        setDefaultTaxInflowAccountId(settings.taxInflowAccountId || null);
+        setDefaultTaxOutflowAccountId(settings.taxOutflowAccountId || null);
       }
     } catch (err) {
       setError(err.message);
@@ -263,9 +266,34 @@ export default function TaxTypesPage() {
       taxCode: "",
       taxRate: "",
       calculationType: "Percentage",
-      accountId: defaultTaxAccountId || "",
+      accountId: defaultTaxInflowAccountId || defaultTaxOutflowAccountId || "",
       status: "Active"
     });
+  };
+
+  const saveDefaultTaxAccounts = async () => {
+    setSavingDefaults(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings/tax", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taxInflowAccountId: defaultTaxInflowAccountId || null,
+          taxOutflowAccountId: defaultTaxOutflowAccountId || null
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to save default tax accounts");
+      }
+      setSuccess("Default tax accounts updated");
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSavingDefaults(false);
+    }
   };
 
   const loadReversedTaxes = async () => {
@@ -451,6 +479,29 @@ export default function TaxTypesPage() {
             <p className="text-sm text-blue-600 mt-1">
               Each tax type is linked to an account (usually a Liability account). <strong>Taxes collected</strong> come from sales and invoices; <strong>taxes paid</strong> come from purchases (purchase orders, expenses, supplier bills). Net payable = collected − paid.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Fixed default tax accounts — cannot be changed by tenants */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <LinkIcon className="text-indigo-600" size={20} />
+          <h2 className="text-base font-semibold text-gray-900">Default tax accounts (fixed)</h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Tax is always recorded to these system accounts. They cannot be changed.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
+            <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
+            <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
           </div>
         </div>
       </div>

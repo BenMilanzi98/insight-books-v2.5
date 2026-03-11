@@ -57,8 +57,9 @@ const SettingsPage = () => {
       setIsLoading(true);
       const response = await fetch('/api/tenant/settings');
       
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
-        const data = await response.json();
+        setSaveStatus(null);
         setSettings({
           name: data.name || '',
           logoUrl: data.logoUrl || '',
@@ -76,10 +77,12 @@ const SettingsPage = () => {
           defaultTaxRate: data.defaultTaxRate || 0,
         });
       } else {
-        console.error('Failed to load settings');
+        const msg = data?.error || `Failed to load settings (${response.status})`;
+        setSaveStatus({ type: 'error', message: msg });
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      setSaveStatus({ type: 'error', message: error.message || 'Could not load settings. Check your connection and try again.' });
     } finally {
       setIsLoading(false);
     }
@@ -143,17 +146,22 @@ const SettingsPage = () => {
         body: JSON.stringify(settings),
       });
       
+      const responseData = await response.json().catch(() => ({}));
+      
       if (response.ok) {
-        setSaveStatus('success');
+        setSaveStatus({ type: 'success', message: 'Settings saved successfully!' });
         setTimeout(() => setSaveStatus(null), 3000);
       } else {
-        const errorData = await response.json();
-        setSaveStatus('error');
-        console.error('Failed to save settings:', errorData);
+        const message = responseData?.error
+          || (response.status === 401 ? 'You must be signed in to save settings.'
+            : response.status === 403 ? 'You do not have permission to change these settings.'
+              : response.status === 404 ? 'Settings could not be found.'
+                : `Settings could not be saved (${response.status}). Please try again.`);
+        setSaveStatus({ type: 'error', message });
       }
     } catch (error) {
-      setSaveStatus('error');
-      console.error('Error saving settings:', error);
+      const message = error.message || 'Network or server error. Check your connection and try again.';
+      setSaveStatus({ type: 'error', message });
     } finally {
       setIsSaving(false);
     }
@@ -214,19 +222,16 @@ const SettingsPage = () => {
         {/* Save Status */}
         {saveStatus && (
           <div className={`mb-6 p-4 rounded-lg flex items-center ${
-            saveStatus === 'success' 
+            saveStatus.type === 'success' 
               ? 'bg-green-50 border border-green-200 text-green-800' 
               : 'bg-red-50 border border-red-200 text-red-800'
           }`}>
-            {saveStatus === 'success' ? (
-              <CheckCircle className="w-5 h-5 mr-2" />
+            {saveStatus.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             ) : (
-              <AlertCircle className="w-5 h-5 mr-2" />
+              <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             )}
-            {saveStatus === 'success' 
-              ? 'Settings saved successfully!' 
-              : 'Failed to save settings. Please try again.'
-            }
+            <span>{saveStatus.type === 'success' ? (saveStatus.message || 'Settings saved successfully!') : (saveStatus.message || 'Failed to save settings. Please try again.')}</span>
           </div>
         )}
 

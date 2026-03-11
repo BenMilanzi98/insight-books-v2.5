@@ -167,6 +167,14 @@ export async function POST(request) {
     const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
     await initializeDefaultPaymentAccounts(newTenant.id);
 
+    // Create default tax inflow/outflow GL accounts and set as tenant defaults
+    try {
+      const { ensureDefaultTaxAccountsForTenant } = await import('@/lib/taxAccountsInitialization');
+      await ensureDefaultTaxAccountsForTenant(newTenant.id, prisma, true);
+    } catch (taxAccErr) {
+      console.warn('Tax accounts initialization for new tenant (non-fatal):', taxAccErr?.message || taxAccErr);
+    }
+
     // Get tenant settings for business email
     const tenantSettings = await prisma.tenantSettings.findUnique({
       where: { tenantId: newTenant.id }

@@ -148,8 +148,8 @@ export default function PayrollCreation() {
         },
         body: JSON.stringify({
           employeeId: selectedEmployee.id,
-          periodStart: new Date().toISOString(),
-          periodEnd: new Date().toISOString(),
+          periodStart: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString(); })(),
+          periodEnd: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString(); })(),
           basicSalary: payrollData.grossSalary,
           allowances: payrollData.allowances,
           deductions: [...payrollData.selectedDeductions, ...payrollData.customDeductions],

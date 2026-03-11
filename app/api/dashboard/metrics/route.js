@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -227,7 +227,7 @@ export async function GET(request) {
     // Get current period data with refund calculations
     const currentPeriodEndDate = currentPeriodEnd || new Date(); // Use currentPeriodEnd if defined, otherwise use now
     
-    // First, find COGS account(s) for this tenant
+    // First, find COGS account(s) for this tenant (cost accounts for expense reports)
     const cogsAccounts = await prisma.account.findMany({
       where: {
         tenantId,
@@ -236,6 +236,8 @@ export async function GET(request) {
         OR: [
           { accountCode: '5000' },
           { code: '5000' },
+          { accountCode: '5100' },
+          { code: '5100' },
           { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
           { accountName: { contains: 'cogs', mode: 'insensitive' } },
           { name: { contains: 'cost of goods', mode: 'insensitive' } },
@@ -288,44 +290,18 @@ export async function GET(request) {
         }),
         _sum: { total: true }
       }),
-      // Only count actual payments made for expenses, not pending expenses
-      // Exclude payments linked to deleted expenses
-      // STRICT: Only show expenses from selected branch
-      // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
-      prisma.payment.aggregate({
-        where: (() => {
-          if (user?.currentBranchId) {
-            // When branch is selected, require expense to have matching branchId
-            // Payment branchId is optional (for legacy data compatibility)
-            return {
-              tenantId,
-              type: 'expense',
-              status: 'Completed',
-              paymentDate: { 
-                gte: currentPeriodStart,
-                lte: currentPeriodEndDate
-              },
-              expense: {
-                isDeleted: false,
-                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
-              }
-            };
+      // Operating expenses from Expense table (accrual): includes payroll, approved expenses, and supplier/PO expenses (include unassigned branch).
+      prisma.expense.aggregate({
+        where: addBranchFilterIncludeUnassigned(user, {
+          tenantId,
+          status: 'Approved',
+          isDeleted: false,
+          isReversal: false,
+          date: {
+            gte: currentPeriodStart,
+            lte: currentPeriodEndDate
           }
-          
-          // No branch selected, show all
-          return {
-            tenantId,
-            type: 'expense',
-            status: 'Completed',
-            paymentDate: { 
-              gte: currentPeriodStart,
-              lte: currentPeriodEndDate
-            },
-            expense: {
-              isDeleted: false
-            }
-          };
-        })(),
+        }),
         _sum: { amount: true }
       }),
       // Get COGS from transaction lines that debit COGS accounts
@@ -391,44 +367,18 @@ export async function GET(request) {
         }),
         _sum: { total: true }
       }),
-      // Only count actual payments made for expenses, not pending expenses
-      // Exclude payments linked to deleted expenses
-      // STRICT: Only show expenses from selected branch
-      // Filter by expense.branchId (source of truth) - payment.branchId is optional for legacy data
-      prisma.payment.aggregate({
-        where: (() => {
-          if (user?.currentBranchId) {
-            // When branch is selected, require expense to have matching branchId
-            // Payment branchId is optional (for legacy data compatibility)
-            return {
-              tenantId,
-              type: 'expense',
-              status: 'Completed',
-              paymentDate: { 
-                gte: previousPeriodStart,
-                lte: previousPeriodEnd
-              },
-              expense: {
-                isDeleted: false,
-                branchId: user.currentBranchId // STRICT: Expense must have matching branchId
-              }
-            };
+      // Operating expenses: include supplier/PO expenses (unassigned branch).
+      prisma.expense.aggregate({
+        where: addBranchFilterIncludeUnassigned(user, {
+          tenantId,
+          status: 'Approved',
+          isDeleted: false,
+          isReversal: false,
+          date: {
+            gte: previousPeriodStart,
+            lte: previousPeriodEnd
           }
-          
-          // No branch selected, show all
-          return {
-            tenantId,
-            type: 'expense',
-            status: 'Completed',
-            paymentDate: { 
-              gte: previousPeriodStart,
-              lte: previousPeriodEnd
-            },
-            expense: {
-              isDeleted: false
-            }
-          };
-        })(),
+        }),
         _sum: { amount: true }
       }),
       // Get COGS from transaction lines that debit COGS accounts for previous period

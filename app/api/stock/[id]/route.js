@@ -5,77 +5,88 @@ import { getUserFromSession } from '@/lib/auth';
 
 // Helper function to get product by ID with validation
 async function getProductWithValidation(id, tenantId) {
-  // Include all fields from the Product model with units
-  const product = await prisma.product.findUnique({
-    where: { 
-      id,
-      isDeleted: false // Only get non-deleted products
-    },
-    // Select all known fields explicitly
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      description: true,
-      category: true,
-      stockLevel: true,
-      reorderPoint: true,
-      location: true,
-      image: true,
-      price: true,
-      cost: true,
-      averageCost: true,
-      lastPurchaseCost: true,
-      totalStockValue: true,
-      taxRate: true,
-      isService: true,
-      createdAt: true,
-      updatedAt: true,
-      tenantId: true,
-      isDeleted: true,
-      deletedAt: true,
-      deletedBy: true,
-      deletionReason: true,
-      // Include product units with unit details
-      productUnits: {
-        include: {
-          unit: {
-            select: {
-              id: true,
-              name: true,
-              symbol: true,
-              conversionToBase: true,
-              isBaseUnit: true,
-              baseUnit: {
-                select: {
-                  id: true,
-                  name: true,
-                  displayName: true,
-                  baseUnit: true
-                }
+  const selectBase = {
+    id: true,
+    name: true,
+    sku: true,
+    description: true,
+    category: true,
+    stockLevel: true,
+    reorderPoint: true,
+    location: true,
+    image: true,
+    price: true,
+    cost: true,
+    averageCost: true,
+    lastPurchaseCost: true,
+    totalStockValue: true,
+    taxRate: true,
+    isService: true,
+    createdAt: true,
+    updatedAt: true,
+    tenantId: true,
+    isDeleted: true,
+    deletedAt: true,
+    deletedBy: true,
+    deletionReason: true,
+    barcode: true,
+    branchId: true,
+    productUnits: {
+      include: {
+        unit: {
+          select: {
+            id: true,
+            name: true,
+            symbol: true,
+            conversionToBase: true,
+            isBaseUnit: true,
+            baseUnit: {
+              select: {
+                id: true,
+                name: true,
+                displayName: true,
+                baseUnit: true
               }
             }
           }
         }
-      },
-      // Include product taxes
-      productTaxes: {
-        include: {
-          taxType: {
-            select: {
-              id: true,
-              taxId: true,
-              taxName: true,
-              taxCode: true,
-              taxRate: true,
-              calculationType: true,
-              status: true
-            }
+      }
+    },
+    productTaxes: {
+      include: {
+        taxType: {
+          select: {
+            id: true,
+            taxId: true,
+            taxName: true,
+            taxCode: true,
+            taxRate: true,
+            calculationType: true,
+            status: true
           }
         }
       }
     }
-  });
+  };
+
+  let product;
+  try {
+    product = await prisma.product.findUnique({
+      where: { id, isDeleted: false },
+      select: { ...selectBase, productBarcodes: { select: { barcode: true } } }
+    });
+  } catch (err) {
+    const msg = err?.message || '';
+    if (msg.includes('ProductBarcode') || msg.includes('productBarcodes') || msg.includes('does not exist')) {
+      product = await prisma.product.findUnique({
+        where: { id, isDeleted: false },
+        select: selectBase
+      });
+      if (product) product.productBarcodes = [];
+    } else {
+      throw err;
+    }
+  }
   
   if (!product) {
     return { error: 'Product not found', status: 404 };
@@ -134,9 +145,16 @@ async function getProductWithValidation(id, tenantId) {
     ? totalStockValueStored
     : (effectiveStockLevel * costPrice);
 
+  // Build barcodes array (ProductBarcode + legacy Product.barcode)
+  const barcodeSet = new Set();
+  (product.productBarcodes || []).forEach(pb => { if (pb.barcode) barcodeSet.add(String(pb.barcode).trim()); });
+  if (product.barcode && String(product.barcode).trim()) barcodeSet.add(String(product.barcode).trim());
+  const barcodes = Array.from(barcodeSet);
+
   return {
     product: {
       ...product,
+      barcodes,
       category: product.category || 'Uncategorized',
       reorderPoint: product.reorderPoint || 10,
       location: product.location || 'Default Location',
@@ -275,9 +293,16 @@ export async function PUT(request, { params }) {
     const isStockLevelChanged = body.quantityInStock !== undefined && 
                                body.quantityInStock !== originalProductStock;
     
-    const newStockLevel = body.unitManagementEnabled 
-      ? (isStockLevelChanged ? body.quantityInStock : originalProductStock)  // Allow explicit stock updates
+    const rawNewStock = body.unitManagementEnabled
+      ? (isStockLevelChanged ? body.quantityInStock : originalProductStock)
       : (body.quantityInStock !== undefined ? body.quantityInStock : oldStockLevel);
+    const newStockLevel = Number(rawNewStock);
+    if (Number.isNaN(newStockLevel) || newStockLevel < 0) {
+      return NextResponse.json(
+        { error: 'Invalid quantity or stock level' },
+        { status: 400 }
+      );
+    }
     
     console.log("STOCK LEVEL DECISION:");
     console.log(`  - Original database stock: ${originalProductStock}`);
@@ -323,6 +348,36 @@ export async function PUT(request, { params }) {
     const newCost = body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost);
     const numericCost = Number(newCost) || 0;
 
+    // Normalize barcodes for update (optional); dedupe so multiple rows are created per unique barcode
+    const barcodesRaw = body.barcodes !== undefined
+      ? (Array.isArray(body.barcodes) ? body.barcodes.map(b => String(b).trim()).filter(Boolean) : [])
+      : null; // null = do not change barcodes
+    const barcodesInput = barcodesRaw !== null ? [...new Set(barcodesRaw)] : null;
+
+    if (barcodesInput && barcodesInput.length > 0) {
+      const productBarcodeModel = prisma.productBarcode;
+      if (productBarcodeModel && typeof productBarcodeModel.findMany === 'function') {
+        try {
+          const existing = await productBarcodeModel.findMany({
+            where: {
+              tenantId: user.tenantId,
+              barcode: { in: barcodesInput },
+              productId: { not: productId }
+            },
+            select: { barcode: true }
+          });
+          if (existing.length > 0) {
+            return NextResponse.json(
+              { error: `Barcode(s) already in use by another product: ${existing.map(e => e.barcode).join(', ')}` },
+              { status: 400 }
+            );
+          }
+        } catch (barcodeErr) {
+          console.warn('ProductBarcode findMany failed (skipping uniqueness check):', barcodeErr?.message);
+        }
+      }
+    }
+
     // Prepare update data with all available fields
     const updateData = {
       name: body.name !== undefined ? body.name : result.product.name,
@@ -337,6 +392,7 @@ export async function PUT(request, { params }) {
       taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
       image: imagePath,
+      barcode: barcodesInput && barcodesInput[0] ? barcodesInput[0] : (barcodesInput && barcodesInput.length === 0 ? null : result.product.barcode),
       // Recalculate inventory value when cost or stock changes so /stock shows correct value
       totalStockValue: (Number(newStockLevel) || 0) * numericCost
     };
@@ -374,27 +430,26 @@ export async function PUT(request, { params }) {
               
               // Validate and cap numeric values to prevent database overflow
               const maxValue = 999999999.999999; // Max value for precision 15, scale 6
-              const quantityInStock = Math.min(parseFloat(config.quantityInStock || 0), maxValue);
-              const reorderPoint = Math.min(parseFloat(config.reorderPoint || 0), maxValue);
-              const unitPrice = Math.min(parseFloat(config.unitPrice || 0), maxValue);
-              const costPrice = Math.min(parseFloat(config.costPrice || 0), maxValue);
+              const quantityInStock = Math.max(0, Math.min(Number(config.quantityInStock) || 0, maxValue));
+              const reorderPoint = Math.max(0, Math.min(Number(config.reorderPoint) || 0, maxValue));
+              const unitPrice = Math.max(0, Math.min(Number(config.unitPrice) || 0, maxValue));
+              const costPrice = Math.max(0, Math.min(Number(config.costPrice) || 0, maxValue));
               
-              // Log if values were capped
-              if (parseFloat(config.quantityInStock || 0) > maxValue) {
+              if (Number(config.quantityInStock) > maxValue) {
                 console.warn(`Quantity capped from ${config.quantityInStock} to ${quantityInStock} for unit ${unit.name}`);
               }
-              if (parseFloat(config.reorderPoint || 0) > maxValue) {
+              if (Number(config.reorderPoint) > maxValue) {
                 console.warn(`Reorder point capped from ${config.reorderPoint} to ${reorderPoint} for unit ${unit.name}`);
               }
               
               productUnits.push({
                 productId: productId,
                 unitId: unit.id,
-                isDefault: config.isDefault || false,
-                unitPrice: unitPrice,
-                costPrice: costPrice,
-                quantityInStock: quantityInStock,
-                reorderPoint: reorderPoint,
+                isDefault: Boolean(config.isDefault),
+                unitPrice,
+                costPrice,
+                quantityInStock,
+                reorderPoint,
                 isActive: true
               });
             } else {
@@ -436,47 +491,86 @@ export async function PUT(request, { params }) {
         console.error("Error in unit management update:", unitError);
         throw unitError;
       }
-      
+
+      // Barcode sync is done after the transaction using prisma (see below) so all barcodes are persisted
+
       // Create an audit log entry for the stock change if needed
-      if (newStockLevel !== oldStockLevel) {
+      try {
+        if (newStockLevel !== oldStockLevel) {
+          await tx.auditLog.create({
+            data: {
+              action: 'INVENTORY_STOCK_UPDATE',
+              entityType: 'PRODUCT',
+              entityId: updatedProduct.id,
+              userId: user.id,
+              tenantId: user.tenantId,
+              details: JSON.stringify({
+                productName: updatedProduct.name,
+                oldStockLevel: Number(oldStockLevel),
+                newStockLevel: Number(updatedProduct.stockLevel),
+                change: Number(updatedProduct.stockLevel) - Number(oldStockLevel)
+              })
+            }
+          });
+        }
         await tx.auditLog.create({
           data: {
-            action: 'INVENTORY_STOCK_UPDATE',
+            action: 'PRODUCT_UPDATED',
             entityType: 'PRODUCT',
             entityId: updatedProduct.id,
             userId: user.id,
             tenantId: user.tenantId,
             details: JSON.stringify({
-              productName: updatedProduct.name,
-              oldStockLevel: oldStockLevel,
-              newStockLevel: updatedProduct.stockLevel,
-              change: updatedProduct.stockLevel - oldStockLevel
+              name: updateData.name,
+              sku: updateData.sku,
+              stockLevel: updateData.stockLevel,
+              unitManagementEnabled: body.unitManagementEnabled || false,
+              unitsUpdated: body.unitManagementEnabled ? (body.selectedUnits?.length || 0) : 0
             })
           }
         });
+      } catch (auditErr) {
+        console.warn('Audit log create failed (non-fatal):', auditErr?.message);
       }
-      
-      // Also create a general update audit log
-      await tx.auditLog.create({
-        data: {
-          action: 'PRODUCT_UPDATED',
-          entityType: 'PRODUCT',
-          entityId: updatedProduct.id,
-          userId: user.id,
-          tenantId: user.tenantId,
-          details: JSON.stringify({
-            ...updateData,
-            image: imagePath ? "Updated" : "Not changed", // Don't log full image URL
-            unitManagementEnabled: body.unitManagementEnabled || false,
-            unitsUpdated: body.unitManagementEnabled ? (body.selectedUnits?.length || 0) : 0
-          })
-        }
-      });
       
       console.log("Product update transaction completed successfully");
       return updatedProduct;
     });
-    
+
+    // Sync product barcodes after transaction using main prisma client (ensures multiple barcodes are saved)
+    if (barcodesInput !== null) {
+      const pb = prisma.productBarcode;
+      if (!pb || typeof pb.deleteMany !== 'function' || typeof pb.createMany !== 'function') {
+        if (barcodesInput.length > 1) {
+          return NextResponse.json(
+            { error: 'Multiple barcodes require the ProductBarcode table. Run: npx prisma generate && npx prisma migrate deploy' },
+            { status: 500 }
+          );
+        }
+        console.warn('ProductBarcode model not available; only legacy single barcode was saved. Run: npx prisma generate');
+      } else {
+        try {
+          await pb.deleteMany({ where: { productId } });
+          if (barcodesInput.length > 0) {
+            await pb.createMany({
+              data: barcodesInput.map(barcode => ({
+                productId,
+                barcode,
+                tenantId: user.tenantId
+              }))
+            });
+            console.log(`Product barcodes synced: ${barcodesInput.length} barcode(s) saved for product ${productId}`);
+          }
+        } catch (barcodeErr) {
+          console.error('ProductBarcode sync failed:', barcodeErr);
+          return NextResponse.json(
+            { error: 'Failed to save barcodes. Ensure the ProductBarcode migration is applied: npx prisma migrate deploy' },
+            { status: 500 }
+          );
+        }
+      }
+    }
+
     // Determine product status
     let status;
     const updatedReorderPoint = updated.reorderPoint || 10;
@@ -488,48 +582,65 @@ export async function PUT(request, { params }) {
       status = 'In Stock';
     }
     
-    // Fetch the updated product with units and taxes to return complete data
-    const updatedProductWithDetails = await prisma.product.findUnique({
-      where: { id: productId },
-      include: {
-        productUnits: {
-          include: {
-            unit: {
-              select: {
-                id: true,
-                name: true,
-                symbol: true,
-                conversionToBase: true,
-                isBaseUnit: true,
-                baseUnit: {
-                  select: {
-                    id: true,
-                    name: true,
-                    displayName: true,
-                    baseUnit: true
+    // Fetch the updated product with units, taxes, and barcodes to return complete data
+    let updatedProductWithDetails;
+    try {
+      updatedProductWithDetails = await prisma.product.findUnique({
+        where: { id: productId },
+        include: {
+          productBarcodes: { select: { barcode: true } },
+          productUnits: {
+            include: {
+              unit: {
+                select: {
+                  id: true,
+                  name: true,
+                  symbol: true,
+                  conversionToBase: true,
+                  isBaseUnit: true,
+                  baseUnit: {
+                    select: {
+                      id: true,
+                      name: true,
+                      displayName: true,
+                      baseUnit: true
+                    }
                   }
                 }
               }
             }
-          }
-        },
-        productTaxes: {
-          include: {
-            taxType: {
-              select: {
-                id: true,
-                taxId: true,
-                taxName: true,
-                taxCode: true,
-                taxRate: true,
-                calculationType: true,
-                status: true
+          },
+          productTaxes: {
+            include: {
+              taxType: {
+                select: {
+                  id: true,
+                  taxId: true,
+                  taxName: true,
+                  taxCode: true,
+                  taxRate: true,
+                  calculationType: true,
+                  status: true
+                }
               }
             }
           }
         }
+      });
+    } catch (includeErr) {
+      if (includeErr?.message && (includeErr.message.includes('productBarcodes') || includeErr.message.includes('ProductBarcode'))) {
+        updatedProductWithDetails = await prisma.product.findUnique({
+          where: { id: productId },
+          include: {
+            productUnits: { include: { unit: { select: { id: true, name: true, symbol: true, conversionToBase: true, isBaseUnit: true, baseUnit: { select: { id: true, name: true, displayName: true, baseUnit: true } } } } } },
+            productTaxes: { include: { taxType: { select: { id: true, taxId: true, taxName: true, taxCode: true, taxRate: true, calculationType: true, status: true } } } }
+          }
+        });
+        if (updatedProductWithDetails) updatedProductWithDetails.productBarcodes = [];
+      } else {
+        throw includeErr;
       }
-    });
+    }
     
     console.log("AFTER UPDATE:");
     console.log(`  - Updated Database Stock: ${updatedProductWithDetails.stockLevel}`);
@@ -569,11 +680,20 @@ export async function PUT(request, { params }) {
       ? Number(updated.totalStockValue)
       : (Number(effectiveStockLevel) * resolvedCostPrice);
 
+    // Build barcodes array for response (all saved barcodes)
+    const barcodeSet = new Set();
+    if (updatedProductWithDetails.productBarcodes && Array.isArray(updatedProductWithDetails.productBarcodes)) {
+      updatedProductWithDetails.productBarcodes.forEach(pb => { if (pb && pb.barcode) barcodeSet.add(String(pb.barcode).trim()); });
+    }
+    if (updated.barcode && String(updated.barcode).trim()) barcodeSet.add(String(updated.barcode).trim());
+    const responseBarcodes = Array.from(barcodeSet);
+
     // Return updated product with computed fields
     return NextResponse.json({
       message: 'Product updated successfully',
       product: {
         ...updated,
+        barcodes: responseBarcodes,
         category: updated.category || 'Uncategorized',
         reorderPoint: updated.reorderPoint || 10,
         location: updated.location || 'Default Location',
@@ -605,9 +725,10 @@ export async function PUT(request, { params }) {
       }
     });
   } catch (error) {
-    console.error(`Error updating product ${productId}:`, error);
+    console.error('Error updating product:', error);
+    const message = error?.message || 'Failed to update product. Please try again.';
     return NextResponse.json(
-      { error: 'Failed to update product. Please try again.' },
+      { error: process.env.NODE_ENV === 'development' ? message : 'Failed to update product. Please try again.' },
       { status: 500 }
     );
   }

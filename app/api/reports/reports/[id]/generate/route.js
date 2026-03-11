@@ -105,7 +105,7 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
     }
   });
   
-  // Get expense data
+  // Get expense data (includes supplier/PO-approved expenses)
   const expenses = await prisma.expense.findMany({
     where: {
       tenantId,
@@ -113,7 +113,8 @@ async function generateProfitLossReport(tenantId, startDate, endDate, detailed) 
         gte: startDate,
         lte: endDate
       },
-      status: 'Approved'
+      status: 'Approved',
+      isDeleted: false
     }
   });
   

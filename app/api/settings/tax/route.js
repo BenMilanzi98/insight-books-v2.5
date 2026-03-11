@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { ensureDefaultTaxAccountsForTenant } from '@/lib/taxAccountsInitialization';
 
 // GET - Fetch tax settings for the tenant
 export async function GET(request) {
@@ -14,8 +15,15 @@ export async function GET(request) {
         { status: 401 }
       );
     }
+
+    // Ensure default tax inflow/outflow GL accounts exist and set as tenant defaults if not already set
+    try {
+      await ensureDefaultTaxAccountsForTenant(user.tenantId, prisma, true);
+    } catch (initErr) {
+      console.warn('Tax accounts initialization (non-fatal):', initErr?.message || initErr);
+    }
     
-    // Fetch tenant settings
+    // Fetch tenant settings (may now have default tax account IDs set)
     const tenantSettings = await prisma.tenantSettings.findUnique({
       where: { tenantId: user.tenantId }
     });
@@ -26,16 +34,40 @@ export async function GET(request) {
         taxEnabled: true,
         defaultTaxRate: 16.5, // Default VAT rate in Malawi
         currencyCode: 'MWK',
-        taxOutflowAccountId: null
+        taxInflowAccountId: null,
+        taxOutflowAccountId: null,
+        defaultTaxInflowAccount: null,
+        defaultTaxOutflowAccount: null
       });
     }
+
+    // Resolve default account details for display (e.g. on /tax-accounts)
+    let defaultTaxInflowAccount = null;
+    let defaultTaxOutflowAccount = null;
+    if (tenantSettings.taxInflowAccountId) {
+      const acc = await prisma.account.findFirst({
+        where: { id: tenantSettings.taxInflowAccountId, tenantId: user.tenantId, isActive: true },
+        select: { id: true, accountCode: true, accountName: true }
+      });
+      if (acc) defaultTaxInflowAccount = { id: acc.id, accountCode: acc.accountCode, accountName: acc.accountName };
+    }
+    if (tenantSettings.taxOutflowAccountId) {
+      const acc = await prisma.account.findFirst({
+        where: { id: tenantSettings.taxOutflowAccountId, tenantId: user.tenantId, isActive: true },
+        select: { id: true, accountCode: true, accountName: true }
+      });
+      if (acc) defaultTaxOutflowAccount = { id: acc.id, accountCode: acc.accountCode, accountName: acc.accountName };
+    }
     
-    // Return tax-related settings (including default input tax account for expense/purchase tax)
+    // Return tax-related settings including default tax flow accounts
     return NextResponse.json({
       taxEnabled: tenantSettings.taxEnabled,
       defaultTaxRate: tenantSettings.defaultTaxRate,
       currencyCode: tenantSettings.currencyCode,
-      taxOutflowAccountId: tenantSettings.taxOutflowAccountId ?? null
+      taxInflowAccountId: tenantSettings.taxInflowAccountId ?? null,
+      taxOutflowAccountId: tenantSettings.taxOutflowAccountId ?? null,
+      defaultTaxInflowAccount,
+      defaultTaxOutflowAccount
     });
   } catch (error) {
     console.error('Error fetching tax settings:', error);
@@ -81,6 +113,9 @@ export async function PUT(request) {
       defaultTaxRate: body.defaultTaxRate !== undefined ? body.defaultTaxRate : 16.5,
       currencyCode: body.currencyCode || 'MWK',
     };
+    if (body.taxInflowAccountId !== undefined) {
+      updateData.taxInflowAccountId = body.taxInflowAccountId || null;
+    }
     if (body.taxOutflowAccountId !== undefined) {
       updateData.taxOutflowAccountId = body.taxOutflowAccountId || null;
     }
@@ -107,6 +142,7 @@ export async function PUT(request) {
           taxEnabled: settings.taxEnabled,
           defaultTaxRate: settings.defaultTaxRate,
           currencyCode: settings.currencyCode,
+          taxInflowAccountId: settings.taxInflowAccountId ?? null,
           taxOutflowAccountId: settings.taxOutflowAccountId ?? null
         })
       }
@@ -118,6 +154,7 @@ export async function PUT(request) {
         taxEnabled: settings.taxEnabled,
         defaultTaxRate: settings.defaultTaxRate,
         currencyCode: settings.currencyCode,
+        taxInflowAccountId: settings.taxInflowAccountId ?? null,
         taxOutflowAccountId: settings.taxOutflowAccountId ?? null
       }
     });

@@ -98,7 +98,7 @@ export async function GET(request) {
       ];
     }
     
-    // Find COGS account(s) for this tenant
+    // Find COGS account(s) for this tenant (cost accounts mapped to expense reports)
     const cogsAccounts = await prisma.account.findMany({
       where: {
         tenantId: user.tenantId,
@@ -107,6 +107,8 @@ export async function GET(request) {
         OR: [
           { accountCode: '5000' },
           { code: '5000' },
+          { accountCode: '5100' },
+          { code: '5100' },
           { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
           { accountName: { contains: 'cogs', mode: 'insensitive' } },
           { name: { contains: 'cost of goods', mode: 'insensitive' } },
@@ -683,6 +685,30 @@ export async function POST(request) {
       );
     }
     
+    // Resolve default tax type for outflow when not provided (auto-populate from settings)
+    let effectiveTaxTypeId = body.taxTypeId != null && String(body.taxTypeId).trim() !== '' ? body.taxTypeId : null;
+    if (!effectiveTaxTypeId && taxAmount > 0) {
+      const settings = await prisma.tenantSettings.findUnique({
+        where: { tenantId: user.tenantId },
+        select: { taxOutflowAccountId: true }
+      });
+      const outflowAccountId = settings?.taxOutflowAccountId ?? null;
+      if (outflowAccountId) {
+        const defaultOutflow = await prisma.taxType.findFirst({
+          where: { tenantId: user.tenantId, status: 'Active', accountId: outflowAccountId },
+          select: { id: true }
+        });
+        if (defaultOutflow) effectiveTaxTypeId = defaultOutflow.id;
+      }
+      if (!effectiveTaxTypeId) {
+        const firstActive = await prisma.taxType.findFirst({
+          where: { tenantId: user.tenantId, status: 'Active' },
+          select: { id: true }
+        });
+        if (firstActive) effectiveTaxTypeId = firstActive.id;
+      }
+    }
+
     // Resolve branchId from request or user's default branch (don't 500 on invalid branch)
     let branchId = null;
     try {
@@ -723,8 +749,8 @@ export async function POST(request) {
       originalReference: body.originalReference || null,
     };
     // Optional relation fields (supported when Prisma client is generated from current schema)
-    if (body.taxTypeId != null && String(body.taxTypeId).trim() !== '') {
-      expenseCreateData.taxTypeId = body.taxTypeId;
+    if (effectiveTaxTypeId) {
+      expenseCreateData.taxTypeId = effectiveTaxTypeId;
     }
     if (body.supplierId != null && String(body.supplierId).trim() !== '') {
       expenseCreateData.supplierId = body.supplierId;
@@ -785,7 +811,7 @@ export async function POST(request) {
             expenseDate: paymentDate,
             amount: paymentAmount,
             taxAmount: taxAmount || 0,
-            taxTypeId: body.taxTypeId || null,
+            taxTypeId: effectiveTaxTypeId || null,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod,
@@ -815,7 +841,7 @@ export async function POST(request) {
             expenseDate: expenseDate,
             amount: amount,
             taxAmount: taxAmount || 0,
-            taxTypeId: body.taxTypeId || null,
+            taxTypeId: effectiveTaxTypeId || null,
             category: selectedCategory,
             expenseAccountId: expenseAccount.id,
             paymentMethod: null, // Not paid yet

@@ -577,9 +577,9 @@ const FinancialSetupPage = () => {
       {/* Footer */}
       <div className="border-t border-gray-200 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center">
-          <Link href="/customization" className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <Link href="/account?tab=business" className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
             <ChevronRight className="mr-1.5 h-4 w-4 transform rotate-180" />
-            Previous: System Customization
+            Previous: Account & business
           </Link>
         </div>
         <div className="flex items-center">

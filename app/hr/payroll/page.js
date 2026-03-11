@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt, FileBarChart } from "lucide-react";
 import Link from "next/link";
+import { formatSalaryAmount } from "@/lib/currencyUtils";
 
 export default function PayrollProcessing() {
   const [payrollRuns, setPayrollRuns] = useState([]);
@@ -681,13 +682,7 @@ export default function PayrollProcessing() {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-MW', { 
-      style: 'currency', 
-      currency: 'MWK',
-      maximumFractionDigits: 0
-    }).format(amount || 0);
-  };
+  const formatCurrency = (amount) => formatSalaryAmount(amount || 0);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-GB', {

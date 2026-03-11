@@ -3,14 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
-
-// Helper function to format currency
-function formatCurrency(amount) {
-  return 'MWK ' + new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(amount || 0);
-}
+import { formatSalaryAmount } from '@/lib/currencyUtils';
 
 // Helper function to format date
 function formatDate(date) {
@@ -78,12 +71,12 @@ async function generatePayslipPDF(payslip, tenant) {
 
   // Earnings
   const earningsData = [
-    ['Basic Salary', formatCurrency(payslip.earnings.basicSalary)]
+    ['Basic Salary', formatSalaryAmount(payslip.earnings.basicSalary)]
   ];
   if (payslip.earnings.overtimePay > 0) {
-    earningsData.push(['Overtime Pay', formatCurrency(payslip.earnings.overtimePay)]);
+    earningsData.push(['Overtime Pay', formatSalaryAmount(payslip.earnings.overtimePay)]);
   }
-  earningsData.push(['Gross Pay', formatCurrency(payslip.earnings.grossPay)]);
+  earningsData.push(['Gross Pay', formatSalaryAmount(payslip.earnings.grossPay)]);
 
   autoTable(doc, {
     startY: yPos,
@@ -102,12 +95,12 @@ async function generatePayslipPDF(payslip, tenant) {
   
   // Add PAYE if applicable
   if (payslip.deductions.paye > 0) {
-    deductionsData.push(['PAYE (Income Tax)', formatCurrency(payslip.deductions.paye)]);
+    deductionsData.push(['PAYE (Income Tax)', formatSalaryAmount(payslip.deductions.paye)]);
   }
   
   // Add NPS if applicable
   if (payslip.deductions.npsEmployee > 0) {
-    deductionsData.push(['NPS Employee Contribution', formatCurrency(payslip.deductions.npsEmployee)]);
+    deductionsData.push(['NPS Employee Contribution', formatSalaryAmount(payslip.deductions.npsEmployee)]);
   }
   
   // Add all other deductions with their names
@@ -121,12 +114,12 @@ async function generatePayslipPDF(payslip, tenant) {
            key.startsWith('leave_') ? 'Unpaid Leave' :
            key === 'gratuity' ? 'Gratuity Contribution' :
            `Deduction ${key.substring(0, 8)}`);
-        deductionsData.push([deductionName, formatCurrency(amount)]);
+        deductionsData.push([deductionName, formatSalaryAmount(amount)]);
       }
     });
   }
   
-  deductionsData.push(['Total Deductions', formatCurrency(payslip.deductions.totalDeductions)]);
+  deductionsData.push(['Total Deductions', formatSalaryAmount(payslip.deductions.totalDeductions)]);
 
   autoTable(doc, {
     startY: yPos,
@@ -143,7 +136,7 @@ async function generatePayslipPDF(payslip, tenant) {
   doc.setFontSize(14);
   doc.setFont(undefined, 'bold');
   doc.text('Net Pay:', margin, yPos);
-  doc.text(formatCurrency(payslip.netPay), pageWidth - margin - 10, yPos, { align: 'right' });
+  doc.text(formatSalaryAmount(payslip.netPay), pageWidth - margin - 10, yPos, { align: 'right' });
   yPos += 20;
 
   // Footer
@@ -300,9 +293,9 @@ export async function POST(request) {
             year: year,
             periodStart: formatDate(payslip.period.start),
             periodEnd: formatDate(payslip.period.end),
-            netPay: formatCurrency(payslip.netPay),
-            grossPay: formatCurrency(payslip.earnings.grossPay),
-            totalDeductions: formatCurrency(payslip.deductions.totalDeductions),
+            netPay: formatSalaryAmount(payslip.netPay),
+            grossPay: formatSalaryAmount(payslip.earnings.grossPay),
+            totalDeductions: formatSalaryAmount(payslip.deductions.totalDeductions),
             companyName: companyName,
             tenantName: employee.tenant?.name,
             tenantLogoUrl: employee.tenant?.logoUrl || tenant?.logoUrl || null

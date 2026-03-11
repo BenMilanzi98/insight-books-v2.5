@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -127,26 +127,21 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // Get all expenses for the selected period, grouped by category
-    // Include loan principal and interest as separate categories
-    // Exclude deleted expenses
-    // Include historical expenses regardless of date filter
+    // Get all expenses for the selected period, grouped by category.
+    // Includes payroll, operating expenses, and supplier/PO expenses (include unassigned branch).
     const expenses = await prisma.expense.groupBy({
       by: ['category'],
-      where: addBranchFilter(user, {
+      where: addBranchFilterIncludeUnassigned(user, {
         tenantId,
+        isReversal: false,
         OR: [
-          // Include expenses within the selected date range
           {
             date: {
               gte: startDate,
               lte: endDate
             }
           },
-          // ALWAYS include historical expenses (they might have dates outside the range)
-          {
-            isHistorical: true
-          }
+          { isHistorical: true }
         ],
         status: { in: ['Approved', 'Pending'] },
         isDeleted: false
@@ -156,7 +151,7 @@ export async function GET(request) {
       }
     });
     
-    // Find COGS account(s) for this tenant to include in expenses
+    // Find COGS account(s) for this tenant to include in expenses (cost accounts)
     const cogsAccounts = await prisma.account.findMany({
       where: {
         tenantId,
@@ -165,6 +160,8 @@ export async function GET(request) {
         OR: [
           { accountCode: '5000' },
           { code: '5000' },
+          { accountCode: '5100' },
+          { code: '5100' },
           { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
           { accountName: { contains: 'cogs', mode: 'insensitive' } },
           { name: { contains: 'cost of goods', mode: 'insensitive' } },

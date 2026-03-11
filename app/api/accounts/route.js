@@ -29,51 +29,79 @@ export async function GET(request) {
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    
-    // Parse query parameters
+    const forSelect = searchParams.get('forSelect') === 'true';
+
+    // Parse query parameters - forSelect returns full list of active accounts (e.g. journal entry dropdown)
     const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 100; // Default to 100 for accounts
-    const sortBy = searchParams.get('sortBy') || 'code';
+    const rawLimit = searchParams.get('limit');
+    const limit = forSelect
+      ? 5000
+      : (rawLimit === 'all' ? 5000 : parseInt(rawLimit) || 100);
+    const sortBy = searchParams.get('sortBy') || (forSelect ? 'accountCode' : 'code');
     const sortOrder = searchParams.get('sortOrder') || 'asc';
     const type = searchParams.get('type'); // Filter by account type
     const search = searchParams.get('search');
-    
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-    
+
     // Build filter object for Prisma
     const where = {
       tenantId
     };
-    
-    // Add account type filter if provided
-    if (type && type !== 'all') {
-      where.type = type;
+
+    // When forSelect (e.g. journal entry): only active accounts, include parents and children
+    if (forSelect) {
+      where.isActive = true;
     }
-    
+
+    // Add account type filter if provided (Account has both type and accountType)
+    if (type && type !== 'all') {
+      where.AND = [
+        { OR: [{ type: type }, { accountType: type }] }
+      ];
+    }
+
     // Add search filter if provided
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
-        { code: { contains: search, mode: 'insensitive' } }
+        { code: { contains: search, mode: 'insensitive' } },
+        { accountName: { contains: search, mode: 'insensitive' } },
+        { accountCode: { contains: search, mode: 'insensitive' } }
       ];
     }
-    
+
     // Get total count
     const totalCount = await prisma.account.count({
       where
     });
-    
-    // Fetch accounts
-    const accounts = await prisma.account.findMany({
+
+    // Pagination: skip when not forSelect or when paginating
+    const skip = forSelect ? 0 : (page - 1) * limit;
+    const take = forSelect ? 5000 : limit;
+
+    // Order by accountCode (matches chart of accounts) or code
+    const orderBy = sortBy === 'accountCode'
+      ? [{ accountCode: sortOrder }, { code: sortOrder }]
+      : { [sortBy]: sortOrder };
+
+    // Fetch accounts (all active + children when forSelect)
+    let accounts = await prisma.account.findMany({
       where,
-      orderBy: {
-        [sortBy]: sortOrder
-      },
+      orderBy,
       skip,
-      take: limit
+      take
     });
-    
+
+    // When forSelect, normalize display fields so journal entry dropdown never shows " - " (code/name may be in accountCode/accountName)
+    if (forSelect && Array.isArray(accounts)) {
+      accounts = accounts.map((acc) => ({
+        ...acc,
+        code: acc.code ?? acc.accountCode ?? '',
+        name: acc.name ?? acc.accountName ?? '',
+        accountCode: acc.accountCode ?? acc.code ?? '',
+        accountName: acc.accountName ?? acc.name ?? ''
+      }));
+    }
+
     return NextResponse.json({
       accounts,
       pagination: {

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { syncExpensesFromPurchaseOrder } from '@/lib/purchaseOrderExpenseSync';
+import { createBillFromApprovedServicePO } from '@/lib/purchaseOrderToBill';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed'];
@@ -206,14 +207,18 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // Link approved service POs to expenses
+    // Link approved service POs to expenses and create a Bill so it appears in Bills/Payables
     if ((updated.orderType === 'services' || updated.orderType === 'mixed') && updated.status === 'Approved') {
       try {
         await syncExpensesFromPurchaseOrder(updated.id, user.tenantId, user.id);
+        const { bill, created } = await createBillFromApprovedServicePO(updated.id, user.tenantId, user.id);
+        if (created && bill) {
+          console.log(`Created Bill ${bill.billNumber} from approved PO ${updated.poNumber} for payment processing`);
+        }
         const refetched = await getPurchaseOrder(updated.id, user.tenantId);
         if (refetched) return NextResponse.json({ purchaseOrder: refetched });
       } catch (syncErr) {
-        console.error('PO expense sync after update:', syncErr);
+        console.error('PO expense/bill sync after update:', syncErr);
       }
     }
 

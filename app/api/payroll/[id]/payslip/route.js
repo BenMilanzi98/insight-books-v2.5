@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { formatCurrency } from '@/lib/currencyUtils';
+import { formatSalaryAmount } from '@/lib/currencyUtils';
 
 export async function GET(request, { params }) {
   const payrollId = String(params.id);
@@ -432,17 +432,17 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
           <tbody>
             <tr>
               <td>Basic Salary</td>
-              <td>${formatCurrency(processedPayslip.basicSalary)}</td>
+              <td>${formatSalaryAmount(processedPayslip.basicSalary)}</td>
             </tr>
             ${processedPayslip.additions > 0 ? `
             <tr>
               <td>Additions</td>
-              <td>${formatCurrency(processedPayslip.additions)}</td>
+              <td>${formatSalaryAmount(processedPayslip.additions)}</td>
             </tr>
             ` : ''}
             <tr class="total-row">
               <td><strong>Gross Pay</strong></td>
-              <td><strong>${formatCurrency(processedPayslip.grossPay)}</strong></td>
+              <td><strong>${formatSalaryAmount(processedPayslip.grossPay)}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -460,15 +460,15 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
           <tbody>
             <tr>
               <td>Deductions</td>
-              <td>${formatCurrency(processedPayslip.deductions)}</td>
+              <td>${formatSalaryAmount(processedPayslip.deductions)}</td>
             </tr>
             <tr>
               <td>Income Tax (PAYE)</td>
-              <td>${formatCurrency(processedPayslip.tax)}</td>
+              <td>${formatSalaryAmount(processedPayslip.tax)}</td>
             </tr>
             <tr class="total-row">
               <td><strong>Total Deductions</strong></td>
-              <td><strong>${formatCurrency(processedPayslip.deductions + processedPayslip.tax)}</strong></td>
+              <td><strong>${formatSalaryAmount(processedPayslip.deductions + processedPayslip.tax)}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -476,7 +476,7 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
       
       <div class="net-pay">
         <div class="net-pay-label">NET PAY</div>
-        <div class="net-pay-amount">${formatCurrency(processedPayslip.netPay)}</div>
+        <div class="net-pay-amount">${formatSalaryAmount(processedPayslip.netPay)}</div>
       </div>
       
       <div class="ytd-section">
@@ -491,9 +491,9 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
           </thead>
           <tbody>
             <tr>
-              <td>${formatCurrency(processedPayslip.yearToDate.earnings)}</td>
-              <td>${formatCurrency(processedPayslip.yearToDate.tax)}</td>
-              <td>${formatCurrency(processedPayslip.yearToDate.netPay)}</td>
+              <td>${formatSalaryAmount(processedPayslip.yearToDate.earnings)}</td>
+              <td>${formatSalaryAmount(processedPayslip.yearToDate.tax)}</td>
+              <td>${formatSalaryAmount(processedPayslip.yearToDate.netPay)}</td>
             </tr>
           </tbody>
         </table>
@@ -630,9 +630,9 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       startY: yPos,
       head: [['Description', 'Amount']],
       body: [
-        ['Basic Salary', formatCurrency(processedPayslip.basicSalary)],
-        ...(processedPayslip.additions > 0 ? [['Additions', formatCurrency(processedPayslip.additions)]] : []),
-        ['Gross Pay', formatCurrency(processedPayslip.grossPay)]
+        ['Basic Salary', formatSalaryAmount(processedPayslip.basicSalary)],
+        ...(processedPayslip.additions > 0 ? [['Additions', formatSalaryAmount(processedPayslip.additions)]] : []),
+        ['Gross Pay', formatSalaryAmount(processedPayslip.grossPay)]
       ],
       headStyles: {
         fillColor: [40, 40, 40],
@@ -649,9 +649,9 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       startY: yPos,
       head: [['Description', 'Amount']],
       body: [
-        ['Deductions', formatCurrency(processedPayslip.deductions)],
-        ['Income Tax (PAYE)', formatCurrency(processedPayslip.tax)],
-        ['Total Deductions', formatCurrency(processedPayslip.deductions + processedPayslip.tax)]
+        ['Deductions', formatSalaryAmount(processedPayslip.deductions)],
+        ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.tax)],
+        ['Total Deductions', formatSalaryAmount(processedPayslip.deductions + processedPayslip.tax)]
       ],
       headStyles: {
         fillColor: [40, 40, 40],
@@ -669,7 +669,7 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.text('NET PAY:', margin + 5, yPos + 8);
-    doc.text(formatCurrency(processedPayslip.netPay), 165, yPos + 8, { align: 'right' });
+    doc.text(formatSalaryAmount(processedPayslip.netPay), 165, yPos + 8, { align: 'right' });
     yPos += 20;
 
     // Year-to-Date Summary (matching frontend exactly)
@@ -682,9 +682,9 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       startY: yPos,
       head: [['Gross Earnings', 'Total Tax', 'Net Pay']],
       body: [[
-        formatCurrency(processedPayslip.yearToDate.earnings),
-        formatCurrency(processedPayslip.yearToDate.tax),
-        formatCurrency(processedPayslip.yearToDate.netPay)
+        formatSalaryAmount(processedPayslip.yearToDate.earnings),
+        formatSalaryAmount(processedPayslip.yearToDate.tax),
+        formatSalaryAmount(processedPayslip.yearToDate.netPay)
       ]],
       headStyles: {
         fillColor: [40, 40, 40],

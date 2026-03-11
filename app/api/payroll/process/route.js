@@ -1,7 +1,8 @@
-// app/api/payroll/route.js
+// app/api/payroll/process/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
 /**
  * GET - Fetch payrolls with filtering, sorting, and pagination
@@ -163,11 +164,17 @@ export async function POST(request) {
       );
     }
     
+    // Normalize to 1st and last day of month for correct monthly reporting
+    const rawStart = new Date(body.periodStart);
+    const rawEnd = new Date(body.periodEnd);
+    const periodStart = startOfMonth(rawStart);
+    const periodEnd = endOfMonth(rawEnd);
+
     // Prepare payroll data
     const payrollData = {
       employeeId: body.employeeId,
-      periodStart: new Date(body.periodStart),
-      periodEnd: new Date(body.periodEnd),
+      periodStart,
+      periodEnd,
       basicSalary: body.basicSalary,
       deductions: body.deductions || 0,
       additions: body.additions || 0,

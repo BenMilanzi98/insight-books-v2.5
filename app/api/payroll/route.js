@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
 // GET - Return raw payroll entries for the tenant (UI aggregates client-side)
 export async function GET(request) {
@@ -103,8 +104,11 @@ export async function POST(request) {
       );
     }
     
-    const periodStart = new Date(body.periodStart);
-    const periodEnd = new Date(body.periodEnd);
+    // Normalize to 1st and last day of month for correct monthly reporting
+    const rawStart = new Date(body.periodStart);
+    const rawEnd = new Date(body.periodEnd);
+    const periodStart = startOfMonth(rawStart);
+    const periodEnd = endOfMonth(rawEnd);
     const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
     
     // Validate date range

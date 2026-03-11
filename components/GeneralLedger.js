@@ -100,8 +100,11 @@ const GeneralLedger = () => {
     setDetailsOpen(true);
     setDetailsLoading(true);
     try {
+      // API expects "Transaction" or "JournalEntry"; list can return "Regular" from Transaction.entryType
+      const rawType = entry.entryType || "Transaction";
+      const entryType = rawType === "JournalEntry" ? "JournalEntry" : "Transaction";
       const params = new URLSearchParams({
-        entryType: entry.entryType || "Transaction",
+        entryType,
         entryId: entry.transactionId || entry.id
       });
       const response = await fetch(`/api/general-ledger/transaction?${params}`);

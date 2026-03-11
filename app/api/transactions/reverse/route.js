@@ -276,17 +276,22 @@ async function POST(request) {
     }
 
     // Handle different return structures from reversal functions
-    // Some return { reversal, taxReversals }, others return just the reversal object
+    // Some return { reversal, taxReversals, payrollReversalSummary }, others return just the reversal object
     const reversalData = result.reversal || result;
     const taxReversals = result.taxReversals || [];
+    const payrollReversalSummary = result.payrollReversalSummary || null;
     
-    return NextResponse.json({
+    const responsePayload = {
       success: true,
       message: `${transactionType} reversed successfully`,
       reversal: reversalData,
-      taxReversals: taxReversals,
+      taxReversals,
       originalTransaction: transaction
-    }, { status: 201 });
+    };
+    if (payrollReversalSummary) {
+      responsePayload.payrollReversalSummary = payrollReversalSummary;
+    }
+    return NextResponse.json(responsePayload, { status: 201 });
 
   } catch (error) {
     console.error('Error in POST /api/transactions/reverse:', error);

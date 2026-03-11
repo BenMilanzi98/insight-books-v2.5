@@ -108,7 +108,7 @@ export default function AttendancePage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}`);
+      const res = await fetch(`/api/attendance?fromDate=${selectedDate}&toDate=${selectedDate}&limit=all`);
       const data = await res.json();
       if (res.ok) {
         const records = data.attendance || [];

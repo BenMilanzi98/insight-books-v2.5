@@ -61,8 +61,31 @@ export async function POST(request) {
       ...customDeductions
     ];
 
-    // Calculate payroll
-    const payrollCalculation = calculatePayroll(grossSalary, allDeductions);
+    // Fetch tenant NPS rates so preview uses configured rates (employee % / employer %)
+    let npsEmployeeRatePercent = 5;
+    let npsEmployerRatePercent = 5;
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row && typeof row === 'object') {
+        const emp = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5);
+        const empEr = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5);
+        npsEmployeeRatePercent = Number.isFinite(emp) ? emp : 5;
+        npsEmployerRatePercent = Number.isFinite(empEr) ? empEr : 5;
+      }
+    } catch (_) {
+      // use defaults
+    }
+
+    const payrollCalculation = calculatePayroll(grossSalary, allDeductions, {
+      npsEmployeeRatePercent,
+      npsEmployerRatePercent
+    });
 
     return NextResponse.json({
       calculation: payrollCalculation,

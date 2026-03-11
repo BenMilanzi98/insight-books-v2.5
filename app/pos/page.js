@@ -137,8 +137,10 @@ const POSPage = () => {
     description: ""
   });
   
-  // Tax types for manual tax application
+  // Tax types for manual tax application; default for inflow (sales) auto-populated from settings
   const [posTaxTypes, setPosTaxTypes] = useState([]);
+  const [defaultTaxTypeForInflow, setDefaultTaxTypeForInflow] = useState(null);
+  const [defaultTaxInflowAccountId, setDefaultTaxInflowAccountId] = useState(null);
   const [taxAccounts, setTaxAccounts] = useState([]);
   const [openTaxDropdownId, setOpenTaxDropdownId] = useState(null);
   const [posTaxSearch, setPosTaxSearch] = useState('');
@@ -196,13 +198,21 @@ const POSPage = () => {
   
     fetchPermissions();
   }, []);
-  // Fetch active tax types for manual tax application
+  // Fetch active tax types and default tax for inflow (sales) for auto-population
   const fetchPosTaxTypes = async () => {
     try {
-      const res = await fetch('/api/tax-types?status=Active');
-      if (res.ok) {
-        const data = await res.json();
+      const [taxRes, defaultsRes] = await Promise.all([
+        fetch('/api/tax-types?status=Active'),
+        fetch('/api/settings/tax-defaults').catch(() => null)
+      ]);
+      if (taxRes.ok) {
+        const data = await taxRes.json();
         setPosTaxTypes(Array.isArray(data.taxTypes) ? data.taxTypes : []);
+      }
+      if (defaultsRes?.ok) {
+        const defaults = await defaultsRes.json();
+        setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
+        setDefaultTaxInflowAccountId(defaults.taxInflowAccountId || null);
       }
     } catch (err) {
       console.error('Error loading tax types:', err);
@@ -224,6 +234,13 @@ const POSPage = () => {
   useEffect(() => {
     fetchPosTaxTypes();
   }, []);
+
+  // When opening "add new tax" form, pre-fill account with default inflow account
+  useEffect(() => {
+    if (isAddingPosTax && defaultTaxInflowAccountId && !newPosTax.accountId) {
+      setNewPosTax(prev => ({ ...prev, accountId: defaultTaxInflowAccountId }));
+    }
+  }, [isAddingPosTax, defaultTaxInflowAccountId]);
 
   // Close tax dropdown on outside click
   useEffect(() => {
@@ -446,16 +463,25 @@ const POSPage = () => {
     // setTaxRate(16.5); // This line is removed
   }, []);
   
-  // Filter products based on search query
+  // Filter products based on search query (name, SKU, or barcode; barcode matches prefix so product appears before finishing)
   useEffect(() => {
     if (productSearchQuery.trim() === "") {
       setFilteredProducts(products);
     } else {
-      const query = productSearchQuery.toLowerCase();
+      const query = productSearchQuery.toLowerCase().trim();
       const filtered = products.filter(
-        product => 
-          product.name.toLowerCase().includes(query) || 
-          (product.sku && product.sku.toLowerCase().includes(query))
+        product => {
+          if (product.name.toLowerCase().includes(query)) return true;
+          if (product.sku && product.sku.toLowerCase().includes(query)) return true;
+          const matchBarcode = (b) => {
+            if (!b) return false;
+            const b2 = String(b).toLowerCase().trim();
+            return b2 === query || b2.startsWith(query);
+          };
+          if (product.barcode && matchBarcode(product.barcode)) return true;
+          if (product.barcodes && product.barcodes.some(matchBarcode)) return true;
+          return false;
+        }
       );
       setFilteredProducts(filtered);
     }
@@ -770,8 +796,19 @@ const POSPage = () => {
         }
       }
 
-      // Calculate taxes for the product
-      const productTaxes = detailedProduct.taxes || [];
+      // Use product's taxes from catalog, or auto-apply default tax (inflow) to avoid manual selection errors
+      const productTaxes = (detailedProduct.taxes && detailedProduct.taxes.length > 0)
+        ? detailedProduct.taxes
+        : (defaultTaxTypeForInflow
+            ? [{
+                id: defaultTaxTypeForInflow.id,
+                taxId: defaultTaxTypeForInflow.taxId,
+                taxName: defaultTaxTypeForInflow.taxName,
+                taxCode: defaultTaxTypeForInflow.taxCode || '',
+                taxRate: Number(defaultTaxTypeForInflow.taxRate),
+                calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
+              }]
+            : []);
       console.log("=== TAX CALCULATION DEBUG ===");
       console.log("Product:", detailedProduct.name);
       console.log("Product taxes:", productTaxes);
@@ -837,18 +874,33 @@ const POSPage = () => {
       return;
     }
 
+    const defaultTaxes = defaultTaxTypeForInflow
+      ? [{
+          id: defaultTaxTypeForInflow.id,
+          taxId: defaultTaxTypeForInflow.taxId,
+          taxName: defaultTaxTypeForInflow.taxName,
+          taxCode: defaultTaxTypeForInflow.taxCode || '',
+          taxRate: Number(defaultTaxTypeForInflow.taxRate),
+          calculationType: defaultTaxTypeForInflow.calculationType || 'Percentage'
+        }]
+      : [];
+    const customTaxCalc = defaultTaxes.length > 0
+      ? calculateSaleItemTaxes({ quantity, unitPrice: parseFloat(price), discountAmount: 0, taxes: defaultTaxes })
+      : { totalTaxAmount: 0, taxBreakdown: [] };
     const customProd = {
       id: `custom-${Date.now()}`,
       name: name.trim(),
       description: description.trim(),
       price: parseFloat(price),
-      stockLevel: null, // Custom products don't have stock
+      stockLevel: null,
       isCustom: true,
       quantity: quantity,
       subtotal: parseFloat(price) * quantity,
-      taxRate: 0,
-      taxAmount: 0,
-      taxDescription: "",
+      taxes: defaultTaxes,
+      taxRate: defaultTaxes[0]?.taxRate ?? 0,
+      taxAmount: customTaxCalc.totalTaxAmount,
+      taxBreakdown: customTaxCalc.taxBreakdown,
+      taxDescription: defaultTaxes.map(t => t.taxName).join(', ') || '',
       discount: 0,
       discountAmount: 0
     };
@@ -2247,7 +2299,7 @@ const POSPage = () => {
                 <div className="relative flex-grow" ref={productSearchRef}>
                   <input
                     type="text"
-                    placeholder="Search products by name or SKU..."
+                    placeholder="Search by name, SKU or barcode..."
                     className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}

@@ -22,13 +22,27 @@ const RecurringExpenseModal = ({
   const getOptionId = (option) => (typeof option === 'string' ? option : option?.id);
   const getOptionName = (option) => (typeof option === 'string' ? option : option?.name);
   // Form state
+  // Default to 1st of current month for correct monthly reporting
+  const getFirstDayOfMonth = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    return `${y}-${m}-01`;
+  };
+  const getLastDayOfMonth = (date) => {
+    const d = date ? new Date(date) : new Date();
+    const y = d.getFullYear();
+    const m = d.getMonth();
+    const last = new Date(y, m + 1, 0);
+    return last.toISOString().split("T")[0];
+  };
   const [formData, setFormData] = useState({
     description: "",
     amount: "",
     expenseAccountId: "",
-    startDate: new Date().toISOString().split("T")[0],
+    startDate: getFirstDayOfMonth(),
     frequency: "monthly", // weekly, monthly, quarterly, yearly
-    dayOfMonth: new Date().getDate().toString(),
+    dayOfMonth: "1",
     dayOfWeek: "1", // 0-6, Sunday-Saturday
     endDate: "", // Optional
     occurrences: "12", // Default to 12 occurrences
@@ -58,20 +72,21 @@ const RecurringExpenseModal = ({
           notes: initialData.notes || ""
         });
       } else {
-        // Create mode - use defaults
-        const today = new Date().toISOString().split("T")[0];
+        // Create mode - default to 1st and last day of month for correct monthly reporting
+        const firstOfMonth = getFirstDayOfMonth();
         const oneYearFromNow = new Date();
         oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+        const lastDayOfNextYearMonth = getLastDayOfMonth(oneYearFromNow);
         
         setFormData({
           description: "",
           amount: "",
           expenseAccountId: categories.length > 0 ? getOptionId(categories[0]) || "" : "",
-          startDate: today,
+          startDate: firstOfMonth,
           frequency: "monthly",
-          dayOfMonth: new Date().getDate().toString(),
+          dayOfMonth: "1",
           dayOfWeek: new Date().getDay().toString(),
-          endDate: oneYearFromNow.toISOString().split("T")[0],
+          endDate: lastDayOfNextYearMonth,
           occurrences: "12",
           endType: "occurrences",
           notes: ""

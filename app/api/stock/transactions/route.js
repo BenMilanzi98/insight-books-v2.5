@@ -500,7 +500,7 @@ export async function POST(request) {
       select: { name: true, sku: true }
     });
     
-    // Create an audit log entry instead of a transaction record
+    // Create an audit log entry
     await prisma.auditLog.create({
       data: {
         action: `INVENTORY_${body.type.replace(/\s+/g, '_').toUpperCase()}`,
@@ -517,6 +517,25 @@ export async function POST(request) {
         })
       }
     });
+
+    // Record in InventoryTransaction for Stock Movement History (stock ins, outs, adjustments)
+    const movementQuantity = body.type === 'Stock In' ? quantity : body.type === 'Stock Out' ? -quantity : stockChange;
+    const movementNotes = body.notes || (body.type === 'Adjustment' ? `Adjusted to ${quantity} units (was ${product.stockLevel || 0})` : null);
+    try {
+      await prisma.inventoryTransaction.create({
+        data: {
+          type: body.type,
+          quantity: movementQuantity,
+          notes: movementNotes,
+          productId: body.productId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          branchId: product.branchId || null
+        }
+      });
+    } catch (invErr) {
+      console.warn('InventoryTransaction create (non-fatal):', invErr?.message || invErr);
+    }
     
     // Determine product status
     let status;

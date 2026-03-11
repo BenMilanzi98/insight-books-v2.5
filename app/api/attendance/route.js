@@ -20,8 +20,9 @@ export async function GET(request) {
     const employeeId = searchParams.get('employeeId');
     const department = searchParams.get('department');
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
-    const skip = (page - 1) * limit;
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam === 'all' ? 5000 : Math.min(parseInt(limitParam || '100', 10) || 100, 5000);
+    const skip = limitParam === 'all' ? 0 : (page - 1) * limit;
 
     const where = {
       tenantId: user.tenantId

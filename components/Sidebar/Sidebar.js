@@ -178,7 +178,7 @@ const navigationByPermission = {
       items: [
         { href: "/tenants/dashboard", icon: "dashboard", text: "Business Owner Dashboard" },
         { href: "/users", icon: "users", text: "User & Role Management" },
-        { href: "/customization", icon: "settings", text: "System Customization" },
+        { href: "/account", icon: "settings", text: "Account & business" },
         { href: "/insightbooks/billing", icon: "payments", text: "Billing & Subscriptions" },
         { href: "/insightbooks/audit-logs", icon: "reports", text: "Audit Logs" },
       ],
@@ -232,7 +232,6 @@ const navigationByPermission = {
               { href: "/purchases/receipts", text: "Receipts" },
               { href: "/purchases/bills", text: "Bills" },
               { href: "/purchases/payments", text: "Payments" },
-              { href: "/customization?tab=business", text: "Purchase taxes" },
             ],
           },
         // HR Module temporarily commented out
@@ -257,6 +256,22 @@ const navigationByPermission = {
         // { href: "/pos", icon: "🧾", text: "Point of Sale (POS)" },
         { href: "/affiliate", icon: "affiliate", text: "Affiliate System" },
         { href: "/tax-types", icon: "reports", text: "Tax Types" },
+      ],
+    },
+    {
+      label: "MRA EIS",
+      items: [
+        {
+          href: "/eis",
+          icon: "reports",
+          text: "MRA EIS",
+          expandable: true,
+          subItems: [
+            { href: "/eis", text: "EIS Dashboard" },
+            { href: "/eis/invoices", text: "EIS Invoices" },
+            { href: "/eis/config", text: "EIS Configuration" },
+          ]
+        },
       ],
     },
     {
@@ -693,7 +708,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
           { href: "/purchases/receipts", text: "Receipts" },
           { href: "/purchases/bills", text: "Bills" },
           { href: "/purchases/payments", text: "Payments" },
-          { href: "/customization?tab=business", text: "Purchase taxes" },
         ],
       });
     }

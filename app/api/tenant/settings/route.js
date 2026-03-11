@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { ensureDefaultTaxAccountsForTenant } from '@/lib/taxAccountsInitialization';
 
 // GET - Fetch tenant settings
 export async function GET(request) {
@@ -20,6 +21,13 @@ export async function GET(request) {
         { error: 'No tenant associated with this user' },
         { status: 400 }
       );
+    }
+
+    // Ensure default tax inflow/outflow GL accounts exist and set as tenant defaults if not already set
+    try {
+      await ensureDefaultTaxAccountsForTenant(user.tenantId, prisma, true);
+    } catch (initErr) {
+      console.warn('Tax accounts initialization (non-fatal):', initErr?.message || initErr);
     }
     
     // Fetch the tenant (without settings to avoid 500 if TenantSettings table/schema has issues)
@@ -54,6 +62,8 @@ export async function GET(request) {
       faviconUrl: tenant.faviconUrl,
       primaryColor: tenant.primaryColor,
       secondaryColor: tenant.secondaryColor,
+      tpin: tenant.tpin ?? '',
+      eisEnabled: tenant.eisEnabled ?? false,
       emailFooter: settings?.emailFooter,
       customDomain: settings?.customDomain,
       
@@ -65,6 +75,7 @@ export async function GET(request) {
       buildingName: settings?.buildingName,
       receiptFooter: settings?.receiptFooter,
       defaultBankDetails: settings?.defaultBankDetails,
+      taxInflowAccountId: settings?.taxInflowAccountId ?? null,
       taxOutflowAccountId: settings?.taxOutflowAccountId ?? null,
       
       // Notification settings
@@ -137,6 +148,7 @@ export async function PUT(request) {
       secondaryColor: body.secondaryColor,
       logoUrl: body.logoUrl,
       faviconUrl: body.faviconUrl,
+      tpin: body.tpin !== undefined ? (body.tpin || null) : undefined,
     });
 
     const settingsFields = omitUndefined({
@@ -149,6 +161,7 @@ export async function PUT(request) {
       buildingName: body.buildingName,
       receiptFooter: body.receiptFooter,
       defaultBankDetails: body.defaultBankDetails,
+      taxInflowAccountId: body.taxInflowAccountId === '' ? null : body.taxInflowAccountId,
       taxOutflowAccountId: body.taxOutflowAccountId === '' ? null : body.taxOutflowAccountId,
       emailNotifications: body.emailNotifications,
       smsNotifications: body.smsNotifications,

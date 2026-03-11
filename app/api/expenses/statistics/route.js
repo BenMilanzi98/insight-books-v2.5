@@ -38,9 +38,9 @@ export async function GET(request) {
       isDeleted: false
     };
     
-    // Add branch filter - use user's current branch if available
+    // Include supplier/PO expenses (null branchId) when a branch is selected
     if (user?.currentBranchId) {
-      baseFilter.branchId = user.currentBranchId;
+      baseFilter.OR = [{ branchId: user.currentBranchId }, { branchId: null }];
     }
     
     // Only add date filter if there are actual date constraints

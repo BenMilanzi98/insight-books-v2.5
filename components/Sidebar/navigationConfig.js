@@ -31,7 +31,7 @@ export const navigationByPermission = {
           { href: "/tenants/dashboard", icon: "🏠", text: "Business Owner Dashboard" },
           { href: "/users", icon: "👥", text: "User & Role Management" },
           { href: "/financial-setup", icon: "💼", text: "Financial Setup" },
-          { href: "/customization", icon: "🎨", text: "System Customization" },
+          { href: "/account", icon: "🎨", text: "Account & business" },
           { href: "/insightbooks/billing", icon: "💰", text: "Billing & Subscriptions" },
           { href: "/insightbooks/audit-logs", icon: "📜", text: "Audit Logs" },
         ],
@@ -216,9 +216,9 @@ export const navigationByPermission = {
       });
       
       businessItems.push({ 
-        href: "/customization", 
+        href: "/account", 
         icon: "🎨", 
-        text: "System Customization" 
+        text: "Account & business" 
       });
     }
     

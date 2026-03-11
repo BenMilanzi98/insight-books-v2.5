@@ -6,6 +6,8 @@ import { updateAccountBalance } from '@/lib/core';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { autoPostTaxEntry } from '@/lib/taxCalculationService';
+import { hasEISAccess } from '@/lib/subscriptionService';
+import eisService from '@/lib/eisService';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -1442,6 +1444,37 @@ export async function POST(request) {
       console.log('🔍 Returning sale with paymentMethod:', paymentMethodInput);
       console.log('🔍 Sale record paymentMethod:', result.sale.paymentMethod);
       console.log('🔍 Sale payments with allocations:', saleWithPayments?.payments);
+
+      // MRA EIS: auto-submit sale to MRA for EIS-enabled tenants (fire-and-forget)
+      let eisResult = null;
+      try {
+        const tenant = await prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { eisEnabled: true } });
+        if (tenant?.eisEnabled) {
+          const eisAccess = await hasEISAccess(user.tenantId);
+          if (eisAccess) {
+            eisResult = await eisService.submitInvoice(user.tenantId, {
+              invoiceNumber: result.sale.saleNumber,
+              invoiceDate: result.sale.saleDate,
+              customerName: data.clientName || 'Walk-in Customer',
+              customerTPIN: data.customerTPIN || '',
+              items: result.items.map(item => ({
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                taxRate: item.taxRate || 0
+              })),
+              subtotal: Number(result.sale.subtotal),
+              taxTotal: Number(result.sale.totalTaxAmount || result.sale.taxAmount || 0),
+              total: Number(result.sale.total),
+              paymentMethod: paymentMethodInput || 'Cash'
+            }, 'sale', result.sale.id);
+            console.log('✅ EIS: Sale submitted to MRA:', eisResult?.submissionId);
+          }
+        }
+      } catch (eisErr) {
+        console.error('⚠️ EIS submission failed (sale still saved):', eisErr.message);
+      }
+
       return NextResponse.json({
         message: 'Sale created successfully',
         sale: {
@@ -1457,7 +1490,8 @@ export async function POST(request) {
           paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
           payments: saleWithPayments?.payments || [], // Include payments with allocations
           itemCount: result.items.length,
-          customItemCount: data.items.filter(item => item.isCustom).length
+          customItemCount: data.items.filter(item => item.isCustom).length,
+          eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null
         }
       }, { status: 201 });
     } catch (error) {

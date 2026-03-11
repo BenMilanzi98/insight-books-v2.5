@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 // import { calculateNextRunDate } from '@/lib/recurring-expenses';
 
 const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
@@ -258,8 +259,12 @@ export async function POST(request) {
       );
     }
     
+    // Normalize to 1st and last day of month for correct monthly reporting and consistency
+    const normalizedStartDate = startOfMonth(startDate);
+    const normalizedEndDate = endDate ? endOfMonth(endDate) : null;
+    
     // Calculate next run date based on frequency, start date, and other parameters
-    const nextRunDate = calculateNextRunDate(body);
+    const nextRunDate = calculateNextRunDate({ ...body, startDate: normalizedStartDate });
     
     // Create the recurring expense
     const recurringExpense = await prisma.recurringExpense.create({
@@ -271,8 +276,8 @@ export async function POST(request) {
         frequency: body.frequency,
         dayOfMonth: body.frequency === 'monthly' ? body.dayOfMonth : null,
         dayOfWeek: body.frequency === 'weekly' ? body.dayOfWeek : null,
-        startDate: startDate,
-        endDate: endDate,
+        startDate: normalizedStartDate,
+        endDate: normalizedEndDate,
         occurrences: body.endType === 'occurrences' ? body.occurrences : null,
         remainingOccurrences: body.endType === 'occurrences' ? body.occurrences : null,
         endType: body.endType,

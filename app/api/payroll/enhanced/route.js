@@ -7,6 +7,7 @@ import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -33,11 +34,14 @@ export async function POST(request) {
       );
     }
 
-    const periodStart = new Date(body.periodStart);
-    const periodEnd = new Date(body.periodEnd);
+    // Normalize to 1st and last day of month for correct monthly reporting and consistency
+    const rawStart = new Date(body.periodStart);
+    const rawEnd = new Date(body.periodEnd);
+    const periodStart = startOfMonth(rawStart);
+    const periodEnd = endOfMonth(rawEnd);
     const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
 
-    // Validate date range
+    // Validate date range (after normalization)
     if (periodEnd < periodStart) {
       return NextResponse.json(
         { error: 'Period end date cannot be before start date' },
@@ -98,6 +102,7 @@ export async function POST(request) {
 
     // Tenant-level NPS rates (percentage points). Defaults to 5%/5% if not set.
     // Use raw SQL so payroll processing still works even if Prisma Client is stale.
+    // Prisma/PostgreSQL may return column names in lowercase, so read both.
     let npsRates = { employeeRatePercent: 5, employerRatePercent: 5 };
     try {
       const rows = await prisma.$queryRaw`
@@ -107,10 +112,12 @@ export async function POST(request) {
         LIMIT 1
       `;
       const row = Array.isArray(rows) ? rows[0] : null;
-      if (row) {
+      if (row && typeof row === 'object') {
+        const emp = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5);
+        const empEr = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5);
         npsRates = {
-          employeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
-          employerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
+          employeeRatePercent: Number.isFinite(emp) ? emp : 5,
+          employerRatePercent: Number.isFinite(empEr) ? empEr : 5,
         };
       }
     } catch (e) {
@@ -124,8 +131,20 @@ export async function POST(request) {
       );
     }
 
-    // Get or create required accounts/liabilities
-    const payrollAccounts = await getOrCreatePayrollAccounts(user.tenantId);
+    // Get or create required accounts/liabilities (including 5230 - Salaries Expense)
+    let payrollAccounts;
+    try {
+      payrollAccounts = await getOrCreatePayrollAccounts(user.tenantId);
+    } catch (accountError) {
+      console.error('Payroll accounts setup failed:', accountError);
+      return NextResponse.json(
+        {
+          error: accountError.message || 'Failed to load or create payroll accounts.',
+          hint: 'Ensure Chart of Accounts includes "Salaries Expense" (code 5230), Cash, PAYE and NPS liability accounts.'
+        },
+        { status: 400 }
+      );
+    }
 
     const [
       selectedExpenseAccount,
@@ -709,6 +728,7 @@ export async function POST(request) {
           netPay: netPay,
           payeAmount,
           totalNpsAmount: Number(payrollCalculation.totalNpsAmount) || 0,
+          gratuityAccruedAmount: gratuityAccrualAmount || 0,
           status: 'Posted', // Changed from 'Draft' to 'Posted'
           paymentDate,
           tenantId: user.tenantId,
@@ -792,6 +812,7 @@ export async function POST(request) {
             amount: netPay,
             date: expenseDate,
             category: 'Salary',
+            employeeId: employee.id,
             paymentMethod: getAccountDisplayName(paymentAccount),
             sourceAccountId: paymentAccount.id,
             status: 'Approved',
@@ -847,6 +868,7 @@ export async function POST(request) {
             amount: npsEmployerAmount,
             date: expenseDate,
             category: 'Pension',
+            employeeId: employee.id,
             paymentMethod: 'N/A - Pension Liability',
             status: 'Approved',
             paymentStatus: 'Pending',
@@ -866,6 +888,7 @@ export async function POST(request) {
             amount: additions,
             date: expenseDate,
             category: 'Salary',
+            employeeId: employee.id,
             paymentMethod: getAccountDisplayName(paymentAccount),
             sourceAccountId: paymentAccount.id,
             status: 'Approved',
@@ -1026,6 +1049,7 @@ export async function POST(request) {
           await assertPeriodOpen(user.tenantId, paymentDate, tx);
           const referenceNumber = await generateReferenceNumber(tx, user.tenantId, paymentDate);
 
+          // Salaries are recorded on the date they are processed (paymentDate)
           const createdTransaction = await tx.transaction.create({
             data: {
               tenantId: user.tenantId,
@@ -1190,77 +1214,44 @@ async function getOrCreatePayrollAccounts(tenantId) {
       });
     }
 
-    // For Salaries Expense specifically, also check for variations
-    // IMPORTANT: Consolidate all salary expense accounts to use code 6000
+    // For Salaries Expense specifically, also check for variations (code 5230 - used in payroll)
     if (!account && accountName === 'Salaries Expense') {
-      account = await prisma.account.findFirst({
+      const salaryCandidates = await prisma.account.findMany({
         where: {
           tenantId: tenantId,
+          isActive: true,
           OR: [
             { name: { contains: 'Salary', mode: 'insensitive' } },
-            { accountName: { contains: 'Salary', mode: 'insensitive' } }
-          ],
-          AND: [
-            {
-              OR: [
-                { accountType: 'Expense' },
-                { type: 'EXPENSE' },
-                { type: 'Expense' }
-              ]
-            }
+            { accountName: { contains: 'Salary', mode: 'insensitive' } },
+            { name: { contains: 'Wages', mode: 'insensitive' } },
+            { accountName: { contains: 'Wages', mode: 'insensitive' } }
           ]
         }
       });
-      
-      // If found a salary account but it's not the exact name, verify it's not COGS
-      if (account) {
-        const accName = (account.accountName || account.name || '').toLowerCase();
-        if (accName.includes('cost of goods') || accName.includes('cogs')) {
-          // Skip this account, it's COGS, not salaries
-          account = null;
-        } else {
-          // Found a salary expense account - update it to use the standard code 6000 if different
-          if (account.accountCode !== accountCode) {
-            console.log(`⚠️ Found salary expense account with code ${account.accountCode}, updating to standard code ${accountCode}`);
-            try {
-              // Check if code 6000 is already in use by another account
-              const code6000Account = await prisma.account.findFirst({
-                where: {
-                  tenantId: tenantId,
-                  accountCode: accountCode,
-                  id: { not: account.id }
-                }
-              });
-              
-              if (code6000Account) {
-                // Code 6000 is in use by another account - use the existing one instead
-                console.log(`⚠️ Account code ${accountCode} already in use, using existing account`);
-                account = code6000Account;
-              } else {
-                // Update the found account to use code 6000
-                account = await prisma.account.update({
-                  where: { id: account.id },
-                  data: {
-                    accountCode: accountCode,
-                    accountName: accountName // Standardize the name too
-                  }
-                });
-                console.log(`✅ Updated salary expense account to use code ${accountCode}`);
-              }
-            } catch (updateError) {
-              // If update fails (e.g., unique constraint), try to find account with code 6000
-              console.warn(`⚠️ Could not update account code, checking for existing account with code ${accountCode}:`, updateError.message);
-              const existingCode6000 = await prisma.account.findFirst({
-                where: {
-                  tenantId: tenantId,
-                  accountCode: accountCode
-                }
-              });
-              if (existingCode6000) {
-                account = existingCode6000;
-              }
-            }
+      const accType = (a) => ((a.accountType || a.type || '') + '').toLowerCase();
+      account = salaryCandidates.find((a) => {
+        const name = (a.accountName || a.name || '').toLowerCase();
+        if (name.includes('cost of goods') || name.includes('cogs')) return false;
+        return accType(a).includes('expense') || accType(a) === 'exp';
+      }) || null;
+      if (account && account.accountCode !== accountCode) {
+        try {
+          const code5230Account = await prisma.account.findFirst({
+            where: { tenantId: tenantId, accountCode: accountCode, id: { not: account.id } }
+          });
+          if (code5230Account) {
+            account = code5230Account;
+          } else {
+            account = await prisma.account.update({
+              where: { id: account.id },
+              data: { accountCode: accountCode, accountName: 'Salaries Expense', name: 'Salaries Expense' }
+            });
           }
+        } catch (updateErr) {
+          const existing = await prisma.account.findFirst({
+            where: { tenantId: tenantId, accountCode: accountCode }
+          });
+          if (existing) account = existing;
         }
       }
     }
@@ -1336,6 +1327,9 @@ async function getOrCreatePayrollAccounts(tenantId) {
       }
     }
 
+    if (!account) {
+      throw new Error(`Could not find or create account: ${accountName} (code ${accountCode}). Add "${accountName}" in Chart of Accounts and try again.`);
+    }
     accounts.push(account);
   }
 
@@ -1347,7 +1341,7 @@ async function getOrCreatePayrollAccounts(tenantId) {
  */
 function generateAccountCode(accountName) {
   const codes = {
-    'Salaries Expense': '6000',
+    'Salaries Expense': '5230', // Standard salary expense account code - used for payroll
     'PAYE Liability': '2100',
     'NPS Employee Contribution Liability': '2101',
     'NPS Employer Contribution Liability': '2102',

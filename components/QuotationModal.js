@@ -64,8 +64,9 @@ const QuotationModal = ({
   const [errors, setErrors] = useState({});
   const [showClientModal, setShowClientModal] = useState(false);
   
-  // NEW: Tax types state
+  // NEW: Tax types state and default for inflow (quotations/sales) - auto-populated from settings
   const [taxTypes, setTaxTypes] = useState([]);
+  const [defaultTaxTypeForInflow, setDefaultTaxTypeForInflow] = useState(null);
   const [isLoadingTaxTypes, setIsLoadingTaxTypes] = useState(false);
   const [showNewTaxForm, setShowNewTaxForm] = useState(false);
   const [newTaxData, setNewTaxData] = useState({ name: '', taxRate: 16.5, calculationType: 'Percentage', description: '' });
@@ -164,6 +165,22 @@ const QuotationModal = ({
       });
     }
   }, [quotation, mode]);
+
+  // Auto-populate default tax (inflow) on initial item when creating a new quotation
+  useEffect(() => {
+    if (mode === "edit" || !defaultTaxTypeForInflow) return;
+    if (formData.items.length !== 1) return;
+    const first = formData.items[0];
+    if (first.selectedTaxTypeId) return;
+    setFormData(prev => ({
+      ...prev,
+      items: [{
+        ...prev.items[0],
+        taxRate: String(defaultTaxTypeForInflow.taxRate ?? 0),
+        selectedTaxTypeId: defaultTaxTypeForInflow.id
+      }]
+    }));
+  }, [defaultTaxTypeForInflow?.id, mode]);
   
   // Load products using the same enhanced method as POS
   const loadProducts = async () => {
@@ -203,13 +220,20 @@ const QuotationModal = ({
         // Load products using enhanced method
         await loadProducts();
 
-        // NEW: Load tax types
+        // NEW: Load tax types and default tax for inflow
         setIsLoadingTaxTypes(true);
         try {
-          const taxTypesResponse = await fetch('/api/tax-types');
+          const [taxTypesResponse, taxDefaultsResponse] = await Promise.all([
+            fetch('/api/tax-types'),
+            fetch('/api/settings/tax-defaults').catch(() => null)
+          ]);
           if (taxTypesResponse.ok) {
             const taxTypesData = await taxTypesResponse.json();
             setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
+          }
+          if (taxDefaultsResponse?.ok) {
+            const defaults = await taxDefaultsResponse.json();
+            setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
           }
         } catch (taxError) {
           console.error('Error loading tax types:', taxError);
@@ -438,14 +462,20 @@ const QuotationModal = ({
     setFormData({ ...formData, discount: validDiscount });
   };
   
-  // Add a new item
+  // Add a new item; auto-apply default tax (inflow) to avoid manual selection errors
   const addItem = () => {
+    const defaultTax = defaultTaxTypeForInflow;
+    const newItem = {
+      description: "",
+      quantity: "",
+      unitPrice: "",
+      taxRate: defaultTax ? String(defaultTax.taxRate ?? 0) : "0",
+      discountAmount: "",
+      selectedTaxTypeId: defaultTax?.id ?? ""
+    };
     setFormData({
       ...formData,
-      items: [
-        ...formData.items,
-        { description: "", quantity: "", unitPrice: "", taxRate: "0", discountAmount: "" }
-      ]
+      items: [...formData.items, newItem]
     });
   };
   

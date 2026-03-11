@@ -68,6 +68,7 @@ model Tenant {
   performanceFeedback        PerformanceFeedback[]
   performanceGoals           PerformanceGoal[]
   performanceReviews         PerformanceReview[]
+  productBarcodes            ProductBarcode[]
   products                   Product[]
   purchaseOrders             PurchaseOrder[]
   quotations                 Quotation[]
@@ -86,6 +87,11 @@ model Tenant {
   members                    User[]                      @relation("UserTenants")
   accountingPeriods          AccountingPeriod[]
   stockTransfers             StockTransfer[]
+  tpin                       String?
+  eisEnabled                 Boolean                     @default(false)
+  eisInvoices                EISInvoice[]
+  eisConfiguration           EISConfiguration?
+  eisUsage                   EISUsage[]
 }
 
 model Branch {
@@ -148,7 +154,10 @@ model TenantSettings {
   npsEmployerRatePercent Float    @default(5)
   balanceReminderSubject String?
   balanceReminderBody    String?
-  taxOutflowAccountId    String?  // Account where tax from outflows (expenses, supplier bills) accumulates for offset vs collected tax
+  taxInflowAccountId     String?  // Default account for tax collected (inflow from sales/invoices)
+  taxOutflowAccountId    String?  // Default account for tax paid (outflow from expenses/supplier bills)
+  eisApiKey              String?  // Encrypted MRA EIS API key
+  eisClientSecret        String?  // Encrypted MRA EIS client secret
   tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
@@ -945,6 +954,7 @@ model Product {
   saleItems             SaleItem[]             @relation("ProductSales")
   supplierBillItems     SupplierBillItem[]
   productUnits          ProductUnit[]
+  productBarcodes       ProductBarcode[]
   stockTransfers        StockTransfer[]
 
   @@index([categoryId])
@@ -952,6 +962,20 @@ model Product {
   @@index([branchId])
   @@index([isDeleted])
   @@index([deletedAt])
+}
+
+model ProductBarcode {
+  id        String   @id @default(cuid())
+  productId String
+  barcode   String
+  tenantId  String
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, barcode])
+  @@index([productId])
+  @@index([tenantId])
 }
 
 model Supplier {
@@ -1439,25 +1463,26 @@ model Department {
 }
 
 model Payroll {
-  id             String    @id @default(cuid())
-  employeeId     String
-  periodStart    DateTime
-  periodEnd      DateTime
-  basicSalary    Float     @default(0)
-  deductions     Float     @default(0)
-  additions      Float     @default(0)
-  netPay         Float     @default(0)
-  status         String    @default("Pending")
-  paymentDate    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  notes          String?
-  grossPay       Float?    @default(0)
-  payeAmount     Float?    @default(0)
-  tenantId       String
-  totalNpsAmount Float?    @default(0)
-  employee       Employee  @relation(fields: [employeeId], references: [id])
-  tenant         Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id                   String    @id @default(cuid())
+  employeeId           String
+  periodStart          DateTime
+  periodEnd            DateTime
+  basicSalary          Float     @default(0)
+  deductions           Float     @default(0)
+  additions            Float     @default(0)
+  netPay               Float     @default(0)
+  status               String    @default("Pending")
+  paymentDate          DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  notes                String?
+  grossPay             Float?    @default(0)
+  payeAmount           Float?    @default(0)
+  tenantId             String
+  totalNpsAmount       Float?    @default(0)
+  gratuityAccruedAmount Float?   @default(0) // Stored for payroll reversal
+  employee             Employee  @relation(fields: [employeeId], references: [id])
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([employeeId])
@@ -1991,6 +2016,7 @@ model AccountSubscription {
   trialEndDate    DateTime?
   trialStartDate  DateTime?
   tenant          Tenant    @relation(fields: [tenantId], references: [id])
+  eisInvoices     EISInvoice[]
 
   @@index([tenantId])
   @@index([status])
@@ -2606,4 +2632,91 @@ model StockTransfer {
   @@index([productId])
   @@index([status])
   @@index([createdById])
+}
+
+// ─── MRA EIS (Electronic Invoice System) Models ───
+
+model EISInvoice {
+  id             String                @id @default(cuid())
+  tenantId       String
+  subscriptionId String?
+  invoiceNumber  String
+  mraInvoiceId   String?
+  invoiceDate    DateTime
+  totalAmount    Float
+  taxAmount      Float
+  status         String                // Pending, Submitted, Approved, Rejected, Error
+  submissionId   String?
+  submittedAt    DateTime?
+  responseData   Json?
+  errorMessage   String?
+  retryCount     Int                   @default(0)
+  lastRetryAt    DateTime?
+  sourceType     String?               // 'sale', 'invoice', 'quotation-convert'
+  sourceId       String?               // ID of the originating Sale or Invoice
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  tenant         Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription   AccountSubscription?  @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([submittedAt])
+  @@index([mraInvoiceId])
+  @@index([sourceType, sourceId])
+}
+
+model EISConfiguration {
+  id           String    @id @default(cuid())
+  tenantId     String    @unique
+  clientId     String
+  clientSecret String
+  apiKey       String?
+  environment  String    // sandbox | production
+  isActive     Boolean   @default(true)
+  lastSyncAt   DateTime?
+  syncStatus   String?
+  settings     Json?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([environment])
+}
+
+model EISSubmissionLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  invoiceId       String
+  requestPayload  Json
+  responsePayload Json?
+  status          String
+  errorCode       String?
+  errorMessage    String?
+  durationMs      Int
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([invoiceId])
+  @@index([createdAt])
+}
+
+model EISUsage {
+  id              String   @id @default(cuid())
+  tenantId        String
+  monthYear       String
+  invoiceCount    Int      @default(0)
+  submissionCount Int      @default(0)
+  approvedCount   Int      @default(0)
+  rejectedCount   Int      @default(0)
+  totalAmount     Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, monthYear])
+  @@index([tenantId])
+  @@index([monthYear])
 }

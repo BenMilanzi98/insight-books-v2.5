@@ -75,13 +75,20 @@ export async function GET(request) {
       // This allows viewing all products across branches
     }
     
-    // Add search filter if provided
+    // Add search filter if provided (name, SKU, barcode; barcode matches prefix/partial via Product + ProductBarcode)
+    let searchOrFallback = null; // for retry when ProductBarcode relation missing
     if (search) {
-      where.OR = [
+      const searchTrimmed = search.trim();
+      searchOrFallback = [
         { name: { contains: search, mode: 'insensitive' } },
         { sku: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { category: { contains: search, mode: 'insensitive' } }
+        { category: { contains: search, mode: 'insensitive' } },
+        { barcode: { contains: searchTrimmed, mode: 'insensitive' } }
+      ];
+      where.OR = [
+        ...searchOrFallback,
+        { productBarcodes: { some: { barcode: { contains: searchTrimmed, mode: 'insensitive' } } } }
       ];
     }
     
@@ -113,22 +120,49 @@ export async function GET(request) {
       order === 'asc' ? 'asc' : 'desc'
     };
     
-    // Fetch products with all fields
-    const products = await prisma.product.findMany({
-      where,
-      orderBy,
-      ...(limit > 0 ? { skip, take: limit } : {}), // Only apply pagination if limit > 0
-      include: {
-        productTaxes: {
-          include: {
-            taxType: {
-              select: { id: true, taxRate: true, taxName: true, taxCode: true, calculationType: true, status: true }
-            }
+    // Fetch products (include productBarcodes only if table exists to avoid 500 before migration)
+    let products;
+    const includeWithBarcodes = {
+      productTaxes: {
+        include: {
+          taxType: {
+            select: { id: true, taxRate: true, taxName: true, taxCode: true, calculationType: true, status: true }
+          }
+        }
+      },
+      productBarcodes: { select: { barcode: true } }
+    };
+    const includeWithoutBarcodes = {
+      productTaxes: {
+        include: {
+          taxType: {
+            select: { id: true, taxRate: true, taxName: true, taxCode: true, calculationType: true, status: true }
           }
         }
       }
-    });
-    
+    };
+    try {
+      products = await prisma.product.findMany({
+        where,
+        orderBy,
+        ...(limit > 0 ? { skip, take: limit } : {}),
+        include: includeWithBarcodes
+      });
+    } catch (err) {
+      const msg = err?.message || '';
+      if (msg.includes('ProductBarcode') || msg.includes('productBarcodes') || msg.includes('does not exist')) {
+        const whereRetry = searchOrFallback ? { ...where, OR: searchOrFallback } : where;
+        products = await prisma.product.findMany({
+          where: whereRetry,
+          orderBy,
+          ...(limit > 0 ? { skip, take: limit } : {}),
+          include: includeWithoutBarcodes
+        });
+      } else {
+        throw err;
+      }
+    }
+
     // Process products to enhance with derived fields
     let processedProducts = products.map(product => {
       // Default values for missing fields
@@ -173,9 +207,18 @@ export async function GET(request) {
         ? totalStockValueStored
         : (stockLevel * costPrice);
 
+      // Build barcodes array: ProductBarcode records (if loaded) + legacy Product.barcode (dedupe)
+      const barcodeSet = new Set();
+      if (product.productBarcodes && Array.isArray(product.productBarcodes)) {
+        product.productBarcodes.forEach(pb => { if (pb && pb.barcode) barcodeSet.add(String(pb.barcode).trim()); });
+      }
+      if (product.barcode && String(product.barcode).trim()) barcodeSet.add(String(product.barcode).trim());
+      const barcodes = Array.from(barcodeSet);
+
       // Return product with additional fields
       return {
         ...product,
+        barcodes,
         // Ensure these fields exist and have default values if null
         category: product.category || 'Uncategorized',
         reorderPoint: reorderPoint,
@@ -432,6 +475,26 @@ export async function POST(request) {
       }
     }
     
+    // Normalize barcodes: support both barcodes[] and legacy barcode (single); dedupe for multiple per product
+    const barcodesRaw = Array.isArray(body.barcodes)
+      ? body.barcodes.map(b => String(b).trim()).filter(Boolean)
+      : (body.barcode && String(body.barcode).trim() ? [String(body.barcode).trim()] : []);
+    const barcodesInput = [...new Set(barcodesRaw)];
+
+    // Check barcode uniqueness (one barcode per product in tenant)
+    if (barcodesInput.length > 0) {
+      const existing = await prisma.productBarcode.findMany({
+        where: { tenantId: user.tenantId, barcode: { in: barcodesInput } },
+        select: { barcode: true }
+      });
+      if (existing.length > 0) {
+        return NextResponse.json(
+          { error: `Barcode(s) already in use: ${existing.map(e => e.barcode).join(', ')}` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Create the product with all available fields in database
     // IMPORTANT: Set stockLevel to 0 initially if we'll create a FIFO batch
     // createFifoBatch will increment it, so we don't want to double-count
@@ -448,6 +511,7 @@ export async function POST(request) {
       taxRate: computedTaxRate,
       image: imagePath,
       isService: !!body.isService,
+      barcode: barcodesInput[0] || null, // legacy single field
       tenant: {
         connect: {
           id: user.tenantId
@@ -467,6 +531,21 @@ export async function POST(request) {
     const product = await prisma.product.create({
       data: productData
     });
+
+    // Create ProductBarcode records for each barcode (multiple barcodes per product)
+    if (barcodesInput.length > 0) {
+      try {
+        await prisma.productBarcode.createMany({
+          data: barcodesInput.map(barcode => ({
+            productId: product.id,
+            barcode,
+            tenantId: user.tenantId
+          }))
+        });
+      } catch (barcodeErr) {
+        console.warn('ProductBarcode createMany (non-fatal):', barcodeErr?.message);
+      }
+    }
 
     // Handle unit management if enabled
     if (body.unitManagementEnabled && body.selectedUnits && body.selectedUnits.length > 0) {

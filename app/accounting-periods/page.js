@@ -15,6 +15,14 @@ const AccountingPeriodsPage = () => {
   const [newPeriodType, setNewPeriodType] = useState("Monthly");
   const [newStartDate, setNewStartDate] = useState("");
 
+  // Financial year always starts 1 January: when Yearly is selected, default start to 1 Jan of current year
+  useEffect(() => {
+    if (newPeriodType === "Yearly") {
+      const y = new Date().getFullYear();
+      setNewStartDate(`${y}-01-01`);
+    }
+  }, [newPeriodType]);
+
   const isFinanceAdminRole = (user) => {
     const roleName = user?.role?.name?.toLowerCase() || "";
     return roleName.includes("finance") || roleName.includes("admin") || roleName === "master_admin";
@@ -175,6 +183,9 @@ const AccountingPeriodsPage = () => {
                   <PlusCircle className="w-5 h-5 text-indigo-600" />
                   Open New Period
                 </h2>
+                <p className="text-sm text-slate-600 mb-4">
+                  The financial period always begins <strong>1 January</strong>. Yearly periods run 1 Jan – 31 Dec; reports align to the calendar year.
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Period Type</label>
@@ -184,11 +195,13 @@ const AccountingPeriodsPage = () => {
                       onChange={(e) => setNewPeriodType(e.target.value)}
                     >
                       <option value="Monthly">Monthly</option>
-                      <option value="Yearly">Yearly</option>
+                      <option value="Yearly">Yearly (1 Jan – 31 Dec)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Start Date (optional)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                      {newPeriodType === "Yearly" ? "Start year (period will be 1 Jan – 31 Dec)" : "Start Date (optional)"}
+                    </label>
                     <input
                       type="date"
                       className="w-full px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"

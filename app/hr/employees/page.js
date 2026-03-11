@@ -1785,18 +1785,17 @@ const EmployeeManagement = () => {
       ].sort();
       setDepartments(uniqueDepartments);
       
-      // Calculate statistics - use pagination totalCount for accurate totals
+      // Use API-provided statistics for correct active/inactive counts (not just current page)
       const totalCount = data.pagination?.totalCount || 0;
-      const active = (data.employees || []).filter(e => e.isActive).length;
-      // Note: For statistics, we might want to fetch all employees or use a separate endpoint
-      // For now, we'll use the current page data as an approximation
+      const activeCount = data.statistics?.activeCount ?? (data.employees || []).filter(e => e.isActive).length;
+      const inactiveCount = data.statistics?.inactiveCount ?? Math.max(0, totalCount - activeCount);
       const totalSalary = (data.employees || []).reduce((sum, e) => sum + (parseFloat(e.salary) || 0), 0);
       
       setStatistics({
         totalEmployees: totalCount,
-        activeEmployees: active, // This is only for current page
-        inactiveEmployees: totalCount - active, // Approximation
-        totalSalaryExpense: totalSalary // This is only for current page
+        activeEmployees: activeCount,
+        inactiveEmployees: inactiveCount,
+        totalSalaryExpense: totalSalary // per current page
       });
     } catch (error) {
       console.error("Error loading employees:", error);

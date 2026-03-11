@@ -5,6 +5,8 @@ import {
   getCurrentPeriod,
   normalizePeriodType,
   PERIOD_TYPES,
+  startOfCalendarYear,
+  endOfCalendarYear,
 } from '@/lib/accountingPeriodService';
 
 function isFinanceAdmin(user) {
@@ -31,12 +33,14 @@ function endOfDay(date) {
   return d;
 }
 
+/** Financial periods align to calendar year: yearly always 1 Jan – 31 Dec. */
 function computePeriodRange(periodType, startDate) {
-  const start = startOfDay(startDate);
   if (periodType === 'Yearly') {
-    const end = new Date(start.getFullYear(), 11, 31);
-    return { start, end: endOfDay(end) };
+    const start = startOfDay(startOfCalendarYear(startDate));
+    const end = endOfCalendarYear(startDate);
+    return { start, end };
   }
+  const start = startOfDay(startDate);
   const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
   return { start, end: endOfDay(end) };
 }
@@ -147,15 +151,23 @@ export async function POST(request) {
       });
 
       if (latestPeriod) {
-        startDate = new Date(latestPeriod.endDate);
-        startDate.setDate(startDate.getDate() + 1);
+        const nextDay = new Date(latestPeriod.endDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        if (periodType === 'Yearly') {
+          startDate = startOfCalendarYear(nextDay);
+        } else {
+          startDate = nextDay;
+        }
       } else {
         const now = new Date();
         startDate =
           periodType === 'Yearly'
-            ? new Date(now.getFullYear(), 0, 1)
+            ? new Date(now.getFullYear(), 0, 1) // 1 January
             : new Date(now.getFullYear(), now.getMonth(), 1);
       }
+    } else if (periodType === 'Yearly') {
+      // Enforce: yearly period always starts 1 January
+      startDate = startOfCalendarYear(startDate);
     }
 
     if (!endDate || Number.isNaN(endDate.getTime())) {
@@ -165,6 +177,10 @@ export async function POST(request) {
     } else {
       startDate = startOfDay(startDate);
       endDate = endOfDay(endDate);
+      if (periodType === 'Yearly') {
+        startDate = startOfDay(startOfCalendarYear(startDate));
+        endDate = endOfCalendarYear(startDate);
+      }
     }
 
     const overlap = await prisma.accountingPeriod.findFirst({

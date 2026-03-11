@@ -53,15 +53,16 @@ const QuotationTemplatePreview = forwardRef(({
   const formatAmount = (amount) =>
     Number(amount || 0).toLocaleString('en-US', { minimumFractionDigits: isPrint ? 0 : 2, maximumFractionDigits: 2 });
 
+  // Compute totals from quotation or from line items so tax is always shown on the quotation (not only after convert/sale)
   const subtotal = quotation?.subtotal ?? quotation?.items?.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0) ?? 0;
   const totalDiscount = (quotation?.totalDiscountAmount || 0) + (quotation?.discount || 0);
   const netSubtotal = subtotal - totalDiscount;
   const taxAmount = quotation?.taxAmount ?? quotation?.items?.reduce((sum, item) => {
     const lt = (item.quantity || 0) * (item.unitPrice || 0);
-    const da = item.discountAmount || 0;
+    const da = (item.discountAmount || 0) * (item.quantity || 0);
     return sum + (lt - da) * ((item.taxRate || 0) / 100);
   }, 0) ?? 0;
-  const total = quotation?.total ?? quotation?.items?.reduce((sum, item) => sum + ((item.quantity || 0) * (item.unitPrice || 0)), 0) ?? 0;
+  const total = quotation?.total ?? (netSubtotal + taxAmount);
 
   return (
     <div ref={ref} className={`bg-white ${isPrint ? 'print:shadow-none' : 'border border-gray-200 rounded-xl shadow-sm'} max-w-3xl mx-auto overflow-hidden`} style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
@@ -147,8 +148,9 @@ const QuotationTemplatePreview = forwardRef(({
           <tbody className="divide-y divide-gray-100">
             {quotation?.items?.map((item, index) => {
               const lineTotal = (item.quantity || 0) * (item.unitPrice || 0);
-              const discountAmount = item.discountAmount || 0;
-              const netAmount = lineTotal - discountAmount;
+              const perItemDiscount = item.discountAmount || 0;
+              const lineDiscount = perItemDiscount * (item.quantity || 0);
+              const netAmount = lineTotal - lineDiscount;
               const taxAmountItem = netAmount * ((item.taxRate || 0) / 100);
               const finalAmount = netAmount + taxAmountItem;
               return (
@@ -159,7 +161,7 @@ const QuotationTemplatePreview = forwardRef(({
                   </td>
                   <td className="py-3.5 text-right text-gray-600">{item.quantity}</td>
                   <td className="py-3.5 text-right text-gray-600">{formatAmount(item.unitPrice)}</td>
-                  <td className="py-3.5 text-right">{discountAmount > 0 ? <span className="text-red-600">-{formatAmount(discountAmount)}</span> : <span className="text-gray-400">—</span>}</td>
+                  <td className="py-3.5 text-right">{lineDiscount > 0 ? <span className="text-red-600">-{formatAmount(lineDiscount)}</span> : <span className="text-gray-400">—</span>}</td>
                   <td className="py-3.5 text-right text-gray-600">{(item.taxRate || 0) > 0 ? `${item.taxRate}% · ${formatAmount(taxAmountItem)}` : '—'}</td>
                   <td className="py-3.5 text-right font-medium text-gray-900">{formatAmount(finalAmount)}</td>
                 </tr>

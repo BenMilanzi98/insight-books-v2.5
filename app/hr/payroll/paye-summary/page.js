@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar/Sidebar';
 import { FileSpreadsheet, FileText, CheckSquare, Square, Calendar } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { formatSalaryAmount } from '@/lib/currencyUtils';
 
 export default function PayeSummaryPage() {
   const [loading, setLoading] = useState(true);
@@ -90,13 +91,7 @@ export default function PayeSummaryPage() {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-MW', {
-      style: 'currency',
-      currency: 'MWK',
-      minimumFractionDigits: 2
-    }).format(amount);
-  };
+  const formatCurrency = (amount) => formatSalaryAmount(amount ?? 0);
 
   const getDateRangeLabel = () => {
     if (dateRange === 'month' && selectedMonth && selectedYear) {

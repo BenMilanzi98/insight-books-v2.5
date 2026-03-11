@@ -142,10 +142,10 @@ const JournalEntries = () => {
     return { startDate, endDate };
   };
   
-  // Fetch accounts from API
+  // Fetch all active accounts (full chart of accounts) for modal dropdown
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts');
+      const response = await fetch('/api/accounts?forSelect=true');
       if (!response.ok) {
         throw new Error(`Failed to fetch accounts: ${response.statusText}`);
       }
@@ -1036,11 +1036,14 @@ const handleDeleteEntry = async (entryId) => {
                                 required
                               >
                                 <option value="">Select Account</option>
-                                {accounts.map(account => (
-                                  <option key={account.id} value={account.id}>
-                                    {account.code} - {account.name}
-                                  </option>
-                                ))}
+                                {accounts.map(account => {
+                                  const code = (account.accountCode ?? account.code ?? '').toString().trim();
+                                  const name = (account.accountName ?? account.name ?? '').toString().trim();
+                                  const label = (code && name) ? `${code} - ${name}` : (code || name || `Account ${(account.id || '').slice(-8)}`);
+                                  return (
+                                    <option key={account.id} value={account.id}>{label}</option>
+                                  );
+                                })}
                               </select>
                             </td>
                             <td className="p-2">

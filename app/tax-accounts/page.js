@@ -111,13 +111,12 @@ export default function TaxAccountsPage() {
     setError(null);
     
     try {
-      const params = new URLSearchParams({
+      const response = await fetch(`/api/tax-accounts/balances?${new URLSearchParams({
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
         groupBy,
-      });
+      }).toString()}`);
       
-      const response = await fetch(`/api/tax-accounts/balances?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to load tax account balances');
       
       const data = await response.json();
@@ -304,6 +303,29 @@ export default function TaxAccountsPage() {
         <p className="text-xs text-gray-500 mt-2">
           Showing balances for {startDate} to {endDate}. Use the same period on Tax Types so numbers match.
         </p>
+      </div>
+
+      {/* Fixed default tax accounts — cannot be changed by tenants */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4 mb-6">
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard className="text-indigo-600" size={20} />
+          <h2 className="text-base font-semibold text-gray-900">Default tax accounts (fixed)</h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-3">
+          Tax is always recorded to these system accounts. They cannot be changed.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax inflow (collected)</span>
+            <p className="text-sm font-medium text-gray-900 mt-0.5">2041 – Tax Inflow (Collected)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tax from sales, invoices and POS</p>
+          </div>
+          <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tax outflow (paid)</span>
+            <p className="text-sm font-medium text-gray-900 mt-0.5">2045 – Tax Outflow (Paid)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Tax on expenses and supplier bills</p>
+          </div>
+        </div>
       </div>
 
       {/* Summary Cards */}

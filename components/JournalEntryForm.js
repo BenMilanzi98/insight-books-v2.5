@@ -67,25 +67,25 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     }
   }, [existingEntry]);
   
-  // Fetch accounts for dropdown
+  // Fetch all active accounts (including child accounts) for dropdown - same as Chart of Accounts
   useEffect(() => {
     const fetchAccounts = async () => {
       setIsLoadingAccounts(true);
       try {
-        const response = await fetch('/api/accounts');
+        const response = await fetch('/api/accounts?forSelect=true');
         if (!response.ok) {
           throw new Error(`Error fetching accounts: ${response.statusText}`);
         }
         
         const data = await response.json();
         
-        // Ensure accounts have proper IDs
+        // Ensure accounts have proper IDs (all active parents + children from chart of accounts)
         const validAccounts = (data.accounts || []).filter(account => account.id);
         setAccounts(validAccounts);
         
-        // Group accounts by type
+        // Group accounts by type for display
         const groupedAccounts = validAccounts.reduce((groups, account) => {
-          const type = account.type || 'Other';
+          const type = account.type || account.accountType || 'Other';
           if (!groups[type]) {
             groups[type] = [];
           }
@@ -94,8 +94,6 @@ const JournalEntryForm = ({ existingEntry = null }) => {
         }, {});
         
         setAccountsByType(groupedAccounts);
-        
-        console.log('Fetched accounts:', validAccounts);
       } catch (err) {
         console.error("Error fetching accounts:", err);
         setError("Failed to load accounts. Please try again.");
@@ -448,9 +446,16 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                             <option value="">Select an account</option>
                             {Object.entries(accountsByType).map(([type, accts]) => (
                               <optgroup key={type} label={type}>
-                                {accts.map(account => (
-                                  <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
-                                ))}
+                                {accts.map(account => {
+                                  const code = (account.accountCode ?? account.code ?? '').toString().trim();
+                                  const name = (account.accountName ?? account.name ?? '').toString().trim();
+                                  const label = (code && name)
+                                    ? `${code} - ${name}`
+                                    : code || name || `Account ${(account.id || '').slice(-8)}`;
+                                  return (
+                                    <option key={account.id} value={account.id}>{label}</option>
+                                  );
+                                })}
                               </optgroup>
                             ))}
                           </select>
