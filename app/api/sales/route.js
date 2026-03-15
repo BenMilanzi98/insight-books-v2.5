@@ -388,6 +388,26 @@ export async function POST(request) {
       );
     }
     
+    // Relief supply validation (TC-RS-015, TC-RS-016)
+    if (data.isReliefSupply) {
+      if (!data.vat5CertificateNumber || typeof data.vat5CertificateNumber !== 'string' || data.vat5CertificateNumber.trim().length === 0) {
+        return NextResponse.json(
+          { error: 'VAT 5 Certificate Number is required for relief supply transactions' },
+          { status: 400 }
+        );
+      }
+      // Zero out VAT on standard-rated items for relief supply
+      for (const item of data.items) {
+        if (Number(item.taxRate) > 0) {
+          item.taxRate = 0;
+          item.taxAmount = 0;
+          if (item.taxBreakdown) {
+            item.taxBreakdown = [];
+          }
+        }
+      }
+    }
+
     // Enhanced validation: Check that all items have required fields
     // Now supports custom products (productId can be null)
     for (let i = 0; i < data.items.length; i++) {
@@ -1466,7 +1486,9 @@ export async function POST(request) {
               subtotal: Number(result.sale.subtotal),
               taxTotal: Number(result.sale.totalTaxAmount || result.sale.taxAmount || 0),
               total: Number(result.sale.total),
-              paymentMethod: paymentMethodInput || 'Cash'
+              paymentMethod: paymentMethodInput || 'Cash',
+              isReliefSupply: data.isReliefSupply || false,
+              vat5CertificateNumber: data.vat5CertificateNumber || null,
             }, 'sale', result.sale.id);
             console.log('✅ EIS: Sale submitted to MRA:', eisResult?.submissionId);
           }

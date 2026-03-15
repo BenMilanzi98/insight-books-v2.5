@@ -21,8 +21,14 @@ export async function POST(request) {
     // This ensures expired branches auto-deactivate.
     await syncBranchActiveStatus(user.tenantId);
 
-    // If branchId is provided, validate it belongs to user's tenant
+    // If branchId is provided, validate it belongs to user's tenant and user is allowed to access it
     if (branchId) {
+      if (user.allowedBranchIds && !user.allowedBranchIds.includes(branchId)) {
+        return NextResponse.json(
+          { error: 'You do not have access to this branch.', code: 'BRANCH_ACCESS_DENIED' },
+          { status: 403 }
+        );
+      }
       const branch = await prisma.branch.findFirst({
         where: { 
           id: branchId,
@@ -102,8 +108,21 @@ export async function GET(request) {
     const sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
     const branchId = sessionData.branchId || null;
 
-    // If branchId exists, validate and return branch info
+    // If branchId exists, validate user can access it and return branch info
     if (branchId) {
+      if (user.allowedBranchIds && !user.allowedBranchIds.includes(branchId)) {
+        sessionData.branchId = null;
+        const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+        cookieStore.set({
+          name: 'session',
+          value: updatedSession,
+          httpOnly: true,
+          path: '/',
+          sameSite: 'lax',
+          secure: process.env.NODE_ENV === 'production'
+        });
+        return NextResponse.json({ branchId: null });
+      }
       const branch = await prisma.branch.findFirst({
         where: { 
           id: branchId,

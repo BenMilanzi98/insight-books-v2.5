@@ -31,12 +31,18 @@ export async function GET(request) {
       );
     }
 
+    // Normalize branchId to string (session may store object { id: '...' })
+    let branchId = user.currentBranchId ?? null;
+    if (branchId && typeof branchId !== 'string') {
+      branchId = branchId?.id && typeof branchId.id === 'string' ? branchId.id : null;
+    }
+
     const report = await generateStockMovementReport(
       user.tenantId,
       startDate,
       endDate,
       productId,
-      user.currentBranchId || null
+      branchId
     );
 
     return NextResponse.json(report);

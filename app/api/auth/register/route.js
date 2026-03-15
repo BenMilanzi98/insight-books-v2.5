@@ -70,7 +70,7 @@ export async function POST(request) {
         }
       });
 
-      // Create user
+      // Create user (main tenant / owner)
       const newUser = await tx.user.create({
         data: {
           name,
@@ -80,6 +80,12 @@ export async function POST(request) {
           role: 'owner',
           ...otherFields
         }
+      });
+
+      // Main tenant user has access to all branches
+      await tx.tenant.update({
+        where: { id: newTenant.id },
+        data: { ownerUserId: newUser.id }
       });
 
       // Create tenant settings

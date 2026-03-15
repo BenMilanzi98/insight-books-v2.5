@@ -24,7 +24,7 @@ export async function POST(request) {
       );
     }
 
-    // Create the tenant first
+    // Create the tenant (current user is the main tenant / owner)
     const tenant = await prisma.tenant.create({
       data: {
         name,
@@ -34,6 +34,7 @@ export async function POST(request) {
                          body.selectedPlan === '3months' ? '3months' : 
                          body.selectedPlan === '1month' ? '1month' : '1month',
         status: 'active',
+        ownerUserId: user.id,
       }
     });
 

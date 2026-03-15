@@ -19,6 +19,10 @@ model Tenant {
   primaryColor               String?
   faviconUrl                 String?
   secondaryColor             String?
+  defaultBranchId            String?
+  defaultBranch              Branch?                     @relation("TenantDefaultBranch", fields: [defaultBranchId], references: [id], onDelete: SetNull)
+  ownerUserId                String?                     // Main tenant user: always has access to all branches
+  owner                      User?                       @relation("TenantOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
   accounts                   Account[]
   AccountBalance             AccountBalance[]
   accountSubscriptions       AccountSubscription[]
@@ -103,6 +107,7 @@ model Branch {
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   tenant                Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  defaultForTenant      Tenant[]               @relation("TenantDefaultBranch")
   branchSubscriptions   BranchSubscription[]
   expenses              Expense[]
   inventoryBatches      InventoryBatch[]
@@ -115,12 +120,26 @@ model Branch {
   transactions          Transaction[]
   budgetItems           BudgetItem[]
   defaultUsers          User[]                 @relation("UserDefaultBranch")
+  userBranches          UserBranch[]
   stockTransfersFrom    StockTransfer[]         @relation("StockTransferFrom")
   stockTransfersTo      StockTransfer[]         @relation("StockTransferTo")
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([isActive])
+}
+
+model UserBranch {
+  id        String   @id @default(cuid())
+  userId    String
+  branchId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@index([userId])
+  @@index([branchId])
 }
 
 model TenantSettings {
@@ -260,9 +279,11 @@ model User {
   stockTransfersCreated          StockTransfer[]        @relation("StockTransferCreatedBy")
   stockTransfersApproved         StockTransfer[]        @relation("StockTransferApprovedBy")
   defaultBranch                  Branch?                @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
+  userBranches                   UserBranch[]
   role                           Role                   @relation(fields: [roleId], references: [id])
   tenant                         Tenant?                @relation(fields: [tenantId], references: [id])
   tenants                        Tenant[]               @relation("UserTenants")
+  ownedTenants                   Tenant[]               @relation("TenantOwner")
 
   @@index([email])
   @@index([tenantId])

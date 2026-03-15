@@ -49,6 +49,7 @@ export async function GET(request) {
     faviconUrl: t.faviconUrl,
     primaryColor: t.primaryColor,
     secondaryColor: t.secondaryColor,
+    defaultBranchId: t.defaultBranchId ?? null,
     emailFooter: t.settings?.emailFooter || '',
     customDomain: t.settings?.customDomain || '',
     emailNotifications: t.settings?.emailNotifications || false,
@@ -92,10 +93,14 @@ export async function POST(request) {
     await fs.mkdir(uploadDir, { recursive: true });
     console.log('Account API - Upload directory created/verified');
 
+    const defaultBranchId = formData.get("defaultBranchId");
     let updateData = {
       name,
       primaryColor: formData.get("primaryColor"),
       secondaryColor: formData.get("secondaryColor"),
+      ...(defaultBranchId !== undefined && defaultBranchId !== null
+        ? { defaultBranchId: defaultBranchId === "" || defaultBranchId === "null" ? null : defaultBranchId }
+        : {})
     };
 
     const timestamp = Date.now(); // Milliseconds since epoch

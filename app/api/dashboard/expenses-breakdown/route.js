@@ -59,6 +59,7 @@ export async function GET(request) {
         endDate.setDate(endDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisMonth':
       case 'month':
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -128,81 +129,87 @@ export async function GET(request) {
     }
     
     // Get all expenses for the selected period, grouped by category.
-    // Includes payroll, operating expenses, and supplier/PO expenses (include unassigned branch).
-    const expenses = await prisma.expense.groupBy({
-      by: ['category'],
-      where: addBranchFilterIncludeUnassigned(user, {
-        tenantId,
-        isReversal: false,
-        OR: [
-          {
-            date: {
-              gte: startDate,
-              lte: endDate
-            }
-          },
-          { isHistorical: true }
-        ],
-        status: { in: ['Approved', 'Pending'] },
-        isDeleted: false
-      }),
-      _sum: {
-        amount: true
-      }
+    // Use date range only so this works with DBs that may not have isHistorical.
+    const expenseWhere = addBranchFilterIncludeUnassigned(user, {
+      tenantId,
+      isReversal: false,
+      date: { gte: startDate, lte: endDate },
+      status: { in: ['Approved', 'Pending'] },
+      isDeleted: false
     });
-    
-    // Find COGS account(s) for this tenant to include in expenses (cost accounts)
-    const cogsAccounts = await prisma.account.findMany({
-      where: {
-        tenantId,
-        isActive: true,
-        accountType: 'Expense',
-        OR: [
-          { accountCode: '5000' },
-          { code: '5000' },
-          { accountCode: '5100' },
-          { code: '5100' },
-          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-          { accountName: { contains: 'cogs', mode: 'insensitive' } },
-          { name: { contains: 'cost of goods', mode: 'insensitive' } },
-          { name: { contains: 'cogs', mode: 'insensitive' } }
-        ]
-      },
-      select: { id: true, accountName: true, name: true }
-    });
-    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
-    
-    // Get COGS transactions for the selected period
+
+    let expenses;
+    try {
+      expenses = await prisma.expense.groupBy({
+        by: ['category'],
+        where: expenseWhere,
+        _sum: { amount: true }
+      });
+    } catch (groupByErr) {
+      console.error('expenses-breakdown groupBy failed:', groupByErr?.message || groupByErr);
+      throw groupByErr;
+    }
+
+    // COGS: find cost accounts (optional; skip if schema/DB differs)
+    let cogsAccountIds = [];
+    try {
+      const cogsAccounts = await prisma.account.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          accountType: 'Expense',
+          OR: [
+            { accountCode: '5000' },
+            { code: '5000' },
+            { accountCode: '5100' },
+            { code: '5100' },
+            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+            { accountName: { contains: 'cogs', mode: 'insensitive' } },
+            { name: { contains: 'cost of goods', mode: 'insensitive' } },
+            { name: { contains: 'cogs', mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      });
+      cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    } catch (accountErr) {
+      console.error('expenses-breakdown cogs accounts lookup failed:', accountErr?.message || accountErr);
+      // Continue without COGS if Account query fails (e.g. missing column in restored DB)
+    }
+
     let cogsTotal = 0;
     if (cogsAccountIds.length > 0) {
-      const cogsData = await prisma.transactionLine.aggregate({
-        where: {
-          accountId: { in: cogsAccountIds },
-          debitAmount: { gt: 0 },
-          transaction: {
-            tenantId,
-            ...addBranchFilter(user, {}),
-            date: {
-              gte: startDate,
-              lte: endDate
-            },
-            status: 'posted'
-          }
-        },
-        _sum: { debitAmount: true }
-      });
-      cogsTotal = Number(cogsData._sum.debitAmount || 0);
+      try {
+        const txFilter = { tenantId, date: { gte: startDate, lte: endDate }, status: 'posted' };
+        const branchFilter = addBranchFilter(user, {});
+        if (Object.keys(branchFilter).length > 0) Object.assign(txFilter, branchFilter);
+        const cogsData = await prisma.transactionLine.aggregate({
+          where: {
+            accountId: { in: cogsAccountIds },
+            debitAmount: { gt: 0 },
+            transaction: txFilter
+          },
+          _sum: { debitAmount: true }
+        });
+        cogsTotal = Number(cogsData._sum?.debitAmount ?? 0);
+      } catch (cogsErr) {
+        console.error('expenses-breakdown COGS aggregate failed:', cogsErr?.message || cogsErr);
+        // Continue with cogsTotal 0
+      }
     }
     
-    // Calculate the total to get percentages (including COGS)
-    const totalExpenses = expenses.reduce((sum, expense) => sum + expense._sum.amount, 0) + cogsTotal;
+    // Calculate the total to get percentages (including COGS); guard against null _sum.amount
+    const totalExpenses = expenses.reduce((sum, expense) => sum + (Number(expense._sum?.amount) || 0), 0) + cogsTotal;
     
     // Format the response
-    const expensesBreakdown = expenses.map(expense => ({
-      category: expense.category,
-      amount: expense._sum.amount,
-      percentage: totalExpenses > 0 ? ((expense._sum.amount / totalExpenses) * 100).toFixed(1) : '0.0'
-    }));
+    const expensesBreakdown = expenses.map(expense => {
+      const amount = Number(expense._sum?.amount) || 0;
+      return {
+        category: expense.category ?? 'Uncategorized',
+        amount,
+        percentage: totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(1) : '0.0'
+      };
+    });
     
     // Add COGS as a separate category if there are COGS transactions
     if (cogsTotal > 0) {
@@ -217,9 +224,9 @@ export async function GET(request) {
       expensesBreakdown
     });
   } catch (error) {
-    console.error('Error getting expenses breakdown:', error);
+    console.error('Error getting expenses breakdown:', error?.message || error);
     return NextResponse.json(
-      { error: 'Failed to fetch expenses breakdown data' },
+      { error: 'Failed to fetch expenses breakdown data', details: error?.message },
       { status: 500 }
     );
   }

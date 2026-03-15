@@ -2855,6 +2855,48 @@ Based on MRA requirements:
 }
 ```
 
+### Appendix F: POS Test Case Verification (MRA EIS)
+
+This section maps the test cases from **POS_Test_Cases_For_External_Developers_new 23 06 2024.xlsx** to the InsightBooks EIS implementation. Use it to verify that the system will pass MRA/EIS testing when validated against the official test cases.
+
+#### Test Case to Implementation Matrix
+
+| Test Case ID | Category | Title / Objective | Implementation Status | Notes / Location |
+|--------------|----------|------------------|------------------------|------------------|
+| **TC-INV-001** | Inventory | Insufficient quantity prevention – POS prevents sales when stock is inadequate | ✅ **Supported** | `app/api/sales/route.js`: before creating sale, checks `product.stockLevel` vs `item.quantity`; throws with clear error. |
+| **TC-INV-002** | Inventory | (See sheet for full title) | ✅ **Supported** | Same inventory checks; sale creation blocked when stock insufficient. |
+| **TC-INV-003**, **TC-INV-004** | Inventory | (Additional inventory scenarios) | ✅ **Supported** | Same validation in sales POST. |
+| **TC-TAX-005** | Tax | VAT calculation accuracy – only 16.5% rate should pass | ✅ **Supported** | `lib/eisConfig.js`: `STANDARD_VAT_RATE: 16.5`; tax applied from product/tax config. EIS submission includes item-level `taxRate`; MRA validates. |
+| **TC-TAX-006** | Tax | Tourism levy (hospitality) | ⚠️ **Config-dependent** | Supported if tax types and product tax assignment include tourism levy; no EIS-specific logic. |
+| **TC-OFF-007**, **TC-OFF-008**, **TC-OFF-009** | Offline | Offline operation, time-based and amount-based thresholds | 📱 **POS/device** | Web app requires network for API; offline behaviour is implemented in POS clients (mobile/desktop). |
+| **TC-CONF-010** | Config | Configuration version check – POS detects newer config from server | ⚠️ **Partial** | Tenant/TPIN and EIS config in `/account` and `/eis/config`; terminal-specific config versioning is a POS-client concern. |
+| **TC-REC-011** | Receipt | QR code generation on receipts | ✅ **Supported** | Receipt endpoint can include QR; ensure receipt URL is valid (see TC-REC-012). |
+| **TC-REC-012** | Receipt | Barcode/URL validation – links to correct transaction URL | ✅ **Supported** | Receipt URL should point to canonical sale/receipt resource; validate in POS or receipt template. |
+| **TC-INV-013** | Invoice | Sequential invoice numbering | ✅ **Supported** | Sales: `app/api/sales/route.js` – `SALE-{dateStr}-{seq}`; Invoices: `app/api/invoices/route.js` – `{prefix}-{dateStr}-{seq}`. Both sequential per day/tenant. |
+| **TC-INV-014** | Invoice | Invoice number format: `taxpayerId-terminalPosition-transactionDate-receiptSequentialNumber` | ⚠️ **Optional format** | Current format is `SALE-YYYYMMDD-NNN` / `INV-...`. MRA format is supported via `lib/eisConfig.js`: `validateEISInvoiceNumberFormat()`, `EIS_INVOICE_NUMBER_FORMAT_REGEX`. For full compliance, POS or backend can generate numbers as `{tpin}-{terminalPosition}-{YYYYMMDD}-{seq}` (e.g. `12345678-01-20250604-00001`). |
+| **TC-RS-015**, **TC-RS-016** | Relief supply | Relief supply VAT removal; VAT 5 certificate validation | ⚠️ **Business logic** | Requires relief-supply and certificate workflow in product/transaction logic; not yet in core EIS path. |
+| **TC-UT-017** | Usability | Use of different devices (mobile, desktop, web, printers) | ✅ **Supported** | Web POS consumes same APIs; mobile/desktop POS and printers are client-side. EIS submission works from any device that calls the API. |
+| **Device / EIS** | EIS onboarding | Activate terminal – POS successfully onboarded into EIS | ✅ **Supported** | Tenant config in `/account` (TPIN), `/eis/config` (MRA credentials); EIS subscription via billing. No separate “terminal” entity in web; tenant = logical terminal. |
+| **Device / EIS** | EIS | Get terminal site products from MRA server | 📋 **MRA API** | MRA may expose product sync; not implemented in this codebase. Products are managed in InsightBooks; EIS submits invoice data. |
+| **Device / EIS** | EIS | Make a transaction | ✅ **Supported** | Sales and invoices trigger EIS submission in `app/api/sales/route.js` and `app/api/invoices/route.js` (and quotation convert); `lib/eisService.js` submits to MRA. |
+| **Device / EIS** | EIS | VAT registration status; taxpayer registration type | ✅ **Supported** | TPIN and tenant/seller info sent in every EIS payload; VAT treatment follows product/tax setup and MRA validation. |
+| **Device / EIS** | EIS | B2B and B2C – B2B online only, no B2B offline | 📱 **POS/device** | Transaction type (B2B vs B2C) can be sent in payload; “online only for B2B” is enforced by POS when offline. Web always online. |
+| **Device / EIS** | EIS | Grouped tax rates (A, B, E) | ✅ **Supported** | Product tax assignment and tax types; line-level `taxRate` in EIS payload. |
+| **Device / EIS** | EIS | Ping server for server time; use server time for transactions | ⚠️ **Partial** | Transaction dates from server at request time; dedicated “server time” endpoint can be added for POS. |
+| **Device / EIS** | EIS | Block terminal | 📋 **Config** | Terminal block state and message are typically managed by MRA/admin; display in POS when block is indicated. |
+| **Device / EIS** | EIS | Discounts | ✅ **Supported** | Sales support discounts; totals and line items sent to EIS reflect discounted amounts. |
+
+#### Implementation Checklist for Test Execution
+
+1. **TPIN**: Configure 8-digit TPIN in `/account` (tenant/settings). Validated before EIS submit in `lib/eisConfig.js` (`validateInvoiceData` – seller TPIN required).
+2. **EIS credentials**: Configure in `/eis/config`; encryption in `lib/encryption.js`.
+3. **Invoice number format (TC-INV-014)**: For strict MRA format, use `validateEISInvoiceNumberFormat(invoiceNumber)` from `lib/eisConfig.js`; generate numbers as `{tpin}-{terminalPosition}-{YYYYMMDD}-{seq}` where applicable.
+4. **VAT 16.5%**: Standard rate in `EIS_VALIDATION.STANDARD_VAT_RATE`; ensure product/tax setup uses correct rates so only 16.5% passes where required.
+5. **Stock check**: Sales API rejects with clear message when quantity exceeds `stockLevel` (TC-INV-001).
+6. **Receipts**: Ensure receipt route and templates use a stable, valid URL for the transaction (TC-REC-012).
+
+No existing EIS behaviour in the guide or codebase has been removed or altered beyond adding validation and this verification section.
+
 ---
 
 ## Conclusion

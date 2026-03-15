@@ -17,9 +17,18 @@ export async function GET(request) {
     // Auto-deactivate expired branch subscriptions so the UI stays correct.
     await syncBranchActiveStatus(user.tenantId);
 
-    // Return both active and inactive branches by default for /branches visibility
+    const { searchParams } = new URL(request.url);
+    const includeInactive = searchParams.get('includeInactive');
+
+    // When user has allowedBranchIds (user-branch assignment), only return those branches
+    const where = {
+      tenantId: user.tenantId,
+      ...(includeInactive === 'false' ? { isActive: true } : {}),
+      ...(user.allowedBranchIds ? { id: { in: user.allowedBranchIds } } : {})
+    };
+
     const branches = await prisma.branch.findMany({
-      where: { tenantId: user.tenantId },
+      where,
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     });
 

@@ -15,16 +15,27 @@ export async function POST(request) {
       );
     }
 
-    // Find the user by email
+    // Find the user by email (include tenant defaultBranchId and userBranches for session)
     const user = await prisma.user.findFirst({
       where: { email: body.email },
-      include: {
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        password: true,
+        isActive: true,
+        tenantId: true,
+        defaultBranchId: true,
+        role: true,
+        userBranches: { select: { branchId: true } },
         tenant: {
           select: {
             id: true,
             name: true,
             subdomain: true,
-            status: true
+            status: true,
+            defaultBranchId: true,
+            ownerUserId: true
           }
         }
       }
@@ -65,13 +76,36 @@ export async function POST(request) {
       );
     }
 
+    // Set default branch in session: owner gets all branches; added users get assigned or tenant default/first branch
+    const isOwner = user.tenantId && user.tenant?.ownerUserId === user.id;
+    let allowedIds = (user.userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
+    if (!isOwner && allowedIds.length === 0 && user.tenantId) {
+      const defaultBranchId = user.tenant?.defaultBranchId || null;
+      const firstBranch = defaultBranchId
+        ? null
+        : await prisma.branch.findFirst({
+            where: { tenantId: user.tenantId },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true }
+          });
+      if (defaultBranchId) allowedIds = [defaultBranchId];
+      else if (firstBranch) allowedIds = [firstBranch.id];
+    }
+    const preferredDefault = user.defaultBranchId ?? user.tenant?.defaultBranchId ?? null;
+    const initialBranchId = isOwner
+      ? preferredDefault
+      : allowedIds.length > 0
+        ? (preferredDefault && allowedIds.includes(preferredDefault) ? preferredDefault : allowedIds[0])
+        : null;
+
     // Create session data
     const sessionData = {
       userId: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
-      tenantId: user.tenantId
+      tenantId: user.tenantId,
+      branchId: initialBranchId
     };
 
     // In a real app, you'd encrypt and sign this data

@@ -41,6 +41,9 @@ function AccountContent() {
     // MRA EIS
     tpin: "",
 
+    // Default branch (tenant-level; used when user has no personal default)
+    defaultBranchId: "",
+
     // Business Address for Receipts
     buildingName: "",
     businessAddress: "",
@@ -78,8 +81,10 @@ function AccountContent() {
   const [saveStatus, setSaveStatus] = useState(null);
   const [errors, setErrors] = useState({});
   const [activeTab, setActiveTab] = useState("business");
-  // NEW: For tax outflow account selection
+  // For tax outflow account selection
   const [taxOutflowAccountOptions, setTaxOutflowAccountOptions] = useState([]);
+  // Branches for default branch dropdown
+  const [branchOptions, setBranchOptions] = useState([]);
 
   // Keep activeTab in sync with URL (e.g. /account?tab=business)
   useEffect(() => {
@@ -90,6 +95,18 @@ function AccountContent() {
   useEffect(() => {
     loadSettings();
     loadTaxAccountOptions();
+  }, []);
+
+  // Load branches for default branch dropdown (business tab)
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/branches")
+      .then((res) => res.ok ? res.json() : { branches: [] })
+      .then((data) => {
+        if (!cancelled) setBranchOptions(data.branches || []);
+      })
+      .catch(() => { if (!cancelled) setBranchOptions([]); });
+    return () => { cancelled = true; };
   }, []);
 
   const loadSettings = async () => {
@@ -132,6 +149,7 @@ function AccountContent() {
         primaryColor: accountData.primaryColor || tenantData.primaryColor || "#4f46e5",
         secondaryColor: accountData.secondaryColor || tenantData.secondaryColor || "#7c3aed",
         tpin: accountData.tpin || tenantData.tpin || "",
+        defaultBranchId: accountData.defaultBranchId || tenantData.defaultBranchId || "",
         buildingName: tenantData.buildingName || "",
         businessAddress: tenantData.businessAddress || "",
         businessCity: tenantData.businessCity || "",
@@ -262,6 +280,7 @@ function AccountContent() {
       accountFormData.append("name", settings.name || "");
       accountFormData.append("primaryColor", settings.primaryColor || "");
       accountFormData.append("secondaryColor", settings.secondaryColor || "");
+      accountFormData.append("defaultBranchId", settings.defaultBranchId || "");
       accountFormData.append("emailFooter", settings.emailFooter || "");
       accountFormData.append("customDomain", settings.customDomain || "");
       accountFormData.append("emailNotifications", settings.emailNotifications);
@@ -514,6 +533,25 @@ function AccountContent() {
                       className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
                       placeholder="your-business"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Default branch
+                    </label>
+                    <select
+                      value={settings.defaultBranchId || ""}
+                      onChange={(e) => handleChange("defaultBranchId", e.target.value)}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">None (user default or All Branches)</option>
+                      {branchOptions.filter((b) => b.isActive).map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                          {branch.name}{branch.code ? ` (${branch.code})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">Used as fallback when a user has no personal default branch set.</p>
                   </div>
                   
                   <div>

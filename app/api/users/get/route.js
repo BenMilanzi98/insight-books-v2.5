@@ -41,7 +41,8 @@ export async function GET(request) {
         lastLogin: true,
         createdAt: true,
         isEmailVerified: true,
-        // Exclude sensitive fields
+        defaultBranchId: true,
+        userBranches: { select: { branchId: true } }
       }
     });
 
@@ -52,7 +53,12 @@ export async function GET(request) {
       );
     }
 
-    return NextResponse.json(targetUser);
+    const { userBranches, ...rest } = targetUser;
+    const allowedBranchIds = (userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
+    return NextResponse.json({
+      ...rest,
+      allowedBranchIds: allowedBranchIds.length > 0 ? allowedBranchIds : []
+    });
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(

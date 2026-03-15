@@ -83,6 +83,24 @@ export async function PUT(request) {
       dataToUpdate.password = await bcrypt.hash(updateData.password, 10);
     }
 
+    // Sync allowed branches (user-branch assignment): empty array = all branches, non-empty = restrict to those
+    const allowedBranchIds = updateData.allowedBranchIds;
+    if (Array.isArray(allowedBranchIds)) {
+      await prisma.userBranch.deleteMany({ where: { userId } });
+      if (allowedBranchIds.length > 0) {
+        const validBranchIds = await prisma.branch.findMany({
+          where: { id: { in: allowedBranchIds }, tenantId: user.tenantId },
+          select: { id: true }
+        });
+        const ids = validBranchIds.map((b) => b.id);
+        if (ids.length > 0) {
+          await prisma.userBranch.createMany({
+            data: ids.map((branchId) => ({ userId, branchId }))
+          });
+        }
+      }
+    }
+
     // Update the user
     const updatedUser = await prisma.user.update({
       where: { id: userId },

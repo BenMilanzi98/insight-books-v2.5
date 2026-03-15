@@ -22,7 +22,7 @@ export async function POST(request) {
     console.log('Admin authenticated:', admin.email);
     console.log('Attempting to update user with ID:', userId);
 
-    const { name, email, phone, role, status, tenantId } = updateData;
+    const { name, email, phone, role, status, tenantId, defaultBranchId, allowedBranchIds } = updateData;
 
     // Validate required fields
     if (!name || !email || !role || !status || !tenantId) {
@@ -93,19 +93,38 @@ export async function POST(request) {
       }
     });
 
+    const data = {
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      phone: phone || null,
+      roleId: userRole.id,
+      tenantId: tenant.id,
+      isActive: status === 'active',
+      status: status,
+      updatedAt: new Date()
+    };
+    if (defaultBranchId !== undefined) data.defaultBranchId = defaultBranchId || null;
+
+    if (Array.isArray(allowedBranchIds)) {
+      await prisma.userBranch.deleteMany({ where: { userId } });
+      if (allowedBranchIds.length > 0) {
+        const validBranchIds = await prisma.branch.findMany({
+          where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
+          select: { id: true }
+        });
+        const ids = validBranchIds.map((b) => b.id);
+        if (ids.length > 0) {
+          await prisma.userBranch.createMany({
+            data: ids.map((branchId) => ({ userId, branchId }))
+          });
+        }
+      }
+    }
+
     // Update the user
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-        phone: phone || null,
-        roleId: userRole.id,
-        tenantId: tenant.id,
-        isActive: status === 'active',
-        status: status,
-        updatedAt: new Date()
-      },
+      data,
       include: {
         tenant: {
           select: {

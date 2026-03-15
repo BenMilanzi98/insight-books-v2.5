@@ -444,9 +444,11 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [productSearchByLine, setProductSearchByLine] = useState({});
 
   useEffect(() => {
     if (!initialData) return;
+    setProductSearchByLine({});
     setForm({
       supplierId: initialData.supplierId || "",
       orderType: initialData.orderType || "goods",
@@ -777,18 +779,38 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {!isService ? (
                     <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
                       <label className="block text-xs font-medium text-gray-600">Product <span className="text-red-500">*</span></label>
+                      <input
+                        type="text"
+                        placeholder="Search products..."
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-400"
+                        value={productSearchByLine[idx] ?? ""}
+                        onChange={(e) => setProductSearchByLine((prev) => ({ ...prev, [idx]: e.target.value }))}
+                      />
                       <select
-                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         value={item.productId}
                         onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
                         required={!isService}
                       >
                         <option value="">Select product</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name}
-                          </option>
-                        ))}
+                        {(() => {
+                          const searchTerm = (productSearchByLine[idx] ?? "").trim().toLowerCase();
+                          const match = (p) =>
+                            !searchTerm ||
+                            (p.name && p.name.toLowerCase().includes(searchTerm)) ||
+                            (p.sku && String(p.sku).toLowerCase().includes(searchTerm)) ||
+                            (p.code && String(p.code).toLowerCase().includes(searchTerm));
+                          let filtered = searchTerm ? products.filter(match) : products;
+                          const selected = item.productId && products.find((p) => p.id === item.productId);
+                          if (selected && !filtered.some((p) => p.id === selected.id)) {
+                            filtered = [selected, ...filtered];
+                          }
+                          return filtered.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name}
+                            </option>
+                          ));
+                        })()}
                       </select>
                     </div>
                   ) : (

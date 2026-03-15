@@ -159,7 +159,7 @@ export async function POST(request) {
       
    
      
-      // Create user with admin role, properly hashed password, and OTP
+      // Create user with admin role (main tenant / owner)
       const user = await tx.user.create({
         data: {
           name: body.fullName,
@@ -176,6 +176,12 @@ export async function POST(request) {
             connect: { id: tenant.id }
           }
         }
+      });
+
+      // Main tenant user has access to all branches
+      await tx.tenant.update({
+        where: { id: tenant.id },
+        data: { ownerUserId: user.id }
       });
 
       // Handle affiliate referral if present

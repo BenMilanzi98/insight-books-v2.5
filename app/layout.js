@@ -40,6 +40,13 @@ export default function RootLayout({ children }) {
     return () => window.removeEventListener("resize", checkIfMobile);
   }, []);
 
+  // Register service worker for offline POS support
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
   // Collapse sidebar on mobile when changing pages
   useEffect(() => {
     if (isMobile) {

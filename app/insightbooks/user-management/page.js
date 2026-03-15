@@ -1063,20 +1063,18 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branc
   console.log('EditUserModal received roles:', roles);
   console.log('EditUserModal received branches:', branches);
   
-  // Find the tenant ID for the current user
+  // Find the tenant ID for the current user (prefer user.tenantId from API)
   const findTenantId = (tenantName) => {
-    console.log('Finding tenant ID for:', tenantName);
+    if (user.tenantId) return user.tenantId;
     const tenant = tenants.find(t => t.name === tenantName);
-    console.log('Found tenant:', tenant);
     return tenant ? tenant.id : '';
   };
 
-  // Find the role ID for the current user
+  // Find the role ID for the current user (prefer user.roleId from API)
   const findRoleId = (roleName) => {
-    console.log('Finding role ID for:', roleName);
+    if (user.roleId) return user.roleId;
     const role = roles.find(r => r.name === roleName);
-    console.log('Found role:', role);
-    return role ? role.id : roleName; // Fallback to roleName if not found
+    return role ? role.id : roleName;
   };
 
   const [formData, setFormData] = useState({
@@ -1086,7 +1084,8 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branc
     role: findRoleId(user.role),
     status: user.status,
     tenantId: findTenantId(user.tenant),
-    defaultBranchId: user.defaultBranchId || null
+    defaultBranchId: user.defaultBranchId || null,
+    allowedBranchIds: Array.isArray(user.allowedBranchIds) ? [...user.allowedBranchIds] : []
   });
 
   // Load branches when tenant changes
@@ -1200,22 +1199,46 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branc
             </div>
             
             {formData.tenantId && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
-                <select
-                  value={formData.defaultBranchId || ''}
-                  onChange={(e) => setFormData({...formData, defaultBranchId: e.target.value || null})}
-                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">-- No Default Branch --</option>
-                  {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name} {branch.code ? `(${branch.code})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-gray-500">Transactions will default to this branch if not specified</p>
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
+                  <select
+                    value={formData.defaultBranchId || ''}
+                    onChange={(e) => setFormData({...formData, defaultBranchId: e.target.value || null})}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- No Default Branch --</option>
+                    {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name} {branch.code ? `(${branch.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Allowed Branches</label>
+                  <p className="mt-1 text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
+                  <div className="mt-1 border border-gray-300 rounded-md p-2 max-h-32 overflow-y-auto bg-gray-50">
+                    {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
+                      <label key={branch.id} className="flex items-center gap-2 py-1">
+                        <input
+                          type="checkbox"
+                          checked={formData.allowedBranchIds.includes(branch.id)}
+                          onChange={(e) => {
+                            const next = e.target.checked
+                              ? [...formData.allowedBranchIds, branch.id]
+                              : formData.allowedBranchIds.filter(id => id !== branch.id);
+                            setFormData({ ...formData, allowedBranchIds: next });
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ''}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             
             <div className="flex justify-end space-x-3 pt-4">

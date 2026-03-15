@@ -67,7 +67,8 @@ export async function GET(request) {
             id: true,
             name: true
           }
-        }
+        },
+        userBranches: { select: { branchId: true } }
       },
       orderBy: {
         createdAt: 'desc'
@@ -83,8 +84,12 @@ export async function GET(request) {
       email: user.email,
       phone: user.phone || '',
       role: user.role?.name || 'No Role',
+      roleId: user.role?.id,
       status: user.status === 'pending' ? 'pending' : (user.isActive ? 'active' : 'inactive'),
       tenant: user.tenant?.name || 'No Tenant',
+      tenantId: user.tenant?.id,
+      defaultBranchId: user.defaultBranchId || null,
+      allowedBranchIds: (user.userBranches || []).map(ub => ub.branchId).filter(Boolean),
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       avatar: (user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()

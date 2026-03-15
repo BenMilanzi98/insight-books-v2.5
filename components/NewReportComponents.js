@@ -30,7 +30,7 @@ function groupMovements(movements, groupBy) {
  */
 export const StockMovementReport = ({ 
   data, 
-  loading, 
+  loading,
   error,
   timeframe,
   onTimeframeChange,
@@ -41,6 +41,7 @@ export const StockMovementReport = ({
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [groupBy, setGroupBy] = useState('none'); // 'none' | 'day' | 'week'
+  const [productList, setProductList] = useState([]); // Full list for dropdown (not tied to report data)
   const itemsPerPage = 5;
   
   const productMovements = data?.productMovements || [];
@@ -49,9 +50,27 @@ export const StockMovementReport = ({
   const endIndex = startIndex + itemsPerPage;
   const currentPageProducts = productMovements.slice(startIndex, endIndex);
   
-  // Product filter options from current data (plus "All products")
-  const productOptions = [{ id: null, name: 'All products' }, ...productMovements.map(pm => ({ id: pm.product?.id, name: pm.product?.name || (pm.product?.sku ? `Product ${pm.product.sku}` : 'Product') }))];
+  // Product filter dropdown: use full product list so selection always shows all products (report data is filtered by selected product)
+  const productOptions = [{ id: null, name: 'All products' }, ...productList.map(p => ({ id: p.id, name: p.name || (p.sku ? `Product ${p.sku}` : 'Product') }))];
   const uniqueProducts = productOptions.filter((p, i, a) => a.findIndex(x => x.id === p.id) === i);
+
+  // Load full product list for dropdown when filter is available (so dropdown isn't limited to current report data)
+  useEffect(() => {
+    if (!onProductFilterChange) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/stock?limit=0&page=1');
+        if (!res.ok || cancelled) return;
+        const json = await res.json();
+        const list = Array.isArray(json.products) ? json.products : [];
+        if (!cancelled) setProductList(list);
+      } catch (_) {
+        if (!cancelled) setProductList([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [onProductFilterChange]);
   
   useEffect(() => {
     setCurrentPage(1);

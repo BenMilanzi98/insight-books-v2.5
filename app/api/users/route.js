@@ -61,7 +61,7 @@ export async function GET(request) {
     // Build sort object for Prisma
     const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
-    // Fetch users with their role information, filtered by tenant
+    // Fetch users with their role and userBranches (allowed branches for separation by branch)
     const users = await prisma.user.findMany({
       where,
       orderBy,
@@ -74,15 +74,21 @@ export async function GET(request) {
             name: true,
             permissions: true
           }
-        }
+        },
+        userBranches: { select: { branchId: true } }
       }
     });
-    
-    // Add a roleType string field for compatibility with frontend
-    const formattedUsers = users.map(user => ({
-      ...user,
-      roleType: user.role?.name || 'user' // Provide a default in case role is null
-    }));
+
+    // Add roleType and allowedBranchIds for frontend
+    const formattedUsers = users.map(user => {
+      const { userBranches, ...rest } = user;
+      const allowedBranchIds = userBranches?.map((ub) => ub.branchId).filter(Boolean) ?? [];
+      return {
+        ...rest,
+        roleType: user.role?.name || 'user',
+        allowedBranchIds
+      };
+    });
     
     // Return users with pagination metadata
     return NextResponse.json({

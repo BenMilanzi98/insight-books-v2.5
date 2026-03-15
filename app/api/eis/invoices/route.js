@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
+import { hasEISAccess } from '@/lib/subscriptionService';
 import prisma from '@/lib/prisma';
 
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const hasEIS = await hasEISAccess(user.tenantId);
+    if (!hasEIS) {
+      return NextResponse.json({ error: 'EIS subscription required' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'));

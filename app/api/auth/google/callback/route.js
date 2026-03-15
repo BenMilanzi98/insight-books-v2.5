@@ -674,7 +674,7 @@ async function handleGoogleSignup(googleUser) {
       const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
       await initializeDefaultPaymentAccounts(tenant.id, tx);
 
-      // Create user with Google OAuth data
+      // Create user with Google OAuth data (main tenant / owner)
       const user = await tx.user.create({
         data: {
           name: googleUser.name,
@@ -696,6 +696,12 @@ async function handleGoogleSignup(googleUser) {
           role: true,
           tenant: true
         }
+      });
+
+      // Main tenant user has access to all branches
+      await tx.tenant.update({
+        where: { id: tenant.id },
+        data: { ownerUserId: user.id }
       });
 
       return { user, tenant };

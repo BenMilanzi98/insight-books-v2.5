@@ -2,6 +2,7 @@
 "use client";
 
 import React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 const PrintableReceipt = ({ receiptData }) => {
   const { type, payment, invoice, expense, client, payments, totalPaid, isFullyPaid, branding } = receiptData;
@@ -216,6 +217,59 @@ const PrintableReceipt = ({ receiptData }) => {
             )}
           </div>
         </>
+      )}
+
+      {/* MRA Tax Breakdown by Group (A/B/E) - TC-INV-003, TC-TAX-005/006 */}
+      {receiptData.taxBreakdown && receiptData.taxBreakdown.length > 0 && (
+        <div className="mt-6 bg-gray-50 border border-gray-200 p-4 rounded-lg">
+          <h4 className="font-semibold text-sm text-gray-700 mb-2">Tax Summary</h4>
+          <div className="space-y-1">
+            {receiptData.taxBreakdown.map((tax, idx) => (
+              <div key={idx} className="flex justify-between text-sm">
+                <span className="text-gray-600">
+                  <span className="inline-block w-6 text-center font-bold text-xs rounded bg-blue-100 text-blue-700 mr-2">
+                    {tax.taxRateId || (tax.taxRate === 16.5 ? 'A' : tax.taxRate === 0 ? 'B' : 'E')}
+                  </span>
+                  {tax.taxName || `Tax Group ${tax.taxRateId}`} ({tax.taxRate || 0}%)
+                </span>
+                <span className="font-medium">{formatCurrency(tax.taxAmount || tax.totalVAT || 0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Tourism Levy - TC-TAX-006 */}
+      {receiptData.levyBreakdown && receiptData.levyBreakdown.length > 0 && (
+        <div className="mt-3 bg-amber-50 border border-amber-200 p-4 rounded-lg">
+          <h4 className="font-semibold text-sm text-amber-700 mb-2">Levies</h4>
+          <div className="space-y-1">
+            {receiptData.levyBreakdown.map((levy, idx) => (
+              <div key={idx} className="flex justify-between text-sm">
+                <span className="text-amber-700">{levy.levyName || 'Tourism Levy'}</span>
+                <span className="font-medium text-amber-800">{formatCurrency(levy.totalLevy || levy.amount || 0)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MRA Invoice Number */}
+      {receiptData.eisInvoiceNumber && (
+        <div className="mt-3 text-center">
+          <p className="text-xs text-gray-500">MRA Invoice: <span className="font-mono font-medium text-gray-700">{receiptData.eisInvoiceNumber}</span></p>
+        </div>
+      )}
+
+      {/* QR Code for EIS verification */}
+      {(receiptData.payment?.id || receiptData.invoice?.id || receiptData.expense?.id) && (
+        <div className="mt-6 flex flex-col items-center">
+          <QRCodeSVG
+            value={`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/verify/${receiptData.invoice?.id || receiptData.payment?.id || receiptData.expense?.id}`}
+            size={96}
+          />
+          <p className="text-xs text-gray-500 mt-1">Scan to verify</p>
+        </div>
       )}
 
       {/* Footer */}
