@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  transpilePackages: ['qrcode.react'],
   images: {
     // Disable image optimization for uploaded files to prevent thumbnail generation
     // Allow images from uploads directory
