@@ -15,31 +15,60 @@ export async function POST(request) {
       );
     }
 
-    // Find the user by email (include tenant defaultBranchId and userBranches for session)
-    const user = await prisma.user.findFirst({
-      where: { email: body.email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        password: true,
-        isActive: true,
-        tenantId: true,
-        defaultBranchId: true,
-        role: true,
-        userBranches: { select: { branchId: true } },
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            subdomain: true,
-            status: true,
-            defaultBranchId: true,
-            ownerUserId: true
+    // Find the user by email.
+    // IMPORTANT: Be backward compatible with older databases that might not yet have
+    // Tenant.defaultBranchId / Tenant.ownerUserId / UserBranch tables.
+    let user;
+    try {
+      // New schema (with branch separation)
+      user = await prisma.user.findFirst({
+        where: { email: body.email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          password: true,
+          isActive: true,
+          tenantId: true,
+          defaultBranchId: true,
+          role: true,
+          userBranches: { select: { branchId: true } },
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              subdomain: true,
+              status: true,
+              defaultBranchId: true,
+              ownerUserId: true
+            }
           }
         }
-      }
-    });
+      });
+    } catch (schemaError) {
+      console.error('Login user lookup (new schema) failed, falling back to legacy select:', schemaError?.message || schemaError);
+      // Legacy schema: no branch separation fields. We only select what we know is safe.
+      user = await prisma.user.findFirst({
+        where: { email: body.email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          password: true,
+          isActive: true,
+          tenantId: true,
+          role: true,
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              subdomain: true,
+              status: true
+            }
+          }
+        }
+      });
+    }
 
     // Check if user exists
     if (!user) {
@@ -83,27 +112,34 @@ export async function POST(request) {
       );
     }
 
-    // Set default branch in session: owner gets all branches; added users get assigned or tenant default/first branch
-    const isOwner = user.tenantId && user.tenant?.ownerUserId === user.id;
-    let allowedIds = (user.userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
-    if (!isOwner && allowedIds.length === 0 && user.tenantId) {
-      const defaultBranchId = user.tenant?.defaultBranchId || null;
-      const firstBranch = defaultBranchId
-        ? null
-        : await prisma.branch.findFirst({
-            where: { tenantId: user.tenantId },
-            orderBy: { createdAt: 'asc' },
-            select: { id: true }
-          });
-      if (defaultBranchId) allowedIds = [defaultBranchId];
-      else if (firstBranch) allowedIds = [firstBranch.id];
+    // Set default branch in session: owner gets all branches; added users get assigned or tenant default/first branch.
+    // If legacy DB without branch separation fields, fall back to "no branch" (null) so login still works.
+    let initialBranchId = null;
+    try {
+      const isOwner = user.tenantId && user.tenant?.ownerUserId === user.id;
+      let allowedIds = (user.userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
+      if (!isOwner && allowedIds.length === 0 && user.tenantId) {
+        const defaultBranchId = user.tenant?.defaultBranchId || null;
+        const firstBranch = defaultBranchId
+          ? null
+          : await prisma.branch.findFirst({
+              where: { tenantId: user.tenantId },
+              orderBy: { createdAt: 'asc' },
+              select: { id: true }
+            });
+        if (defaultBranchId) allowedIds = [defaultBranchId];
+        else if (firstBranch) allowedIds = [firstBranch.id];
+      }
+      const preferredDefault = user.defaultBranchId ?? user.tenant?.defaultBranchId ?? null;
+      initialBranchId = isOwner
+        ? preferredDefault
+        : allowedIds.length > 0
+          ? (preferredDefault && allowedIds.includes(preferredDefault) ? preferredDefault : allowedIds[0])
+          : null;
+    } catch (branchError) {
+      console.error('Login branch selection failed (non-fatal, defaulting branchId to null):', branchError?.message || branchError);
+      initialBranchId = null;
     }
-    const preferredDefault = user.defaultBranchId ?? user.tenant?.defaultBranchId ?? null;
-    const initialBranchId = isOwner
-      ? preferredDefault
-      : allowedIds.length > 0
-        ? (preferredDefault && allowedIds.includes(preferredDefault) ? preferredDefault : allowedIds[0])
-        : null;
 
     // Create session data
     const sessionData = {

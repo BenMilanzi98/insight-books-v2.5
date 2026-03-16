@@ -19,7 +19,8 @@ export async function GET(request) {
     }
 
     const health = await eisService.getHealthStatus();
-    return NextResponse.json({ ...health, configured: true }, { status: health.mraConnected ? 200 : 503 });
+    // Always return 200 so clients can read status from body; avoids 503 in console when MRA is unreachable
+    return NextResponse.json({ ...health, configured: true });
   } catch (error) {
     return NextResponse.json({
       status: 'unhealthy',
@@ -27,6 +28,6 @@ export async function GET(request) {
       mraConnected: false,
       error: error.message,
       timestamp: new Date().toISOString()
-    }, { status: 503 });
+    });
   }
 }
