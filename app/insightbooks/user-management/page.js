@@ -891,10 +891,55 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
     role: '',
     status: 'active',
     tenantId: '',
-    password: ''
+    password: '',
+    department: '',
+    defaultBranchId: '',
+    allowedBranchIds: []
   });
+  const [modalBranches, setModalBranches] = useState([]);
+  const [modalDepartments, setModalDepartments] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [departmentsLoading, setDepartmentsLoading] = useState(false);
+  const [showNewDepartment, setShowNewDepartment] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [addingDepartment, setAddingDepartment] = useState(false);
 
-  // Reset form to initial state
+  // Fetch branches and departments when tenant changes
+  useEffect(() => {
+    if (!formData.tenantId) {
+      setModalBranches([]);
+      setModalDepartments([]);
+      setFormData((prev) => ({ ...prev, defaultBranchId: '', allowedBranchIds: [] }));
+      return;
+    }
+    const fetchBranches = async () => {
+      setBranchesLoading(true);
+      try {
+        const res = await fetch(`/api/admin/branches?tenantId=${formData.tenantId}`, { cache: 'no-store' });
+        const data = await res.json();
+        setModalBranches(data.branches || []);
+      } catch (e) {
+        setModalBranches([]);
+      } finally {
+        setBranchesLoading(false);
+      }
+    };
+    const fetchDepartments = async () => {
+      setDepartmentsLoading(true);
+      try {
+        const res = await fetch(`/api/admin/departments?tenantId=${formData.tenantId}`, { cache: 'no-store' });
+        const data = await res.json();
+        setModalDepartments(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setModalDepartments([]);
+      } finally {
+        setDepartmentsLoading(false);
+      }
+    };
+    fetchBranches();
+    fetchDepartments();
+  }, [formData.tenantId]);
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -903,25 +948,58 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
       role: '',
       status: 'active',
       tenantId: '',
-      password: ''
+      password: '',
+      department: '',
+      defaultBranchId: '',
+      allowedBranchIds: []
     });
+    setShowNewDepartment(false);
+    setNewDepartmentName('');
+  };
+
+  const handleAddDepartment = async () => {
+    const name = newDepartmentName.trim();
+    if (!name || !formData.tenantId) return;
+    setAddingDepartment(true);
+    try {
+      const res = await fetch('/api/admin/departments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: formData.tenantId, name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create department');
+      setModalDepartments((prev) => [...prev, data]);
+      setFormData((prev) => ({ ...prev, department: data.name }));
+      setNewDepartmentName('');
+      setShowNewDepartment(false);
+    } catch (e) {
+      alert(e.message || 'Could not create department');
+    } finally {
+      setAddingDepartment(false);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Validate required fields
     if (!formData.name || !formData.email || !formData.role || !formData.tenantId) {
       alert('Please fill in all required fields');
       return;
     }
-    
-    onSubmit(formData);
+    const payload = {
+      ...formData,
+      department: formData.department || undefined,
+      defaultBranchId: formData.defaultBranchId || undefined,
+      allowedBranchIds: Array.isArray(formData.allowedBranchIds) ? formData.allowedBranchIds : []
+    };
+    onSubmit(payload);
   };
+
+  const tenantBranches = modalBranches.filter((b) => b.tenantId === formData.tenantId || !b.tenantId);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div className="relative top-10 mx-auto p-5 border max-w-md w-full shadow-lg rounded-md bg-white mb-10">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -931,72 +1009,65 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
                 type="text"
                 required
                 value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Email</label>
               <input
                 type="email"
                 required
                 value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Phone</label>
               <input
                 type="tel"
                 value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Password (optional)</label>
               <input
                 type="password"
                 value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Leave blank for auto-generated password"
               />
               <p className="mt-1 text-xs text-gray-500">Leave blank to generate a temporary password</p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Role</label>
               <select
                 value={formData.role}
-                onChange={(e) => setFormData({...formData, role: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
                 disabled={roles.length === 0}
               >
-                <option value="">
-                  {roles.length === 0 ? 'Loading roles...' : 'Select a role'}
-                </option>
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
+                <option value="">{roles.length === 0 ? 'Loading roles...' : 'Select a role'}</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>{role.name}</option>
                 ))}
               </select>
-              {roles.length === 0 && (
-                <p className="mt-1 text-xs text-gray-500">Loading available roles...</p>
-              )}
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Status</label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="active">Active</option>
@@ -1004,31 +1075,128 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
                 <option value="pending">Pending</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700">Tenant</label>
               <select
                 value={formData.tenantId}
-                onChange={(e) => setFormData({...formData, tenantId: e.target.value})}
+                onChange={(e) => setFormData({ ...formData, tenantId: e.target.value, department: '', defaultBranchId: '', allowedBranchIds: [] })}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 required
               >
                 <option value="">Select a tenant</option>
-                {tenants.map(tenant => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.name} ({tenant.subdomain})
-                  </option>
+                {tenants.map((tenant) => (
+                  <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.subdomain})</option>
                 ))}
               </select>
             </div>
-            
+
+            {/* Department */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
+              {formData.tenantId && (
+                <>
+                  <select
+                    value={showNewDepartment ? '__new__' : (formData.department || '')}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (v === '__new__') {
+                        setShowNewDepartment(true);
+                        setFormData((prev) => ({ ...prev, department: '' }));
+                      } else {
+                        setShowNewDepartment(false);
+                        setFormData((prev) => ({ ...prev, department: v }));
+                      }
+                    }}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    disabled={departmentsLoading}
+                  >
+                    <option value="">No department</option>
+                    {modalDepartments.map((d) => (
+                      <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                    <option value="__new__">+ Create new department</option>
+                  </select>
+                  {showNewDepartment && (
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={newDepartmentName}
+                        onChange={(e) => setNewDepartmentName(e.target.value)}
+                        placeholder="New department name"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddDepartment}
+                        disabled={addingDepartment || !newDepartmentName.trim()}
+                        className="px-3 py-2 bg-gray-100 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50"
+                      >
+                        {addingDepartment ? 'Adding...' : 'Add'}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+              {!formData.tenantId && (
+                <p className="mt-1 text-xs text-gray-500">Select a tenant first</p>
+              )}
+            </div>
+
+            {/* Default branch */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Default branch (optional)</label>
+              {formData.tenantId && (
+                <select
+                  value={formData.defaultBranchId || ''}
+                  onChange={(e) => setFormData({ ...formData, defaultBranchId: e.target.value || null })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  disabled={branchesLoading}
+                >
+                  <option value="">None</option>
+                  {tenantBranches.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ''}</option>
+                  ))}
+                </select>
+              )}
+              <p className="mt-1 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
+            </div>
+
+            {/* Allowed branches */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Allowed branches (optional)</label>
+              <p className="mt-1 text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
+              {formData.tenantId && tenantBranches.length > 0 && (
+                <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
+                  {tenantBranches.map((branch) => (
+                    <label key={branch.id} className="flex items-center gap-2 py-1">
+                      <input
+                        type="checkbox"
+                        checked={formData.allowedBranchIds.includes(branch.id)}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            allowedBranchIds: e.target.checked
+                              ? [...formData.allowedBranchIds, branch.id]
+                              : formData.allowedBranchIds.filter((id) => id !== branch.id)
+                          })
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ''}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {formData.tenantId && tenantBranches.length === 0 && !branchesLoading && (
+                <p className="text-xs text-gray-500">No branches for this tenant</p>
+              )}
+            </div>
+
             <div className="flex justify-end space-x-3 pt-4">
               <button
                 type="button"
-                onClick={() => {
-                  resetForm();
-                  onClose();
-                }}
+                onClick={() => { resetForm(); onClose(); }}
                 disabled={loading}
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
               >

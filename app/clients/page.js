@@ -328,19 +328,19 @@ const ClientForm = ({ client, onSubmit, onCancel, isSubmitting }) => {
           
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Additional email addresses (for invoices)</label>
-            <input
-              type="text"
+            <textarea
               name="additionalEmailsRaw"
-              value={(formData.additionalEmails || []).join(', ')}
+              rows={3}
+              value={(formData.additionalEmails || []).join('\n')}
               onChange={(e) => {
                 const raw = e.target.value || '';
-                const list = raw.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+                const list = raw.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
                 setFormData(prev => ({ ...prev, additionalEmails: list }));
               }}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="e.g. accounts@client.com, finance@client.com (comma or newline separated)"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y min-h-[80px]"
+              placeholder="One per line or comma-separated, e.g. accounts@client.com, finance@client.com"
             />
-            <p className="mt-1 text-xs text-gray-500">Invoices can be sent to these addresses in addition to the primary email.</p>
+            <p className="mt-1 text-xs text-gray-500">Use Enter for a new line or commas between addresses. Invoices can be sent to these in addition to the primary email.</p>
           </div>
           
           <div className="md:col-span-2">

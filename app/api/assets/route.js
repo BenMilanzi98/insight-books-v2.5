@@ -348,13 +348,14 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
     }
     
     if (!assetAccount) {
-      // Create asset account if it doesn't exist
+      // Create asset account if it doesn't exist (accountSubtype 'fixed' so balance sheet shows under PP&E)
       const accountCode = generateAssetAccountCode(asset.category.name);
       assetAccount = await prisma.account.create({
         data: {
           accountCode: accountCode,
           accountName: `${asset.category.name} Assets`,
           accountType: 'Asset',
+          accountSubtype: 'fixed',
           normalBalance: 'Debit',
           isActive: true,
           tenantId: tenantId
@@ -391,6 +392,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
           accountCode: depCode,
           accountName: 'Accumulated Depreciation',
           accountType: 'Asset',
+          accountSubtype: 'depreciation',
           normalBalance: 'Credit',
           isActive: true,
           tenantId: tenantId

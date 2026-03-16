@@ -1194,8 +1194,15 @@ const defaultConfig = {
     role: "",
     department: "",
     status: "active",
-    sendEmail: true
+    sendEmail: true,
+    defaultBranchId: "",
+    allowedBranchIds: []
   });
+  const [branches, setBranches] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [showNewDepartment, setShowNewDepartment] = useState(false);
+  const [newDepartmentName, setNewDepartmentName] = useState("");
+  const [addingDepartment, setAddingDepartment] = useState(false);
   
   const [roleFormData, setRoleFormData] = useState({
     name: "",
@@ -1266,6 +1273,30 @@ useEffect(() => {
   initializePermissions();
 }, []);
   
+  // When Add User modal opens, fetch branches and departments for the current tenant
+  useEffect(() => {
+    if (!showAddUserModal) return;
+    const loadBranchesAndDepartments = async () => {
+      try {
+        const [branchRes, deptRes] = await Promise.all([
+          fetch("/api/branches?includeInactive=false", { cache: "no-store" }),
+          fetch("/api/departments", { cache: "no-store" })
+        ]);
+        if (branchRes.ok) {
+          const b = await branchRes.json();
+          setBranches(b.branches || []);
+        }
+        if (deptRes.ok) {
+          const d = await deptRes.json();
+          setDepartments(Array.isArray(d) ? d : d.departments || []);
+        }
+      } catch (e) {
+        console.error("Error loading branches/departments:", e);
+      }
+    };
+    loadBranchesAndDepartments();
+  }, [showAddUserModal]);
+
   // Load users and roles on component mount
   useEffect(() => {
     const loadInitialData = async () => {
@@ -1674,6 +1705,29 @@ useEffect(() => {
       });
     }
   };
+
+  const handleAddDepartment = async () => {
+    const name = newDepartmentName.trim();
+    if (!name) return;
+    setAddingDepartment(true);
+    try {
+      const res = await fetch("/api/departments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create department");
+      setDepartments((prev) => [...prev, data]);
+      setUserFormData((prev) => ({ ...prev, department: data.name }));
+      setNewDepartmentName("");
+      setShowNewDepartment(false);
+    } catch (e) {
+      setToast({ message: e.message || "Could not create department", type: "error" });
+    } finally {
+      setAddingDepartment(false);
+    }
+  };
   
 // Handle role form input change
 const handleRoleFormChange = (e) => {
@@ -1808,10 +1862,12 @@ const toggleModulePermissions = (module) => {
       const userData = {
         name: `${userFormData.firstName} ${userFormData.lastName}`,
         email: userFormData.email,
-        role: selectedRole?.id || userFormData.role, // Prefer ID if available
+        role: selectedRole?.id || userFormData.role,
         department: userFormData.department || null,
         status: userFormData.status,
-        sendEmail: userFormData.sendEmail
+        sendEmail: userFormData.sendEmail,
+        defaultBranchId: userFormData.defaultBranchId || undefined,
+        allowedBranchIds: Array.isArray(userFormData.allowedBranchIds) ? userFormData.allowedBranchIds : []
       };
       
       // Create user
@@ -1832,8 +1888,12 @@ const toggleModulePermissions = (module) => {
         role: "",
         department: "",
         status: "active",
-        sendEmail: true
+        sendEmail: true,
+        defaultBranchId: "",
+        allowedBranchIds: []
       });
+      setShowNewDepartment(false);
+      setNewDepartmentName("");
       
       // Refresh users
       fetchUsers();
@@ -2682,20 +2742,103 @@ const toggleModulePermissions = (module) => {
                 <p className="mt-1 text-sm text-red-600">{formErrors.role}</p>
               )}
             </div>
-            
+
             <div className="col-span-1">
-              <label htmlFor="department" className="block text-sm font-medium mb-1">
-                Department
+              <label htmlFor="defaultBranchId" className="block text-sm font-medium mb-1">
+                Default branch (optional)
               </label>
-              <input
-                type="text"
+              <select
+                id="defaultBranchId"
+                name="defaultBranchId"
+                className="w-full p-2 border border-gray-200 rounded"
+                value={userFormData.defaultBranchId || ""}
+                onChange={handleUserFormChange}
+              >
+                <option value="">None</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ""}</option>
+                ))}
+              </select>
+              <p className="mt-0.5 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">
+                Department (optional)
+              </label>
+              <select
                 id="department"
                 name="department"
                 className="w-full p-2 border border-gray-200 rounded"
-                placeholder="Enter department"
-                value={userFormData.department}
-                onChange={handleUserFormChange}
-              />
+                value={showNewDepartment ? "__new__" : (userFormData.department || "")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__new__") {
+                    setShowNewDepartment(true);
+                    setUserFormData((prev) => ({ ...prev, department: "" }));
+                  } else {
+                    setShowNewDepartment(false);
+                    setUserFormData((prev) => ({ ...prev, department: v }));
+                  }
+                }}
+              >
+                <option value="">No department</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.name}>{d.name}</option>
+                ))}
+                <option value="__new__">+ Create new department</option>
+              </select>
+              {showNewDepartment && (
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={newDepartmentName}
+                    onChange={(e) => setNewDepartmentName(e.target.value)}
+                    placeholder="New department name"
+                    className="flex-1 p-2 border border-gray-200 rounded"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddDepartment}
+                    disabled={addingDepartment || !newDepartmentName.trim()}
+                    className="px-3 py-2 bg-gray-100 border border-gray-300 rounded text-sm font-medium hover:bg-gray-200 disabled:opacity-50"
+                  >
+                    {addingDepartment ? "Adding..." : "Add"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-1">
+                Allowed branches (optional)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
+              {branches.length > 0 ? (
+                <div className="space-y-1 max-h-28 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
+                  {branches.map((branch) => (
+                    <label key={branch.id} className="flex items-center gap-2 py-1 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={(userFormData.allowedBranchIds || []).includes(branch.id)}
+                        onChange={(e) => {
+                          const ids = userFormData.allowedBranchIds || [];
+                          setUserFormData({
+                            ...userFormData,
+                            allowedBranchIds: e.target.checked
+                              ? [...ids, branch.id]
+                              : ids.filter((id) => id !== branch.id)
+                          });
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ""}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No branches available. Create branches in Settings first.</p>
+              )}
             </div>
             
             <div className="col-span-1">

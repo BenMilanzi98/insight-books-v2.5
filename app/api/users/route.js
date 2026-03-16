@@ -177,6 +177,10 @@ export async function POST(request) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
     
+    const tenantId = currentUser.tenantId;
+    const defaultBranchId = body.defaultBranchId && String(body.defaultBranchId).trim() ? body.defaultBranchId : null;
+    const allowedBranchIds = Array.isArray(body.allowedBranchIds) ? body.allowedBranchIds : [];
+
     // Create the user with tenant association
     const newUser = await prisma.user.create({
       data: {
@@ -190,18 +194,33 @@ export async function POST(request) {
         },
         tenant: {
           connect: {
-            id: currentUser.tenantId // Connect to the tenant using the ID
+            id: tenantId
           }
         },
-        department: body.department || null,
+        department: body.department && String(body.department).trim() ? String(body.department).trim() : null,
         status: body.status || 'active',
-        isEmailVerified: false // Require email verification
+        isEmailVerified: false, // Require email verification
+        ...(defaultBranchId && { defaultBranchId })
       },
       include: {
         role: true // Include the role in the returned user object
       }
     });
-    
+
+    // Assign allowed branches (user-branch separation)
+    if (allowedBranchIds.length > 0 && newUser.id) {
+      const validBranchIds = await prisma.branch.findMany({
+        where: { id: { in: allowedBranchIds }, tenantId },
+        select: { id: true }
+      });
+      const ids = validBranchIds.map((b) => b.id);
+      if (ids.length > 0) {
+        await prisma.userBranch.createMany({
+          data: ids.map((branchId) => ({ userId: newUser.id, branchId }))
+        });
+      }
+    }
+
     // Add a roleType string field for compatibility with code that expects role to be a string
     newUser.roleType = newUser.role?.name || 'user';
     

@@ -209,11 +209,11 @@ export async function POST(request) {
       }
     }
     
-    // Parse additionalEmails: accept array or comma/semicolon-separated string
+    // Parse additionalEmails: accept array or string (comma, newline, or semicolon separated)
     const parseAdditionalEmails = (v) => {
       if (!v) return [];
       if (Array.isArray(v)) return v.map((e) => String(e).trim()).filter(Boolean);
-      return String(v).split(/[,;]/).map((e) => e.trim()).filter(Boolean);
+      return String(v).split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean);
     };
 
     // Create the client

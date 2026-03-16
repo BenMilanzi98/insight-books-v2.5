@@ -190,7 +190,7 @@ export async function PUT(request, { params }) {
       const v = body.additionalEmails;
       updateData.additionalEmails = Array.isArray(v)
         ? v.map((e) => String(e).trim()).filter(Boolean)
-        : String(v ?? '').split(/[,;]/).map((e) => e.trim()).filter(Boolean);
+        : String(v ?? '').split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean);
     }
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.address !== undefined) updateData.address = body.address;

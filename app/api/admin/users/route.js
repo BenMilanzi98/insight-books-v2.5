@@ -125,7 +125,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, role, status, tenantId, password } = body;
+    const { name, email, phone, role, status, tenantId, password, department, defaultBranchId, allowedBranchIds } = body;
 
     // Validate required fields
     if (!name || !email || !role || !status || !tenantId) {
@@ -177,11 +177,13 @@ export async function POST(request) {
         name,
         email,
         phone: phone || null,
+        department: department && String(department).trim() ? String(department).trim() : null,
         roleId: userRole.id,
         isActive: status === 'active',
         status: status, // Keep the status field as well
         password: password ? await bcrypt.hash(password, 12) : await bcrypt.hash('temporary123', 12),
-        tenantId: tenant?.id || null
+        tenantId: tenant?.id || null,
+        ...(defaultBranchId && { defaultBranchId })
       },
       include: {
         tenant: {
@@ -198,6 +200,20 @@ export async function POST(request) {
         }
       }
     });
+
+    // Assign allowed branches when provided (user-branch separation)
+    if (Array.isArray(allowedBranchIds) && allowedBranchIds.length > 0 && newUser.id) {
+      const validBranchIds = await prisma.branch.findMany({
+        where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
+        select: { id: true }
+      });
+      const ids = validBranchIds.map((b) => b.id);
+      if (ids.length > 0) {
+        await prisma.userBranch.createMany({
+          data: ids.map((branchId) => ({ userId: newUser.id, branchId }))
+        });
+      }
+    }
 
     // Transform response
     const transformedUser = {
