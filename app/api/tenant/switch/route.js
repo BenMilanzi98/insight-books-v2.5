@@ -17,7 +17,7 @@ export async function POST(request) {
     });
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const sessionCookie = cookieStore.get('session');
     let sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
     sessionData.tenantId = tenantId;

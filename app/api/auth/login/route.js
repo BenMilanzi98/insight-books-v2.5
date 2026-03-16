@@ -119,7 +119,9 @@ export async function POST(request) {
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
     // Set session cookie (sameSite: lax so cookie is sent on same-origin API requests and top-level navigations)
-    cookies().set({
+    // Next.js 15: cookies() is async and must be awaited
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: 'session',
       value: session,
       httpOnly: true,
@@ -129,11 +131,15 @@ export async function POST(request) {
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
-    // Update last login timestamp
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() }
-    });
+    // Update last login timestamp (non-fatal if column missing on older DB)
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() }
+      });
+    } catch (updateErr) {
+      console.error('Login lastLogin update failed (non-fatal):', updateErr?.message || updateErr);
+    }
 
     // Log login activity (non-fatal if audit log table/schema is missing on older databases)
     try {
@@ -168,9 +174,13 @@ export async function POST(request) {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', error?.message || error);
+    console.error('Login error stack:', error?.stack);
     return NextResponse.json(
-      { error: 'An error occurred during login' },
+      {
+        error: 'An error occurred during login',
+        ...(process.env.NODE_ENV !== 'production' && { detail: error?.message })
+      },
       { status: 500 }
     );
   }

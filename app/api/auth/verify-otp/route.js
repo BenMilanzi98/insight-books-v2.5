@@ -116,9 +116,10 @@ export async function POST(request) {
       tenantId: user.tenantId
     };
     
-    // Set session cookie
+    // Set session cookie (Next.js 15: cookies() is async and must be awaited)
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-    cookies().set({
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: 'session',
       value: session,
       httpOnly: true,

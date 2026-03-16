@@ -55,8 +55,8 @@ export async function GET() {
         }
       });
      
-      if(!user && sessionData.userId){ 
-        cookies().delete('session'); 
+      if(!user && sessionData.userId){
+        cookieStore.delete('session');
       }
 
       if (!user) {

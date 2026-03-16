@@ -175,7 +175,8 @@ export async function GET(request) {
       };
 
       const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-      cookies().set('session', session, {
+      const cookieStore = await cookies();
+      cookieStore.set('session', session, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
@@ -208,7 +209,8 @@ export async function GET(request) {
         };
 
         const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-        cookies().set('session', session, {
+        const cookieStore = await cookies();
+        cookieStore.set('session', session, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
