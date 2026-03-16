@@ -50,6 +50,13 @@ export async function POST(request) {
     }
 
     // Compare password using bcrypt instead of direct comparison
+    // If user has no password hash (e.g. created via OAuth only), treat as invalid credentials
+    if (!user.password) {
+      return NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
     const passwordMatch = await bcrypt.compare(body.password, user.password);
 
     // Check if password matches
@@ -128,16 +135,20 @@ export async function POST(request) {
       data: { lastLogin: new Date() }
     });
 
-    // Log login activity
-    await prisma.auditLog.create({
-      data: {
-        action: 'USER_LOGIN',
-        entityType: 'USER',
-        entityId: user.id,
-        userId: user.id,
-        tenantId: user.tenantId
-      }
-    });
+    // Log login activity (non-fatal if audit log table/schema is missing on older databases)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'USER_LOGIN',
+          entityType: 'USER',
+          entityId: user.id,
+          userId: user.id,
+          tenantId: user.tenantId
+        }
+      });
+    } catch (logError) {
+      console.error('Login audit log failed (non-fatal):', logError?.message || logError);
+    }
 
     // Return success with user info (excluding password)
     return NextResponse.json({
