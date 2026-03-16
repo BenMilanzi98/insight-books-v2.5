@@ -61,25 +61,46 @@ export async function GET(request) {
     // Build sort object for Prisma
     const orderBy = { [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc' };
     
-    // Fetch users with their role and userBranches (allowed branches for separation by branch)
-    const users = await prisma.user.findMany({
-      where,
-      orderBy,
-      skip,
-      take: limit,
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            permissions: true
+    // Fetch users with their role and userBranches (allowed branches for separation by branch).
+    // Be backward compatible with databases that might not yet have UserBranch / branch separation schema.
+    let users;
+    try {
+      users = await prisma.user.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              permissions: true
+            }
+          },
+          userBranches: { select: { branchId: true } }
+        }
+      });
+    } catch (schemaError) {
+      console.error('Users list query (with userBranches) failed, falling back to legacy select:', schemaError?.message || schemaError);
+      users = await prisma.user.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          role: {
+            select: {
+              id: true,
+              name: true,
+              permissions: true
+            }
           }
-        },
-        userBranches: { select: { branchId: true } }
-      }
-    });
+        }
+      });
+    }
 
-    // Add roleType and allowedBranchIds for frontend
+    // Add roleType and allowedBranchIds for frontend (allowedBranchIds empty when branch separation not available)
     const formattedUsers = users.map(user => {
       const { userBranches, ...rest } = user;
       const allowedBranchIds = userBranches?.map((ub) => ub.branchId).filter(Boolean) ?? [];
