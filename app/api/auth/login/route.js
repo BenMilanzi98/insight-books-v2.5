@@ -111,13 +111,14 @@ export async function POST(request) {
     // In a real app, you'd encrypt and sign this data
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
-    // Set session cookie
+    // Set session cookie (sameSite: lax so cookie is sent on same-origin API requests and top-level navigations)
     cookies().set({
       name: 'session',
       value: session,
       httpOnly: true,
       path: '/',
       secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
