@@ -125,7 +125,8 @@ const InvoiceModal = ({
   
   // Refs for product search dropdown
   const productSearchRef = useRef(null);
-  
+  const prevIsOpenRef = useRef(false);
+
   // Helper function to detect if a product has unit management
   const hasUnitManagement = (product) => {
     return product && product.units && product.units.length > 0;
@@ -223,7 +224,66 @@ const InvoiceModal = ({
       });
     }
   }, [invoice, mode]);
-  
+
+  // Reset form when opening Create New Invoice; default to no tax (user selects tax from dropdown if needed)
+  useEffect(() => {
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = !!isOpen;
+    if (!justOpened || mode !== 'create' || invoice) return;
+    const firstItem = {
+      description: "",
+      quantity: "",
+      unitPrice: "",
+      taxRate: "0",
+      discountAmount: "",
+      accountId: revenueAccount?.id || "",
+      productTaxes: [],
+      selectedTaxTypeId: ""
+    };
+    setFormData({
+      clientId: "",
+      title: "",
+      orderNumber: "",
+      orderNumberAutogenerate: false,
+      items: [firstItem],
+      issueDate: new Date().toISOString().split("T")[0],
+      dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      status: "Draft",
+      notes: "",
+      discount: "",
+      templateId: selectedTemplate?.id || "",
+      footerPhoneOverride: "",
+      footerBankDetailsOverride: ""
+    });
+    setUnitQuantities({});
+  }, [isOpen, mode, invoice, revenueAccount?.id, selectedTemplate?.id]);
+
+  // When modal opens without a revenue account, fetch income accounts (e.g. retry or late load)
+  useEffect(() => {
+    if (!isOpen || revenueAccount != null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/chart-of-accounts/income-accounts');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+        const code4000 = (a) => {
+          const code = a.accountCode != null ? String(a.accountCode).trim() : '';
+          return code === '4000' || a.accountCode === 4000;
+        };
+        const revenueOnly = accounts.find(code4000) || accounts[0] || null;
+        if (!cancelled && revenueOnly) {
+          setRevenueAccount(revenueOnly);
+          setIncomeAccounts([revenueOnly]);
+        }
+      } catch (e) {
+        if (!cancelled) console.error('Error loading income accounts:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, revenueAccount]);
+
   // When revenue account (4000 - Revenue) is set, ensure all items use it
   useEffect(() => {
     if (revenueAccount?.id && formData.items.some(item => item.accountId !== revenueAccount.id)) {
@@ -234,22 +294,7 @@ const InvoiceModal = ({
     }
   }, [revenueAccount?.id]);
 
-  // Auto-populate default tax (inflow) on initial item when creating a new invoice
-  useEffect(() => {
-    if (mode === "edit" || !defaultTaxTypeForInflow) return;
-    if (formData.items.length !== 1) return;
-    const first = formData.items[0];
-    if (first.selectedTaxTypeId) return;
-    setFormData(prev => ({
-      ...prev,
-      items: [{
-        ...prev.items[0],
-        taxRate: String(defaultTaxTypeForInflow.taxRate ?? 0),
-        selectedTaxTypeId: defaultTaxTypeForInflow.id,
-        productTaxes: [defaultTaxTypeForInflow]
-      }]
-    }));
-  }, [defaultTaxTypeForInflow?.id, mode]);
+  // No auto-apply of default tax: user selects tax from dropdown per line (default is "No tax")
 
   // Update template selection when available templates change
   useEffect(() => {
@@ -305,12 +350,16 @@ const InvoiceModal = ({
         // Load products using enhanced method
         await loadProducts();
 
-        // Use the lightweight income accounts endpoint; we only use 4000 - Revenue (fixed, not changeable)
+        // Use the lightweight income accounts endpoint; prefer 4000 - Revenue, else first Income/Revenue account
         const accountsResponse = await fetch('/api/chart-of-accounts/income-accounts');
         if (accountsResponse.ok) {
           const accountsData = await accountsResponse.json();
-          const accounts = accountsData.accounts || [];
-          const revenueOnly = accounts.find(a => String(a.accountCode || '').trim() === '4000') || accounts[0] || null;
+          const accounts = Array.isArray(accountsData.accounts) ? accountsData.accounts : [];
+          const code4000 = (a) => {
+            const code = a.accountCode != null ? String(a.accountCode).trim() : '';
+            return code === '4000' || a.accountCode === 4000;
+          };
+          const revenueOnly = accounts.find(code4000) || accounts[0] || null;
           setRevenueAccount(revenueOnly);
           setIncomeAccounts(revenueOnly ? [revenueOnly] : []);
         } else {
@@ -324,14 +373,23 @@ const InvoiceModal = ({
             fetch('/api/tax-types'),
             fetch('/api/settings/tax-defaults').catch(() => null)
           ]);
+          let taxTypesData = [];
           if (taxTypesResponse.ok) {
-            const taxTypesData = await taxTypesResponse.json();
-            setTaxTypes(taxTypesData.taxTypes || taxTypesData || []);
+            const taxTypesJson = await taxTypesResponse.json();
+            taxTypesData = taxTypesJson.taxTypes || taxTypesJson || [];
+            if (!Array.isArray(taxTypesData)) taxTypesData = [];
+            setTaxTypes(taxTypesData);
           }
+          let defaultInflow = null;
           if (taxDefaultsResponse?.ok) {
             const defaults = await taxDefaultsResponse.json();
-            setDefaultTaxTypeForInflow(defaults.defaultTaxTypeForInflow || null);
+            defaultInflow = defaults.defaultTaxTypeForInflow || null;
           }
+          // Fallback: if no default from settings, use first active tax type so VAT is applied on new invoices
+          if (!defaultInflow && taxTypesData.length > 0) {
+            defaultInflow = taxTypesData[0];
+          }
+          setDefaultTaxTypeForInflow(defaultInflow);
         } catch (taxError) {
           console.error('Error loading tax types:', taxError);
         } finally {
@@ -626,18 +684,17 @@ const InvoiceModal = ({
     setFormData({ ...formData, discount });
   };
   
-  // Add a new item (income account fixed to 4000 - Revenue); auto-apply default tax inflow
+  // Add a new item (income account fixed to 4000 - Revenue); default to no tax (user selects if needed)
   const addItem = () => {
-    const defaultTax = defaultTaxTypeForInflow;
     const newItem = {
       description: "",
       quantity: "",
       unitPrice: "",
-      taxRate: defaultTax ? String(defaultTax.taxRate ?? 0) : "0",
+      taxRate: "0",
       discountAmount: "",
       accountId: revenueAccount?.id || "",
-      productTaxes: defaultTax ? [defaultTax] : [],
-      selectedTaxTypeId: defaultTax?.id ?? ""
+      productTaxes: [],
+      selectedTaxTypeId: ""
     };
     setFormData({
       ...formData,
@@ -664,6 +721,10 @@ const InvoiceModal = ({
   // Validate form
   const validateForm = () => {
     const newErrors = {};
+    
+    if (!revenueAccount) {
+      newErrors.incomeAccount = "Income account is not loaded. Add an Income or Revenue account (e.g. 4000 - Revenue) in Chart of Accounts, then try again.";
+    }
     
     if (!formData.clientId) {
       newErrors.clientId = "Client is required";
@@ -708,12 +769,8 @@ const InvoiceModal = ({
         newErrors[`items.${index}.unitPrice`] = "Unit price is required";
       }
       
-      // Tax is now optional with dropdown - users can select "No Tax"
-      // if (item.taxRate === "") {
-      //   newErrors[`items.${index}.taxRate"] = "Tax rate is required";
-      // }
-
-      if (!item.accountId) {
+      // Income account is set from revenueAccount when loaded; only validate per-item if we have revenue account
+      if (revenueAccount && !item.accountId) {
         newErrors[`items.${index}.accountId`] = "Income account is required";
       }
       
@@ -849,6 +906,16 @@ const InvoiceModal = ({
         </div>
         
         <div className="flex-1 overflow-y-auto p-4">
+          {!revenueAccount && (
+            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+              Loading income account… If this persists, add an Income or Revenue account (e.g. 4000 - Revenue) in <strong>Chart of Accounts</strong>.
+            </div>
+          )}
+          {errors.incomeAccount && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-800">
+              {errors.incomeAccount}
+            </div>
+          )}
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
@@ -1456,33 +1523,32 @@ const InvoiceModal = ({
                 </div>
               </div>
             </div>
+
+            <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={loading}
+                title={!isAccountSelectionValid ? "Fill required fields (client, items, income account)" : ""}
+              >
+                {loading ? (
+                  <>
+                    <span className="animate-spin mr-2">⌛</span>
+                    Saving...
+                  </>
+                ) : (
+                  mode === "create" ? "Create Invoice" : "Update Invoice"
+                )}
+              </button>
+            </div>
           </form>
-        </div>
-        
-        <div className="flex justify-end gap-3 p-4 border-t border-gray-200 bg-gray-50">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 flex items-center"
-            disabled={loading || !isAccountSelectionValid}
-            title={!isAccountSelectionValid ? "Select an income account for each item" : ""}
-          >
-            {loading ? (
-              <>
-                <span className="animate-spin mr-2">⌛</span>
-                Saving...
-              </>
-            ) : (
-              mode === "create" ? "Create Invoice" : "Update Invoice"
-            )}
-          </button>
         </div>
       </div>
       <ClientModal
