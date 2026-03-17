@@ -152,7 +152,7 @@ export async function POST(request) {
     }
 
     // Set default branch in session: owner gets all branches; added users get assigned or tenant default/first branch.
-    // If legacy DB without branch separation fields, fall back to "no branch" (null) so login still works.
+    // Tenants with no branches (no Branch records) are treated as default branch – full tenant access, branchId null.
     let initialBranchId = null;
     try {
       const isOwner = user.tenantId && user.tenant?.ownerUserId === user.id;
@@ -170,8 +170,9 @@ export async function POST(request) {
         else if (firstBranch) allowedIds = [firstBranch.id];
       }
       const preferredDefault = user.defaultBranchId ?? user.tenant?.defaultBranchId ?? null;
-      initialBranchId = isOwner
-        ? preferredDefault
+      const tenantHasNoBranches = user.tenantId && allowedIds.length === 0;
+      initialBranchId = isOwner || tenantHasNoBranches
+        ? preferredDefault ?? null
         : allowedIds.length > 0
           ? (preferredDefault && allowedIds.includes(preferredDefault) ? preferredDefault : allowedIds[0])
           : null;
