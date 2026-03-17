@@ -21,6 +21,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:production": "prisma db push --accept-data-loss=false && prisma generate",
     "db:studio": "prisma studio",
+    "db:restore-data": "node scripts/restore-data-from-dump.js",
     "migrate:payment-accounts": "node scripts/migrate-payment-accounts.js",
     "validate:expense-categories": "node scripts/validate-expense-categories.js",
     "validate:data-integrity": "node scripts/validate-data-integrity.js",

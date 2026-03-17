@@ -181,18 +181,21 @@ export async function POST(request) {
       initialBranchId = null;
     }
 
-    // Create session data
+    // Create session data – keep payload small so cookie stays under 4KB (browser limit).
+    // Store only role id/name in cookie; full role with permissions is loaded in getUserFromSession.
     const sessionData = {
       userId: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: user.role ? { id: user.role.id, name: user.role.name } : null,
       tenantId: user.tenantId,
       branchId: initialBranchId
     };
 
-    // In a real app, you'd encrypt and sign this data
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    if (session.length > 4000) {
+      console.warn('Login: session payload large, cookie may be rejected by browser');
+    }
 
     // Set session cookie (sameSite: lax so cookie is sent on same-origin API requests and top-level navigations)
     // Next.js 15: cookies() is async and must be awaited
