@@ -94,33 +94,10 @@ export async function POST(request) {
       }
     }
 
-    // Optionally load branch-related fields for session (non-fatal if schema doesn't support them)
-    if (user && user.tenantId) {
-      try {
-        const extended = await prisma.user.findFirst({
-          where: { id: user.id },
-          select: {
-            defaultBranchId: true,
-            userBranches: { select: { branchId: true } },
-            tenant: {
-              select: {
-                defaultBranchId: true,
-                ownerUserId: true
-              }
-            }
-          }
-        });
-        if (extended) {
-          user.defaultBranchId = extended.defaultBranchId ?? null;
-          user.userBranches = extended.userBranches ?? [];
-          if (user.tenant && extended.tenant) {
-            user.tenant.defaultBranchId = extended.tenant.defaultBranchId ?? null;
-            user.tenant.ownerUserId = extended.tenant.ownerUserId ?? null;
-          }
-        }
-      } catch (_) {
-        // Schema has no userBranches / branch fields; keep branchId null
-      }
+    // Do not query userBranches/defaultBranchId/ownerUserId here; development/legacy DBs may not have them.
+    if (user) {
+      user.defaultBranchId = null;
+      user.userBranches = [];
     }
 
     // Check if user exists
