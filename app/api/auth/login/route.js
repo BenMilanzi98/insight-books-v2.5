@@ -3,12 +3,35 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 
+/**
+ * POST /api/auth/login
+ * Handles tenant user login. 502 from this route is often infrastructure (timeout/OOM);
+ * browser extension errors (e.g. AdBlock "indexOf") are unrelated - have users try incognito or disable extensions.
+ */
 export async function POST(request) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (parseError) {
+      console.warn('Login: invalid request body', parseError?.message || parseError);
+      return NextResponse.json(
+        { error: 'Invalid request body. Please send JSON with email and password.' },
+        { status: 400 }
+      );
+    }
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      );
+    }
+
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const password = body.password != null ? String(body.password) : '';
 
     // Basic validation
-    if (!body.email || !body.password) {
+    if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
@@ -22,7 +45,7 @@ export async function POST(request) {
     try {
       // New schema (with branch separation)
       user = await prisma.user.findFirst({
-        where: { email: body.email },
+        where: { email },
         select: {
           id: true,
           email: true,
@@ -49,7 +72,7 @@ export async function POST(request) {
       console.error('Login user lookup (new schema) failed, falling back to legacy select:', schemaError?.message || schemaError);
       // Legacy schema: no branch separation fields. We only select what we know is safe.
       user = await prisma.user.findFirst({
-        where: { email: body.email },
+        where: { email },
         select: {
           id: true,
           email: true,
@@ -86,7 +109,16 @@ export async function POST(request) {
         { status: 401 }
       );
     }
-    const passwordMatch = await bcrypt.compare(body.password, user.password);
+    let passwordMatch = false;
+    try {
+      passwordMatch = await bcrypt.compare(password, user.password);
+    } catch (bcryptError) {
+      console.warn('Login: bcrypt compare failed (invalid hash or input)', bcryptError?.message || bcryptError);
+      return NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
 
     // Check if password matches
     if (!passwordMatch) {
@@ -104,8 +136,8 @@ export async function POST(request) {
       );
     }
 
-    // Check if tenant account is active (for tenant users)
-    if (user.tenantId && user.tenant?.status !== 'active') {
+    // Check if tenant account is active (only when tenant is loaded; avoid blocking when relation is missing)
+    if (user.tenant && user.tenant.status !== 'active') {
       return NextResponse.json(
         { error: 'Your business account has been suspended' },
         { status: 401 }
