@@ -1,8 +1,13 @@
 // components/PrintableReceipt.js
 "use client";
 
-import React from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+
+const QRCodeSVG = dynamic(
+  () => import('qrcode.react').then((mod) => mod.QRCodeSVG),
+  { ssr: false }
+);
 
 const PrintableReceipt = ({ receiptData }) => {
   const { type, payment, invoice, expense, client, payments, totalPaid, isFullyPaid, branding } = receiptData;
