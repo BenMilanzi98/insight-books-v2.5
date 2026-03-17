@@ -38,39 +38,10 @@ export async function POST(request) {
       );
     }
 
-    // Find the user by email.
-    // IMPORTANT: Be backward compatible with older databases that might not yet have
-    // Tenant.defaultBranchId / Tenant.ownerUserId / UserBranch tables.
+    // Find the user by email. Use a minimal select that works on all DBs (no userBranches,
+    // no defaultBranchId/ownerUserId) so development/legacy DBs that lack those fields don't 502.
     let user;
     try {
-      // New schema (with branch separation)
-      user = await prisma.user.findFirst({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          password: true,
-          isActive: true,
-          tenantId: true,
-          defaultBranchId: true,
-          role: true,
-          userBranches: { select: { branchId: true } },
-          tenant: {
-            select: {
-              id: true,
-              name: true,
-              subdomain: true,
-              status: true,
-              defaultBranchId: true,
-              ownerUserId: true
-            }
-          }
-        }
-      });
-    } catch (schemaError) {
-      console.error('Login user lookup (new schema) failed, falling back to legacy select:', schemaError?.message || schemaError);
-      // Legacy schema: no branch separation fields. We only select what we know is safe.
       user = await prisma.user.findFirst({
         where: { email },
         select: {
@@ -91,6 +62,65 @@ export async function POST(request) {
           }
         }
       });
+    } catch (lookupErr) {
+      console.error('Login user lookup failed (trying without role):', lookupErr?.message || lookupErr);
+      try {
+        user = await prisma.user.findFirst({
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            isActive: true,
+            tenantId: true,
+            tenant: {
+              select: {
+                id: true,
+                name: true,
+                subdomain: true,
+                status: true
+              }
+            }
+          }
+        });
+        if (user) user.role = null;
+      } catch (fallbackErr) {
+        console.error('Login user lookup fallback failed:', fallbackErr?.message || fallbackErr);
+        return NextResponse.json(
+          { error: 'An error occurred during login' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Optionally load branch-related fields for session (non-fatal if schema doesn't support them)
+    if (user && user.tenantId) {
+      try {
+        const extended = await prisma.user.findFirst({
+          where: { id: user.id },
+          select: {
+            defaultBranchId: true,
+            userBranches: { select: { branchId: true } },
+            tenant: {
+              select: {
+                defaultBranchId: true,
+                ownerUserId: true
+              }
+            }
+          }
+        });
+        if (extended) {
+          user.defaultBranchId = extended.defaultBranchId ?? null;
+          user.userBranches = extended.userBranches ?? [];
+          if (user.tenant && extended.tenant) {
+            user.tenant.defaultBranchId = extended.tenant.defaultBranchId ?? null;
+            user.tenant.ownerUserId = extended.tenant.ownerUserId ?? null;
+          }
+        }
+      } catch (_) {
+        // Schema has no userBranches / branch fields; keep branchId null
+      }
     }
 
     // Check if user exists
