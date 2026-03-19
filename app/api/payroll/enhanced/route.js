@@ -100,10 +100,10 @@ export async function POST(request) {
       }
     });
 
-    // Tenant-level NPS rates (percentage points). Defaults to 5%/5% if not set.
+    // Tenant-level NPS rates (percentage points). Null means "not configured" (treat as 0%).
     // Use raw SQL so payroll processing still works even if Prisma Client is stale.
     // Prisma/PostgreSQL may return column names in lowercase, so read both.
-    let npsRates = { employeeRatePercent: 5, employerRatePercent: 5 };
+    let npsRates = { employeeRatePercent: null, employerRatePercent: null };
     try {
       const rows = await prisma.$queryRaw`
         SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
@@ -113,15 +113,17 @@ export async function POST(request) {
       `;
       const row = Array.isArray(rows) ? rows[0] : null;
       if (row && typeof row === 'object') {
-        const emp = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5);
-        const empEr = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5);
+        const empRaw = row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? null;
+        const empErRaw = row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? null;
+        const emp = empRaw === null || empRaw === undefined ? null : Number(empRaw);
+        const empEr = empErRaw === null || empErRaw === undefined ? null : Number(empErRaw);
         npsRates = {
-          employeeRatePercent: Number.isFinite(emp) ? emp : 5,
-          employerRatePercent: Number.isFinite(empEr) ? empEr : 5,
+          employeeRatePercent: Number.isFinite(emp) ? emp : null,
+          employerRatePercent: Number.isFinite(empEr) ? empEr : null,
         };
       }
     } catch (e) {
-      console.warn('Payroll raw NPS rate read failed, falling back to defaults:', e?.message || e);
+      console.warn('Payroll raw NPS rate read failed, falling back to nulls:', e?.message || e);
     }
 
     if (employees.length === 0) {

@@ -20,6 +20,8 @@ import {
 } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
 import { formatCurrency } from "@/lib/currencyUtils";
+import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
+import { calculateDateRange } from "@/lib/dateUtils";
 
 export default function SupplierReportsPage() {
   const [loading, setLoading] = useState(true);
@@ -28,6 +30,8 @@ export default function SupplierReportsPage() {
   const [agingReport, setAgingReport] = useState(null);
   const [topSpending, setTopSpending] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [timeframe, setTimeframe] = useState("thisMonth");
+  const [customDateRange, setCustomDateRange] = useState(null);
 
   // Load reports data
   const loadReports = async () => {
@@ -40,15 +44,23 @@ export default function SupplierReportsPage() {
         throw new Error("Tenant ID not found");
       }
 
+      const r = calculateDateRange(timeframe, timeframe === "custom" ? customDateRange : null);
+      const start = r.startDate.toISOString().split("T")[0];
+      const end = r.endDate.toISOString().split("T")[0];
+
       // Load aging report
-      const agingRes = await fetch(`/api/suppliers/reports/aging?tenantId=${tenantId}&includeDetails=false`);
+      const agingRes = await fetch(
+        `/api/suppliers/reports/aging?tenantId=${tenantId}&includeDetails=false&asOfDate=${encodeURIComponent(end)}`
+      );
       const agingJson = await agingRes.json();
       if (agingRes.ok) {
         setAgingReport(agingJson);
       }
 
       // Load top spending
-      const spendingRes = await fetch(`/api/suppliers/reports/top-spending?tenantId=${tenantId}&limit=10`);
+      const spendingRes = await fetch(
+        `/api/suppliers/reports/top-spending?tenantId=${tenantId}&limit=10&startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
+      );
       const spendingJson = await spendingRes.json();
       if (spendingRes.ok) {
         setTopSpending(spendingJson);
@@ -75,7 +87,7 @@ export default function SupplierReportsPage() {
 
   useEffect(() => {
     loadReports();
-  }, []);
+  }, [timeframe, customDateRange]);
 
   // Format currency helper
   const formatNumber = (num) => {
@@ -143,6 +155,17 @@ export default function SupplierReportsPage() {
                 <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
                 Refresh
               </button>
+            </div>
+
+            <div className="mt-4">
+              <UniversalDateRangeFilter
+                timeframe={timeframe}
+                onTimeframeChange={(tf) => setTimeframe(tf)}
+                onCustomDateChange={(range) => setCustomDateRange(range)}
+                onRefresh={loadReports}
+                loading={loading}
+                variant="compact"
+              />
             </div>
           </div>
 

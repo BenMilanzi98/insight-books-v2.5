@@ -19,22 +19,18 @@ export const DateRangeSelector = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Set initial custom dates if timeframe is 'custom'
+  // Set initial custom dates if timeframe is 'custom' (default: current calendar month, 1st to last day)
   useEffect(() => {
     if (timeframe === 'custom' && (!customStartDate || !customEndDate)) {
-      // Default to last 30 days if no custom range is set
-      const today = new Date();
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(today.getDate() - 30);
-      
-      setCustomStartDate(thirtyDaysAgo.toISOString().split('T')[0]);
-      setCustomEndDate(today.toISOString().split('T')[0]);
-      
+      const t = new Date();
+      const start = new Date(t.getFullYear(), t.getMonth(), 1);
+      const end = new Date(t.getFullYear(), t.getMonth() + 1, 0);
+      const startStr = start.toISOString().split('T')[0];
+      const endStr = end.toISOString().split('T')[0];
+      setCustomStartDate(startStr);
+      setCustomEndDate(endStr);
       if (onCustomDateChange) {
-        onCustomDateChange({
-          startDate: thirtyDaysAgo.toISOString().split('T')[0],
-          endDate: today.toISOString().split('T')[0]
-        });
+        onCustomDateChange({ startDate: startStr, endDate: endStr });
       }
     }
   }, [timeframe, customStartDate, customEndDate, onCustomDateChange]);

@@ -19,6 +19,8 @@ import {
 import PermissionGuard from "@/components/PermissionGuard";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { getPermission } from "@/lib/permissions";
+import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
+import { calculateDateRange } from "@/lib/dateUtils";
 import {
   ResponsiveContainer,
   BarChart,
@@ -57,6 +59,8 @@ export default function BudgetReportsPage() {
     comparisonStartDate: "",
     comparisonEndDate: "",
   });
+  const [timeframe, setTimeframe] = useState("thisMonth");
+  const [customDateRange, setCustomDateRange] = useState(null);
 
   const loadReport = async () => {
     try {
@@ -92,6 +96,23 @@ export default function BudgetReportsPage() {
   useEffect(() => {
     loadReport();
   }, [reportType]);
+
+  // Calendar-aligned helper to fill date filters for reports that need ranges
+  useEffect(() => {
+    if (reportType !== "budget_vs_actual") return;
+    if (timeframe === "custom") {
+      if (customDateRange?.startDate && customDateRange?.endDate) {
+        setFilters((f) => ({ ...f, startDate: customDateRange.startDate, endDate: customDateRange.endDate }));
+      }
+      return;
+    }
+    const r = calculateDateRange(timeframe);
+    setFilters((f) => ({
+      ...f,
+      startDate: r.startDate.toISOString().split("T")[0],
+      endDate: r.endDate.toISOString().split("T")[0],
+    }));
+  }, [reportType, timeframe, customDateRange]);
 
   useEffect(() => {
     const fetchPermissions = async () => {
@@ -221,6 +242,21 @@ export default function BudgetReportsPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {reportType === "budget_vs_actual" && (
               <>
+                <div className="md:col-span-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">Date Range</p>
+                      <p className="text-xs text-gray-500">Calendar-aligned periods or custom range.</p>
+                    </div>
+                    <UniversalDateRangeFilter
+                      timeframe={timeframe}
+                      onTimeframeChange={(tf) => setTimeframe(tf)}
+                      onCustomDateChange={(range) => setCustomDateRange(range)}
+                      showRefresh={false}
+                      variant="compact"
+                    />
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
                   <input

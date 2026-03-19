@@ -85,36 +85,41 @@ export async function GET(request) {
       }
     });
 
-    // Resolve balance for one payment account. New accounts must show 0; only use id or explicit normalized name, not type-based CoA fallback for user-created accounts.
+    // Resolve balance for one payment account.
+    // User-created accounts: only use balance keyed by PaymentAccount.id (from transfers/revenue). Default 0.
+    // System accounts: may also use name/type mapping to CoA for legacy display.
     const getBalanceForPaymentAccount = (account) => {
       const id = account.id;
       const name = account.name || '';
       const normalized = normalizeName(name);
       const accountType = (account.accountType || '').toLowerCase();
 
-      // 1) AccountBalance keyed by PaymentAccount.id (primary for allocations)
+      // 1) AccountBalance keyed by PaymentAccount.id (only source for user-created accounts)
       let balance = balanceByKey.get(id);
       if (balance !== undefined && balance !== null) return balance;
 
-      // 2) AccountBalance keyed by this account's normalized name only (explicit record for this account)
+      // 2) User-created accounts: no name/type fallback – new account must show 0 until money is transferred or revenue added
+      if (!account.isSystem) {
+        return 0;
+      }
+
+      // 3) System accounts only: AccountBalance keyed by normalized name
       balance = balanceByNormalized.get(normalized);
       if (balance !== undefined && balance !== null) return balance;
 
-      // 3) For system accounts only: map to CoA so default "Cash" shows ledger balance. User-created accounts default to 0.
-      if (account.isSystem) {
-        const standardKeys = getStandardKeysForNameAndType(name, accountType);
-        for (const key of standardKeys) {
-          const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
-          if (b !== undefined && b !== null && b !== 0) return b;
-        }
-        const codes = getAccountCodesForNameAndType(name, accountType);
-        let sum = 0;
-        for (const code of codes) {
-          const b = balanceByCode.get(code);
-          if (b !== undefined && b !== null) sum += b;
-        }
-        if (codes.length) return sum;
+      // 4) System accounts only: map to CoA so default "Cash" shows ledger balance
+      const standardKeys = getStandardKeysForNameAndType(name, accountType);
+      for (const key of standardKeys) {
+        const b = balanceByNormalized.get(key) ?? balanceByKey.get(key);
+        if (b !== undefined && b !== null && b !== 0) return b;
       }
+      const codes = getAccountCodesForNameAndType(name, accountType);
+      let sum = 0;
+      for (const code of codes) {
+        const b = balanceByCode.get(code);
+        if (b !== undefined && b !== null) sum += b;
+      }
+      if (codes.length) return sum;
 
       return 0;
     };

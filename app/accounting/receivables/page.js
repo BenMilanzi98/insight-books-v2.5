@@ -116,7 +116,14 @@ const AccountsReceivable = () => {
       const dateRange = getCurrentDateRange();
       
       try {
-        const response = await fetch(`/api/dashboard/receivables?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
+        const params = new URLSearchParams();
+        // Always send the selected period as a concrete range so filters like "Today"
+        // reliably show invoices issued within that period.
+        params.set('dateRange', 'custom');
+        params.set('startDate', dateRange.startDate);
+        params.set('endDate', dateRange.endDate);
+
+        const response = await fetch(`/api/dashboard/receivables?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch receivables data');
@@ -293,7 +300,12 @@ const AccountsReceivable = () => {
       const dateRange = getCurrentDateRange();
       
       try {
-        const response = await fetch(`/api/dashboard/receivables?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
+        const params = new URLSearchParams();
+        params.set('dateRange', 'custom');
+        params.set('startDate', dateRange.startDate);
+        params.set('endDate', dateRange.endDate);
+
+        const response = await fetch(`/api/dashboard/receivables?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch receivables data');

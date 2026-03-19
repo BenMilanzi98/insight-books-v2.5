@@ -5,6 +5,7 @@
  */
 
 import { formatCurrency } from '@/lib/currencyUtils';
+import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 
 // Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
@@ -15,48 +16,11 @@ const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
       endDate: customDateRange.endDate
     };
   }
-  
-  const now = new Date();
-  let startDate, endDate;
-  
-  switch (timeframe) {
-    case 'thisMonth':
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      break;
-    case 'lastMonth':
-      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      endDate = new Date(now.getFullYear(), now.getMonth(), 0);
-      break;
-    case 'thisQuarter':
-      const quarter = Math.floor(now.getMonth() / 3);
-      startDate = new Date(now.getFullYear(), quarter * 3, 1);
-      endDate = new Date(now.getFullYear(), quarter * 3 + 3, 0);
-      break;
-    case 'lastQuarter':
-      const lastQuarter = Math.floor(now.getMonth() / 3) - 1;
-      const yearOffset = lastQuarter < 0 ? -1 : 0;
-      const adjustedQuarter = lastQuarter < 0 ? 3 : lastQuarter;
-      startDate = new Date(now.getFullYear() + yearOffset, adjustedQuarter * 3, 1);
-      endDate = new Date(now.getFullYear() + yearOffset, adjustedQuarter * 3 + 3, 0);
-      break;
-    case 'thisYear':
-      startDate = new Date(now.getFullYear(), 0, 1);
-      endDate = new Date(now.getFullYear(), 11, 31);
-      break;
-    case 'lastYear':
-      startDate = new Date(now.getFullYear() - 1, 0, 1);
-      endDate = new Date(now.getFullYear() - 1, 11, 31);
-      break;
-    default:
-      // Default to this month
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  }
-  
+
+  const { startDate, endDate } = calculateDateRange(timeframe);
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: endDate.toISOString().split('T')[0]
+    startDate: formatYmdInTimeZone(startDate),
+    endDate: formatYmdInTimeZone(endDate)
   };
 };
 
@@ -117,7 +81,7 @@ export const fetchBalanceSheet = async ({ timeframe, customDateRange = null }) =
     
     // endDate is already in YYYY-MM-DD format from getDateRange, so use it directly
     // Only convert if it's not already in the correct format
-    const asOfDate = endDate || new Date().toISOString().split('T')[0];
+    const asOfDate = endDate || formatYmdInTimeZone(new Date());
     
     console.log('Balance Sheet - Timeframe:', timeframe, 'AsOfDate:', asOfDate);
     
@@ -337,7 +301,7 @@ export const fetchStockMovement = async ({ timeframe, productId = null, customDa
 export const fetchPosDailyReport = async (date = null) => {
   try {
     const d = date ? new Date(date) : new Date();
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = formatYmdInTimeZone(d);
     const response = await fetch(`/api/reports/pos-daily?date=${dateStr}`);
     if (!response.ok) {
       throw new Error(`Error fetching daily POS report: ${response.statusText}`);
@@ -493,7 +457,7 @@ export const exportReport = async (reportType, format, params = {}) => {
     
     // Handle the downloaded file
     const blob = await response.blob();
-    let fileName = `${reportType}_${new Date().toISOString().split('T')[0]}.${format}`;
+    let fileName = `${reportType}_${formatYmdInTimeZone(new Date())}.${format}`;
     if (reportType === 'pos-daily' && params.date) {
       fileName = `POS_DAILY_REPORT_${params.date}.${format === 'xlsx' ? 'xlsx' : format}`;
     }

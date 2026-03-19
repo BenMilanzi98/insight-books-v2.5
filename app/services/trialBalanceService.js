@@ -7,13 +7,14 @@ import { calculateDateRange } from '@/lib/dateUtils';
 
 /**
  * Fetch trial balance data for a specific timeframe
- * @param {string} timeframe - Timeframe identifier (e.g., 'thisMonth', 'lastMonth')
+ * @param {string} timeframe - Timeframe identifier (e.g., 'thisMonth', 'lastMonth', 'custom')
+ * @param {Object} [customRange] - For timeframe 'custom': { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
  * @returns {Promise<Object>} Trial balance data
  */
-export const fetchTrialBalance = async (timeframe = 'thisMonth') => {
+export const fetchTrialBalance = async (timeframe = 'thisMonth', customRange = null) => {
   try {
-    // Calculate date range based on timeframe
-    const { startDate, endDate } = calculateDateRange(timeframe);
+    // Calculate date range based on timeframe (pass customRange when timeframe is 'custom')
+    const { startDate, endDate } = calculateDateRange(timeframe, false, customRange);
     
     // Format dates as YYYY-MM-DD strings
     const formatDate = (date) => {
@@ -46,12 +47,13 @@ export const fetchTrialBalance = async (timeframe = 'thisMonth') => {
  * Export trial balance data
  * @param {string} timeframe - Timeframe identifier
  * @param {string} format - Export format (csv, pdf, excel)
+ * @param {Object} [customRange] - For timeframe 'custom': { startDate: 'YYYY-MM-DD', endDate: 'YYYY-MM-DD' }
  * @returns {Promise<Blob>} Exported data as blob
  */
-export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf') => {
+export const exportTrialBalance = async (timeframe = 'thisMonth', format = 'pdf', customRange = null) => {
   try {
-    // Calculate date range based on timeframe
-    const { startDate, endDate } = calculateDateRange(timeframe);
+    // Calculate date range based on timeframe (pass customRange when timeframe is 'custom')
+    const { startDate, endDate } = calculateDateRange(timeframe, false, customRange);
     
     // Format dates as YYYY-MM-DD strings
     const formatDate = (date) => {

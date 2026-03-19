@@ -169,8 +169,10 @@ model TenantSettings {
   businessPhone          String?
   receiptFooter          String?
   defaultBankDetails     String?  // Default bank account details for invoice/quotation/receipt footers
-  npsEmployeeRatePercent Float    @default(5)
-  npsEmployerRatePercent Float    @default(5)
+  // NPS rates are tenant-configurable; null means "not configured".
+  // Calculation code should treat null as 0% unless explicitly set.
+  npsEmployeeRatePercent Float?
+  npsEmployerRatePercent Float?
   balanceReminderSubject String?
   balanceReminderBody    String?
   taxInflowAccountId     String?  // Default account for tax collected (inflow from sales/invoices)

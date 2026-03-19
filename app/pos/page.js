@@ -98,6 +98,14 @@ const POSPage = () => {
     taxCollected: { amount: '0' },
     byPaymentMethod: []
   });
+
+  // Daily POS report (one calendar day) for quick overview
+  const [dailyReportDate, setDailyReportDate] = useState(() => {
+    const t = new Date();
+    return t.toISOString().slice(0, 10);
+  });
+  const [dailyReport, setDailyReport] = useState(null);
+  const [isLoadingDailyReport, setIsLoadingDailyReport] = useState(false);
   
   // Products
   const [products, setProducts] = useState([]);
@@ -228,6 +236,7 @@ const POSPage = () => {
   
     fetchPermissions();
   }, []);
+
   // Fetch active tax types and default tax for inflow (sales) for auto-population
   const fetchPosTaxTypes = async () => {
     try {
@@ -487,6 +496,8 @@ const POSPage = () => {
     loadBranches();
     loadPaymentAccounts();
     loadIncomeAccounts();
+    // Daily POS report defaults to today (calendar day)
+    loadDailyReport(dailyReportDate);
     
     // EIS: Check terminal status and sync server time
     loadEISStatus();
@@ -726,6 +737,24 @@ const POSPage = () => {
       // Don't set error state for statistics, just log it
     }
   };
+
+  // Load daily POS report for the selected date
+  const loadDailyReport = useCallback(async (date) => {
+    try {
+      setIsLoadingDailyReport(true);
+      const res = await fetch(`/api/reports/pos-daily?date=${encodeURIComponent(date)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to load daily POS report');
+      }
+      setDailyReport(data);
+    } catch (err) {
+      console.error('Error loading daily POS report:', err);
+      setDailyReport(null);
+    } finally {
+      setIsLoadingDailyReport(false);
+    }
+  }, []);
   
   // Load products
   const loadProducts = async () => {
@@ -3272,6 +3301,63 @@ const POSPage = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Daily POS Sales Summary (one calendar day) */}
+      <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-5 lg:p-6 border border-gray-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Daily Sales (POS)</h2>
+            <p className="text-xs text-gray-500">Calendar day totals from POS only.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-600">Date</label>
+            <input
+              type="date"
+              className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm"
+              value={dailyReportDate}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDailyReportDate(val);
+                if (val) loadDailyReport(val);
+              }}
+            />
+          </div>
+        </div>
+        {isLoadingDailyReport ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader className="h-4 w-4 animate-spin" /> Loading daily report...
+          </div>
+        ) : dailyReport ? (
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-xs text-gray-500 uppercase">Total Sales</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">
+                {formatCurrency(dailyReport.totalSales || 0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase">Transactions</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">
+                {dailyReport.transactionCount || 0}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase">Items Sold</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">
+                {dailyReport.itemsSold || 0}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase">Gross Profit</p>
+              <p className="mt-1 text-lg font-semibold text-gray-900">
+                {formatCurrency(dailyReport.grossProfit || 0)}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">No POS sales found for this date.</p>
+        )}
       </div>
 
       {/* Recent Sales Section - Full Width at Bottom */}

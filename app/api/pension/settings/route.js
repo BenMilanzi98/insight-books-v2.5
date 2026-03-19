@@ -4,9 +4,12 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 
-function clampPercent(n, fallback) {
+function clampPercentOrNull(n) {
+  // Allow "no value" (null/undefined/empty string) so tenants can configure later.
+  if (n === null || n === undefined) return null;
+  if (typeof n === 'string' && n.trim() === '') return null;
   const v = Number(n);
-  if (!Number.isFinite(v)) return fallback;
+  if (!Number.isFinite(v)) return null;
   return Math.min(100, Math.max(0, v));
 }
 
@@ -16,12 +19,14 @@ function isUnknownPrismaFieldError(err, fieldName) {
 }
 
 /** Read NPS rate from raw query row; Prisma/PostgreSQL may return column names in lowercase. */
-function npsRateFromRow(row, field, fallback = 5) {
-  if (!row || typeof row !== 'object') return fallback;
+function npsRateFromRow(row, field) {
+  if (!row || typeof row !== 'object') return null;
   const camel = field === 'employee' ? row.npsEmployeeRatePercent : row.npsEmployerRatePercent;
   const lower = field === 'employee' ? row.npsemployeeratepercent : row.npsemployerratepercent;
-  const v = Number(camel ?? lower ?? fallback);
-  return Number.isFinite(v) ? v : fallback;
+  const raw = camel ?? lower;
+  if (raw === null || raw === undefined) return null;
+  const v = Number(raw);
+  return Number.isFinite(v) ? v : null;
 }
 
 async function getOrCreateTenantSettings(tenantId) {
@@ -59,8 +64,8 @@ export async function GET(request) {
       const row = Array.isArray(rows) ? rows[0] : null;
       if (row) {
         return NextResponse.json({
-          npsEmployeeRatePercent: npsRateFromRow(row, 'employee', 5),
-          npsEmployerRatePercent: npsRateFromRow(row, 'employer', 5),
+          npsEmployeeRatePercent: npsRateFromRow(row, 'employee'),
+          npsEmployerRatePercent: npsRateFromRow(row, 'employer'),
         });
       }
     } catch (e) {
@@ -70,8 +75,8 @@ export async function GET(request) {
     }
 
     return NextResponse.json({
-      npsEmployeeRatePercent: settings.npsEmployeeRatePercent ?? 5,
-      npsEmployerRatePercent: settings.npsEmployerRatePercent ?? 5,
+      npsEmployeeRatePercent: settings.npsEmployeeRatePercent ?? null,
+      npsEmployerRatePercent: settings.npsEmployerRatePercent ?? null,
     });
   } catch (error) {
     console.error('Error fetching pension settings:', error);
@@ -93,8 +98,8 @@ export async function PUT(request) {
     }
 
     const body = await request.json();
-    const employeeRate = clampPercent(body.npsEmployeeRatePercent, 5);
-    const employerRate = clampPercent(body.npsEmployerRatePercent, 5);
+    const employeeRate = clampPercentOrNull(body.npsEmployeeRatePercent);
+    const employerRate = clampPercentOrNull(body.npsEmployerRatePercent);
 
     const settings = await getOrCreateTenantSettings(user.tenantId);
 
@@ -131,8 +136,8 @@ export async function PUT(request) {
             const row = Array.isArray(rows) ? rows[0] : null;
             updated = {
               ...settings,
-              npsEmployeeRatePercent: row ? npsRateFromRow(row, 'employee', employeeRate) : employeeRate,
-              npsEmployerRatePercent: row ? npsRateFromRow(row, 'employer', employerRate) : employerRate,
+              npsEmployeeRatePercent: row ? (npsRateFromRow(row, 'employee') ?? employeeRate) : employeeRate,
+              npsEmployerRatePercent: row ? (npsRateFromRow(row, 'employer') ?? employerRate) : employerRate,
             };
           } catch {
             updated = {
@@ -159,8 +164,8 @@ export async function PUT(request) {
 
     return NextResponse.json({
       message: 'Pension settings updated',
-      npsEmployeeRatePercent: updated.npsEmployeeRatePercent ?? 5,
-      npsEmployerRatePercent: updated.npsEmployerRatePercent ?? 5,
+      npsEmployeeRatePercent: updated.npsEmployeeRatePercent ?? null,
+      npsEmployerRatePercent: updated.npsEmployerRatePercent ?? null,
     });
   } catch (error) {
     console.error('Error updating pension settings:', error);

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getCurrentDateInAfricaBlantyre } from '@/lib/dateUtils';
 
 const prisma = new PrismaClient();
 
@@ -124,6 +125,67 @@ export async function POST(request) {
       // Initialize default payment accounts
       const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
       await initializeDefaultPaymentAccounts(newTenant.id, tx);
+
+      // Initialize default Chart of Accounts (baseline CoA)
+      try {
+        const { ensureChartOfAccountsForTenant } = await import('@/lib/chartOfAccountsInitialization');
+        await ensureChartOfAccountsForTenant(newTenant.id, tx);
+      } catch (coaErr) {
+        // Non-fatal: allow registration even if CoA seeding fails
+        console.warn('Chart of accounts initialization failed (non-fatal):', coaErr?.message || coaErr);
+      }
+
+      // Initialize default tax GL accounts (NPS/PAYE inflow/outflow etc. as defined in taxAccountsInitialization)
+      try {
+        const { ensureDefaultTaxAccountsForTenant } = await import('@/lib/taxAccountsInitialization');
+        await ensureDefaultTaxAccountsForTenant(newTenant.id, tx, true);
+      } catch (taxErr) {
+        console.warn('Default tax accounts initialization failed (non-fatal):', taxErr?.message || taxErr);
+      }
+
+      // Ensure an open monthly accounting period exists for the current month
+      // (1st to last day), even if the tenant registers mid-month.
+      try {
+        const nowBlantyre = getCurrentDateInAfricaBlantyre();
+        const periodStart = new Date(nowBlantyre.getFullYear(), nowBlantyre.getMonth(), 1, 0, 0, 0, 0);
+        const periodEnd = new Date(
+          nowBlantyre.getFullYear(),
+          nowBlantyre.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999
+        );
+
+        const month = periodStart.toLocaleString('en-US', { month: 'short' });
+        const name = `${month} ${periodStart.getFullYear()}`;
+
+        const existingOverlap = await tx.accountingPeriod.findFirst({
+          where: {
+            tenantId: newTenant.id,
+            periodType: 'Monthly',
+            startDate: { lte: periodEnd },
+            endDate: { gte: periodStart },
+          },
+        });
+
+        if (!existingOverlap) {
+          await tx.accountingPeriod.create({
+            data: {
+              tenantId: newTenant.id,
+              name,
+              periodType: 'Monthly',
+              startDate: periodStart,
+              endDate: periodEnd,
+              status: 'open',
+            },
+          });
+        }
+      } catch (periodErr) {
+        // Non-fatal: tenant creation should succeed even if period init fails
+        console.warn('Accounting period initialization failed (non-fatal):', periodErr?.message || periodErr);
+      }
 
       // Handle affiliate tracking if referral code is provided
       let affiliateReferral = null;

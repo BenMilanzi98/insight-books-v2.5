@@ -15,13 +15,15 @@ import {
 import Link from "next/link";
 import { fetchTrialBalance, exportTrialBalance } from "@/app/services/trialBalanceService";
 import { formatCurrency } from "@/lib/currencyUtils";
-import { getTimeframeLabel } from "@/lib/dateUtils";
+import { getTimeframeLabel, getDefaultCustomRange } from "@/lib/dateUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 
 const TrialBalance = () => {
   const [timeframe, setTimeframe] = useState("thisMonth");
   const [displayTimeframe, setDisplayTimeframe] = useState("This Month");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [accounts, setAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,10 +125,11 @@ const TrialBalance = () => {
       
       // Convert display timeframe to API timeframe
       const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
+      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : null;
       
-      console.log("Fetching trial balance for timeframe:", apiTimeframe);
-      
-      const data = await fetchTrialBalance(apiTimeframe);
+      const data = await fetchTrialBalance(apiTimeframe, customRange);
       console.log('Trial balance data received:', data);
       
       // If accounts are available, process them
@@ -180,10 +183,20 @@ const TrialBalance = () => {
     }
   };
 
-  // Initialize data on component mount and when timeframe changes
+  // When switching to Custom Range, initialize dates to current month if not set
   useEffect(() => {
-    fetchData();
+    if (displayTimeframe === "Custom Range" && (!customStartDate || !customEndDate)) {
+      const def = getDefaultCustomRange();
+      setCustomStartDate(def.startDate);
+      setCustomEndDate(def.endDate);
+    }
   }, [displayTimeframe]);
+
+  // Initialize data on component mount and when timeframe or custom dates change
+  useEffect(() => {
+    if (displayTimeframe === "Custom Range" && (!customStartDate || !customEndDate)) return;
+    fetchData();
+  }, [displayTimeframe, customStartDate, customEndDate]);
 
   const handleRefresh = () => {
     fetchData();
@@ -196,10 +209,13 @@ const TrialBalance = () => {
       setSelectedAccount(account);
       setShowHistoryModal(true);
 
-      // Get date range for current timeframe
+      // Get date range for current timeframe (include custom range when Custom Range is selected)
       const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
       const { calculateDateRange } = await import('@/lib/dateUtils');
-      const { startDate, endDate } = calculateDateRange(apiTimeframe);
+      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : null;
+      const { startDate, endDate } = calculateDateRange(apiTimeframe, false, customRange);
       
       // Format dates as YYYY-MM-DD
       const formatDate = (date) => {
@@ -253,8 +269,11 @@ const TrialBalance = () => {
   const handleExport = async () => {
     try {
       setIsExporting(true);
-      
-      const blob = await exportTrialBalance(timeframe, exportFormat);
+      const apiTimeframe = timeframeMapping[displayTimeframe] || "thisMonth";
+      const customRange = displayTimeframe === "Custom Range" && customStartDate && customEndDate
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : null;
+      const blob = await exportTrialBalance(apiTimeframe, exportFormat, customRange);
       
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -381,7 +400,7 @@ const TrialBalance = () => {
 
           <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
             <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 mb-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 items-center">
                 <div className="relative min-w-[140px]">
                   <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none" />
                   <select
@@ -394,6 +413,24 @@ const TrialBalance = () => {
                     ))}
                   </select>
                 </div>
+                {displayTimeframe === "Custom Range" && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-sm text-slate-600 whitespace-nowrap">From</label>
+                    <input
+                      type="date"
+                      className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                    />
+                    <label className="text-sm text-slate-600 whitespace-nowrap">To</label>
+                    <input
+                      type="date"
+                      className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                    />
+                  </div>
+                )}
                 <div className="relative flex-1 min-w-[160px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input

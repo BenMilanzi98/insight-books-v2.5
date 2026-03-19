@@ -173,6 +173,73 @@ export async function GET(request) {
       }
     }
 
+    // Fetch payroll reversals (Transaction reversals where original was Payroll – reverses all GL and side effects)
+    let payrollReversals = [];
+    if (type === 'all' || type === 'payroll') {
+      try {
+        const payrollReversalTxns = await prisma.transaction.findMany({
+          where: {
+            tenantId: user.tenantId,
+            isReversal: true,
+            sourceType: 'Transaction',
+            reversedTransactionId: { not: null },
+            ...(startDate || endDate
+              ? {
+                  reversedAt: {
+                    ...(startDate ? { gte: new Date(startDate) } : {}),
+                    ...(endDate ? { lte: new Date(endDate + 'T23:59:59') } : {})
+                  }
+                }
+              : {})
+          },
+          include: {
+            createdBy: { select: { id: true, name: true, email: true } }
+          }
+        });
+        const originalIds = [...new Set(payrollReversalTxns.map(t => t.reversedTransactionId).filter(Boolean))];
+        const originals = await prisma.transaction.findMany({
+          where: { id: { in: originalIds }, sourceType: 'Payroll', tenantId: user.tenantId },
+          include: { lines: true }
+        });
+        const originalById = Object.fromEntries(originals.map(o => [o.id, o]));
+        const payrollIds = [...new Set(originals.map(o => o.sourceId).filter(Boolean))];
+        const payrolls = payrollIds.length
+          ? await prisma.payroll.findMany({
+              where: { id: { in: payrollIds }, tenantId: user.tenantId },
+              include: { employee: { select: { id: true, name: true } } }
+            })
+          : [];
+        const payrollById = Object.fromEntries(payrolls.map(p => [p.id, p]));
+        for (const rev of payrollReversalTxns) {
+          const orig = originalById[rev.reversedTransactionId];
+          if (!orig || orig.sourceType !== 'Payroll') continue;
+          const payroll = payrollById[orig.sourceId];
+          const amount = Math.abs(orig.amount || 0) || (orig.lines || []).reduce((s, l) => s + (l.debitAmount || 0) + (l.creditAmount || 0), 0);
+          payrollReversals.push({
+            id: rev.id,
+            type: 'payroll',
+            description: orig.description || `Payroll reversal – ${payroll?.employee?.name || 'Employee'}`,
+            originalAmount: amount,
+            reversalAmount: -amount,
+            date: orig.date,
+            reversedAt: rev.reversedAt,
+            reversalReason: rev.reversalReason,
+            originalTransactionId: orig.id,
+            reversalTransactionId: rev.id,
+            payrollId: orig.sourceId,
+            employee: payroll?.employee,
+            periodStart: payroll?.periodStart,
+            periodEnd: payroll?.periodEnd,
+            status: 'Reversed',
+            performedBy: rev.createdBy || null
+          });
+        }
+      } catch (payrollRevErr) {
+        console.error('Error fetching payroll reversals:', payrollRevErr);
+        payrollReversals = [];
+      }
+    }
+
     // Fetch refunded POS sales (reversals from /pos/list Process Refund)
     let saleRefundReversals = [];
     if (type === 'all' || type === 'sale_refund') {
@@ -299,7 +366,8 @@ export async function GET(request) {
         status: sale.status,
         performedBy: sale.refundedBy,
         taxReversed: sale.totalTaxAmount != null ? parseFloat(sale.totalTaxAmount) : 0
-      }))
+      })),
+      ...payrollReversals
     ];
 
     // Filter by search if provided (after fetching to allow searching user names)
@@ -330,7 +398,8 @@ export async function GET(request) {
         sale: filteredReversals.filter(r => r.type === 'sale').length,
         payment: filteredReversals.filter(r => r.type === 'payment').length,
         refund: filteredReversals.filter(r => r.type === 'refund').length,
-        sale_refund: filteredReversals.filter(r => r.type === 'sale_refund').length
+        sale_refund: filteredReversals.filter(r => r.type === 'sale_refund').length,
+        payroll: filteredReversals.filter(r => r.type === 'payroll').length
       }
     };
 

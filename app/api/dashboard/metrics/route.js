@@ -249,35 +249,17 @@ export async function GET(request) {
     const cogsAccountIds = cogsAccounts.map(acc => acc.id);
 
     const [currentInvoices, currentSales, currentExpensesData, currentCOGSData] = await Promise.all([
-      // Revenue should only include actual payments received, not pending invoices
-      // Filter by payment.branchId OR invoice.branchId OR sale.branchId for proper branch isolation
-      prisma.payment.aggregate({
-        where: (() => {
-          const baseFilter = {
-            tenantId,
-            type: { in: ['invoice', 'sale'] },
-            status: 'Completed',
-            paymentDate: { 
-              gte: currentPeriodStart,
-              lte: currentPeriodEndDate
-            }
-          };
-          
-          if (user?.currentBranchId) {
-            // Filter by payment.branchId OR related invoice/sale branchId
-            return {
-              ...baseFilter,
-              OR: [
-                { branchId: user.currentBranchId },
-                { invoice: { branchId: user.currentBranchId } },
-                { sale: { branchId: user.currentBranchId } }
-              ]
-            };
-          }
-          
-          return baseFilter;
-        })(),
-        _sum: { amount: true }
+      // Revenue (accrual): include invoice totals by issue date (exclude Draft/void/refund/reversal)
+      prisma.invoice.aggregate({
+        where: addBranchFilter(user, {
+          tenantId,
+          issueDate: { gte: currentPeriodStart, lte: currentPeriodEndDate },
+          voidedAt: null,
+          refundedAt: null,
+          isReversal: false,
+          status: { notIn: ['Draft', 'draft'] }
+        }),
+        _sum: { total: true }
       }),
       prisma.sale.aggregate({
         where: addBranchFilter(user, {
@@ -326,35 +308,17 @@ export async function GET(request) {
 
     // Get previous period data with refund calculations
     const [previousInvoices, previousSales, previousExpensesData, previousCOGSData] = await Promise.all([
-      // Revenue should only include actual payments received, not pending invoices
-      // Filter by payment.branchId OR invoice.branchId OR sale.branchId for proper branch isolation
-      prisma.payment.aggregate({
-        where: (() => {
-          const baseFilter = {
-            tenantId,
-            type: { in: ['invoice', 'sale'] },
-            status: 'Completed',
-            paymentDate: { 
-              gte: previousPeriodStart,
-              lte: previousPeriodEnd
-            }
-          };
-          
-          if (user?.currentBranchId) {
-            // Filter by payment.branchId OR related invoice/sale branchId
-            return {
-              ...baseFilter,
-              OR: [
-                { branchId: user.currentBranchId },
-                { invoice: { branchId: user.currentBranchId } },
-                { sale: { branchId: user.currentBranchId } }
-              ]
-            };
-          }
-          
-          return baseFilter;
-        })(),
-        _sum: { amount: true }
+      // Revenue (accrual): include invoice totals by issue date (exclude Draft/void/refund/reversal)
+      prisma.invoice.aggregate({
+        where: addBranchFilter(user, {
+          tenantId,
+          issueDate: { gte: previousPeriodStart, lte: previousPeriodEnd },
+          voidedAt: null,
+          refundedAt: null,
+          isReversal: false,
+          status: { notIn: ['Draft', 'draft'] }
+        }),
+        _sum: { total: true }
       }),
       prisma.sale.aggregate({
         where: addBranchFilter(user, {
@@ -423,9 +387,9 @@ export async function GET(request) {
       })
     ]);
 
-    // Calculate revenue from actual payments only to avoid double-counting sales
-    const currentRevenue = (currentInvoices._sum.amount || 0);
-    const previousRevenue = (previousInvoices._sum.amount || 0);
+    // Revenue totals (invoice totals + POS sales)
+    const currentRevenue = (currentInvoices._sum.total || 0) + (currentSales._sum.total || 0);
+    const previousRevenue = (previousInvoices._sum.total || 0) + (previousSales._sum.total || 0);
     
     // Include COGS in expenses
     const currentCOGS = Number(currentCOGSData._sum.debitAmount || 0);

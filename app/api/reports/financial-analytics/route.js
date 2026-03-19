@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { calculateDateRange } from '@/lib/dateUtils';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -43,20 +44,21 @@ function addToMap(map, key, amount) {
 function getDateRange(searchParams) {
   const startParam = searchParams.get('startDate');
   const endParam = searchParams.get('endDate');
+  const timeframe = searchParams.get('timeframe') || searchParams.get('dateRange') || 'thisMonth';
 
-  const endDate = parseDate(endParam, new Date());
-  const startDate = parseDate(
-    startParam,
-    new Date(endDate.getUTCFullYear(), endDate.getUTCMonth(), 1)
-  );
-
-  if (startDate > endDate) {
-    throw new Error('Start date cannot be after end date');
+  // If explicit dates are provided, treat as a custom range
+  if (startParam && endParam) {
+    const startDate = parseDate(startParam);
+    const endDate = parseDate(endParam);
+    if (!startDate || !endDate) throw new Error('Invalid startDate or endDate');
+    if (startDate > endDate) throw new Error('Start date cannot be after end date');
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
+    return { startDate, endDate };
   }
 
-  startDate.setHours(0, 0, 0, 0);
-  endDate.setHours(23, 59, 59, 999);
-
+  // Otherwise, use calendar-aligned timeframe boundaries (month = 1st–last day, quarter = calendar quarter, etc)
+  const { startDate, endDate } = calculateDateRange(timeframe);
   return { startDate, endDate };
 }
 

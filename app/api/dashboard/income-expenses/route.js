@@ -216,16 +216,29 @@ export async function GET(request) {
       });
       const cogsAccountIds = cogsAccounts.map(acc => acc.id);
 
-      const [invoices, expenses, loanPayments, cogsData] = await Promise.all([
-        // Revenue should only include actual payments received, not pending invoices
-        prisma.payment.aggregate({
+      const [invoiceRevenue, salesRevenue, expenses, loanPayments, cogsData] = await Promise.all([
+        // Revenue (accrual): include invoice totals by issue date (exclude Draft/void/refund/reversal)
+        prisma.invoice.aggregate({
           where: addBranchFilter(user, {
             tenantId,
-            type: { in: ['invoice', 'sale'] },
-            status: 'Completed',
-            paymentDate: { gte: filterStartDate, lte: filterEndDate }
+            issueDate: { gte: filterStartDate, lte: filterEndDate },
+            voidedAt: null,
+            refundedAt: null,
+            isReversal: false,
+            status: { notIn: ['Draft', 'draft'] }
           }),
-          _sum: { amount: true }
+          _sum: { total: true }
+        }),
+        // POS sales revenue (completed)
+        prisma.sale.aggregate({
+          where: addBranchFilter(user, {
+            tenantId,
+            saleDate: { gte: filterStartDate, lte: filterEndDate },
+            status: { equals: 'completed', mode: 'insensitive' },
+            voidedAt: null,
+            isReversal: false
+          }),
+          _sum: { total: true }
         }),
         // Operating expenses: includes payroll, approved expenses, and supplier/PO expenses (unassigned branch).
         prisma.expense.aggregate({
@@ -271,8 +284,10 @@ export async function GET(request) {
       const loanPaymentAmount = Number(loanPayments._sum.amount || 0);
       const totalExpenses = (expenses._sum.amount || 0) + loanPaymentAmount + cogsAmount;
 
+      const invoiceIncome = Number(invoiceRevenue?._sum?.total || 0);
+      const posIncome = Number(salesRevenue?._sum?.total || 0);
       return {
-        income: (invoices._sum.amount || 0),
+        income: invoiceIncome + posIncome,
         expenses: totalExpenses
       };
     };

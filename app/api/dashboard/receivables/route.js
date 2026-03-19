@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -145,12 +145,21 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // Get ALL unpaid invoices (Accounts Receivable should show all outstanding invoices regardless of issue date)
+    // By default, receivables shows ALL outstanding invoices (regardless of issue date).
+    // When a timeframe filter is selected on the receivables page, it passes a dateRange plus
+    // start/end dates; in that case we also filter invoices by issueDate so "Today/This week/etc"
+    // shows invoices issued in that period.
+    const shouldFilterByIssueDate = Boolean(startDate && endDate && dateRange && dateRange !== 'month');
+
+    // Get unpaid invoices
     // Include invoices that are Pending or Partial (these represent money owed by customers)
     // Calculate actual remaining balance from payments to ensure accuracy
     const invoices = await prisma.invoice.findMany({
-      where: addBranchFilter(user, {
+      // Receivables: include unassigned (null branchId) invoices even when a branch is selected.
+      // This prevents missing invoices for tenants/users in "default branch" scenarios.
+      where: addBranchFilterIncludeUnassigned(user, {
         tenantId,
+        ...(shouldFilterByIssueDate ? { issueDate: { gte: startDate, lte: endDate } } : {}),
         // Exclude voided and refunded invoices
         voidedAt: null,
         refundedAt: null,
@@ -172,7 +181,7 @@ export async function GET(request) {
         lastPaymentDate: true,
         payments: {
           where: {
-            status: 'Completed'
+            status: { equals: 'Completed', mode: 'insensitive' }
           },
           select: {
             amount: true

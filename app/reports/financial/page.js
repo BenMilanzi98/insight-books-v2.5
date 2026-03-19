@@ -12,21 +12,31 @@ import {
   RefreshCw
 } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/dateUtils";
+import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
+import { calculateDateRange } from "@/lib/dateUtils";
 
 const FinancialReportsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [financialData, setFinancialData] = useState(null);
-  const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [timeframe, setTimeframe] = useState("thisMonth");
+  const [customDateRange, setCustomDateRange] = useState(null);
   const [selectedReport, setSelectedReport] = useState("overview");
 
   useEffect(() => {
     fetchFinancialData();
-  }, [selectedPeriod]);
+  }, [timeframe, customDateRange]);
 
   const fetchFinancialData = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/dashboard/income-expenses?period=${selectedPeriod}`);
+      const r = calculateDateRange(timeframe, timeframe === "custom" ? customDateRange : null);
+      const params = new URLSearchParams();
+      params.set("dateRange", timeframe === "custom" ? "custom" : timeframe);
+      if (timeframe === "custom") {
+        params.set("startDate", r.startDate.toISOString().split("T")[0]);
+        params.set("endDate", r.endDate.toISOString().split("T")[0]);
+      }
+      const response = await fetch(`/api/dashboard/income-expenses?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setFinancialData(data.incomeExpenses);
@@ -68,16 +78,14 @@ const FinancialReportsPage = () => {
             <p className="text-gray-600">Comprehensive financial analysis and reporting</p>
           </div>
           <div className="flex space-x-3">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-            >
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-              <option value="quarter">This Quarter</option>
-              <option value="year">This Year</option>
-            </select>
+            <UniversalDateRangeFilter
+              timeframe={timeframe}
+              onTimeframeChange={(tf) => setTimeframe(tf)}
+              onCustomDateChange={(range) => setCustomDateRange(range)}
+              onRefresh={fetchFinancialData}
+              loading={isLoading}
+              variant="compact"
+            />
             <button
               onClick={fetchFinancialData}
               className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 flex items-center"

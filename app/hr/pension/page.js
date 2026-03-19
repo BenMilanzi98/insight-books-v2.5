@@ -42,8 +42,9 @@ export default function PensionManagementPage() {
 
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  const [npsEmployeeRatePercent, setNpsEmployeeRatePercent] = useState(5);
-  const [npsEmployerRatePercent, setNpsEmployerRatePercent] = useState(5);
+  // Empty string means "not configured" (no default value).
+  const [npsEmployeeRatePercent, setNpsEmployeeRatePercent] = useState("");
+  const [npsEmployerRatePercent, setNpsEmployerRatePercent] = useState("");
 
   const [reportStartDate, setReportStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]);
   const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split("T")[0]);
@@ -83,8 +84,16 @@ export default function PensionManagementPage() {
       const res = await fetch("/api/pension/settings");
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to load pension settings");
-      setNpsEmployeeRatePercent(Number(data.npsEmployeeRatePercent ?? 5) || 5);
-      setNpsEmployerRatePercent(Number(data.npsEmployerRatePercent ?? 5) || 5);
+      setNpsEmployeeRatePercent(
+        data.npsEmployeeRatePercent === null || data.npsEmployeeRatePercent === undefined
+          ? ""
+          : String(Number(data.npsEmployeeRatePercent))
+      );
+      setNpsEmployerRatePercent(
+        data.npsEmployerRatePercent === null || data.npsEmployerRatePercent === undefined
+          ? ""
+          : String(Number(data.npsEmployerRatePercent))
+      );
     } catch (e) {
       console.error("Error loading pension settings:", e);
       // Keep defaults; don't block page
@@ -100,14 +109,22 @@ export default function PensionManagementPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          npsEmployeeRatePercent: Number(npsEmployeeRatePercent) || 0,
-          npsEmployerRatePercent: Number(npsEmployerRatePercent) || 0,
+          npsEmployeeRatePercent: npsEmployeeRatePercent === "" ? null : Number(npsEmployeeRatePercent),
+          npsEmployerRatePercent: npsEmployerRatePercent === "" ? null : Number(npsEmployerRatePercent),
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Failed to save pension settings");
-      setNpsEmployeeRatePercent(Number(data.npsEmployeeRatePercent ?? 5) || 5);
-      setNpsEmployerRatePercent(Number(data.npsEmployerRatePercent ?? 5) || 5);
+      setNpsEmployeeRatePercent(
+        data.npsEmployeeRatePercent === null || data.npsEmployeeRatePercent === undefined
+          ? ""
+          : String(Number(data.npsEmployeeRatePercent))
+      );
+      setNpsEmployerRatePercent(
+        data.npsEmployerRatePercent === null || data.npsEmployerRatePercent === undefined
+          ? ""
+          : String(Number(data.npsEmployerRatePercent))
+      );
       showToast("success", "Pension rates updated");
     } catch (e) {
       console.error("Error saving pension settings:", e);

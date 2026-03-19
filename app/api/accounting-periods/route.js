@@ -8,6 +8,7 @@ import {
   startOfCalendarYear,
   endOfCalendarYear,
 } from '@/lib/accountingPeriodService';
+import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
 function isFinanceAdmin(user) {
   if (!user || !user.role) {
@@ -33,16 +34,17 @@ function endOfDay(date) {
   return d;
 }
 
-/** Financial periods align to calendar year: yearly always 1 Jan – 31 Dec. */
+/** Financial periods: yearly 1 Jan–31 Dec; monthly 1st–last day of month. */
 function computePeriodRange(periodType, startDate) {
   if (periodType === 'Yearly') {
     const start = startOfDay(startOfCalendarYear(startDate));
     const end = endOfCalendarYear(startDate);
     return { start, end };
   }
-  const start = startOfDay(startDate);
-  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-  return { start, end: endOfDay(end) };
+  // Monthly: always 1st to last day of that month
+  const start = startOfDay(startOfMonth(startDate));
+  const end = endOfDay(endOfMonth(startDate));
+  return { start, end };
 }
 
 function buildPeriodName(periodType, startDate) {
@@ -168,6 +170,9 @@ export async function POST(request) {
     } else if (periodType === 'Yearly') {
       // Enforce: yearly period always starts 1 January
       startDate = startOfCalendarYear(startDate);
+    } else if (periodType === 'Monthly') {
+      // Enforce: monthly period always starts on 1st of the month
+      startDate = startOfMonth(startDate);
     }
 
     if (!endDate || Number.isNaN(endDate.getTime())) {
@@ -175,11 +180,15 @@ export async function POST(request) {
       startDate = range.start;
       endDate = range.end;
     } else {
-      startDate = startOfDay(startDate);
       endDate = endOfDay(endDate);
       if (periodType === 'Yearly') {
         startDate = startOfDay(startOfCalendarYear(startDate));
         endDate = endOfCalendarYear(startDate);
+      } else if (periodType === 'Monthly') {
+        startDate = startOfDay(startOfMonth(startDate));
+        endDate = endOfDay(endOfMonth(endDate));
+      } else {
+        startDate = startOfDay(startDate);
       }
     }
 

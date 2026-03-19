@@ -13,6 +13,7 @@ import {
   DollarSign,
   Receipt,
   CreditCard,
+  Users,
   Eye,
   ArrowUpRight,
   ArrowDownRight,
@@ -154,6 +155,8 @@ const ReversalsPage = () => {
         return <RotateCcw className="w-4 h-4 text-amber-500" />;
       case 'sale_refund':
         return <RotateCcw className="w-4 h-4 text-purple-500" />;
+      case 'payroll':
+        return <Users className="w-4 h-4 text-indigo-500" />;
       default:
         return <DollarSign className="w-4 h-4 text-gray-500" />;
     }
@@ -171,6 +174,8 @@ const ReversalsPage = () => {
         return 'Invoice Refund';
       case 'sale_refund':
         return 'POS Refund';
+      case 'payroll':
+        return 'Payroll';
       default:
         return 'Transaction';
     }
@@ -188,6 +193,8 @@ const ReversalsPage = () => {
         return 'bg-amber-100 text-amber-800';
       case 'sale_refund':
         return 'bg-purple-100 text-purple-800';
+      case 'payroll':
+        return 'bg-indigo-100 text-indigo-800';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -346,6 +353,17 @@ const ReversalsPage = () => {
               </div>
             </div>
           </div>
+          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Payroll</p>
+                <p className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{totals.byType?.payroll || 0}</p>
+              </div>
+              <div className="p-3 rounded-xl bg-indigo-100">
+                <Users className="w-6 h-6 text-indigo-600" />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Filters */}
@@ -367,6 +385,7 @@ const ReversalsPage = () => {
                 <option value="payment">Payments</option>
                 <option value="refund">Invoice Refunds</option>
                 <option value="sale_refund">POS Refunds</option>
+                <option value="payroll">Payroll</option>
               </select>
             </div>
 
@@ -502,6 +521,14 @@ const ReversalsPage = () => {
                           )}
                           {reversal.merchant && (
                             <span className="text-xs text-gray-500">{reversal.merchant}</span>
+                          )}
+                          {reversal.type === 'payroll' && reversal.employee && (
+                            <span className="text-xs text-indigo-600 font-medium">{reversal.employee.name}</span>
+                          )}
+                          {reversal.type === 'payroll' && reversal.periodStart && reversal.periodEnd && (
+                            <span className="text-xs text-gray-500">
+                              {new Date(reversal.periodStart).toLocaleDateString()} – {new Date(reversal.periodEnd).toLocaleDateString()}
+                            </span>
                           )}
                         </div>
                       </td>

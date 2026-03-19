@@ -74,6 +74,9 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
     showLogo = true, 
     showFooter = true 
   } = content;
+
+  // Seller TPIN from branding/settings (tenant settings surface TPIN on account page)
+  const sellerTpin = branding?.tpin || branding?.tpinNumber || '';
   
   // Use the primary color from template content or branding settings
   const primaryColor = content.primaryColor || branding?.primaryColor || '#4f46e5';
@@ -223,6 +226,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
                   <p className="text-lg font-semibold text-gray-900 tracking-tight">{branding?.companyName || branding?.name || 'Business'}</p>
                 )}
               </div>
+            )}
+            {sellerTpin && (
+              <p className="mt-2 text-xs text-gray-600">
+                <span className="font-semibold">TPIN:</span> {sellerTpin}
+              </p>
             )}
           </div>
           <div className="text-right">

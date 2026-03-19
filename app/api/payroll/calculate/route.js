@@ -62,8 +62,8 @@ export async function POST(request) {
     ];
 
     // Fetch tenant NPS rates so preview uses configured rates (employee % / employer %)
-    let npsEmployeeRatePercent = 5;
-    let npsEmployerRatePercent = 5;
+    let npsEmployeeRatePercent = null;
+    let npsEmployerRatePercent = null;
     try {
       const rows = await prisma.$queryRaw`
         SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
@@ -73,13 +73,15 @@ export async function POST(request) {
       `;
       const row = Array.isArray(rows) ? rows[0] : null;
       if (row && typeof row === 'object') {
-        const emp = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5);
-        const empEr = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5);
-        npsEmployeeRatePercent = Number.isFinite(emp) ? emp : 5;
-        npsEmployerRatePercent = Number.isFinite(empEr) ? empEr : 5;
+        const empRaw = row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? null;
+        const erRaw = row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? null;
+        const emp = empRaw === null || empRaw === undefined ? null : Number(empRaw);
+        const er = erRaw === null || erRaw === undefined ? null : Number(erRaw);
+        npsEmployeeRatePercent = Number.isFinite(emp) ? emp : null;
+        npsEmployerRatePercent = Number.isFinite(er) ? er : null;
       }
     } catch (_) {
-      // use defaults
+      // use nulls (treated as 0% by calculation)
     }
 
     const payrollCalculation = calculatePayroll(grossSalary, allDeductions, {

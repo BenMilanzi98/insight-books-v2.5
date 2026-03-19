@@ -27,9 +27,13 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
+import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
+import { calculateDateRange } from "@/lib/dateUtils";
 
 export default function HRReports() {
   const [reportType, setReportType] = useState('');
+  const [timeframe, setTimeframe] = useState("thisMonth");
+  const [customDateRange, setCustomDateRange] = useState(null);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState('');
@@ -107,6 +111,20 @@ export default function HRReports() {
       requiresDateRange: false
     }
   ];
+
+  // Keep start/end dates in sync with the selected timeframe (calendar aligned via calculateDateRange)
+  useEffect(() => {
+    if (timeframe === "custom") {
+      if (customDateRange?.startDate && customDateRange?.endDate) {
+        setStartDate(customDateRange.startDate);
+        setEndDate(customDateRange.endDate);
+      }
+      return;
+    }
+    const r = calculateDateRange(timeframe);
+    setStartDate(r.startDate.toISOString().split("T")[0]);
+    setEndDate(r.endDate.toISOString().split("T")[0]);
+  }, [timeframe, customDateRange]);
 
   // Fetch employees and departments on mount
   useEffect(() => {
@@ -779,6 +797,25 @@ export default function HRReports() {
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Calendar-aligned Date Filter */}
+            {selectedReportType?.requiresDateRange && (
+              <div className="md:col-span-2 lg:col-span-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">Date Range</p>
+                    <p className="text-xs text-gray-500">Calendar-aligned periods (month/quarter/year) or custom range.</p>
+                  </div>
+                  <UniversalDateRangeFilter
+                    timeframe={timeframe}
+                    onTimeframeChange={(tf) => setTimeframe(tf)}
+                    onCustomDateChange={(range) => setCustomDateRange(range)}
+                    showRefresh={false}
+                    variant="compact"
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Employee Filter */}
             {selectedReportType?.requiresEmployee && (
               <div>
