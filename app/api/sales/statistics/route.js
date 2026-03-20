@@ -175,18 +175,22 @@ export async function GET(request) {
     });
     
     // Get product names for the top products
-    const topProductIds = topProducts.map(p => p.productId);
-    const productNames = await prisma.product.findMany({
-      where: {
-        id: {
-          in: topProductIds
-        }
-      },
-      select: {
-        id: true,
-        name: true
-      }
-    });
+    // saleItem.productId can be null for custom products; Prisma `in` must not include null.
+    const topProductIds = topProducts
+      .map(p => p.productId)
+      .filter(id => typeof id === 'string' && id.length > 0);
+
+    const productNames = topProductIds.length > 0
+      ? await prisma.product.findMany({
+          where: {
+            id: { in: topProductIds }
+          },
+          select: {
+            id: true,
+            name: true
+          }
+        })
+      : [];
     
     // Combine the data
     const topProductsWithNames = topProducts.map(product => {

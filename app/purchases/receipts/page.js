@@ -46,7 +46,8 @@ function FormSection({ title, description, children }) {
   );
 }
 
-function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) {
+function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inventory", onSave, onCancel }) {
+  const isServiceMode = receiptMode === "service";
   const [form, setForm] = useState({
     supplierId: "",
     receiptDate: format(new Date(), "yyyy-MM-dd"),
@@ -69,7 +70,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
         purchaseOrderId: value,
         ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
       }));
-      if (selectedPO?.items?.length) {
+      if (!isServiceMode && selectedPO?.items?.length) {
         const goodsItems = selectedPO.items.filter(
           (line) => line.productId && (line.lineType || "goods") === "goods"
         );
@@ -107,7 +108,10 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
     setSaving(true);
     setError(null);
     try {
-      await onSave({ ...form, items });
+      const payload = isServiceMode
+        ? { ...form, receiptType: "service", items: [] }
+        : { ...form, receiptType: "inventory", items };
+      await onSave(payload);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -161,9 +165,10 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
               name="purchaseOrderId"
               value={form.purchaseOrderId}
               onChange={handleChange}
+              required={isServiceMode}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">(Optional)</option>
+              <option value="">{isServiceMode ? "Select service PO" : "(Optional)"}</option>
               {purchaseOrders.map((po) => (
                 <option key={po.id} value={po.id}>
                   {po.poNumber} — {po.supplier?.supplierName}
@@ -189,75 +194,86 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
         </div>
       </FormSection>
 
-      <FormSection
-        title="Items Received"
-        description="Quantities update product stock levels using weighted cost."
-      >
-        <div className="space-y-3">
-          {items.map((item, idx) => (
-            <div
-              key={idx}
-              className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-3 sm:grid-cols-4"
-            >
-              <select
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                value={item.productId}
-                onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
-                required
+      {isServiceMode ? (
+        <FormSection
+          title="Service Receipt Confirmation"
+          description="Confirms service completion for a services/mixed PO. This does not update inventory stock."
+        >
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+            Select a service PO, then post receipt to move it to payables.
+          </div>
+        </FormSection>
+      ) : (
+        <FormSection
+          title="Items Received"
+          description="Quantities update product stock levels using weighted cost."
+        >
+          <div className="space-y-3">
+            {items.map((item, idx) => (
+              <div
+                key={idx}
+                className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-3 sm:grid-cols-4"
               >
-                <option value="">Product</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="number"
-                min="0"
-                step="1"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                value={item.quantityReceived}
-                onChange={(e) => handleItemChange(idx, "quantityReceived", e.target.value)}
-                required
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                value={item.unitCost}
-                onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
-                required
-              />
-              <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
-                <span>
-                  MWK{" "}
-                  {(
-                    Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
-                  ).toLocaleString()}
-                </span>
-                {items.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => removeItem(idx)}
-                    className="text-xs text-red-600"
-                  >
-                    Remove
-                  </button>
-                )}
+                <select
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                  value={item.productId}
+                  onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
+                  required
+                >
+                  <option value="">Product</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                  value={item.quantityReceived}
+                  onChange={(e) => handleItemChange(idx, "quantityReceived", e.target.value)}
+                  required
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                  value={item.unitCost}
+                  onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
+                  required
+                />
+                <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
+                  <span>
+                    MWK{" "}
+                    {(
+                      Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
+                    ).toLocaleString()}
+                  </span>
+                  {items.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeItem(idx)}
+                      className="text-xs text-red-600"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addItem}
-            className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-          >
-            + Add Item
-          </button>
-        </div>
-      </FormSection>
+            ))}
+            <button
+              type="button"
+              onClick={addItem}
+              className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              + Add Item
+            </button>
+          </div>
+        </FormSection>
+      )}
 
       <FormSection title="Notes" description="Optional internal notes for this receipt.">
         <textarea
@@ -354,35 +370,41 @@ function ReceiptDetails({ receipt, onClose }) {
           <div>
             <h3 className="text-sm font-semibold text-gray-700">Items</h3>
             <div className="mt-2 overflow-x-auto rounded-lg border">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
-                <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
-                  <tr>
-                    <th className="px-4 py-2">Product</th>
-                    <th className="px-4 py-2">Qty</th>
-                    <th className="px-4 py-2">Unit Cost</th>
-                    <th className="px-4 py-2 text-right">Line Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {receipt.items?.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-2 text-gray-900">{item.product?.name ?? item.productId}</td>
-                      <td className="px-4 py-2 text-gray-700">
-                        {Number(item.quantityReceived || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-gray-700">
-                        MWK {Number(item.unitCost || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 text-right font-medium text-gray-900">
-                        MWK{" "}
-                        {(
-                          Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
-                        ).toLocaleString()}
-                      </td>
+              {Array.isArray(receipt.items) && receipt.items.length > 0 ? (
+                <table className="min-w-full divide-y divide-gray-200 text-sm">
+                  <thead className="bg-gray-50 text-left text-xs font-semibold uppercase text-gray-500">
+                    <tr>
+                      <th className="px-4 py-2">Product</th>
+                      <th className="px-4 py-2">Qty</th>
+                      <th className="px-4 py-2">Unit Cost</th>
+                      <th className="px-4 py-2 text-right">Line Total</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {receipt.items.map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-4 py-2 text-gray-900">{item.product?.name ?? item.productId}</td>
+                        <td className="px-4 py-2 text-gray-700">
+                          {Number(item.quantityReceived || 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-gray-700">
+                          MWK {Number(item.unitCost || 0).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-gray-900">
+                          MWK{" "}
+                          {(
+                            Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
+                          ).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="bg-white px-4 py-3 text-sm text-gray-600">
+                  Service receipt (no inventory items).
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -392,6 +414,7 @@ function ReceiptDetails({ receipt, onClose }) {
 }
 
 export default function GoodsReceiptsPage() {
+  const [activeReceiptTab, setActiveReceiptTab] = useState("inventory");
   const [receipts, setReceipts] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
@@ -412,10 +435,30 @@ export default function GoodsReceiptsPage() {
         fetch("/api/stock").then((res) => res.json()),
         fetch("/api/purchases/orders?status=Approved").then((res) => res.json()),
       ]);
-      setReceipts(receiptData.receipts ?? []);
+      const allReceipts = receiptData.receipts ?? [];
+      const filteredReceipts =
+        activeReceiptTab === "service"
+          ? allReceipts.filter((r) => (r.receiptType || "inventory") === "service")
+          : allReceipts.filter((r) => (r.receiptType || "inventory") === "inventory");
+      setReceipts(filteredReceipts);
       setSuppliers(supplierData.suppliers ?? []);
       setProducts(productData.products ?? []);
-      setPurchaseOrders(poData.purchaseOrders ?? []);
+      const allPos = poData.purchaseOrders ?? [];
+      const filteredPos =
+        activeReceiptTab === "service"
+          ? allPos.filter(
+              (po) =>
+                po &&
+                (po.orderType === "services" || po.orderType === "mixed") &&
+                (po.status === "Approved" || po.status === "Partially Received")
+            )
+          : allPos.filter(
+              (po) =>
+                po &&
+                (po.orderType === "goods" || po.orderType === "mixed" || po.orderType === "assets") &&
+                (po.status === "Approved" || po.status === "Partially Received")
+            );
+      setPurchaseOrders(filteredPos);
       setError(null);
     } catch (err) {
       setError(err.message || "Failed to load goods receipts");
@@ -426,7 +469,7 @@ export default function GoodsReceiptsPage() {
 
   useEffect(() => {
     loadData();
-  }, [statusFilter, supplierFilter]);
+  }, [statusFilter, supplierFilter, activeReceiptTab]);
 
   const stats = useMemo(() => {
     const total = receipts.length;
@@ -448,16 +491,45 @@ export default function GoodsReceiptsPage() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Goods Receipts</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {activeReceiptTab === "service" ? "Service Receipts" : "Goods Receipts"}
+          </h1>
           <p className="text-sm text-gray-500">
-            Receive purchased items and update inventory with average cost.
+            {activeReceiptTab === "service"
+              ? "Confirm completed service deliveries separately from inventory receipts."
+              : "Receive purchased items and update inventory with average cost."}
           </p>
         </div>
         <button
           onClick={() => setShowForm(true)}
           className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white  hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          Receive Goods
+          {activeReceiptTab === "service" ? "Receive Service" : "Receive Goods"}
+        </button>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-1 inline-flex gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveReceiptTab("inventory")}
+          className={`rounded-md px-4 py-2 text-sm font-medium ${
+            activeReceiptTab === "inventory"
+              ? "bg-indigo-600 text-white"
+              : "text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Inventory Receipt
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveReceiptTab("service")}
+          className={`rounded-md px-4 py-2 text-sm font-medium ${
+            activeReceiptTab === "service"
+              ? "bg-indigo-600 text-white"
+              : "text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          Goods/Service Receipt
         </button>
       </div>
 
@@ -505,7 +577,9 @@ export default function GoodsReceiptsPage() {
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : receipts.length === 0 ? (
-          <p className="text-sm text-gray-500">No goods receipts found.</p>
+          <p className="text-sm text-gray-500">
+            {activeReceiptTab === "service" ? "No service receipts found." : "No goods receipts found."}
+          </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -584,7 +658,9 @@ export default function GoodsReceiptsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-6 ">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Receive Goods</h2>
+              <h2 className="text-lg font-semibold text-gray-900">
+                {activeReceiptTab === "service" ? "Receive Service" : "Receive Goods"}
+              </h2>
               <button
                 onClick={() => setShowForm(false)}
                 className="text-sm text-gray-500 hover:text-gray-700"
@@ -596,6 +672,7 @@ export default function GoodsReceiptsPage() {
               suppliers={suppliers}
               products={products}
               purchaseOrders={purchaseOrders}
+              receiptMode={activeReceiptTab}
               onSave={handleCreate}
               onCancel={() => setShowForm(false)}
             />

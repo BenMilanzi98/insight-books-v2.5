@@ -52,6 +52,17 @@ export async function GET(request) {
         endDate.setDate(endDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisWeek': {
+        const dayOfWeek = today.getDay(); // Sunday=0..Saturday=6
+        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        startDate = new Date(today);
+        startDate.setDate(today.getDate() - daysToMonday);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      }
       case 'lastWeek':
         startDate = new Date(today);
         startDate.setDate(startDate.getDate() - startDate.getDay() - 7);
@@ -61,6 +72,11 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'month':
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'thisMonth':
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         endDate.setHours(23, 59, 59, 999);
@@ -85,6 +101,11 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'year':
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(today.getFullYear(), 11, 31);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'thisYear':
         startDate = new Date(today.getFullYear(), 0, 1);
         endDate = new Date(today.getFullYear(), 11, 31);
         endDate.setHours(23, 59, 59, 999);
@@ -145,11 +166,13 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // By default, receivables shows ALL outstanding invoices (regardless of issue date).
-    // When a timeframe filter is selected on the receivables page, it passes a dateRange plus
-    // start/end dates; in that case we also filter invoices by issueDate so "Today/This week/etc"
-    // shows invoices issued in that period.
-    const shouldFilterByIssueDate = Boolean(startDate && endDate && dateRange && dateRange !== 'month');
+    // Receivables on the dashboard should reflect outstanding balances affected by
+    // payments in the selected range. Filtering by invoice `issueDate` causes missing
+    // invoices when payments are received in a different timezone/day or in a later period.
+    //
+    // Instead, we filter invoices to those that have at least one completed payment
+    // within the selected date range.
+    const shouldFilterByPaymentDate = Boolean(startDate && endDate && dateRange);
 
     // Get unpaid invoices
     // Include invoices that are Pending or Partial (these represent money owed by customers)
@@ -159,7 +182,16 @@ export async function GET(request) {
       // This prevents missing invoices for tenants/users in "default branch" scenarios.
       where: addBranchFilterIncludeUnassigned(user, {
         tenantId,
-        ...(shouldFilterByIssueDate ? { issueDate: { gte: startDate, lte: endDate } } : {}),
+        ...(shouldFilterByPaymentDate
+          ? {
+              payments: {
+                some: {
+                  status: { equals: 'Completed', mode: 'insensitive' },
+                  paymentDate: { gte: startDate, lte: endDate }
+                }
+              }
+            }
+          : {}),
         // Exclude voided and refunded invoices
         voidedAt: null,
         refundedAt: null,

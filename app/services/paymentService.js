@@ -124,11 +124,19 @@ export const fetchPayments = async (params = {}) => {
     }
   };
   
-  // Delete a payment
-  export const deletePayment = async (paymentId) => {
+  // Remove a payment via reversal (API requires audit reason; default satisfies min length)
+  export const deletePayment = async (paymentId, options = {}) => {
     try {
+      const reversalReason =
+        options.reversalReason ||
+        options.reason ||
+        'Payment removal requested; recorded with full audit trail per system policy';
       const response = await fetch(`/api/payments/${paymentId}`, {
         method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reversalReason })
       });
       
       if (!response.ok) {

@@ -380,7 +380,12 @@ export const fetchProfitabilityAnalysis = async ({ timeframe, groupBy = 'product
 /**
  * Fetch financial analytics (graphs + KPIs)
  */
-export const fetchFinancialAnalytics = async ({ timeframe, groupBy = 'month', customDateRange = null }) => {
+export const fetchFinancialAnalytics = async ({
+  timeframe,
+  groupBy = 'month',
+  customDateRange = null,
+  categoryId = ''
+}) => {
   try {
     const { startDate, endDate } = getDateRange(timeframe, customDateRange);
     
@@ -389,6 +394,9 @@ export const fetchFinancialAnalytics = async ({ timeframe, groupBy = 'month', cu
       endDate,
       groupBy
     });
+    if (categoryId) {
+      params.append('categoryId', categoryId);
+    }
     
     const response = await fetch(`/api/reports/financial-analytics?${params.toString()}`);
     

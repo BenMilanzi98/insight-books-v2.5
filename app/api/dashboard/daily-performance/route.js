@@ -19,6 +19,12 @@ export async function GET(request) {
     }
     
     const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant missing for this user session' },
+        { status: 400 }
+      );
+    }
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'today';
 
@@ -210,7 +216,7 @@ export async function GET(request) {
     }).reverse();
 
     // Get current period's actual revenue from sales and invoice payments
-    const [todaySales, todayInvoices] = await Promise.all([
+    const [todaySalesSettled, todayInvoicesSettled] = await Promise.allSettled([
       // Revenue from sales created today
       prisma.sale.aggregate({
         where: addBranchFilter(user, {
@@ -229,7 +235,8 @@ export async function GET(request) {
           const baseWhere = {
             tenantId,
             isReversal: false,
-            type: { equals: 'invoice', mode: 'insensitive' },
+            // Include any payment linked to an invoice (type can vary by flow)
+            invoiceId: { not: null },
             status: { equals: 'Completed', mode: 'insensitive' },
             paymentDate: {
               gte: currentPeriodStart,
@@ -257,13 +264,24 @@ export async function GET(request) {
       })
     ]);
 
+    const todaySales = todaySalesSettled.status === 'fulfilled'
+      ? todaySalesSettled.value
+      : { _sum: { total: 0 } };
+    const todayInvoices = todayInvoicesSettled.status === 'fulfilled'
+      ? todayInvoicesSettled.value
+      : { _sum: { amount: 0 } };
+
     // Get previous period's actual revenue (only completed payments received)
-    const [yesterdayInvoices, yesterdaySales] = await Promise.all([
+    const [yesterdayInvoicesSettled, yesterdaySalesSettled] = await Promise.allSettled([
       // Revenue should only include actual payments received, not pending invoices
       prisma.payment.aggregate({
         where: addBranchFilter(user, {
           tenantId,
-          type: { in: ['invoice', 'sale'] },
+          // Include invoice-linked payments + sale payments
+          OR: [
+            { invoiceId: { not: null } },
+            { type: { equals: 'sale', mode: 'insensitive' } }
+          ],
           status: 'Completed',
           paymentDate: { 
             gte: previousPeriodStart,
@@ -285,8 +303,15 @@ export async function GET(request) {
       })
     ]);
 
+    const yesterdayInvoices = yesterdayInvoicesSettled.status === 'fulfilled'
+      ? yesterdayInvoicesSettled.value
+      : { _sum: { amount: 0 } };
+    const yesterdaySales = yesterdaySalesSettled.status === 'fulfilled'
+      ? yesterdaySalesSettled.value
+      : { _sum: { total: 0 } };
+
     // Get current period's transactions count (invoices + sales)
-    const [todayInvoiceCount, todaySaleCount] = await Promise.all([
+    const [todayInvoiceCountSettled, todaySaleCountSettled] = await Promise.allSettled([
       prisma.invoice.count({
         where: addBranchFilter(user, {
           tenantId,
@@ -307,21 +332,30 @@ export async function GET(request) {
         })
       })
     ]);
+    const todayInvoiceCount = todayInvoiceCountSettled.status === 'fulfilled'
+      ? todayInvoiceCountSettled.value
+      : 0;
+    const todaySaleCount = todaySaleCountSettled.status === 'fulfilled'
+      ? todaySaleCountSettled.value
+      : 0;
 
     const weeklyRevenue = await Promise.all(
       pastWeek.map(async (date) => {
-        // Create UTC date range for this day
-        const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
-        const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
-        
-        const [invoices] = await Promise.all([
+        try {
+          // Create UTC date range for this day
+          const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+          const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+          
           // Revenue should only include actual payments received, not pending invoices
-          prisma.payment.aggregate({
+          const invoices = await prisma.payment.aggregate({
             where: (() => {
               const baseWhere = {
                 tenantId,
                 isReversal: false,
-                type: { in: ['invoice', 'sale'] },
+                OR: [
+                  { invoiceId: { not: null } },
+                  { type: { equals: 'sale', mode: 'insensitive' } }
+                ],
                 status: { equals: 'Completed', mode: 'insensitive' },
                 paymentDate: { gte: dayStart, lte: dayEnd }
               };
@@ -329,10 +363,14 @@ export async function GET(request) {
               if (user?.currentBranchId) {
                 return {
                   ...baseWhere,
-                  OR: [
-                    { branchId: user.currentBranchId },
-                    { invoice: { branchId: user.currentBranchId } },
-                    { sale: { branchId: user.currentBranchId } }
+                  AND: [
+                    {
+                      OR: [
+                        { branchId: user.currentBranchId },
+                        { invoice: { branchId: user.currentBranchId } },
+                        { sale: { branchId: user.currentBranchId } }
+                      ]
+                    }
                   ]
                 };
               }
@@ -340,35 +378,43 @@ export async function GET(request) {
               return baseWhere;
             })(),
             _sum: { amount: true }
-          })
-        ]);
+          });
 
-        const grossRevenue = (invoices._sum.amount || 0);
-        return grossRevenue; // Only actual payments received
+          return invoices?._sum?.amount || 0; // Only actual payments received
+        } catch (e) {
+          console.error('daily-performance weeklyRevenue day failed:', e?.message || e);
+          return 0;
+        }
       })
     );
 
     // Find COGS account(s) for this tenant
-    const cogsAccounts = await prisma.account.findMany({
-      where: {
-        tenantId,
-        isActive: true,
-        accountType: 'Expense',
-        OR: [
-          { accountCode: '5000' },
-          { code: '5000' },
-          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-          { accountName: { contains: 'cogs', mode: 'insensitive' } },
-          { name: { contains: 'cost of goods', mode: 'insensitive' } },
-          { name: { contains: 'cogs', mode: 'insensitive' } }
-        ]
-      },
-      select: { id: true }
-    });
-    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    let cogsAccountIds = [];
+    try {
+      const cogsAccounts = await prisma.account.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          accountType: 'Expense',
+          OR: [
+            { accountCode: '5000' },
+            { code: '5000' },
+            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+            { accountName: { contains: 'cogs', mode: 'insensitive' } },
+            { name: { contains: 'cost of goods', mode: 'insensitive' } },
+            { name: { contains: 'cogs', mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      });
+      cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    } catch (e) {
+      console.error('daily-performance cogs account lookup failed:', e?.message || e);
+      cogsAccountIds = [];
+    }
 
     // Count expenses from expense records created today
-    const [todayExpenses, todayCOGS] = await Promise.all([
+    const [todayExpensesSettled, todayCOGSSettled] = await Promise.allSettled([
       // Expenses created today
       prisma.expense.aggregate({
         where: addBranchFilter(user, {
@@ -400,7 +446,14 @@ export async function GET(request) {
       }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
-    const [yesterdayExpenses, yesterdayCOGS] = await Promise.all([
+    const todayExpenses = todayExpensesSettled.status === 'fulfilled'
+      ? todayExpensesSettled.value
+      : { _sum: { amount: 0 } };
+    const todayCOGS = todayCOGSSettled.status === 'fulfilled'
+      ? todayCOGSSettled.value
+      : { _sum: { debitAmount: 0 } };
+
+    const [yesterdayExpensesSettled, yesterdayCOGSSettled] = await Promise.allSettled([
       // Expenses created yesterday
       prisma.expense.aggregate({
         where: addBranchFilter(user, {
@@ -432,47 +485,66 @@ export async function GET(request) {
       }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
+    const yesterdayExpenses = yesterdayExpensesSettled.status === 'fulfilled'
+      ? yesterdayExpensesSettled.value
+      : { _sum: { amount: 0 } };
+    const yesterdayCOGS = yesterdayCOGSSettled.status === 'fulfilled'
+      ? yesterdayCOGSSettled.value
+      : { _sum: { debitAmount: 0 } };
+
     const weeklyExpenses = await Promise.all(
       pastWeek.map(async (date) => {
-        // Create UTC date range for this day
-        const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
-        const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
-        
-        const [expenses, cogs] = await Promise.all([
-          // Expenses created on this date
-          prisma.expense.aggregate({
-            where: addBranchFilter(user, {
-              tenantId,
-              date: {
-                gte: dayStart,
-                lte: dayEnd
-              },
-              isDeleted: false
-            }),
-            _sum: { amount: true }
-          }),
-          // Get COGS from transaction lines for this date - filter by transaction branchId
-          cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-            where: {
-              accountId: { in: cogsAccountIds },
-              debitAmount: { gt: 0 },
-              transaction: {
+        try {
+          // Create UTC date range for this day
+          const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+          const dayEnd = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+          
+          const [expensesSettled, cogsSettled] = await Promise.allSettled([
+            // Expenses created on this date
+            prisma.expense.aggregate({
+              where: addBranchFilter(user, {
                 tenantId,
-                ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
                 date: {
                   gte: dayStart,
                   lte: dayEnd
                 },
-                status: 'posted'
-              }
-            },
-            _sum: { debitAmount: true }
-          }) : Promise.resolve({ _sum: { debitAmount: 0 } })
-        ]);
-        
-        const expenseAmount = expenses._sum.amount || 0;
-        const cogsAmount = Number(cogs._sum.debitAmount || 0);
-        return expenseAmount + cogsAmount;
+                isDeleted: false
+              }),
+              _sum: { amount: true }
+            }),
+            // Get COGS from transaction lines for this date - filter by transaction branchId
+            cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
+              where: {
+                accountId: { in: cogsAccountIds },
+                debitAmount: { gt: 0 },
+                transaction: {
+                  tenantId,
+                  ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+                  date: {
+                    gte: dayStart,
+                    lte: dayEnd
+                  },
+                  status: 'posted'
+                }
+              },
+              _sum: { debitAmount: true }
+            }) : Promise.resolve({ _sum: { debitAmount: 0 } })
+          ]);
+
+          const expenses = expensesSettled.status === 'fulfilled'
+            ? expensesSettled.value
+            : { _sum: { amount: 0 } };
+          const cogs = cogsSettled.status === 'fulfilled'
+            ? cogsSettled.value
+            : { _sum: { debitAmount: 0 } };
+
+          const expenseAmount = expenses?._sum?.amount || 0;
+          const cogsAmount = Number(cogs?._sum?.debitAmount || 0);
+          return expenseAmount + cogsAmount;
+        } catch (e) {
+          console.error('daily-performance weeklyExpenses day failed:', e?.message || e);
+          return 0;
+        }
       })
     );
 
@@ -510,7 +582,10 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error getting daily performance:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch daily performance data' },
+      {
+        error: 'Failed to fetch daily performance data',
+        details: process.env.NODE_ENV === 'development' ? (error?.message || String(error)) : undefined,
+      },
       { status: 500 }
     );
   }

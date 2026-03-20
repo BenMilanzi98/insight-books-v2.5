@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
 
 // GET - List all payment accounts for the tenant
 export async function GET(request) {
@@ -9,6 +10,9 @@ export async function GET(request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    // Ensure system default payment accounts exist (e.g. Cash) for this tenant.
+    await initializeDefaultPaymentAccounts(user.tenantId, prisma);
 
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get('activeOnly') === 'true';
@@ -43,6 +47,9 @@ export async function POST(request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+
+    // Make sure the system account set exists even if this is the first request.
+    await initializeDefaultPaymentAccounts(user.tenantId, prisma);
 
     const body = await request.json();
     const { name, accountType, reference, isActive = true } = body;

@@ -4,11 +4,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { syncExpensesFromPurchaseOrder } from '@/lib/purchaseOrderExpenseSync';
-import { createBillFromApprovedServicePO } from '@/lib/purchaseOrderToBill';
+import { createExpenseReversal } from '@/lib/transactionReversalService';
+import { createTransactionReversal } from '@/lib/transactionReversalService';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
-const ORDER_TYPES = ['goods', 'services', 'mixed'];
+const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
 
 function getLineType(item) {
   const t = (item.lineType || '').toLowerCase();
@@ -207,21 +207,6 @@ export async function PUT(request, { params }) {
       }
     });
 
-    // Link approved service POs to expenses and create a Bill so it appears in Bills/Payables
-    if ((updated.orderType === 'services' || updated.orderType === 'mixed') && updated.status === 'Approved') {
-      try {
-        await syncExpensesFromPurchaseOrder(updated.id, user.tenantId, user.id);
-        const { bill, created } = await createBillFromApprovedServicePO(updated.id, user.tenantId, user.id);
-        if (created && bill) {
-          console.log(`Created Bill ${bill.billNumber} from approved PO ${updated.poNumber} for payment processing`);
-        }
-        const refetched = await getPurchaseOrder(updated.id, user.tenantId);
-        if (refetched) return NextResponse.json({ purchaseOrder: refetched });
-      } catch (syncErr) {
-        console.error('PO expense/bill sync after update:', syncErr);
-      }
-    }
-
     return NextResponse.json({ purchaseOrder: updated });
   } catch (error) {
     console.error('Error updating purchase order:', error);
@@ -247,19 +232,164 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
-    const lockedStatuses = ['Received', 'Cancelled'];
-    if (lockedStatuses.includes(purchaseOrder.status)) {
+    if (purchaseOrder.status === 'Cancelled') {
       return NextResponse.json(
-        { error: 'Received or cancelled purchase orders cannot be deleted.' },
+        { error: 'This purchase order is already cancelled.' },
         { status: 400 }
       );
     }
 
-    await prisma.purchaseOrder.delete({
-      where: { id: purchaseOrder.id }
+    // Reversal-only policy: do not hard-delete POs.
+    // Cancel PO and reverse/cancel linked records for auditability.
+    const reversalReason = `PO cancellation: ${purchaseOrder.poNumber}`;
+
+    // If inventory receipts already exist, full accounting reversal is not automatic here.
+    // Block cancellation to avoid partial/inconsistent rollback.
+    const inventoryReceipt = await prisma.goodsReceipt.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        purchaseOrderId: purchaseOrder.id,
+        items: { some: {} }
+      },
+      select: { id: true, receiptNumber: true }
+    });
+    if (inventoryReceipt) {
+      return NextResponse.json(
+        {
+          error:
+            `Cannot reverse PO ${purchaseOrder.poNumber} because inventory has already been received (${inventoryReceipt.receiptNumber || inventoryReceipt.id}). Reverse inventory/stock effects first, then cancel the PO.`
+        },
+        { status: 400 }
+      );
+    }
+
+    const linkedBills = await prisma.supplierBill.findMany({
+      where: { tenantId: user.tenantId, purchaseOrderId: purchaseOrder.id },
+      select: {
+        id: true,
+        billNumber: true,
+        status: true,
+        amountPaid: true,
+        totalAmount: true,
+        notes: true,
+        journalEntryId: true,
+        supplierId: true
+      }
     });
 
-    return NextResponse.json({ success: true });
+    const paidOrAllocatedBills = linkedBills.filter((bill) => Number(bill.amountPaid || 0) > 0);
+    if (paidOrAllocatedBills.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `Cannot reverse PO ${purchaseOrder.poNumber} because one or more linked bills have payments applied (${paidOrAllocatedBills.map((b) => b.billNumber || b.id).join(', ')}). Reverse those payments first.`
+        },
+        { status: 400 }
+      );
+    }
+
+    const linkedExpenses = await prisma.expense.findMany({
+      where: {
+        tenantId: user.tenantId,
+        purchaseOrderId: purchaseOrder.id,
+        isReversal: false
+      },
+      select: { id: true }
+    });
+
+    // Reverse linked expenses through accounting-safe reversal service
+    // (creates equal-and-opposite entries and preserves original rows).
+    let reversedExpenses = 0;
+    for (const expense of linkedExpenses) {
+      const alreadyReversed = await prisma.expense.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          isReversal: true,
+          reversedTransactionId: expense.id
+        },
+        select: { id: true }
+      });
+      if (alreadyReversed) continue;
+      await createExpenseReversal({
+        expenseId: expense.id,
+        reversalReason,
+        userId: user.id,
+        tenantId: user.tenantId
+      });
+      reversedExpenses++;
+    }
+
+    // Reverse linked bill journal entries as well (includes bill tax lines).
+    // This ensures tax effects are fully reversed, not just bill status changes.
+    let reversedBillTransactions = 0;
+    for (const bill of linkedBills) {
+      if (!bill.journalEntryId) continue;
+      const alreadyReversed = await prisma.transaction.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          isReversal: true,
+          reversedTransactionId: bill.journalEntryId
+        },
+        select: { id: true }
+      });
+      if (alreadyReversed) continue;
+
+      await createTransactionReversal({
+        transactionId: bill.journalEntryId,
+        reversalReason: `${reversalReason} (Bill ${bill.billNumber || bill.id})`,
+        userId: user.id,
+        tenantId: user.tenantId
+      });
+      reversedBillTransactions++;
+    }
+
+    const reversalSummary = await prisma.$transaction(async (tx) => {
+      // Cancel linked unpaid bills (keep records visible for audit trail).
+      let cancelledBills = 0;
+      for (const bill of linkedBills) {
+        if (bill.status === 'Cancelled') continue;
+        await tx.supplierBill.update({
+          where: { id: bill.id },
+          data: {
+            status: 'Cancelled',
+            notes: [bill.notes, `CANCELLED via PO reversal ${purchaseOrder.poNumber} on ${new Date().toISOString()}`]
+              .filter(Boolean)
+              .join('\n')
+          }
+        });
+        // Reverse supplier running balance impact from this bill.
+        await tx.supplier.update({
+          where: { id: bill.supplierId },
+          data: {
+            currentBalance: {
+              decrement: Number(bill.totalAmount || 0)
+            }
+          }
+        });
+        cancelledBills++;
+      }
+
+      // Mark PO as cancelled (retain record).
+      const updatedPo = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: {
+          status: 'Cancelled',
+          notes: [purchaseOrder.notes, `CANCELLED (reversal): ${reversalReason}`].filter(Boolean).join('\n')
+        },
+        select: { id: true, status: true }
+      });
+
+      return { cancelledBills, updatedPo };
+    });
+
+    return NextResponse.json({
+      success: true,
+      purchaseOrderId: reversalSummary.updatedPo.id,
+      status: reversalSummary.updatedPo.status,
+      reversedExpenses,
+      reversedBillTransactions,
+      cancelledBills: reversalSummary.cancelledBills
+    });
   } catch (error) {
     console.error('Error deleting purchase order:', error);
     return NextResponse.json(

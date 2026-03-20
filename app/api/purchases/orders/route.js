@@ -4,11 +4,9 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { syncExpensesFromPurchaseOrder } from '@/lib/purchaseOrderExpenseSync';
-import { createBillFromApprovedServicePO } from '@/lib/purchaseOrderToBill';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
-const ORDER_TYPES = ['goods', 'services', 'mixed'];
+const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
 
 async function generatePurchaseOrderNumber() {
   // Generate a globally unique PO-XXXXX number to avoid collisions across tenants
@@ -308,28 +306,6 @@ export async function POST(request) {
         items: true
       }
     });
-
-    // Link approved service POs to expenses and create a Bill so it appears in Bills/Payables
-    if ((orderType === 'services' || orderType === 'mixed') && purchaseOrder.status === 'Approved') {
-      try {
-        await syncExpensesFromPurchaseOrder(purchaseOrder.id, user.tenantId, user.id);
-        const { bill, created } = await createBillFromApprovedServicePO(purchaseOrder.id, user.tenantId, user.id);
-        if (created && bill) {
-          console.log(`Created Bill ${bill.billNumber} from approved PO ${purchaseOrder.poNumber} for payment processing`);
-        }
-        const refetched = await prisma.purchaseOrder.findFirst({
-          where: { id: purchaseOrder.id, tenantId: user.tenantId },
-          include: {
-            supplier: { select: { supplierName: true, supplierCode: true } },
-            items: true,
-            expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
-          }
-        });
-        if (refetched) return NextResponse.json({ purchaseOrder: refetched }, { status: 201 });
-      } catch (syncErr) {
-        console.error('PO expense/bill sync after create:', syncErr);
-      }
-    }
 
     return NextResponse.json({ purchaseOrder }, { status: 201 });
   } catch (error) {

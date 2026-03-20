@@ -403,6 +403,7 @@ function FormSection({ title, description, children }) {
 const ORDER_TYPES = [
   { value: "goods", label: "Inventory Purchase (does not hit expenses; receivables only)" },
   { value: "services", label: "Goods & Services Purchase (Hits Expenses)" },
+  { value: "assets", label: "Asset Purchase (integrates with Asset Management)" },
 ];
 
 function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [], initialData = null, onSave, onCancel }) {
@@ -735,7 +736,15 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
 
       <FormSection
         title="Line Items"
-        description={form.orderType === "goods" ? "Products for inventory/operations. Applicable taxes per line record the expense correctly." : form.orderType === "services" ? "Service lines link to expenses when the PO is approved. Add tax per line as applicable." : "Add goods (inventory) and/or services (expenses). Tax per line is applied when the PO is approved."}
+        description={
+          form.orderType === "goods"
+            ? "Products for inventory/operations. Applicable taxes per line are captured for receipt and billing."
+            : form.orderType === "services"
+            ? "Service lines are confirmed via Service Receipt, then moved to payables."
+            : form.orderType === "assets"
+            ? "Asset lines are received via Inventory Receipt and auto-created in Asset Management for depreciation setup."
+            : "Add goods (inventory) and/or services (expenses). Tax per line is captured for receipt and billing."
+        }
       >
         <div className="space-y-3">
           {items.map((item, idx) => {
@@ -827,16 +836,18 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600">Expense category</label>
+                        <label className="block text-xs font-medium text-gray-600">Expense account</label>
                         <select
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.expenseCategoryId}
                           onChange={(e) => handleItemChange(idx, "expenseCategoryId", e.target.value)}
+                          required={isService}
                         >
                           <option value="">—</option>
                           {expenseCategories.map((cat) => (
                             <option key={cat.id} value={cat.id}>
-                              {cat.name}
+                              {cat.accountCode ? `${cat.accountCode} - ` : ""}
+                              {cat.account?.accountName || cat.name}
                             </option>
                           ))}
                         </select>

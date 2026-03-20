@@ -44,6 +44,7 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const search = searchParams.get('search');
     const isExistingAsset = searchParams.get('isExistingAsset');
+    const source = searchParams.get('source');
     
     // Calculate pagination
     const skip = (page - 1) * limit;
@@ -75,6 +76,22 @@ export async function GET(request) {
         { description: { contains: search, mode: 'insensitive' } },
         { serialNumber: { contains: search, mode: 'insensitive' } }
       ];
+    }
+
+    // Source filter: assets auto-created from PO/Receipt flow.
+    if (source === 'po') {
+      const poMarkerFilter = {
+        OR: [
+          { notes: { contains: 'AUTO_ASSET_FROM_GR:', mode: 'insensitive' } },
+          { notes: { contains: '[PO_ASSET:', mode: 'insensitive' } }
+        ]
+      };
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, poMarkerFilter];
+        delete where.OR;
+      } else {
+        Object.assign(where, poMarkerFilter);
+      }
     }
     
     // Get total count

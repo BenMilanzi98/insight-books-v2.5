@@ -216,18 +216,29 @@ export async function GET(request) {
       });
       const cogsAccountIds = cogsAccounts.map(acc => acc.id);
 
+      const branchIdForPayments =
+        user?.currentBranchId &&
+        (typeof user.currentBranchId === 'string' ? user.currentBranchId : user.currentBranchId?.id);
+
       const [invoiceRevenue, salesRevenue, expenses, loanPayments, cogsData] = await Promise.all([
-        // Revenue (accrual): include invoice totals by issue date (exclude Draft/void/refund/reversal)
-        prisma.invoice.aggregate({
-          where: addBranchFilter(user, {
+        // Revenue (cash): include invoice payments received in the period
+        prisma.payment.aggregate({
+          where: {
             tenantId,
-            issueDate: { gte: filterStartDate, lte: filterEndDate },
-            voidedAt: null,
-            refundedAt: null,
             isReversal: false,
-            status: { notIn: ['Draft', 'draft'] }
-          }),
-          _sum: { total: true }
+          invoiceId: { not: null },
+            status: { equals: 'Completed', mode: 'insensitive' },
+            paymentDate: { gte: filterStartDate, lte: filterEndDate },
+            ...(branchIdForPayments
+              ? {
+                  OR: [
+                    { branchId: branchIdForPayments },
+                    { invoice: { branchId: branchIdForPayments } }
+                  ]
+                }
+              : {})
+          },
+          _sum: { amount: true }
         }),
         // POS sales revenue (completed)
         prisma.sale.aggregate({
@@ -255,7 +266,7 @@ export async function GET(request) {
         prisma.payment.aggregate({
           where: {
             tenantId,
-            type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
+          type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
             status: 'Completed',
             paymentDate: { gte: filterStartDate, lte: filterEndDate }
           },
@@ -284,7 +295,7 @@ export async function GET(request) {
       const loanPaymentAmount = Number(loanPayments._sum.amount || 0);
       const totalExpenses = (expenses._sum.amount || 0) + loanPaymentAmount + cogsAmount;
 
-      const invoiceIncome = Number(invoiceRevenue?._sum?.total || 0);
+      const invoiceIncome = Number(invoiceRevenue?._sum?.amount || 0);
       const posIncome = Number(salesRevenue?._sum?.total || 0);
       return {
         income: invoiceIncome + posIncome,

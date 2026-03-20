@@ -1535,7 +1535,7 @@ const handleFileUpload = async (e) => {
                   </div>
                   <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
                   <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses this month
+                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses to date since the business was opened
                   </div>
                 </div>
               </div>

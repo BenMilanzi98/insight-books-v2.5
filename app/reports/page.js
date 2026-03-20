@@ -83,6 +83,15 @@ import {
   Bar
 } from "recharts";
 
+const formatCompactNumber = (value) => {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n)) return "0";
+  if (Math.abs(n) >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (Math.abs(n) >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${Math.round(n)}`;
+};
+
 const FinancialReportingPage = () => {
   const searchParams = useSearchParams();
   
@@ -118,7 +127,8 @@ const FinancialReportingPage = () => {
   const [showBrowseReports, setShowBrowseReports] = useState(false);
   const [analyticsFilters, setAnalyticsFilters] = useState({
     groupBy: 'month',
-    metric: 'profit'
+    metric: 'profit',
+    categoryId: ''
   });
 
   // Data state for different reports
@@ -187,6 +197,9 @@ const FinancialReportingPage = () => {
   const analyticsExpenseBreakdown = financialAnalytics?.expenseBreakdown || [];
   const analyticsRevenueSources = financialAnalytics?.revenueBySource || [];
   const analyticsTopCustomers = financialAnalytics?.topCustomers || [];
+  const analyticsRevenueCategoryForecast = financialAnalytics?.categoryForecasting?.revenue || [];
+  const analyticsExpenseCategoryForecast = financialAnalytics?.categoryForecasting?.expenses || [];
+  const analyticsInventoryCategories = financialAnalytics?.categoryForecasting?.categories || [];
 
   // Load reports data on component mount
   useEffect(() => {
@@ -238,7 +251,8 @@ const FinancialReportingPage = () => {
         const analytics = await fetchFinancialAnalytics({
           timeframe,
           customDateRange: timeframe === 'custom' ? customDateRange : null,
-          groupBy: analyticsFilters.groupBy
+          groupBy: analyticsFilters.groupBy,
+          categoryId: analyticsFilters.categoryId
         });
         setFinancialAnalytics(analytics);
       } catch (err) {
@@ -251,7 +265,7 @@ const FinancialReportingPage = () => {
     };
 
     loadAnalytics();
-  }, [timeframe, customDateRange, analyticsFilters.groupBy]);
+  }, [timeframe, customDateRange, analyticsFilters.groupBy, analyticsFilters.categoryId]);
 
   // NEW: Handle custom date range change
   const handleCustomDateRangeChange = (field, value) => {
@@ -312,6 +326,30 @@ const FinancialReportingPage = () => {
     }
     return getTimeframeLabel(timeframe);
   }, [financialSummary?.timeframe, timeframe]);
+
+  const analyticsDateRangeLabel = useMemo(() => {
+    const pStart = financialAnalytics?.period?.startDate;
+    const pEnd = financialAnalytics?.period?.endDate;
+    if (pStart && pEnd) {
+      const start = new Date(pStart);
+      const end = new Date(pEnd);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        return `${formatDate(start)} – ${formatDate(end)}`;
+      }
+      return `${pStart} – ${pEnd}`;
+    }
+
+    if (timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate) {
+      const start = new Date(customDateRange.startDate);
+      const end = new Date(customDateRange.endDate);
+      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+        return `${formatDate(start)} – ${formatDate(end)}`;
+      }
+      return `${customDateRange.startDate} – ${customDateRange.endDate}`;
+    }
+
+    return summaryDateRangeLabel;
+  }, [financialAnalytics?.period, timeframe, customDateRange, summaryDateRangeLabel]);
 
   // Timeframe options for the main dashboard selector
   const TIMEFRAME_OPTIONS = [
@@ -871,10 +909,8 @@ const FinancialReportingPage = () => {
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-4 sm:mb-6">
           <div>
             <h3 className="text-base font-semibold text-slate-800">Financial analytics</h3>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {financialAnalytics?.period?.startDate && financialAnalytics?.period?.endDate
-                ? `${financialAnalytics.period.startDate} – ${financialAnalytics.period.endDate}`
-                : getTimeframeLabel(timeframe)}
+            <p className="text-sm text-slate-500 mt-0.5 break-words">
+              {analyticsDateRangeLabel}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -903,6 +939,18 @@ const FinancialReportingPage = () => {
               <option value="revenue">Focus: Revenue</option>
               <option value="expenses">Focus: Expenses</option>
               <option value="avgRevenue">Focus: Average Revenue</option>
+            </select>
+            <select
+              value={analyticsFilters.categoryId}
+              onChange={(e) => setAnalyticsFilters((prev) => ({ ...prev, categoryId: e.target.value }))}
+              className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[170px]"
+            >
+              <option value="">All inventory categories</option>
+              {analyticsInventoryCategories.map((cat, idx) => (
+                <option key={`${cat.id || cat.name}-${idx}`} value={cat.id || ''}>
+                  {cat.name || 'Uncategorized'}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -934,15 +982,18 @@ const FinancialReportingPage = () => {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-              <div className="xl:col-span-2 rounded-xl border border-slate-200 p-4 min-h-[320px]">
+            <div className="space-y-6">
+              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[380px]">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h4 className="text-sm font-semibold text-slate-800">Revenue vs Expenses vs Profit</h4>
                   <span className="text-xs text-slate-500">by {analyticsFilters.groupBy}</span>
                 </div>
                 {analyticsTrend.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={320}>
-                    <AreaChart data={analyticsTrend}>
+                  <ResponsiveContainer width="100%" height={380}>
+                    <AreaChart
+                      data={analyticsTrend}
+                      margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
+                    >
                       <defs>
                         <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={analyticsLineColors.revenue} stopOpacity={0.4}/>
@@ -954,8 +1005,8 @@ const FinancialReportingPage = () => {
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="label" />
-                      <YAxis tickFormatter={(value) => formatCurrency(value).replace('MWK ', '')} />
+                      <XAxis dataKey="label" minTickGap={24} />
+                      <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={56} />
                       <Tooltip formatter={(value) => formatCurrency(value)} />
                       <Legend />
                       <Area type="monotone" dataKey="revenue" stroke={analyticsLineColors.revenue} fillOpacity={1} fill="url(#colorRevenue)" />
@@ -964,11 +1015,122 @@ const FinancialReportingPage = () => {
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex items-center justify-center h-[320px] text-slate-500 text-sm">Not enough data for this period.</div>
+                  <div className="flex items-center justify-center h-[380px] text-slate-500 text-sm">Not enough data for this period.</div>
                 )}
               </div>
 
-              <div className="rounded-xl border border-slate-200 p-4 min-h-[320px]">
+              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[340px]">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-semibold text-slate-800">Expense breakdown</h4>
+                  <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} categories</span>
+                </div>
+                {analyticsExpenseBreakdown.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={340}>
+                    <BarChart
+                      data={analyticsExpenseBreakdown}
+                      margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" hide />
+                      <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={64} />
+                      <Tooltip formatter={(value) => formatCurrency(value)} />
+                      <Legend />
+                      <Bar dataKey="value" fill="#059669" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[340px] text-slate-500 text-sm">No expense data.</div>
+                )}
+              </div>
+
+              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h4 className="text-sm font-semibold text-slate-800">Revenue forecast vs budget by inventory category</h4>
+                  <span className="text-xs text-slate-500">Optional category filter, variance against budget lines</span>
+                </div>
+                {analyticsRevenueCategoryForecast.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                          <th className="py-2 pr-2 font-medium">Category</th>
+                          <th className="py-2 px-2 font-medium text-right">Actual</th>
+                          <th className="py-2 px-2 font-medium text-right">Forecast</th>
+                          <th className="py-2 px-2 font-medium text-right">Budget</th>
+                          <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
+                          <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsRevenueCategoryForecast.map((row, idx) => (
+                          <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                            <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
+                            <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatCurrency(row.varianceToBudget || 0)}
+                            </td>
+                            <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatCurrency(row.forecastVarianceToBudget || 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
+                    No revenue category forecast data for this period.
+                  </div>
+                )}
+              </div>
+
+              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h4 className="text-sm font-semibold text-slate-800">Expenditure forecast vs budget by inventory category</h4>
+                  <span className="text-xs text-slate-500">Supports variance analysis against expense budget lines</span>
+                </div>
+                {analyticsExpenseCategoryForecast.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                          <th className="py-2 pr-2 font-medium">Category</th>
+                          <th className="py-2 px-2 font-medium text-right">Actual</th>
+                          <th className="py-2 px-2 font-medium text-right">Forecast</th>
+                          <th className="py-2 px-2 font-medium text-right">Budget</th>
+                          <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
+                          <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsExpenseCategoryForecast.map((row, idx) => (
+                          <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                            <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
+                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
+                            <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatCurrency(row.varianceToBudget || 0)}
+                            </td>
+                            <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                              {formatCurrency(row.forecastVarianceToBudget || 0)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
+                    No expenditure category forecast data for this period.
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                <div className="min-w-0 rounded-xl border border-slate-200 p-4 min-h-[320px]">
                 <h4 className="text-sm font-semibold text-slate-800 mb-3">Revenue by source</h4>
                 {analyticsRevenueSources.length > 0 ? (
                   <ResponsiveContainer width="100%" height={320}>
@@ -980,7 +1142,12 @@ const FinancialReportingPage = () => {
                         cx="50%"
                         cy="50%"
                         outerRadius={110}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                        label={({ name, percent }) =>
+                          analyticsRevenueSources.length <= 5
+                            ? `${name} ${(percent * 100).toFixed(0)}%`
+                            : `${(percent * 100).toFixed(0)}%`
+                        }
                       >
                         {analyticsRevenueSources.map((entry, index) => (
                           <Cell key={`source-${index}`} fill={pieColors[index % pieColors.length]} />
@@ -993,36 +1160,40 @@ const FinancialReportingPage = () => {
                   <div className="flex items-center justify-center h-[320px] text-slate-500 text-sm">No revenue data.</div>
                 )}
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-              <div className="rounded-xl border border-slate-200 p-4">
+                <div className="min-w-0 xl:col-span-2 rounded-xl border border-slate-200 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Expense breakdown</h4>
-                  <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} categories</span>
+                  <h4 className="text-sm font-semibold text-slate-800">Top customers</h4>
+                  <span className="text-xs text-slate-500">{analyticsTopCustomers.length} customers</span>
                 </div>
-                {analyticsExpenseBreakdown.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={analyticsExpenseBreakdown}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" hide />
-                      <YAxis tickFormatter={(value) => formatCurrency(value).replace('MWK ', '')} />
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                      <Bar dataKey="value" fill="#059669" />
-                    </BarChart>
-                  </ResponsiveContainer>
+                {analyticsTopCustomers.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[420px] text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                          <th className="py-2 pr-2 font-medium">Customer</th>
+                          <th className="py-2 px-2 font-medium text-right">Sales</th>
+                          <th className="py-2 pl-2 font-medium text-right">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {analyticsTopCustomers.slice(0, 8).map((customer, idx) => (
+                          <tr key={`${customer.name || "customer"}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                            <td className="py-2 pr-2 text-slate-700">{customer.name || "Walk-in Customer"}</td>
+                            <td className="py-2 px-2 text-right text-slate-600">{Number(customer.orders || customer.count || 0)}</td>
+                            <td className="py-2 pl-2 text-right font-medium text-slate-800">
+                              {formatCurrency(Number(customer.revenue || customer.total || 0))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
-                  <div className="flex items-center justify-center h-[280px] text-slate-500 text-sm">No expense data.</div>
+                  <div className="flex items-center justify-center h-[280px] text-slate-500 text-sm">
+                    No customer data.
+                  </div>
                 )}
-                <ul className="mt-4 space-y-2">
-                  {analyticsExpenseBreakdown.slice(0, 5).map((item, idx) => (
-                    <li key={idx} className="flex justify-between text-sm text-slate-600">
-                      <span>{item.name}</span>
-                      <span className="font-medium text-slate-800">{formatCurrency(item.value)}</span>
-                    </li>
-                  ))}
-                </ul>
+              </div>
               </div>
             </div>
           </>
@@ -1214,7 +1385,7 @@ const FinancialReportingPage = () => {
   return (
     <PermissionGuard permission="reports.view">
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100/50">
-        <div className="mx-auto w-full max-w-[100rem] px-4 sm:px-6 lg:px-10 xl:px-12 2xl:px-16 py-6 sm:py-8">
+        <div className="w-full px-4 sm:px-6 lg:px-10 xl:px-12 2xl:px-16 py-6 sm:py-8">
           {/* Error message */}
           {error && activeReport !== 'summary' && activeReport !== 'report' && (
             <div className="mb-4 sm:mb-6 p-4 border border-red-200 bg-red-50 rounded-xl text-red-700 flex items-center shadow-sm">

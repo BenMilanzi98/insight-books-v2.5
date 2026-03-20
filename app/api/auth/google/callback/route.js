@@ -165,13 +165,28 @@ export async function GET(request) {
         );
       }
 
-      // Create session data
+      // Choose a safe default branch so branch-scoped APIs behave consistently.
+      // Tenants without branches => branchId stays null.
+      let initialBranchId = null;
+      try {
+        const firstBranch = await prisma.branch.findFirst({
+          where: { tenantId: existingUser.tenantId, isActive: true },
+          orderBy: { createdAt: 'asc' },
+          select: { id: true }
+        });
+        initialBranchId = firstBranch?.id || null;
+      } catch (e) {
+        console.error('Google OAuth: failed to resolve default branch (non-fatal):', e?.message || e);
+        initialBranchId = null;
+      }
+
+      // Create session data (minimal to keep cookie/header size small).
+      // Do not store full role/permissions in cookie.
       const sessionData = {
         userId: existingUser.id,
-        email: existingUser.email,
-        name: existingUser.name,
-        role: existingUser.role,
-        tenantId: existingUser.tenantId
+        tenantId: existingUser.tenantId,
+        branchId: initialBranchId,
+        role: existingUser.role ? existingUser.role.name : null
       };
 
       const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
@@ -199,13 +214,27 @@ export async function GET(request) {
       const result = await handleGoogleSignup(googleUser);
       
       if (result.success) {
-        // Create session data
+        // Choose a safe default branch so branch-scoped APIs behave consistently.
+        let initialBranchId = null;
+        try {
+          const firstBranch = await prisma.branch.findFirst({
+            where: { tenantId: result.user.tenantId, isActive: true },
+            orderBy: { createdAt: 'asc' },
+            select: { id: true }
+          });
+          initialBranchId = firstBranch?.id || null;
+        } catch (e) {
+          console.error('Google OAuth: failed to resolve default branch (non-fatal):', e?.message || e);
+          initialBranchId = null;
+        }
+
+        // Create session data (minimal to keep cookie/header size small).
+        // Do not store full role/permissions in cookie.
         const sessionData = {
           userId: result.user.id,
-          email: result.user.email,
-          name: result.user.name,
-          role: result.user.role,
-          tenantId: result.user.tenantId
+          tenantId: result.user.tenantId,
+          branchId: initialBranchId,
+          role: result.user.role ? result.user.role.name : null
         };
 
         const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');

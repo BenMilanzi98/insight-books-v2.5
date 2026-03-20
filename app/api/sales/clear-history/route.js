@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { validateReversalReason } from '@/lib/transactionReversalService';
 
 export async function DELETE(request) {
   try {
@@ -22,6 +23,53 @@ export async function DELETE(request) {
       return NextResponse.json(
         { error: 'Insufficient permissions. Only admin users can clear sales history.' },
         { status: 403 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const reasonValidation = validateReversalReason(body.reversalReason || body.reason || '');
+    if (!reasonValidation.isValid) {
+      return NextResponse.json(
+        {
+          error: reasonValidation.error,
+          hint: 'Bulk clear is audit-sensitive. Send JSON body: { "reversalReason": "…" } (min 10 characters).'
+        },
+        { status: 400 }
+      );
+    }
+    const auditReason = reasonValidation.reason;
+
+    // Never allow wholesale delete while posted sale journals exist (breaks GL vs operational data)
+    const postedSaleJournals = await prisma.transaction.count({
+      where: {
+        tenantId: user.tenantId,
+        sourceType: 'Sale',
+        status: 'posted',
+        isReversal: false
+      }
+    });
+    if (postedSaleJournals > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `Cannot clear sales history: ${postedSaleJournals} posted sale journal entries exist. Reverse each sale via Accounting → Reversals (or void/reverse individually) so the general ledger matches, then remove records if still required.`
+        },
+        { status: 400 }
+      );
+    }
+
+    const nonDraftSales = await prisma.sale.count({
+      where: {
+        tenantId: user.tenantId,
+        NOT: { status: { equals: 'draft', mode: 'insensitive' } }
+      }
+    });
+    if (nonDraftSales > 0) {
+      return NextResponse.json(
+        {
+          error: `Cannot clear sales history: ${nonDraftSales} non-draft sale(s) exist. Only draft sales can be bulk-removed; completed sales must be reversed properly first.`
+        },
+        { status: 400 }
       );
     }
 
@@ -108,7 +156,8 @@ export async function DELETE(request) {
             details: JSON.stringify({
               deletedCount: deletedSales.count,
               saleNumbers: sales.map(s => s.saleNumber).slice(0, 10), // Log first 10 for reference
-              clearedBy: user.name || user.email
+              clearedBy: user.name || user.email,
+              reversalReason: auditReason
             })
           }
         });

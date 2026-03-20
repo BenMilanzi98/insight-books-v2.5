@@ -119,21 +119,50 @@ export default function PayrollProcessing() {
   }, [accounts]);
 
   const paymentAccountOptions = useMemo(() => {
-    return accounts.filter((account) => {
+    const cashBankCodes = new Set(['1000', '1010', '1020', '1030', '1040', '1050']);
+    const cashBankKeywords = [
+      'cash',
+      'bank',
+      'mpamba',
+      'airtel',
+      'wallet',
+      'paychangu'
+    ];
+
+    const normalizeCode = (v) => String(v || '').trim();
+    const getDisplayName = (acc) => (acc?.accountName || acc?.name || '').toString();
+
+    const options = accounts.filter((account) => {
       const type = normalizeAccountType(account);
       if (type !== 'ASSET') return false;
-      const name = (account.accountName || account.name || '').toLowerCase();
-      const subtype = (account.accountSubtype || '').toLowerCase();
-      return (
-        name.includes('cash') ||
-        name.includes('bank') ||
-        name.includes('mpamba') ||
-        name.includes('airtel') ||
-        name.includes('wallet') ||
-        subtype.includes('cash') ||
-        subtype.includes('bank')
+
+      const name = getDisplayName(account).toLowerCase();
+      const subtype = (account.accountSubtype || '').toString().toLowerCase();
+      const code = normalizeCode(account.accountCode || account.code);
+
+      const isCashBankByCode = cashBankCodes.has(code);
+      const isCashBankByText = cashBankKeywords.some(
+        (kw) => name.includes(kw) || subtype.includes(kw)
       );
+
+      return isCashBankByCode || isCashBankByText;
     });
+
+    // Ensure the default Cash account shows even if its naming doesn't match keywords.
+    const defaultCash = accounts.find((acc) => {
+      const name = getDisplayName(acc).toLowerCase().trim();
+      const code = normalizeCode(acc.accountCode || acc.code);
+      return name === 'cash' || code === '1000' || code === '1010';
+    });
+
+    if (
+      defaultCash &&
+      !options.some((o) => o.id === defaultCash.id)
+    ) {
+      options.unshift(defaultCash);
+    }
+
+    return options;
   }, [accounts]);
 
   const getDefaultExpenseAccount = () => {
@@ -166,11 +195,20 @@ export default function PayrollProcessing() {
   };
 
   const getDefaultPaymentAccount = () => {
-    return (
-      paymentAccountOptions.find((account) =>
-        (account.accountName || account.name || '').toLowerCase().includes('cash')
-      ) || paymentAccountOptions[0]
-    );
+    // Prefer standard Cash account (code/name), otherwise fall back to first available cash/bank-like option.
+    const cashByCode = accounts.find((acc) => {
+      const code = String(acc.accountCode || acc.code || '').trim();
+      return code === '1000' || code === '1010';
+    });
+
+    if (cashByCode) return cashByCode;
+
+    const cashByName = accounts.find((acc) => {
+      const name = (acc.accountName || acc.name || '').toString().toLowerCase().trim();
+      return name === 'cash' || name.includes('cash');
+    });
+
+    return cashByName || paymentAccountOptions[0] || null;
   };
 
   const formatAccountOption = (account) => {
@@ -723,7 +761,12 @@ export default function PayrollProcessing() {
             PAYE Summary
           </Link>
           <button
-            onClick={() => setShowProcessModal(true)}
+            onClick={async () => {
+              // Refresh accounts so newly created Cash/Bank accounts appear immediately.
+              if (accountsLoading) return setShowProcessModal(true);
+              await loadAccounts();
+              setShowProcessModal(true);
+            }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
           >
             <Play size={20} />
@@ -836,7 +879,11 @@ export default function PayrollProcessing() {
             <h3 className="text-lg font-medium text-gray-900 mb-1">No payroll runs found</h3>
             <p className="text-gray-600 mb-4">Get started by processing your first payroll</p>
             <button
-              onClick={() => setShowProcessModal(true)}
+              onClick={async () => {
+                if (accountsLoading) return setShowProcessModal(true);
+                await loadAccounts();
+                setShowProcessModal(true);
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               Process First Payroll

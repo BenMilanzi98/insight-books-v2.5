@@ -66,6 +66,7 @@ const SalesListPage = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
   const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [clearHistoryReason, setClearHistoryReason] = useState('');
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [selectedSaleForRefund, setSelectedSaleForRefund] = useState(null);
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
@@ -203,9 +204,16 @@ const SalesListPage = () => {
   // Handle clear sales history
   const handleClearHistory = async () => {
     try {
+      const reason = (clearHistoryReason || '').trim();
+      if (reason.length < 10) {
+        alert('Please enter a reason for clearing history (at least 10 characters) for audit purposes.');
+        return;
+      }
       setIsClearingHistory(true);
       const response = await fetch('/api/sales/clear-history', {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reversalReason: reason })
       });
 
       const data = await response.json();
@@ -222,6 +230,7 @@ const SalesListPage = () => {
       
       // Close modal
       setShowClearConfirmModal(false);
+      setClearHistoryReason('');
     } catch (error) {
       console.error("Error clearing sales history:", error);
       alert(error.message || "Failed to clear sales history. Please try again.");
@@ -782,15 +791,26 @@ const SalesListPage = () => {
               <h3 className="text-lg font-medium text-gray-900 text-center mb-2">
                 Clear Sales History
               </h3>
-              <p className="text-sm text-gray-500 text-center mb-6">
-                Are you sure you want to clear all sales history? This action cannot be undone. 
-                All sales records, payments, and related data will be permanently deleted.
+              <p className="text-sm text-gray-500 text-center mb-4">
+                For audit and general-ledger integrity, bulk clear is only allowed when all sales are still in <strong>draft</strong> and no posted sale journals exist. Completed sales must be reversed properly first.
               </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason (required, min 10 characters)</label>
+              <textarea
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm mb-4 focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                rows={3}
+                placeholder="Explain why draft sales are being cleared (audit trail)"
+                value={clearHistoryReason}
+                onChange={(e) => setClearHistoryReason(e.target.value)}
+                disabled={isClearingHistory}
+              />
               <div className="flex space-x-3">
                 <button
                   type="button"
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  onClick={() => setShowClearConfirmModal(false)}
+                  onClick={() => {
+                    setShowClearConfirmModal(false);
+                    setClearHistoryReason('');
+                  }}
                   disabled={isClearingHistory}
                 >
                   Cancel

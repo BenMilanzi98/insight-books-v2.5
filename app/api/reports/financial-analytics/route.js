@@ -2,20 +2,23 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
-import { calculateDateRange } from '@/lib/dateUtils';
+import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
 function parseDate(value, fallback = null) {
   if (!value) return fallback;
-  const date = new Date(value);
+  // Parse YYYY-MM-DD as local calendar date to avoid UTC day-shift issues.
+  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
   return Number.isNaN(date.getTime()) ? fallback : date;
 }
 
 function formatLabel(date, groupBy) {
   const d = new Date(date);
   if (groupBy === 'day') {
-    return d.toISOString().split('T')[0];
+    return formatYmdInTimeZone(d);
   }
   if (groupBy === 'week') {
     const firstDayOfYear = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -39,6 +42,16 @@ function addToMap(map, key, amount) {
     map.set(key, 0);
   }
   map.set(key, map.get(key) + amount);
+}
+
+function round2(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function safeVariancePercent(actual, budget) {
+  const b = Number(budget) || 0;
+  if (b === 0) return null;
+  return round2(((Number(actual) || 0) - b) / b * 100);
 }
 
 function getDateRange(searchParams) {
@@ -76,9 +89,10 @@ export async function GET(request) {
     const { startDate, endDate } = getDateRange(searchParams);
     const groupByParam = searchParams.get('groupBy') || 'month';
     const groupBy = VALID_GROUPS.includes(groupByParam) ? groupByParam : 'month';
+    const categoryIdFilter = searchParams.get('categoryId');
 
     // Fetch data - filter by branch
-    const [invoices, sales, expenses] = await Promise.all([
+    const [invoices, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
       prisma.invoice.findMany({
         where: addBranchFilter(user, {
           tenantId: user.tenantId,
@@ -91,7 +105,20 @@ export async function GET(request) {
           total: true,
           issueDate: true,
           taxAmount: true,
-          client: { select: { name: true } }
+          client: { select: { name: true } },
+          items: {
+            select: {
+              amount: true,
+              netAmount: true,
+              product: {
+                select: {
+                  categoryId: true,
+                  category: true,
+                  inventoryCategory: { select: { id: true, name: true } }
+                }
+              }
+            }
+          }
         }
       }),
       prisma.sale.findMany({
@@ -106,7 +133,19 @@ export async function GET(request) {
           total: true,
           saleDate: true,
           taxAmount: true,
-          client: { select: { name: true } }
+          client: { select: { name: true } },
+          items: {
+            select: {
+              amount: true,
+              product: {
+                select: {
+                  categoryId: true,
+                  category: true,
+                  inventoryCategory: { select: { id: true, name: true } }
+                }
+              }
+            }
+          }
         }
       }),
       prisma.expense.findMany({
@@ -122,6 +161,58 @@ export async function GET(request) {
           category: true,
           description: true
         }
+      }),
+      prisma.supplierBill.findMany({
+        where: {
+          tenantId: user.tenantId,
+          billDate: { gte: startDate, lte: endDate },
+          status: { notIn: ['Draft', 'Cancelled'] }
+        },
+        select: {
+          id: true,
+          billNumber: true,
+          billDate: true,
+          items: {
+            select: {
+              lineTotal: true,
+              product: {
+                select: {
+                  categoryId: true,
+                  category: true,
+                  inventoryCategory: { select: { id: true, name: true } }
+                }
+              }
+            }
+          }
+        }
+      }),
+      prisma.budget.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: { in: ['active', 'draft'] },
+          startDate: { lte: endDate },
+          endDate: { gte: startDate }
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          budgetType: true,
+          breakdowns: {
+            where: { breakdownType: 'product_category' },
+            select: {
+              referenceId: true,
+              referenceName: true,
+              budgetedAmount: true
+            }
+          },
+          items: {
+            select: {
+              categoryId: true,
+              category: true,
+              budgetedAmount: true
+            }
+          }
+        }
       })
     ]);
 
@@ -132,6 +223,21 @@ export async function GET(request) {
       ['Sales', 0]
     ]);
     const customerMap = new Map();
+    const revenueByCategoryMap = new Map();
+    const expenseByCategoryMap = new Map();
+    const categoriesMap = new Map();
+    const revenueBudgetMap = new Map();
+    const expenseBudgetMap = new Map();
+
+    const getCategoryDescriptor = (product) => {
+      const id = product?.categoryId || null;
+      const name =
+        product?.inventoryCategory?.name ||
+        product?.category ||
+        'Uncategorized';
+      const key = id || `legacy:${name}`;
+      return { key, id, name };
+    };
 
     invoices.forEach((invoice) => {
       const amount = Number(invoice.total) || 0;
@@ -139,6 +245,12 @@ export async function GET(request) {
       addToBucket(trendMap, label, 'revenue', amount);
       addToMap(revenueBySource, 'Invoices', amount);
       if (invoice.client?.name) addToMap(customerMap, invoice.client.name, amount);
+      for (const item of invoice.items || []) {
+        const category = getCategoryDescriptor(item.product);
+        categoriesMap.set(category.key, { id: category.id, name: category.name });
+        const net = Number(item.netAmount || item.amount || 0);
+        addToMap(revenueByCategoryMap, category.key, net);
+      }
     });
 
     sales.forEach((sale) => {
@@ -148,6 +260,12 @@ export async function GET(request) {
       addToMap(revenueBySource, 'Sales', amount);
       const customerName = sale.client?.name;
       if (customerName) addToMap(customerMap, customerName, amount);
+      for (const item of sale.items || []) {
+        const category = getCategoryDescriptor(item.product);
+        categoriesMap.set(category.key, { id: category.id, name: category.name });
+        const lineAmount = Number(item.amount || 0);
+        addToMap(revenueByCategoryMap, category.key, lineAmount);
+      }
     });
 
     expenses.forEach((expense) => {
@@ -157,6 +275,35 @@ export async function GET(request) {
       const category = expense.category || 'Other';
       addToMap(expenseBreakdown, category, amount);
     });
+
+    supplierBills.forEach((bill) => {
+      for (const item of bill.items || []) {
+        if (!item.product) continue;
+        const category = getCategoryDescriptor(item.product);
+        categoriesMap.set(category.key, { id: category.id, name: category.name });
+        const lineAmount = Number(item.lineTotal || 0);
+        addToMap(expenseByCategoryMap, category.key, lineAmount);
+      }
+    });
+
+    const latestRevenueBudget = activeBudgets.find((b) => b.budgetType === 'revenue');
+    if (latestRevenueBudget) {
+      for (const b of latestRevenueBudget.breakdowns || []) {
+        const key = b.referenceId || `legacy:${b.referenceName || 'Uncategorized'}`;
+        const name = b.referenceName || 'Uncategorized';
+        categoriesMap.set(key, { id: b.referenceId || null, name });
+        addToMap(revenueBudgetMap, key, Number(b.budgetedAmount || 0));
+      }
+    }
+    const latestExpenseBudget = activeBudgets.find((b) => b.budgetType === 'expense');
+    if (latestExpenseBudget) {
+      for (const i of latestExpenseBudget.items || []) {
+        const key = i.categoryId || `legacy:${i.category || 'Uncategorized'}`;
+        const name = i.category || categoriesMap.get(key)?.name || 'Uncategorized';
+        categoriesMap.set(key, { id: i.categoryId || null, name });
+        addToMap(expenseBudgetMap, key, Number(i.budgetedAmount || 0));
+      }
+    }
 
     const trend = Array.from(trendMap.values())
       .map((item) => ({
@@ -187,16 +334,84 @@ export async function GET(request) {
     const avgRevenue = trend.length ? totalRevenue / trend.length : 0;
     const avgExpenses = trend.length ? totalExpenses / trend.length : 0;
 
+    const categoryKeys = new Set([
+      ...revenueByCategoryMap.keys(),
+      ...expenseByCategoryMap.keys(),
+      ...revenueBudgetMap.keys(),
+      ...expenseBudgetMap.keys()
+    ]);
+
+    const elapsedDays = Math.max(
+      1,
+      Math.floor((Date.now() - startDate.getTime()) / 86400000) + 1
+    );
+    const totalDays = Math.max(
+      1,
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1
+    );
+    const projectionMultiplier = totalDays / elapsedDays;
+
+    const revenueByCategory = [];
+    const expenseByCategory = [];
+
+    for (const key of categoryKeys) {
+      const descriptor = categoriesMap.get(key) || { id: null, name: 'Uncategorized' };
+      if (categoryIdFilter && descriptor.id !== categoryIdFilter) continue;
+
+      const actualRevenue = round2(revenueByCategoryMap.get(key) || 0);
+      const budgetRevenue = round2(revenueBudgetMap.get(key) || 0);
+      const forecastRevenue = round2(actualRevenue * projectionMultiplier);
+      revenueByCategory.push({
+        categoryId: descriptor.id,
+        categoryName: descriptor.name,
+        actualAmount: actualRevenue,
+        forecastAmount: forecastRevenue,
+        budgetAmount: budgetRevenue,
+        varianceToBudget: round2(actualRevenue - budgetRevenue),
+        varianceToBudgetPercent: safeVariancePercent(actualRevenue, budgetRevenue),
+        forecastVarianceToBudget: round2(forecastRevenue - budgetRevenue),
+        forecastVarianceToBudgetPercent: safeVariancePercent(forecastRevenue, budgetRevenue)
+      });
+
+      const actualExpense = round2(expenseByCategoryMap.get(key) || 0);
+      const budgetExpense = round2(expenseBudgetMap.get(key) || 0);
+      const forecastExpense = round2(actualExpense * projectionMultiplier);
+      expenseByCategory.push({
+        categoryId: descriptor.id,
+        categoryName: descriptor.name,
+        actualAmount: actualExpense,
+        forecastAmount: forecastExpense,
+        budgetAmount: budgetExpense,
+        varianceToBudget: round2(actualExpense - budgetExpense),
+        varianceToBudgetPercent: safeVariancePercent(actualExpense, budgetExpense),
+        forecastVarianceToBudget: round2(forecastExpense - budgetExpense),
+        forecastVarianceToBudgetPercent: safeVariancePercent(forecastExpense, budgetExpense)
+      });
+    }
+
+    revenueByCategory.sort((a, b) => b.actualAmount - a.actualAmount);
+    expenseByCategory.sort((a, b) => b.actualAmount - a.actualAmount);
+
     const analytics = {
       period: {
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0]
+        startDate: formatYmdInTimeZone(startDate),
+        endDate: formatYmdInTimeZone(endDate)
       },
       groupBy,
       trend,
       expenseBreakdown: expenseBreakdownArr,
       revenueBySource: revenueBySourceArr,
       topCustomers,
+      categoryForecasting: {
+        projectionBasis: 'run_rate',
+        elapsedDays,
+        totalDays,
+        categories: Array.from(categoriesMap.values())
+          .filter((c) => !categoryIdFilter || c.id === categoryIdFilter)
+          .sort((a, b) => String(a.name).localeCompare(String(b.name))),
+        revenue: revenueByCategory,
+        expenses: expenseByCategory
+      },
       totals: {
         revenue: totalRevenue,
         expenses: totalExpenses,

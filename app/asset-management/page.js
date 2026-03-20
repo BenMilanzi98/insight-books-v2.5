@@ -264,6 +264,7 @@ const AssetManagement = () => {
   // Asset Filters
   const [assetCategoryFilter, setAssetCategoryFilter] = useState("all");
   const [assetStatusFilter, setAssetStatusFilter] = useState("all");
+  const [assetSourceFilter, setAssetSourceFilter] = useState("all");
   const [assetSearchTerm, setAssetSearchTerm] = useState("");
   
   // Liability Filters
@@ -385,7 +386,7 @@ const AssetManagement = () => {
     if (activeTab === "assets") {
       fetchAssets();
     }
-  }, [assetPage, assetCategoryFilter, assetStatusFilter, assetSearchTerm, activeTab]);
+  }, [assetPage, assetCategoryFilter, assetStatusFilter, assetSourceFilter, assetSearchTerm, activeTab]);
   
   // Fetch liabilities when filters change
   useEffect(() => {
@@ -529,6 +530,11 @@ const AssetManagement = () => {
       if (assetStatusFilter !== "all") {
         params.append('status', assetStatusFilter);
       }
+
+      // Add source filter for assets created from PO receipt flow
+      if (assetSourceFilter !== "all") {
+        params.append('source', assetSourceFilter);
+      }
       
       const response = await fetch(`/api/assets?${params.toString()}`);
       
@@ -617,6 +623,11 @@ const AssetManagement = () => {
   
   const handleAssetStatusFilterChange = (e) => {
     setAssetStatusFilter(e.target.value);
+    setAssetPage(1);
+  };
+
+  const handleAssetSourceFilterChange = (e) => {
+    setAssetSourceFilter(e.target.value);
     setAssetPage(1);
   };
   
@@ -1318,6 +1329,17 @@ const AssetManagement = () => {
                     </select>
                     <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
                   </div>
+                  <div className="relative">
+                    <select
+                      className="select-filter pl-10 pr-8 py-2 border border-gray-300 rounded-md appearance-none bg-white"
+                      value={assetSourceFilter}
+                      onChange={handleAssetSourceFilterChange}
+                    >
+                      <option value="all">All Sources</option>
+                      <option value="po">From PO</option>
+                    </select>
+                    <Filter className="absolute left-3 top-2.5 text-gray-400" size={18} />
+                  </div>
                 </div>
               </div>
 
@@ -1354,7 +1376,17 @@ const AssetManagement = () => {
                 <tbody>
                   {assets.map((asset) => (
                     <tr key={asset.id} className="border-t border-gray-200 hover:bg-gray-50">
-                      <td className="p-3 text-blue-600">{asset.name}</td>
+                      <td className="p-3 text-blue-600">
+                        <div className="flex items-center gap-2">
+                          <span>{asset.name}</span>
+                          {(String(asset.notes || "").toUpperCase().includes("AUTO_ASSET_FROM_GR:") ||
+                            String(asset.notes || "").toUpperCase().includes("[PO_ASSET:")) && (
+                            <span className="inline-flex rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                              From PO
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="p-3">{asset.category.name}</td>
                       <td className="p-3">{new Date(asset.purchaseDate).toLocaleDateString()}</td>
                       <td className="p-3 text-right">{formatCurrency(asset.originalCost)}</td>

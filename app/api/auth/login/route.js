@@ -181,15 +181,13 @@ export async function POST(request) {
       initialBranchId = null;
     }
 
-    // Create session data – keep payload small so cookie stays under 4KB (browser limit).
-    // Store only role id/name in cookie; full role with permissions is loaded in getUserFromSession.
+    // Create session data – keep payload small so cookie stays under header limits.
+    // Middleware only needs role name string; all permissions are loaded in getUserFromSession.
     const sessionData = {
       userId: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role ? { id: user.role.id, name: user.role.name } : null,
       tenantId: user.tenantId,
-      branchId: initialBranchId
+      branchId: initialBranchId,
+      role: user.role ? user.role.name : null
     };
 
     const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');

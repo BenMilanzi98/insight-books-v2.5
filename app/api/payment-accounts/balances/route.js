@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
 
 // GET - Get actual balances for all payment accounts (AccountBalance + Chart of Accounts)
 export async function GET(request) {
@@ -11,6 +12,9 @@ export async function GET(request) {
     }
 
     const tenantId = user.tenantId;
+
+    // Ensure system default payment accounts exist (e.g. Cash) for this tenant.
+    await initializeDefaultPaymentAccounts(tenantId, prisma);
 
     // Get all active payment accounts
     const paymentAccounts = await prisma.paymentAccount.findMany({

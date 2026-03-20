@@ -107,13 +107,27 @@ export async function POST(request) {
       }
     });
     
-    // Create session data
+    // Choose a safe default branch so branch-scoped APIs behave consistently.
+    // Tenants without branches => branchId stays null.
+    let initialBranchId = null;
+    try {
+      const firstBranch = await prisma.branch.findFirst({
+        where: { tenantId: user.tenantId, isActive: true },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true }
+      });
+      initialBranchId = firstBranch?.id || null;
+    } catch (e) {
+      console.error('OTP: failed to resolve default branch (non-fatal):', e?.message || e);
+      initialBranchId = null;
+    }
+
+    // Create session data (minimal to keep cookie/header size small)
     const sessionData = {
       userId: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      tenantId: user.tenantId
+      tenantId: user.tenantId,
+      branchId: initialBranchId,
+      role: user.role ? user.role.name : null
     };
     
     // Set session cookie (Next.js 15: cookies() is async and must be awaited)
