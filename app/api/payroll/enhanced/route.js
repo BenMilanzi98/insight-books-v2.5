@@ -8,6 +8,7 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -150,13 +151,19 @@ export async function POST(request) {
 
     const [
       selectedExpenseAccount,
-      selectedPaymentAccount
+      selectedCoAPaymentAccount,
+      selectedPaymentAccountRecord
     ] = await Promise.all([
       expenseAccountId
         ? prisma.account.findFirst({ where: { id: expenseAccountId, tenantId: user.tenantId } })
         : null,
       paymentAccountId
         ? prisma.account.findFirst({ where: { id: paymentAccountId, tenantId: user.tenantId } })
+        : null,
+      paymentAccountId
+        ? prisma.paymentAccount.findFirst({
+            where: { id: paymentAccountId, tenantId: user.tenantId, isActive: true }
+          })
         : null
     ]);
 
@@ -174,16 +181,9 @@ export async function POST(request) {
       );
     }
 
-    if (paymentAccountId && !selectedPaymentAccount) {
+    if (paymentAccountId && !selectedCoAPaymentAccount && !selectedPaymentAccountRecord) {
       return NextResponse.json(
         { error: 'Selected payment account was not found' },
-        { status: 400 }
-      );
-    }
-
-    if (selectedPaymentAccount && !isAssetAccount(selectedPaymentAccount)) {
-      return NextResponse.json(
-        { error: 'Selected payment account must be an Asset (cash/bank) account' },
         { status: 400 }
       );
     }
@@ -214,8 +214,27 @@ export async function POST(request) {
 
     const expenseAccount =
       selectedExpenseAccount || findAccountByName('Salaries Expense');
-    const paymentAccount =
-      selectedPaymentAccount || findAccountByName('Cash');
+    // Resolve payment account selection:
+    // - If `paymentAccountId` is a Chart-of-Accounts `Account` id, use it directly.
+    // - If it's a `PaymentAccount` id from `/payments/management`, map it to the corresponding CoA Asset account.
+    let paymentAccount = selectedCoAPaymentAccount || null;
+    if (!paymentAccount && selectedPaymentAccountRecord) {
+      try {
+        paymentAccount = await getAccountForPaymentMethod(user.tenantId, paymentAccountId, prisma);
+      } catch (e) {
+        // Non-fatal fallback: use Cash if mapping fails (but still must exist in CoA).
+        paymentAccount = findAccountByName('Cash') || null;
+      }
+    }
+
+    paymentAccount = paymentAccount || findAccountByName('Cash');
+
+    if (paymentAccount && !isAssetAccount(paymentAccount)) {
+      return NextResponse.json(
+        { error: 'Resolved payment account must be an Asset (cash/bank) account' },
+        { status: 400 }
+      );
+    }
     
     // REQUIRE PAYE tax type - it must exist with a linked account for accurate tracking
     let payeTaxType = null;

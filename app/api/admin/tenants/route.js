@@ -123,17 +123,44 @@ export async function POST(request) {
     });
 
     // Create the actual tenant in the database
-    const newTenant = await prisma.tenant.create({
-      data: {
-        name: name.trim(),
-        subdomain: name.toLowerCase().replace(/\s+/g, ''),
-        subscriptionPlan: '1month',
-        status: 'active',
-        logoUrl: null,
-        primaryColor: null,
-        secondaryColor: null
+    const baseSubdomain = name.toLowerCase().replace(/\s+/g, '');
+    let subdomain = baseSubdomain;
+
+    // Avoid 500s on duplicate tenant creation: tenant.subdomain is @unique.
+    // If it already exists, append a small numeric suffix until unique (or until attempts run out).
+    for (let i = 0; i < 10; i++) {
+      const existing = await prisma.tenant.findUnique({ where: { subdomain } });
+      if (!existing) break;
+      subdomain = `${baseSubdomain}-${Date.now().toString().slice(-6)}-${i + 1}`;
+    }
+
+    let newTenant;
+    try {
+      newTenant = await prisma.tenant.create({
+        data: {
+          name: name.trim(),
+          subdomain,
+          subscriptionPlan: '1month',
+          status: 'active',
+          logoUrl: null,
+          primaryColor: null,
+          secondaryColor: null
+        }
+      });
+    } catch (error) {
+      // If we still hit a unique collision, return a clean 409 instead of 500.
+      if (error?.code === 'P2002') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Tenant subdomain already exists',
+            details: 'Please use a different tenant name or subdomain.'
+          },
+          { status: 409 }
+        );
       }
-    });
+      throw error;
+    }
 
     // Create default tenant settings
     await prisma.tenantSettings.create({

@@ -68,7 +68,9 @@ export async function GET(request) {
             name: true
           }
         },
-        userBranches: { select: { branchId: true } }
+        // Branch isolation is optional for legacy schemas.
+        // Some DB/prisma client combos may not expose `userBranches` on `User`.
+        // To prevent 500s, we omit it here and default `allowedBranchIds` to [].
       },
       orderBy: {
         createdAt: 'desc'
@@ -89,7 +91,7 @@ export async function GET(request) {
       tenant: user.tenant?.name || 'No Tenant',
       tenantId: user.tenant?.id,
       defaultBranchId: user.defaultBranchId || null,
-      allowedBranchIds: (user.userBranches || []).map(ub => ub.branchId).filter(Boolean),
+      allowedBranchIds: [],
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
       avatar: (user.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()

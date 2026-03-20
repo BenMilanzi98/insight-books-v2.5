@@ -31,6 +31,9 @@ export default function PayrollProcessing() {
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [accountsError, setAccountsError] = useState(null);
+  const [paymentAccounts, setPaymentAccounts] = useState([]);
+  const [paymentAccountsLoading, setPaymentAccountsLoading] = useState(false);
+  const [paymentAccountsError, setPaymentAccountsError] = useState(null);
   const [formData, setFormData] = useState({
     payrollMonth: new Date().getMonth() + 1, // Current month (1-12)
     payrollYear: new Date().getFullYear(), // Current year
@@ -60,6 +63,7 @@ export default function PayrollProcessing() {
   useEffect(() => {
     fetchPayrollRuns();
     loadAccounts();
+    loadPaymentAccounts();
   }, []);
 
   useEffect(() => {
@@ -72,13 +76,21 @@ export default function PayrollProcessing() {
       if (defaultExpense) {
         updates.expenseAccountId = defaultExpense.id;
       }
+      return updates;
+    });
+  }, [accounts, accountsLoading]);
+
+  useEffect(() => {
+    if (paymentAccountsLoading || paymentAccounts.length === 0) return;
+    setFormData((prev) => {
+      const updates = { ...prev };
       if (!prev.paymentAccountId) {
         const defaultPayment = getDefaultPaymentAccount();
         if (defaultPayment) updates.paymentAccountId = defaultPayment.id;
       }
       return updates;
     });
-  }, [accounts, accountsLoading]);
+  }, [paymentAccounts, paymentAccountsLoading]);
   const loadAccounts = async () => {
     try {
       setAccountsLoading(true);
@@ -96,6 +108,26 @@ export default function PayrollProcessing() {
       setAccountsError(error.message || 'Failed to load accounts');
     } finally {
       setAccountsLoading(false);
+    }
+  };
+
+  const loadPaymentAccounts = async () => {
+    try {
+      setPaymentAccountsLoading(true);
+      setPaymentAccountsError(null);
+      const response = await fetch('/api/payment-accounts/balances', { cache: 'no-store' });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load payment accounts');
+      }
+      const data = await response.json();
+      setPaymentAccounts(data.accounts || []);
+    } catch (error) {
+      console.error('Error loading payment accounts:', error);
+      setPaymentAccounts([]);
+      setPaymentAccountsError(error.message || 'Failed to load payment accounts');
+    } finally {
+      setPaymentAccountsLoading(false);
     }
   };
 
@@ -119,51 +151,16 @@ export default function PayrollProcessing() {
   }, [accounts]);
 
   const paymentAccountOptions = useMemo(() => {
-    const cashBankCodes = new Set(['1000', '1010', '1020', '1030', '1040', '1050']);
-    const cashBankKeywords = [
-      'cash',
-      'bank',
-      'mpamba',
-      'airtel',
-      'wallet',
-      'paychangu'
-    ];
-
-    const normalizeCode = (v) => String(v || '').trim();
-    const getDisplayName = (acc) => (acc?.accountName || acc?.name || '').toString();
-
-    const options = accounts.filter((account) => {
-      const type = normalizeAccountType(account);
-      if (type !== 'ASSET') return false;
-
-      const name = getDisplayName(account).toLowerCase();
-      const subtype = (account.accountSubtype || '').toString().toLowerCase();
-      const code = normalizeCode(account.accountCode || account.code);
-
-      const isCashBankByCode = cashBankCodes.has(code);
-      const isCashBankByText = cashBankKeywords.some(
-        (kw) => name.includes(kw) || subtype.includes(kw)
-      );
-
-      return isCashBankByCode || isCashBankByText;
+    // Payroll modal should show exactly what exists in `/payments/management` (PaymentAccount model).
+    // Keep Cash first, then all other active payment accounts.
+    const defaultCash = paymentAccounts.find((acc) => {
+      const name = (acc.name || '').toString().toLowerCase().trim();
+      return acc.isSystem || name === 'cash' || acc.accountType === 'Cash';
     });
 
-    // Ensure the default Cash account shows even if its naming doesn't match keywords.
-    const defaultCash = accounts.find((acc) => {
-      const name = getDisplayName(acc).toLowerCase().trim();
-      const code = normalizeCode(acc.accountCode || acc.code);
-      return name === 'cash' || code === '1000' || code === '1010';
-    });
-
-    if (
-      defaultCash &&
-      !options.some((o) => o.id === defaultCash.id)
-    ) {
-      options.unshift(defaultCash);
-    }
-
-    return options;
-  }, [accounts]);
+    const rest = paymentAccounts.filter((acc) => !defaultCash || acc.id !== defaultCash.id);
+    return defaultCash ? [defaultCash, ...rest] : rest;
+  }, [paymentAccounts]);
 
   const getDefaultExpenseAccount = () => {
     // First try to find exact match "Salaries Expense"
@@ -195,25 +192,17 @@ export default function PayrollProcessing() {
   };
 
   const getDefaultPaymentAccount = () => {
-    // Prefer standard Cash account (code/name), otherwise fall back to first available cash/bank-like option.
-    const cashByCode = accounts.find((acc) => {
-      const code = String(acc.accountCode || acc.code || '').trim();
-      return code === '1000' || code === '1010';
+    // Prefer system Cash account; otherwise first available option.
+    const defaultCash = paymentAccountOptions.find((acc) => {
+      const name = (acc.name || '').toString().toLowerCase().trim();
+      return acc.isSystem || acc.accountType === 'Cash' || name === 'cash';
     });
-
-    if (cashByCode) return cashByCode;
-
-    const cashByName = accounts.find((acc) => {
-      const name = (acc.accountName || acc.name || '').toString().toLowerCase().trim();
-      return name === 'cash' || name.includes('cash');
-    });
-
-    return cashByName || paymentAccountOptions[0] || null;
+    return defaultCash || paymentAccountOptions[0] || null;
   };
 
   const formatAccountOption = (account) => {
     if (!account) return 'Unnamed Account';
-    const code = account.accountCode || account.code || '';
+    const code = account.accountCode || account.code || account.reference || '';
     const name = account.accountName || account.name || 'Unnamed Account';
     return code ? `${code} — ${name}` : name;
   };
@@ -762,9 +751,8 @@ export default function PayrollProcessing() {
           </Link>
           <button
             onClick={async () => {
-              // Refresh accounts so newly created Cash/Bank accounts appear immediately.
-              if (accountsLoading) return setShowProcessModal(true);
               await loadAccounts();
+              await loadPaymentAccounts();
               setShowProcessModal(true);
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700"
@@ -880,8 +868,8 @@ export default function PayrollProcessing() {
             <p className="text-gray-600 mb-4">Get started by processing your first payroll</p>
             <button
               onClick={async () => {
-                if (accountsLoading) return setShowProcessModal(true);
                 await loadAccounts();
+                await loadPaymentAccounts();
                 setShowProcessModal(true);
               }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -986,13 +974,13 @@ export default function PayrollProcessing() {
                     value={formData.paymentAccountId || ''}
                     onChange={(e) => setFormData({ ...formData, paymentAccountId: e.target.value })}
                     className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                    disabled={accountsLoading || paymentAccountOptions.length === 0}
+                    disabled={paymentAccountsLoading || paymentAccountOptions.length === 0}
                   >
-                    {accountsLoading && <option>Loading accounts...</option>}
-                    {!accountsLoading && paymentAccountOptions.length === 0 && (
+                    {paymentAccountsLoading && <option>Loading payment accounts...</option>}
+                    {!paymentAccountsLoading && paymentAccountOptions.length === 0 && (
                       <option value="">No cash/bank accounts available</option>
                     )}
-                    {!accountsLoading && paymentAccountOptions.length > 0 && (
+                    {!paymentAccountsLoading && paymentAccountOptions.length > 0 && (
                       <>
                         <option value="">Select payment account</option>
                         {paymentAccountOptions.map((account) => (
@@ -1003,6 +991,9 @@ export default function PayrollProcessing() {
                       </>
                     )}
                   </select>
+                  {paymentAccountsError && (
+                    <p className="text-xs text-red-500 mt-1">Failed to load payment accounts: {paymentAccountsError}</p>
+                  )}
                 </div>
 
                 {/* Send Email Option */}
