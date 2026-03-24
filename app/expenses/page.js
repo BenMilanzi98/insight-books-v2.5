@@ -110,23 +110,6 @@ function isCogsListRow(expense) {
   return typeof id === 'string' && id.startsWith(COGS_ROW_ID_PREFIX);
 }
 
-const COGS_REVERSAL_CONFIRM_MSG =
-  'This posts a reversing entry in the general ledger. The original COGS posting stays for audit. Sale revenue and sales tax are not changed—only this COGS/inventory journal is reversed. Continue?';
-
-const FULL_SALE_AFTER_COGS_PROMPT =
-  'Reverse the linked sale completely as well?\n\n' +
-  'This reverses revenue, remaining journals, sales tax, and linked completed payments (standard void/refund flow). ' +
-  'COGS journals you just reversed are not reversed again.\n\n' +
-  'Continue with full sale reversal?';
-
-function fullSaleAfterCogsBatchPrompt(saleCount) {
-  return (
-    `Also fully reverse ${saleCount} linked sale(s)?\n\n` +
-    'Revenue, tax, remaining GL journals, and payments will be reversed. Already-reversed COGS entries are skipped.\n\n' +
-    'Continue?'
-  );
-}
-
 function collectLinkedSaleIdsFromCogsRowIds(rowIds, list) {
   const ids = new Set();
   for (const rid of rowIds) {
@@ -143,6 +126,56 @@ function collectUniqueCogsTransactionIds(rowIds, list) {
     if (row?.isCOGS && row.transactionId) txn.add(row.transactionId);
   }
   return [...txn];
+}
+
+/** COGS rows that are not tied to a POS sale id (journal reversal only). */
+function collectOrphanCogsTransactionIds(cogsRowIds, list) {
+  const txn = new Set();
+  for (const rid of cogsRowIds) {
+    const row = list.find((e) => e.id === rid);
+    if (row?.isCOGS && row.transactionId && !row.linkedSaleId) {
+      txn.add(row.transactionId);
+    }
+  }
+  return [...txn];
+}
+
+function getCogsDeleteContext(expenseToDelete, deleteType, list) {
+  const empty = { hasCogs: false, cogsRowIds: [], hasAnyLinkedSale: false, linkedSaleCount: 0 };
+  if (!expenseToDelete) return empty;
+
+  if (deleteType === 'single') {
+    const id = expenseToDelete;
+    if (list?.length) {
+      const row = list.find((e) => e.id === id);
+      if (!row?.isCOGS) return empty;
+      const linked = collectLinkedSaleIdsFromCogsRowIds([id], list);
+      return {
+        hasCogs: true,
+        cogsRowIds: [id],
+        hasAnyLinkedSale: linked.length > 0,
+        linkedSaleCount: linked.length,
+      };
+    }
+    const s = String(id);
+    if (!s.startsWith(COGS_ROW_ID_PREFIX)) return empty;
+    return {
+      hasCogs: true,
+      cogsRowIds: [s],
+      hasAnyLinkedSale: false,
+      linkedSaleCount: 0,
+    };
+  }
+
+  const { cogsIds } = partitionExpenseListDeleteIds(expenseToDelete);
+  if (cogsIds.length === 0) return empty;
+  const linked = list?.length ? collectLinkedSaleIdsFromCogsRowIds(cogsIds, list) : [];
+  return {
+    hasCogs: true,
+    cogsRowIds: cogsIds,
+    hasAnyLinkedSale: linked.length > 0,
+    linkedSaleCount: linked.length,
+  };
 }
 
 function classifyExpenseRowDeleteId(expenseId) {
@@ -274,6 +307,8 @@ const ExpensesPage = () => {
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteType, setDeleteType] = useState('single'); // 'single' or 'batch'
   const [expenseToDelete, setExpenseToDelete] = useState(null);
+  /** When deleting COGS rows: full sale reversal vs COGS journal only. */
+  const [cogsRemovalStrategy, setCogsRemovalStrategy] = useState('full_sale');
   
   // Restore modal states
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
@@ -486,6 +521,11 @@ const ExpensesPage = () => {
   const handleBatchDelete = async () => {
     if (selectedExpenses.length === 0) return;
 
+    const listForCtx = showDeletedExpenses ? deletedExpenses : expenses;
+    const ctx = getCogsDeleteContext(selectedExpenses, 'batch', listForCtx);
+    setCogsRemovalStrategy(
+      ctx.hasCogs && ctx.hasAnyLinkedSale ? 'full_sale' : ctx.hasCogs ? 'journal_only' : 'full_sale'
+    );
     setExpenseToDelete(selectedExpenses);
     setDeleteType('batch');
     setDeleteReason('');
@@ -508,25 +548,21 @@ const ExpensesPage = () => {
             alert('Could not resolve this COGS posting to a journal entry.');
             return;
           }
-          if (typeof window !== 'undefined' && !window.confirm(COGS_REVERSAL_CONFIRM_MSG)) {
-            return;
-          }
-          await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
-          let cogsSuccessMsg =
-            'COGS journal reversed in the general ledger (original entry retained for audit).';
-          if (
-            row?.linkedSaleId &&
-            typeof window !== 'undefined' &&
-            window.confirm(FULL_SALE_AFTER_COGS_PROMPT)
-          ) {
+          const doFullSale = cogsRemovalStrategy === 'full_sale' && row?.linkedSaleId;
+          if (doFullSale) {
             await reverseSalePosting({
               saleId: row.linkedSaleId,
-              reversalReason: `${trimmed} (full sale reversal after COGS)`,
+              reversalReason: `${trimmed} (full sale reversal from expenses)`,
             });
-            cogsSuccessMsg =
-              'COGS and the linked sale were fully reversed (revenue, tax, payments, GL—original entries kept for audit).';
+            setSuccessMessage(
+              'The linked sale was fully reversed (revenue, tax, payments, GL—original entries kept for audit).'
+            );
+          } else {
+            await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
+            setSuccessMessage(
+              'COGS journal reversed in the general ledger (original entry retained for audit). Sale revenue and tax were not changed.'
+            );
           }
-          setSuccessMessage(cogsSuccessMsg);
         } else if (target.kind === 'salaryAdvance') {
           try {
             await deleteSalaryAdvance(target.id);
@@ -559,7 +595,7 @@ const ExpensesPage = () => {
         const { salaryAdvanceIds, cogsIds, expenseIds } = partitionExpenseListDeleteIds(expenseToDelete);
         const cogsTxnIds = collectUniqueCogsTransactionIds(cogsIds, list);
 
-        if (salaryAdvanceIds.length === 0 && expenseIds.length === 0 && cogsTxnIds.length === 0) {
+        if (salaryAdvanceIds.length === 0 && expenseIds.length === 0 && cogsIds.length === 0) {
           setDeleteModalOpen(false);
           setDeleteReason('');
           setExpenseToDelete(null);
@@ -568,33 +604,29 @@ const ExpensesPage = () => {
           return;
         }
 
-        if (cogsTxnIds.length > 0 && typeof window !== 'undefined' && !window.confirm(COGS_REVERSAL_CONFIRM_MSG)) {
-          return;
-        }
-
         let cogsReversed = 0;
-        for (const txnId of cogsTxnIds) {
-          await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
-          cogsReversed += 1;
-        }
-
         let fullSalesReversed = 0;
         const linkedSaleIds = collectLinkedSaleIdsFromCogsRowIds(cogsIds, list);
-        if (
-          linkedSaleIds.length > 0 &&
-          typeof window !== 'undefined' &&
-          window.confirm(
-            linkedSaleIds.length === 1
-              ? FULL_SALE_AFTER_COGS_PROMPT
-              : fullSaleAfterCogsBatchPrompt(linkedSaleIds.length)
-          )
-        ) {
-          for (const sid of linkedSaleIds) {
-            await reverseSalePosting({
-              saleId: sid,
-              reversalReason: `${trimmed} (full sale reversal after COGS batch)`,
-            });
-            fullSalesReversed += 1;
+
+        if (cogsIds.length > 0) {
+          if (cogsRemovalStrategy === 'full_sale') {
+            for (const sid of linkedSaleIds) {
+              await reverseSalePosting({
+                saleId: sid,
+                reversalReason: `${trimmed} (full sale reversal from expenses)`,
+              });
+              fullSalesReversed += 1;
+            }
+            const orphanTxnIds = collectOrphanCogsTransactionIds(cogsIds, list);
+            for (const txnId of orphanTxnIds) {
+              await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
+              cogsReversed += 1;
+            }
+          } else {
+            for (const txnId of cogsTxnIds) {
+              await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
+              cogsReversed += 1;
+            }
           }
         }
 
@@ -638,7 +670,8 @@ const ExpensesPage = () => {
       setDeleteModalOpen(false);
       setDeleteReason('');
       setExpenseToDelete(null);
-      
+      setCogsRemovalStrategy('full_sale');
+
       // Clear success message after 5 seconds
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
@@ -1174,6 +1207,11 @@ const handleFileUpload = async (e) => {
   
   // Handle individual expense deletion
   const handleDeleteExpense = async (expenseId) => {
+    const listForCtx = showDeletedExpenses ? deletedExpenses : expenses;
+    const ctx = getCogsDeleteContext(expenseId, 'single', listForCtx);
+    setCogsRemovalStrategy(
+      ctx.hasCogs && ctx.hasAnyLinkedSale ? 'full_sale' : ctx.hasCogs ? 'journal_only' : 'full_sale'
+    );
     setExpenseToDelete(expenseId);
     setDeleteType('single');
     setDeleteReason('');
@@ -1703,6 +1741,20 @@ const handleFileUpload = async (e) => {
       loadCogsData();
     }
   }, [mainTab, cogsDateRange.startDate, cogsDateRange.endDate]);
+
+  const listForDeleteModal = showDeletedExpenses ? deletedExpenses : expenses;
+  const deleteModalCogsCtx = deleteModalOpen
+    ? getCogsDeleteContext(expenseToDelete, deleteType, listForDeleteModal)
+    : { hasCogs: false, cogsRowIds: [], hasAnyLinkedSale: false, linkedSaleCount: 0 };
+  const deleteModalBatchPartition =
+    deleteModalOpen && deleteType === 'batch' && Array.isArray(expenseToDelete)
+      ? partitionExpenseListDeleteIds(expenseToDelete)
+      : { salaryAdvanceIds: [], cogsIds: [], expenseIds: [] };
+  const deleteModalHasMixedBatch =
+    deleteModalCogsCtx.hasCogs &&
+    deleteType === 'batch' &&
+    (deleteModalBatchPartition.expenseIds.length > 0 ||
+      deleteModalBatchPartition.salaryAdvanceIds.length > 0);
 
   return (
     <PermissionGuard permission="expenses.view">
@@ -3224,7 +3276,9 @@ const handleFileUpload = async (e) => {
       {/* Deletion Confirmation Modal */}
       {deleteModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+          <div
+            className={`bg-white rounded-lg shadow-xl w-full ${deleteModalCogsCtx.hasCogs ? 'max-w-lg' : 'max-w-md'}`}
+          >
             <div className="p-6">
               <div className="flex items-center mb-4">
                 <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
@@ -3233,15 +3287,88 @@ const handleFileUpload = async (e) => {
               </div>
               <div className="text-center">
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {deleteType === 'single' ? 'Delete Expense' : `Delete ${expenseToDelete?.length} Expenses`}
+                  {deleteModalCogsCtx.hasCogs && deleteType === 'single'
+                    ? 'Remove COGS posting'
+                    : deleteModalCogsCtx.hasCogs && deleteType === 'batch'
+                      ? deleteModalHasMixedBatch
+                        ? 'Remove selected items'
+                        : `Remove ${deleteModalCogsCtx.cogsRowIds.length} COGS posting(s)`
+                      : deleteType === 'single'
+                        ? 'Delete expense'
+                        : `Delete ${expenseToDelete?.length} expenses`}
                 </h3>
-                <p className="text-sm text-gray-500 mb-4">
-                  {deleteType === 'single' 
-                    ? 'This action will soft delete the expense. You can restore it later from the deleted expenses view.'
-                    : `This action will soft delete ${expenseToDelete?.length} expenses. You can restore them later from the deleted expenses view.`
-                  }
-                </p>
-                
+                <div className="text-sm text-gray-500 mb-4 text-left space-y-3">
+                  {deleteModalCogsCtx.hasCogs ? (
+                    <>
+                      <p>
+                        COGS lines are removed from this list by reversing postings in the general ledger.
+                        Choose how far the reversal should go. This cannot be undone from this screen.
+                      </p>
+                      {deleteModalHasMixedBatch && (
+                        <p className="text-gray-600 bg-amber-50 border border-amber-100 rounded-md px-3 py-2">
+                          Selection includes {deleteModalBatchPartition.cogsIds.length} COGS line(s),{' '}
+                          {deleteModalBatchPartition.expenseIds.length} expense(s), and{' '}
+                          {deleteModalBatchPartition.salaryAdvanceIds.length} salary advance(s). Expenses
+                          will be soft-deleted; salary advances use delete or cancel-with-deductions flow as
+                          before.
+                        </p>
+                      )}
+                      <div className="text-left rounded-lg border border-gray-200 bg-gray-50 p-3 space-y-3">
+                        <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                          COGS reversal scope
+                        </p>
+                        {deleteModalCogsCtx.hasAnyLinkedSale ? (
+                          <>
+                            <label className="flex items-start gap-3 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="cogsRemovalStrategy"
+                                className="mt-1 text-red-600 focus:ring-red-500"
+                                checked={cogsRemovalStrategy === 'full_sale'}
+                                onChange={() => setCogsRemovalStrategy('full_sale')}
+                              />
+                              <span>
+                                <span className="font-medium text-gray-900">Full sale reversal</span>
+                                <span className="block text-gray-600 text-xs mt-0.5">
+                                  Reverses the linked sale end-to-end (revenue, tax, payments, and related GL).
+                                  Recommended when the sale should be unwound, not just cost.
+                                </span>
+                              </span>
+                            </label>
+                            <label className="flex items-start gap-3 cursor-pointer">
+                              <input
+                                type="radio"
+                                name="cogsRemovalStrategy"
+                                className="mt-1 text-red-600 focus:ring-red-500"
+                                checked={cogsRemovalStrategy === 'journal_only'}
+                                onChange={() => setCogsRemovalStrategy('journal_only')}
+                              />
+                              <span>
+                                <span className="font-medium text-gray-900">COGS journals only</span>
+                                <span className="block text-gray-600 text-xs mt-0.5">
+                                  Reverses only the COGS / cost journal lines. Sale revenue and sales tax stay
+                                  as posted.
+                                </span>
+                              </span>
+                            </label>
+                          </>
+                        ) : (
+                          <p className="text-sm text-gray-700">
+                            These COGS line(s) are not linked to a POS sale ID. Only the COGS journal can be
+                            reversed.
+                          </p>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <p>
+                      {deleteType === 'single'
+                        ? 'This action will soft delete the expense. You can restore it later from the deleted expenses view.'
+                        : `This action will soft delete ${expenseToDelete?.length} expenses. You can restore them later from the deleted expenses view.`}
+                    </p>
+                  )}
+                </div>
+
                 <div className="mb-4 text-left">
                   <label htmlFor="deleteReason" className="block text-sm font-medium text-gray-700 mb-2">
                     Reason for deletion *
@@ -3262,7 +3389,7 @@ const handleFileUpload = async (e) => {
                 </div>
               </div>
             </div>
-            
+
             <div className="px-6 py-3 bg-gray-50 flex justify-end space-x-3 rounded-b-lg">
               <button
                 type="button"
@@ -3271,6 +3398,7 @@ const handleFileUpload = async (e) => {
                   setDeleteModalOpen(false);
                   setDeleteReason('');
                   setExpenseToDelete(null);
+                  setCogsRemovalStrategy('full_sale');
                 }}
               >
                 Cancel
@@ -3279,13 +3407,21 @@ const handleFileUpload = async (e) => {
                 type="button"
                 className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
                   deleteReason.trim().length >= MIN_EXPENSE_DELETE_REASON_LENGTH
-                    ? 'bg-red-600 hover:bg-red-700' 
+                    ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-gray-400 cursor-not-allowed'
                 }`}
                 onClick={handleConfirmDelete}
                 disabled={deleteReason.trim().length < MIN_EXPENSE_DELETE_REASON_LENGTH}
               >
-                {deleteType === 'single' ? 'Delete Expense' : `Delete ${expenseToDelete?.length} Expenses`}
+                {deleteModalHasMixedBatch
+                  ? 'Confirm removals'
+                  : deleteModalCogsCtx.hasCogs
+                    ? cogsRemovalStrategy === 'full_sale' && deleteModalCogsCtx.hasAnyLinkedSale
+                      ? 'Reverse linked sale(s)'
+                      : 'Reverse COGS journals'
+                    : deleteType === 'single'
+                      ? 'Delete expense'
+                      : `Delete ${expenseToDelete?.length} expenses`}
               </button>
             </div>
           </div>
