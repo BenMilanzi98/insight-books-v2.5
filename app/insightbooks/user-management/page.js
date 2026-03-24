@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, 
   Search, 
@@ -116,19 +116,25 @@ export default function UserManagementPage() {
     }
   };
 
-  // Fetch branches for a tenant
-  const fetchBranches = async (tenantId) => {
+  // Fetch branches for a tenant (admin session — use admin API, not /api/branches which needs tenant user session)
+  const fetchBranches = useCallback(async (tenantId) => {
     if (!tenantId) return;
     try {
-      const response = await fetch(`/api/branches?includeInactive=false`, { cache: 'no-store' });
+      const response = await fetch(
+        `/api/admin/branches?tenantId=${encodeURIComponent(tenantId)}&includeInactive=false`,
+        { cache: 'no-store' }
+      );
       if (response.ok) {
         const data = await response.json();
         setBranches(data.branches || []);
+      } else {
+        setBranches([]);
       }
     } catch (error) {
       console.error('Error fetching branches:', error);
+      setBranches([]);
     }
-  };
+  }, []);
 
   // Fetch roles for dropdown
   const fetchRoles = async () => {
@@ -736,9 +742,12 @@ export default function UserManagementPage() {
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => {
-                              console.log('Edit button clicked for user:', user);
                               setSelectedUser(user);
                               setShowEditModal(true);
+                              const tid =
+                                user.tenantId ||
+                                tenants.find((t) => t.name === user.tenant)?.id;
+                              if (tid) fetchBranches(tid);
                             }}
                             className="text-blue-600 hover:text-blue-900 p-1 rounded hover:bg-blue-50"
                             title="Edit User"
@@ -1226,11 +1235,6 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
 
 // Edit User Modal Component
 function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branches, onTenantChange }) {
-  console.log('EditUserModal received user:', user);
-  console.log('EditUserModal received tenants:', tenants);
-  console.log('EditUserModal received roles:', roles);
-  console.log('EditUserModal received branches:', branches);
-  
   // Find the tenant ID for the current user (prefer user.tenantId from API)
   const findTenantId = (tenantName) => {
     if (user.tenantId) return user.tenantId;
@@ -1256,14 +1260,12 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branc
     allowedBranchIds: Array.isArray(user.allowedBranchIds) ? [...user.allowedBranchIds] : []
   });
 
-  // Load branches when tenant changes
+  // Load branches when tenant changes (onTenantChange is stable via useCallback on parent)
   useEffect(() => {
     if (formData.tenantId && onTenantChange) {
       onTenantChange(formData.tenantId);
     }
   }, [formData.tenantId, onTenantChange]);
-
-  console.log('EditUserModal initial formData:', formData);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -1274,7 +1276,6 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branc
       return;
     }
     
-    console.log('EditUserModal submitting form data:', formData);
     onSubmit(formData);
   };
 

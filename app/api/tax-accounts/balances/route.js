@@ -350,6 +350,26 @@ export async function GET(request) {
             },
           });
 
+          const taxExpenseSourceIds = [
+            ...new Set(
+              transactions
+                .filter((t) => t.sourceType === 'Tax-Expense' && t.sourceId)
+                .map((t) => t.sourceId)
+            ),
+          ];
+          let deletedExpenseTaxSourceIds = new Set();
+          if (taxExpenseSourceIds.length > 0) {
+            const deletedExpenses = await prisma.expense.findMany({
+              where: {
+                id: { in: taxExpenseSourceIds },
+                tenantId: user.tenantId,
+                isDeleted: true,
+              },
+              select: { id: true },
+            });
+            deletedExpenseTaxSourceIds = new Set(deletedExpenses.map((e) => e.id));
+          }
+
           const isLiability = taxType.account?.accountType === 'Liability';
           const isAsset = taxType.account?.accountType === 'Asset';
 
@@ -359,6 +379,14 @@ export async function GET(request) {
 
             const debitAmount = Number(line.debitAmount || 0);
             const creditAmount = Number(line.creditAmount || 0);
+
+            if (
+              tx.sourceType === 'Tax-Expense' &&
+              tx.sourceId &&
+              deletedExpenseTaxSourceIds.has(tx.sourceId)
+            ) {
+              continue;
+            }
 
             if (tx.sourceType === 'TaxPayment') {
               const paymentAmount = isLiability ? debitAmount : creditAmount;
@@ -392,9 +420,10 @@ export async function GET(request) {
               }
             }
             // Tax-Invoice is now counted above via dedicated query
-            // Handle tax reversals from refunds/voids explicitly
+            // Handle tax reversals from refunds/voids / expense deletion (GL Tax-Reversal) explicitly
             else if (tx.sourceType === 'Tax-SaleRefund' || tx.sourceType === 'Tax-SaleVoid' ||
-                     tx.sourceType === 'Tax-InvoiceRefund' || tx.sourceType === 'Tax-InvoiceVoid') {
+                     tx.sourceType === 'Tax-InvoiceRefund' || tx.sourceType === 'Tax-InvoiceVoid' ||
+                     tx.sourceType === 'Tax-Reversal') {
               // Reversals: for Liability accounts, debit reduces collected tax
               // For Asset accounts, credit reduces collected tax
               if (isLiability) {
@@ -409,10 +438,11 @@ export async function GET(request) {
                 }
               }
             }
-            // Handle remaining Tax-* sourceTypes (generic)
+            // Handle remaining Tax-* sourceTypes (generic; Tax-Reversal handled above)
             else if (tx.sourceType?.startsWith('Tax-') &&
                      tx.sourceType !== 'Tax-Invoice' &&
-                     tx.sourceType !== 'Tax-SupplierPayment') {
+                     tx.sourceType !== 'Tax-SupplierPayment' &&
+                     tx.sourceType !== 'Tax-Reversal') {
               if (isLiability) {
                 if (creditAmount > 0) {
                   totalCollected += creditAmount;

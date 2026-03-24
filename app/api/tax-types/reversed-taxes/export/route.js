@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { fetchGlTaxReversalReportRows } from '@/lib/glReversedTaxReporting';
 import * as XLSX from 'xlsx';
 
 export async function GET(request) {
@@ -62,6 +63,11 @@ export async function GET(request) {
       },
       orderBy: { refundDate: 'desc' }
     });
+    const glTaxReversals = await fetchGlTaxReversalReportRows(prisma, user.tenantId, {
+      startDate,
+      endDate,
+    });
+
     const reversedTaxes = [
       ...refundedSales.map((s) => ({
         id: s.id,
@@ -80,7 +86,19 @@ export async function GET(request) {
           type: 'Invoice Refund',
           taxReversed: Math.abs((r.refundAmount / (r.invoice?.total || 1)) * Number(r.invoice?.taxAmount || 0)),
           reason: r.refundReason
-        }))
+        })),
+      ...glTaxReversals.map((r) => ({
+        id: r.id,
+        date: r.date,
+        reference: r.reference,
+        type: r.type,
+        taxReversed: r.taxReversed,
+        reason: r.reason,
+        glTransactionId: r.transactionId,
+        transactionId: r.transactionId,
+        sourceExpenseId: r.sourceExpenseId || '',
+        originalTaxTransactionId: r.originalTaxTransactionId || '',
+      }))
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
     const totalTaxReversed = reversedTaxes.reduce((sum, r) => sum + (r.taxReversed || 0), 0);
 
@@ -135,7 +153,10 @@ export async function GET(request) {
       Reference: r.reference,
       Type: r.type,
       'Tax Reversed': Number(r.taxReversed || 0),
-      Reason: r.reason || ''
+      Reason: r.reason || '',
+      'GL transaction ID': r.glTransactionId || r.transactionId || '',
+      'Source expense ID': r.sourceExpenseId || '',
+      'Original tax transaction ID': r.originalTaxTransactionId || '',
     }));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(rows);

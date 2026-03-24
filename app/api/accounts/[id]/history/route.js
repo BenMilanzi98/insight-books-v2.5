@@ -92,6 +92,11 @@ export async function GET(request, { params }) {
             description: true,
             sourceType: true,
             sourceId: true,
+            isReversal: true,
+            entryType: true,
+            reversedTransactionId: true,
+            reversalReason: true,
+            notes: true,
           },
         },
         account: {
@@ -131,6 +136,10 @@ export async function GET(request, { params }) {
       debit: line.debitAmount || 0,
       credit: line.creditAmount || 0,
       source: 'Transaction',
+      isReversal: line.transaction?.isReversal ?? false,
+      entryType: line.transaction?.entryType || null,
+      reversedTransactionId: line.transaction?.reversedTransactionId || null,
+      reversalReason: line.transaction?.reversalReason || null,
     }));
 
     // Combine and sort by date (newest first)

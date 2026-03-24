@@ -155,6 +155,26 @@ export async function GET(request) {
       ];
     }
 
+    // Drop COGS list rows once the parent GL journal has been reversed (original stays in GL for audit)
+    try {
+      const reversedParents = await prisma.transaction.findMany({
+        where: {
+          tenantId: user.tenantId,
+          isReversal: true,
+          reversedTransactionId: { not: null },
+        },
+        select: { reversedTransactionId: true },
+      });
+      const reversedParentIds = [
+        ...new Set(reversedParents.map((r) => r.reversedTransactionId).filter(Boolean)),
+      ];
+      if (reversedParentIds.length > 0) {
+        cogsTransactionFilter.transaction.id = { notIn: reversedParentIds };
+      }
+    } catch (reversalFilterErr) {
+      console.warn('COGS reversed-transaction filter skipped:', reversalFilterErr?.message);
+    }
+
     // Check if we should include COGS transactions
     // If category filter is set and it's not "Cost of Goods Sold" or "COGS", exclude COGS
     const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
@@ -176,9 +196,10 @@ export async function GET(request) {
       categoryType: typeof category
     });
 
-    // Build salary advance filter
+    // Build salary advance filter (hide cancelled from the expenses register; manage in HR → Advances)
     const salaryAdvanceFilter = {
-      tenantId: user.tenantId
+      tenantId: user.tenantId,
+      status: { not: 'Cancelled' },
     };
     
     // Note: We don't filter salary advances by branchId because they might not have branchId set
@@ -307,7 +328,9 @@ export async function GET(request) {
               id: true,
               date: true,
               description: true,
-              reference: true
+              reference: true,
+              sourceId: true,
+              sourceType: true,
             }
           },
           account: {
@@ -347,7 +370,11 @@ export async function GET(request) {
         attachments: [],
         isCOGS: true, // Flag to identify COGS entries
         transactionId: line.transaction.id,
-        transactionReference: line.transaction.reference
+        transactionReference: line.transaction.reference,
+        linkedSaleId:
+          line.transaction.sourceType === 'Sale' && line.transaction.sourceId
+            ? line.transaction.sourceId
+            : null,
       }));
     }
 

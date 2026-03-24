@@ -106,17 +106,26 @@ export async function POST(request) {
     if (defaultBranchId !== undefined) data.defaultBranchId = defaultBranchId || null;
 
     if (Array.isArray(allowedBranchIds)) {
-      await prisma.userBranch.deleteMany({ where: { userId } });
-      if (allowedBranchIds.length > 0) {
-        const validBranchIds = await prisma.branch.findMany({
-          where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
-          select: { id: true }
-        });
-        const ids = validBranchIds.map((b) => b.id);
-        if (ids.length > 0) {
-          await prisma.userBranch.createMany({
-            data: ids.map((branchId) => ({ userId, branchId }))
+      const userBranch = prisma.userBranch;
+      if (!userBranch || typeof userBranch.deleteMany !== 'function') {
+        // Outdated generated client (schema has UserBranch but client was not regenerated).
+        // Still apply core user fields; branch restrictions are skipped until `npx prisma generate` + restart.
+        console.warn(
+          '[admin/users/update] Prisma client missing userBranch delegate; skipping allowedBranchIds sync. Run: npx prisma generate && restart.'
+        );
+      } else {
+        await userBranch.deleteMany({ where: { userId } });
+        if (allowedBranchIds.length > 0) {
+          const validBranchIds = await prisma.branch.findMany({
+            where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
+            select: { id: true }
           });
+          const ids = validBranchIds.map((b) => b.id);
+          if (ids.length > 0) {
+            await userBranch.createMany({
+              data: ids.map((branchId) => ({ userId, branchId })),
+            });
+          }
         }
       }
     }

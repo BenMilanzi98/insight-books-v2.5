@@ -717,7 +717,9 @@ export default function TaxTypesPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Reversed Taxes</h2>
-              <p className="text-sm text-gray-500">Tax amounts reversed via refunds and their corresponding transactions</p>
+              <p className="text-sm text-gray-500">
+                POS and invoice refunds, standalone GL <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries, and tax lines reversed inside compound expense journals (typical posted expense with tax). Hover a row for expense and journal IDs.
+              </p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -779,18 +781,56 @@ export default function TaxTypesPage() {
                     <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Date</th>
                     <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Transaction</th>
                     <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Type</th>
+                    <th className="px-4 py-2.5 text-left font-semibold text-gray-700 max-w-[140px]">GL / audit</th>
                     <th className="px-4 py-2.5 text-right font-semibold text-gray-700">Tax Reversed</th>
                     <th className="px-4 py-2.5 text-left font-semibold text-gray-700">Reason</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {reversedTaxes.map((row) => (
-                    <tr key={`${row.type}-${row.id}`} className="hover:bg-gray-50">
+                    <tr
+                      key={`${row.type}-${row.id}`}
+                      className="hover:bg-gray-50"
+                      title={
+                        row.sourceExpenseId || row.originalTaxTransactionId || row.transactionId
+                          ? [
+                              row.transactionId && `GL txn: ${row.transactionId}`,
+                              row.sourceExpenseId && `Expense: ${row.sourceExpenseId}`,
+                              row.originalTaxTransactionId && `Original tax txn: ${row.originalTaxTransactionId}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')
+                          : undefined
+                      }
+                    >
                       <td className="px-4 py-2.5 text-gray-700">
                         {row.date ? new Date(row.date).toLocaleDateString() : '—'}
                       </td>
                       <td className="px-4 py-2.5 font-medium text-gray-900">{row.reference}</td>
                       <td className="px-4 py-2.5 text-gray-700">{row.type}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-600 font-mono break-all max-w-[220px]">
+                        {row.transactionId || row.sourceExpenseId || row.originalTaxTransactionId ? (
+                          <div className="space-y-1">
+                            {row.transactionId && (
+                              <div className="truncate" title={row.transactionId}>
+                                GL: {row.transactionId}
+                              </div>
+                            )}
+                            {row.sourceExpenseId && (
+                              <div className="truncate" title={row.sourceExpenseId}>
+                                Expense: {row.sourceExpenseId}
+                              </div>
+                            )}
+                            {row.originalTaxTransactionId && (
+                              <div className="truncate" title={row.originalTaxTransactionId}>
+                                Orig. tax JE: {row.originalTaxTransactionId}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 text-right font-medium text-amber-700">{formatCurrency(row.taxReversed || 0)}</td>
                       <td className="px-4 py-2.5 text-gray-600 max-w-xs truncate" title={row.reason}>{row.reason || '—'}</td>
                     </tr>

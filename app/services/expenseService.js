@@ -227,6 +227,90 @@ export const createExpenseWithAttachments = async (expenseData, attachments) => 
     }
   };
 
+/**
+ * Full GL reversal of a posted Transaction (e.g. sale COGS journal).
+ * Uses /api/transactions/reverse — original entry stays; opposite lines + audit log.
+ */
+export const reversePostedGlTransaction = async ({ transactionId, reversalReason }) => {
+  const response = await fetch('/api/transactions/reverse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transactionId,
+      transactionType: 'Transaction',
+      reversalReason,
+    }),
+  });
+  if (!response.ok) {
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(body.error || 'Failed to reverse GL posting');
+  }
+  return response.json();
+};
+
+/** Full sale reversal (revenue, tax, remaining GL, payments). Skips journals already reversed (e.g. COGS done first). */
+export const reverseSalePosting = async ({ saleId, reversalReason }) => {
+  const response = await fetch('/api/transactions/reverse', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      transactionId: saleId,
+      transactionType: 'Sale',
+      reversalReason,
+    }),
+  });
+  if (!response.ok) {
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(body.error || 'Failed to reverse sale');
+  }
+  return response.json();
+};
+
+export const updateSalaryAdvance = async (advanceId, payload) => {
+  const response = await fetch(`/api/salary-advances/${advanceId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(body.error || body.details || 'Failed to update salary advance');
+  }
+  return response.json();
+};
+
+/** Salary advances listed on /expenses use synthetic ids `salary-advance-{id}`; delete via this API. */
+export const deleteSalaryAdvance = async (advanceId) => {
+  const response = await fetch(`/api/salary-advances/${advanceId}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      /* ignore */
+    }
+    throw new Error(body.error || body.details || 'Failed to delete salary advance');
+  }
+  return response.json();
+};
+
 // Batch delete expenses
 export const batchDeleteExpenses = async (expenseIds, reason = 'Batch deletion') => {
   const response = await fetch('/api/expenses/batch-delete', {
@@ -238,8 +322,19 @@ export const batchDeleteExpenses = async (expenseIds, reason = 'Batch deletion')
   });
 
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to delete expenses');
+    let body = {};
+    try {
+      body = await response.json();
+    } catch {
+      // non-JSON error body
+    }
+    let msg = body.error || 'Failed to delete expenses';
+    const missing = body.missingIds;
+    if (Array.isArray(missing) && missing.length > 0) {
+      const sample = missing.slice(0, 3).join(', ');
+      msg += ` Refresh the list and try again. Missing IDs (${missing.length}): ${sample}${missing.length > 3 ? '…' : ''}`;
+    }
+    throw new Error(msg);
   }
 
   return response.json();

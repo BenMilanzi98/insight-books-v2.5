@@ -72,6 +72,11 @@ export async function GET(request) {
           description: transaction.description,
           sourceType: transaction.sourceType,
           sourceId: transaction.sourceId,
+          isReversal: transaction.isReversal ?? false,
+          entryTypeDetail: transaction.entryType || null,
+          reversedTransactionId: transaction.reversedTransactionId || null,
+          reversalReason: transaction.reversalReason || null,
+          notes: transaction.notes || null,
           lines: transaction.lines.map((l) => ({
             id: l.id,
             accountId: l.accountId,

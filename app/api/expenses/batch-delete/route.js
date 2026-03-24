@@ -39,7 +39,22 @@ export async function POST(request) {
       );
     }
 
-    if (expenseIds.length > 100) {
+    const uniqueIds = [
+      ...new Set(
+        expenseIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      ),
+    ];
+
+    if (uniqueIds.length === 0) {
+      return NextResponse.json(
+        { error: 'Expense IDs are required and must be an array' },
+        { status: 400 }
+      );
+    }
+
+    if (uniqueIds.length > 100) {
       return NextResponse.json(
         { error: 'Cannot delete more than 100 expenses at once' },
         { status: 400 }
@@ -49,7 +64,7 @@ export async function POST(request) {
     // Validate all expenses exist and belong to the user's tenant
     const expenses = await prisma.expense.findMany({
       where: {
-        id: { in: expenseIds },
+        id: { in: uniqueIds },
         tenantId: user.tenantId,
         isDeleted: false // Only allow deletion of non-deleted expenses
       },
@@ -64,19 +79,21 @@ export async function POST(request) {
       }
     });
 
-    if (expenses.length !== expenseIds.length) {
-      const foundIds = expenses.map(e => e.id);
-      const missingIds = expenseIds.filter(id => !foundIds.includes(id));
+    if (expenses.length !== uniqueIds.length) {
+      const foundIds = new Set(expenses.map((e) => e.id));
+      const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
       return NextResponse.json(
-        { 
+        {
           error: 'Some expenses were not found or already deleted',
-          missingIds
+          missingIds,
         },
-        { status: 404 }
+        // 400 (not 404) so DevTools does not look like the API route is missing
+        { status: 400 }
       );
     }
 
     const reversalFailures = [];
+    const glReversalAuditByExpenseId = {};
     for (const expense of expenses) {
       if (expense.isReversal) continue;
       const postedJournal = await prisma.transaction.findFirst({
@@ -102,12 +119,20 @@ export async function POST(request) {
       if (existingReversal) continue;
 
       try {
-        await createExpenseReversal({
+        const revResult = await createExpenseReversal({
           expenseId: expense.id,
           reversalReason: `${auditReason} (batch)`,
           userId: user.id,
           tenantId: user.tenantId
         });
+        glReversalAuditByExpenseId[expense.id] = {
+          reversalExpenseId: revResult.reversal?.id ?? null,
+          reversalJournalEntryId: revResult.journalEntryId ?? null,
+          originalJournalEntryId: revResult.originalJournalEntryId ?? null,
+          taxReversalTransactionIds: (revResult.taxReversals || [])
+            .map((t) => t.reversalTaxTransactionId)
+            .filter(Boolean),
+        };
       } catch (revErr) {
         reversalFailures.push({
           id: expense.id,
@@ -130,7 +155,7 @@ export async function POST(request) {
     const results = await prisma.$transaction(async (tx) => {
       const updateResult = await tx.expense.updateMany({
         where: {
-          id: { in: expenseIds },
+          id: { in: uniqueIds },
           tenantId: user.tenantId,
           isDeleted: false
         },
@@ -155,7 +180,8 @@ export async function POST(request) {
           status: expense.status,
           reversalReason: auditReason,
           batchOperation: true,
-          canRestore: true
+          canRestore: true,
+          glReversal: glReversalAuditByExpenseId[expense.id] || null,
         })
       }));
 

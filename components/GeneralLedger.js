@@ -725,6 +725,7 @@ const GeneralLedger = () => {
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date</th>
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</th>
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Reference</th>
+                      <th className="px-4 py-3.5 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider w-24">GL type</th>
                       <th className="px-4 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account</th>
                       <th className="px-4 py-3.5 text-right text-xs font-semibold text-amber-600 uppercase tracking-wider">Debit</th>
                       <th className="px-4 py-3.5 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">Credit</th>
@@ -745,6 +746,18 @@ const GeneralLedger = () => {
                         <td className="px-4 py-3 text-slate-800 max-w-[200px] truncate" title={transaction.description}>{transaction.description}</td>
                         <td className="px-4 py-3">
                           <span className="font-medium text-indigo-600">{transaction.reference}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          {transaction.isReversal ? (
+                            <span
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800"
+                              title={transaction.reversalReason || "Reversing journal entry"}
+                            >
+                              Reversal
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-slate-700">
                           <span className="font-semibold text-slate-800">{transaction.accountCode}</span>
@@ -838,6 +851,15 @@ const GeneralLedger = () => {
                     {[
                       { label: "Entry type", value: entryDetails.entryType },
                       { label: "Entry ID", value: entryDetails.entryId },
+                      { label: "Classification", value: entryDetails.entryTypeDetail || "—" },
+                      {
+                        label: "Reversal",
+                        value: entryDetails.isReversal
+                          ? `Yes${entryDetails.reversedTransactionId ? ` (reverses ${entryDetails.reversedTransactionId})` : ""}`
+                          : "No",
+                      },
+                      { label: "Reversal reason", value: entryDetails.reversalReason || "—" },
+                      { label: "Notes", value: entryDetails.notes || "—" },
                       { label: "Source type", value: entryDetails.sourceType || "N/A" },
                       { label: "Source ID", value: entryDetails.sourceId || "N/A" },
                       { label: "Reference", value: entryDetails.reference || "N/A" },

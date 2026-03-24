@@ -267,29 +267,121 @@ export async function GET(request) {
       }
     }
 
+    // Expense reversal rows: reversal Expense has negative amount and reversedTransactionId → original expense.
+    // Enrich with original posting date/amount, tax reversed (from posted Tax-Expense GL or expense.taxAmount),
+    // GL journal id for the expense reversal, and user who performed the reversal (reversedById).
+    let expenseReversalPayload = [];
+    if (expensesReversals.length > 0) {
+      const originalExpenseIds = [
+        ...new Set(expensesReversals.map((e) => e.reversedTransactionId).filter(Boolean)),
+      ];
+      const reverserUserIds = [...new Set(expensesReversals.map((e) => e.reversedById).filter(Boolean))];
+      const reversalExpenseIds = expensesReversals.map((e) => e.id);
+
+      const [originalExpenses, reversers, taxExpenseTxns, glExpenseReversals] = await Promise.all([
+        originalExpenseIds.length
+          ? prisma.expense.findMany({
+              where: { id: { in: originalExpenseIds }, tenantId: user.tenantId },
+              select: {
+                id: true,
+                amount: true,
+                taxAmount: true,
+                date: true,
+                description: true,
+                merchant: true,
+              },
+            })
+          : Promise.resolve([]),
+        reverserUserIds.length
+          ? prisma.user.findMany({
+              where: { id: { in: reverserUserIds } },
+              select: { id: true, name: true, email: true },
+            })
+          : Promise.resolve([]),
+        originalExpenseIds.length
+          ? prisma.transaction.findMany({
+              where: {
+                tenantId: user.tenantId,
+                sourceType: 'Tax-Expense',
+                sourceId: { in: originalExpenseIds },
+                status: 'posted',
+                isReversal: false,
+              },
+              select: {
+                sourceId: true,
+                lines: { select: { debitAmount: true, creditAmount: true }, take: 1 },
+              },
+            })
+          : Promise.resolve([]),
+        reversalExpenseIds.length
+          ? prisma.transaction.findMany({
+              where: {
+                tenantId: user.tenantId,
+                sourceType: 'Expense',
+                sourceId: { in: reversalExpenseIds },
+                status: 'posted',
+                isReversal: true,
+              },
+              select: { id: true, sourceId: true },
+            })
+          : Promise.resolve([]),
+      ]);
+
+      const origById = Object.fromEntries(originalExpenses.map((o) => [o.id, o]));
+      const reverserById = Object.fromEntries(reversers.map((u) => [u.id, u]));
+      const taxPostedByExpenseId = {};
+      for (const t of taxExpenseTxns) {
+        const line = t.lines?.[0];
+        const amt = Math.max(Number(line?.debitAmount || 0), Number(line?.creditAmount || 0));
+        taxPostedByExpenseId[t.sourceId] = (taxPostedByExpenseId[t.sourceId] || 0) + amt;
+      }
+      const glByReversalExpenseId = Object.fromEntries(
+        glExpenseReversals.map((t) => [t.sourceId, t.id])
+      );
+
+      expenseReversalPayload = expensesReversals.map((expense) => {
+        const orig = expense.reversedTransactionId ? origById[expense.reversedTransactionId] : null;
+        const originalAmount =
+          orig != null ? Number(orig.amount) : Math.abs(Number(expense.amount));
+        const fromGlTax = expense.reversedTransactionId
+          ? taxPostedByExpenseId[expense.reversedTransactionId] || 0
+          : 0;
+        const fromRecordedTax = Number(orig?.taxAmount || 0);
+        const taxReversed =
+          fromGlTax > 0 ? fromGlTax : fromRecordedTax > 0 ? fromRecordedTax : null;
+
+        return {
+          id: expense.id,
+          type: 'expense',
+          description: expense.description,
+          originalAmount,
+          reversalAmount: -originalAmount,
+          date: orig?.date || expense.date,
+          reversedAt: expense.reversedAt,
+          reversalReason: expense.reversalReason,
+          originalTransactionId: expense.reversedTransactionId,
+          reversalTransactionId: expense.id,
+          originalExpenseId: expense.reversedTransactionId,
+          reversalExpenseId: expense.id,
+          glReversalJournalId: glByReversalExpenseId[expense.id] || null,
+          merchant: orig?.merchant ?? expense.merchant,
+          category: expense.category,
+          status: expense.status,
+          performedBy:
+            (expense.reversedById && reverserById[expense.reversedById]) || expense.deletedBy || null,
+          payments: expense.payments.map((p) => ({
+            id: p.id,
+            amount: p.amount,
+            date: p.paymentDate,
+          })),
+          taxReversed,
+        };
+      });
+    }
+
     // Transform and consolidate data
     const allReversals = [
-      ...expensesReversals.map(expense => ({
-        id: expense.id,
-        type: 'expense',
-        description: expense.description,
-        originalAmount: parseFloat(expense.amount),
-        reversalAmount: -parseFloat(expense.amount),
-        date: expense.date,
-        reversedAt: expense.reversedAt,
-        reversalReason: expense.reversalReason,
-        originalTransactionId: expense.id,
-        reversalTransactionId: expense.reversedTransactionId,
-        merchant: expense.merchant,
-        category: expense.category,
-        status: expense.status,
-        performedBy: expense.deletedBy || null,
-        payments: expense.payments.map(p => ({
-          id: p.id,
-          amount: p.amount,
-          date: p.paymentDate
-        }))
-      })),
+      ...expenseReversalPayload,
       ...invoiceReversals.map(invoice => ({
         id: invoice.id,
         type: 'sale',

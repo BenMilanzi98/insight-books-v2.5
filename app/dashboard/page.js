@@ -697,11 +697,6 @@ const BusinessOwnerDashboard = () => {
       setUpcomingPayments(upcomingPaymentsData.upcomingPayments);
       setFinancialPosition(financialPositionData.financialPosition);
 
-      // Debug data
-      console.log('Stock Alerts API Response:', stockAlertsData);
-      console.log('Receivables API Response:', receivablesData);
-      console.log('Payables API Response:', payablesData);
-
       setStockAlerts(stockAlertsData.alerts || []);
 
     } catch (err) {

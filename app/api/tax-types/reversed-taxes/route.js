@@ -1,10 +1,11 @@
 /**
  * GET /api/tax-types/reversed-taxes
- * Returns all reversed taxes and their corresponding transactions (POS refunds, invoice refunds).
+ * Returns reversed taxes: POS refunds, invoice refunds, and GL Tax-Reversal rows (e.g. expense deletion).
  */
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { fetchGlTaxReversalReportRows } from '@/lib/glReversedTaxReporting';
 
 export async function GET(request) {
   try {
@@ -65,6 +66,11 @@ export async function GET(request) {
       orderBy: { refundDate: 'desc' }
     });
 
+    const glTaxReversals = await fetchGlTaxReversalReportRows(prisma, user.tenantId, {
+      startDate,
+      endDate,
+    });
+
     const reversedTaxes = [
       ...refundedSales.map((s) => ({
         id: s.id,
@@ -88,7 +94,8 @@ export async function GET(request) {
           taxReversed: Math.abs((r.refundAmount / (r.invoice?.total || 1)) * Number(r.invoice?.taxAmount || 0)),
           reason: r.refundReason,
           transactionId: r.invoiceId
-        }))
+        })),
+      ...glTaxReversals
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return NextResponse.json({

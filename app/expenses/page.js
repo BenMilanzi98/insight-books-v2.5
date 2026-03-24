@@ -46,6 +46,10 @@ import {
   createExpense, 
   updateExpense, 
   deleteExpense,
+  deleteSalaryAdvance,
+  updateSalaryAdvance,
+  reversePostedGlTransaction,
+  reverseSalePosting,
   uploadAttachment,
   deleteAttachment,
   getExpenseStatistics,
@@ -73,6 +77,129 @@ import COGSSettlementModal from "@/components/COGSSettlementModal";
 import COGSSummaryChart from "@/components/COGSSummaryChart";
 import COGSExpensesTable from "@/components/COGSExpensesTable";
 import { ReversalStatusBadge, ReversalInfoCard, ReversalChain, ReversalAuditTrail } from '@/components/TransactionReversal/ReversalStatusBadge';
+
+/** Matches server validation in transactionReversalService / expenses batch-delete. */
+const MIN_EXPENSE_DELETE_REASON_LENGTH = 10;
+
+const SALARY_ADVANCE_ID_PREFIX = 'salary-advance-';
+const COGS_ROW_ID_PREFIX = 'cogs-';
+
+function partitionExpenseListDeleteIds(ids) {
+  const salaryAdvanceIds = [];
+  const cogsIds = [];
+  const expenseIds = [];
+  for (const id of ids) {
+    const s = id == null ? '' : String(id).trim();
+    if (!s) continue;
+    if (s.startsWith(SALARY_ADVANCE_ID_PREFIX)) {
+      const raw = s.slice(SALARY_ADVANCE_ID_PREFIX.length);
+      if (raw && raw !== 'receivable') salaryAdvanceIds.push(raw);
+    } else if (s.startsWith(COGS_ROW_ID_PREFIX)) {
+      cogsIds.push(s);
+    } else {
+      expenseIds.push(s);
+    }
+  }
+  return { salaryAdvanceIds, cogsIds, expenseIds };
+}
+
+function isCogsListRow(expense) {
+  if (!expense) return false;
+  if (expense.isCOGS === true) return true;
+  const id = expense.id;
+  return typeof id === 'string' && id.startsWith(COGS_ROW_ID_PREFIX);
+}
+
+const COGS_REVERSAL_CONFIRM_MSG =
+  'This posts a reversing entry in the general ledger. The original COGS posting stays for audit. Sale revenue and sales tax are not changed—only this COGS/inventory journal is reversed. Continue?';
+
+const FULL_SALE_AFTER_COGS_PROMPT =
+  'Reverse the linked sale completely as well?\n\n' +
+  'This reverses revenue, remaining journals, sales tax, and linked completed payments (standard void/refund flow). ' +
+  'COGS journals you just reversed are not reversed again.\n\n' +
+  'Continue with full sale reversal?';
+
+function fullSaleAfterCogsBatchPrompt(saleCount) {
+  return (
+    `Also fully reverse ${saleCount} linked sale(s)?\n\n` +
+    'Revenue, tax, remaining GL journals, and payments will be reversed. Already-reversed COGS entries are skipped.\n\n' +
+    'Continue?'
+  );
+}
+
+function collectLinkedSaleIdsFromCogsRowIds(rowIds, list) {
+  const ids = new Set();
+  for (const rid of rowIds) {
+    const row = list.find((e) => e.id === rid);
+    if (row?.linkedSaleId) ids.add(row.linkedSaleId);
+  }
+  return [...ids];
+}
+
+function collectUniqueCogsTransactionIds(rowIds, list) {
+  const txn = new Set();
+  for (const rid of rowIds) {
+    const row = list.find((e) => e.id === rid);
+    if (row?.isCOGS && row.transactionId) txn.add(row.transactionId);
+  }
+  return [...txn];
+}
+
+function classifyExpenseRowDeleteId(expenseId) {
+  const s = expenseId == null ? '' : String(expenseId).trim();
+  if (!s) return { kind: 'invalid' };
+  if (s.startsWith(SALARY_ADVANCE_ID_PREFIX)) {
+    const raw = s.slice(SALARY_ADVANCE_ID_PREFIX.length);
+    if (raw && raw !== 'receivable') return { kind: 'salaryAdvance', id: raw };
+    return { kind: 'invalid' };
+  }
+  if (s.startsWith(COGS_ROW_ID_PREFIX)) return { kind: 'cogs' };
+  return { kind: 'expense', id: s };
+}
+
+function isSalaryAdvanceDeleteBlockedByDeductions(message) {
+  const m = (message || '').toLowerCase();
+  return m.includes('deduction') || m.includes('cancelled instead');
+}
+
+/** Try hard-delete each advance; for blocked ones, optionally mark Cancelled (hidden from expenses list). */
+async function deleteSalaryAdvancesWithOptionalCancel(advanceIds) {
+  const blocked = [];
+  let hardDeleted = 0;
+  for (const advId of advanceIds) {
+    try {
+      await deleteSalaryAdvance(advId);
+      hardDeleted += 1;
+    } catch (e) {
+      if (isSalaryAdvanceDeleteBlockedByDeductions(e?.message)) {
+        blocked.push(advId);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  let cancelled = 0;
+  if (blocked.length > 0) {
+    const msg =
+      blocked.length === 1
+        ? 'This salary advance has payroll deductions and cannot be permanently deleted.\n\nMark it as Cancelled? It will disappear from this list but remain in HR → Advances for audit.'
+        : `${blocked.length} salary advances have payroll deductions and cannot be permanently deleted.\n\nMark them as Cancelled? They will disappear from this list but remain in HR → Advances for audit.`;
+    if (typeof window !== 'undefined' && !window.confirm(msg)) {
+      throw new Error(
+        blocked.length === 1
+          ? 'Salary advance was not deleted or cancelled.'
+          : 'Salary advances with deductions were not cancelled.'
+      );
+    }
+    for (const id of blocked) {
+      await updateSalaryAdvance(id, { status: 'Cancelled' });
+      cancelled += 1;
+    }
+  }
+
+  return { hardDeleted, cancelled };
+}
 
 const ExpensesPage = () => {
   // State management
@@ -367,15 +494,143 @@ const ExpensesPage = () => {
 
   // Handle confirmed deletion from modal
   const handleConfirmDelete = async () => {
-    if (!deleteReason.trim()) return;
+    const trimmed = deleteReason.trim();
+    if (!trimmed || trimmed.length < MIN_EXPENSE_DELETE_REASON_LENGTH) return;
 
     try {
       if (deleteType === 'single') {
-        await deleteExpense(expenseToDelete, deleteReason.trim());
-        setSuccessMessage('Expense deleted successfully');
+        const target = classifyExpenseRowDeleteId(expenseToDelete);
+        const listForRow = showDeletedExpenses ? deletedExpenses : expenses;
+        if (target.kind === 'cogs') {
+          const row = listForRow.find((e) => e.id === expenseToDelete);
+          const txnId = row?.transactionId;
+          if (!txnId) {
+            alert('Could not resolve this COGS posting to a journal entry.');
+            return;
+          }
+          if (typeof window !== 'undefined' && !window.confirm(COGS_REVERSAL_CONFIRM_MSG)) {
+            return;
+          }
+          await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
+          let cogsSuccessMsg =
+            'COGS journal reversed in the general ledger (original entry retained for audit).';
+          if (
+            row?.linkedSaleId &&
+            typeof window !== 'undefined' &&
+            window.confirm(FULL_SALE_AFTER_COGS_PROMPT)
+          ) {
+            await reverseSalePosting({
+              saleId: row.linkedSaleId,
+              reversalReason: `${trimmed} (full sale reversal after COGS)`,
+            });
+            cogsSuccessMsg =
+              'COGS and the linked sale were fully reversed (revenue, tax, payments, GL—original entries kept for audit).';
+          }
+          setSuccessMessage(cogsSuccessMsg);
+        } else if (target.kind === 'salaryAdvance') {
+          try {
+            await deleteSalaryAdvance(target.id);
+            setSuccessMessage('Salary advance deleted successfully');
+          } catch (e) {
+            if (isSalaryAdvanceDeleteBlockedByDeductions(e?.message)) {
+              if (
+                typeof window !== 'undefined' &&
+                !window.confirm(
+                  'This salary advance has payroll deductions and cannot be permanently deleted.\n\nMark it as Cancelled? It will disappear from this list but remain in HR → Advances for audit.'
+                )
+              ) {
+                return;
+              }
+              await updateSalaryAdvance(target.id, { status: 'Cancelled' });
+              setSuccessMessage('Salary advance marked as cancelled (removed from this list)');
+            } else {
+              throw e;
+            }
+          }
+        } else if (target.kind === 'expense') {
+          await deleteExpense(target.id, trimmed);
+          setSuccessMessage('Expense deleted successfully');
+        } else {
+          alert('Invalid item selected for deletion.');
+          return;
+        }
       } else {
-        await batchDeleteExpenses(expenseToDelete, deleteReason.trim());
-        setSuccessMessage(`${expenseToDelete.length} expenses deleted successfully`);
+        const list = showDeletedExpenses ? deletedExpenses : expenses;
+        const { salaryAdvanceIds, cogsIds, expenseIds } = partitionExpenseListDeleteIds(expenseToDelete);
+        const cogsTxnIds = collectUniqueCogsTransactionIds(cogsIds, list);
+
+        if (salaryAdvanceIds.length === 0 && expenseIds.length === 0 && cogsTxnIds.length === 0) {
+          setDeleteModalOpen(false);
+          setDeleteReason('');
+          setExpenseToDelete(null);
+          setSuccessMessage('Nothing to delete.');
+          setTimeout(() => setSuccessMessage(''), 5000);
+          return;
+        }
+
+        if (cogsTxnIds.length > 0 && typeof window !== 'undefined' && !window.confirm(COGS_REVERSAL_CONFIRM_MSG)) {
+          return;
+        }
+
+        let cogsReversed = 0;
+        for (const txnId of cogsTxnIds) {
+          await reversePostedGlTransaction({ transactionId: txnId, reversalReason: trimmed });
+          cogsReversed += 1;
+        }
+
+        let fullSalesReversed = 0;
+        const linkedSaleIds = collectLinkedSaleIdsFromCogsRowIds(cogsIds, list);
+        if (
+          linkedSaleIds.length > 0 &&
+          typeof window !== 'undefined' &&
+          window.confirm(
+            linkedSaleIds.length === 1
+              ? FULL_SALE_AFTER_COGS_PROMPT
+              : fullSaleAfterCogsBatchPrompt(linkedSaleIds.length)
+          )
+        ) {
+          for (const sid of linkedSaleIds) {
+            await reverseSalePosting({
+              saleId: sid,
+              reversalReason: `${trimmed} (full sale reversal after COGS batch)`,
+            });
+            fullSalesReversed += 1;
+          }
+        }
+
+        const saResult = await deleteSalaryAdvancesWithOptionalCancel(salaryAdvanceIds);
+        if (expenseIds.length > 0) {
+          await batchDeleteExpenses(expenseIds, trimmed);
+        }
+        const summaryParts = [];
+        if (cogsReversed > 0) {
+          summaryParts.push(
+            `${cogsReversed} COGS journal${cogsReversed !== 1 ? 's' : ''} reversed (GL audit trail kept)`
+          );
+        }
+        if (fullSalesReversed > 0) {
+          summaryParts.push(
+            `${fullSalesReversed} linked sale${fullSalesReversed !== 1 ? 's' : ''} fully reversed`
+          );
+        }
+        if (saResult.hardDeleted > 0) {
+          summaryParts.push(
+            `${saResult.hardDeleted} salary advance${saResult.hardDeleted !== 1 ? 's' : ''} deleted`
+          );
+        }
+        if (saResult.cancelled > 0) {
+          summaryParts.push(
+            `${saResult.cancelled} marked cancelled (removed from list)`
+          );
+        }
+        if (expenseIds.length > 0) {
+          summaryParts.push(
+            `${expenseIds.length} expense${expenseIds.length !== 1 ? 's' : ''} deleted`
+          );
+        }
+        setSuccessMessage(
+          summaryParts.length > 0 ? summaryParts.join(' · ') : 'Done'
+        );
       }
       
       await loadExpenses();
@@ -388,7 +643,8 @@ const ExpensesPage = () => {
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (error) {
       console.error('Error deleting expense(s):', error);
-      alert('Failed to delete expense(s). Please try again.');
+      await loadExpenses();
+      alert(error?.message || 'Failed to delete expense(s). Please try again.');
     }
   };
 
@@ -446,10 +702,18 @@ const ExpensesPage = () => {
       return;
     }
     
-    const reason = prompt('Please provide a reason for deleting this expense:') || 'Manual deletion';
-    
+    const reason = prompt(
+      `Reason for deletion (at least ${MIN_EXPENSE_DELETE_REASON_LENGTH} characters for audit):`
+    );
+    if (reason === null) return;
+    const trimmed = reason.trim();
+    if (trimmed.length < MIN_EXPENSE_DELETE_REASON_LENGTH) {
+      alert(`Please enter at least ${MIN_EXPENSE_DELETE_REASON_LENGTH} characters, or use batch delete from the list.`);
+      return;
+    }
+
     try {
-      await deleteExpense(expenseId, reason);
+      await deleteExpense(expenseId, trimmed);
       
       // Remove from expenses list
       setExpenses(expenses.filter(expense => expense.id !== expenseId));
@@ -465,9 +729,10 @@ const ExpensesPage = () => {
   };
 
   // Handle expense selection
-  const handleExpenseSelect = (expenseId) => {
+  const handleExpenseSelect = (expense) => {
+    const expenseId = expense.id;
     if (selectedExpenses.includes(expenseId)) {
-      setSelectedExpenses(selectedExpenses.filter(id => id !== expenseId));
+      setSelectedExpenses(selectedExpenses.filter((id) => id !== expenseId));
     } else {
       setSelectedExpenses([...selectedExpenses, expenseId]);
     }
@@ -475,10 +740,13 @@ const ExpensesPage = () => {
 
   // Handle select all expenses
   const handleSelectAll = () => {
-    if (selectedExpenses.length === expenses.length) {
+    const allIds = expenses.map((e) => e.id);
+    const allSelected =
+      allIds.length > 0 && allIds.every((id) => selectedExpenses.includes(id));
+    if (allSelected) {
       setSelectedExpenses([]);
     } else {
-      setSelectedExpenses(expenses.map(expense => expense.id));
+      setSelectedExpenses(allIds);
     }
   };
   
@@ -1813,12 +2081,22 @@ const handleFileUpload = async (e) => {
                       selectedExpenses.includes(expense.id) 
                               ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 shadow-sm' 
                               : 'hover:bg-gray-50 hover:shadow-sm'
-                    }`}
-                    onClick={() => handleExpenseSelect(expense.id)}
+                    } ${isCogsListRow(expense) ? 'bg-slate-50/40' : ''}`}
+                    title={
+                      isCogsListRow(expense)
+                        ? 'COGS from a sale: remove via Delete to post a reversing GL entry (original journal kept for audit).'
+                        : undefined
+                    }
+                    onClick={() => handleExpenseSelect(expense)}
                   >
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600">
                       <div className="flex items-center">
                         {expense.id}
+                        {isCogsListRow(expense) && (
+                          <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">
+                            COGS
+                          </span>
+                        )}
                         {expense.isHistorical && (
                           <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                             <History className="w-3 h-3 mr-1" />
@@ -2964,18 +3242,23 @@ const handleFileUpload = async (e) => {
                   }
                 </p>
                 
-                <div className="mb-4">
+                <div className="mb-4 text-left">
                   <label htmlFor="deleteReason" className="block text-sm font-medium text-gray-700 mb-2">
                     Reason for deletion *
                   </label>
                   <textarea
                     id="deleteReason"
                     rows={3}
+                    minLength={MIN_EXPENSE_DELETE_REASON_LENGTH}
+                    maxLength={1000}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                    placeholder="Please provide a reason for deletion..."
+                    placeholder={`At least ${MIN_EXPENSE_DELETE_REASON_LENGTH} characters (required for audit / GL reversal)...`}
                     value={deleteReason}
                     onChange={(e) => setDeleteReason(e.target.value)}
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    {deleteReason.trim().length}/{MIN_EXPENSE_DELETE_REASON_LENGTH} minimum characters
+                  </p>
                 </div>
               </div>
             </div>
@@ -2995,12 +3278,12 @@ const handleFileUpload = async (e) => {
               <button
                 type="button"
                 className={`px-4 py-2 text-sm font-medium text-white rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
-                  deleteReason.trim() 
+                  deleteReason.trim().length >= MIN_EXPENSE_DELETE_REASON_LENGTH
                     ? 'bg-red-600 hover:bg-red-700' 
                     : 'bg-gray-400 cursor-not-allowed'
                 }`}
                 onClick={handleConfirmDelete}
-                disabled={!deleteReason.trim()}
+                disabled={deleteReason.trim().length < MIN_EXPENSE_DELETE_REASON_LENGTH}
               >
                 {deleteType === 'single' ? 'Delete Expense' : `Delete ${expenseToDelete?.length} Expenses`}
               </button>

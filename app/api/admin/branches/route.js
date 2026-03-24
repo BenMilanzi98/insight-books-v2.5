@@ -14,13 +14,19 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId');
+    const includeInactive = searchParams.get('includeInactive');
+
+    const where = {};
+    if (tenantId) where.tenantId = tenantId;
+    if (includeInactive === 'false') where.isActive = true;
 
     const branches = await prisma.branch.findMany({
-      where: tenantId ? { tenantId } : undefined,
+      where: Object.keys(where).length ? where : undefined,
       select: {
         id: true,
         tenantId: true,
         name: true,
+        code: true,
         isActive: true,
         createdAt: true,
         tenant: {

@@ -132,7 +132,22 @@ export async function GET(request) {
         where: transactionWhere,
         include: {
           account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
-          transaction: { select: { id: true, date: true, reference: true, description: true, branchId: true, sourceType: true, sourceId: true, isReversal: true, entryType: true } },
+          transaction: {
+            select: {
+              id: true,
+              date: true,
+              reference: true,
+              description: true,
+              branchId: true,
+              sourceType: true,
+              sourceId: true,
+              isReversal: true,
+              entryType: true,
+              reversedTransactionId: true,
+              reversalReason: true,
+              notes: true,
+            },
+          },
         },
       }),
     ]);
@@ -200,6 +215,8 @@ export async function GET(request) {
         transactionId: line.transactionId,
         entryType: line.transaction?.entryType || 'Transaction',
         isReversal: line.transaction?.isReversal ?? false,
+        reversedTransactionId: line.transaction?.reversedTransactionId || null,
+        reversalReason: line.transaction?.reversalReason || null,
         date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
         description: line.transaction?.description || line.description || '',
         reference: line.transaction?.reference || '',

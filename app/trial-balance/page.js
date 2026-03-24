@@ -579,6 +579,7 @@ const TrialBalance = () => {
                         <th className="p-3 font-medium text-right">Debit</th>
                         <th className="p-3 font-medium text-right">Credit</th>
                         <th className="p-3 font-medium">Source</th>
+                        <th className="p-3 font-medium">Audit</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -588,7 +589,29 @@ const TrialBalance = () => {
                             {transaction.date ? formatApiDate(transaction.date) : 'N/A'}
                           </td>
                           <td className="p-3">{transaction.reference || '-'}</td>
-                          <td className="p-3">{transaction.description || '-'}</td>
+                          <td className="p-3">
+                            <span className="block">{transaction.description || '-'}</span>
+                            {transaction.isReversal && (
+                              <span
+                                className="block text-xs text-amber-800 mt-1"
+                                title={[
+                                  transaction.reversalReason,
+                                  transaction.reversedTransactionId && `Reverses journal: ${transaction.reversedTransactionId}`,
+                                ]
+                                  .filter(Boolean)
+                                  .join(' · ')}
+                              >
+                                {transaction.reversalReason
+                                  ? `Reversal: ${transaction.reversalReason.length > 80 ? `${transaction.reversalReason.slice(0, 80)}…` : transaction.reversalReason}`
+                                  : 'Reversal entry'}
+                                {transaction.reversedTransactionId && (
+                                  <span className="block text-[11px] text-amber-700/90 mt-0.5 font-mono">
+                                    Reverses JE: {transaction.reversedTransactionId}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </td>
                           <td className="p-3 text-right">
                             {transaction.debit && transaction.debit > 0 ? formatCurrency(transaction.debit, "", 2) : '-'}
                           </td>
@@ -596,9 +619,20 @@ const TrialBalance = () => {
                             {transaction.credit && transaction.credit > 0 ? formatCurrency(transaction.credit, "", 2) : '-'}
                           </td>
                           <td className="p-3">
-                            <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800">
-                              {transaction.source || 'Transaction'}
+                            <span className="px-2 py-1 text-xs rounded bg-blue-100 text-blue-800" title={transaction.sourceType || ''}>
+                              {transaction.sourceType
+                                ? `${transaction.source} · ${transaction.sourceType}`
+                                : transaction.source || 'Transaction'}
                             </span>
+                          </td>
+                          <td className="p-3">
+                            {transaction.isReversal ? (
+                              <span className="px-2 py-1 text-xs rounded bg-rose-100 text-rose-800 font-medium">
+                                Reversal
+                              </span>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
                           </td>
                         </tr>
                       ))}

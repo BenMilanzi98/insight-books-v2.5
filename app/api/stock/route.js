@@ -67,8 +67,12 @@ export async function GET(request) {
         select: { id: true }
       });
       if (branch) {
-        // Product model uses branchId field (not branch relation for filtering)
-        where.branchId = desiredBranchId;
+        // Include both branch-specific and global products.
+        // Global products (branchId=null) should remain visible in every branch context.
+        where.AND = [
+          ...(where.AND || []),
+          { OR: [{ branchId: desiredBranchId }, { branchId: null }] }
+        ];
       }
     } else if (user?.currentBranchId === null) {
       // If explicitly set to null (All Branches), don't filter by branch
@@ -294,7 +298,10 @@ export async function POST(request) {
 
     // Resolve branch for the new product (optional)
     // Ensure branchId is a string, not an object
-    let desiredBranchId = body.branchId || user.defaultBranchId || null;
+    let desiredBranchId = body.branchId ?? null;
+    if (desiredBranchId === '') {
+      desiredBranchId = null;
+    }
     if (desiredBranchId && typeof desiredBranchId !== 'string') {
       // If it's an object, try to extract the id
       if (desiredBranchId.id && typeof desiredBranchId.id === 'string') {
