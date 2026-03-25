@@ -435,45 +435,52 @@ export async function GET(request) {
       }
     }
     
-    // Fetch attachments for each expense
+    // Fetch attachments for each expense (defensive: attachments should never break the whole endpoint)
     const expensesWithAttachments = await Promise.all(
       allExpensesFromDB.map(async (expense) => {
-        // Query for attachments (assuming there's an Attachment model)
-        const attachments = await prisma.expenseAttachment.findMany({
-          where: {
-            expenseId: expense.id
-          },
-          select: {
-            id: true,
-            filename: true,
-            fileType: true,
-            fileSize: true,
-            uploadedAt: true,
+        let attachments = [];
+        try {
+          attachments = await prisma.expenseAttachment.findMany({
+            where: { expenseId: expense.id },
+            select: {
+              id: true,
+              filename: true,
+              fileType: true,
+              fileSize: true,
+              uploadedAt: true,
+            }
+          });
+        } catch (attachmentsErr) {
+          console.error('Error fetching expense attachments:', attachmentsErr);
+          attachments = [];
+        }
+
+        const amountNum = typeof expense.amount === 'number' ? expense.amount : Number(expense.amount);
+        const formattedAmount = Number.isFinite(amountNum)
+          ? amountNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : '0.00';
+
+        // Safely format the date as YYYY-MM-DD
+        let formattedDate = new Date().toISOString().split('T')[0];
+        if (expense.date) {
+          const d = expense.date instanceof Date ? expense.date : new Date(expense.date);
+          if (!Number.isNaN(d.getTime())) {
+            formattedDate = d.toISOString().split('T')[0];
           }
-        });
-        
-        // Format amounts as strings with thousand separators
-        const formattedAmount = expense.amount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
-        
-        // Safely format the date
-        const formattedDate = expense.date 
-          ? expense.date.toISOString().split('T')[0] 
-          : new Date().toISOString().split('T')[0]; // Fallback to today if date is null
-        
+        }
+
         return {
           ...expense,
-          amount: formattedAmount,
-          // Format the date as YYYY-MM-DD for consistent display
+          amount: formattedAmount, // display-ready string
           date: formattedDate,
-          attachments: attachments.map(attachment => ({
+          attachments: attachments.map((attachment) => ({
             id: attachment.id,
             name: attachment.filename,
             type: attachment.fileType,
             size: formatFileSize(attachment.fileSize),
-            date: attachment.uploadedAt ? attachment.uploadedAt.toISOString().split("T")[0] : new Date().toISOString().split("T")[0]
+            date: attachment.uploadedAt
+              ? attachment.uploadedAt.toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
           })),
           isCOGS: false // Flag to identify regular expenses
         };
@@ -522,24 +529,32 @@ export async function GET(request) {
     const paginatedExpenses = allExpenses.slice(skip, skip + limit);
 
     // Format COGS transaction and salary advance amounts
-    const formattedExpenses = paginatedExpenses.map(expense => {
-      // Format amount
-      const formattedAmount = expense.amount.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      });
-      
-      // Safely format the date
-      const formattedDate = expense.date 
-        ? (expense.date instanceof Date 
-            ? expense.date.toISOString().split('T')[0] 
-            : expense.date)
-        : new Date().toISOString().split('T')[0];
-      
+    const formattedExpenses = paginatedExpenses.map((expense) => {
+      // Some sources (regular expenses) were already formatted as a string with commas.
+      const amountNum =
+        typeof expense.amount === 'string'
+          ? parseFloat(expense.amount.replace(/,/g, ''))
+          : typeof expense.amount === 'number'
+            ? expense.amount
+            : Number(expense.amount);
+
+      const formattedAmount = Number.isFinite(amountNum)
+        ? amountNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '0.00';
+
+      // Safely format the date as YYYY-MM-DD
+      let formattedDate = new Date().toISOString().split('T')[0];
+      if (expense.date) {
+        const d = expense.date instanceof Date ? expense.date : new Date(expense.date);
+        if (!Number.isNaN(d.getTime())) {
+          formattedDate = d.toISOString().split('T')[0];
+        }
+      }
+
       return {
         ...expense,
         amount: formattedAmount,
-        date: formattedDate
+        date: formattedDate,
       };
     });
     
