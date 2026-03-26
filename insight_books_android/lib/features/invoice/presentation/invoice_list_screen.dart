@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/stat_card.dart';
+import '../../pos/data/pos_repository.dart';
+import '../../pos/domain/pos_models.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_provider.dart';
 
@@ -14,6 +16,7 @@ class InvoiceListScreen extends ConsumerStatefulWidget {
 }
 
 class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
+  List<PosClient> _clients = const [];
   final _searchController = TextEditingController();
   final _currencyFormat = NumberFormat.currency(
     symbol: 'MK ',
@@ -24,9 +27,20 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadClients();
       ref.read(invoiceControllerProvider.notifier).refresh();
     });
   }
+  Future<void> _loadClients() async {
+    try {
+      final clients = await ref.read(posRepositoryProvider).fetchClients();
+      if (!mounted) return;
+      setState(() {
+        _clients = clients;
+      });
+    } catch (_) {}
+  }
+
 
   @override
   void dispose() {
@@ -39,6 +53,15 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     final state = ref.watch(invoiceControllerProvider);
     final controller = ref.read(invoiceControllerProvider.notifier);
     final theme = Theme.of(context);
+
+    if (!state.canViewInvoices) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Invoices')),
+        body: const Center(
+          child: Text('You do not have permission to view this page.'),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -63,12 +86,12 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
             tooltip: 'Export CSV',
-            onPressed: () => controller.exportCsv(),
+            onPressed: state.canExportInvoices ? () => controller.exportCsv() : null,
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/invoice/create'),
+        onPressed: state.canCreateInvoices ? () => context.push('/invoice/create') : null,
         child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
@@ -491,6 +514,21 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
               ),
             ),
           ),
+          const SizedBox(width: 8),
+          DropdownButton<int>(
+            value: state.limit,
+            items: const [10, 20, 50, 100]
+                .map(
+                  (e) => DropdownMenuItem<int>(
+                    value: e,
+                    child: Text('$e / page'),
+                  ),
+                )
+                .toList(),
+            onChanged: (value) {
+              if (value != null) controller.setLimit(value);
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.chevron_right),
             onPressed: state.page < state.totalPages
@@ -512,10 +550,11 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     InvoiceController controller,
   ) {
     final sortOptions = {
-      'createdAt': 'Date Created',
+      'date': 'Date',
       'dueDate': 'Due Date',
       'total': 'Amount',
-      'invoiceNumber': 'Invoice Number',
+      'clientName': 'Client',
+      'status': 'Status',
     };
 
     showModalBottomSheet(
@@ -602,6 +641,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     DateTime? toDate = state.dateTo != null
         ? DateTime.tryParse(state.dateTo!)
         : null;
+    String? selectedClientId = state.clientFilter;
 
     showModalBottomSheet(
       context: context,
@@ -699,6 +739,34 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                       ],
                     ),
                     const SizedBox(height: 24),
+                    Text(
+                      'Client',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String?>(
+                      value: selectedClientId,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('All Clients'),
+                        ),
+                        ..._clients.map(
+                          (client) => DropdownMenuItem<String?>(
+                            value: client.id,
+                            child: Text(client.name),
+                          ),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        setSheetState(() => selectedClientId = value);
+                      },
+                    ),
+                    const SizedBox(height: 24),
 
                     // Apply Button
                     SizedBox(
@@ -709,6 +777,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                             fromDate?.toIso8601String().split('T').first,
                             toDate?.toIso8601String().split('T').first,
                           );
+                          controller.setClientFilter(selectedClientId);
                           Navigator.pop(ctx);
                         },
                         child: const Text('Apply Filters'),

@@ -83,6 +83,10 @@ class AccountRepository {
         name: _toString(accountData['name'] ?? tenantData['name']) ?? '',
         subdomain: _toString(accountData['subdomain']),
         subscriptionPlan: _toString(accountData['subscriptionPlan']),
+        defaultBranchId: _toString(
+          accountData['defaultBranchId'] ?? tenantData['defaultBranchId'],
+        ),
+        tpin: _toString(accountData['tpin'] ?? tenantData['tpin']),
         logoUrl: _toString(accountData['logoUrl'] ?? tenantData['logoUrl']),
         faviconUrl: _toString(accountData['faviconUrl']),
         primaryColor:
@@ -101,6 +105,8 @@ class AccountRepository {
         businessPhone: _toString(tenantData['businessPhone']),
         businessEmail: _toString(tenantData['businessEmail']),
         receiptFooter: _toString(tenantData['receiptFooter']),
+        defaultBankDetails: _toString(tenantData['defaultBankDetails']),
+        taxOutflowAccountId: _toString(tenantData['taxOutflowAccountId']),
         emailFooter: _toString(
           accountData['emailFooter'] ?? tenantData['emailFooter'],
         ),
@@ -111,6 +117,12 @@ class AccountRepository {
         emailNotifications: accountData['emailNotifications'] ?? true,
         smsNotifications: accountData['smsNotifications'] ?? false,
         inAppNotifications: accountData['inAppNotifications'] ?? true,
+        dailyReports: tenantData['dailyReports'] ?? false,
+        weeklyReports: tenantData['weeklyReports'] ?? true,
+        monthlyReports: tenantData['monthlyReports'] ?? true,
+        invoiceReminders: tenantData['invoiceReminders'] ?? true,
+        lowStockAlerts: tenantData['lowStockAlerts'] ?? true,
+        paymentReceipts: tenantData['paymentReceipts'] ?? true,
       );
     } catch (e) {
       rethrow;
@@ -133,6 +145,7 @@ class AccountRepository {
       'name': settings.name,
       'primaryColor': settings.primaryColor,
       'secondaryColor': settings.secondaryColor,
+      'defaultBranchId': settings.defaultBranchId,
       'emailFooter': settings.emailFooter,
       'customDomain': settings.customDomain,
       'emailNotifications': settings.emailNotifications,
@@ -159,6 +172,7 @@ class AccountRepository {
       '/api/tenant/settings',
       data: {
         'name': settings.name,
+        'tpin': settings.tpin,
         'primaryColor': settings.primaryColor,
         'secondaryColor': settings.secondaryColor,
         'buildingName': settings.buildingName,
@@ -167,11 +181,109 @@ class AccountRepository {
         'businessPhone': settings.businessPhone,
         'businessEmail': settings.businessEmail,
         'receiptFooter': settings.receiptFooter,
+        'defaultBankDetails': settings.defaultBankDetails,
+        'taxOutflowAccountId': settings.taxOutflowAccountId,
         'emailFooter': settings.emailFooter,
         'currencyCode': settings.currencyCode,
         'taxEnabled': settings.taxEnabled,
         'defaultTaxRate': settings.defaultTaxRate,
+        'dailyReports': settings.dailyReports,
+        'weeklyReports': settings.weeklyReports,
+        'monthlyReports': settings.monthlyReports,
+        'invoiceReminders': settings.invoiceReminders,
+        'lowStockAlerts': settings.lowStockAlerts,
+        'paymentReceipts': settings.paymentReceipts,
       },
     );
+  }
+
+  Future<List<Map<String, dynamic>>> fetchBranches() async {
+    final response = await _dio.get('/api/branches');
+    final raw = response.data;
+    final list = raw is Map ? (raw['branches'] ?? []) : [];
+    return (list as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> fetchChartAccounts() async {
+    final response = await _dio.get(
+      '/api/chart-of-accounts',
+      queryParameters: {'limit': 500},
+    );
+    final raw = response.data;
+    final list = raw is Map ? (raw['accounts'] ?? []) : [];
+    return (list as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Set<String>> fetchUserPermissions() async {
+    try {
+      final response = await _dio.get('/api/auth/me');
+      final data = response.data;
+      final user = data is Map ? (data['user'] ?? data) : data;
+      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
+      final permissions = <String>{};
+      if (raw is List) {
+        for (final p in raw) {
+          if (p != null) permissions.add(p.toString());
+        }
+      }
+      return permissions;
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchInvoiceTemplates() async {
+    final response = await _dio.get('/api/invoice/templates');
+    final raw = response.data;
+    final list = raw is Map ? (raw['templates'] ?? []) : [];
+    return (list as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createInvoiceTemplate({
+    required String name,
+    String? content,
+    bool isDefault = false,
+  }) async {
+    final response = await _dio.post(
+      '/api/invoice/templates',
+      data: {
+        'name': name,
+        'content': content ?? '{}',
+        'isDefault': isDefault,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> updateInvoiceTemplate({
+    required String id,
+    required String name,
+    String? content,
+    bool isDefault = false,
+  }) async {
+    final response = await _dio.put(
+      '/api/invoice/templates',
+      data: {
+        'id': id,
+        'name': name,
+        'content': content ?? '{}',
+        'isDefault': isDefault,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> deleteInvoiceTemplate(String id) async {
+    await _dio.delete('/api/invoice/templates/$id');
+  }
+
+  Future<void> setDefaultInvoiceTemplate(String id) async {
+    await _dio.put('/api/invoice/templates/$id/set-default');
   }
 }

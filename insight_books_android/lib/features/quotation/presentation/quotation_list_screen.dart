@@ -4,17 +4,62 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import '../../pos/data/pos_repository.dart';
+import '../../pos/domain/pos_models.dart';
 import '../domain/quotation_model.dart';
+import '../data/quotation_repository.dart';
 import 'providers/quotation_provider.dart';
 
-class QuotationListScreen extends ConsumerWidget {
+class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<QuotationListScreen> createState() => _QuotationListScreenState();
+}
+
+class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
+  final _searchController = TextEditingController();
+  List<PosClient> _clients = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadClients();
+      ref.read(quotationControllerProvider.notifier).loadAll();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadClients() async {
+    try {
+      final clients = await ref.read(posRepositoryProvider).fetchClients();
+      if (!mounted) return;
+      setState(() {
+        _clients = clients;
+      });
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(quotationControllerProvider);
     final notifier = ref.read(quotationControllerProvider.notifier);
     final theme = Theme.of(context);
+
+    if (!state.canViewQuotations) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Quotations')),
+        body: const Center(
+          child: Text('You do not have permission to view this page.'),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -30,7 +75,30 @@ class QuotationListScreen extends ConsumerWidget {
         backgroundColor: Theme.of(context).colorScheme.surface,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
         elevation: 0,
-        actions: const [ThemeToggleButton()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort',
+            onPressed: () => _showSortSheet(context, state, notifier),
+          ),
+          IconButton(
+            icon: Badge(
+              isLabelVisible:
+                  state.dateFrom != null ||
+                  state.dateTo != null ||
+                  state.clientFilter != null,
+              child: const Icon(Icons.filter_list),
+            ),
+            tooltip: 'Filter',
+            onPressed: () => _showFilterSheet(context, state, notifier),
+          ),
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Export CSV',
+            onPressed: state.canExportQuotations ? () => notifier.exportCsv() : null,
+          ),
+          const ThemeToggleButton(),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => notifier.loadAll(),
@@ -44,9 +112,20 @@ class QuotationListScreen extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: TextField(
+                  controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search by quotation # or client…',
+                    hintText: 'Search by quotation number or client...',
                     prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {});
+                              notifier.setSearchQuery('');
+                            },
+                          )
+                        : null,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -54,7 +133,10 @@ class QuotationListScreen extends ConsumerWidget {
                     fillColor: theme.colorScheme.surfaceContainerLow,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                   ),
-                  onChanged: notifier.setSearchQuery,
+                  onChanged: (value) {
+                    setState(() {});
+                    notifier.setSearchQuery(value);
+                  },
                 ),
               ),
             ),
@@ -73,25 +155,25 @@ class QuotationListScreen extends ConsumerWidget {
                       ),
                       _StatusChip(
                         label: 'Pending',
-                        value: 'Pending',
+                        value: 'pending',
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
                       _StatusChip(
                         label: 'Approved',
-                        value: 'Approved',
+                        value: 'approved',
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
                       _StatusChip(
-                        label: 'Draft',
-                        value: 'Draft',
+                        label: 'Drafts',
+                        value: 'draft',
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
                       _StatusChip(
                         label: 'Converted',
-                        value: 'Converted',
+                        value: 'converted',
                         current: state.statusFilter,
                         onTap: notifier.setStatusFilter,
                       ),
@@ -106,6 +188,41 @@ class QuotationListScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            if (state.dateFrom != null ||
+                state.dateTo != null ||
+                state.clientFilter != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.filter_alt,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          [
+                            if (state.dateFrom != null || state.dateTo != null)
+                              'Date: ${state.dateFrom ?? '...'} -> ${state.dateTo ?? '...'}',
+                            if (state.clientFilter != null) 'Client filtered',
+                          ].join(' · '),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: notifier.resetAdvancedFilters,
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (state.isLoading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
@@ -174,7 +291,39 @@ class QuotationListScreen extends ConsumerWidget {
                     return _QuotationCard(
                       quotation: q,
                       onTap: () => context.push('/quotation/${q.id}'),
+                      onEdit: q.status != 'Converted'
+                          && state.canUpdateQuotations
+                          ? () => context.push('/quotation/${q.id}/edit')
+                          : null,
+                      onDuplicate: q.status != 'Converted'
+                          && state.canCreateQuotations
+                          ? () async {
+                              try {
+                                final duplicated = await notifier.duplicateQuotation(
+                                  q.id,
+                                );
+                                if (!context.mounted || duplicated == null) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Quotation duplicated')),
+                                );
+                              } catch (e) {
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Duplicate failed: $e')),
+                                );
+                              }
+                            }
+                          : null,
+                      onSend: q.status != 'Converted'
+                          && state.canSendQuotations
+                          ? () => _showSendDialog(context, q)
+                          : null,
+                      onConvert: q.status == 'Approved'
+                          && state.canConvertQuotations
+                          ? () => _showConvertDialog(context, q)
+                          : null,
                       onDelete: (q.status == 'Draft')
+                          && state.canDeleteQuotations
                           ? () => _confirmDelete(context, ref, q)
                           : null,
                     );
@@ -187,8 +336,9 @@ class QuotationListScreen extends ConsumerWidget {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                  child: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.center,
                     children: [
                       IconButton(
                         onPressed: state.currentPage > 1
@@ -199,6 +349,21 @@ class QuotationListScreen extends ConsumerWidget {
                       Text(
                         'Page ${state.currentPage} of ${state.totalPages}',
                         style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(width: 8),
+                      DropdownButton<int>(
+                        value: state.limit,
+                        items: const [10, 20, 50, 100]
+                            .map(
+                              (e) => DropdownMenuItem<int>(
+                                value: e,
+                                child: Text('$e / page'),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value != null) notifier.setLimit(value);
+                        },
                       ),
                       IconButton(
                         onPressed: state.currentPage < state.totalPages
@@ -215,7 +380,7 @@ class QuotationListScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/quotation/create'),
+        onPressed: state.canCreateQuotations ? () => context.push('/quotation/create') : null,
         icon: const Icon(Icons.add),
         label: const Text('New Quotation'),
       ),
@@ -267,6 +432,280 @@ class QuotationListScreen extends ConsumerWidget {
         }
       }
     }
+  }
+
+  Future<void> _showSendDialog(BuildContext context, Quotation quotation) async {
+    final messageCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send Quotation'),
+        content: TextField(
+          controller: messageCtrl,
+          decoration: const InputDecoration(
+            labelText: 'Message (optional)',
+            border: OutlineInputBorder(),
+          ),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(quotationRepositoryProvider)
+            .sendQuotation(quotation.id, message: messageCtrl.text.trim());
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Quotation sent')),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Send failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showConvertDialog(BuildContext context, Quotation quotation) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Convert to Invoice'),
+        content: Text(
+          'Convert quotation ${quotation.quotationNumber} to an invoice?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Convert'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      try {
+        final result = await ref
+            .read(quotationRepositoryProvider)
+            .convertToInvoice(quotation.id);
+        await ref.read(quotationControllerProvider.notifier).loadAll();
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Converted to ${result.invoiceNumber}')),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Convert failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _showSortSheet(
+    BuildContext context,
+    QuotationPageState state,
+    QuotationController controller,
+  ) {
+    final sortOptions = {
+      'date': 'Date',
+      'validUntil': 'Valid Until',
+      'amount': 'Amount',
+      'clientName': 'Client',
+    };
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+                child: Row(
+                  children: [
+                    Text(
+                      'Sort Quotations',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      state.sortOrder == 'asc' ? 'Ascending' : 'Descending',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ...sortOptions.entries.map(
+                (entry) => ListTile(
+                  title: Text(entry.value),
+                  trailing: state.sortBy == entry.key
+                      ? Text(state.sortOrder == 'asc' ? '↑' : '↓')
+                      : null,
+                  onTap: () {
+                    controller.setSortBy(entry.key);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFilterSheet(
+    BuildContext context,
+    QuotationPageState state,
+    QuotationController controller,
+  ) {
+    DateTime? fromDate = state.dateFrom != null
+        ? DateTime.tryParse(state.dateFrom!)
+        : null;
+    DateTime? toDate = state.dateTo != null ? DateTime.tryParse(state.dateTo!) : null;
+    String? selectedClientId = state.clientFilter;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'Filter Quotations',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () {
+                        controller.resetAdvancedFilters();
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Reset All'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: fromDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now(),
+                          );
+                          if (picked != null) setSheetState(() => fromDate = picked);
+                        },
+                        child: Text(
+                          fromDate != null
+                              ? DateFormat('MMM d, y').format(fromDate!)
+                              : 'From',
+                        ),
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('→'),
+                    ),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: toDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime.now().add(const Duration(days: 365)),
+                          );
+                          if (picked != null) setSheetState(() => toDate = picked);
+                        },
+                        child: Text(
+                          toDate != null
+                              ? DateFormat('MMM d, y').format(toDate!)
+                              : 'To',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String?>(
+                  value: selectedClientId,
+                  decoration: const InputDecoration(
+                    labelText: 'Client',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('All Clients'),
+                    ),
+                    ..._clients.map(
+                      (c) => DropdownMenuItem<String?>(
+                        value: c.id,
+                        child: Text(c.name),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setSheetState(() => selectedClientId = value),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      controller.setDateRange(
+                        fromDate?.toIso8601String().split('T').first,
+                        toDate?.toIso8601String().split('T').first,
+                      );
+                      controller.setClientFilter(selectedClientId);
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text('Apply'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -418,11 +857,19 @@ class _QuotationCard extends StatelessWidget {
   final Quotation quotation;
   final VoidCallback onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onSend;
+  final VoidCallback? onConvert;
 
   const _QuotationCard({
     required this.quotation,
     required this.onTap,
     this.onDelete,
+    this.onEdit,
+    this.onDuplicate,
+    this.onSend,
+    this.onConvert,
   });
 
   @override
@@ -527,6 +974,37 @@ class _QuotationCard extends StatelessWidget {
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  if (onSend != null)
+                    OutlinedButton.icon(
+                      onPressed: onSend,
+                      icon: const Icon(Icons.send_outlined, size: 16),
+                      label: const Text('Send'),
+                    ),
+                  if (onConvert != null)
+                    OutlinedButton.icon(
+                      onPressed: onConvert,
+                      icon: const Icon(Icons.call_made, size: 16),
+                      label: const Text('Convert'),
+                    ),
+                  if (onEdit != null)
+                    OutlinedButton.icon(
+                      onPressed: onEdit,
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Edit'),
+                    ),
+                  if (onDuplicate != null)
+                    OutlinedButton.icon(
+                      onPressed: onDuplicate,
+                      icon: const Icon(Icons.copy, size: 16),
+                      label: const Text('Duplicate'),
+                    ),
+                ],
               ),
             ],
           ),

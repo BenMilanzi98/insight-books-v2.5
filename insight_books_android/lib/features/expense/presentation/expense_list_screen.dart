@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
@@ -29,6 +33,16 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(expenseControllerProvider);
+    if (!state.canViewExpenses) {
+      return Scaffold(
+        drawer: const AppDrawer(),
+        appBar: AppBar(title: const Text('Expenses')),
+        body: const Center(
+          child: Text('You do not have permission to view this page.'),
+        ),
+      );
+    }
+
     final notifier = ref.read(expenseControllerProvider.notifier);
     final theme = Theme.of(context);
 
@@ -63,6 +77,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
               if (value == 'export') {
+                if (!state.canExportExpenses) return;
                 try {
                   final bytes = await notifier.exportCsv();
                   if (!context.mounted) return;
@@ -72,10 +87,11 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                     );
                     return;
                   }
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text(
-                            'Exported ${bytes.length} bytes. Save to file from share.')),
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/expenses_export.csv');
+                  await file.writeAsBytes(bytes);
+                  await SharePlus.instance.share(
+                    ShareParams(files: [XFile(file.path)]),
                   );
                 } catch (e) {
                   if (context.mounted) {
@@ -84,6 +100,12 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                     );
                   }
                 }
+              } else if (value == 'recurring') {
+                _showRecurringSheet(context, ref);
+              } else if (value == 'cogs') {
+                _showCogsSheet(context, ref);
+              } else if (value == 'historical') {
+                _showHistoricalImportSheet(context, ref);
               }
             },
             itemBuilder: (context) => [
@@ -94,6 +116,30 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                   title: Text('Export CSV'),
                 ),
               ),
+              if (state.canViewExpenses)
+                const PopupMenuItem(
+                  value: 'recurring',
+                  child: ListTile(
+                    leading: Icon(Icons.repeat),
+                    title: Text('Recurring Expenses'),
+                  ),
+                ),
+              if (state.canViewExpenses)
+                const PopupMenuItem(
+                  value: 'cogs',
+                  child: ListTile(
+                    leading: Icon(Icons.inventory),
+                    title: Text('COGS'),
+                  ),
+                ),
+              if (state.canUpdateExpenses)
+                const PopupMenuItem(
+                  value: 'historical',
+                  child: ListTile(
+                    leading: Icon(Icons.upload_file),
+                    title: Text('Historical Import'),
+                  ),
+                ),
             ],
           ),
         ],
@@ -413,9 +459,11 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                       },
                       onToggleSelect: _isSelectMode ? () => notifier.toggleExpenseSelection(expense.id) : null,
                       onEdit: expense.isEditable && !_isSelectMode
+                          && state.canUpdateExpenses
                           ? () => context.push('/expenses/${expense.id}/edit')
                           : null,
                       onDelete: expense.isEditable && !_isSelectMode
+                          && state.canDeleteExpenses
                           ? () => _confirmDelete(context, ref, expense)
                           : null,
                       onRestore: state.showDeleted && !_isSelectMode
@@ -423,6 +471,26 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                           : null,
                       onPartialPayment: expense.canAddPartialPayment && !_isSelectMode
                           ? () => _openPartialPayment(context, ref, expense)
+                          : null,
+                      onApprove: expense.status != 'Approved' &&
+                              !_isSelectMode &&
+                              state.canApproveExpenses
+                          ? () async {
+                              await notifier.updateExpense(
+                                expense.id,
+                                const UpdateExpenseRequest(status: 'Approved'),
+                              );
+                            }
+                          : null,
+                      onReject: expense.status != 'Rejected' &&
+                              !_isSelectMode &&
+                              state.canApproveExpenses
+                          ? () async {
+                              await notifier.updateExpense(
+                                expense.id,
+                                const UpdateExpenseRequest(status: 'Rejected'),
+                              );
+                            }
                           : null,
                     );
                   },
@@ -436,11 +504,656 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
       floatingActionButton: state.showDeleted
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => context.push('/expenses/create'),
+              onPressed: state.canCreateExpenses
+                  ? () => context.push('/expenses/create')
+                  : null,
               icon: const Icon(Icons.add),
               label: const Text('Add Expense'),
             ),
     );
+  }
+
+  Future<void> _showRecurringSheet(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(expenseControllerProvider.notifier);
+    await notifier.loadRecurringExpenses();
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        final screenState = ref.read(expenseControllerProvider);
+        final rows = screenState.recurringExpenses;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  const Text('Recurring Expenses', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Export recurring CSV',
+                    icon: const Icon(Icons.download_outlined),
+                    onPressed: rows.isEmpty ? null : () => _exportRecurringCsv(rows),
+                  ),
+                  if (screenState.canUpdateExpenses)
+                    IconButton(
+                    icon: const Icon(Icons.add),
+                    onPressed: () async {
+                      await _showCreateRecurringDialog(context, ref);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: rows.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No recurring expenses'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: rows.length,
+                        itemBuilder: (_, i) {
+                          final r = rows[i];
+                          return ListTile(
+                            title: Text((r['description'] ?? 'Recurring').toString()),
+                            subtitle: Text('${r['frequency'] ?? 'monthly'} · MK ${r['amount'] ?? 0}'),
+                            onTap: () => _showRecurringDetailsSheet(context, ref, r),
+                            trailing: Wrap(
+                              spacing: 4,
+                              children: [
+                                if (screenState.canUpdateExpenses)
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () async {
+                                      await _showEditRecurringDialog(context, ref, r);
+                                    },
+                                  ),
+                                if (screenState.canDeleteExpenses)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline),
+                                    onPressed: () async {
+                                      await notifier.deleteRecurringExpense((r['id'] ?? '').toString());
+                                    },
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showCreateRecurringDialog(BuildContext context, WidgetRef ref) async {
+    final descriptionCtrl = TextEditingController();
+    final amountCtrl = TextEditingController();
+    String frequency = 'monthly';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Create Recurring Expense'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: descriptionCtrl,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder(), prefixText: 'MK '),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: frequency,
+                decoration: const InputDecoration(labelText: 'Frequency', border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                  DropdownMenuItem(value: 'quarterly', child: Text('Quarterly')),
+                  DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                ],
+                onChanged: (v) => setDialogState(() => frequency = v ?? 'monthly'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      await ref.read(expenseControllerProvider.notifier).createRecurringExpense({
+        'description': descriptionCtrl.text.trim(),
+        'amount': double.tryParse(amountCtrl.text.trim()) ?? 0,
+        'frequency': frequency,
+      });
+    }
+    descriptionCtrl.dispose();
+    amountCtrl.dispose();
+  }
+
+  Future<void> _showCogsSheet(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(expenseControllerProvider.notifier);
+    await notifier.loadCogsData();
+    if (!context.mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) {
+        final s = ref.read(expenseControllerProvider);
+        final summary = s.cogsSummary ?? const <String, dynamic>{};
+        final settlements = s.cogsSettlements;
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('COGS', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ListTile(
+                title: const Text('Total COGS'),
+                trailing: Text('MK ${summary['total'] ?? 0}'),
+              ),
+              const Divider(),
+              Flexible(
+                child: settlements.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Text('No settlements'),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: settlements.length,
+                        itemBuilder: (_, i) {
+                          final row = settlements[i];
+                          return ListTile(
+                            title: Text((row['description'] ?? 'Settlement').toString()),
+                            subtitle: Text('${row['date'] ?? ''}'),
+                            trailing: Wrap(
+                              spacing: 4,
+                              children: [
+                                Text('MK ${row['amount'] ?? 0}'),
+                                if (s.canUpdateExpenses)
+                                  PopupMenuButton<String>(
+                                    onSelected: (v) async {
+                                      if (v == 'reverse_gl') {
+                                        await _reverseCogsEntry(context, ref, row, saleMode: false);
+                                      }
+                                      if (v == 'reverse_sale') {
+                                        await _reverseCogsEntry(context, ref, row, saleMode: true);
+                                      }
+                                    },
+                                    itemBuilder: (_) => const [
+                                      PopupMenuItem(
+                                        value: 'reverse_gl',
+                                        child: Text('Reverse COGS GL'),
+                                      ),
+                                      PopupMenuItem(
+                                        value: 'reverse_sale',
+                                        child: Text('Reverse Linked Sale'),
+                                      ),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              const SizedBox(height: 8),
+              if (s.canCreateExpenses)
+                FilledButton.icon(
+                  onPressed: () => _showCogsSettlementCreateDialog(context, ref, summary),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Record Settlement'),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showHistoricalImportSheet(BuildContext context, WidgetRef ref) async {
+    final batchCtrl = TextEditingController();
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Historical Expense Import', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: batchCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Batch Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: !ref.read(expenseControllerProvider).canExportExpenses
+                  ? null
+                  : () async {
+                final bytes = await ref.read(expenseControllerProvider.notifier).downloadHistoricalTemplate();
+                final dir = await getTemporaryDirectory();
+                final file = File('${dir.path}/historical-expenses-template.csv');
+                await file.writeAsBytes(bytes);
+                await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+              },
+              icon: const Icon(Icons.download_outlined),
+              label: const Text('Download Template'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: !ref.read(expenseControllerProvider).canUpdateExpenses
+                  ? null
+                  : () async {
+                final picked = await FilePicker.platform.pickFiles();
+                if (picked == null || picked.files.single.path == null) return;
+                await ref.read(expenseControllerProvider.notifier).uploadHistoricalExpenses(
+                      batchName: batchCtrl.text.trim().isEmpty ? 'Batch' : batchCtrl.text.trim(),
+                      filePath: picked.files.single.path!,
+                    );
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(ref.read(expenseControllerProvider).historicalUploadMessage ?? 'Uploaded')),
+                );
+              },
+              icon: const Icon(Icons.upload_file),
+              label: const Text('Upload CSV'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: !ref.read(expenseControllerProvider).canCreateExpenses
+                  ? null
+                  : () async {
+                Navigator.pop(ctx);
+                await _showSingleHistoricalExpenseDialog(context, ref, batchCtrl.text.trim());
+              },
+              icon: const Icon(Icons.note_add_outlined),
+              label: const Text('Add Single Historical Expense'),
+            ),
+          ],
+        ),
+      ),
+    );
+    batchCtrl.dispose();
+  }
+
+  Future<void> _exportRecurringCsv(List<Map<String, dynamic>> rows) async {
+    final headers = ['id', 'description', 'amount', 'frequency', 'status', 'nextRunDate'];
+    final lines = <String>[
+      headers.join(','),
+      ...rows.map((r) {
+        String cell(dynamic v) => '"${(v ?? '').toString().replaceAll('"', '""')}"';
+        return [
+          cell(r['id']),
+          cell(r['description']),
+          cell(r['amount']),
+          cell(r['frequency']),
+          cell(r['status']),
+          cell(r['nextRunDate']),
+        ].join(',');
+      }),
+    ];
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/recurring_expenses_export.csv');
+    await file.writeAsString(lines.join('\n'));
+    await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+  }
+
+  Future<void> _showSingleHistoricalExpenseDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String batchName,
+  ) async {
+    final descCtrl = TextEditingController();
+    final amtCtrl = TextEditingController();
+    DateTime date = DateTime.now();
+    final state = ref.read(expenseControllerProvider);
+    ExpenseCategoryOption? category = state.categories.isNotEmpty ? state.categories.first : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setModal) => AlertDialog(
+          title: const Text('Single Historical Expense'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: amtCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder(), prefixText: 'MK '),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<ExpenseCategoryOption>(
+                initialValue: category,
+                items: state.categories
+                    .map((c) => DropdownMenuItem(value: c, child: Text(c.name, overflow: TextOverflow.ellipsis)))
+                    .toList(),
+                onChanged: (v) => setModal(() => category = v),
+                decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(DateFormat.yMd().format(date)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: date,
+                    firstDate: DateTime(2010),
+                    lastDate: DateTime.now(),
+                  );
+                  if (d != null) setModal(() => date = d);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Create')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && category != null) {
+      await ref.read(expenseControllerProvider.notifier).createExpense(
+            CreateExpenseRequest(
+              description: descCtrl.text.trim(),
+              amount: double.tryParse(amtCtrl.text.trim()) ?? 0,
+              date: DateFormat('yyyy-MM-dd').format(date),
+              expenseAccountId: category!.id,
+              category: category!.name,
+              status: 'Approved',
+              notes: 'Historical entry${batchName.isNotEmpty ? ' · Batch: $batchName' : ''}',
+            ),
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Historical expense created')),
+        );
+      }
+    }
+  }
+
+  Future<void> _reverseCogsEntry(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> row, {
+    required bool saleMode,
+  }) async {
+    final reasonCtrl = TextEditingController(text: 'COGS reversal from expenses module');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(saleMode ? 'Reverse Linked Sale' : 'Reverse COGS GL'),
+        content: TextField(
+          controller: reasonCtrl,
+          decoration: const InputDecoration(labelText: 'Reason', border: OutlineInputBorder()),
+          minLines: 2,
+          maxLines: 4,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Reverse')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final txnId = saleMode ? (row['saleId'] ?? row['transactionId']) : (row['transactionId'] ?? row['saleId']);
+    final id = (txnId ?? '').toString();
+    if (id.isEmpty) return;
+    await ref.read(expenseControllerProvider.notifier).reverseTransaction(
+          transactionId: id,
+          transactionType: saleMode ? 'Sale' : 'Transaction',
+          reason: reasonCtrl.text.trim().isEmpty ? 'Manual reversal' : reasonCtrl.text.trim(),
+        );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(saleMode ? 'Linked sale reversed' : 'COGS journal reversed')),
+      );
+    }
+  }
+
+  Future<void> _showRecurringDetailsSheet(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> recurring,
+  ) async {
+    final id = (recurring['id'] ?? '').toString();
+    if (id.isEmpty) return;
+    final details = await ref.read(expenseControllerProvider.notifier).getRecurringExpense(id);
+    if (!context.mounted) return;
+    final history = (details['history'] as List?) ?? const [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              (details['description'] ?? recurring['description'] ?? 'Recurring Expense').toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text('Amount: MK ${(details['amount'] ?? recurring['amount'] ?? 0)}'),
+            Text('Frequency: ${(details['frequency'] ?? recurring['frequency'] ?? 'monthly')}'),
+            Text('Start: ${(details['startDate'] ?? '-')}'),
+            Text('End: ${(details['endDate'] ?? '-')}'),
+            const SizedBox(height: 12),
+            const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
+            Flexible(
+              child: history.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Text('No execution history available'),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: history.length,
+                      itemBuilder: (_, i) {
+                        final h = history[i] as Map;
+                        return ListTile(
+                          title: Text((h['date'] ?? h['createdAt'] ?? '').toString()),
+                          subtitle: Text((h['status'] ?? '').toString()),
+                          trailing: Text('MK ${h['amount'] ?? 0}'),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditRecurringDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> recurring,
+  ) async {
+    final id = (recurring['id'] ?? '').toString();
+    if (id.isEmpty) return;
+    final descriptionCtrl = TextEditingController(
+      text: (recurring['description'] ?? '').toString(),
+    );
+    final amountCtrl = TextEditingController(
+      text: (recurring['amount'] ?? '').toString(),
+    );
+    String frequency = (recurring['frequency'] ?? 'monthly').toString();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Edit Recurring Expense'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: descriptionCtrl,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder(), prefixText: 'MK '),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                value: frequency,
+                decoration: const InputDecoration(labelText: 'Frequency', border: OutlineInputBorder()),
+                items: const [
+                  DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
+                  DropdownMenuItem(value: 'monthly', child: Text('Monthly')),
+                  DropdownMenuItem(value: 'quarterly', child: Text('Quarterly')),
+                  DropdownMenuItem(value: 'yearly', child: Text('Yearly')),
+                ],
+                onChanged: (v) => setDialogState(() => frequency = v ?? 'monthly'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Update')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      await ref.read(expenseControllerProvider.notifier).updateRecurringExpense(id, {
+        'description': descriptionCtrl.text.trim(),
+        'amount': double.tryParse(amountCtrl.text.trim()) ?? 0,
+        'frequency': frequency,
+      });
+    }
+    descriptionCtrl.dispose();
+    amountCtrl.dispose();
+  }
+
+  Future<void> _showCogsSettlementCreateDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic> summary,
+  ) async {
+    final amountCtrl = TextEditingController(text: '${summary['total'] ?? 0}');
+    final descriptionCtrl = TextEditingController(
+      text: 'Total COGS Settlement - MK ${summary['total'] ?? 0}',
+    );
+    final notesCtrl = TextEditingController();
+    DateTime date = DateTime.now();
+    final paymentAccounts = ref.read(expenseControllerProvider).paymentAccounts;
+    String? paymentMethod = paymentAccounts.isNotEmpty ? paymentAccounts.first.id : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Record COGS Settlement'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder(), prefixText: 'MK '),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descriptionCtrl,
+                  decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: paymentMethod,
+                  decoration: const InputDecoration(labelText: 'Payment Method', border: OutlineInputBorder()),
+                  items: paymentAccounts
+                      .map((a) => DropdownMenuItem<String>(
+                            value: a.id,
+                            child: Text('${a.name}${a.accountType != null ? ' (${a.accountType})' : ''}'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setDialogState(() => paymentMethod = v),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  title: const Text('Settlement Date'),
+                  subtitle: Text(DateFormat('yyyy-MM-dd').format(date)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: ctx,
+                      initialDate: date,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => date = picked);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(labelText: 'Notes', border: OutlineInputBorder()),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Record')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true) {
+      await ref.read(expenseControllerProvider.notifier).createCogsSettlement({
+        'amount': double.tryParse(amountCtrl.text.trim()) ?? 0,
+        'description': descriptionCtrl.text.trim(),
+        'date': DateFormat('yyyy-MM-dd').format(date),
+        'paymentMethod': paymentMethod,
+        'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
+      });
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('COGS settlement recorded')),
+      );
+    }
+    amountCtrl.dispose();
+    descriptionCtrl.dispose();
+    notesCtrl.dispose();
   }
 
   Future<void> _confirmDelete(
@@ -844,6 +1557,8 @@ class _ExpenseCard extends StatelessWidget {
   final VoidCallback? onDelete;
   final VoidCallback? onRestore;
   final VoidCallback? onPartialPayment;
+  final VoidCallback? onApprove;
+  final VoidCallback? onReject;
 
   const _ExpenseCard({
     required this.expense,
@@ -856,6 +1571,8 @@ class _ExpenseCard extends StatelessWidget {
     this.onDelete,
     this.onRestore,
     this.onPartialPayment,
+    this.onApprove,
+    this.onReject,
   });
 
   @override
@@ -964,11 +1681,23 @@ class _ExpenseCard extends StatelessWidget {
                   ],
                 ],
               ),
-              if (onEdit != null || onDelete != null || onRestore != null || onPartialPayment != null) ...[
+              if (onEdit != null || onDelete != null || onRestore != null || onPartialPayment != null || onApprove != null || onReject != null) ...[
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 8,
                   children: [
+                    if (onApprove != null)
+                      TextButton.icon(
+                        onPressed: onApprove,
+                        icon: const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text('Approve'),
+                      ),
+                    if (onReject != null)
+                      TextButton.icon(
+                        onPressed: onReject,
+                        icon: const Icon(Icons.cancel_outlined, size: 18),
+                        label: const Text('Reject'),
+                      ),
                     if (onEdit != null)
                       TextButton.icon(
                         onPressed: onEdit,

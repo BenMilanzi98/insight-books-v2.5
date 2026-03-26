@@ -12,6 +12,9 @@ class AccountState {
   final bool isSaving;
   final String? error;
   final String? successMessage;
+  final bool canViewSystem;
+  final bool canUpdateSystem;
+  final List<Map<String, dynamic>> invoiceTemplates;
 
   AccountState({
     this.user,
@@ -20,6 +23,9 @@ class AccountState {
     this.isSaving = false,
     this.error,
     this.successMessage,
+    this.canViewSystem = true,
+    this.canUpdateSystem = true,
+    this.invoiceTemplates = const [],
   });
 
   AccountState copyWith({
@@ -29,6 +35,9 @@ class AccountState {
     bool? isSaving,
     String? error,
     String? successMessage,
+    bool? canViewSystem,
+    bool? canUpdateSystem,
+    List<Map<String, dynamic>>? invoiceTemplates,
     bool clearSuccess = false,
   }) {
     return AccountState(
@@ -40,6 +49,9 @@ class AccountState {
       successMessage: clearSuccess
           ? null
           : (successMessage ?? this.successMessage),
+      canViewSystem: canViewSystem ?? this.canViewSystem,
+      canUpdateSystem: canUpdateSystem ?? this.canUpdateSystem,
+      invoiceTemplates: invoiceTemplates ?? this.invoiceTemplates,
     );
   }
 }
@@ -55,6 +67,13 @@ class Account extends _$Account {
   Future<void> loadData() async {
     state = state.copyWith(isLoading: true, error: null);
     final repository = ref.read(accountRepositoryProvider);
+    try {
+      final perms = await repository.fetchUserPermissions();
+      state = state.copyWith(
+        canViewSystem: perms.isEmpty || perms.contains('system.view'),
+        canUpdateSystem: perms.isEmpty || perms.contains('system.update'),
+      );
+    } catch (_) {}
 
     // Load Profile
     try {
@@ -75,6 +94,11 @@ class Account extends _$Account {
             : 'Failed to load settings: ${e.toString()}',
       );
     }
+
+    try {
+      final templates = await repository.fetchInvoiceTemplates();
+      state = state.copyWith(invoiceTemplates: templates);
+    } catch (_) {}
 
     state = state.copyWith(isLoading: false);
   }
@@ -127,6 +151,10 @@ class Account extends _$Account {
     String? logoPath,
     String? faviconPath,
   }) async {
+    if (!state.canUpdateSystem) {
+      state = state.copyWith(error: 'You do not have permission to perform this action.');
+      return;
+    }
     state = state.copyWith(isSaving: true, error: null, clearSuccess: true);
     try {
       final repository = ref.read(accountRepositoryProvider);
@@ -154,5 +182,90 @@ class Account extends _$Account {
 
   void clearMessages() {
     state = state.copyWith(error: null, clearSuccess: true);
+  }
+
+  Future<void> loadInvoiceTemplates() async {
+    try {
+      final templates = await ref.read(accountRepositoryProvider).fetchInvoiceTemplates();
+      state = state.copyWith(invoiceTemplates: templates);
+    } catch (e) {
+      state = state.copyWith(error: 'Failed to load templates: $e');
+    }
+  }
+
+  Future<void> createInvoiceTemplate({
+    required String name,
+    String? content,
+  }) async {
+    if (!state.canUpdateSystem) {
+      state = state.copyWith(error: 'You do not have permission to perform this action.');
+      return;
+    }
+    state = state.copyWith(isSaving: true, error: null, clearSuccess: true);
+    try {
+      await ref.read(accountRepositoryProvider).createInvoiceTemplate(
+            name: name,
+            content: content,
+          );
+      await loadInvoiceTemplates();
+      state = state.copyWith(isSaving: false, successMessage: 'Template created');
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: 'Failed to create template: $e');
+    }
+  }
+
+  Future<void> updateInvoiceTemplate({
+    required String id,
+    required String name,
+    String? content,
+    bool isDefault = false,
+  }) async {
+    if (!state.canUpdateSystem) {
+      state = state.copyWith(error: 'You do not have permission to perform this action.');
+      return;
+    }
+    state = state.copyWith(isSaving: true, error: null, clearSuccess: true);
+    try {
+      await ref.read(accountRepositoryProvider).updateInvoiceTemplate(
+            id: id,
+            name: name,
+            content: content,
+            isDefault: isDefault,
+          );
+      await loadInvoiceTemplates();
+      state = state.copyWith(isSaving: false, successMessage: 'Template updated');
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: 'Failed to update template: $e');
+    }
+  }
+
+  Future<void> setDefaultInvoiceTemplate(String id) async {
+    if (!state.canUpdateSystem) {
+      state = state.copyWith(error: 'You do not have permission to perform this action.');
+      return;
+    }
+    state = state.copyWith(isSaving: true, error: null, clearSuccess: true);
+    try {
+      await ref.read(accountRepositoryProvider).setDefaultInvoiceTemplate(id);
+      await loadInvoiceTemplates();
+      state = state.copyWith(isSaving: false, successMessage: 'Default template updated');
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: 'Failed to set default: $e');
+    }
+  }
+
+  Future<void> deleteInvoiceTemplate(String id) async {
+    if (!state.canUpdateSystem) {
+      state = state.copyWith(error: 'You do not have permission to perform this action.');
+      return;
+    }
+    state = state.copyWith(isSaving: true, error: null, clearSuccess: true);
+    try {
+      await ref.read(accountRepositoryProvider).deleteInvoiceTemplate(id);
+      await loadInvoiceTemplates();
+      state = state.copyWith(isSaving: false, successMessage: 'Template deleted');
+    } catch (e) {
+      state = state.copyWith(isSaving: false, error: 'Failed to delete template: $e');
+    }
   }
 }

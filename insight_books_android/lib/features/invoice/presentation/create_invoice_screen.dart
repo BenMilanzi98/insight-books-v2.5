@@ -4,11 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../pos/domain/pos_models.dart';
 import '../../pos/data/pos_repository.dart';
-import '../domain/invoice_model.dart';
+import '../../../core/network/api_client.dart';
+import '../data/invoice_repository.dart';
 import 'providers/invoice_provider.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
-  const CreateInvoiceScreen({super.key});
+  final String? invoiceId;
+  const CreateInvoiceScreen({super.key, this.invoiceId});
 
   @override
   ConsumerState<CreateInvoiceScreen> createState() =>
@@ -18,19 +20,25 @@ class CreateInvoiceScreen extends ConsumerStatefulWidget {
 class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   PosClient? _selectedClient;
   final List<_InvoiceLineItem> _items = [];
+  DateTime _issueDate = DateTime.now();
   DateTime _dueDate = DateTime.now().add(const Duration(days: 30));
   final _notesCtrl = TextEditingController();
   final _termsCtrl = TextEditingController();
+  final _discountCtrl = TextEditingController();
   String _status = 'Pending';
   bool _isSubmitting = false;
+  late final bool _isEditMode;
 
   List<PosProduct> _products = [];
   List<PosClient> _clients = [];
+  List<_InvoiceTemplate> _templates = const [];
+  String? _selectedTemplateId;
   bool _isLoadingData = true;
 
   @override
   void initState() {
     super.initState();
+    _isEditMode = widget.invoiceId != null;
     _loadData();
   }
 
@@ -41,10 +49,30 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         posRepo.fetchProducts(),
         posRepo.fetchClients(),
       ]);
+      final templateResponse = await ref.read(dioProvider).get(
+        '/api/invoice/templates',
+      );
+      final rawTemplates = templateResponse.data['templates'] as List? ?? const [];
+      final templates = rawTemplates
+          .whereType<Map>()
+          .map((e) => _InvoiceTemplate.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
       if (mounted) {
         setState(() {
           _products = results[0] as List<PosProduct>;
           _clients = results[1] as List<PosClient>;
+          _templates = templates;
+          _selectedTemplateId = templates
+              .firstWhere(
+                (t) => t.isDefault,
+                orElse: () => templates.isNotEmpty
+                    ? templates.first
+                    : const _InvoiceTemplate(id: '', name: ''),
+              )
+              .id;
+          if (_selectedTemplateId != null && _selectedTemplateId!.isEmpty) {
+            _selectedTemplateId = null;
+          }
           _isLoadingData = false;
         });
       }
@@ -62,15 +90,29 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   void dispose() {
     _notesCtrl.dispose();
     _termsCtrl.dispose();
+    _discountCtrl.dispose();
+    for (final item in _items) {
+      item.dispose();
+    }
     super.dispose();
   }
 
   double get _subtotal => _items.fold(0, (sum, e) => sum + e.lineTotal);
   double get _totalTax => _items.fold(0, (sum, e) => sum + e.lineTax);
-  double get _total => _subtotal + _totalTax;
+  double get _globalDiscount {
+    final discount = double.tryParse(_discountCtrl.text) ?? 0;
+    if (discount <= 0) return 0;
+    return discount > _subtotal ? _subtotal : discount;
+  }
+
+  double get _total => (_subtotal - _globalDiscount) + _totalTax;
 
   @override
   Widget build(BuildContext context) {
+    final invoiceState = ref.watch(invoiceControllerProvider);
+    final canSubmit = _isEditMode
+        ? invoiceState.canUpdateInvoices
+        : invoiceState.canCreateInvoices;
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(
       symbol: 'MK ',
@@ -79,10 +121,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Invoice'),
+        title: Text(_isEditMode ? 'Edit Invoice' : 'Create Invoice'),
         actions: [
           TextButton(
-            onPressed: _isSubmitting ? null : _submit,
+            onPressed: _isSubmitting || !canSubmit ? null : _submit,
             child: _isSubmitting
                 ? const SizedBox(
                     width: 20,
@@ -95,6 +137,16 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       ),
       body: _isLoadingData
           ? const Center(child: CircularProgressIndicator())
+          : !canSubmit
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: const Text(
+                  'You do not have permission to perform this action.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -137,6 +189,44 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                             ),
                           ),
                         ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Issue Date ──
+                Text(
+                  'Issue Date',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                InkWell(
+                  onTap: _pickIssueDate,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 14,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.4),
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.event_outlined,
+                          color: theme.colorScheme.outline,
+                        ),
+                        const SizedBox(width: 10),
+                        Text(DateFormat('d MMM y').format(_issueDate)),
+                        const Spacer(),
                         const Icon(Icons.chevron_right),
                       ],
                     ),
@@ -205,6 +295,29 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                   ],
                   selected: {_status},
                   onSelectionChanged: (s) => setState(() => _status = s.first),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String?>(
+                  value: _selectedTemplateId,
+                  decoration: const InputDecoration(
+                    labelText: 'Invoice Template',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('Default Template'),
+                    ),
+                    ..._templates.map(
+                      (t) => DropdownMenuItem<String?>(
+                        value: t.id,
+                        child: Text(
+                          t.isDefault ? '${t.name} (Default)' : t.name,
+                        ),
+                      ),
+                    ),
+                  ],
+                  onChanged: (value) => setState(() => _selectedTemplateId = value),
                 ),
                 const SizedBox(height: 20),
 
@@ -285,8 +398,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                                       color: theme.colorScheme.error,
                                       size: 20,
                                     ),
-                                    onPressed: () =>
-                                        setState(() => _items.removeAt(i)),
+                                    onPressed: () => setState(() {
+                                      _items[i].dispose();
+                                      _items.removeAt(i);
+                                    }),
                                     visualDensity: VisualDensity.compact,
                                   ),
                                 ],
@@ -340,6 +455,28 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
+                                  SizedBox(
+                                    width: 90,
+                                    child: TextField(
+                                      controller: item.discountCtrl,
+                                      keyboardType:
+                                          const TextInputType.numberWithOptions(
+                                            decimal: true,
+                                          ),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Disc',
+                                        prefixText: 'MK ',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 8,
+                                        ),
+                                      ),
+                                      onChanged: (_) => setState(() {}),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
                                   Text(
                                     currencyFormat.format(item.lineTotal),
                                     style: const TextStyle(
@@ -348,17 +485,20 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                                   ),
                                 ],
                               ),
-                              if (item.taxRate > 0)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    'Tax: ${item.taxRate.toStringAsFixed(1)}% (${currencyFormat.format(item.lineTax)})',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.grey[600],
-                                    ),
-                                  ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: item.taxCtrl,
+                                keyboardType: const TextInputType.numberWithOptions(
+                                  decimal: true,
                                 ),
+                                decoration: InputDecoration(
+                                  labelText:
+                                      'Tax % (${currencyFormat.format(item.lineTax)})',
+                                  border: const OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                onChanged: (_) => setState(() {}),
+                              ),
                             ],
                           ),
                         ),
@@ -384,6 +524,11 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                             'Subtotal',
                             currencyFormat.format(_subtotal),
                           ),
+                          if (_globalDiscount > 0)
+                            _SummaryRow(
+                              'Discount',
+                              '-${currencyFormat.format(_globalDiscount)}',
+                            ),
                           if (_totalTax > 0)
                             _SummaryRow(
                               'Tax',
@@ -401,6 +546,28 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                   ),
 
                 const SizedBox(height: 16),
+                TextField(
+                  controller: _discountCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Global discount (optional)',
+                    prefixText: 'MK ',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _termsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Terms (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
 
                 // ── Notes ──
                 TextField(
@@ -487,10 +654,27 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _dueDate,
-      firstDate: DateTime.now(),
+      firstDate: _issueDate,
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (picked != null) setState(() => _dueDate = picked);
+  }
+
+  Future<void> _pickIssueDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _issueDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _issueDate = picked;
+        if (_dueDate.isBefore(_issueDate)) {
+          _dueDate = _issueDate.add(const Duration(days: 30));
+        }
+      });
+    }
   }
 
   void _addItem() {
@@ -558,6 +742,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                                   unitPrice: p.price,
                                   quantity: 1,
                                   taxRate: taxRate,
+                                  discountAmount: 0,
                                   accountId: p.accountId,
                                 ),
                               );
@@ -594,25 +779,32 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final request = CreateInvoiceRequest(
-        clientId: _selectedClient!.id,
-        dueDate: _dueDate,
-        notes: _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
-        terms: _termsCtrl.text.isNotEmpty ? _termsCtrl.text : null,
-        status: _status == 'Draft' ? 'Draft' : 'sent',
-        items: _items
+      final payload = <String, dynamic>{
+        'clientId': _selectedClient!.id,
+        'issueDate': _issueDate.toIso8601String().split('T').first,
+        'dueDate': _dueDate.toIso8601String().split('T').first,
+        'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
+        'terms': _termsCtrl.text.isNotEmpty ? _termsCtrl.text : null,
+        'status': _status == 'Draft' ? 'Draft' : 'Pending',
+        'templateId': _selectedTemplateId,
+        'discount': _globalDiscount,
+        'items': _items
             .map(
-              (e) => CreateInvoiceItemRequest(
-                productId: e.productId,
-                quantity: e.quantity,
-                unitPrice: e.unitPrice,
-                description: e.name,
-              ),
+              (e) => <String, dynamic>{
+                'productId': e.productId,
+                'quantity': e.quantity,
+                'unitPrice': e.unitPrice,
+                'description': e.name,
+                'taxRate': e.taxRate,
+                'discountAmount': e.discountAmount,
+                'accountId': e.accountId,
+              },
             )
             .toList(),
-      );
+      };
 
-      await ref.read(invoiceControllerProvider.notifier).createInvoice(request);
+      await ref.read(invoiceRepositoryProvider).createInvoiceFromPayload(payload);
+      await ref.read(invoiceControllerProvider.notifier).refresh();
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -638,25 +830,60 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 class _InvoiceLineItem {
   final String productId;
   final String name;
-  final double taxRate;
   final String? accountId;
   final TextEditingController qtyCtrl;
   final TextEditingController priceCtrl;
+  final TextEditingController taxCtrl;
+  final TextEditingController discountCtrl;
 
   _InvoiceLineItem({
     required this.productId,
     required this.name,
     required double unitPrice,
     required double quantity,
-    required this.taxRate,
+    required double taxRate,
+    required double discountAmount,
     this.accountId,
   }) : qtyCtrl = TextEditingController(text: quantity.toString()),
-       priceCtrl = TextEditingController(text: unitPrice.toStringAsFixed(2));
+       priceCtrl = TextEditingController(text: unitPrice.toStringAsFixed(2)),
+       taxCtrl = TextEditingController(text: taxRate.toStringAsFixed(2)),
+       discountCtrl = TextEditingController(
+         text: discountAmount.toStringAsFixed(2),
+       );
 
   double get unitPrice => double.tryParse(priceCtrl.text) ?? 0;
   double get quantity => double.tryParse(qtyCtrl.text) ?? 0;
-  double get lineTotal => quantity * unitPrice;
+  double get taxRate => double.tryParse(taxCtrl.text) ?? 0;
+  double get discountAmount => double.tryParse(discountCtrl.text) ?? 0;
+  double get lineTotal => (quantity * unitPrice) - (quantity * discountAmount);
   double get lineTax => lineTotal * (taxRate / 100);
+
+  void dispose() {
+    qtyCtrl.dispose();
+    priceCtrl.dispose();
+    taxCtrl.dispose();
+    discountCtrl.dispose();
+  }
+}
+
+class _InvoiceTemplate {
+  final String id;
+  final String name;
+  final bool isDefault;
+
+  const _InvoiceTemplate({
+    required this.id,
+    required this.name,
+    this.isDefault = false,
+  });
+
+  factory _InvoiceTemplate.fromJson(Map<String, dynamic> json) {
+    return _InvoiceTemplate(
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? 'Template').toString(),
+      isDefault: json['isDefault'] == true,
+    );
+  }
 }
 
 class _SummaryRow extends StatelessWidget {

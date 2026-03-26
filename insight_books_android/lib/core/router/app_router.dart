@@ -16,16 +16,19 @@ import 'package:insightbooks_android/features/quotation/presentation/create_quot
 import 'package:insightbooks_android/features/expense/presentation/expense_list_screen.dart';
 import 'package:insightbooks_android/features/expense/presentation/expense_details_screen.dart';
 import 'package:insightbooks_android/features/expense/presentation/create_expense_screen.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final permissionAsync = ref.watch(userPermissionsProvider);
 
   return GoRouter(
     initialLocation: '/dashboard',
     redirect: (context, state) {
       final isLoading = authState.isLoading;
       final isAuthenticated = authState.value ?? false;
+      final permissions = permissionAsync.asData?.value ?? <String>{};
 
       final isGoingToLogin = state.matchedLocation == '/login';
 
@@ -39,6 +42,41 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (isAuthenticated && isGoingToLogin) {
         return '/dashboard';
+      }
+
+      if (!isAuthenticated) return null;
+      if (permissionAsync.isLoading) return null;
+
+      String? requiredPermission;
+      final location = state.matchedLocation;
+      if (location.startsWith('/dashboard')) requiredPermission = 'dashboard.view';
+      if (location.startsWith('/pos')) requiredPermission = 'sales.view';
+      if (location.startsWith('/invoice')) requiredPermission = 'invoices.view';
+      if (location.startsWith('/quotation')) requiredPermission = 'quotations.view';
+      if (location.startsWith('/expenses')) requiredPermission = 'expenses.view';
+      if (location.startsWith('/stock')) requiredPermission = 'inventory.view';
+      if (location.startsWith('/reports')) requiredPermission = 'reports.view';
+      if (location.startsWith('/account')) requiredPermission = 'system.view';
+      if (location.startsWith('/payments')) requiredPermission = 'payments.view';
+
+      if (requiredPermission != null &&
+          !hasPermission(permissions, requiredPermission)) {
+        if (hasPermission(permissions, 'dashboard.view')) {
+          return '/dashboard';
+        }
+        if (hasPermission(permissions, 'sales.view')) {
+          return '/pos';
+        }
+        if (hasPermission(permissions, 'invoices.view')) {
+          return '/invoice';
+        }
+        if (hasPermission(permissions, 'quotations.view')) {
+          return '/quotation';
+        }
+        if (hasPermission(permissions, 'expenses.view')) {
+          return '/expenses';
+        }
+        return '/switch-tenant';
       }
 
       return null;

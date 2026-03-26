@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/quotation_repository.dart';
 import '../domain/quotation_model.dart';
 import 'providers/quotation_details_provider.dart';
@@ -15,6 +19,7 @@ class QuotationDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final quotationAsync = ref.watch(quotationDetailsProvider(quotationId));
+    final quotationState = ref.watch(quotationControllerProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -24,8 +29,8 @@ class QuotationDetailsScreen extends ConsumerWidget {
           quotationAsync.whenOrNull(
             data: (quotation) => PopupMenuButton<String>(
               onSelected: (action) =>
-                  _handleAction(context, ref, quotation, action),
-              itemBuilder: (ctx) => _buildMenuItems(quotation),
+                  _handleAction(context, ref, quotation, action, quotationState),
+              itemBuilder: (ctx) => _buildMenuItems(quotation, quotationState),
               icon: const Icon(Icons.more_vert),
             ),
           ) ?? const SizedBox.shrink(),
@@ -65,11 +70,14 @@ class QuotationDetailsScreen extends ConsumerWidget {
     );
   }
 
-  List<PopupMenuEntry<String>> _buildMenuItems(Quotation quotation) {
+  List<PopupMenuEntry<String>> _buildMenuItems(
+    Quotation quotation,
+    QuotationPageState permissions,
+  ) {
     final items = <PopupMenuEntry<String>>[];
     final status = quotation.status;
 
-    if (status != 'Converted') {
+    if (status != 'Converted' && permissions.canSendQuotations) {
       items.add(
         const PopupMenuItem(
           value: 'send',
@@ -83,7 +91,21 @@ class QuotationDetailsScreen extends ConsumerWidget {
       );
     }
 
-    if (status == 'Approved') {
+    if (permissions.canExportQuotations) {
+      items.add(
+        const PopupMenuItem(
+          value: 'download',
+          child: ListTile(
+            leading: Icon(Icons.picture_as_pdf_outlined, color: Colors.redAccent),
+            title: Text('Download PDF'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
+
+    if (status == 'Approved' && permissions.canConvertQuotations) {
       items.add(
         const PopupMenuItem(
           value: 'convert',
@@ -97,7 +119,7 @@ class QuotationDetailsScreen extends ConsumerWidget {
       );
     }
 
-    if (status != 'Converted') {
+    if (status != 'Converted' && permissions.canCreateQuotations) {
       items.add(
         const PopupMenuItem(
           value: 'duplicate',
@@ -109,6 +131,8 @@ class QuotationDetailsScreen extends ConsumerWidget {
           ),
         ),
       );
+    }
+    if (status != 'Converted' && permissions.canUpdateQuotations) {
       items.add(
         const PopupMenuItem(
           value: 'edit',
@@ -122,7 +146,7 @@ class QuotationDetailsScreen extends ConsumerWidget {
       );
     }
 
-    if (status == 'Draft') {
+    if (status == 'Draft' && permissions.canDeleteQuotations) {
       items.add(
         const PopupMenuItem(
           value: 'delete',
@@ -144,13 +168,41 @@ class QuotationDetailsScreen extends ConsumerWidget {
     WidgetRef ref,
     Quotation quotation,
     String action,
+    QuotationPageState permissions,
   ) async {
+    if (action == 'send' && !permissions.canSendQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
+    if (action == 'download' && !permissions.canExportQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
+    if (action == 'convert' && !permissions.canConvertQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
+    if (action == 'duplicate' && !permissions.canCreateQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
+    if (action == 'edit' && !permissions.canUpdateQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
+    if (action == 'delete' && !permissions.canDeleteQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
     switch (action) {
       case 'send':
         await _showSendDialog(context, ref, quotation);
         break;
       case 'convert':
         await _showConvertDialog(context, ref, quotation);
+        break;
+      case 'download':
+        await _downloadQuotationPdf(context, ref, quotation);
         break;
       case 'duplicate':
         await _duplicateQuotation(context, ref, quotation);
@@ -172,58 +224,101 @@ class QuotationDetailsScreen extends ConsumerWidget {
     Quotation quotation,
   ) async {
     final messageCtrl = TextEditingController();
+    final emailsCtrl = TextEditingController();
+    final attachments = <String>[];
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Send Quotation'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Send quotation ${quotation.quotationNumber} to ${quotation.client}?',
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Send Quotation'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Send quotation ${quotation.quotationNumber} to ${quotation.client}?',
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: messageCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Message (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: emailsCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Other emails (comma separated)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: attachments
+                      .map(
+                        (p) => Chip(
+                          label: Text(p.split(Platform.pathSeparator).last),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final result = await FilePicker.platform.pickFiles(
+                      allowMultiple: true,
+                    );
+                    if (result != null) {
+                      setDialogState(() {
+                        attachments.addAll(
+                          result.files
+                              .where((f) => f.path != null)
+                              .map((f) => f.path!)
+                              .toList(),
+                        );
+                      });
+                    }
+                  },
+                  icon: const Icon(Icons.attach_file),
+                  label: const Text('Add attachments'),
+                ),
+              ],
             ),
-            if (quotation.clientEmail == null || quotation.clientEmail!.isEmpty)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: Text(
-                  'Client does not have an email address configured.',
-                  style: TextStyle(color: Colors.orange),
-                ),
-              )
-            else ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: messageCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Message (optional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Send'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Send'),
-          ),
-        ],
       ),
     );
 
     if (confirmed == true && context.mounted) {
       try {
-        await ref.read(quotationRepositoryProvider).sendQuotation(
+        final otherEmails = emailsCtrl.text
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+        await ref.read(quotationRepositoryProvider).sendQuotationAdvanced(
               quotation.id,
               message: messageCtrl.text.trim().isEmpty
                   ? null
                   : messageCtrl.text.trim(),
+              otherEmails: otherEmails,
+              attachmentPaths: attachments,
             );
         ref.invalidate(quotationDetailsProvider(quotationId));
         ref.invalidate(quotationControllerProvider);
@@ -244,6 +339,35 @@ class QuotationDetailsScreen extends ConsumerWidget {
             ),
           );
         }
+      }
+    }
+    emailsCtrl.dispose();
+    messageCtrl.dispose();
+  }
+
+  Future<void> _downloadQuotationPdf(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    try {
+      final bytes = await ref
+          .read(quotationRepositoryProvider)
+          .downloadQuotationPdf(quotation.id);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/quotation-${quotation.quotationNumber}.pdf');
+      await file.writeAsBytes(bytes);
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Quotation PDF ready')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to download PDF: $e')));
       }
     }
   }
@@ -371,6 +495,12 @@ class QuotationDetailsScreen extends ConsumerWidget {
         }
       }
     }
+  }
+
+  void _showPermissionDenied(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You do not have permission to perform this action.')),
+    );
   }
 }
 

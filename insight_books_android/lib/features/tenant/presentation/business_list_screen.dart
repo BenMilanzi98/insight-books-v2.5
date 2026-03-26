@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../../../core/security/permissions_provider.dart';
 import '../../../shared/widgets/main_layout.dart';
 import './providers/tenant_provider.dart';
 import '../domain/tenant_models.dart';
@@ -14,6 +15,9 @@ class BusinessListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(tenantProvider);
     final notifier = ref.read(tenantProvider.notifier);
+    final permissions = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
+    final canCreateBusiness = hasPermission(permissions, 'system.create');
+    final canDeleteBusiness = hasPermission(permissions, 'system.delete');
 
     // Show error if any
     if (state.error != null) {
@@ -98,7 +102,9 @@ class BusinessListScreen extends ConsumerWidget {
                               ),
                               const SizedBox(width: 12),
                               ElevatedButton.icon(
-                                onPressed: () => _showAddDialog(context),
+                                onPressed: canCreateBusiness
+                                    ? () => _showAddDialog(context)
+                                    : null,
                                 icon: const Icon(LucideIcons.plus, size: 18),
                                 label: const Text('Add New'),
                                 style: ElevatedButton.styleFrom(
@@ -126,6 +132,7 @@ class BusinessListScreen extends ConsumerWidget {
                         context,
                         notifier,
                         state.searchTerm,
+                        canCreateBusiness,
                       ),
                     )
                   else
@@ -141,6 +148,7 @@ class BusinessListScreen extends ConsumerWidget {
                             tenant: tenant,
                             isActive: tenant.id == state.currentTenantId,
                             isSwitching: state.isSwitching,
+                            canDeleteBusiness: canDeleteBusiness,
                             onSelect: () async {
                               final success = await notifier.switchTenant(
                                 tenant.id,
@@ -165,6 +173,7 @@ class BusinessListScreen extends ConsumerWidget {
     BuildContext context,
     TenantNotifier notifier,
     String search,
+    bool canCreateBusiness,
   ) {
     return Center(
       child: Column(
@@ -202,7 +211,9 @@ class BusinessListScreen extends ConsumerWidget {
           if (search.isEmpty) ...[
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () => _showAddDialog(context),
+              onPressed: canCreateBusiness
+                  ? () => _showAddDialog(context)
+                  : null,
               icon: const Icon(LucideIcons.plus),
               label: const Text('Create Your First Business'),
               style: ElevatedButton.styleFrom(
@@ -272,6 +283,7 @@ class _BusinessCard extends StatelessWidget {
   final Tenant tenant;
   final bool isActive;
   final bool isSwitching;
+  final bool canDeleteBusiness;
   final VoidCallback onSelect;
   final VoidCallback onDelete;
 
@@ -279,6 +291,7 @@ class _BusinessCard extends StatelessWidget {
     required this.tenant,
     required this.isActive,
     required this.isSwitching,
+    required this.canDeleteBusiness,
     required this.onSelect,
     required this.onDelete,
   });
@@ -497,7 +510,7 @@ class _BusinessCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 IconButton(
-                  onPressed: onDelete,
+                  onPressed: canDeleteBusiness ? onDelete : null,
                   icon: const Icon(LucideIcons.trash2, size: 20),
                   color: const Color(0xFF9CA3AF),
                   tooltip: 'Delete Business',

@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'dart:io';
 
 import '../domain/expense_model.dart';
+import '../data/expense_repository.dart';
 import 'providers/expense_details_provider.dart';
 import 'providers/expense_provider.dart';
 
@@ -29,10 +32,16 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   DateTime _date = DateTime.now();
   ExpenseCategoryOption? _selectedCategory;
   PaymentAccountOption? _selectedPaymentAccount;
+  SupplierOption? _selectedSupplier;
+  BranchOption? _selectedBranch;
+  Map<String, dynamic>? _selectedTaxType;
+  bool _isHistoricalEntry = false;
+  final _migrationBatchCtrl = TextEditingController();
   String _status = 'Approved';
   String _paymentStatus = 'Fully paid';
   bool _isSubmitting = false;
   bool _isLoadingEdit = false;
+  final List<File> _attachments = [];
 
   bool get _isEdit => widget.expenseId != null && widget.expenseId!.isNotEmpty;
 
@@ -42,18 +51,44 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     if (_isEdit) {
       _loadExpenseForEdit();
     } else {
-      ref.read(expenseControllerProvider.notifier).loadPaymentAccounts();
+      final notifier = ref.read(expenseControllerProvider.notifier);
+      notifier.loadPaymentAccounts();
+      notifier.loadSuppliers();
+      notifier.loadBranches();
+      Future(() async {
+        await notifier.loadTaxData();
+        if (!mounted) return;
+        final s = ref.read(expenseControllerProvider);
+        final defaultId = s.defaultOutflowTaxTypeId;
+        if (_selectedTaxType == null && defaultId != null) {
+          final match = s.taxTypes.where((t) => '${t['id']}' == defaultId);
+          if (match.isNotEmpty) {
+            setState(() {
+              _selectedTaxType = match.first;
+              _taxRateCtrl.text = '${match.first['taxRate'] ?? ''}';
+            });
+          }
+        }
+      });
     }
   }
 
   Future<void> _loadExpenseForEdit() async {
     setState(() => _isLoadingEdit = true);
     try {
-      await ref.read(expenseControllerProvider.notifier).loadPaymentAccounts();
+      final notifier = ref.read(expenseControllerProvider.notifier);
+      await notifier.loadPaymentAccounts();
+      await notifier.loadSuppliers();
+      await notifier.loadBranches();
+      await notifier.loadTaxData();
       if (!mounted) return;
       final expense = await ref.read(expenseDetailsProvider(widget.expenseId!).future);
       if (!mounted) return;
       final paymentAccounts = ref.read(expenseControllerProvider).paymentAccounts;
+      final suppliers = ref.read(expenseControllerProvider).suppliers;
+      final branches = ref.read(expenseControllerProvider).branches;
+      final taxTypes = ref.read(expenseControllerProvider).taxTypes;
+      final defaultTaxTypeId = ref.read(expenseControllerProvider).defaultOutflowTaxTypeId;
       _descriptionCtrl.text = expense.description;
       _amountCtrl.text = expense.amount.toStringAsFixed(2);
       _taxAmountCtrl.text = expense.taxAmount > 0 ? expense.taxAmount.toStringAsFixed(2) : '';
@@ -81,6 +116,23 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         final match = paymentAccounts.where((a) => a.id == firstPaymentMethod || a.name == firstPaymentMethod);
         _selectedPaymentAccount = match.isEmpty ? null : match.first;
       }
+      final supplierId = expense.supplierId;
+      if (supplierId != null && supplierId.isNotEmpty) {
+        final supplierMatch = suppliers.where((s) => s.id == supplierId);
+        _selectedSupplier = supplierMatch.isEmpty ? null : supplierMatch.first;
+      }
+      final branchId = expense.branchId;
+      if (branchId != null && branchId.isNotEmpty) {
+        final branchMatch = branches.where((b) => b.id == branchId);
+        _selectedBranch = branchMatch.isEmpty ? null : branchMatch.first;
+      }
+      if (_selectedTaxType == null && defaultTaxTypeId != null) {
+        final match = taxTypes.where((t) => '${t['id']}' == defaultTaxTypeId);
+        if (match.isNotEmpty) {
+          _selectedTaxType = match.first;
+          _taxRateCtrl.text = '${match.first['taxRate'] ?? ''}';
+        }
+      }
       setState(() {});
     } catch (_) {
       if (mounted) {
@@ -90,6 +142,219 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoadingEdit = false);
+    }
+  }
+
+  Future<void> _showCreateCategoryDialog(BuildContext context) async {
+    final nameCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
+    final created = await showDialog<ExpenseCategoryOption>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Create Category'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final category = await ref.read(expenseControllerProvider.notifier).createExpenseCategory(
+                    name: nameCtrl.text.trim(),
+                    description: descCtrl.text.trim().isEmpty ? null : descCtrl.text.trim(),
+                  );
+              if (ctx.mounted) Navigator.pop(ctx, category);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    if (created != null && mounted) {
+      setState(() => _selectedCategory = created);
+    }
+  }
+
+  Future<void> _showCreateTaxTypeDialog(BuildContext context) async {
+    final nameCtrl = TextEditingController();
+    final rateCtrl = TextEditingController();
+    String? selectedAccountId = ref.read(expenseControllerProvider).taxAccounts.isNotEmpty
+        ? '${ref.read(expenseControllerProvider).taxAccounts.first['id']}'
+        : null;
+    final created = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) {
+        final accounts = ref.read(expenseControllerProvider).taxAccounts;
+        return StatefulBuilder(
+          builder: (_, setModal) => AlertDialog(
+            title: const Text('Create Tax Type'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Tax Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: rateCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Tax Rate (%)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedAccountId,
+                  items: accounts
+                      .map(
+                        (a) => DropdownMenuItem<String>(
+                          value: '${a['id']}',
+                          child: Text('${a['name'] ?? a['accountName'] ?? 'Account'}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) => setModal(() => selectedAccountId = v),
+                  decoration: const InputDecoration(
+                    labelText: 'Tax Account',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () async {
+                  final rate = double.tryParse(rateCtrl.text.trim());
+                  if (nameCtrl.text.trim().isEmpty || rate == null || selectedAccountId == null) return;
+                  final tax = await ref.read(expenseControllerProvider.notifier).createTaxType(
+                        taxName: nameCtrl.text.trim(),
+                        taxRate: rate,
+                        accountId: selectedAccountId!,
+                      );
+                  if (ctx.mounted) Navigator.pop(ctx, tax);
+                },
+                child: const Text('Create'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (created != null && mounted) {
+      setState(() {
+        _selectedTaxType = created;
+        _taxRateCtrl.text = '${created['taxRate'] ?? ''}';
+      });
+    }
+  }
+
+  Future<void> _scanReceiptAndVerify() async {
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+    );
+    if (picked == null || picked.files.isEmpty || picked.files.first.path == null) return;
+    final file = File(picked.files.first.path!);
+    Map<String, dynamic> scanned = {};
+    try {
+      scanned = await ref.read(expenseRepositoryProvider).scanExpenseReceipt(file.path);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('OCR scan failed, please fill manually: $e')),
+        );
+      }
+    }
+    final amountGuess = '${scanned['amount'] ?? ''}'.trim();
+    final dateGuess = '${scanned['date'] ?? ''}'.trim();
+    final descriptionGuess = '${scanned['description'] ?? ''}'.trim();
+    final notesGuess = '${scanned['notes'] ?? ''}'.trim();
+
+    final amountCtrl = TextEditingController(text: amountGuess);
+    final descriptionCtrl = TextEditingController(
+      text: descriptionGuess.isNotEmpty
+          ? descriptionGuess
+          : (_descriptionCtrl.text.isEmpty ? 'New expense from receipt' : _descriptionCtrl.text),
+    );
+    DateTime localDate = dateGuess.isNotEmpty ? (DateTime.tryParse(dateGuess) ?? _date) : _date;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (_, setModal) => AlertDialog(
+          title: const Text('Verify Scanned Receipt'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: descriptionCtrl,
+                decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Amount', border: OutlineInputBorder(), prefixText: 'MK '),
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(DateFormat.yMd().format(localDate)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: () async {
+                  final pickedDate = await showDatePicker(
+                    context: ctx,
+                    initialDate: localDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (pickedDate != null) setModal(() => localDate = pickedDate);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Apply')),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true && mounted) {
+      setState(() {
+        _descriptionCtrl.text = descriptionCtrl.text.trim();
+        if (amountCtrl.text.trim().isNotEmpty) _amountCtrl.text = amountCtrl.text.trim();
+        _date = localDate;
+        if (notesGuess.isNotEmpty && _notesCtrl.text.trim().isEmpty) {
+          _notesCtrl.text = notesGuess;
+        }
+        _attachments.add(file);
+      });
     }
   }
 
@@ -103,6 +368,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     _notesCtrl.dispose();
     _paidAmountCtrl.dispose();
     _paymentReferenceCtrl.dispose();
+    _migrationBatchCtrl.dispose();
     super.dispose();
   }
 
@@ -154,6 +420,10 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final dateStr = DateFormat('yyyy-MM-dd').format(_date);
       final taxAmount = double.tryParse(_taxAmountCtrl.text.replaceAll(',', ''));
       final taxRate = double.tryParse(_taxRateCtrl.text.replaceAll(',', ''));
+      final effectiveTaxRate = taxRate ??
+          (_selectedTaxType != null
+              ? double.tryParse('${_selectedTaxType!['taxRate'] ?? 0}')
+              : null);
 
       if (_isEdit) {
         final request = UpdateExpenseRequest(
@@ -172,7 +442,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
               ? (_paymentReferenceCtrl.text.trim().isEmpty ? null : _paymentReferenceCtrl.text.trim())
               : null,
           taxAmount: taxAmount != null && taxAmount > 0 ? taxAmount : null,
-          taxRate: taxRate != null && taxRate > 0 ? taxRate : null,
+          taxRate: effectiveTaxRate != null && effectiveTaxRate > 0 ? effectiveTaxRate : null,
+          supplierId: _selectedSupplier?.id,
+          branchId: _selectedBranch?.id,
         );
         await ref.read(expenseControllerProvider.notifier).updateExpense(widget.expenseId!, request);
       } else {
@@ -185,16 +457,25 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           paymentMethod: _paymentStatus == 'Pending' ? null : _selectedPaymentAccount?.id,
           paymentStatus: _paymentStatus,
           status: _status,
-          notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+          notes: [
+            if (_notesCtrl.text.trim().isNotEmpty) _notesCtrl.text.trim(),
+            if (_isHistoricalEntry)
+              'Historical entry${_migrationBatchCtrl.text.trim().isNotEmpty ? ' · Batch: ${_migrationBatchCtrl.text.trim()}' : ''}',
+          ].join(_notesCtrl.text.trim().isNotEmpty && _isHistoricalEntry ? '\n' : ''),
           merchant: _merchantCtrl.text.trim().isEmpty ? null : _merchantCtrl.text.trim(),
           taxAmount: taxAmount != null && taxAmount > 0 ? taxAmount : null,
-          taxRate: taxRate != null && taxRate > 0 ? taxRate : null,
+          taxRate: effectiveTaxRate != null && effectiveTaxRate > 0 ? effectiveTaxRate : null,
+          supplierId: _selectedSupplier?.id,
+          branchId: _selectedBranch?.id,
           paidAmount: _paymentStatus == 'Partially' ? paidAmountVal : null,
           paymentReference: _paymentStatus == 'Partially'
               ? (_paymentReferenceCtrl.text.trim().isEmpty ? null : _paymentReferenceCtrl.text.trim())
               : null,
         );
-        await ref.read(expenseControllerProvider.notifier).createExpense(request);
+        await ref.read(expenseControllerProvider.notifier).createExpense(
+          request,
+          attachments: _attachments,
+        );
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -219,16 +500,20 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final theme = Theme.of(context);
     final categories = state.categories;
     final paymentAccounts = state.paymentAccounts;
+    final suppliers = state.suppliers;
+    final branches = state.branches;
+    final taxTypes = state.taxTypes;
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
     final taxAmount = double.tryParse(_taxAmountCtrl.text.replaceAll(',', '')) ?? 0;
     final totalInclTax = amount + taxAmount;
+    final canSubmit = _isEdit ? state.canUpdateExpenses : state.canCreateExpenses;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEdit ? 'Edit Expense' : 'Create New Expense'),
         actions: [
           TextButton(
-            onPressed: _isSubmitting || _isLoadingEdit ? null : _submit,
+            onPressed: _isSubmitting || _isLoadingEdit || !canSubmit ? null : _submit,
             child: _isSubmitting
                 ? const SizedBox(
                     width: 20,
@@ -241,6 +526,16 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       ),
       body: _isLoadingEdit
           ? const Center(child: CircularProgressIndicator())
+          : !canSubmit
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: const Text(
+                  'You do not have permission to perform this action.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
@@ -302,6 +597,50 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<Map<String, dynamic>?>(
+                        initialValue: _selectedTaxType,
+                        decoration: const InputDecoration(
+                          labelText: 'Tax Type (optional)',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: [
+                          const DropdownMenuItem<Map<String, dynamic>?>(
+                            value: null,
+                            child: Text('No tax type'),
+                          ),
+                          ...taxTypes.map(
+                            (t) => DropdownMenuItem<Map<String, dynamic>?>(
+                              value: t,
+                              child: Text(
+                                '${(t['taxName'] ?? t['name'] ?? 'Tax')} (${t['taxRate'] ?? 0}%)',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          setState(() {
+                            _selectedTaxType = v;
+                            if (v != null) {
+                              _taxRateCtrl.text = '${v['taxRate'] ?? ''}';
+                            }
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Create tax type',
+                      onPressed: canSubmit ? () => _showCreateTaxTypeDialog(context) : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
 
                 // ── Date * ──
@@ -350,22 +689,65 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                   ],
                   onChanged: (v) => setState(() => _selectedCategory = v),
                 ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: canSubmit ? () => _showCreateCategoryDialog(context) : null,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create category'),
+                  ),
+                ),
                 const SizedBox(height: 16),
 
                 // ── Supplier (optional) ──
                 const Text('Supplier (optional)'),
                 const SizedBox(height: 6),
-                DropdownButtonFormField<String?>(
-                  initialValue: null,
+                DropdownButtonFormField<SupplierOption?>(
+                  initialValue: _selectedSupplier,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   hint: const Text('None'),
-                  items: const [
-                    DropdownMenuItem<String?>(value: null, child: Text('None')),
+                  items: [
+                    const DropdownMenuItem<SupplierOption?>(
+                      value: null,
+                      child: Text('None'),
+                    ),
+                    ...suppliers.map(
+                      (s) => DropdownMenuItem<SupplierOption?>(
+                        value: s,
+                        child: Text(s.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
                   ],
-                  onChanged: (_) {},
+                  onChanged: (v) => setState(() => _selectedSupplier = v),
+                ),
+                const SizedBox(height: 16),
+
+                const Text('Branch (optional)'),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<BranchOption?>(
+                  initialValue: _selectedBranch,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  hint: const Text('Default branch'),
+                  items: [
+                    const DropdownMenuItem<BranchOption?>(
+                      value: null,
+                      child: Text('Default branch'),
+                    ),
+                    ...branches.map(
+                      (b) => DropdownMenuItem<BranchOption?>(
+                        value: b,
+                        child: Text(b.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) => setState(() => _selectedBranch = v),
                 ),
                 const SizedBox(height: 16),
 
@@ -479,6 +861,75 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 ),
                 const SizedBox(height: 24),
 
+                Row(
+                  children: [
+                    Expanded(
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Historical Entry'),
+                        value: _isHistoricalEntry,
+                        onChanged: (v) => setState(() => _isHistoricalEntry = v),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_isHistoricalEntry) ...[
+                  TextField(
+                    controller: _migrationBatchCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Migration Batch',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+
+                if (!_isEdit) ...[
+                  Row(
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: canSubmit ? _scanReceiptAndVerify : null,
+                        icon: const Icon(Icons.document_scanner_outlined),
+                        label: const Text('Scan receipt'),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: !canSubmit ? null : () async {
+                          final picked = await FilePicker.platform.pickFiles(
+                            allowMultiple: true,
+                            type: FileType.custom,
+                            allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf'],
+                          );
+                          if (picked == null) return;
+                          final files = picked.files
+                              .where((f) => f.path != null)
+                              .map((f) => File(f.path!))
+                              .toList();
+                          setState(() => _attachments.addAll(files));
+                        },
+                        icon: const Icon(Icons.attach_file),
+                        label: const Text('Add attachments'),
+                      ),
+                    ],
+                  ),
+                  if (_attachments.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: _attachments
+                          .map(
+                            (f) => Chip(
+                              label: Text(f.path.split(RegExp(r'[/\\]')).last),
+                              onDeleted: () => setState(() => _attachments.remove(f)),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ],
+
                 // ── Actions ──
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -489,7 +940,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     ),
                     const SizedBox(width: 12),
                     FilledButton(
-                      onPressed: _isSubmitting ? null : _submit,
+                      onPressed: _isSubmitting || !canSubmit ? null : _submit,
                       child: _isSubmitting
                           ? const SizedBox(
                               height: 24,

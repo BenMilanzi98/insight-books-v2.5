@@ -34,7 +34,7 @@ class InvoiceRepository {
           ...?(status != null && status != 'all' && status.isNotEmpty)
               ? {'status': status}
               : null,
-          ...?sortBy != null ? {'sortBy': sortBy} : null,
+          ...?sortBy != null ? {'sortBy': _mapSortField(sortBy)} : null,
           ...?sortOrder != null ? {'sortOrder': sortOrder} : null,
           ...?(dateFrom != null && dateFrom.isNotEmpty)
               ? {'dateFrom': dateFrom}
@@ -138,6 +138,25 @@ class InvoiceRepository {
     }
   }
 
+  Future<Invoice> createInvoiceFromPayload(Map<String, dynamic> payload) async {
+    try {
+      final defaultAccountId = await _getDefaultIncomeAccountId();
+      final body = Map<String, dynamic>.from(payload);
+      final items = body['items'] as List<dynamic>? ?? [];
+      body['items'] = items.map<Map<String, dynamic>>((e) {
+        final map = Map<String, dynamic>.from(e as Map);
+        map['accountId'] = map['accountId'] ?? defaultAccountId;
+        return map;
+      }).toList();
+      final response = await _dio.post('/api/invoices', data: body);
+      final Map<String, dynamic> data =
+          response.data['invoice'] ?? response.data;
+      return _parseInvoice(Map<String, dynamic>.from(data));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<Invoice> updateInvoice(String id, CreateInvoiceRequest request) async {
     try {
       final defaultAccountId = await _getDefaultIncomeAccountId();
@@ -167,9 +186,17 @@ class InvoiceRepository {
     }
   }
 
-  Future<InvoiceStatistics> fetchStatistics() async {
+  Future<InvoiceStatistics> fetchStatistics({String? dateFrom, String? dateTo}) async {
     try {
-      final response = await _dio.get('/api/invoices/statistics');
+      final response = await _dio.get(
+        '/api/invoices/statistics',
+        queryParameters: <String, dynamic>{
+          ...?(dateFrom != null && dateFrom.isNotEmpty)
+              ? {'dateFrom': dateFrom}
+              : null,
+          ...?(dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
+        },
+      );
       final raw = response.data;
       if (raw == null || raw is! Map) {
         return const InvoiceStatistics(
@@ -271,6 +298,31 @@ class InvoiceRepository {
     }
   }
 
+  Future<void> sendInvoice(String invoiceId, {String? message}) async {
+    try {
+      await _dio.post(
+        '/api/invoices/$invoiceId/send',
+        data: <String, dynamic>{
+          if (message != null && message.isNotEmpty) 'message': message,
+        },
+      );
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<int>> downloadInvoicePdf(String invoiceId) async {
+    try {
+      final response = await _dio.get(
+        '/api/invoices/$invoiceId/download',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data as List<int>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   Future<List<InvoicePayment>> fetchPaymentHistory(String invoiceId) async {
     try {
       final response = await _dio.get(
@@ -285,6 +337,24 @@ class InvoiceRepository {
           .toList();
     } catch (e) {
       rethrow;
+    }
+  }
+
+  Future<Set<String>> fetchUserPermissions() async {
+    try {
+      final response = await _dio.get('/api/auth/me');
+      final data = response.data;
+      final user = data is Map ? (data['user'] ?? data) : data;
+      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
+      final permissions = <String>{};
+      if (raw is List) {
+        for (final p in raw) {
+          if (p != null) permissions.add(p.toString());
+        }
+      }
+      return permissions;
+    } catch (_) {
+      return <String>{};
     }
   }
 
@@ -404,5 +474,18 @@ class InvoiceRepository {
     if (value == null) return 0.0;
     if (value is num) return value.toDouble();
     return double.tryParse(value.toString()) ?? 0.0;
+  }
+
+  String _mapSortField(String sortBy) {
+    switch (sortBy) {
+      case 'date':
+      case 'createdAt':
+        return 'issueDate';
+      case 'client':
+      case 'clientName':
+        return 'clientName';
+      default:
+        return sortBy;
+    }
   }
 }

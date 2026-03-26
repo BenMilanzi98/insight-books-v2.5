@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 
-class MainLayout extends StatelessWidget {
+class MainLayout extends ConsumerWidget {
   final Widget child;
   final String? title;
 
   const MainLayout({super.key, required this.child, this.title});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).matchedLocation;
     final isDesktop = MediaQuery.of(context).size.width > 800;
+    final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
 
     int calculateSelectedIndex() {
       if (location == '/dashboard') return 0;
@@ -23,17 +25,25 @@ class MainLayout extends StatelessWidget {
     }
 
     void onNavTap(int index) {
+      final allowDashboard = hasPermission(perms, 'dashboard.view');
+      final allowPos = hasPermission(perms, 'sales.view');
+      final allowInvoice = hasPermission(perms, 'invoices.view');
+      final allowQuotation = hasPermission(perms, 'quotations.view');
       switch (index) {
         case 0:
+          if (!allowDashboard) break;
           context.go('/dashboard');
           break;
         case 1:
+          if (!allowPos) break;
           context.go('/pos');
           break;
         case 2:
+          if (!allowInvoice) break;
           context.go('/invoice');
           break;
         case 3:
+          if (!allowQuotation) break;
           context.go('/quotation');
           break;
       }
@@ -324,6 +334,7 @@ class AppDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentRoute = GoRouterState.of(context).matchedLocation;
+    final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
     final drawerWidth = isPermanent ? 280.0 : null;
 
     Widget content = Container(
@@ -384,41 +395,46 @@ class AppDrawer extends ConsumerWidget {
                 shrinkWrap: true,
                 children: [
                   _SectionLabel(label: 'CORE'),
-                  _NavItem(
-                    title: 'Dashboard',
-                    icon: Icons.dashboard_rounded,
-                    iconKey: 'dashboard',
-                    route: '/dashboard',
-                    currentRoute: currentRoute,
-                  ),
-                  _NavItem(
-                    title: 'POS',
-                    icon: Icons.point_of_sale_rounded,
-                    iconKey: 'pos',
-                    route: '/pos',
-                    currentRoute: currentRoute,
-                  ),
-                  _NavItem(
-                    title: 'Invoicing',
-                    icon: Icons.receipt_long_rounded,
-                    iconKey: 'invoicing',
-                    route: '/invoice',
-                    currentRoute: currentRoute,
-                  ),
-                  _NavItem(
-                    title: 'Quotations',
-                    icon: Icons.description_rounded,
-                    iconKey: 'quotations',
-                    route: '/quotation',
-                    currentRoute: currentRoute,
-                  ),
-                  _NavItem(
-                    title: 'Expenses',
-                    icon: Icons.receipt_rounded,
-                    iconKey: 'expenses',
-                    route: '/expenses',
-                    currentRoute: currentRoute,
-                  ),
+                  if (hasPermission(perms, 'dashboard.view'))
+                    _NavItem(
+                      title: 'Dashboard',
+                      icon: Icons.dashboard_rounded,
+                      iconKey: 'dashboard',
+                      route: '/dashboard',
+                      currentRoute: currentRoute,
+                    ),
+                  if (hasPermission(perms, 'sales.view'))
+                    _NavItem(
+                      title: 'POS',
+                      icon: Icons.point_of_sale_rounded,
+                      iconKey: 'pos',
+                      route: '/pos',
+                      currentRoute: currentRoute,
+                    ),
+                  if (hasPermission(perms, 'invoices.view'))
+                    _NavItem(
+                      title: 'Invoicing',
+                      icon: Icons.receipt_long_rounded,
+                      iconKey: 'invoicing',
+                      route: '/invoice',
+                      currentRoute: currentRoute,
+                    ),
+                  if (hasPermission(perms, 'quotations.view'))
+                    _NavItem(
+                      title: 'Quotations',
+                      icon: Icons.description_rounded,
+                      iconKey: 'quotations',
+                      route: '/quotation',
+                      currentRoute: currentRoute,
+                    ),
+                  if (hasPermission(perms, 'expenses.view'))
+                    _NavItem(
+                      title: 'Expenses',
+                      icon: Icons.receipt_rounded,
+                      iconKey: 'expenses',
+                      route: '/expenses',
+                      currentRoute: currentRoute,
+                    ),
                   const SizedBox(height: 8),
                   _SectionLabel(label: 'ACCOUNT'),
                   _NavItem(
@@ -428,13 +444,14 @@ class AppDrawer extends ConsumerWidget {
                     route: '/switch-tenant',
                     currentRoute: currentRoute,
                   ),
-                  _NavItem(
-                    title: 'Account Settings',
-                    icon: Icons.person_rounded,
-                    iconKey: 'account',
-                    route: '/account',
-                    currentRoute: currentRoute,
-                  ),
+                  if (hasPermission(perms, 'system.view'))
+                    _NavItem(
+                      title: 'Account Settings',
+                      icon: Icons.person_rounded,
+                      iconKey: 'account',
+                      route: '/account',
+                      currentRoute: currentRoute,
+                    ),
                   const SizedBox(height: 8),
                   const Divider(height: 1, color: Colors.white12),
                   Padding(

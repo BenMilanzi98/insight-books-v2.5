@@ -18,7 +18,7 @@ class InvoicePageState {
   final String statusFilter;
 
   // Sorting
-  final String sortBy; // 'createdAt', 'dueDate', 'total', 'client'
+  final String sortBy; // 'date', 'dueDate', 'total', 'clientName', 'status'
   final String sortOrder; // 'desc', 'asc'
 
   // Pagination
@@ -31,6 +31,12 @@ class InvoicePageState {
   final String? dateFrom;
   final String? dateTo;
   final String? clientFilter;
+  final bool canViewInvoices;
+  final bool canCreateInvoices;
+  final bool canUpdateInvoices;
+  final bool canDeleteInvoices;
+  final bool canExportInvoices;
+  final bool canSendInvoices;
 
   const InvoicePageState({
     this.invoices = const [],
@@ -39,7 +45,7 @@ class InvoicePageState {
     this.error,
     this.searchQuery = '',
     this.statusFilter = 'all',
-    this.sortBy = 'createdAt',
+    this.sortBy = 'date',
     this.sortOrder = 'desc',
     this.page = 1,
     this.totalPages = 1,
@@ -48,6 +54,12 @@ class InvoicePageState {
     this.dateFrom,
     this.dateTo,
     this.clientFilter,
+    this.canViewInvoices = true,
+    this.canCreateInvoices = true,
+    this.canUpdateInvoices = true,
+    this.canDeleteInvoices = true,
+    this.canExportInvoices = true,
+    this.canSendInvoices = true,
   });
 
   InvoicePageState copyWith({
@@ -66,6 +78,12 @@ class InvoicePageState {
     String? dateFrom,
     String? dateTo,
     String? clientFilter,
+    bool? canViewInvoices,
+    bool? canCreateInvoices,
+    bool? canUpdateInvoices,
+    bool? canDeleteInvoices,
+    bool? canExportInvoices,
+    bool? canSendInvoices,
     bool clearError = false,
     bool clearDateFrom = false,
     bool clearDateTo = false,
@@ -89,6 +107,12 @@ class InvoicePageState {
       clientFilter: clearClientFilter
           ? null
           : clientFilter ?? this.clientFilter,
+      canViewInvoices: canViewInvoices ?? this.canViewInvoices,
+      canCreateInvoices: canCreateInvoices ?? this.canCreateInvoices,
+      canUpdateInvoices: canUpdateInvoices ?? this.canUpdateInvoices,
+      canDeleteInvoices: canDeleteInvoices ?? this.canDeleteInvoices,
+      canExportInvoices: canExportInvoices ?? this.canExportInvoices,
+      canSendInvoices: canSendInvoices ?? this.canSendInvoices,
     );
   }
 }
@@ -97,10 +121,14 @@ class InvoicePageState {
 //  Controller
 // ═══════════════════════════════════════════════════
 
-class InvoiceController extends StateNotifier<InvoicePageState> {
-  final InvoiceRepository _repo;
+class InvoiceController extends Notifier<InvoicePageState> {
+  InvoiceRepository get _repo => ref.read(invoiceRepositoryProvider);
 
-  InvoiceController(this._repo) : super(const InvoicePageState());
+  @override
+  InvoicePageState build() {
+    Future.microtask(() => refresh());
+    return const InvoicePageState();
+  }
 
   // —— Loading ——
 
@@ -132,7 +160,10 @@ class InvoiceController extends StateNotifier<InvoicePageState> {
 
   Future<void> loadStatistics() async {
     try {
-      final stats = await _repo.fetchStatistics();
+      final stats = await _repo.fetchStatistics(
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
+      );
       state = state.copyWith(statistics: stats);
     } catch (_) {
       // statistics are non-essential
@@ -140,8 +171,30 @@ class InvoiceController extends StateNotifier<InvoicePageState> {
   }
 
   Future<void> refresh() async {
+    await loadPermissions();
+    if (!state.canViewInvoices) {
+      state = state.copyWith(
+        invoices: const [],
+        statistics: null,
+        isLoading: false,
+        error: null,
+      );
+      return;
+    }
     state = state.copyWith(page: 1);
     await Future.wait([loadInvoices(), loadStatistics()]);
+  }
+
+  Future<void> loadPermissions() async {
+    final perms = await _repo.fetchUserPermissions();
+    state = state.copyWith(
+      canViewInvoices: perms.isEmpty || perms.contains('invoices.view'),
+      canCreateInvoices: perms.isEmpty || perms.contains('invoices.create'),
+      canUpdateInvoices: perms.isEmpty || perms.contains('invoices.update'),
+      canDeleteInvoices: perms.isEmpty || perms.contains('invoices.delete'),
+      canExportInvoices: perms.isEmpty || perms.contains('invoices.export'),
+      canSendInvoices: perms.isEmpty || perms.contains('invoices.send'),
+    );
   }
 
   // —— Filtering ——
@@ -193,7 +246,7 @@ class InvoiceController extends StateNotifier<InvoicePageState> {
       clearDateTo: to == null,
       page: 1,
     );
-    loadInvoices();
+    Future.wait([loadInvoices(), loadStatistics()]);
   }
 
   void setClientFilter(String? clientId) {
@@ -205,11 +258,17 @@ class InvoiceController extends StateNotifier<InvoicePageState> {
     loadInvoices();
   }
 
+  void setLimit(int limit) {
+    if (limit <= 0) return;
+    state = state.copyWith(limit: limit, page: 1);
+    loadInvoices();
+  }
+
   void resetFilters() {
     state = state.copyWith(
       searchQuery: '',
       statusFilter: 'all',
-      sortBy: 'createdAt',
+      sortBy: 'date',
       sortOrder: 'desc',
       page: 1,
       clearDateFrom: true,
@@ -314,10 +373,7 @@ class InvoiceController extends StateNotifier<InvoicePageState> {
 // ═══════════════════════════════════════════════════
 
 final invoiceControllerProvider =
-    StateNotifierProvider<InvoiceController, InvoicePageState>((ref) {
-      final repo = ref.watch(invoiceRepositoryProvider);
-      return InvoiceController(repo);
-    });
+    NotifierProvider<InvoiceController, InvoicePageState>(InvoiceController.new);
 
 final invoiceStatisticsProvider = FutureProvider<InvoiceStatistics>((ref) {
   final repo = ref.watch(invoiceRepositoryProvider);

@@ -153,6 +153,10 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final quotationState = ref.watch(quotationControllerProvider);
+    final canSubmit = _isEditMode
+        ? quotationState.canUpdateQuotations
+        : quotationState.canCreateQuotations;
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(
       symbol: 'MK ',
@@ -164,7 +168,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
         title: Text(_isEditMode ? 'Edit Quotation' : 'Create Quotation'),
         actions: [
           TextButton(
-            onPressed: _isSubmitting ? null : _submit,
+            onPressed: _isSubmitting || !canSubmit ? null : _submit,
             child: _isSubmitting
                 ? const SizedBox(
                     width: 20,
@@ -177,6 +181,16 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
       ),
       body: _isLoadingData
           ? const Center(child: CircularProgressIndicator())
+          : !canSubmit
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: const Text(
+                  'You do not have permission to perform this action.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [

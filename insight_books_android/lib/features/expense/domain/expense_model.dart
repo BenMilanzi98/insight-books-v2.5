@@ -352,6 +352,49 @@ class PaymentAccountOption {
   }
 }
 
+class SupplierOption {
+  const SupplierOption({
+    required this.id,
+    required this.name,
+    this.email,
+    this.phone,
+  });
+
+  final String id;
+  final String name;
+  final String? email;
+  final String? phone;
+
+  factory SupplierOption.fromJson(Map<String, dynamic> json) {
+    return SupplierOption(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Unnamed Supplier',
+      email: json['email'] as String?,
+      phone: json['phone'] as String?,
+    );
+  }
+}
+
+class BranchOption {
+  const BranchOption({
+    required this.id,
+    required this.name,
+    this.isActive = true,
+  });
+
+  final String id;
+  final String name;
+  final bool isActive;
+
+  factory BranchOption.fromJson(Map<String, dynamic> json) {
+    return BranchOption(
+      id: json['id'] as String? ?? '',
+      name: json['name'] as String? ?? 'Branch',
+      isActive: json['isActive'] != false,
+    );
+  }
+}
+
 /// Create expense request body
 class CreateExpenseRequest {
   const CreateExpenseRequest({
@@ -432,6 +475,8 @@ class UpdateExpenseRequest {
     this.paymentReference,
     this.taxAmount,
     this.taxRate,
+    this.supplierId,
+    this.branchId,
   });
 
   final String? description;
@@ -448,6 +493,8 @@ class UpdateExpenseRequest {
   final String? paymentReference;
   final double? taxAmount;
   final double? taxRate;
+  final String? supplierId;
+  final String? branchId;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -465,6 +512,8 @@ class UpdateExpenseRequest {
       if (paymentReference != null) 'paymentReference': paymentReference,
       if (taxAmount != null) 'taxAmount': taxAmount,
       if (taxRate != null) 'taxRate': taxRate,
+      if (supplierId != null) 'supplierId': supplierId,
+      if (branchId != null) 'branchId': branchId,
     };
   }
 }

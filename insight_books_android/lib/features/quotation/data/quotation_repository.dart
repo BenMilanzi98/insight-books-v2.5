@@ -30,7 +30,7 @@ class QuotationRepository {
         queryParameters: <String, dynamic>{
           'page': page,
           'limit': limit,
-          ...? sortBy != null ? {'sortBy': sortBy} : null,
+          ...? sortBy != null ? {'sortBy': _mapSortField(sortBy)} : null,
           ...? sortOrder != null ? {'sortOrder': sortOrder} : null,
           ...? (status != null && status != 'all') ? {'status': status} : null,
           ...? (search != null && search.isNotEmpty) ? {'search': search} : null,
@@ -138,11 +138,87 @@ class QuotationRepository {
     }
   }
 
-  Future<QuotationStatistics> fetchStatistics() async {
+  Future<void> sendQuotationAdvanced(
+    String quotationId, {
+    String? message,
+    List<String> otherEmails = const [],
+    List<String> attachmentPaths = const [],
+  }) async {
     try {
-      final response = await _dio.get('/api/quotations/statistics');
+      if (attachmentPaths.isEmpty) {
+        await _dio.post(
+          '/api/quotations/$quotationId/send',
+          data: <String, dynamic>{
+            'message': message ?? '',
+            'otherEmails': otherEmails,
+          },
+        );
+        return;
+      }
+      final formData = FormData.fromMap({
+        'message': message ?? '',
+        'otherEmails': otherEmails,
+        'attachments': [
+          for (final path in attachmentPaths)
+            await MultipartFile.fromFile(path),
+        ],
+      });
+      await _dio.post('/api/quotations/$quotationId/send', data: formData);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<int>> downloadQuotationPdf(String quotationId) async {
+    try {
+      final response = await _dio.get(
+        '/api/quotations/$quotationId/download',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data as List<int>;
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<QuotationStatistics> fetchStatistics({String? dateFrom, String? dateTo}) async {
+    try {
+      final response = await _dio.get(
+        '/api/quotations/statistics',
+        queryParameters: <String, dynamic>{
+          ...? (dateFrom != null && dateFrom.isNotEmpty) ? {'dateFrom': dateFrom} : null,
+          ...? (dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
+        },
+      );
       final data = Map<String, dynamic>.from(response.data as Map);
       return QuotationStatistics.fromJson(data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<int>> exportQuotations({
+    String? status,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+    String? clientId,
+    String format = 'csv',
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/api/quotations/export',
+        queryParameters: <String, dynamic>{
+          'format': format,
+          ...? (status != null && status.isNotEmpty) ? {'status': status} : null,
+          ...? (search != null && search.isNotEmpty) ? {'search': search} : null,
+          ...? (dateFrom != null && dateFrom.isNotEmpty) ? {'dateFrom': dateFrom} : null,
+          ...? (dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
+          ...? (clientId != null && clientId.isNotEmpty) ? {'clientId': clientId} : null,
+        },
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data as List<int>;
     } catch (e) {
       rethrow;
     }
@@ -172,6 +248,38 @@ class QuotationRepository {
     if (value is num) return value.toDouble();
     if (value is String) return double.tryParse(value.replaceAll(',', '')) ?? 0.0;
     return 0.0;
+  }
+
+  String _mapSortField(String sortBy) {
+    switch (sortBy) {
+      case 'amount':
+        return 'amount';
+      case 'clientName':
+        return 'clientName';
+      case 'validUntil':
+        return 'validUntil';
+      case 'date':
+      default:
+        return 'date';
+    }
+  }
+
+  Future<Set<String>> fetchUserPermissions() async {
+    try {
+      final response = await _dio.get('/api/auth/me');
+      final data = response.data;
+      final user = data is Map ? (data['user'] ?? data) : data;
+      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
+      final permissions = <String>{};
+      if (raw is List) {
+        for (final p in raw) {
+          if (p != null) permissions.add(p.toString());
+        }
+      }
+      return permissions;
+    } catch (_) {
+      return <String>{};
+    }
   }
 }
 

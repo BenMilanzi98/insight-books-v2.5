@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 
-class ReceiptScreen extends StatelessWidget {
+class ReceiptScreen extends ConsumerWidget {
   final Map<String, dynamic> saleData;
 
   const ReceiptScreen({super.key, required this.saleData});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final currencyFormat = NumberFormat.currency(
       symbol: 'UGX ',
       decimalDigits: 0,
@@ -124,10 +129,27 @@ class ReceiptScreen extends StatelessWidget {
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Opening PDF Receipt...')),
-                  );
+                onPressed: () async {
+                  try {
+                    final saleId = (sale['id'] ?? '').toString();
+                    if (saleId.isEmpty) {
+                      throw Exception('Missing sale ID');
+                    }
+                    final bytes = await ref
+                        .read(posRepositoryProvider)
+                        .downloadReceiptPdf(saleId);
+                    final dir = await getTemporaryDirectory();
+                    final file = File('${dir.path}/receipt-$saleId.pdf');
+                    await file.writeAsBytes(bytes);
+                    await SharePlus.instance.share(
+                      ShareParams(files: [XFile(file.path)]),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to open receipt: $e')),
+                    );
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: colorScheme.primary,

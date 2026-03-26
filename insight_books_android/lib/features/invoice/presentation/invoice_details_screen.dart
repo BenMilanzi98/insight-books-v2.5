@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../data/invoice_repository.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
@@ -25,6 +28,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final invoiceAsync = ref.watch(invoiceDetailsProvider(widget.invoiceId));
+    final invoiceState = ref.watch(invoiceControllerProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -34,8 +38,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
           invoiceAsync.whenOrNull(
                 data: (invoice) => PopupMenuButton<String>(
                   onSelected: (action) =>
-                      _handleAction(action, invoice, context),
-                  itemBuilder: (_) => _buildMenuItems(invoice),
+                      _handleAction(action, invoice, context, invoiceState),
+                  itemBuilder: (_) => _buildMenuItems(invoice, invoiceState),
                 ),
               ) ??
               const SizedBox.shrink(),
@@ -74,12 +78,15 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   //  Menu Items
   // ═══════════════════════════════════════════════════
 
-  List<PopupMenuEntry<String>> _buildMenuItems(Invoice invoice) {
+  List<PopupMenuEntry<String>> _buildMenuItems(
+    Invoice invoice,
+    InvoicePageState permissions,
+  ) {
     final status = invoice.status.toLowerCase();
     final items = <PopupMenuEntry<String>>[];
 
     // Edit — only draft invoices
-    if (status == 'draft') {
+    if (status == 'draft' && permissions.canUpdateInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'edit',
@@ -89,8 +96,32 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       items.add(const PopupMenuDivider());
     }
 
+    if (permissions.canSendInvoices) {
+      items.add(
+        const PopupMenuItem(
+          value: 'send',
+          child: ListTile(
+            leading: Icon(Icons.send_outlined),
+            title: Text('Send Invoice'),
+          ),
+        ),
+      );
+    }
+    if (permissions.canExportInvoices) {
+      items.add(
+        const PopupMenuItem(
+          value: 'download',
+          child: ListTile(
+            leading: Icon(Icons.picture_as_pdf_outlined),
+            title: Text('Download PDF'),
+          ),
+        ),
+      );
+    }
+
     // Mark as Paid — pending/sent/overdue/partial
-    if (['pending', 'sent', 'overdue', 'partial'].contains(status)) {
+    if (['pending', 'sent', 'overdue', 'partial'].contains(status) &&
+        permissions.canUpdateInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'mark_paid',
@@ -103,7 +134,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
 
     // Partial Payment — pending/sent/overdue/partial
-    if (['pending', 'sent', 'overdue', 'partial'].contains(status)) {
+    if (['pending', 'sent', 'overdue', 'partial'].contains(status) &&
+        permissions.canUpdateInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'partial_payment',
@@ -116,7 +148,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
 
     // Void — not void/paid
-    if (!['void', 'paid'].contains(status)) {
+    if (!['void', 'paid'].contains(status) && permissions.canUpdateInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'void',
@@ -129,7 +161,9 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
 
     // Refund — paid/partial (has payments)
-    if (['paid', 'partial'].contains(status) && invoice.totalPaid > 0) {
+    if (['paid', 'partial'].contains(status) &&
+        invoice.totalPaid > 0 &&
+        permissions.canUpdateInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'refund',
@@ -142,16 +176,18 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
 
     // Delete
-    items.add(const PopupMenuDivider());
-    items.add(
-      const PopupMenuItem(
-        value: 'delete',
-        child: ListTile(
-          leading: Icon(Icons.delete, color: Colors.red),
-          title: Text('Delete', style: TextStyle(color: Colors.red)),
+    if (permissions.canDeleteInvoices) {
+      items.add(const PopupMenuDivider());
+      items.add(
+        const PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.delete, color: Colors.red),
+            title: Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
         ),
-      ),
-    );
+      );
+    }
 
     return items;
   }
@@ -164,13 +200,37 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     String action,
     Invoice invoice,
     BuildContext ctx,
+    InvoicePageState permissions,
   ) async {
+    final requiresUpdate = {'edit', 'mark_paid', 'partial_payment', 'void', 'refund'};
+    if (requiresUpdate.contains(action) && !permissions.canUpdateInvoices) {
+      _showPermissionDenied();
+      return;
+    }
+    if (action == 'send' && !permissions.canSendInvoices) {
+      _showPermissionDenied();
+      return;
+    }
+    if (action == 'download' && !permissions.canExportInvoices) {
+      _showPermissionDenied();
+      return;
+    }
+    if (action == 'delete' && !permissions.canDeleteInvoices) {
+      _showPermissionDenied();
+      return;
+    }
     switch (action) {
       case 'edit':
         ctx.push('/invoice/${invoice.id}/edit');
         break;
       case 'mark_paid':
         await _showMarkAsPaidDialog(invoice);
+        break;
+      case 'send':
+        await _showSendInvoiceDialog(invoice);
+        break;
+      case 'download':
+        await _downloadInvoicePdf(invoice);
         break;
       case 'partial_payment':
         await _showPartialPaymentSheet(invoice);
@@ -463,8 +523,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
             ),
             const Divider(),
             ...invoice.payments.map((payment) {
-              final date = payment.paymentDate != null
-                  ? DateFormat('MMM d, y').format(payment.paymentDate!)
+              final parsedDate = payment.paymentDate != null
+                  ? DateTime.tryParse(payment.paymentDate!)
+                  : null;
+              final date = parsedDate != null
+                  ? DateFormat('MMM d, y').format(parsedDate)
                   : 'Unknown';
               return ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -988,6 +1051,83 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         }
       }
     }
+  }
+
+  Future<void> _showSendInvoiceDialog(Invoice invoice) async {
+    final messageCtrl = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Send Invoice'),
+        content: TextField(
+          controller: messageCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            labelText: 'Message (optional)',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) {
+      try {
+        await ref.read(invoiceRepositoryProvider).sendInvoice(
+              invoice.id,
+              message: messageCtrl.text.trim().isEmpty
+                  ? null
+                  : messageCtrl.text.trim(),
+            );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invoice sent successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to send invoice: $e')),
+          );
+        }
+      }
+    }
+    messageCtrl.dispose();
+  }
+
+  Future<void> _downloadInvoicePdf(Invoice invoice) async {
+    try {
+      final bytes = await ref.read(invoiceRepositoryProvider).downloadInvoicePdf(
+            invoice.id,
+          );
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/invoice-${invoice.invoiceNumber}.pdf');
+      await file.writeAsBytes(bytes);
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)]),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download invoice: $e')),
+        );
+      }
+    }
+  }
+
+  void _showPermissionDenied() {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You do not have permission to perform this action.')),
+    );
   }
 
   // ═══════════════════════════════════════════════════

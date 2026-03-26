@@ -155,6 +155,36 @@ class ExpenseRepository {
     }
   }
 
+  Future<Expense> createExpenseWithAttachments(
+    CreateExpenseRequest request,
+    List<File> files,
+  ) async {
+    try {
+      final formData = FormData.fromMap(request.toJson());
+      for (final file in files) {
+        final name = file.path.split(RegExp(r'[/\\]')).last;
+        formData.files.add(
+          MapEntry(
+            'attachments',
+            await MultipartFile.fromFile(file.path, filename: name),
+          ),
+        );
+      }
+      final response = await _dio.post(
+        '/api/expenses/with-attachments',
+        data: formData,
+        options: Options(contentType: 'multipart/form-data'),
+      );
+      final raw = response.data;
+      final map = raw is Map && raw['expense'] != null
+          ? Map<String, dynamic>.from(raw['expense'] as Map)
+          : Map<String, dynamic>.from(raw as Map);
+      return Expense.fromJson(map);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// PUT /api/expenses/:id
   Future<Expense> updateExpense(String id, UpdateExpenseRequest request) async {
     try {
@@ -249,6 +279,37 @@ class ExpenseRepository {
       return list
           .map((e) =>
               PaymentAccountOption.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<SupplierOption>> fetchSuppliers() async {
+    try {
+      final response = await _dio.get('/api/purchases/suppliers');
+      final data = response.data;
+      if (data == null || data is! Map) return [];
+      final list = data['suppliers'] as List<dynamic>? ?? [];
+      return list
+          .map((e) => SupplierOption.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<BranchOption>> fetchBranches() async {
+    try {
+      final response = await _dio.get(
+        '/api/branches',
+        queryParameters: {'includeInactive': 'false'},
+      );
+      final data = response.data;
+      if (data == null || data is! Map) return [];
+      final list = data['branches'] as List<dynamic>? ?? [];
+      return list
+          .map((e) => BranchOption.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList();
     } catch (e) {
       rethrow;
@@ -398,6 +459,197 @@ class ExpenseRepository {
     } catch (e) {
       rethrow;
     }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchRecurringExpenses() async {
+    final response = await _dio.get('/api/recurring-expenses');
+    final data = response.data;
+    final list = data is Map ? (data['recurringExpenses'] ?? data['expenses'] ?? []) : [];
+    return (list as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<void> createRecurringExpense(Map<String, dynamic> payload) async {
+    await _dio.post('/api/recurring-expenses', data: payload);
+  }
+
+  Future<Map<String, dynamic>> fetchRecurringExpenseById(String id) async {
+    final response = await _dio.get('/api/recurring-expenses/$id');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> updateRecurringExpense(
+    String id,
+    Map<String, dynamic> payload,
+  ) async {
+    await _dio.put('/api/recurring-expenses/$id', data: payload);
+  }
+
+  Future<void> deleteRecurringExpense(String id) async {
+    await _dio.delete('/api/recurring-expenses/$id');
+  }
+
+  Future<Map<String, dynamic>> fetchCogsSummary({
+    String? startDate,
+    String? endDate,
+  }) async {
+    final response = await _dio.get(
+      '/api/expenses/cogs-summary',
+      queryParameters: {
+        if (startDate != null) 'startDate': startDate,
+        if (endDate != null) 'endDate': endDate,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<List<Map<String, dynamic>>> fetchCogsSettlements() async {
+    final response = await _dio.get('/api/expenses/cogs-settlement');
+    final data = response.data;
+    final list = data is Map ? (data['settlements'] ?? data['data'] ?? []) : [];
+    return (list as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<void> createCogsSettlement(Map<String, dynamic> payload) async {
+    await _dio.post('/api/expenses/cogs-settlement', data: payload);
+  }
+
+  Future<List<int>> downloadHistoricalExpenseTemplate() async {
+    final response = await _dio.get(
+      '/api/historical-expenses/template',
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return response.data as List<int>;
+  }
+
+  Future<Map<String, dynamic>> uploadHistoricalExpenses({
+    required String batchName,
+    required String filePath,
+  }) async {
+    final formData = FormData.fromMap({
+      'batchName': batchName,
+      'file': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _dio.post(
+      '/api/historical-expenses/batch-upload',
+      data: formData,
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Set<String>> fetchUserPermissions() async {
+    try {
+      final response = await _dio.get('/api/auth/me');
+      final data = response.data;
+      final user = data is Map ? (data['user'] ?? data) : data;
+      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
+      final perms = <String>{};
+      if (raw is List) {
+        for (final p in raw) {
+          if (p != null) perms.add(p.toString());
+        }
+      }
+      return perms;
+    } catch (_) {
+      return <String>{};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTaxTypes() async {
+    final response = await _dio.get(
+      '/api/tax-types',
+      queryParameters: {'status': 'Active'},
+    );
+    final data = response.data;
+    final list = data is Map ? (data['taxTypes'] ?? data['taxes'] ?? []) : [];
+    return (list as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>?> fetchTaxDefaults() async {
+    try {
+      final response = await _dio.get('/api/settings/tax-defaults');
+      return Map<String, dynamic>.from(response.data as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTaxAccounts() async {
+    final response = await _dio.get('/api/tax-types/accounts');
+    final data = response.data;
+    final list = data is Map ? (data['accounts'] ?? []) : [];
+    return (list as List)
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createTaxType({
+    required String taxName,
+    required double taxRate,
+    required String accountId,
+  }) async {
+    final response = await _dio.post(
+      '/api/tax-types',
+      data: {
+        'taxName': taxName,
+        'taxRate': taxRate,
+        'accountId': accountId,
+        'status': 'Active',
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<ExpenseCategoryOption> createExpenseCategory({
+    required String name,
+    String? description,
+  }) async {
+    final response = await _dio.post(
+      '/api/expense-categories',
+      data: {'name': name, if (description != null) 'description': description},
+    );
+    final raw = response.data;
+    final map = raw is Map && raw['category'] != null
+        ? Map<String, dynamic>.from(raw['category'] as Map)
+        : Map<String, dynamic>.from(raw as Map);
+    return ExpenseCategoryOption.fromJson(map);
+  }
+
+  Future<void> reversePostedTransaction({
+    required String transactionId,
+    required String transactionType,
+    required String reversalReason,
+  }) async {
+    await _dio.post(
+      '/api/transactions/reverse',
+      data: {
+        'transactionId': transactionId,
+        'transactionType': transactionType,
+        'reversalReason': reversalReason,
+      },
+    );
+  }
+
+  Future<List<int>> fetchPaymentReceiptPdf(String paymentId) async {
+    final response = await _dio.get(
+      '/api/payments/receipt',
+      queryParameters: {'paymentId': paymentId},
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return response.data as List<int>;
+  }
+
+  Future<Map<String, dynamic>> scanExpenseReceipt(String filePath) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _dio.post('/api/expenses/scan-receipt', data: formData);
+    final raw = response.data;
+    if (raw is Map && raw['receiptData'] is Map) {
+      return Map<String, dynamic>.from(raw['receiptData'] as Map);
+    }
+    return Map<String, dynamic>.from(raw as Map);
   }
 }
 

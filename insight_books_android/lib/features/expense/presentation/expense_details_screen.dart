@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../data/expense_repository.dart';
 import '../domain/expense_model.dart';
@@ -19,6 +22,7 @@ class ExpenseDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final expenseAsync = ref.watch(expenseDetailsProvider(expenseId));
+    final pageState = ref.watch(expenseControllerProvider);
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -29,7 +33,12 @@ class ExpenseDetailsScreen extends ConsumerWidget {
                 data: (expense) => PopupMenuButton<String>(
                   onSelected: (action) =>
                       _handleAction(context, ref, expense, action),
-                  itemBuilder: (ctx) => _buildMenuItems(expense),
+                  itemBuilder: (ctx) => _buildMenuItems(
+                    expense,
+                    canUpdate: pageState.canUpdateExpenses,
+                    canDelete: pageState.canDeleteExpenses,
+                    canApprove: pageState.canApproveExpenses,
+                  ),
                   icon: const Icon(Icons.more_vert),
                 ),
               ) ??
@@ -70,9 +79,40 @@ class ExpenseDetailsScreen extends ConsumerWidget {
     );
   }
 
-  List<PopupMenuEntry<String>> _buildMenuItems(Expense expense) {
+  List<PopupMenuEntry<String>> _buildMenuItems(
+    Expense expense, {
+    required bool canUpdate,
+    required bool canDelete,
+    required bool canApprove,
+  }) {
     final items = <PopupMenuEntry<String>>[];
-    if (expense.isEditable) {
+    if (expense.isEditable && canUpdate) {
+      if (canApprove && expense.status.toLowerCase() != 'approved') {
+        items.add(
+          const PopupMenuItem(
+            value: 'approve',
+            child: ListTile(
+              leading: Icon(Icons.check_circle_outline),
+              title: Text('Approve'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        );
+      }
+      if (canApprove && expense.status.toLowerCase() != 'rejected') {
+        items.add(
+          const PopupMenuItem(
+            value: 'reject',
+            child: ListTile(
+              leading: Icon(Icons.cancel_outlined),
+              title: Text('Reject'),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        );
+      }
       items.add(
         const PopupMenuItem(
           value: 'edit',
@@ -97,17 +137,19 @@ class ExpenseDetailsScreen extends ConsumerWidget {
           ),
         );
       }
-      items.add(
-        const PopupMenuItem(
-          value: 'delete',
-          child: ListTile(
-            leading: Icon(Icons.delete_outline, color: Colors.red),
-            title: Text('Delete', style: TextStyle(color: Colors.red)),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
+      if (canDelete) {
+        items.add(
+          const PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+              leading: Icon(Icons.delete_outline, color: Colors.red),
+              title: Text('Delete', style: TextStyle(color: Colors.red)),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
-        ),
-      );
+        );
+      }
     }
     return items;
   }
@@ -118,6 +160,31 @@ class ExpenseDetailsScreen extends ConsumerWidget {
     Expense expense,
     String action,
   ) async {
+    final pageState = ref.read(expenseControllerProvider);
+    if (action == 'edit' && !pageState.canUpdateExpenses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to perform this action.')),
+      );
+      return;
+    }
+    if (action == 'partial_payment' && !pageState.canUpdateExpenses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to perform this action.')),
+      );
+      return;
+    }
+    if ((action == 'approve' || action == 'reject') && !pageState.canApproveExpenses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to perform this action.')),
+      );
+      return;
+    }
+    if (action == 'delete' && !pageState.canDeleteExpenses) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to perform this action.')),
+      );
+      return;
+    }
     switch (action) {
       case 'edit':
         context.push('/expenses/${expense.id}/edit');
@@ -135,6 +202,17 @@ class ExpenseDetailsScreen extends ConsumerWidget {
             },
           ),
         );
+        break;
+      case 'approve':
+      case 'reject':
+        await ref.read(expenseControllerProvider.notifier).updateExpense(
+              expense.id,
+              UpdateExpenseRequest(
+                status: action == 'approve' ? 'Approved' : 'Rejected',
+              ),
+            );
+        ref.invalidate(expenseDetailsProvider(expenseId));
+        ref.read(expenseControllerProvider.notifier).loadAll();
         break;
       case 'delete':
         final reasonCtrl = TextEditingController();
@@ -201,7 +279,14 @@ Future<void> _pickAndUploadAttachments(
   BuildContext context,
   WidgetRef ref,
   String expenseId,
+  bool canUpdate,
 ) async {
+  if (!canUpdate) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You do not have permission to perform this action.')),
+    );
+    return;
+  }
   final result = await FilePicker.platform.pickFiles(
     type: FileType.custom,
     allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf'],
@@ -237,7 +322,14 @@ Future<void> _confirmDeleteAttachment(
   WidgetRef ref,
   String expenseId,
   String attachmentId,
+  bool canUpdate,
 ) async {
+  if (!canUpdate) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You do not have permission to perform this action.')),
+    );
+    return;
+  }
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -283,6 +375,7 @@ class _ExpenseDetailsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final pageState = ref.watch(expenseControllerProvider);
     final currencyFormat =
         NumberFormat.currency(symbol: 'MK ', decimalDigits: 2);
 
@@ -366,13 +459,26 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                     title: Text(currencyFormat.format(p.amount)),
                     subtitle: Text(
                         '${p.paymentMethod} • ${p.paymentDate ?? ''}'),
-                    trailing: p.reference != null
-                        ? Text(
-                            p.reference!,
-                            style: theme.textTheme.bodySmall,
-                            overflow: TextOverflow.ellipsis,
-                          )
-                        : null,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Download receipt',
+                          icon: const Icon(Icons.receipt_long_outlined, size: 20),
+                          onPressed: p.id.isEmpty ? null : () => _downloadPaymentReceipt(context, ref, p.id),
+                        ),
+                        if (p.reference != null)
+                          SizedBox(
+                            width: 90,
+                            child: Text(
+                              p.reference!,
+                              style: theme.textTheme.bodySmall,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.right,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 )),
           ],
@@ -390,7 +496,12 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                 TextButton.icon(
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add'),
-                  onPressed: () => _pickAndUploadAttachments(context, ref, expenseId),
+                  onPressed: () => _pickAndUploadAttachments(
+                    context,
+                    ref,
+                    expenseId,
+                    pageState.canUpdateExpenses,
+                  ),
                 ),
             ],
           ),
@@ -410,21 +521,121 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                   leading: const Icon(Icons.attach_file),
                   title: Text(a.name ?? 'Attachment'),
                   subtitle: a.size != null ? Text(a.size!) : null,
-                  trailing: expense.isEditable
-                      ? IconButton(
+                  onTap: (a.url != null && a.url!.isNotEmpty)
+                      ? () => _showAttachmentPreview(context, a)
+                      : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (a.url != null && a.url!.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new, size: 20),
+                          onPressed: () async {
+                            final uri = Uri.tryParse(a.url!);
+                            if (uri != null) {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            }
+                          },
+                        ),
+                      if (expense.isEditable)
+                        IconButton(
                           icon: Icon(
                             Icons.delete_outline,
                             size: 20,
                             color: theme.colorScheme.error,
                           ),
                           onPressed: () => _confirmDeleteAttachment(
-                              context, ref, expenseId, a.id),
-                        )
-                      : null,
+                              context,
+                              ref,
+                              expenseId,
+                              a.id,
+                              pageState.canUpdateExpenses,
+                            ),
+                        ),
+                    ],
+                  ),
                 )),
         ],
       ),
     );
+  }
+
+  Future<void> _showAttachmentPreview(
+    BuildContext context,
+    ExpenseAttachment attachment,
+  ) async {
+    final url = attachment.url ?? '';
+    final lowerName = (attachment.name ?? '').toLowerCase();
+    final lowerType = (attachment.type ?? '').toLowerCase();
+    final isImage = lowerType.contains('image') ||
+        lowerName.endsWith('.png') ||
+        lowerName.endsWith('.jpg') ||
+        lowerName.endsWith('.jpeg') ||
+        lowerName.endsWith('.gif') ||
+        lowerName.endsWith('.webp');
+    final isPdf = lowerType.contains('pdf') || lowerName.endsWith('.pdf');
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(attachment.name ?? 'Attachment'),
+        content: SizedBox(
+          width: 420,
+          child: isImage
+              ? Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) =>
+                      const Text('Unable to preview image'),
+                )
+              : isPdf
+                  ? const Text('PDF can be opened in-app browser for quick verification.')
+                  : const Text(
+                      'Preview is not available for this file type. Open externally.',
+                    ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              final uri = Uri.tryParse(url);
+              if (uri != null) {
+                await launchUrl(
+                  uri,
+                  mode: isPdf ? LaunchMode.inAppBrowserView : LaunchMode.externalApplication,
+                );
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: Text(isPdf ? 'Open PDF' : 'Open'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _downloadPaymentReceipt(
+    BuildContext context,
+    WidgetRef ref,
+    String paymentId,
+  ) async {
+    try {
+      final bytes = await ref.read(expenseRepositoryProvider).fetchPaymentReceiptPdf(paymentId);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/payment-receipt-$paymentId.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download receipt: $e')),
+        );
+      }
+    }
   }
 }
 
