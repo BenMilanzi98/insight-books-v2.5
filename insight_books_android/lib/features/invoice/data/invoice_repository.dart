@@ -13,27 +13,43 @@ class InvoiceRepository {
 
   InvoiceRepository(this._dio);
 
-  Future<List<Invoice>> fetchInvoices({
+  Future<InvoiceListResponse> fetchInvoices({
     String? search,
     String? status,
-    int? page,
-    int? limit,
+    int page = 1,
+    int limit = 20,
+    String? sortBy,
+    String? sortOrder,
+    String? dateFrom,
+    String? dateTo,
+    String? clientId,
   }) async {
     try {
       final response = await _dio.get(
         '/api/invoices',
         queryParameters: <String, dynamic>{
-          ...? (search != null && search.isNotEmpty) ? {'search': search} : null,
-          ...? (status != null && status != 'all' && status.isNotEmpty)
+          'page': page,
+          'limit': limit,
+          ...?(search != null && search.isNotEmpty) ? {'search': search} : null,
+          ...?(status != null && status != 'all' && status.isNotEmpty)
               ? {'status': status}
               : null,
-          ...? page != null ? {'page': page} : null,
-          ...? limit != null ? {'limit': limit} : null,
+          ...?sortBy != null ? {'sortBy': sortBy} : null,
+          ...?sortOrder != null ? {'sortOrder': sortOrder} : null,
+          ...?(dateFrom != null && dateFrom.isNotEmpty)
+              ? {'dateFrom': dateFrom}
+              : null,
+          ...?(dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
+          ...?(clientId != null && clientId.isNotEmpty)
+              ? {'client': clientId}
+              : null,
         },
       );
 
       final data = response.data;
-      if (data == null || data is! Map) return [];
+      if (data == null || data is! Map) {
+        return InvoiceListResponse(invoices: []);
+      }
 
       final dynamic raw = data['invoices'] ?? data['data'];
       final List invoicesJson = raw is List ? raw : [];
@@ -45,7 +61,16 @@ class InvoiceRepository {
           continue;
         }
       }
-      return result;
+
+      final pagination = data['pagination'] as Map<String, dynamic>?;
+      return InvoiceListResponse(
+        invoices: result,
+        totalPages: (pagination?['totalPages'] as num?)?.toInt() ?? 1,
+        totalCount:
+            (pagination?['totalCount'] as num?)?.toInt() ?? result.length,
+        page: (pagination?['page'] as num?)?.toInt() ?? page,
+        limit: (pagination?['limit'] as num?)?.toInt() ?? limit,
+      );
     } catch (e) {
       rethrow;
     }
@@ -71,17 +96,23 @@ class InvoiceRepository {
     final response = await _dio.get('/api/chart-of-accounts/income-accounts');
     final data = response.data;
     if (data == null || data is! Map) {
-      throw Exception('No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.');
+      throw Exception(
+        'No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.',
+      );
     }
     final accounts = data['accounts'];
     if (accounts == null || accounts is! List || accounts.isEmpty) {
-      throw Exception('No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.');
+      throw Exception(
+        'No income accounts found. Add an Income account (e.g. 4000 - Revenue) in Chart of Accounts.',
+      );
     }
     final first = accounts.first;
     if (first is! Map) return (first as dynamic).toString();
     final id = first['id'];
     if (id == null || id.toString().isEmpty) {
-      throw Exception('Invalid income account. Add an Income account in Chart of Accounts.');
+      throw Exception(
+        'Invalid income account. Add an Income account in Chart of Accounts.',
+      );
     }
     return id.toString();
   }
@@ -99,6 +130,27 @@ class InvoiceRepository {
       body['items'] = itemsWithAccount;
 
       final response = await _dio.post('/api/invoices', data: body);
+      final Map<String, dynamic> data =
+          response.data['invoice'] ?? response.data;
+      return _parseInvoice(Map<String, dynamic>.from(data));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Invoice> updateInvoice(String id, CreateInvoiceRequest request) async {
+    try {
+      final defaultAccountId = await _getDefaultIncomeAccountId();
+      final body = request.toJson();
+      final items = body['items'] as List<dynamic>? ?? [];
+      final itemsWithAccount = items.map<Map<String, dynamic>>((e) {
+        final map = Map<String, dynamic>.from(e as Map);
+        map['accountId'] = defaultAccountId;
+        return map;
+      }).toList();
+      body['items'] = itemsWithAccount;
+
+      final response = await _dio.put('/api/invoices/$id', data: body);
       final Map<String, dynamic> data =
           response.data['invoice'] ?? response.data;
       return _parseInvoice(Map<String, dynamic>.from(data));
@@ -175,7 +227,7 @@ class InvoiceRepository {
           'refundAmount': refundAmount,
           'refundReason': refundReason,
           'refundMethod': refundMethod,
-          ...? notes != null ? {'notes': notes} : null,
+          ...?notes != null ? {'notes': notes} : null,
         },
       );
     } catch (e) {
@@ -198,9 +250,9 @@ class InvoiceRepository {
           'invoiceId': invoiceId,
           'amount': amount,
           'paymentMethod': paymentMethod,
-          ...? paymentDate != null ? {'paymentDate': paymentDate} : null,
-          ...? reference != null ? {'reference': reference} : null,
-          ...? notes != null ? {'notes': notes} : null,
+          ...?paymentDate != null ? {'paymentDate': paymentDate} : null,
+          ...?reference != null ? {'reference': reference} : null,
+          ...?notes != null ? {'notes': notes} : null,
         },
       );
     } catch (e) {
@@ -231,6 +283,37 @@ class InvoiceRepository {
             (json) => InvoicePayment.fromJson(Map<String, dynamic>.from(json)),
           )
           .toList();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<int>> exportInvoices({
+    String? status,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+    String? clientId,
+    String format = 'csv',
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/api/invoices/export',
+        queryParameters: <String, dynamic>{
+          'format': format,
+          ...?(status != null && status.isNotEmpty) ? {'status': status} : null,
+          ...?(search != null && search.isNotEmpty) ? {'search': search} : null,
+          ...?(dateFrom != null && dateFrom.isNotEmpty)
+              ? {'dateFrom': dateFrom}
+              : null,
+          ...?(dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
+          ...?(clientId != null && clientId.isNotEmpty)
+              ? {'client': clientId}
+              : null,
+        },
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return response.data as List<int>;
     } catch (e) {
       rethrow;
     }

@@ -7,14 +7,24 @@ import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
 import 'providers/invoice_provider.dart';
 
-class InvoiceDetailsScreen extends ConsumerWidget {
+class InvoiceDetailsScreen extends ConsumerStatefulWidget {
   final String invoiceId;
-
   const InvoiceDetailsScreen({super.key, required this.invoiceId});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final invoiceAsync = ref.watch(invoiceDetailsProvider(invoiceId));
+  ConsumerState<InvoiceDetailsScreen> createState() =>
+      _InvoiceDetailsScreenState();
+}
+
+class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
+  final _currencyFormat = NumberFormat.currency(
+    symbol: 'MK ',
+    decimalDigits: 2,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final invoiceAsync = ref.watch(invoiceDetailsProvider(widget.invoiceId));
     final theme = Theme.of(context);
 
     return Scaffold(
@@ -24,9 +34,8 @@ class InvoiceDetailsScreen extends ConsumerWidget {
           invoiceAsync.whenOrNull(
                 data: (invoice) => PopupMenuButton<String>(
                   onSelected: (action) =>
-                      _handleAction(context, ref, invoice, action),
-                  itemBuilder: (ctx) => _buildMenuItems(invoice),
-                  icon: const Icon(Icons.more_vert),
+                      _handleAction(action, invoice, context),
+                  itemBuilder: (_) => _buildMenuItems(invoice),
                 ),
               ) ??
               const SizedBox.shrink(),
@@ -43,155 +52,708 @@ class InvoiceDetailsScreen extends ConsumerWidget {
                 size: 48,
                 color: theme.colorScheme.error,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 16),
               Text(
                 'Failed to load invoice',
                 style: theme.textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
-              FilledButton.tonalIcon(
-                onPressed: () =>
-                    ref.invalidate(invoiceDetailsProvider(invoiceId)),
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(invoiceDetailsProvider),
+                child: const Text('Retry'),
               ),
             ],
           ),
         ),
-        data: (invoice) =>
-            _InvoiceDetailsBody(invoice: invoice, invoiceId: invoiceId),
+        data: (invoice) => _buildBody(invoice, theme),
       ),
     );
   }
 
-  List<PopupMenuEntry<String>> _buildMenuItems(Invoice invoice) {
-    final items = <PopupMenuEntry<String>>[];
-    final status = invoice.status.toLowerCase();
+  // ═══════════════════════════════════════════════════
+  //  Menu Items
+  // ═══════════════════════════════════════════════════
 
-    if (status == 'pending' ||
-        status == 'sent' ||
-        status == 'partial' ||
-        status == 'overdue') {
+  List<PopupMenuEntry<String>> _buildMenuItems(Invoice invoice) {
+    final status = invoice.status.toLowerCase();
+    final items = <PopupMenuEntry<String>>[];
+
+    // Edit — only draft invoices
+    if (status == 'draft') {
+      items.add(
+        const PopupMenuItem(
+          value: 'edit',
+          child: ListTile(leading: Icon(Icons.edit), title: Text('Edit')),
+        ),
+      );
+      items.add(const PopupMenuDivider());
+    }
+
+    // Mark as Paid — pending/sent/overdue/partial
+    if (['pending', 'sent', 'overdue', 'partial'].contains(status)) {
       items.add(
         const PopupMenuItem(
           value: 'mark_paid',
           child: ListTile(
-            leading: Icon(Icons.check_circle_outline, color: Colors.green),
+            leading: Icon(Icons.check_circle, color: Colors.green),
             title: Text('Mark as Paid'),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
           ),
         ),
       );
     }
 
-    if (status == 'pending' ||
-        status == 'sent' ||
-        status == 'partial' ||
-        status == 'overdue') {
+    // Partial Payment — pending/sent/overdue/partial
+    if (['pending', 'sent', 'overdue', 'partial'].contains(status)) {
       items.add(
         const PopupMenuItem(
           value: 'partial_payment',
           child: ListTile(
-            leading: Icon(Icons.payment_outlined, color: Colors.blue),
-            title: Text('Record Payment'),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.pie_chart, color: Colors.blue),
+            title: Text('Record Partial Payment'),
           ),
         ),
       );
     }
 
-    if (status != 'void' && status != 'paid' && status != 'refunded') {
+    // Void — not void/paid
+    if (!['void', 'paid'].contains(status)) {
       items.add(
         const PopupMenuItem(
           value: 'void',
           child: ListTile(
             leading: Icon(Icons.block, color: Colors.brown),
             title: Text('Void Invoice'),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
           ),
         ),
       );
     }
 
-    if (status == 'draft' || status == 'pending') {
+    // Refund — paid/partial (has payments)
+    if (['paid', 'partial'].contains(status) && invoice.totalPaid > 0) {
       items.add(
         const PopupMenuItem(
-          value: 'delete',
+          value: 'refund',
           child: ListTile(
-            leading: Icon(Icons.delete_outline, color: Colors.red),
-            title: Text('Delete Invoice'),
-            dense: true,
-            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.undo, color: Colors.orange),
+            title: Text('Refund'),
           ),
         ),
       );
     }
+
+    // Delete
+    items.add(const PopupMenuDivider());
+    items.add(
+      const PopupMenuItem(
+        value: 'delete',
+        child: ListTile(
+          leading: Icon(Icons.delete, color: Colors.red),
+          title: Text('Delete', style: TextStyle(color: Colors.red)),
+        ),
+      ),
+    );
 
     return items;
   }
 
+  // ═══════════════════════════════════════════════════
+  //  Action Handler
+  // ═══════════════════════════════════════════════════
+
   Future<void> _handleAction(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
     String action,
+    Invoice invoice,
+    BuildContext ctx,
   ) async {
     switch (action) {
+      case 'edit':
+        ctx.push('/invoice/${invoice.id}/edit');
+        break;
       case 'mark_paid':
-        await _showMarkAsPaidDialog(context, ref, invoice);
+        await _showMarkAsPaidDialog(invoice);
         break;
       case 'partial_payment':
-        await _showPartialPaymentSheet(context, ref, invoice);
+        await _showPartialPaymentSheet(invoice);
         break;
       case 'void':
-        await _showVoidDialog(context, ref, invoice);
+        await _showVoidDialog(invoice);
+        break;
+      case 'refund':
+        await _showRefundSheet(invoice);
         break;
       case 'delete':
-        await _showDeleteDialog(context, ref, invoice);
+        await _showDeleteDialog(invoice);
         break;
     }
   }
 
-  Future<void> _showMarkAsPaidDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
-  ) async {
-    String method = 'cash';
+  // ═══════════════════════════════════════════════════
+  //  Body
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildBody(Invoice invoice, ThemeData theme) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // ── Status Banner ──
+          _buildStatusBanner(invoice, theme),
+          const SizedBox(height: 16),
+
+          // ── Client & Dates Card ──
+          _buildInfoCard(invoice, theme),
+          const SizedBox(height: 12),
+
+          // ── Items Card ──
+          _buildItemsCard(invoice, theme),
+          const SizedBox(height: 12),
+
+          // ── Summary Card ──
+          _buildSummaryCard(invoice, theme),
+          const SizedBox(height: 12),
+
+          // ── Payment History ──
+          if (invoice.payments.isNotEmpty) ...[
+            _buildPaymentHistoryCard(invoice, theme),
+            const SizedBox(height: 12),
+          ],
+
+          // ── Notes ──
+          if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
+            _buildNotesCard(invoice, theme),
+            const SizedBox(height: 12),
+          ],
+
+          const SizedBox(height: 40),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Status Banner
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildStatusBanner(Invoice invoice, ThemeData theme) {
+    final color = _statusColor(invoice.status);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(60)),
+      ),
+      child: Row(
+        children: [
+          Icon(_statusIcon(invoice.status), color: color, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  invoice.status[0].toUpperCase() + invoice.status.substring(1),
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  invoice.invoiceNumber,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: color.withAlpha(180),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            _currencyFormat.format(invoice.total),
+            style: TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Info Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildInfoCard(Invoice invoice, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Details',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+            _DetailRow(
+              label: 'Client',
+              value: invoice.client.name,
+              theme: theme,
+            ),
+            _DetailRow(
+              label: 'Issue Date',
+              value: invoice.issueDate != null
+                  ? DateFormat('MMM d, y').format(invoice.issueDate!)
+                  : DateFormat('MMM d, y').format(invoice.createdAt),
+              theme: theme,
+            ),
+            _DetailRow(
+              label: 'Due Date',
+              value: DateFormat('MMM d, y').format(invoice.dueDate),
+              theme: theme,
+            ),
+            _DetailRow(
+              label: 'Currency',
+              value: invoice.currency,
+              theme: theme,
+            ),
+            if (invoice.terms != null && invoice.terms!.isNotEmpty)
+              _DetailRow(label: 'Terms', value: invoice.terms!, theme: theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Items Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildItemsCard(Invoice invoice, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Items',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+            ...invoice.items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.product.name,
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                          Text(
+                            '${item.quantity.toStringAsFixed(item.quantity.truncateToDouble() == item.quantity ? 0 : 2)} × ${_currencyFormat.format(item.unitPrice)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurface.withAlpha(150),
+                            ),
+                          ),
+                          if (item.taxRate > 0)
+                            Text(
+                              'Tax: ${item.taxRate.toStringAsFixed(1)}%',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurface.withAlpha(
+                                  120,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      _currencyFormat.format(item.total),
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Summary Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildSummaryCard(Invoice invoice, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _SummaryRow(
+              label: 'Subtotal',
+              value: _currencyFormat.format(invoice.subtotal),
+            ),
+            if (invoice.totalTax > 0)
+              _SummaryRow(
+                label: 'Tax',
+                value: _currencyFormat.format(invoice.totalTax),
+              ),
+            if (invoice.totalDiscount > 0)
+              _SummaryRow(
+                label: 'Discount',
+                value: '-${_currencyFormat.format(invoice.totalDiscount)}',
+              ),
+            const Divider(),
+            _SummaryRow(
+              label: 'Total',
+              value: _currencyFormat.format(invoice.total),
+              isBold: true,
+            ),
+            if (invoice.totalPaid > 0)
+              _SummaryRow(
+                label: 'Paid',
+                value: _currencyFormat.format(invoice.totalPaid),
+                color: Colors.green,
+              ),
+            if (invoice.remainingBalance > 0)
+              _SummaryRow(
+                label: 'Balance Due',
+                value: _currencyFormat.format(invoice.remainingBalance),
+                color: Colors.red,
+                isBold: true,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Payment History Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildPaymentHistoryCard(Invoice invoice, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Payment History',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+            ...invoice.payments.map((payment) {
+              final date = payment.paymentDate != null
+                  ? DateFormat('MMM d, y').format(payment.paymentDate!)
+                  : 'Unknown';
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Colors.green.withAlpha(25),
+                  child: const Icon(
+                    Icons.payment,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                ),
+                title: Text(_currencyFormat.format(payment.amount)),
+                subtitle: Text(
+                  '${payment.paymentMethod} · $date',
+                  style: theme.textTheme.bodySmall,
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Notes Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildNotesCard(Invoice invoice, ThemeData theme) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Notes',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Divider(),
+            Text(invoice.notes!, style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Mark as Paid Dialog
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _showMarkAsPaidDialog(Invoice invoice) async {
+    String selectedMethod = 'cash';
+    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Mark as Paid'),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Mark as Paid'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mark ${invoice.invoiceNumber} as fully paid (${_currencyFormat.format(invoice.remainingBalance > 0 ? invoice.remainingBalance : invoice.total)})?',
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedMethod,
+                    decoration: const InputDecoration(
+                      labelText: 'Payment Method',
+                    ),
+                    items: methods
+                        .map(
+                          (m) => DropdownMenuItem(
+                            value: m,
+                            child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (v) => setDialogState(() => selectedMethod = v!),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Mark as Paid'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .markAsPaid(invoice.id, selectedMethod);
+        ref.invalidate(invoiceDetailsProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Invoice marked as paid')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Partial Payment Sheet
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _showPartialPaymentSheet(Invoice invoice) async {
+    final amountCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    String method = 'cash';
+    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Record Partial Payment',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Balance: ${_currencyFormat.format(invoice.remainingBalance > 0 ? invoice.remainingBalance : invoice.total)}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Amount',
+                        prefixText: 'MK ',
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Required';
+                        final amount = double.tryParse(v);
+                        if (amount == null || amount <= 0) return 'Invalid';
+                        final max = invoice.remainingBalance > 0
+                            ? invoice.remainingBalance
+                            : invoice.total;
+                        if (amount > max) return 'Exceeds balance';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: method,
+                      decoration: const InputDecoration(
+                        labelText: 'Payment Method',
+                      ),
+                      items: methods
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setSheetState(() => method = v!),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (formKey.currentState!.validate()) {
+                            Navigator.pop(ctx, true);
+                          }
+                        },
+                        child: const Text('Record Payment'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .addPartialPayment(
+              invoiceId: invoice.id,
+              amount: double.parse(amountCtrl.text),
+              paymentMethod: method,
+              notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
+            );
+        ref.invalidate(invoiceDetailsProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Payment recorded')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Void Dialog
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _showVoidDialog(Invoice invoice) async {
+    final reasonCtrl = TextEditingController();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Void Invoice'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Mark invoice ${invoice.invoiceNumber} as fully paid?'),
+              Text('Void ${invoice.invoiceNumber}? This cannot be undone.'),
               const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: method,
+              TextField(
+                controller: reasonCtrl,
                 decoration: const InputDecoration(
-                  labelText: 'Payment Method',
-                  border: OutlineInputBorder(),
+                  labelText: 'Reason',
+                  hintText: 'Why are you voiding?',
                 ),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(
-                    value: 'bank_transfer',
-                    child: Text('Bank Transfer'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'mobile_money',
-                    child: Text('Mobile Money'),
-                  ),
-                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                  DropdownMenuItem(value: 'card', child: Text('Card')),
-                ],
-                onChanged: (v) => setState(() => method = v ?? 'cash'),
+                maxLines: 2,
               ),
             ],
           ),
@@ -200,605 +762,237 @@ class InvoiceDetailsScreen extends ConsumerWidget {
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancel'),
             ),
-            FilledButton(
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Confirm'),
+              child: const Text('Void'),
             ),
           ],
-        ),
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      try {
-        await ref
-            .read(invoiceRepositoryProvider)
-            .markAsPaid(invoice.id, method);
-        ref.invalidate(invoiceDetailsProvider(invoiceId));
-        ref.invalidate(invoiceControllerProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Invoice marked as paid')),
-          );
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
-    }
-  }
-
-  Future<void> _showPartialPaymentSheet(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
-  ) async {
-    final amountCtrl = TextEditingController();
-    final refCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-    String method = 'cash';
-    final formatter = NumberFormat.currency(symbol: 'MK ', decimalDigits: 2);
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            20,
-            20,
-            20,
-            MediaQuery.of(ctx).viewInsets.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Record Payment',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Outstanding: ${formatter.format(invoice.amountDue > 0 ? invoice.amountDue : invoice.total - invoice.totalPaid)}',
-                style: TextStyle(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Amount',
-                  prefixText: 'MK ',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: method,
-                decoration: const InputDecoration(
-                  labelText: 'Payment Method',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                  DropdownMenuItem(
-                    value: 'bank_transfer',
-                    child: Text('Bank Transfer'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'mobile_money',
-                    child: Text('Mobile Money'),
-                  ),
-                  DropdownMenuItem(value: 'cheque', child: Text('Cheque')),
-                  DropdownMenuItem(value: 'card', child: Text('Card')),
-                ],
-                onChanged: (v) => setState(() => method = v ?? 'cash'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: refCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Reference (optional)',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: notesCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Notes (optional)',
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    final amount = double.tryParse(amountCtrl.text);
-                    if (amount == null || amount <= 0) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(content: Text('Enter a valid amount')),
-                      );
-                      return;
-                    }
-                    Navigator.pop(ctx);
-                    try {
-                      await ref
-                          .read(invoiceRepositoryProvider)
-                          .addPartialPayment(
-                            invoiceId: invoice.id,
-                            amount: amount,
-                            paymentMethod: method,
-                            reference: refCtrl.text.isNotEmpty
-                                ? refCtrl.text
-                                : null,
-                            notes: notesCtrl.text.isNotEmpty
-                                ? notesCtrl.text
-                                : null,
-                          );
-                      ref.invalidate(invoiceDetailsProvider(invoiceId));
-                      ref.invalidate(invoiceControllerProvider);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Payment recorded')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(
-                          context,
-                        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-                      }
-                    }
-                  },
-                  child: const Text('Record Payment'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showVoidDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
-  ) async {
-    final reasonCtrl = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Void Invoice'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Void invoice ${invoice.invoiceNumber}?'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: reasonCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Reason for voiding',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 2,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: Colors.brown),
-            child: const Text('Void'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      if (reasonCtrl.text.trim().length < 3) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Reason must be at least 3 characters')),
         );
-        return;
-      }
+      },
+    );
+
+    if (confirmed == true && mounted) {
       try {
         await ref
-            .read(invoiceRepositoryProvider)
-            .voidInvoice(invoice.id, reasonCtrl.text.trim());
-        ref.invalidate(invoiceDetailsProvider(invoiceId));
-        ref.invalidate(invoiceControllerProvider);
-        if (context.mounted) {
+            .read(invoiceControllerProvider.notifier)
+            .voidInvoice(invoice.id, reasonCtrl.text);
+        ref.invalidate(invoiceDetailsProvider);
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(const SnackBar(content: Text('Invoice voided')));
         }
       } catch (e) {
-        if (context.mounted) {
+        if (mounted) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Error: $e')));
         }
       }
     }
+    reasonCtrl.dispose();
   }
 
-  Future<void> _showDeleteDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
-  ) async {
-    final confirmed = await showDialog<bool>(
+  // ═══════════════════════════════════════════════════
+  //  Refund Sheet
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _showRefundSheet(Invoice invoice) async {
+    final amountCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    String method = 'cash';
+    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+    final formKey = GlobalKey<FormState>();
+
+    final confirmed = await showModalBottomSheet<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Invoice'),
-        content: Text(
-          'Delete invoice ${invoice.invoiceNumber}? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-    );
-
-    if (confirmed == true && context.mounted) {
-      try {
-        await ref.read(invoiceRepositoryProvider).deleteInvoice(invoice.id);
-        ref.invalidate(invoiceControllerProvider);
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
-          context.pop();
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
-        }
-      }
-    }
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  Invoice Details Body
-// ═══════════════════════════════════════════════════
-
-class _InvoiceDetailsBody extends ConsumerWidget {
-  final Invoice invoice;
-  final String invoiceId;
-
-  const _InvoiceDetailsBody({required this.invoice, required this.invoiceId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final dateFormat = DateFormat('d MMM y');
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MK ',
-      decimalDigits: 2,
-    );
-    final statusColor = _statusColor(invoice.status);
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // ── Status Badge + Invoice Number ──
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: statusColor.withValues(alpha: 0.3)),
-          ),
-          color: statusColor.withValues(alpha: 0.06),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Icon(_statusIcon(invoice.status), size: 40, color: statusColor),
-                const SizedBox(height: 8),
-                Text(
-                  invoice.status.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                    letterSpacing: 1,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  invoice.invoiceNumber,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.outline,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // ── Dates ──
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Issue Date',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        invoice.issueDate != null
-                            ? dateFormat.format(invoice.issueDate!)
-                            : dateFormat.format(invoice.createdAt),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        'Due Date',
-                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        dateFormat.format(invoice.dueDate),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // ── Client ──
-        Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(
-              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
-            ),
-          ),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primaryContainer,
-              child: Text(
-                invoice.client.name.isNotEmpty
-                    ? invoice.client.name[0].toUpperCase()
-                    : 'C',
-                style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                MediaQuery.of(ctx).viewInsets.bottom + 24,
               ),
-            ),
-            title: Text(
-              invoice.client.name,
-              style: const TextStyle(fontWeight: FontWeight.w600),
-            ),
-            subtitle: Text(invoice.client.email ?? invoice.client.phone ?? ''),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // ── Line Items ──
-        Text(
-          'Items',
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        ...invoice.items.map(
-          (item) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(
-                  color: theme.colorScheme.outlineVariant.withValues(
-                    alpha: 0.3,
-                  ),
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            item.description ?? item.product.name,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Text(
-                            '${item.quantity} × ${currencyFormat.format(item.unitPrice)}',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                    Text(
+                      'Refund Payment',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
+                    const SizedBox(height: 4),
                     Text(
-                      currencyFormat.format(item.total),
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
+                      'Total paid: ${_currencyFormat.format(invoice.totalPaid)}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: amountCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Refund Amount',
+                        prefixText: 'MK ',
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Required';
+                        final amount = double.tryParse(v);
+                        if (amount == null || amount <= 0) return 'Invalid';
+                        if (amount > invoice.totalPaid) {
+                          return 'Cannot exceed paid amount';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: reasonCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Reason for Refund',
+                      ),
+                      validator: (v) =>
+                          (v == null || v.isEmpty) ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: method,
+                      decoration: const InputDecoration(
+                        labelText: 'Refund Method',
+                      ),
+                      items: methods
+                          .map(
+                            (m) => DropdownMenuItem(
+                              value: m,
+                              child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setSheetState(() => method = v!),
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: notesCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
+                      ),
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                        ),
+                        onPressed: () {
+                          if (formKey.currentState!.validate()) {
+                            Navigator.pop(ctx, true);
+                          }
+                        },
+                        child: const Text('Process Refund'),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-
-        // ── Financial Summary ──
-        Card(
-          elevation: 0,
-          color: theme.colorScheme.surfaceContainerLow,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _SummaryRow(
-                  label: 'Subtotal',
-                  value: currencyFormat.format(invoice.subtotal),
-                ),
-                if (invoice.totalDiscount > 0)
-                  _SummaryRow(
-                    label: 'Discount',
-                    value: '-${currencyFormat.format(invoice.totalDiscount)}',
-                    color: Colors.red,
-                  ),
-                if (invoice.totalTax > 0)
-                  _SummaryRow(
-                    label: 'Tax',
-                    value: currencyFormat.format(invoice.totalTax),
-                  ),
-                const Divider(height: 20),
-                _SummaryRow(
-                  label: 'Total',
-                  value: currencyFormat.format(invoice.total),
-                  isBold: true,
-                ),
-                if (invoice.totalPaid > 0) ...[
-                  const SizedBox(height: 8),
-                  _SummaryRow(
-                    label: 'Paid',
-                    value: currencyFormat.format(invoice.totalPaid),
-                    color: Colors.green,
-                  ),
-                  _SummaryRow(
-                    label: 'Balance Due',
-                    value: currencyFormat.format(
-                      invoice.amountDue > 0
-                          ? invoice.amountDue
-                          : invoice.total - invoice.totalPaid,
-                    ),
-                    isBold: true,
-                    color: Colors.orange,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // ── Payment History ──
-        if (invoice.payments.isNotEmpty) ...[
-          Text(
-            'Payment History',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          ...invoice.payments.map(
-            (p) => Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: Colors.green.withValues(alpha: 0.3)),
-              ),
-              child: ListTile(
-                leading: const Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
-                  size: 20,
-                ),
-                title: Text(
-                  currencyFormat.format(p.amount),
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(p.paymentMethod),
-                trailing: Text(
-                  p.paymentDate ?? '',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-
-        // ── Notes ──
-        if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
-          Text(
-            'Notes',
-            style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(invoice.notes!, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 16),
-        ],
-      ],
+            );
+          },
+        );
+      },
     );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .refundInvoice(
+              invoiceId: invoice.id,
+              refundAmount: double.parse(amountCtrl.text),
+              refundReason: reasonCtrl.text,
+              refundMethod: method,
+              notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
+            );
+        ref.invalidate(invoiceDetailsProvider);
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Refund processed')));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+    amountCtrl.dispose();
+    reasonCtrl.dispose();
+    notesCtrl.dispose();
   }
+
+  // ═══════════════════════════════════════════════════
+  //  Delete Dialog
+  // ═══════════════════════════════════════════════════
+
+  Future<void> _showDeleteDialog(Invoice invoice) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Delete Invoice'),
+          content: Text(
+            'Delete ${invoice.invoiceNumber}? This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .deleteInvoice(invoice.id);
+        if (mounted) context.pop();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Helpers
+  // ═══════════════════════════════════════════════════
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -841,9 +1035,48 @@ class _InvoiceDetailsBody extends ConsumerWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  Summary Row
-// ═══════════════════════════════════════════════════
+// ═══════════════════════════════
+//  Helper Widgets
+// ═══════════════════════════════
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final ThemeData theme;
+  const _DetailRow({
+    required this.label,
+    required this.value,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(150),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _SummaryRow extends StatelessWidget {
   final String label;

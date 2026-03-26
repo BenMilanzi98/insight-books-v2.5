@@ -71,6 +71,13 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           ),
           GoRoute(
+            path: '/invoice/:id/edit',
+            builder: (context, state) {
+              final id = state.pathParameters['id']!;
+              return CreateInvoiceScreen(invoiceId: id);
+            },
+          ),
+          GoRoute(
             path: '/quotation',
             builder: (context, state) => const QuotationListScreen(),
           ),

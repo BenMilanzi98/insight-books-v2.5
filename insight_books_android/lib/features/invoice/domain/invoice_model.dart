@@ -118,3 +118,19 @@ abstract class CreateInvoiceItemRequest with _$CreateInvoiceItemRequest {
   factory CreateInvoiceItemRequest.fromJson(Map<String, dynamic> json) =>
       _$CreateInvoiceItemRequestFromJson(json);
 }
+
+class InvoiceListResponse {
+  final List<Invoice> invoices;
+  final int totalPages;
+  final int totalCount;
+  final int page;
+  final int limit;
+
+  InvoiceListResponse({
+    required this.invoices,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.page = 1,
+    this.limit = 20,
+  });
+}

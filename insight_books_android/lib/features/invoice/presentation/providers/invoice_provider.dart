@@ -1,117 +1,325 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../data/invoice_repository.dart';
 import '../../domain/invoice_model.dart';
 
-part 'invoice_provider.g.dart';
+// ═══════════════════════════════════════════════════
+//  State
+// ═══════════════════════════════════════════════════
 
 class InvoicePageState {
   final List<Invoice> invoices;
   final InvoiceStatistics? statistics;
   final bool isLoading;
-  final bool isStatsLoading;
   final String? error;
   final String searchQuery;
   final String statusFilter;
+
+  // Sorting
+  final String sortBy; // 'createdAt', 'dueDate', 'total', 'client'
+  final String sortOrder; // 'desc', 'asc'
+
+  // Pagination
+  final int page;
+  final int totalPages;
+  final int totalCount;
+  final int limit;
+
+  // Advanced filters
+  final String? dateFrom;
+  final String? dateTo;
+  final String? clientFilter;
 
   const InvoicePageState({
     this.invoices = const [],
     this.statistics,
     this.isLoading = false,
-    this.isStatsLoading = false,
     this.error,
     this.searchQuery = '',
     this.statusFilter = 'all',
+    this.sortBy = 'createdAt',
+    this.sortOrder = 'desc',
+    this.page = 1,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.limit = 20,
+    this.dateFrom,
+    this.dateTo,
+    this.clientFilter,
   });
 
   InvoicePageState copyWith({
     List<Invoice>? invoices,
     InvoiceStatistics? statistics,
     bool? isLoading,
-    bool? isStatsLoading,
     String? error,
     String? searchQuery,
     String? statusFilter,
+    String? sortBy,
+    String? sortOrder,
+    int? page,
+    int? totalPages,
+    int? totalCount,
+    int? limit,
+    String? dateFrom,
+    String? dateTo,
+    String? clientFilter,
+    bool clearError = false,
+    bool clearDateFrom = false,
+    bool clearDateTo = false,
+    bool clearClientFilter = false,
   }) {
     return InvoicePageState(
       invoices: invoices ?? this.invoices,
       statistics: statistics ?? this.statistics,
       isLoading: isLoading ?? this.isLoading,
-      isStatsLoading: isStatsLoading ?? this.isStatsLoading,
-      error: error,
+      error: clearError ? null : error ?? this.error,
       searchQuery: searchQuery ?? this.searchQuery,
       statusFilter: statusFilter ?? this.statusFilter,
+      sortBy: sortBy ?? this.sortBy,
+      sortOrder: sortOrder ?? this.sortOrder,
+      page: page ?? this.page,
+      totalPages: totalPages ?? this.totalPages,
+      totalCount: totalCount ?? this.totalCount,
+      limit: limit ?? this.limit,
+      dateFrom: clearDateFrom ? null : dateFrom ?? this.dateFrom,
+      dateTo: clearDateTo ? null : dateTo ?? this.dateTo,
+      clientFilter: clearClientFilter
+          ? null
+          : clientFilter ?? this.clientFilter,
     );
   }
 }
 
-@Riverpod(keepAlive: true)
-class InvoiceController extends _$InvoiceController {
-  @override
-  InvoicePageState build() {
-    return const InvoicePageState(isLoading: true);
-  }
+// ═══════════════════════════════════════════════════
+//  Controller
+// ═══════════════════════════════════════════════════
 
-  Future<void> loadAll() async {
-    await Future.wait([fetchInvoices(), fetchStatistics()]);
-  }
+class InvoiceController extends StateNotifier<InvoicePageState> {
+  final InvoiceRepository _repo;
 
-  Future<void> fetchInvoices() async {
-    state = state.copyWith(isLoading: true, error: null);
+  InvoiceController(this._repo) : super(const InvoicePageState());
+
+  // —— Loading ——
+
+  Future<void> loadInvoices() async {
+    state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final repo = ref.read(invoiceRepositoryProvider);
-      final invoices = await repo.fetchInvoices(
-        search: state.searchQuery.isEmpty ? null : state.searchQuery,
-        status: state.statusFilter == 'all' ? null : state.statusFilter,
-        page: 1,
-        limit: 20,
+      final result = await _repo.fetchInvoices(
+        search: state.searchQuery.isNotEmpty ? state.searchQuery : null,
+        status: state.statusFilter != 'all' ? state.statusFilter : null,
+        page: state.page,
+        limit: state.limit,
+        sortBy: state.sortBy,
+        sortOrder: state.sortOrder,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
+        clientId: state.clientFilter,
       );
-      state = state.copyWith(invoices: invoices, isLoading: false);
+      state = state.copyWith(
+        invoices: result.invoices,
+        totalPages: result.totalPages,
+        totalCount: result.totalCount,
+        page: result.page,
+        isLoading: false,
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> fetchStatistics() async {
-    state = state.copyWith(isStatsLoading: true);
+  Future<void> loadStatistics() async {
     try {
-      final repo = ref.read(invoiceRepositoryProvider);
-      final stats = await repo.fetchStatistics();
-      state = state.copyWith(statistics: stats, isStatsLoading: false);
-    } catch (e) {
-      state = state.copyWith(isStatsLoading: false);
+      final stats = await _repo.fetchStatistics();
+      state = state.copyWith(statistics: stats);
+    } catch (_) {
+      // statistics are non-essential
     }
   }
 
-  void setSearchQuery(String query) {
-    state = state.copyWith(searchQuery: query);
-    fetchInvoices();
+  Future<void> refresh() async {
+    state = state.copyWith(page: 1);
+    await Future.wait([loadInvoices(), loadStatistics()]);
+  }
+
+  // —— Filtering ——
+
+  void setSearch(String search) {
+    state = state.copyWith(searchQuery: search, page: 1);
+    loadInvoices();
   }
 
   void setStatusFilter(String status) {
-    state = state.copyWith(statusFilter: status);
-    fetchInvoices();
+    state = state.copyWith(statusFilter: status, page: 1);
+    loadInvoices();
   }
 
-  Future<void> createInvoice(CreateInvoiceRequest request) async {
-    state = state.copyWith(isLoading: true);
-    try {
-      final repo = ref.read(invoiceRepositoryProvider);
-      await repo.createInvoice(request);
-      await loadAll();
-    } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
-      rethrow;
-    }
+  // —— Sorting ——
+
+  void setSortBy(String sortBy) {
+    state = state.copyWith(sortBy: sortBy, page: 1);
+    loadInvoices();
   }
+
+  void setSortOrder(String order) {
+    state = state.copyWith(sortOrder: order, page: 1);
+    loadInvoices();
+  }
+
+  void toggleSortOrder() {
+    setSortOrder(state.sortOrder == 'asc' ? 'desc' : 'asc');
+  }
+
+  // —— Pagination ——
+
+  void setPage(int page) {
+    if (page < 1 || page > state.totalPages) return;
+    state = state.copyWith(page: page);
+    loadInvoices();
+  }
+
+  void nextPage() => setPage(state.page + 1);
+  void previousPage() => setPage(state.page - 1);
+
+  // —— Advanced Filters ——
+
+  void setDateRange(String? from, String? to) {
+    state = state.copyWith(
+      dateFrom: from,
+      dateTo: to,
+      clearDateFrom: from == null,
+      clearDateTo: to == null,
+      page: 1,
+    );
+    loadInvoices();
+  }
+
+  void setClientFilter(String? clientId) {
+    state = state.copyWith(
+      clientFilter: clientId,
+      clearClientFilter: clientId == null,
+      page: 1,
+    );
+    loadInvoices();
+  }
+
+  void resetFilters() {
+    state = state.copyWith(
+      searchQuery: '',
+      statusFilter: 'all',
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+      page: 1,
+      clearDateFrom: true,
+      clearDateTo: true,
+      clearClientFilter: true,
+    );
+    loadInvoices();
+  }
+
+  bool get hasActiveFilters {
+    return state.statusFilter != 'all' ||
+        state.searchQuery.isNotEmpty ||
+        state.dateFrom != null ||
+        state.dateTo != null ||
+        state.clientFilter != null;
+  }
+
+  // —— CRUD ——
 
   Future<void> deleteInvoice(String id) async {
+    await _repo.deleteInvoice(id);
+    await refresh();
+  }
+
+  Future<Invoice> updateInvoice(String id, CreateInvoiceRequest request) async {
+    final invoice = await _repo.updateInvoice(id, request);
+    await refresh();
+    return invoice;
+  }
+
+  // —— Payment Actions ——
+
+  Future<void> markAsPaid(String id, String paymentMethod) async {
+    await _repo.markAsPaid(id, paymentMethod);
+    await refresh();
+  }
+
+  Future<void> voidInvoice(String id, String reason) async {
+    await _repo.voidInvoice(id, reason);
+    await refresh();
+  }
+
+  Future<void> refundInvoice({
+    required String invoiceId,
+    required double refundAmount,
+    required String refundReason,
+    required String refundMethod,
+    String? notes,
+  }) async {
+    await _repo.refundInvoice(
+      invoiceId: invoiceId,
+      refundAmount: refundAmount,
+      refundReason: refundReason,
+      refundMethod: refundMethod,
+      notes: notes,
+    );
+    await refresh();
+  }
+
+  Future<void> addPartialPayment({
+    required String invoiceId,
+    required double amount,
+    required String paymentMethod,
+    String? paymentDate,
+    String? reference,
+    String? notes,
+  }) async {
+    await _repo.addPartialPayment(
+      invoiceId: invoiceId,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      paymentDate: paymentDate,
+      reference: reference,
+      notes: notes,
+    );
+    await refresh();
+  }
+
+  // —— Export ——
+
+  Future<void> exportCsv() async {
     try {
-      final repo = ref.read(invoiceRepositoryProvider);
-      await repo.deleteInvoice(id);
-      await loadAll();
+      final bytes = await _repo.exportInvoices(
+        status: state.statusFilter != 'all' ? state.statusFilter : null,
+        search: state.searchQuery.isNotEmpty ? state.searchQuery : null,
+        dateFrom: state.dateFrom,
+        dateTo: state.dateTo,
+        clientId: state.clientFilter,
+      );
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/invoices_export.csv');
+      await file.writeAsBytes(bytes);
+      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
     } catch (e) {
-      state = state.copyWith(error: e.toString());
-      rethrow;
+      state = state.copyWith(error: 'Export failed: $e');
     }
   }
 }
+
+// ═══════════════════════════════════════════════════
+//  Providers
+// ═══════════════════════════════════════════════════
+
+final invoiceControllerProvider =
+    StateNotifierProvider<InvoiceController, InvoicePageState>((ref) {
+      final repo = ref.watch(invoiceRepositoryProvider);
+      return InvoiceController(repo);
+    });
+
+final invoiceStatisticsProvider = FutureProvider<InvoiceStatistics>((ref) {
+  final repo = ref.watch(invoiceRepositoryProvider);
+  return repo.fetchStatistics();
+});

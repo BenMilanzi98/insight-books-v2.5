@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
-import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import '../../../shared/widgets/stat_card.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_provider.dart';
 
@@ -15,117 +14,87 @@ class InvoiceListScreen extends ConsumerStatefulWidget {
 }
 
 class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
+  final _searchController = TextEditingController();
+  final _currencyFormat = NumberFormat.currency(
+    symbol: 'MK ',
+    decimalDigits: 2,
+  );
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(invoiceControllerProvider.notifier).loadAll();
+      ref.read(invoiceControllerProvider.notifier).refresh();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(invoiceControllerProvider);
-    final notifier = ref.read(invoiceControllerProvider.notifier);
+    final controller = ref.read(invoiceControllerProvider.notifier);
     final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      drawer: const AppDrawer(),
       appBar: AppBar(
-        title: const Text('Invoicing'),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () => Scaffold.of(context).openDrawer(),
+        title: const Text('Invoices'),
+        actions: [
+          // Sort button
+          IconButton(
+            icon: const Icon(Icons.sort),
+            tooltip: 'Sort',
+            onPressed: () => _showSortSheet(context, state, controller),
           ),
-        ),
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        foregroundColor: Theme.of(context).colorScheme.onSurface,
-        elevation: 0,
-        actions: const [ThemeToggleButton()],
+          // Filter button
+          IconButton(
+            icon: Badge(
+              isLabelVisible: controller.hasActiveFilters,
+              child: const Icon(Icons.filter_list),
+            ),
+            tooltip: 'Filter',
+            onPressed: () => _showFilterSheet(context, state, controller),
+          ),
+          // Export button
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Export CSV',
+            onPressed: () => controller.exportCsv(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => context.push('/invoice/create'),
+        child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
-        onRefresh: () => notifier.loadAll(),
+        onRefresh: () => controller.refresh(),
         child: CustomScrollView(
           slivers: [
-            // ── Statistics Cards ──
-            if (state.statistics != null)
-              SliverToBoxAdapter(
-                child: _StatisticsRow(statistics: state.statistics!),
-              ),
+            // ── Statistics ──
+            SliverToBoxAdapter(child: _buildStatistics(state, theme)),
 
             // ── Search Bar ──
+            SliverToBoxAdapter(child: _buildSearchBar(controller, theme)),
+
+            // ── Status Chips ──
             SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search invoices…',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: theme.colorScheme.surfaceContainerLow,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  onChanged: notifier.setSearchQuery,
-                ),
-              ),
+              child: _buildStatusChips(state, controller, theme),
             ),
 
-            // ── Status Filter Chips ──
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _StatusChip(
-                        label: 'All',
-                        value: 'all',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Pending',
-                        value: 'Pending',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Paid',
-                        value: 'Paid',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Overdue',
-                        value: 'Overdue',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Partial',
-                        value: 'Partial',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                      _StatusChip(
-                        label: 'Draft',
-                        value: 'Draft',
-                        current: state.statusFilter,
-                        onTap: notifier.setStatusFilter,
-                      ),
-                    ],
-                  ),
-                ),
+            // ── Active Filters Info ──
+            if (state.dateFrom != null ||
+                state.dateTo != null ||
+                state.clientFilter != null)
+              SliverToBoxAdapter(
+                child: _buildActiveFiltersBar(state, controller, theme),
               ),
-            ),
 
-            // ── List ──
+            // ── Invoice List ──
             if (state.isLoading)
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
@@ -133,42 +102,25 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
             else if (state.error != null)
               SliverFillRemaining(
                 child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 48,
-                          color: theme.colorScheme.error,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Failed to load invoices',
-                          style: theme.textTheme.titleMedium,
-                          textAlign: TextAlign.center,
-                        ),
-                        if (state.error != null && state.error!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            state.error!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 4,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        const SizedBox(height: 16),
-                        FilledButton.tonalIcon(
-                          onPressed: () => notifier.loadAll(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
-                        ),
-                      ],
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 48,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load invoices',
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () => controller.refresh(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
                   ),
                 ),
               )
@@ -179,303 +131,235 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        Icons.receipt_long_outlined,
+                        Icons.receipt_long,
                         size: 64,
-                        color: theme.colorScheme.outline,
+                        color: theme.colorScheme.onSurface.withAlpha(80),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       Text(
                         'No invoices found',
                         style: theme.textTheme.titleMedium,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Text(
-                        'Create your first invoice',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
+                        'Tap + to create your first invoice',
+                        style: theme.textTheme.bodySmall,
                       ),
                     ],
                   ),
                 ),
               )
             else
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
-                ),
-                sliver: SliverList.separated(
-                  itemCount: state.invoices.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final invoice = state.invoices[index];
-                    return _InvoiceCard(
-                      invoice: invoice,
-                      onTap: () => context.push('/invoice/${invoice.id}'),
-                      onDelete:
-                          (invoice.status == 'Draft' ||
-                              invoice.status == 'Pending')
-                          ? () => _confirmDelete(context, ref, invoice)
-                          : null,
-                    );
-                  },
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) =>
+                      _buildInvoiceCard(state.invoices[index], theme),
+                  childCount: state.invoices.length,
                 ),
               ),
 
-            // Bottom padding
+            // ── Pagination ──
+            if (!state.isLoading &&
+                state.invoices.isNotEmpty &&
+                state.totalPages > 1)
+              SliverToBoxAdapter(
+                child: _buildPagination(state, controller, theme),
+              ),
+
+            // Bottom padding for FAB
             const SliverToBoxAdapter(child: SizedBox(height: 80)),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/invoice/create'),
-        icon: const Icon(Icons.add),
-        label: const Text('New Invoice'),
-      ),
     );
   }
 
-  Future<void> _confirmDelete(
-    BuildContext context,
-    WidgetRef ref,
-    Invoice invoice,
-  ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Invoice'),
-        content: Text(
-          'Delete invoice ${invoice.invoiceNumber}? This cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && context.mounted) {
-      try {
-        await ref
-            .read(invoiceControllerProvider.notifier)
-            .deleteInvoice(invoice.id);
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
-        }
-      }
-    }
-  }
-}
+  // ═══════════════════════════════════════════════════
+  //  Statistics
+  // ═══════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════
-//  Statistics Row
-// ═══════════════════════════════════════════════════
+  Widget _buildStatistics(InvoicePageState state, ThemeData theme) {
+    final stats = state.statistics;
+    if (stats == null) return const SizedBox.shrink();
 
-class _StatisticsRow extends StatelessWidget {
-  final InvoiceStatistics statistics;
-
-  const _StatisticsRow({required this.statistics});
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = NumberFormat.compactCurrency(
-      symbol: 'MK',
-      decimalDigits: 0,
-    );
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Row(
         children: [
-          _StatCard(
-            label: 'Paid',
-            count: statistics.paid.count,
-            amount: formatter.format(statistics.paid.amount),
-            color: Colors.green,
-            icon: Icons.check_circle_outline,
+          Expanded(
+            child: StatCard(
+              label: 'Paid',
+              value: _currencyFormat.format(stats.paid.amount),
+              count: stats.paid.count,
+              color: Colors.green,
+            ),
           ),
-          const SizedBox(width: 10),
-          _StatCard(
-            label: 'Pending',
-            count: statistics.pending.count,
-            amount: formatter.format(statistics.pending.amount),
-            color: Colors.orange,
-            icon: Icons.schedule,
+          const SizedBox(width: 8),
+          Expanded(
+            child: StatCard(
+              label: 'Pending',
+              value: _currencyFormat.format(stats.pending.amount),
+              count: stats.pending.count,
+              color: Colors.orange,
+            ),
           ),
-          const SizedBox(width: 10),
-          _StatCard(
-            label: 'Overdue',
-            count: statistics.overdue.count,
-            amount: formatter.format(statistics.overdue.amount),
-            color: Colors.red,
-            icon: Icons.warning_amber_outlined,
-          ),
-          const SizedBox(width: 10),
-          _StatCard(
-            label: 'Partial',
-            count: statistics.partial.count,
-            amount: formatter.format(statistics.partial.amount),
-            color: Colors.blue,
-            icon: Icons.pie_chart_outline,
+          const SizedBox(width: 8),
+          Expanded(
+            child: StatCard(
+              label: 'Overdue',
+              value: _currencyFormat.format(stats.overdue.amount),
+              count: stats.overdue.count,
+              color: Colors.red,
+            ),
           ),
         ],
       ),
     );
   }
-}
 
-class _StatCard extends StatelessWidget {
-  final String label;
-  final int count;
-  final String amount;
-  final Color color;
-  final IconData icon;
+  // ═══════════════════════════════════════════════════
+  //  Search
+  // ═══════════════════════════════════════════════════
 
-  const _StatCard({
-    required this.label,
-    required this.count,
-    required this.amount,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: color.withValues(alpha: 0.3)),
-      ),
-      color: color.withValues(alpha: 0.06),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              amount,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '$count invoice${count == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ═══════════════════════════════════════════════════
-//  Status Filter Chip
-// ═══════════════════════════════════════════════════
-
-class _StatusChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final String current;
-  final ValueChanged<String> onTap;
-
-  const _StatusChip({
-    required this.label,
-    required this.value,
-    required this.current,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = current == value;
+  Widget _buildSearchBar(InvoiceController controller, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => onTap(value),
-        showCheckmark: false,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: TextField(
+        controller: _searchController,
+        decoration: InputDecoration(
+          hintText: 'Search invoices...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchController.text.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    controller.setSearch('');
+                  },
+                )
+              : null,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        onChanged: (v) {
+          setState(() {}); // update suffixIcon visibility
+          controller.setSearch(v);
+        },
       ),
     );
   }
-}
 
-// ═══════════════════════════════════════════════════
-//  Invoice Card
-// ═══════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════
+  //  Status Chips
+  // ═══════════════════════════════════════════════════
 
-class _InvoiceCard extends StatelessWidget {
-  final Invoice invoice;
-  final VoidCallback onTap;
-  final VoidCallback? onDelete;
-
-  const _InvoiceCard({
-    required this.invoice,
-    required this.onTap,
-    this.onDelete,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final dateFormat = DateFormat('d MMM y');
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MK ',
-      decimalDigits: 2,
-    );
-
-    final statusColor = _statusColor(invoice.status);
-
-    Widget card = Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.4),
+  Widget _buildStatusChips(
+    InvoicePageState state,
+    InvoiceController controller,
+    ThemeData theme,
+  ) {
+    final statuses = [
+      'all',
+      'draft',
+      'pending',
+      'sent',
+      'partial',
+      'paid',
+      'overdue',
+      'void',
+    ];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: SizedBox(
+        height: 40,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: statuses.length,
+          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          itemBuilder: (context, i) {
+            final s = statuses[i];
+            final selected = state.statusFilter == s;
+            return ChoiceChip(
+              label: Text(
+                s[0].toUpperCase() + s.substring(1),
+                style: TextStyle(
+                  color: selected
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
+                  fontSize: 13,
+                ),
+              ),
+              selected: selected,
+              selectedColor: theme.colorScheme.primary,
+              onSelected: (_) => controller.setStatusFilter(s),
+              visualDensity: VisualDensity.compact,
+            );
+          },
         ),
       ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Active Filters Bar
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildActiveFiltersBar(
+    InvoicePageState state,
+    InvoiceController controller,
+    ThemeData theme,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Row(
+        children: [
+          Icon(Icons.filter_alt, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              [
+                if (state.dateFrom != null || state.dateTo != null)
+                  'Date: ${state.dateFrom ?? '...'} → ${state.dateTo ?? '...'}',
+                if (state.clientFilter != null) 'Client filtered',
+              ].join(' · '),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          TextButton(
+            onPressed: () => controller.resetFilters(),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Invoice Card
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildInvoiceCard(Invoice invoice, ThemeData theme) {
+    final statusColor = _statusColor(invoice.status);
+    final statusLabel =
+        invoice.status[0].toUpperCase() + invoice.status.substring(1);
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.push('/invoice/${invoice.id}'),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Row 1: Invoice number + Status chip
+              // Header row
               Row(
                 children: [
                   Expanded(
@@ -492,15 +376,16 @@ class _InvoiceCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
+                      color: statusColor.withAlpha(25),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: statusColor.withAlpha(80)),
                     ),
                     child: Text(
-                      invoice.status,
+                      statusLabel,
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
                         color: statusColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
@@ -508,86 +393,345 @@ class _InvoiceCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
 
-              // Row 2: Client + date
+              // Client name
               Row(
                 children: [
                   Icon(
                     Icons.person_outline,
-                    size: 14,
-                    color: theme.colorScheme.outline,
+                    size: 16,
+                    color: theme.colorScheme.onSurface.withAlpha(150),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       invoice.client.name,
-                      style: theme.textTheme.bodySmall,
-                      maxLines: 1,
+                      style: theme.textTheme.bodyMedium,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Icon(
-                    Icons.calendar_today_outlined,
-                    size: 12,
-                    color: theme.colorScheme.outline,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Due ${dateFormat.format(invoice.dueDate)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
 
-              // Row 3: Total + paid info
+              // Amount & Due date
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      currencyFormat.format(invoice.total),
+                      _currencyFormat.format(invoice.total),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                  if (invoice.totalPaid > 0 && invoice.status != 'Paid')
-                    Text(
-                      'Paid: ${currencyFormat.format(invoice.totalPaid)}',
-                      style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                  Icon(
+                    Icons.calendar_today,
+                    size: 14,
+                    color: theme.colorScheme.onSurface.withAlpha(150),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Due ${DateFormat('MMM d, y').format(invoice.dueDate)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: _isDueOrOverdue(invoice)
+                          ? Colors.red
+                          : theme.colorScheme.onSurface.withAlpha(150),
                     ),
+                  ),
                 ],
               ),
+
+              // Balance info for partial payments
+              if (invoice.status.toLowerCase() == 'partial' &&
+                  invoice.remainingBalance > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Balance: ${_currencyFormat.format(invoice.remainingBalance)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
+  }
 
-    // Wrap with Dismissible for delete
-    if (onDelete != null) {
-      card = Dismissible(
-        key: ValueKey(invoice.id),
-        direction: DismissDirection.endToStart,
-        confirmDismiss: (_) async {
-          onDelete!();
-          return false; // handled by the callback
-        },
-        background: Container(
-          alignment: Alignment.centerRight,
-          padding: const EdgeInsets.only(right: 24),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.error.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
+  // ═══════════════════════════════════════════════════
+  //  Pagination
+  // ═══════════════════════════════════════════════════
+
+  Widget _buildPagination(
+    InvoicePageState state,
+    InvoiceController controller,
+    ThemeData theme,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left),
+            onPressed: state.page > 1 ? () => controller.previousPage() : null,
           ),
-          child: Icon(Icons.delete_outline, color: theme.colorScheme.error),
-        ),
-        child: card,
-      );
-    }
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'Page ${state.page} of ${state.totalPages}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            onPressed: state.page < state.totalPages
+                ? () => controller.nextPage()
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
 
-    return card;
+  // ═══════════════════════════════════════════════════
+  //  Sort Bottom Sheet
+  // ═══════════════════════════════════════════════════
+
+  void _showSortSheet(
+    BuildContext context,
+    InvoicePageState state,
+    InvoiceController controller,
+  ) {
+    final sortOptions = {
+      'createdAt': 'Date Created',
+      'dueDate': 'Due Date',
+      'total': 'Amount',
+      'invoiceNumber': 'Invoice Number',
+    };
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Sort By',
+                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      TextButton.icon(
+                        icon: Icon(
+                          state.sortOrder == 'asc'
+                              ? Icons.arrow_upward
+                              : Icons.arrow_downward,
+                          size: 18,
+                        ),
+                        label: Text(
+                          state.sortOrder == 'asc' ? 'Ascending' : 'Descending',
+                        ),
+                        onPressed: () {
+                          controller.toggleSortOrder();
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                ...sortOptions.entries.map((entry) {
+                  final selected = state.sortBy == entry.key;
+                  return ListTile(
+                    leading: Icon(
+                      selected
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_off,
+                      color: selected
+                          ? Theme.of(ctx).colorScheme.primary
+                          : null,
+                    ),
+                    title: Text(entry.value),
+                    onTap: () {
+                      controller.setSortBy(entry.key);
+                      Navigator.pop(ctx);
+                    },
+                  );
+                }),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Filter Bottom Sheet
+  // ═══════════════════════════════════════════════════
+
+  void _showFilterSheet(
+    BuildContext context,
+    InvoicePageState state,
+    InvoiceController controller,
+  ) {
+    DateTime? fromDate = state.dateFrom != null
+        ? DateTime.tryParse(state.dateFrom!)
+        : null;
+    DateTime? toDate = state.dateTo != null
+        ? DateTime.tryParse(state.dateTo!)
+        : null;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Filters',
+                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: () {
+                            controller.resetFilters();
+                            Navigator.pop(ctx);
+                          },
+                          child: const Text('Reset All'),
+                        ),
+                      ],
+                    ),
+                    const Divider(),
+                    const SizedBox(height: 8),
+
+                    // Date Range
+                    Text(
+                      'Date Range',
+                      style: Theme.of(ctx).textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.calendar_today, size: 16),
+                            label: Text(
+                              fromDate != null
+                                  ? DateFormat('MMM d, y').format(fromDate!)
+                                  : 'From',
+                            ),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: ctx,
+                                initialDate: fromDate ?? DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now(),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => fromDate = picked);
+                              }
+                            },
+                          ),
+                        ),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Text('→'),
+                        ),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.calendar_today, size: 16),
+                            label: Text(
+                              toDate != null
+                                  ? DateFormat('MMM d, y').format(toDate!)
+                                  : 'To',
+                            ),
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: ctx,
+                                initialDate: toDate ?? DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime.now().add(
+                                  const Duration(days: 365),
+                                ),
+                              );
+                              if (picked != null) {
+                                setSheetState(() => toDate = picked);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Apply Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          controller.setDateRange(
+                            fromDate?.toIso8601String().split('T').first,
+                            toDate?.toIso8601String().split('T').first,
+                          );
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Apply Filters'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ═══════════════════════════════════════════════════
+  //  Helpers
+  // ═══════════════════════════════════════════════════
+
+  bool _isDueOrOverdue(Invoice invoice) {
+    final status = invoice.status.toLowerCase();
+    if (status == 'paid' || status == 'void' || status == 'draft') return false;
+    return invoice.dueDate.isBefore(DateTime.now());
   }
 
   Color _statusColor(String status) {
@@ -605,9 +749,6 @@ class _InvoiceCard extends StatelessWidget {
         return Colors.blue;
       case 'void':
         return Colors.brown;
-      case 'refunded':
-      case 'partially_refunded':
-        return Colors.purple;
       default:
         return Colors.grey;
     }
