@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_controller.dart';
@@ -176,6 +177,10 @@ class DashboardScreen extends ConsumerWidget {
 
   Widget _buildErrorState(BuildContext context, Object err, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final msg = NetworkErrorMapper.toUserMessage(
+      err,
+      fallback: 'Failed to load dashboard',
+    );
     return SizedBox(
       height: 400,
       child: Center(
@@ -184,7 +189,11 @@ class DashboardScreen extends ConsumerWidget {
           children: [
             Icon(Icons.error_outline, size: 48, color: colorScheme.error),
             const SizedBox(height: 16),
-            Text('Error: $err', textAlign: TextAlign.center, style: TextStyle(color: colorScheme.onSurface)),
+            Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colorScheme.onSurface),
+            ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () =>

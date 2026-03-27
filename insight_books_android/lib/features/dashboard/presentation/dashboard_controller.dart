@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import 'package:insightbooks_android/features/dashboard/data/dashboard_repository.dart';
 import 'package:insightbooks_android/features/dashboard/domain/dashboard_data.dart';
 
@@ -26,11 +27,23 @@ class DashboardController extends AsyncNotifier<DashboardData> {
   Future<void> setDateRange(String range) async {
     _dateRange = range;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _fetchData());
+    state = await AsyncValue.guard(() async {
+      try {
+        return await _fetchData();
+      } catch (e) {
+        throw Exception(NetworkErrorMapper.toUserMessage(e));
+      }
+    });
   }
 
   Future<void> refresh() async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => _fetchData());
+    state = await AsyncValue.guard(() async {
+      try {
+        return await _fetchData();
+      } catch (e) {
+        throw Exception(NetworkErrorMapper.toUserMessage(e));
+      }
+    });
   }
 }

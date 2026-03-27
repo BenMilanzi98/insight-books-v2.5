@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/invoice_repository.dart';
@@ -158,7 +159,13 @@ class InvoiceController extends Notifier<InvoicePageState> {
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: NetworkErrorMapper.toUserMessage(
+          e,
+          fallback: 'Failed to load invoices',
+        ),
+      );
     }
   }
 
