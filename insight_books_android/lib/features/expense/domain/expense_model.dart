@@ -41,6 +41,7 @@ class Expense {
     this.updatedAt,
     this.deletedAt,
     this.deletionReason,
+    this.taxTypeId,
   });
 
   final String id;
@@ -72,6 +73,7 @@ class Expense {
   final String? updatedAt;
   final String? deletedAt;
   final String? deletionReason;
+  final String? taxTypeId;
 
   factory Expense.fromJson(Map<String, dynamic> json) {
     final paymentsList = json['payments'] as List<dynamic>? ?? [];
@@ -129,6 +131,10 @@ class Expense {
       updatedAt: json['updatedAt']?.toString(),
       deletedAt: json['deletedAt']?.toString(),
       deletionReason: json['deletionReason'] as String?,
+      taxTypeId: json['taxTypeId'] as String? ??
+          (json['taxType'] is Map
+              ? (json['taxType'] as Map)['id'] as String?
+              : null),
     );
   }
 
@@ -138,6 +144,12 @@ class Expense {
   /// Whether partial payment can be added (pending or partially paid).
   bool get canAddPartialPayment =>
       (paymentStatus == 'Pending' || paymentStatus == 'Partially') && isEditable;
+
+  /// Total owed (base + tax), aligned with API `totalWithTax` / payment logic.
+  double get totalPayable => amount + taxAmount;
+
+  /// Balance remaining for partial payments.
+  double get remainingBalance => totalPayable - paidAmount;
 }
 
 class ExpenseAccountInfo {
@@ -415,6 +427,9 @@ class CreateExpenseRequest {
     this.supplierId,
     this.paidAmount,
     this.paymentReference,
+    this.taxTypeId,
+    this.isHistorical,
+    this.migrationBatch,
   });
 
   final String description;
@@ -434,6 +449,9 @@ class CreateExpenseRequest {
   final String? supplierId;
   final double? paidAmount;
   final String? paymentReference;
+  final String? taxTypeId;
+  final bool? isHistorical;
+  final String? migrationBatch;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -449,11 +467,15 @@ class CreateExpenseRequest {
       if (merchant != null) 'merchant': merchant,
       if (taxAmount != null) 'taxAmount': taxAmount,
       if (taxRate != null) 'taxRate': taxRate,
+      if (taxTypeId != null) 'taxTypeId': taxTypeId,
       if (sourceAccountId != null) 'sourceAccountId': sourceAccountId,
       if (branchId != null) 'branchId': branchId,
       if (supplierId != null) 'supplierId': supplierId,
       if (paidAmount != null) 'paidAmount': paidAmount,
       if (paymentReference != null) 'paymentReference': paymentReference,
+      if (isHistorical == true) 'isHistorical': true,
+      if (migrationBatch != null && migrationBatch!.isNotEmpty)
+        'migrationBatch': migrationBatch,
     };
   }
 }
@@ -477,6 +499,7 @@ class UpdateExpenseRequest {
     this.taxRate,
     this.supplierId,
     this.branchId,
+    this.taxTypeId,
   });
 
   final String? description;
@@ -495,6 +518,7 @@ class UpdateExpenseRequest {
   final double? taxRate;
   final String? supplierId;
   final String? branchId;
+  final String? taxTypeId;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -512,6 +536,7 @@ class UpdateExpenseRequest {
       if (paymentReference != null) 'paymentReference': paymentReference,
       if (taxAmount != null) 'taxAmount': taxAmount,
       if (taxRate != null) 'taxRate': taxRate,
+      if (taxTypeId != null) 'taxTypeId': taxTypeId,
       if (supplierId != null) 'supplierId': supplierId,
       if (branchId != null) 'branchId': branchId,
     };

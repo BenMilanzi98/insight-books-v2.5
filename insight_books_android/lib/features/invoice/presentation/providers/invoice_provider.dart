@@ -133,6 +133,10 @@ class InvoiceController extends Notifier<InvoicePageState> {
   // —— Loading ——
 
   Future<void> loadInvoices() async {
+    const allowedFilters = {'all', 'draft', 'pending', 'paid', 'overdue'};
+    if (!allowedFilters.contains(state.statusFilter)) {
+      state = state.copyWith(statusFilter: 'all', page: 1);
+    }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final result = await _repo.fetchInvoices(

@@ -20,6 +20,8 @@ abstract class Invoice with _$Invoice {
     required DateTime createdAt,
     DateTime? issueDate,
     @Default('MWK') String currency,
+    String? title,
+    String? orderNumber,
     String? terms,
     String? notes,
     @Default(0) double totalPaid,

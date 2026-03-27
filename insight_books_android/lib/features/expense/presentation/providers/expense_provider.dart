@@ -4,6 +4,36 @@ import 'dart:io';
 import '../../data/expense_repository.dart';
 import '../../domain/expense_model.dart';
 
+String? _parseDefaultOutflowTaxId(Map<String, dynamic>? d) {
+  if (d == null) return null;
+  final direct = d['outflowTaxTypeId'] ?? d['defaultOutflowTaxTypeId'];
+  if (direct != null) return direct.toString();
+  final nested = d['defaultTaxTypeForOutflow'];
+  if (nested is Map && nested['id'] != null) return nested['id'].toString();
+  return null;
+}
+
+List<Map<String, dynamic>> _dedupeTaxTypesById(List<Map<String, dynamic>> raw) {
+  final seen = <String>{};
+  final out = <Map<String, dynamic>>[];
+  for (final t in raw) {
+    final id = '${t['id'] ?? ''}';
+    if (id.isEmpty || !seen.add(id)) continue;
+    out.add(t);
+  }
+  return out;
+}
+
+List<ExpenseCategoryOption> _dedupeCategoriesById(List<ExpenseCategoryOption> raw) {
+  final seen = <String>{};
+  final out = <ExpenseCategoryOption>[];
+  for (final c in raw) {
+    if (c.id.isEmpty || !seen.add(c.id)) continue;
+    out.add(c);
+  }
+  return out;
+}
+
 class ExpensePageState {
   const ExpensePageState({
     this.expenses = const [],
@@ -189,11 +219,9 @@ class ExpenseController extends Notifier<ExpensePageState> {
       final accounts = await repo.fetchTaxAccounts();
       final defaults = await repo.fetchTaxDefaults();
       state = state.copyWith(
-        taxTypes: taxes,
+        taxTypes: _dedupeTaxTypesById(taxes),
         taxAccounts: accounts,
-        defaultOutflowTaxTypeId: (defaults?['outflowTaxTypeId'] ??
-                defaults?['defaultOutflowTaxTypeId'])
-            ?.toString(),
+        defaultOutflowTaxTypeId: _parseDefaultOutflowTaxId(defaults),
       );
     } catch (_) {
       state = state.copyWith(taxTypes: [], taxAccounts: []);
@@ -215,7 +243,10 @@ class ExpenseController extends Notifier<ExpensePageState> {
     try {
       final repo = ref.read(expenseRepositoryProvider);
       final list = await repo.fetchExpenseCategories();
-      state = state.copyWith(categories: list, isCategoriesLoading: false);
+      state = state.copyWith(
+        categories: _dedupeCategoriesById(list),
+        isCategoriesLoading: false,
+      );
     } catch (_) {
       state = state.copyWith(isCategoriesLoading: false);
     }
@@ -569,7 +600,9 @@ class ExpenseController extends Notifier<ExpensePageState> {
           name: name,
           description: description,
         );
-    state = state.copyWith(categories: [...state.categories, created]);
+    state = state.copyWith(
+      categories: _dedupeCategoriesById([...state.categories, created]),
+    );
     return created;
   }
 
@@ -589,7 +622,9 @@ class ExpenseController extends Notifier<ExpensePageState> {
     final row = (created['taxType'] is Map)
         ? Map<String, dynamic>.from(created['taxType'] as Map)
         : created;
-    state = state.copyWith(taxTypes: [...state.taxTypes, row]);
+    state = state.copyWith(
+      taxTypes: _dedupeTaxTypesById([...state.taxTypes, row]),
+    );
     return row;
   }
 

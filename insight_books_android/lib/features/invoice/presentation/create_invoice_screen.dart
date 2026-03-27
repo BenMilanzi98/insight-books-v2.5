@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../pos/data/pos_repository.dart';
 import '../../../core/network/api_client.dart';
 import '../data/invoice_repository.dart';
 import 'providers/invoice_provider.dart';
+import '../../../shared/widgets/main_layout.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final String? invoiceId;
@@ -25,6 +28,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   final _notesCtrl = TextEditingController();
   final _termsCtrl = TextEditingController();
   final _discountCtrl = TextEditingController();
+  final _titleCtrl = TextEditingController();
+  final _orderNumberCtrl = TextEditingController();
+  bool _orderNumberAutogenerate = false;
   String _status = 'Pending';
   bool _isSubmitting = false;
   late final bool _isEditMode;
@@ -57,6 +63,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           .whereType<Map>()
           .map((e) => _InvoiceTemplate.fromJson(Map<String, dynamic>.from(e)))
           .toList();
+      final isEdit = widget.invoiceId != null && widget.invoiceId!.isNotEmpty;
       if (mounted) {
         setState(() {
           _products = results[0] as List<PosProduct>;
@@ -73,8 +80,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           if (_selectedTemplateId != null && _selectedTemplateId!.isEmpty) {
             _selectedTemplateId = null;
           }
-          _isLoadingData = false;
+          if (!isEdit) _isLoadingData = false;
         });
+      }
+      if (mounted && isEdit) {
+        await _loadInvoiceForEdit();
+        if (mounted) setState(() => _isLoadingData = false);
       }
     } catch (e) {
       if (mounted) {
@@ -86,11 +97,86 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     }
   }
 
+  Future<void> _loadInvoiceForEdit() async {
+    final id = widget.invoiceId;
+    if (id == null || id.isEmpty) return;
+    try {
+      final inv = await ref.read(invoiceRepositoryProvider).fetchInvoiceById(id);
+      if (!mounted) return;
+      final st = inv.status.toLowerCase();
+      if (st != 'draft' && st != 'pending') {
+        if (mounted) {
+          setState(() => _isLoadingData = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Only Draft or Pending invoices can be edited.'),
+            ),
+          );
+          context.pop();
+        }
+        return;
+      }
+      for (final line in _items) {
+        line.dispose();
+      }
+      _items.clear();
+      PosClient? clientMatch;
+      for (final c in _clients) {
+        if (c.id == inv.client.id) {
+          clientMatch = c;
+          break;
+        }
+      }
+      _selectedClient = clientMatch ??
+          PosClient(
+            id: inv.client.id,
+            name: inv.client.name,
+            email: inv.client.email,
+            phone: inv.client.phone,
+          );
+      _issueDate = inv.issueDate ?? inv.createdAt;
+      _dueDate = inv.dueDate;
+      _notesCtrl.text = inv.notes ?? '';
+      _termsCtrl.text = inv.terms ?? '';
+      _discountCtrl.text = inv.totalDiscount > 0 ? inv.totalDiscount.toStringAsFixed(2) : '';
+      _titleCtrl.text = inv.title ?? '';
+      _orderNumberCtrl.text = inv.orderNumber ?? '';
+      _orderNumberAutogenerate = false;
+      _status = st == 'draft' ? 'Draft' : 'Pending';
+      for (final it in inv.items) {
+        _items.add(
+          _InvoiceLineItem(
+            productId: it.product.id,
+            name: (it.description != null && it.description!.trim().isNotEmpty)
+                ? it.description!
+                : it.product.name,
+            unitPrice: it.unitPrice,
+            quantity: it.quantity,
+            taxRate: it.taxRate,
+            discountAmount: it.discount,
+            accountId: null,
+          ),
+        );
+      }
+      setState(() {});
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingData = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load invoice: $e')),
+        );
+        context.pop();
+      }
+    }
+  }
+
   @override
   void dispose() {
     _notesCtrl.dispose();
     _termsCtrl.dispose();
     _discountCtrl.dispose();
+    _titleCtrl.dispose();
+    _orderNumberCtrl.dispose();
     for (final item in _items) {
       item.dispose();
     }
@@ -120,6 +206,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     );
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: Text(_isEditMode ? 'Edit Invoice' : 'Create Invoice'),
         actions: [
@@ -195,6 +282,62 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // ── Invoice title (matches web InvoiceModal) ──
+                Text(
+                  'Invoice title',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _titleCtrl,
+                  decoration: const InputDecoration(
+                    hintText: 'e.g. Consulting services, Project XYZ',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // ── Order number ──
+                Text(
+                  'Order number',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: _orderNumberCtrl,
+                  readOnly: _orderNumberAutogenerate,
+                  decoration: InputDecoration(
+                    hintText: _orderNumberAutogenerate
+                        ? 'Auto-generated'
+                        : 'Enter order number',
+                    border: const OutlineInputBorder(),
+                    filled: _orderNumberAutogenerate,
+                    fillColor: _orderNumberAutogenerate
+                        ? theme.colorScheme.surfaceContainerHighest.withValues(
+                            alpha: 0.6,
+                          )
+                        : null,
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Autogenerate order number'),
+                  value: _orderNumberAutogenerate,
+                  onChanged: (v) {
+                    setState(() {
+                      _orderNumberAutogenerate = v ?? false;
+                      if (_orderNumberAutogenerate) {
+                        _orderNumberCtrl.text = _generateOrderNumber();
+                      }
+                    });
+                  },
+                ),
+                const SizedBox(height: 8),
 
                 // ── Issue Date ──
                 Text(
@@ -298,7 +441,11 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String?>(
-                  value: _selectedTemplateId,
+                  key: ValueKey<String?>('inv_tpl_${_selectedTemplateId ?? 'none'}'),
+                  initialValue: _selectedTemplateId != null &&
+                          _templates.any((t) => t.id == _selectedTemplateId)
+                      ? _selectedTemplateId
+                      : null,
                   decoration: const InputDecoration(
                     labelText: 'Invoice Template',
                     border: OutlineInputBorder(),
@@ -783,6 +930,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         'clientId': _selectedClient!.id,
         'issueDate': _issueDate.toIso8601String().split('T').first,
         'dueDate': _dueDate.toIso8601String().split('T').first,
+        if (_titleCtrl.text.trim().isNotEmpty) 'title': _titleCtrl.text.trim(),
+        if (_orderNumberCtrl.text.trim().isNotEmpty)
+          'orderNumber': _orderNumberCtrl.text.trim(),
         'notes': _notesCtrl.text.isNotEmpty ? _notesCtrl.text : null,
         'terms': _termsCtrl.text.isNotEmpty ? _termsCtrl.text : null,
         'status': _status == 'Draft' ? 'Draft' : 'Pending',
@@ -803,12 +953,21 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             .toList(),
       };
 
-      await ref.read(invoiceRepositoryProvider).createInvoiceFromPayload(payload);
+      final repo = ref.read(invoiceRepositoryProvider);
+      if (_isEditMode &&
+          widget.invoiceId != null &&
+          widget.invoiceId!.isNotEmpty) {
+        await repo.updateInvoiceFromPayload(widget.invoiceId!, payload);
+      } else {
+        await repo.createInvoiceFromPayload(payload);
+      }
       await ref.read(invoiceControllerProvider.notifier).refresh();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Invoice created!')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_isEditMode ? 'Invoice updated' : 'Invoice created'),
+          ),
+        );
         context.pop();
       }
     } catch (e) {
@@ -820,6 +979,18 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  /// Same pattern as web: ORD-YYYY-MM-DD-RANDOM
+  String _generateOrderNumber() {
+    final d = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final r = math.Random();
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final suffix = List.generate(
+      6,
+      (_) => chars[r.nextInt(chars.length)],
+    ).join();
+    return 'ORD-$d-$suffix';
   }
 }
 

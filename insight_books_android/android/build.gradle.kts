@@ -1,7 +1,19 @@
 allprojects {
     repositories {
         google()
+        maven { url = uri("https://repo1.maven.org/maven2/") }
         mavenCentral()
+    }
+}
+
+// Plugins use mavenCentral() (repo.maven.apache.org); repo1.maven.org is the same index.
+subprojects {
+    buildscript {
+        repositories {
+            maven { url = uri("https://repo1.maven.org/maven2/") }
+            google()
+            mavenCentral()
+        }
     }
 }
 

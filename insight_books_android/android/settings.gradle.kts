@@ -12,6 +12,8 @@ pluginManagement {
 
     repositories {
         google()
+        // Same as mavenCentral(); alternate hostname helps when repo.maven.apache.org fails DNS.
+        maven { url = uri("https://repo1.maven.org/maven2/") }
         mavenCentral()
         gradlePluginPortal()
     }

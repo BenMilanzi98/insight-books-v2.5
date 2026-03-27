@@ -106,8 +106,12 @@ class _ModernBottomNav extends StatelessWidget {
     final safeBottom = MediaQuery.paddingOf(context).bottom;
     final width = MediaQuery.sizeOf(context).width;
 
-    final barColor = isLight ? Colors.white : const Color(0xFF1E293B);
-    final surfaceColor = isLight ? const Color(0xFFF1F5F9) : const Color(0xFF0F172A);
+    final barColor = isLight
+        ? theme.colorScheme.surface
+        : const Color(0xFF1E293B);
+    final surfaceColor = isLight
+        ? theme.colorScheme.surfaceContainer
+        : const Color(0xFF0F172A);
     final unselectedColor = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
     // Use short labels on narrow screens to prevent overflow

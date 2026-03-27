@@ -9,6 +9,7 @@ import '../data/invoice_repository.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
 import 'providers/invoice_provider.dart';
+import '../../../shared/widgets/main_layout.dart';
 
 class InvoiceDetailsScreen extends ConsumerStatefulWidget {
   final String invoiceId;
@@ -25,6 +26,12 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     decimalDigits: 2,
   );
 
+  String _statusTitle(String status) {
+    final s = status.trim();
+    if (s.isEmpty) return '—';
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
   @override
   Widget build(BuildContext context) {
     final invoiceAsync = ref.watch(invoiceDetailsProvider(widget.invoiceId));
@@ -32,6 +39,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Invoice Details'),
         actions: [
@@ -313,7 +321,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  invoice.status[0].toUpperCase() + invoice.status.substring(1),
+                  _statusTitle(invoice.status),
                   style: TextStyle(
                     color: color,
                     fontSize: 18,
@@ -365,6 +373,19 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               value: invoice.client.name,
               theme: theme,
             ),
+            if (invoice.title != null && invoice.title!.trim().isNotEmpty)
+              _DetailRow(
+                label: 'Invoice title',
+                value: invoice.title!,
+                theme: theme,
+              ),
+            if (invoice.orderNumber != null &&
+                invoice.orderNumber!.trim().isNotEmpty)
+              _DetailRow(
+                label: 'Order number',
+                value: invoice.orderNumber!,
+                theme: theme,
+              ),
             _DetailRow(
               label: 'Issue Date',
               value: invoice.issueDate != null
@@ -602,7 +623,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: selectedMethod,
+                    key: ValueKey<String>('mark_paid_$selectedMethod'),
+                    initialValue: selectedMethod,
                     decoration: const InputDecoration(
                       labelText: 'Payment Method',
                     ),
@@ -722,7 +744,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: method,
+                      key: ValueKey<String>('partial_pay_$method'),
+                      initialValue: method,
                       decoration: const InputDecoration(
                         labelText: 'Payment Method',
                       ),
@@ -933,7 +956,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: method,
+                      key: ValueKey<String>('refund_$method'),
+                      initialValue: method,
                       decoration: const InputDecoration(
                         labelText: 'Refund Method',
                       ),

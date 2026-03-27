@@ -24,6 +24,8 @@ _Invoice _$InvoiceFromJson(Map<String, dynamic> json) => _Invoice(
       ? null
       : DateTime.parse(json['issueDate'] as String),
   currency: json['currency'] as String? ?? 'MWK',
+  title: json['title'] as String?,
+  orderNumber: json['orderNumber'] as String?,
   terms: json['terms'] as String?,
   notes: json['notes'] as String?,
   totalPaid: (json['totalPaid'] as num?)?.toDouble() ?? 0,
@@ -50,6 +52,8 @@ Map<String, dynamic> _$InvoiceToJson(_Invoice instance) => <String, dynamic>{
   'createdAt': instance.createdAt.toIso8601String(),
   'issueDate': instance.issueDate?.toIso8601String(),
   'currency': instance.currency,
+  'title': instance.title,
+  'orderNumber': instance.orderNumber,
   'terms': instance.terms,
   'notes': instance.notes,
   'totalPaid': instance.totalPaid,

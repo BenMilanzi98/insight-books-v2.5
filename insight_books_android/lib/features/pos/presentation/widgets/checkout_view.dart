@@ -625,8 +625,12 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to complete sale. Please try again.'),
+        SnackBar(
+          content: Text(
+            (ref.read(posProvider).error ?? '').trim().isNotEmpty
+                ? ref.read(posProvider).error!.trim()
+                : 'Failed to complete sale. Please try again.',
+          ),
         ),
       );
     }
@@ -669,8 +673,13 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
         const SnackBar(content: Text('Draft saved successfully')),
       );
     } else {
+      final msg = ref.read(posProvider).error;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to save draft')),
+        SnackBar(
+          content: Text(msg != null && msg.isNotEmpty
+              ? msg
+              : 'Failed to save draft. Please try again.'),
+        ),
       );
     }
   }

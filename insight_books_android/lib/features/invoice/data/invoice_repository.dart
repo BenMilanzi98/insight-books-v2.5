@@ -8,6 +8,29 @@ final invoiceRepositoryProvider = Provider<InvoiceRepository>((ref) {
   return InvoiceRepository(dio);
 });
 
+/// List/chip filters use lowercase keys; [GET /api/invoices] expects DB values (e.g. Draft, Pending, void).
+String? mapInvoiceListStatusForApi(String? filter) {
+  if (filter == null || filter.isEmpty || filter == 'all') return null;
+  switch (filter.toLowerCase()) {
+    case 'draft':
+      return 'Draft';
+    case 'pending':
+      return 'Pending';
+    case 'sent':
+      return 'Sent';
+    case 'partial':
+      return 'Partial';
+    case 'paid':
+      return 'Paid';
+    case 'overdue':
+      return 'Overdue';
+    case 'void':
+      return 'void';
+    default:
+      return filter;
+  }
+}
+
 class InvoiceRepository {
   final Dio _dio;
 
@@ -32,7 +55,7 @@ class InvoiceRepository {
           'limit': limit,
           ...?(search != null && search.isNotEmpty) ? {'search': search} : null,
           ...?(status != null && status != 'all' && status.isNotEmpty)
-              ? {'status': status}
+              ? {'status': mapInvoiceListStatusForApi(status)}
               : null,
           ...?sortBy != null ? {'sortBy': _mapSortField(sortBy)} : null,
           ...?sortOrder != null ? {'sortOrder': sortOrder} : null,
@@ -149,6 +172,25 @@ class InvoiceRepository {
         return map;
       }).toList();
       final response = await _dio.post('/api/invoices', data: body);
+      final Map<String, dynamic> data =
+          response.data['invoice'] ?? response.data;
+      return _parseInvoice(Map<String, dynamic>.from(data));
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Invoice> updateInvoiceFromPayload(String id, Map<String, dynamic> payload) async {
+    try {
+      final defaultAccountId = await _getDefaultIncomeAccountId();
+      final body = Map<String, dynamic>.from(payload);
+      final items = body['items'] as List<dynamic>? ?? [];
+      body['items'] = items.map<Map<String, dynamic>>((e) {
+        final map = Map<String, dynamic>.from(e as Map);
+        map['accountId'] = map['accountId'] ?? defaultAccountId;
+        return map;
+      }).toList();
+      final response = await _dio.put('/api/invoices/$id', data: body);
       final Map<String, dynamic> data =
           response.data['invoice'] ?? response.data;
       return _parseInvoice(Map<String, dynamic>.from(data));
@@ -371,7 +413,9 @@ class InvoiceRepository {
         '/api/invoices/export',
         queryParameters: <String, dynamic>{
           'format': format,
-          ...?(status != null && status.isNotEmpty) ? {'status': status} : null,
+          ...?(status != null && status.isNotEmpty)
+              ? {'status': mapInvoiceListStatusForApi(status)}
+              : null,
           ...?(search != null && search.isNotEmpty) ? {'search': search} : null,
           ...?(dateFrom != null && dateFrom.isNotEmpty)
               ? {'dateFrom': dateFrom}
@@ -420,12 +464,34 @@ class InvoiceRepository {
         );
         item['total'] = _toDouble(item['total'] ?? item['amount'] ?? 0);
 
-        // Ensure product exists for InvoiceItem
-        if (item['product'] == null) {
-          item['product'] = {
-            'id': item['productId'] ?? '',
-            'name': item['description'] ?? 'Item',
+        // GET /api/invoices/:id returns product: { name } only (Prisma select). PosProduct needs id, name, price.
+        final pid = item['productId']?.toString() ?? '';
+        if (item['product'] is Map) {
+          final p = Map<String, dynamic>.from(item['product'] as Map);
+          final idFromProduct = p['id'];
+          item['product'] = <String, dynamic>{
+            'id': (idFromProduct != null &&
+                    idFromProduct.toString().isNotEmpty)
+                ? idFromProduct.toString()
+                : pid,
+            'name': p['name']?.toString() ??
+                item['description']?.toString() ??
+                'Item',
+            'price': _toDouble(p['price'] ?? item['unitPrice'] ?? 0),
+            'sku': p['sku'],
+            'stockLevel': p['stockLevel'],
+            'category': p['category'],
+            'accountId': p['accountId'],
+            'taxes': p['taxes'] is List ? p['taxes'] : <dynamic>[],
+            'units': p['units'] is List ? p['units'] : <dynamic>[],
+          };
+        } else {
+          item['product'] = <String, dynamic>{
+            'id': pid,
+            'name': item['description']?.toString() ?? 'Item',
             'price': _toDouble(item['unitPrice']),
+            'taxes': <dynamic>[],
+            'units': <dynamic>[],
           };
         }
 

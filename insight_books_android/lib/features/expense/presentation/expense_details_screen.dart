@@ -404,12 +404,30 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   _DetailRow(
-                    label: 'Amount',
+                    label: expense.taxAmount > 0 ? 'Amount (excl. tax)' : 'Amount',
                     value: currencyFormat.format(expense.amount),
                     valueStyle: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
                   ),
+                  if (expense.taxAmount > 0) ...[
+                    _DetailRow(
+                      label: 'Tax',
+                      value: currencyFormat.format(expense.taxAmount),
+                    ),
+                    if (expense.taxRate > 0)
+                      _DetailRow(
+                        label: 'Tax rate',
+                        value: '${expense.taxRate.toStringAsFixed(1)}%',
+                      ),
+                    _DetailRow(
+                      label: 'Total (incl. tax)',
+                      value: currencyFormat.format(expense.totalPayable),
+                      valueStyle: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                   _DetailRow(label: 'Date', value: expense.date),
                   _DetailRow(label: 'Category', value: expense.category),
                   _DetailRow(label: 'Status', value: expense.status),
@@ -713,8 +731,7 @@ class _PartialPaymentSheetState extends ConsumerState<_PartialPaymentSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final remaining =
-        widget.expense.amount - widget.expense.paidAmount;
+    final remaining = widget.expense.remainingBalance;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -814,7 +831,7 @@ class _PartialPaymentSheetState extends ConsumerState<_PartialPaymentSheet> {
       );
       return;
     }
-    if (amount > (widget.expense.amount - widget.expense.paidAmount)) {
+    if (amount > widget.expense.remainingBalance + 1e-9) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Amount exceeds remaining balance')),

@@ -18,7 +18,8 @@ class OfflineThresholdResult {
 
 class OfflinePosQueue {
   static const _queueKey = 'pos_offline_queue_v1';
-  static const int defaultTimeThresholdMs = 48 * 60 * 60 * 1000;
+  // Keep offline sales queue valid for up to 5 hours.
+  static const int defaultTimeThresholdMs = 5 * 60 * 60 * 1000;
   static const double defaultAmountThreshold = 5000000;
 
   Future<List<Map<String, dynamic>>> _readQueue() async {
@@ -86,7 +87,7 @@ class OfflinePosQueue {
           return OfflineThresholdResult(
             blocked: true,
             message:
-                'Offline time threshold exceeded. Reconnect to continue selling.',
+                'Offline queue limit reached (5 hours). Please reconnect to sync pending sales.',
             pendingCount: pending.length,
           );
         }
@@ -116,6 +117,22 @@ class OfflinePosQueue {
     Future<void> Function(Map<String, dynamic> saleData) send,
   ) async {
     final queue = await _readQueue();
+    final now = DateTime.now();
+    int expired = 0;
+    // Do not sync entries older than the offline storage policy.
+    queue.removeWhere((e) {
+      if (e['status'] != 'pending') return false;
+      final createdAtStr = (e['createdAt'] ?? '').toString();
+      final createdAt = DateTime.tryParse(createdAtStr);
+      if (createdAt == null) return false;
+      final ageMs = now.difference(createdAt).inMilliseconds;
+      if (ageMs > defaultTimeThresholdMs) {
+        expired++;
+        return true;
+      }
+      return false;
+    });
+
     int synced = 0;
     int failed = 0;
     for (final item in queue.where((e) => e['status'] == 'pending')) {
@@ -133,7 +150,7 @@ class OfflinePosQueue {
       }
     }
     await _writeQueue(queue);
-    return {'synced': synced, 'failed': failed};
+    return {'synced': synced, 'failed': failed, 'expired': expired};
   }
 }
 

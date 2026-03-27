@@ -215,6 +215,12 @@ export async function PUT(request, { params }) {
     if (amount !== undefined) updateData.amount = amount;
     if (body.taxAmount !== undefined) updateData.taxAmount = Number(body.taxAmount);
     if (body.taxRate !== undefined) updateData.taxRate = Number(body.taxRate);
+    if (body.taxTypeId !== undefined) {
+      updateData.taxTypeId =
+        body.taxTypeId != null && String(body.taxTypeId).trim() !== ''
+          ? String(body.taxTypeId).trim()
+          : null;
+    }
     if (body.date !== undefined) updateData.date = new Date(body.date);
     if (body.category !== undefined && !updateData.category) updateData.category = body.category;
     if (body.merchant !== undefined) updateData.merchant = body.merchant;

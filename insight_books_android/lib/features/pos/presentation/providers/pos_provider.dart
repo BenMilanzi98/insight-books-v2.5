@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:dio/dio.dart';
 import 'dart:async';
 import 'dart:io';
 import '../../domain/pos_models.dart';
@@ -247,6 +248,34 @@ class PosPageState {
 class Pos extends _$Pos {
   final OfflinePosQueue _offlineQueue = OfflinePosQueue();
   Timer? _networkTimer;
+
+  bool _isNetworkError(Object e) {
+    if (e is SocketException) return true;
+    if (e is DioException) {
+      // Connection / timeout errors are typically handled as offline.
+      return e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.unknown ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout;
+    }
+    final msg = e.toString().toLowerCase();
+    return msg.contains('socket') ||
+        msg.contains('network') ||
+        msg.contains('timeout') ||
+        msg.contains('failed to connect') ||
+        msg.contains('connection refused') ||
+        msg.contains('dns');
+  }
+
+  String _networkFriendlyError() {
+    return 'Failed to connect to the internet, please check your internet connection.';
+  }
+
+  String _safeErrorMessage(Object e) {
+    if (_isNetworkError(e)) return _networkFriendlyError();
+    return _apiErrorMessage(e);
+  }
   @override
   PosPageState build() {
     // We start loading data immediately
@@ -260,6 +289,7 @@ class Pos extends _$Pos {
 
   Future<void> _loadData() async {
     try {
+      final online = await _checkOnline();
       final repository = ref.read(posRepositoryProvider);
       final products = await repository.fetchProducts();
       if (!ref.mounted) {
@@ -312,7 +342,7 @@ class Pos extends _$Pos {
             ?.toString(),
         offlineSalesCount: threshold.pendingCount,
         offlineBlockedMessage: threshold.blocked ? threshold.message : null,
-        isOnline: true,
+        isOnline: online,
         canViewSales: canView,
         canCreateSales: canCreate,
         canVoidSales: canVoid,
@@ -324,12 +354,20 @@ class Pos extends _$Pos {
       await loadEisStatus();
       await loadDailyReport();
       await loadSalesHistory();
-      await syncOfflineSales();
+      if (online) {
+        await syncOfflineSales();
+      } else {
+        await refreshOfflineStatus();
+      }
     } catch (e) {
       if (!ref.mounted) {
         return;
       }
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(
+        isLoading: false,
+        error: _safeErrorMessage(e),
+        isOnline: false,
+      );
     }
   }
 
@@ -387,13 +425,14 @@ class Pos extends _$Pos {
     }
   }
 
-  Future<bool> addToCartByBarcode(String code) async {
+  /// Returns the product name when added, or `null` if not found / not allowed.
+  Future<String?> addToCartByBarcode(String code) async {
     if (!state.canCreateSales) {
       state = state.copyWith(error: 'You do not have permission to perform this action.');
-      return false;
+      return null;
     }
     final trimmed = code.trim();
-    if (trimmed.isEmpty) return false;
+    if (trimmed.isEmpty) return null;
     final probe = trimmed.toLowerCase();
     PosProduct? product;
     for (final p in state.products) {
@@ -404,7 +443,7 @@ class Pos extends _$Pos {
     }
     product ??= await ref.read(posRepositoryProvider).findProductByBarcodeOrSku(trimmed);
     if (product == null) {
-      return false;
+      return null;
     }
     PosProduct? existingLocal;
     for (final p in state.products) {
@@ -413,8 +452,9 @@ class Pos extends _$Pos {
         break;
       }
     }
-    addToCart(existingLocal ?? product);
-    return true;
+    final toAdd = existingLocal ?? product;
+    addToCart(toAdd);
+    return toAdd.name;
   }
 
   void removeFromCart(String productId) {
@@ -573,10 +613,7 @@ class Pos extends _$Pos {
       await refreshOfflineStatus();
       return true;
     } on Exception catch (e) {
-      final isNetworkish = e.toString().toLowerCase().contains('socket') ||
-          e.toString().toLowerCase().contains('network') ||
-          e.toString().toLowerCase().contains('timeout');
-      if (isNetworkish) {
+      if (_isNetworkError(e)) {
         final threshold = await _offlineQueue.checkThresholds();
         if (threshold.blocked) {
           state = state.copyWith(
@@ -620,7 +657,7 @@ class Pos extends _$Pos {
       if (!ref.mounted) {
         return false;
       }
-      state = state.copyWith(isSubmitting: false, error: e.toString());
+      state = state.copyWith(isSubmitting: false, error: _safeErrorMessage(e));
       return false;
     }
   }
@@ -650,7 +687,10 @@ class Pos extends _$Pos {
         dateFrom: state.historyDateFrom,
         dateTo: state.historyDateTo,
       );
-      final stats = await repository.fetchSalesStatistics();
+      final stats = await repository.fetchSalesStatistics(
+        dateFrom: state.historyDateFrom,
+        dateTo: state.historyDateTo,
+      );
       if (!ref.mounted) return;
       state = state.copyWith(recentSales: sales, salesStatistics: stats);
     } catch (_) {}
@@ -972,22 +1012,52 @@ class Pos extends _$Pos {
     );
   }
 
-  Future<void> voidSale(String saleId, String reason) async {
+  /// Returns `null` on success, or an error message (show in UI).
+  Future<String?> voidSale(String saleId, String reason) async {
     if (!state.canVoidSales) {
-      state = state.copyWith(error: 'You do not have permission to perform this action.');
-      return;
+      return 'You do not have permission to void sales.';
     }
-    await ref.read(posRepositoryProvider).voidSale(saleId, reason);
-    await loadSalesHistory();
+    try {
+      await ref.read(posRepositoryProvider).voidSale(saleId, reason);
+      await loadSalesHistory();
+      return null;
+    } catch (e) {
+      return _apiErrorMessage(e);
+    }
   }
 
-  Future<void> refundSale(String saleId, String reason) async {
+  /// Same contract as web [refundSale]: completed sales only; reason required.
+  Future<String?> refundSale(
+    String saleId,
+    String reason, {
+    String? refundMethod,
+  }) async {
     if (!state.canRefundSales) {
-      state = state.copyWith(error: 'You do not have permission to perform this action.');
-      return;
+      return 'You do not have permission to refund sales.';
     }
-    await ref.read(posRepositoryProvider).refundSale(saleId, reason);
-    await loadSalesHistory();
+    try {
+      await ref.read(posRepositoryProvider).refundSale(
+            saleId,
+            reason,
+            refundMethod: refundMethod,
+          );
+      await loadSalesHistory();
+      return null;
+    } catch (e) {
+      return _apiErrorMessage(e);
+    }
+  }
+
+  String _apiErrorMessage(Object e) {
+    if (_isNetworkError(e)) return _networkFriendlyError();
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['error'] != null) {
+        return data['error'].toString();
+      }
+      return e.message ?? e.toString();
+    }
+    return e.toString();
   }
 
   void clearError() {

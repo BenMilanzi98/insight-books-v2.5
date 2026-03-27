@@ -523,69 +523,75 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
       builder: (ctx) {
         final screenState = ref.read(expenseControllerProvider);
         final rows = screenState.recurringExpenses;
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  const Text('Recurring Expenses', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: 'Export recurring CSV',
-                    icon: const Icon(Icons.download_outlined),
-                    onPressed: rows.isEmpty ? null : () => _exportRecurringCsv(rows),
-                  ),
-                  if (screenState.canUpdateExpenses)
+        final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text('Recurring Expenses', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Spacer(),
                     IconButton(
-                    icon: const Icon(Icons.add),
-                    onPressed: () async {
-                      await _showCreateRecurringDialog(context, ref);
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: rows.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('No recurring expenses'),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: rows.length,
-                        itemBuilder: (_, i) {
-                          final r = rows[i];
-                          return ListTile(
-                            title: Text((r['description'] ?? 'Recurring').toString()),
-                            subtitle: Text('${r['frequency'] ?? 'monthly'} · MK ${r['amount'] ?? 0}'),
-                            onTap: () => _showRecurringDetailsSheet(context, ref, r),
-                            trailing: Wrap(
-                              spacing: 4,
-                              children: [
-                                if (screenState.canUpdateExpenses)
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined),
-                                    onPressed: () async {
-                                      await _showEditRecurringDialog(context, ref, r);
-                                    },
-                                  ),
-                                if (screenState.canDeleteExpenses)
-                                  IconButton(
-                                    icon: const Icon(Icons.delete_outline),
-                                    onPressed: () async {
-                                      await notifier.deleteRecurringExpense((r['id'] ?? '').toString());
-                                    },
-                                  ),
-                              ],
-                            ),
-                          );
+                      tooltip: 'Export recurring CSV',
+                      icon: const Icon(Icons.download_outlined),
+                      onPressed: rows.isEmpty ? null : () => _exportRecurringCsv(rows),
+                    ),
+                    if (screenState.canUpdateExpenses)
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: () async {
+                          await _showCreateRecurringDialog(context, ref);
                         },
                       ),
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: maxH,
+                  width: double.infinity,
+                  child: rows.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text('No recurring expenses'),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: rows.length,
+                          itemBuilder: (_, i) {
+                            final r = rows[i];
+                            return ListTile(
+                              title: Text((r['description'] ?? 'Recurring').toString()),
+                              subtitle: Text('${r['frequency'] ?? 'monthly'} · MK ${r['amount'] ?? 0}'),
+                              onTap: () => _showRecurringDetailsSheet(context, ref, r),
+                              trailing: Wrap(
+                                spacing: 4,
+                                children: [
+                                  if (screenState.canUpdateExpenses)
+                                    IconButton(
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () async {
+                                        await _showEditRecurringDialog(context, ref, r);
+                                      },
+                                    ),
+                                  if (screenState.canDeleteExpenses)
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline),
+                                      onPressed: () async {
+                                        await notifier.deleteRecurringExpense((r['id'] ?? '').toString());
+                                      },
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -653,75 +659,81 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) {
+      builder: (sheetCtx) {
         final s = ref.read(expenseControllerProvider);
         final summary = s.cogsSummary ?? const <String, dynamic>{};
         final settlements = s.cogsSettlements;
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('COGS', style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              ListTile(
-                title: const Text('Total COGS'),
-                trailing: Text('MK ${summary['total'] ?? 0}'),
-              ),
-              const Divider(),
-              Flexible(
-                child: settlements.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(24),
-                        child: Text('No settlements'),
-                      )
-                    : ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: settlements.length,
-                        itemBuilder: (_, i) {
-                          final row = settlements[i];
-                          return ListTile(
-                            title: Text((row['description'] ?? 'Settlement').toString()),
-                            subtitle: Text('${row['date'] ?? ''}'),
-                            trailing: Wrap(
-                              spacing: 4,
-                              children: [
-                                Text('MK ${row['amount'] ?? 0}'),
-                                if (s.canUpdateExpenses)
-                                  PopupMenuButton<String>(
-                                    onSelected: (v) async {
-                                      if (v == 'reverse_gl') {
-                                        await _reverseCogsEntry(context, ref, row, saleMode: false);
-                                      }
-                                      if (v == 'reverse_sale') {
-                                        await _reverseCogsEntry(context, ref, row, saleMode: true);
-                                      }
-                                    },
-                                    itemBuilder: (_) => const [
-                                      PopupMenuItem(
-                                        value: 'reverse_gl',
-                                        child: Text('Reverse COGS GL'),
-                                      ),
-                                      PopupMenuItem(
-                                        value: 'reverse_sale',
-                                        child: Text('Reverse Linked Sale'),
-                                      ),
-                                    ],
-                                  ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: 8),
-              if (s.canCreateExpenses)
-                FilledButton.icon(
-                  onPressed: () => _showCogsSettlementCreateDialog(context, ref, summary),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Record Settlement'),
+        final maxH = MediaQuery.sizeOf(sheetCtx).height * 0.5;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('COGS', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                ListTile(
+                  title: const Text('Total COGS'),
+                  trailing: Text('MK ${summary['total'] ?? 0}'),
                 ),
-            ],
+                const Divider(),
+                SizedBox(
+                  height: maxH,
+                  width: double.infinity,
+                  child: settlements.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Text('No settlements'),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: settlements.length,
+                          itemBuilder: (_, i) {
+                            final row = settlements[i];
+                            return ListTile(
+                              title: Text((row['description'] ?? 'Settlement').toString()),
+                              subtitle: Text('${row['date'] ?? ''}'),
+                              trailing: Wrap(
+                                spacing: 4,
+                                children: [
+                                  Text('MK ${row['amount'] ?? 0}'),
+                                  if (s.canUpdateExpenses)
+                                    PopupMenuButton<String>(
+                                      onSelected: (v) async {
+                                        if (v == 'reverse_gl') {
+                                          await _reverseCogsEntry(context, ref, row, saleMode: false);
+                                        }
+                                        if (v == 'reverse_sale') {
+                                          await _reverseCogsEntry(context, ref, row, saleMode: true);
+                                        }
+                                      },
+                                      itemBuilder: (_) => const [
+                                        PopupMenuItem(
+                                          value: 'reverse_gl',
+                                          child: Text('Reverse COGS GL'),
+                                        ),
+                                        PopupMenuItem(
+                                          value: 'reverse_sale',
+                                          child: Text('Reverse Linked Sale'),
+                                        ),
+                                      ],
+                                    ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 8),
+                if (s.canCreateExpenses)
+                  FilledButton.icon(
+                    onPressed: () => _showCogsSettlementCreateDialog(context, ref, summary),
+                    icon: const Icon(Icons.add),
+                    label: const Text('Record Settlement'),
+                  ),
+              ],
+            ),
           ),
         );
       },
@@ -892,6 +904,8 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
               category: category!.name,
               status: 'Approved',
               notes: 'Historical entry${batchName.isNotEmpty ? ' · Batch: $batchName' : ''}',
+              isHistorical: true,
+              migrationBatch: batchName.isNotEmpty ? batchName : null,
             ),
           );
       if (context.mounted) {
@@ -954,46 +968,54 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              (details['description'] ?? recurring['description'] ?? 'Recurring Expense').toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold),
+      builder: (sheetCtx) {
+        final maxH = MediaQuery.sizeOf(sheetCtx).height * 0.45;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  (details['description'] ?? recurring['description'] ?? 'Recurring Expense').toString(),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                Text('Amount: MK ${(details['amount'] ?? recurring['amount'] ?? 0)}'),
+                Text('Frequency: ${(details['frequency'] ?? recurring['frequency'] ?? 'monthly')}'),
+                Text('Start: ${(details['startDate'] ?? '-')}'),
+                Text('End: ${(details['endDate'] ?? '-')}'),
+                const SizedBox(height: 12),
+                const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: maxH,
+                  width: double.infinity,
+                  child: history.isEmpty
+                      ? const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(12),
+                            child: Text('No execution history available'),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: history.length,
+                          itemBuilder: (_, i) {
+                            final h = history[i] as Map;
+                            return ListTile(
+                              title: Text((h['date'] ?? h['createdAt'] ?? '').toString()),
+                              subtitle: Text((h['status'] ?? '').toString()),
+                              trailing: Text('MK ${h['amount'] ?? 0}'),
+                            );
+                          },
+                        ),
+                ),
+              ],
             ),
-            const SizedBox(height: 6),
-            Text('Amount: MK ${(details['amount'] ?? recurring['amount'] ?? 0)}'),
-            Text('Frequency: ${(details['frequency'] ?? recurring['frequency'] ?? 'monthly')}'),
-            Text('Start: ${(details['startDate'] ?? '-')}'),
-            Text('End: ${(details['endDate'] ?? '-')}'),
-            const SizedBox(height: 12),
-            const Text('History', style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 6),
-            Flexible(
-              child: history.isEmpty
-                  ? const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Text('No execution history available'),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: history.length,
-                      itemBuilder: (_, i) {
-                        final h = history[i] as Map;
-                        return ListTile(
-                          title: Text((h['date'] ?? h['createdAt'] ?? '').toString()),
-                          subtitle: Text((h['status'] ?? '').toString()),
-                          trailing: Text('MK ${h['amount'] ?? 0}'),
-                        );
-                      },
-                    ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -1658,11 +1680,28 @@ class _ExpenseCard extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    currencyFormat.format(expense.amount),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currencyFormat.format(expense.totalPayable),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (expense.taxAmount > 0)
+                          Text(
+                            'Base ${currencyFormat.format(expense.amount)} + tax ${currencyFormat.format(expense.taxAmount)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                      ],
                     ),
                   ),
                   if (expense.paymentStatus != 'Fully paid') ...[
@@ -1827,7 +1866,7 @@ class _PartialPaymentSheetState extends ConsumerState<_PartialPaymentSheet> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final remaining = widget.expense.amount - widget.expense.paidAmount;
+    final remaining = widget.expense.remainingBalance;
 
     return Padding(
       padding: EdgeInsets.only(
@@ -1926,7 +1965,7 @@ class _PartialPaymentSheetState extends ConsumerState<_PartialPaymentSheet> {
       );
       return;
     }
-    if (amount > (widget.expense.amount - widget.expense.paidAmount)) {
+    if (amount > widget.expense.remainingBalance + 1e-9) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Amount exceeds remaining balance')),
       );

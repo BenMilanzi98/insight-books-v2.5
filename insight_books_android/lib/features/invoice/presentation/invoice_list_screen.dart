@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../shared/widgets/stat_card.dart';
+import '../../../shared/widgets/main_layout.dart';
 import '../../pos/data/pos_repository.dart';
 import '../../pos/domain/pos_models.dart';
 import '../domain/invoice_model.dart';
@@ -56,6 +57,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
 
     if (!state.canViewInvoices) {
       return Scaffold(
+        drawer: const AppDrawer(),
         appBar: AppBar(title: const Text('Invoices')),
         body: const Center(
           child: Text('You do not have permission to view this page.'),
@@ -64,6 +66,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     }
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
         title: const Text('Invoices'),
         actions: [
@@ -207,33 +210,50 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Row(
+      child: Column(
         children: [
-          Expanded(
-            child: StatCard(
-              label: 'Paid',
-              value: _currencyFormat.format(stats.paid.amount),
-              count: stats.paid.count,
-              color: Colors.green,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: StatCard(
+                  label: 'Paid',
+                  value: _currencyFormat.format(stats.paid.amount),
+                  count: stats.paid.count,
+                  color: Colors.green,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: StatCard(
+                  label: 'Pending',
+                  value: _currencyFormat.format(stats.pending.amount),
+                  count: stats.pending.count,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: StatCard(
-              label: 'Pending',
-              value: _currencyFormat.format(stats.pending.amount),
-              count: stats.pending.count,
-              color: Colors.orange,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: StatCard(
-              label: 'Overdue',
-              value: _currencyFormat.format(stats.overdue.amount),
-              count: stats.overdue.count,
-              color: Colors.red,
-            ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: StatCard(
+                  label: 'Overdue',
+                  value: _currencyFormat.format(stats.overdue.amount),
+                  count: stats.overdue.count,
+                  color: Colors.red,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: StatCard(
+                  label: 'Partial',
+                  value: _currencyFormat.format(stats.partial.amount),
+                  count: stats.partial.count,
+                  color: Colors.blue,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -284,16 +304,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     InvoiceController controller,
     ThemeData theme,
   ) {
-    final statuses = [
-      'all',
-      'draft',
-      'pending',
-      'sent',
-      'partial',
-      'paid',
-      'overdue',
-      'void',
-    ];
+    // Matches web /invoice tabs: All, Drafts, Pending, Paid, Overdue
+    final statuses = ['all', 'draft', 'pending', 'paid', 'overdue'];
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       child: SizedBox(
@@ -301,13 +313,18 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: statuses.length,
-          separatorBuilder: (_, __) => const SizedBox(width: 8),
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
           itemBuilder: (context, i) {
             final s = statuses[i];
             final selected = state.statusFilter == s;
+            final label = switch (s) {
+              'all' => 'All',
+              'draft' => 'Drafts',
+              _ => s[0].toUpperCase() + s.substring(1),
+            };
             return ChoiceChip(
               label: Text(
-                s[0].toUpperCase() + s.substring(1),
+                label,
                 style: TextStyle(
                   color: selected
                       ? theme.colorScheme.onPrimary
@@ -369,8 +386,10 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
 
   Widget _buildInvoiceCard(Invoice invoice, ThemeData theme) {
     final statusColor = _statusColor(invoice.status);
-    final statusLabel =
-        invoice.status[0].toUpperCase() + invoice.status.substring(1);
+    final raw = invoice.status.trim();
+    final statusLabel = raw.isEmpty
+        ? '—'
+        : raw[0].toUpperCase() + raw.substring(1);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -745,7 +764,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String?>(
-                      value: selectedClientId,
+                      key: ValueKey<String?>('inv_client_$selectedClientId'),
+                      initialValue: selectedClientId,
                       decoration: const InputDecoration(
                         border: OutlineInputBorder(),
                         isDense: true,

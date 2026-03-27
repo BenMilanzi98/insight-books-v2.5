@@ -10,6 +10,37 @@ import '../data/expense_repository.dart';
 import 'providers/expense_details_provider.dart';
 import 'providers/expense_provider.dart';
 
+Map<String, dynamic>? _taxMapById(List<Map<String, dynamic>> types, String? id) {
+  if (id == null) return null;
+  for (final t in types) {
+    if ('${t['id']}' == id) return t;
+  }
+  return null;
+}
+
+List<Map<String, dynamic>> _uniqueTaxTypes(List<Map<String, dynamic>> raw) {
+  final seen = <String>{};
+  final out = <Map<String, dynamic>>[];
+  for (final t in raw) {
+    final id = '${t['id'] ?? ''}';
+    if (id.isEmpty || seen.contains(id)) continue;
+    seen.add(id);
+    out.add(t);
+  }
+  return out;
+}
+
+List<ExpenseCategoryOption> _uniqueCategories(List<ExpenseCategoryOption> raw) {
+  final seen = <String>{};
+  final out = <ExpenseCategoryOption>[];
+  for (final c in raw) {
+    if (c.id.isEmpty || seen.contains(c.id)) continue;
+    seen.add(c.id);
+    out.add(c);
+  }
+  return out;
+}
+
 class CreateExpenseScreen extends ConsumerStatefulWidget {
   final String? expenseId;
 
@@ -34,7 +65,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
   PaymentAccountOption? _selectedPaymentAccount;
   SupplierOption? _selectedSupplier;
   BranchOption? _selectedBranch;
-  Map<String, dynamic>? _selectedTaxType;
+  String? _selectedTaxTypeId;
   bool _isHistoricalEntry = false;
   final _migrationBatchCtrl = TextEditingController();
   String _status = 'Approved';
@@ -60,12 +91,13 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         if (!mounted) return;
         final s = ref.read(expenseControllerProvider);
         final defaultId = s.defaultOutflowTaxTypeId;
-        if (_selectedTaxType == null && defaultId != null) {
+        if (_selectedTaxTypeId == null && defaultId != null) {
           final match = s.taxTypes.where((t) => '${t['id']}' == defaultId);
           if (match.isNotEmpty) {
             setState(() {
-              _selectedTaxType = match.first;
+              _selectedTaxTypeId = defaultId;
               _taxRateCtrl.text = '${match.first['taxRate'] ?? ''}';
+              _applyTaxDerivedFields();
             });
           }
         }
@@ -126,12 +158,28 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
         final branchMatch = branches.where((b) => b.id == branchId);
         _selectedBranch = branchMatch.isEmpty ? null : branchMatch.first;
       }
-      if (_selectedTaxType == null && defaultTaxTypeId != null) {
+      final existingTaxTypeId = expense.taxTypeId;
+      if (existingTaxTypeId != null && existingTaxTypeId.isNotEmpty) {
+        _selectedTaxTypeId = existingTaxTypeId;
+      }
+      if (_selectedTaxTypeId == null && defaultTaxTypeId != null) {
         final match = taxTypes.where((t) => '${t['id']}' == defaultTaxTypeId);
         if (match.isNotEmpty) {
-          _selectedTaxType = match.first;
+          _selectedTaxTypeId = defaultTaxTypeId;
           _taxRateCtrl.text = '${match.first['taxRate'] ?? ''}';
         }
+      }
+      if (expense.taxRate > 0 && _selectedTaxTypeId == null) {
+        for (final t in taxTypes) {
+          final tr = double.tryParse('${t['taxRate'] ?? 0}') ?? 0;
+          if ((tr - expense.taxRate).abs() < 0.001) {
+            _selectedTaxTypeId = '${t['id']}';
+            break;
+          }
+        }
+      }
+      if (_selectedTaxTypeId != null && expense.taxAmount <= 0) {
+        _applyTaxDerivedFields();
       }
       setState(() {});
     } catch (_) {
@@ -266,9 +314,33 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     );
     if (created != null && mounted) {
       setState(() {
-        _selectedTaxType = created;
+        _selectedTaxTypeId = '${created['id']}';
         _taxRateCtrl.text = '${created['taxRate'] ?? ''}';
+        _applyTaxDerivedFields();
       });
+    }
+  }
+
+  void _applyTaxDerivedFields() {
+    final id = _selectedTaxTypeId;
+    if (id == null) return;
+    final types = ref.read(expenseControllerProvider).taxTypes;
+    final t = _taxMapById(types, id);
+    if (t == null) return;
+    final rate = double.tryParse('${t['taxRate'] ?? 0}') ?? 0;
+    _taxRateCtrl.text = rate > 0 ? rate.toString() : '';
+    final calcType = '${t['calculationType'] ?? 'Percentage'}'.toLowerCase();
+    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+    if (amount <= 0) {
+      _taxAmountCtrl.text = '';
+      return;
+    }
+    if (calcType.contains('percent')) {
+      // Match web ExpenseForm: Math.round((base * rate / 100) * 100) / 100
+      final rounded = (amount * rate / 100 * 100).round() / 100;
+      _taxAmountCtrl.text = rounded.toStringAsFixed(2);
+    } else {
+      _taxAmountCtrl.text = rate.toStringAsFixed(2);
     }
   }
 
@@ -399,6 +471,17 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       );
       return;
     }
+    final taxForValidation = double.tryParse(_taxAmountCtrl.text.replaceAll(',', ''));
+    if (taxForValidation != null &&
+        taxForValidation > 0 &&
+        taxForValidation >= amount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tax amount must be less than the expense amount')),
+      );
+      return;
+    }
+    final totalPayable =
+        amount + (taxForValidation != null && taxForValidation > 0 ? taxForValidation : 0);
     final paidAmountVal = _paymentStatus == 'Partially'
         ? double.tryParse(_paidAmountCtrl.text.replaceAll(',', ''))
         : null;
@@ -408,9 +491,15 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       );
       return;
     }
-    if (_paymentStatus == 'Partially' && paidAmountVal != null && paidAmountVal >= amount) {
+    if (_paymentStatus == 'Partially' &&
+        paidAmountVal != null &&
+        paidAmountVal >= totalPayable) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Paid amount must be less than the total amount')),
+        const SnackBar(
+          content: Text(
+            'Paid amount must be less than the total (amount + tax)',
+          ),
+        ),
       );
       return;
     }
@@ -420,10 +509,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       final dateStr = DateFormat('yyyy-MM-dd').format(_date);
       final taxAmount = double.tryParse(_taxAmountCtrl.text.replaceAll(',', ''));
       final taxRate = double.tryParse(_taxRateCtrl.text.replaceAll(',', ''));
+      final taxMap = _selectedTaxTypeId != null
+          ? _taxMapById(ref.read(expenseControllerProvider).taxTypes, _selectedTaxTypeId)
+          : null;
       final effectiveTaxRate = taxRate ??
-          (_selectedTaxType != null
-              ? double.tryParse('${_selectedTaxType!['taxRate'] ?? 0}')
-              : null);
+          (taxMap != null ? double.tryParse('${taxMap['taxRate'] ?? 0}') : null);
 
       if (_isEdit) {
         final request = UpdateExpenseRequest(
@@ -445,6 +535,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           taxRate: effectiveTaxRate != null && effectiveTaxRate > 0 ? effectiveTaxRate : null,
           supplierId: _selectedSupplier?.id,
           branchId: _selectedBranch?.id,
+          taxTypeId: _selectedTaxTypeId,
         );
         await ref.read(expenseControllerProvider.notifier).updateExpense(widget.expenseId!, request);
       } else {
@@ -471,6 +562,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
           paymentReference: _paymentStatus == 'Partially'
               ? (_paymentReferenceCtrl.text.trim().isEmpty ? null : _paymentReferenceCtrl.text.trim())
               : null,
+          taxTypeId: _selectedTaxTypeId,
+          isHistorical: _isHistoricalEntry ? true : null,
+          migrationBatch: _migrationBatchCtrl.text.trim().isEmpty
+              ? null
+              : _migrationBatchCtrl.text.trim(),
         );
         await ref.read(expenseControllerProvider.notifier).createExpense(
           request,
@@ -503,6 +599,8 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     final suppliers = state.suppliers;
     final branches = state.branches;
     final taxTypes = state.taxTypes;
+    final uniqueTax = _uniqueTaxTypes(taxTypes);
+    final uniqueCat = _uniqueCategories(categories);
     final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
     final taxAmount = double.tryParse(_taxAmountCtrl.text.replaceAll(',', '')) ?? 0;
     final totalInclTax = amount + taxAmount;
@@ -564,6 +662,11 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                     hintText: '0.00',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) {
+                    setState(() {
+                      if (_selectedTaxTypeId != null) _applyTaxDerivedFields();
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -601,21 +704,25 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: DropdownButtonFormField<Map<String, dynamic>?>(
-                        initialValue: _selectedTaxType,
+                      child: DropdownButtonFormField<String?>(
+                        key: ValueKey<String>('tax_dd_${_selectedTaxTypeId ?? 'none'}'),
+                        initialValue: _selectedTaxTypeId != null &&
+                                uniqueTax.any((t) => '${t['id']}' == _selectedTaxTypeId)
+                            ? _selectedTaxTypeId
+                            : null,
                         decoration: const InputDecoration(
                           labelText: 'Tax Type (optional)',
                           border: OutlineInputBorder(),
                           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         ),
                         items: [
-                          const DropdownMenuItem<Map<String, dynamic>?>(
+                          const DropdownMenuItem<String?>(
                             value: null,
                             child: Text('No tax type'),
                           ),
-                          ...taxTypes.map(
-                            (t) => DropdownMenuItem<Map<String, dynamic>?>(
-                              value: t,
+                          ...uniqueTax.map(
+                            (t) => DropdownMenuItem<String?>(
+                              value: '${t['id']}',
                               child: Text(
                                 '${(t['taxName'] ?? t['name'] ?? 'Tax')} (${t['taxRate'] ?? 0}%)',
                                 overflow: TextOverflow.ellipsis,
@@ -623,11 +730,14 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                             ),
                           ),
                         ],
-                        onChanged: (v) {
+                        onChanged: (id) {
                           setState(() {
-                            _selectedTaxType = v;
-                            if (v != null) {
-                              _taxRateCtrl.text = '${v['taxRate'] ?? ''}';
+                            _selectedTaxTypeId = id;
+                            if (id != null) {
+                              _applyTaxDerivedFields();
+                            } else {
+                              _taxRateCtrl.text = '';
+                              _taxAmountCtrl.text = '';
                             }
                           });
                         },
@@ -668,26 +778,45 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 // ── Expense Category * ──
                 const Text('Expense Category *'),
                 const SizedBox(height: 6),
-                DropdownButtonFormField<ExpenseCategoryOption?>(
-                  initialValue: _selectedCategory,
+                DropdownButtonFormField<String?>(
+                  key: ValueKey<String>('cat_dd_${_selectedCategory?.id ?? 'none'}'),
+                  initialValue: _selectedCategory?.id,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                   hint: const Text('Select expense category'),
                   items: [
-                    const DropdownMenuItem<ExpenseCategoryOption?>(value: null, child: Text('Select category')),
-                    ...categories.map((c) => DropdownMenuItem<ExpenseCategoryOption?>(
-                          value: c,
-                          child: Text(c.name, overflow: TextOverflow.ellipsis),
-                        )),
-                    if (_selectedCategory != null && !categories.any((c) => c.id == _selectedCategory!.id))
-                      DropdownMenuItem<ExpenseCategoryOption?>(
-                        value: _selectedCategory,
+                    const DropdownMenuItem<String?>(value: null, child: Text('Select category')),
+                    ...uniqueCat.map(
+                      (c) => DropdownMenuItem<String?>(
+                        value: c.id,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                    if (_selectedCategory != null && !uniqueCat.any((c) => c.id == _selectedCategory!.id))
+                      DropdownMenuItem<String?>(
+                        value: _selectedCategory!.id,
                         child: Text(_selectedCategory!.name, overflow: TextOverflow.ellipsis),
                       ),
                   ],
-                  onChanged: (v) => setState(() => _selectedCategory = v),
+                  onChanged: (id) {
+                    setState(() {
+                      if (id == null) {
+                        _selectedCategory = null;
+                        return;
+                      }
+                      ExpenseCategoryOption? resolved;
+                      for (final c in uniqueCat) {
+                        if (c.id == id) {
+                          resolved = c;
+                          break;
+                        }
+                      }
+                      _selectedCategory = resolved ??
+                          (_selectedCategory?.id == id ? _selectedCategory : null);
+                    });
+                  },
                 ),
                 const SizedBox(height: 8),
                 Align(

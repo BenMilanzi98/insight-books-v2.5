@@ -43,6 +43,8 @@ export async function POST(request) {
     const paymentAmount = parseFloat(amount);
     const currentPaidAmount = expense.paidAmount || 0;
     const newPaidAmount = currentPaidAmount + paymentAmount;
+    const totalDue =
+      Number(expense.amount) + Number(expense.taxAmount != null ? expense.taxAmount : 0);
 
     // Validate payment amount
     if (paymentAmount <= 0) {
@@ -52,16 +54,16 @@ export async function POST(request) {
       );
     }
 
-    if (newPaidAmount > expense.amount) {
+    if (newPaidAmount > totalDue + 1e-6) {
       return NextResponse.json(
-        { error: 'Total payments cannot exceed expense amount' },
+        { error: 'Total payments cannot exceed expense amount (including tax)' },
         { status: 400 }
       );
     }
 
     // Determine new payment status
     let newPaymentStatus;
-    if (newPaidAmount >= expense.amount) {
+    if (newPaidAmount >= totalDue - 1e-6) {
       newPaymentStatus = 'Fully paid';
     } else {
       newPaymentStatus = 'Partially';
