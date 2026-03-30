@@ -19,6 +19,13 @@ export async function GET(request) {
     }
     
     const tenantId = user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'No tenant associated with user' },
+        { status: 400 }
+      );
+    }
+
     const now = new Date();
     
     // Get all Posted GoodsReceipt records (these represent inventory received that needs to be paid for)
@@ -54,17 +61,10 @@ export async function GET(request) {
           }
         },
         supplierBills: {
+          // Exclude settled/cancelled; balance due is applied in JS (avoids the old over-broad OR that matched almost every bill)
           where: {
-            OR: [
-              { status: { in: ['Unpaid', 'Partially Paid', 'Partial'] } },
-              // Also include bills where amountPaid < totalAmount
-              {
-                AND: [
-                  { totalAmount: { not: null } },
-                  { amountPaid: { not: null } }
-                ]
-              }
-            ]
+            tenantId,
+            status: { notIn: ['Paid', 'Cancelled'] },
           },
           select: {
             id: true,

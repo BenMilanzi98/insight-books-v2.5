@@ -244,7 +244,7 @@ export async function GET(request) {
             tenantId,
             isReversal: false,
           invoiceId: { not: null },
-            status: { equals: 'Completed', mode: 'insensitive' },
+            status: { in: ['Completed', 'completed'] },
             paymentDate: { gte: filterStartDate, lte: filterEndDate },
             ...(branchIdForPayments
               ? {
@@ -262,7 +262,7 @@ export async function GET(request) {
           where: addBranchFilter(user, {
             tenantId,
             saleDate: { gte: filterStartDate, lte: filterEndDate },
-            status: { equals: 'completed', mode: 'insensitive' },
+            status: { in: ['completed', 'Completed'] },
             voidedAt: null,
             isReversal: false
           }),
@@ -320,7 +320,16 @@ export async function GET(request) {
       };
     };
 
-    const data = await Promise.all(months.map(m => getPeriodData(m)));
+    // Avoid connection-pool exhaustion: run periods sequentially (esp. "today" = 6 × 5 queries per period)
+    const data = [];
+    for (const m of months) {
+      try {
+        data.push(await getPeriodData(m));
+      } catch (periodErr) {
+        console.error('income-expenses period failed:', periodErr?.message || periodErr);
+        data.push({ income: 0, expenses: 0 });
+      }
+    }
     
     // Debug logging for custom date range
     if (dateRange === 'custom') {
