@@ -12,9 +12,11 @@ export default function BranchSwitcher() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        // Only show active branches so a tenant can switch to selectable locations.
+        // `includeInactive=false` maps to `isActive: true` in the backend.
         const [branchesRes, currentRes] = await Promise.all([
-          fetch('/api/branches'),
-          fetch('/api/branches/switch')
+          fetch('/api/branches?includeInactive=false', { cache: 'no-store' }),
+          fetch('/api/branches/switch', { cache: 'no-store' })
         ]);
         
         if (branchesRes.ok) {
@@ -87,6 +89,9 @@ export default function BranchSwitcher() {
   };
 
   const currentBranch = branches.find(b => b.id === currentBranchId);
+  // API returns a virtual placeholder row when there are no real branch records.
+  // We don't render those as selectable options.
+  const selectableBranches = branches.filter((b) => !b.isVirtual);
 
   if (loading) {
     return (
@@ -143,12 +148,15 @@ export default function BranchSwitcher() {
             <div className="border-t border-gray-200 my-1"></div>
             
             {/* Branch options */}
-            {branches.map((branch) => (
+            {selectableBranches.map((branch) => (
               <button
                 key={branch.id}
+                type="button"
                 onClick={() => handleBranchSelect(branch.id)}
-                className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-100 flex items-center justify-between ${
-                  currentBranchId === branch.id ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between ${
+                  currentBranchId === branch.id
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <div className="flex items-center gap-2 min-w-0">

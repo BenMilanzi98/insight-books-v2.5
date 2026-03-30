@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -12,7 +13,10 @@ export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    
+    if (!user.tenantId) {
+      return NextResponse.json({ error: 'No tenant associated with user' }, { status: 400 });
+    }
+
     const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
     const dateRange = searchParams.get('dateRange') || 'thisMonth';
@@ -159,6 +163,29 @@ export async function GET(request) {
       });
     }
 
+    let cogsAccountIds = [];
+    try {
+      const cogsAccounts = await prisma.account.findMany({
+        where: {
+          tenantId,
+          isActive: true,
+          accountType: 'Expense',
+          OR: [
+            { accountCode: '5000' },
+            { code: '5000' },
+            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+            { accountName: { contains: 'cogs', mode: 'insensitive' } },
+            { name: { contains: 'cost of goods', mode: 'insensitive' } },
+            { name: { contains: 'cogs', mode: 'insensitive' } }
+          ]
+        },
+        select: { id: true }
+      });
+      cogsAccountIds = cogsAccounts.map((acc) => acc.id);
+    } catch (cogsAcctErr) {
+      console.error('income-expenses: COGS account lookup failed (non-fatal):', cogsAcctErr?.message || cogsAcctErr);
+    }
+
     const getPeriodData = async (periodInfo) => {
       let filterStartDate, filterEndDate;
       
@@ -196,29 +223,19 @@ export async function GET(request) {
       if (filterStartDate > filterEndDate) {
         return { income: 0, expenses: 0 };
       }
-      
-      // Find COGS account(s) for this tenant
-      const cogsAccounts = await prisma.account.findMany({
-        where: {
-          tenantId,
-          isActive: true,
-          accountType: 'Expense',
-          OR: [
-            { accountCode: '5000' },
-            { code: '5000' },
-            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-            { accountName: { contains: 'cogs', mode: 'insensitive' } },
-            { name: { contains: 'cost of goods', mode: 'insensitive' } },
-            { name: { contains: 'cogs', mode: 'insensitive' } }
-          ]
-        },
-        select: { id: true }
-      });
-      const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+      if (Number.isNaN(filterStartDate.getTime()) || Number.isNaN(filterEndDate.getTime())) {
+        return { income: 0, expenses: 0 };
+      }
 
-      const branchIdForPayments =
-        user?.currentBranchId &&
-        (typeof user.currentBranchId === 'string' ? user.currentBranchId : user.currentBranchId?.id);
+      const branchIdForPayments = normalizeBranchId(user?.currentBranchId);
+
+      const effTxBranch = getEffectiveDashboardBranchId(user);
+      const transactionBranchClause =
+        effTxBranch === false
+          ? { branchId: { in: [] } }
+          : effTxBranch
+            ? { branchId: effTxBranch }
+            : {};
 
       const [invoiceRevenue, salesRevenue, expenses, loanPayments, cogsData] = await Promise.all([
         // Revenue (cash): include invoice payments received in the period
@@ -279,7 +296,7 @@ export async function GET(request) {
             debitAmount: { gt: 0 },
             transaction: {
               tenantId,
-              ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
+              ...transactionBranchClause,
               date: {
                 gte: filterStartDate,
                 lte: filterEndDate
@@ -323,7 +340,13 @@ export async function GET(request) {
       }
     });
   } catch (error) {
-    console.error('Error getting income/expenses data:', error);
-    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 });
+    console.error('Error getting income/expenses data:', error?.message || error);
+    return NextResponse.json(
+      {
+        error: 'Failed to fetch data',
+        ...(process.env.NODE_ENV !== 'production' && { details: error?.message })
+      },
+      { status: 500 }
+    );
   }
 }

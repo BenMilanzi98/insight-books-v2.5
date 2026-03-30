@@ -18,7 +18,13 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
+    if (!user.tenantId) {
+      return NextResponse.json(
+        { error: 'No tenant associated with user' },
+        { status: 400 }
+      );
+    }
+
     const tenantId = user.tenantId;
     
     // Get date range from query parameters
@@ -137,16 +143,25 @@ export async function GET(request) {
       isDeleted: false
     });
 
+    // Aggregate in JS — avoids Prisma groupBy edge cases and works if category is null in legacy rows
     let expenses;
     try {
-      expenses = await prisma.expense.groupBy({
-        by: ['category'],
+      const rows = await prisma.expense.findMany({
         where: expenseWhere,
-        _sum: { amount: true }
+        select: { category: true, amount: true }
       });
-    } catch (groupByErr) {
-      console.error('expenses-breakdown groupBy failed:', groupByErr?.message || groupByErr);
-      throw groupByErr;
+      const byCategory = new Map();
+      for (const row of rows) {
+        const key = row.category ?? 'Uncategorized';
+        byCategory.set(key, (byCategory.get(key) || 0) + (Number(row.amount) || 0));
+      }
+      expenses = Array.from(byCategory.entries()).map(([category, sum]) => ({
+        category,
+        _sum: { amount: sum }
+      }));
+    } catch (err) {
+      console.error('expenses-breakdown expense aggregation failed:', err?.message || err);
+      throw err;
     }
 
     // COGS: find cost accounts (optional; skip if schema/DB differs)

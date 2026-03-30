@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { hasPremiumAccess } from '@/lib/subscriptionService';
 import { syncBranchActiveStatus } from '@/lib/branchSubscriptionService';
 
@@ -19,12 +19,30 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const includeInactive = searchParams.get('includeInactive');
+    const scope = searchParams.get('scope');
 
-    // When user has allowedBranchIds (user-branch assignment), only return those branches
+    // Branch assignment (allowedBranchIds) limits which branches appear in switchers and
+    // operational UIs. It must NOT block the /branches management screen: users with
+    // branch-management permissions can list every tenant branch when scope=full.
+    // Also: [] is truthy in JS — we must only filter when the array is non-empty, otherwise
+    // `id: { in: [] }` hides all rows and new branches never appear after create.
+    const canListAllTenantBranches =
+      scope === 'full' &&
+      (hasPermission(user, 'branches.create') ||
+        hasPermission(user, 'branches.update') ||
+        user.role?.name === 'MASTER_ADMIN');
+
+    const assignedIds = Array.isArray(user.allowedBranchIds) ? user.allowedBranchIds : null;
+    const restrictToAssigned =
+      !canListAllTenantBranches && assignedIds != null && assignedIds.length > 0;
+
     const where = {
       tenantId: user.tenantId,
       ...(includeInactive === 'false' ? { isActive: true } : {}),
-      ...(user.allowedBranchIds ? { id: { in: user.allowedBranchIds } } : {})
+      ...(restrictToAssigned ? { id: { in: assignedIds } } : {}),
+      ...(!canListAllTenantBranches && assignedIds != null && assignedIds.length === 0
+        ? { id: { in: [] } }
+        : {}),
     };
 
     const branches = await prisma.branch.findMany({

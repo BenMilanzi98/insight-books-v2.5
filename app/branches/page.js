@@ -47,7 +47,7 @@ export default function BranchesPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/branches", { cache: "no-store" });
+      const res = await fetch("/api/branches?scope=full", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to load branches");
       setBranches(json?.branches || []);

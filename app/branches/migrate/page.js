@@ -43,7 +43,7 @@ export default function BranchMigrationPage() {
 
   const loadBranches = async () => {
     try {
-      const res = await fetch('/api/branches?includeInactive=false');
+      const res = await fetch('/api/branches?includeInactive=false&scope=full');
       if (res.ok) {
         const data = await res.json();
         setBranches(data.branches || []);
