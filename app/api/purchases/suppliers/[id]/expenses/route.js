@@ -4,6 +4,13 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 
+async function resolveRouteParamId(rawParams) {
+  const p = typeof rawParams?.then === 'function' ? await rawParams : rawParams;
+  const id = p?.id;
+  if (Array.isArray(id)) return id[0] ?? null;
+  return id ?? null;
+}
+
 /**
  * GET /api/purchases/suppliers/[id]/expenses
  * Get expenses for a specific supplier
@@ -18,7 +25,10 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { id: supplierId } = params;
+    const supplierId = await resolveRouteParamId(params);
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
+    }
     const { searchParams } = new URL(request.url);
     
     const page = parseInt(searchParams.get('page') || '1', 10);

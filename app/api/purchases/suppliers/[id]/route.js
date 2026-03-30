@@ -10,6 +10,13 @@ async function getSupplierForTenant(id, tenantId) {
   });
 }
 
+async function resolveRouteParamId(rawParams) {
+  const p = typeof rawParams?.then === 'function' ? await rawParams : rawParams;
+  const id = p?.id;
+  if (Array.isArray(id)) return id[0] ?? null;
+  return id ?? null;
+}
+
 export async function GET(request, { params }) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -20,10 +27,15 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    const supplierId = await resolveRouteParamId(params);
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
+    }
+
     const { searchParams } = new URL(request.url);
     const includeTransactions = searchParams.get('includeTransactions') === 'true';
 
-    const supplier = await getSupplierForTenant(params.id, user.tenantId);
+    const supplier = await getSupplierForTenant(supplierId, user.tenantId);
     if (!supplier) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
@@ -33,15 +45,15 @@ export async function GET(request, { params }) {
       const { updateSupplierBalance } = await import('@/lib/supplierService');
       
       // Update supplier balance to ensure accuracy
-      await updateSupplierBalance(params.id, user.tenantId);
+      await updateSupplierBalance(supplierId, user.tenantId);
       
       // Fetch updated supplier with balance
-      const updatedSupplier = await getSupplierForTenant(params.id, user.tenantId);
+      const updatedSupplier = await getSupplierForTenant(supplierId, user.tenantId);
       
       // Get bills summary
       const billsAggregation = await prisma.supplierBill.aggregate({
         where: {
-          supplierId: params.id,
+          supplierId,
           tenantId: user.tenantId
         },
         _sum: {
@@ -72,7 +84,7 @@ export async function GET(request, { params }) {
       // Get payments summary
       const paymentsAggregation = await prisma.supplierPayment.aggregate({
         where: {
-          supplierId: params.id,
+          supplierId,
           tenantId: user.tenantId
         },
         _sum: {
@@ -140,7 +152,12 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const supplier = await getSupplierForTenant(params.id, user.tenantId);
+    const supplierId = await resolveRouteParamId(params);
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
+    }
+
+    const supplier = await getSupplierForTenant(supplierId, user.tenantId);
     if (!supplier) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
@@ -248,7 +265,12 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const supplier = await getSupplierForTenant(params.id, user.tenantId);
+    const supplierId = await resolveRouteParamId(params);
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
+    }
+
+    const supplier = await getSupplierForTenant(supplierId, user.tenantId);
     if (!supplier) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }

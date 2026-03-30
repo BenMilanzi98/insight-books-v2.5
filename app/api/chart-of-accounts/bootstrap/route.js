@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { ensureChartOfAccountsForTenant } from '@/lib/chartOfAccountsInitialization';
+import { initializeNewTenantFinancialDefaults } from '@/lib/initializeNewTenantFinancialDefaults';
 
 const isFinanceAdmin = (user) => {
   const roleName = user?.role?.name?.toLowerCase() || '';
@@ -11,9 +11,10 @@ const isFinanceAdmin = (user) => {
 
 /**
  * POST /api/chart-of-accounts/bootstrap
- * Creates/updates the standard baseline chart of accounts (hierarchy + codes) for the tenant.
+ * Applies the same setup as new-tenant onboarding when anything was skipped:
+ * baseline chart of accounts, default payment accounts (+ COA links), default tax GL accounts, current month period.
  */
-export async function POST() {
+export async function POST(request) {
   try {
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
@@ -30,15 +31,21 @@ export async function POST() {
       );
     }
 
-    await ensureChartOfAccountsForTenant(user.tenantId);
-    const accountCount = await prisma.account.count({
-      where: { tenantId: user.tenantId },
+    await prisma.$transaction(async (tx) => {
+      await initializeNewTenantFinancialDefaults(user.tenantId, tx);
     });
+
+    const [accountCount, paymentAccountCount] = await Promise.all([
+      prisma.account.count({ where: { tenantId: user.tenantId } }),
+      prisma.paymentAccount.count({ where: { tenantId: user.tenantId } }),
+    ]);
 
     return NextResponse.json({
       success: true,
-      message: 'Standard chart of accounts applied.',
+      message:
+        'Standard financial setup applied: chart of accounts, default payment accounts, and tax accounts (where missing).',
       accountCount,
+      paymentAccountCount,
     });
   } catch (error) {
     console.error('chart-of-accounts bootstrap:', error);

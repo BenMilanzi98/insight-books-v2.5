@@ -706,14 +706,14 @@ export async function POST(request) {
       const remainingBalance = invTotal - totalPaid;
       const lastPaymentDate = new Date(paymentDate);
 
-      // Determine new status
+      // Align with partial-payment route + invoice list/detail expectations (capitalized statuses)
       let newStatus;
       if (remainingBalance <= 0.005) {
-        newStatus = 'paid';
+        newStatus = 'Paid';
       } else if (totalPaid > 0) {
-        newStatus = 'partial';
+        newStatus = 'Partial';
       } else {
-        newStatus = 'pending';
+        newStatus = 'Pending';
       }
 
       await prisma.invoice.update({
@@ -814,13 +814,6 @@ export async function POST(request) {
       invoice,
       notes
     });
-
-    // 🧾 Update invoice status
-    if (type === "invoice" && invoice) {
-      const newTotalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0) + amount;
-      const newStatus = newTotalPaid >= invoice.total ? "Paid" : "Partial";
-      await prisma.invoice.update({ where: { id: invoice.id }, data: { status: newStatus } });
-    }
 
     // 📝 Audit log
     await prisma.auditLog.create({

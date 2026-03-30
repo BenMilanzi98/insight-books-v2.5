@@ -1845,7 +1845,15 @@ const EmployeeManagement = () => {
       
       // Use API-provided statistics for correct active/inactive counts (not just current page)
       const totalCount = data.pagination?.totalCount || 0;
-      const activeCount = data.statistics?.activeCount ?? (data.employees || []).filter(e => e.isActive).length;
+      const activeCount =
+        data.statistics?.activeCount ??
+        (data.employees || []).filter(e => {
+          if (typeof e.hrActive === 'boolean') return e.hrActive;
+          if (e.isActive === false) return false;
+          const s = (e.status || '').trim().toLowerCase();
+          if (s && s !== 'active') return false;
+          return true;
+        }).length;
       const inactiveCount = data.statistics?.inactiveCount ?? Math.max(0, totalCount - activeCount);
       const totalSalary = (data.employees || []).reduce((sum, e) => sum + (parseFloat(e.salary) || 0), 0);
       
@@ -2364,6 +2372,14 @@ const EmployeeManagement = () => {
     return url;
   };
 
+  const isHrActiveEmployee = (emp) => {
+    if (typeof emp?.hrActive === 'boolean') return emp.hrActive;
+    if (emp?.isActive === false) return false;
+    const s = (emp?.status || '').trim().toLowerCase();
+    if (s && s !== 'active') return false;
+    return true;
+  };
+
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = !searchTerm || 
       employee.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2374,8 +2390,8 @@ const EmployeeManagement = () => {
     const matchesDepartment = filterDepartment === "All" || employee.department === filterDepartment;
     const matchesEmploymentType = filterEmploymentType === "All" || employee.employmentType === filterEmploymentType;
     const matchesStatus = filterStatus === "All" || 
-      (filterStatus === "Active" && employee.isActive) ||
-      (filterStatus === "Inactive" && !employee.isActive);
+      (filterStatus === "Active" && isHrActiveEmployee(employee)) ||
+      (filterStatus === "Inactive" && !isHrActiveEmployee(employee));
     
     return matchesSearch && matchesDepartment && matchesEmploymentType && matchesStatus;
   });
@@ -2647,15 +2663,16 @@ const EmployeeManagement = () => {
                     <td className="px-4 py-4 text-sm text-gray-900 text-right">{formatCurrency(employee.salary)}</td>
                     <td className="px-4 py-4 text-sm">
                       <span className={`px-2.5 py-1 rounded-full text-xs ${
-                        employee.status === 'Active' && employee.isActive
-                          ? 'bg-green-100 text-green-800'
-                          : employee.status === 'Suspended'
+                        employee.status === 'Suspended'
                           ? 'bg-yellow-100 text-yellow-800'
                           : employee.status === 'Terminated'
                           ? 'bg-red-100 text-red-800'
+                          : isHrActiveEmployee(employee)
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-gray-100 text-gray-800'
                       }`}>
-                        {employee.status || (employee.isActive ? 'Active' : 'Inactive')}
+                        {employee.status ||
+                          (isHrActiveEmployee(employee) ? 'Active' : 'Inactive')}
                       </span>
                     </td>
                     <td className="px-4 py-4 text-sm text-right whitespace-nowrap">
@@ -2674,7 +2691,7 @@ const EmployeeManagement = () => {
                         >
                           <Edit size={16} />
                         </button>
-                        {(employee.status === 'Active' || employee.isActive) && (
+                        {(employee.status === 'Active' || isHrActiveEmployee(employee)) && (
                           <>
                             <button 
                               className="text-yellow-600 hover:text-yellow-800 p-1 rounded"

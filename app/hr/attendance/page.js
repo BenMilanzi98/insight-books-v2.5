@@ -94,10 +94,10 @@ export default function AttendancePage() {
 
   async function loadEmployees() {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees?limit=500&page=1');
       const data = await res.json();
       if (res.ok) {
-        setEmployees((data.employees || []).filter(e => e.isActive !== false));
+        setEmployees(data.employees || []);
       }
     } catch (e) {
       console.error('Error loading employees:', e);

@@ -202,11 +202,11 @@ const ChartOfAccountsPage = () => {
     }
   };
 
-  /** Baseline CoA from lib/chartOfAccountsInitialization (same as tenant bootstrap) */
+  /** Same pipeline as new-tenant setup: baseline CoA, default payment accounts, tax GL links, current month period */
   const handleInitializeBaseline = async () => {
     if (
       !confirm(
-        'This will create or update the standard chart of accounts (all account codes and parent/child links) for your business. Existing codes are updated in place. Continue?'
+        'This will create or update everything that is normally set when a tenant is created: standard chart of accounts (codes and hierarchy), default payment accounts linked to the chart, default tax inflow/outflow accounts, and an open monthly period for the current month if missing. Existing account codes are updated in place. Continue?'
       )
     ) {
       return;
@@ -220,13 +220,16 @@ const ChartOfAccountsPage = () => {
       });
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to initialize chart of accounts');
+        throw new Error(data.error || 'Failed to generate standard accounts');
       }
-      alert(
-        data.message
-          ? `${data.message} Total accounts: ${data.accountCount ?? '—'}.`
-          : 'Chart of accounts initialized.'
-      );
+      const parts = [
+        data.message || 'Setup complete.',
+        typeof data.accountCount === 'number' ? `GL accounts: ${data.accountCount}.` : null,
+        typeof data.paymentAccountCount === 'number'
+          ? `Payment methods: ${data.paymentAccountCount}.`
+          : null,
+      ].filter(Boolean);
+      alert(parts.join(' '));
       loadAccounts();
     } catch (err) {
       setError(err.message);
@@ -528,10 +531,10 @@ const ChartOfAccountsPage = () => {
                   type="button"
                   onClick={handleInitializeBaseline}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
-                  title="Create the standard account list (codes 1000–5280) with parent/child structure"
+                  title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
                 >
                   <CheckCircle size={18} />
-                  Initialize standard CoA
+                  Generate missing accounts & defaults
                 </button>
                 <button
                   type="button"
@@ -621,7 +624,7 @@ const ChartOfAccountsPage = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700 mb-2">No accounts found</h3>
                 <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                  Initialize the built-in chart (recommended) or import a retail template. You can also add accounts manually.
+                  Generate the standard chart, payment accounts, and tax GL defaults (recommended if your tenant was created without full setup), import a template, or add accounts manually.
                 </p>
                 <div className="flex flex-wrap justify-center gap-3">
                   <button
@@ -629,7 +632,7 @@ const ChartOfAccountsPage = () => {
                     onClick={handleInitializeBaseline}
                     className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
                   >
-                    Initialize standard chart
+                    Generate missing accounts & defaults
                   </button>
                   <button
                     type="button"

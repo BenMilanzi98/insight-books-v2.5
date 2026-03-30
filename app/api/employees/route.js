@@ -4,6 +4,14 @@ import { getUserFromSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
+/** Align HR "active" with both boolean flag and legacy status string. */
+function employeeIsActiveForStats(e) {
+  if (e?.isActive === false) return false;
+  const s = (e?.status || '').trim().toLowerCase();
+  if (s && s !== 'active') return false;
+  return true;
+}
+
 export async function POST(request) {
   try {
     const data = await request.json();
@@ -475,6 +483,7 @@ export async function GET(request) {
     // Format the response
     const formattedEmployees = employees.map(employee => ({
       ...employee,
+      hrActive: employeeIsActiveForStats(employee),
       latestPayroll: employee.payrolls[0] || null,
       department: employee.department
     }));
@@ -489,8 +498,32 @@ export async function GET(request) {
     if (employmentType && employmentType !== 'All') whereForStats.employmentType = employmentType;
 
     const [activeCount, inactiveCount] = await Promise.all([
-      prisma.employee.count({ where: { ...whereForStats, isActive: true } }),
-      prisma.employee.count({ where: { ...whereForStats, isActive: false } }),
+      prisma.employee.count({
+        where: {
+          ...whereForStats,
+          AND: [
+            { isActive: true },
+            {
+              OR: [{ status: null }, { status: { equals: 'Active', mode: 'insensitive' } }]
+            }
+          ]
+        }
+      }),
+      prisma.employee.count({
+        where: {
+          ...whereForStats,
+          OR: [
+            { isActive: false },
+            {
+              AND: [
+                { isActive: true },
+                { status: { not: null } },
+                { NOT: { status: { equals: 'Active', mode: 'insensitive' } } }
+              ]
+            }
+          ]
+        }
+      })
     ]);
     
     return NextResponse.json({

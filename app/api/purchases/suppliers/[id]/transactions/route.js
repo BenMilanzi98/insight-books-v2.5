@@ -4,6 +4,13 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 
+async function resolveRouteParamId(rawParams) {
+  const p = typeof rawParams?.then === 'function' ? await rawParams : rawParams;
+  const id = p?.id;
+  if (Array.isArray(id)) return id[0] ?? null;
+  return id ?? null;
+}
+
 /**
  * GET /api/purchases/suppliers/[id]/transactions
  * Get comprehensive transaction data for a supplier including bills, expenses, and payments
@@ -21,8 +28,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
     }
 
-    const resolvedParams = typeof params?.then === 'function' ? await params : params;
-    const supplierId = resolvedParams?.id;
+    const supplierId = await resolveRouteParamId(params);
     if (!supplierId) {
       return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
     }

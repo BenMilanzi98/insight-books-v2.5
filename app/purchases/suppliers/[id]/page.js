@@ -16,7 +16,8 @@ const formatMoney = (value) => `MWK ${Number(value || 0).toLocaleString()}`;
 
 export default function SupplierLedgerPage() {
   const params = useParams();
-  const supplierId = params?.id ?? null;
+  const rawId = params?.id;
+  const supplierId = Array.isArray(rawId) ? rawId[0] : rawId ?? null;
   const [supplier, setSupplier] = useState(null);
   const [transactions, setTransactions] = useState(null);
   const [loading, setLoading] = useState(true);

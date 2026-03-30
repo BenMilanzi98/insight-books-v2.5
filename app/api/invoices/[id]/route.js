@@ -8,6 +8,14 @@ import { generateReferenceNumber } from '@/lib/journalService';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 
+function sumEligibleInvoicePayments(payments) {
+  if (!payments?.length) return 0;
+  return payments.reduce((sum, p) => {
+    if (!p || p.status !== 'Completed' || p.isReversal) return sum;
+    return sum + (parseFloat(p.amount) || 0);
+  }, 0);
+}
+
 // Enhanced helper function to calculate invoice totals with discounts
 function calculateInvoiceTotals(items, globalDiscount = 0) {
   let subtotal = 0;
@@ -129,22 +137,11 @@ export async function GET(request, { params }) {
     }
     
     // Calculate payment information
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const outstandingAmount = invoice.total - totalPaid;
-    const isFullyPaid = totalPaid >= invoice.total;
+    const totalPaid = sumEligibleInvoicePayments(invoice.payments);
+    const invTotal = parseFloat(invoice.total) || 0;
+    const outstandingAmount = Math.max(0, invTotal - totalPaid);
+    const isFullyPaid = outstandingAmount <= 0.005;
     const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
-    
-    // Debug log for payment information
-    console.log('Payment calculation for invoice:', {
-      invoiceId: invoice.id,
-      invoiceNumber: invoice.invoiceNumber,
-      total: invoice.total,
-      payments: invoice.payments,
-      totalPaid,
-      outstandingAmount,
-      isFullyPaid,
-      isPartiallyPaid
-    });
     
     // Ensure each line has a display title (description or product name)
     const itemsWithTitle = (invoice.items || []).map((item) => ({
