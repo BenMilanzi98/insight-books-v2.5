@@ -42,7 +42,7 @@ export async function GET(request) {
         total: true,
         items: {
           select: {
-            lineTotal: true,
+            amount: true,
             product: {
               select: {
                 category: true,
@@ -61,7 +61,7 @@ export async function GET(request) {
           line.product?.inventoryCategory?.name ||
           line.product?.category ||
           'Uncategorized';
-        const amt = Number(line.lineTotal ?? 0);
+        const amt = Number(line.amount ?? 0);
         byCategory.set(cat, (byCategory.get(cat) || 0) + amt);
       }
     }

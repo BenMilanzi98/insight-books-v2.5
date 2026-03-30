@@ -55,15 +55,6 @@ class AuthRepository {
         );
       }
 
-      final user = data['user'];
-      if (user is Map && user['isEmailVerified'] == false) {
-        await _storageService.clearAuth();
-        return const LoginResult(
-          success: false,
-          message: 'Please verify your email before signing in.',
-        );
-      }
-
       var savedSomething = false;
 
       final token = data['token'];

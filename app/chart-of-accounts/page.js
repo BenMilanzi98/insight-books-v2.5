@@ -365,7 +365,12 @@ const ChartOfAccountsPage = () => {
       const response = await fetch(`/api/chart-of-accounts/${account.id}`);
       const data = await response.json();
       if (response.ok && data && !data.error) {
-        setSelectedAccount(data);
+        // List endpoint includes rollup for parent accounts; detail GET is GL-only on that code.
+        setSelectedAccount({
+          ...data,
+          currentBalance:
+            account.currentBalance != null ? account.currentBalance : data.currentBalance,
+        });
       } else {
         setSelectedAccount(account);
       }

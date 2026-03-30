@@ -19,6 +19,44 @@ const normalizeAccountType = (value) => {
 
 const validateAccountCode = (code) => /^\d{3,10}$/.test(code || '');
 
+/**
+ * Parent account rows should equal sum of child balances plus any balance posted
+ * directly to the parent account (avoids aggregate heuristics double-counting vs children).
+ */
+function applyCoaParentRollup(accounts) {
+  const list = accounts.map((a) => ({ ...a }));
+  const byId = new Map(list.map((a) => [a.id, a]));
+  const childrenByParent = new Map();
+  for (const a of list) {
+    if (a.parentAccountId && byId.has(a.parentAccountId)) {
+      if (!childrenByParent.has(a.parentAccountId)) {
+        childrenByParent.set(a.parentAccountId, []);
+      }
+      childrenByParent.get(a.parentAccountId).push(a.id);
+    }
+  }
+  const memo = new Map();
+  function rollup(id) {
+    if (memo.has(id)) return memo.get(id);
+    const acc = byId.get(id);
+    if (!acc) return 0;
+    const childIds = childrenByParent.get(id) || [];
+    const direct = Number(acc.currentBalance) || 0;
+    if (childIds.length === 0) {
+      memo.set(id, direct);
+      return direct;
+    }
+    const sumChildren = childIds.reduce((sum, cid) => sum + rollup(cid), 0);
+    const total = direct + sumChildren;
+    memo.set(id, total);
+    return total;
+  }
+  for (const a of list) {
+    a.currentBalance = rollup(a.id);
+  }
+  return list;
+}
+
 // GET - List all accounts with filtering and search
 export async function GET(request) {
   try {
@@ -107,6 +145,10 @@ export async function GET(request) {
       });
     }
 
+    const parentIdsWithChildren = new Set();
+    for (const a of accounts) {
+      if (a.parentAccountId) parentIdsWithChildren.add(a.parentAccountId);
+    }
 
     // Get other balance sources
     // Accounts Receivable from unpaid invoices
@@ -681,10 +723,24 @@ export async function GET(request) {
         const accountCode = String(account.accountCode || account.code || '').trim();
         const accountName = (account.accountName || account.name || '').toLowerCase().trim();
         const accountType = (account.accountType || account.type || '').trim().toUpperCase();
+        const accountCodeNum = parseInt(accountCode) || 0;
+        const isAssetAccount =
+          (accountType === 'ASSET' || accountType === 'Asset') &&
+          ((accountCodeNum >= 1300 && accountCodeNum <= 1599) ||
+            accountName.includes('equipment') ||
+            accountName.includes('furniture') ||
+            accountName.includes('vehicle') ||
+            (accountName.includes('asset') && !accountName.includes('receivable')));
+
+        /** Parent/header accounts: use only posted GL on this account; roll up children later. */
+        const hasChildren =
+          (Array.isArray(account.childAccounts) && account.childAccounts.length > 0) ||
+          parentIdsWithChildren.has(account.id);
 
         // Add balances from other sources based on account type and name
         let additionalBalance = 0;
-        
+
+        if (!hasChildren) {
         // Accounts Receivable (code 1100 or name contains "receivable")
         // IMPORTANT: Use ONLY unpaid invoices, NOT journal entries (to avoid double-counting payments)
         if ((accountCode === '1100' || accountName.includes('receivable')) && 
@@ -710,15 +766,6 @@ export async function GET(request) {
         
         // Assets/Equipment/Furniture/Vehicles (non-current assets)
         // Match by account code ranges (1300-1599 for assets) or by name
-        const accountCodeNum = parseInt(accountCode) || 0;
-        const isAssetAccount = (accountType === 'ASSET' || accountType === 'Asset') && (
-          (accountCodeNum >= 1300 && accountCodeNum <= 1599) ||
-          accountName.includes('equipment') || 
-          accountName.includes('furniture') || 
-          accountName.includes('vehicle') ||
-          (accountName.includes('asset') && !accountName.includes('receivable'))
-        );
-        
         if (isAssetAccount) {
           // Try to match asset category to account name or code
           const matchingAssets = assets.filter(asset => {
@@ -957,6 +1004,12 @@ export async function GET(request) {
         // Note: This typically requires manual entry or opening balance
         // We'll leave it at journal entry balance for now
 
+        } else {
+          // Parent/summary account: only posted GL (journal + transaction) on this code.
+          // Aggregate heuristics would double-count vs child lines; children are summed in rollup.
+          additionalBalance = 0;
+        }
+
         // Also check for legacy balance field if it exists
         const legacyBalance = parseFloat(account.balance) || 0;
         
@@ -1072,10 +1125,11 @@ export async function GET(request) {
     }
     
     const deduplicatedAccounts = Array.from(accountMap.values());
-    
+    const accountsWithParentRollup = applyCoaParentRollup(deduplicatedAccounts);
+
     return NextResponse.json({
-      accounts: deduplicatedAccounts,
-      total: deduplicatedAccounts.length
+      accounts: accountsWithParentRollup,
+      total: accountsWithParentRollup.length
     });
   } catch (error) {
     console.error('Error fetching chart of accounts:', error);
