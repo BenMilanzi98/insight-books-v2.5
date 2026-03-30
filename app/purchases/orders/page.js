@@ -816,12 +816,12 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         title="Line Items"
         description={
           form.orderType === "goods"
-            ? "Products for inventory/operations. Applicable taxes per line are captured for receipt and billing."
+            ? "Products for inventory/operations. Saving this order does not change stock; quantities increase when you post a goods receipt under Purchases → Receipts. Taxes per line apply at receipt and billing."
             : form.orderType === "services"
             ? "Service lines are confirmed via Service Receipt, then moved to payables."
             : form.orderType === "assets"
             ? "Asset lines are received via Inventory Receipt and auto-created in Asset Management for depreciation setup."
-            : "Add goods (inventory) and/or services (expenses). Tax per line is captured for receipt and billing."
+            : "Add goods (inventory) and/or services (expenses). Goods stock increases only after a posted receipt, not when saving the PO. Tax per line is captured for receipt and billing."
         }
       >
         {(form.orderType === "services" || form.orderType === "mixed") &&

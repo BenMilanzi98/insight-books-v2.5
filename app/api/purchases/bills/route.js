@@ -396,18 +396,20 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
       console.log(`Skipping FIFO batch creation for bill ${bill.billNumber} - already created from goods receipt ${bill.goodsReceiptId}`);
     }
 
-    // Create inventory transaction record
-    await tx.inventoryTransaction.create({
-      data: {
-        productId: product.id,
-        type: 'purchase',
-        quantity: quantity,
-        notes: `Purchase Bill ${bill.billNumber}`,
-        userId: userId,
-        tenantId: tenantId,
-        branchId: product.branchId || null
-      }
-    });
+    // Receipt-linked bills already logged goods_receipt transactions when the receipt was posted.
+    if (!isFromGoodsReceipt) {
+      await tx.inventoryTransaction.create({
+        data: {
+          productId: product.id,
+          type: 'purchase',
+          quantity: quantity,
+          notes: `Purchase Bill ${bill.billNumber}`,
+          userId: userId,
+          tenantId: tenantId,
+          branchId: product.branchId || null
+        }
+      });
+    }
   }
 
   // Create journal entry

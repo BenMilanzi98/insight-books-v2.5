@@ -1,4 +1,9 @@
 // app/api/purchases/orders/route.js
+//
+// Inventory policy: creating or updating a purchase order does not change product stock,
+// FIFO batches, or inventory transactions. On-hand quantity increases only when a goods
+// receipt is posted (see app/api/purchases/receipts/route.js) or when a standalone supplier
+// inventory bill is finalized without a linked goods receipt (app/api/purchases/bills/route.js).
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -119,7 +124,7 @@ export async function GET(request) {
       supplier: { select: { supplierName: true, supplierCode: true } },
       items: {
         include: {
-          product: { select: { id: true, name: true, sku: true, code: true } },
+          product: { select: { id: true, name: true, sku: true, barcode: true } },
           expenseCategory: {
             select: {
               id: true,
@@ -289,6 +294,7 @@ export async function POST(request) {
     const totalAmount = round2(subtotal + taxAmount);
     const headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
 
+    // PO rows only; no stockLevel / inventoryBatch / inventoryTransaction updates here.
     const purchaseOrder = await prisma.purchaseOrder.create({
       data: {
         tenantId: user.tenantId,
@@ -331,7 +337,7 @@ export async function POST(request) {
         supplier: { select: { supplierName: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true, code: true } },
+            product: { select: { id: true, name: true, sku: true, barcode: true } },
             expenseCategory: {
               select: {
                 id: true,

@@ -1,4 +1,6 @@
 // app/api/purchases/orders/[id]/route.js
+//
+// Inventory policy: PUT/updates here do not mutate stock. Receipt posting drives quantity (see receipts API).
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -40,7 +42,7 @@ async function getPurchaseOrder(id, tenantId) {
       supplier: { select: { supplierName: true, supplierCode: true } },
       items: {
         include: {
-          product: { select: { id: true, name: true, sku: true, code: true } },
+          product: { select: { id: true, name: true, sku: true, barcode: true } },
           expenseCategory: {
             select: {
               id: true,
@@ -225,7 +227,7 @@ export async function PUT(request, { params }) {
         supplier: { select: { supplierName: true, supplierCode: true } },
         items: {
           include: {
-            product: { select: { id: true, name: true, sku: true, code: true } },
+            product: { select: { id: true, name: true, sku: true, barcode: true } },
             expenseCategory: {
               select: {
                 id: true,
