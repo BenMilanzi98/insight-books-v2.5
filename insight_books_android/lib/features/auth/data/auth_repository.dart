@@ -3,6 +3,28 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 
+/// Collects all [Set-Cookie] header lines (Dio may expose multiple values).
+List<String> _collectSetCookieLines(Headers headers) {
+  final out = <String>[];
+  headers.forEach((name, values) {
+    if (name.toLowerCase() == 'set-cookie') {
+      out.addAll(values);
+    }
+  });
+  return out;
+}
+
+/// Extracts `session=...` (value only, before first `;`) from a Set-Cookie line.
+String? _sessionCookiePair(String line) {
+  final trimmed = line.trim();
+  if (!trimmed.toLowerCase().startsWith('session=')) return null;
+  final rest = trimmed.substring('session='.length);
+  final semi = rest.indexOf(';');
+  final value = semi >= 0 ? rest.substring(0, semi) : rest;
+  if (value.isEmpty) return null;
+  return 'session=$value';
+}
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final dio = ref.watch(dioProvider);
   final storageService = ref.watch(storageServiceProvider);
@@ -63,14 +85,14 @@ class AuthRepository {
         savedSomething = true;
       }
 
-      final cookies = response.headers['set-cookie'];
-      if (cookies != null && cookies.isNotEmpty) {
-        final sessionCookieStr = cookies.firstWhere(
-          (c) => c.contains('session'),
-          orElse: () => cookies.first,
-        );
-        await _storageService.saveCookie(sessionCookieStr.split(';').first);
-        savedSomething = true;
+      final setCookieLines = _collectSetCookieLines(response.headers);
+      for (final line in setCookieLines) {
+        final pair = _sessionCookiePair(line);
+        if (pair != null) {
+          await _storageService.saveCookie(pair);
+          savedSomething = true;
+          break;
+        }
       }
 
       if (!savedSomething) {
@@ -133,5 +155,29 @@ class AuthRepository {
     final token = await _storageService.getToken();
     final cookie = await _storageService.getCookie();
     return token != null || cookie != null;
+  }
+
+  /// Confirms stored credentials with the server. Clears storage on 401.
+  /// On network failure, returns true if credentials exist (offline-friendly).
+  Future<bool> validateSession() async {
+    final token = await _storageService.getToken();
+    final cookie = await _storageService.getCookie();
+    if (token == null && cookie == null) return false;
+
+    try {
+      final response = await _dio.get('/api/auth/me');
+      return response.statusCode == 200;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) {
+        await _storageService.clearAuth();
+        return false;
+      }
+      if (e.response == null) {
+        return true;
+      }
+      return true;
+    } catch (_) {
+      return true;
+    }
   }
 }

@@ -18,8 +18,17 @@ class AuthController extends Notifier<AsyncValue<bool>> {
   }
 
   Future<void> _checkInitialAuth() async {
-    final isAuth = await _repository.isAuthenticated();
-    state = AsyncValue.data(isAuth);
+    try {
+      final hasCredentials = await _repository.isAuthenticated();
+      if (!hasCredentials) {
+        state = const AsyncValue.data(false);
+        return;
+      }
+      final valid = await _repository.validateSession();
+      state = AsyncValue.data(valid);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
   }
 
   Future<LoginResult> login(String email, String password) async {

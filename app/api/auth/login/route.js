@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
+import { getSessionCookieOptions } from '@/lib/sessionCookie';
 
 /**
  * POST /api/auth/login
@@ -68,7 +69,7 @@ export async function POST(request) {
       console.error('Login user lookup failed (trying without role):', lookupErr?.message || lookupErr);
       try {
         user = await prisma.user.findFirst({
-          where: { email },
+          where: { email: { equals: email, mode: 'insensitive' } },
           select: {
             id: true,
             email: true,
@@ -219,11 +220,7 @@ export async function POST(request) {
     cookieStore.set({
       name: 'session',
       value: session,
-      httpOnly: true,
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      ...getSessionCookieOptions(),
     });
 
     // Update last login timestamp (non-fatal if column missing on older DB)

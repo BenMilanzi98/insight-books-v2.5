@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
+import { getSessionCookieOptions } from '@/lib/sessionCookie';
 import { getFreeBranchId, hasActiveBranchSubscription, syncBranchActiveStatus } from '@/lib/branchSubscriptionService';
 
 export async function POST(request) {
@@ -85,10 +86,7 @@ export async function POST(request) {
     cookieStore.set({
       name: 'session',
       value: updatedSession,
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+      ...getSessionCookieOptions(),
     });
 
     return NextResponse.json({
@@ -126,10 +124,7 @@ export async function GET(request) {
         cookieStore.set({
           name: 'session',
           value: updatedSession,
-          httpOnly: true,
-          path: '/',
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production'
+          ...getSessionCookieOptions(),
         });
         return NextResponse.json({ branchId: null });
       }
@@ -156,10 +151,7 @@ export async function GET(request) {
         cookieStore.set({
           name: 'session',
           value: updatedSession,
-          httpOnly: true,
-          path: '/',
-          sameSite: 'lax',
-          secure: process.env.NODE_ENV === 'production'
+          ...getSessionCookieOptions(),
         });
         return NextResponse.json({ branchId: null });
       }

@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
+import { getSessionCookieOptions } from '@/lib/sessionCookie';
 
 export async function GET(request) {
   try {
@@ -191,11 +192,10 @@ export async function GET(request) {
 
       const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
       const cookieStore = await cookies();
-      cookieStore.set('session', session, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7 // 7 days
+      cookieStore.set({
+        name: 'session',
+        value: session,
+        ...getSessionCookieOptions(),
       });
 
       console.log('Google OAuth: Existing user logged in successfully');
@@ -239,11 +239,10 @@ export async function GET(request) {
 
         const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
         const cookieStore = await cookies();
-        cookieStore.set('session', session, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7 // 7 days
+        cookieStore.set({
+          name: 'session',
+          value: session,
+          ...getSessionCookieOptions(),
         });
 
         console.log('Google OAuth: New user created successfully');

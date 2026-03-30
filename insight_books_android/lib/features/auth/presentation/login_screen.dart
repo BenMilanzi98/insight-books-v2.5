@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:go_router/go_router.dart';
+import 'package:insightbooks_android/core/security/app_route_access.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -29,7 +31,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           .login(_emailController.text, _passwordController.text);
 
       if (result.success && mounted) {
-        context.go('/dashboard');
+        try {
+          final perms = await ref.read(userPermissionsProvider.future);
+          if (!mounted) return;
+          context.go(firstAccessibleRoute(perms));
+        } catch (_) {
+          if (!mounted) return;
+          context.go('/switch-tenant');
+        }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

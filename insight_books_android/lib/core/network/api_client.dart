@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
@@ -21,8 +22,9 @@ final dioProvider = Provider<Dio>((ref) {
 
   dio.interceptors.add(AuthInterceptor(ref));
 
-  // Add logging interceptor for development
-  dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
+  if (kDebugMode) {
+    dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
+  }
 
   return dio;
 });
@@ -56,9 +58,9 @@ class AuthInterceptor extends QueuedInterceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401) {
-      final storageService = ref.read(storageServiceProvider);
-      storageService.clearAuth();
-      ref.read(authStateProvider.notifier).forceLogout();
+      ref.read(storageServiceProvider).clearAuth().then((_) {
+        ref.read(authStateProvider.notifier).forceLogout();
+      });
     }
     handler.next(err);
   }

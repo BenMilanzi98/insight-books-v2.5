@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseSessionPayload } from '@/lib/sessionCookie';
 
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname;
@@ -74,11 +75,8 @@ export async function middleware(request) {
     }
     
     try {
-      // Validate session (basic check)
-      const sessionData = JSON.parse(Buffer.from(sessionCookie, 'base64').toString());
-
-      // Check if session contains required data
-      if (!sessionData.userId) {
+      const sessionData = parseSessionPayload(sessionCookie);
+      if (!sessionData) {
         throw new Error('Invalid session');
       }
 

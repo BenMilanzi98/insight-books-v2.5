@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
+import { getSessionCookieOptions } from '@/lib/sessionCookie';
 
 // Ensure environment variables are loaded
 import 'dotenv/config';
@@ -20,8 +21,9 @@ export async function POST(request) {
     
     // Find the user by email
     const user = await prisma.user.findUnique({
-      where: { email: body.email },
+      where: { email: { equals: String(body.email).trim(), mode: 'insensitive' } },
       include: {
+        role: true,
         tenant: {
           select: {
             id: true,
@@ -136,11 +138,7 @@ export async function POST(request) {
     cookieStore.set({
       name: 'session',
       value: session,
-      httpOnly: true,
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      ...getSessionCookieOptions(),
     });
     
     // Return success with user info

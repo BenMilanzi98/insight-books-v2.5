@@ -4,6 +4,65 @@ import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 
+/// Bottom bar items (subset of drawer): filtered by [hasPermission].
+class _BottomNavSpec {
+  final String permission;
+  final String path;
+  final IconData icon;
+  final String label;
+  final String shortLabel;
+  final int colorIndex;
+
+  const _BottomNavSpec(
+    this.permission,
+    this.path,
+    this.icon,
+    this.label,
+    this.shortLabel,
+    this.colorIndex,
+  );
+}
+
+const List<_BottomNavSpec> _kAllBottomNavSpecs = [
+  _BottomNavSpec(
+    'dashboard.view',
+    '/dashboard',
+    Icons.home_rounded,
+    'Home',
+    'Home',
+    0,
+  ),
+  _BottomNavSpec(
+    'sales.view',
+    '/pos',
+    Icons.point_of_sale_rounded,
+    'POS',
+    'POS',
+    1,
+  ),
+  _BottomNavSpec(
+    'invoices.view',
+    '/invoice',
+    Icons.receipt_long_rounded,
+    'Invoicing',
+    'Invc',
+    2,
+  ),
+  _BottomNavSpec(
+    'quotations.view',
+    '/quotation',
+    Icons.description_rounded,
+    'Quotations',
+    'Quotes',
+    3,
+  ),
+];
+
+bool _locationMatchesBottomPath(String location, String path) {
+  if (path == '/dashboard') return location == '/dashboard';
+  return location == path || location.startsWith('$path/');
+}
+
 class MainLayout extends ConsumerWidget {
   final Widget child;
   final String? title;
@@ -16,37 +75,22 @@ class MainLayout extends ConsumerWidget {
     final isDesktop = MediaQuery.of(context).size.width > 800;
     final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
 
+    final visibleBottom = _kAllBottomNavSpecs
+        .where((s) => hasPermission(perms, s.permission))
+        .toList();
+
     int calculateSelectedIndex() {
-      if (location == '/dashboard') return 0;
-      if (location == '/pos') return 1;
-      if (location.startsWith('/invoice')) return 2;
-      if (location.startsWith('/quotation')) return 3;
+      for (var i = 0; i < visibleBottom.length; i++) {
+        if (_locationMatchesBottomPath(location, visibleBottom[i].path)) {
+          return i;
+        }
+      }
       return 0;
     }
 
     void onNavTap(int index) {
-      final allowDashboard = hasPermission(perms, 'dashboard.view');
-      final allowPos = hasPermission(perms, 'sales.view');
-      final allowInvoice = hasPermission(perms, 'invoices.view');
-      final allowQuotation = hasPermission(perms, 'quotations.view');
-      switch (index) {
-        case 0:
-          if (!allowDashboard) break;
-          context.go('/dashboard');
-          break;
-        case 1:
-          if (!allowPos) break;
-          context.go('/pos');
-          break;
-        case 2:
-          if (!allowInvoice) break;
-          context.go('/invoice');
-          break;
-        case 3:
-          if (!allowQuotation) break;
-          context.go('/quotation');
-          break;
-      }
+      if (index < 0 || index >= visibleBottom.length) return;
+      context.go(visibleBottom[index].path);
     }
 
     return Scaffold(
@@ -57,10 +101,11 @@ class MainLayout extends ConsumerWidget {
           Expanded(child: child),
         ],
       ),
-      bottomNavigationBar: isDesktop
+      bottomNavigationBar: isDesktop || visibleBottom.isEmpty
           ? null
           : _ModernBottomNav(
-              currentIndex: calculateSelectedIndex(),
+              destinations: visibleBottom,
+              currentIndex: calculateSelectedIndex().clamp(0, visibleBottom.length - 1),
               onTap: onNavTap,
             ),
     );
@@ -84,20 +129,15 @@ const _navLightTints = [
 
 /// Modern bottom navigation: floating pill, per-tab colors, overflow-safe, responsive.
 class _ModernBottomNav extends StatelessWidget {
+  final List<_BottomNavSpec> destinations;
   final int currentIndex;
   final ValueChanged<int> onTap;
 
   const _ModernBottomNav({
+    required this.destinations,
     required this.currentIndex,
     required this.onTap,
   });
-
-  static const List<_NavDestination> _destinations = [
-    _NavDestination(icon: Icons.home_rounded, label: 'Home', shortLabel: 'Home'),
-    _NavDestination(icon: Icons.point_of_sale_rounded, label: 'POS', shortLabel: 'POS'),
-    _NavDestination(icon: Icons.receipt_long_rounded, label: 'Invoicing', shortLabel: 'Invc'),
-    _NavDestination(icon: Icons.description_rounded, label: 'Quotations', shortLabel: 'Quotes'),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -114,8 +154,11 @@ class _ModernBottomNav extends StatelessWidget {
         : const Color(0xFF0F172A);
     final unselectedColor = isLight ? const Color(0xFF64748B) : const Color(0xFF94A3B8);
 
-    // Use short labels on narrow screens to prevent overflow
     final useShortLabels = width < 380;
+    final safeIndex = currentIndex.clamp(0, destinations.length - 1);
+    final accentIdx = destinations.isEmpty
+        ? 0
+        : destinations[safeIndex].colorIndex.clamp(0, _navColors.length - 1);
 
     return Container(
       padding: EdgeInsets.only(
@@ -141,7 +184,7 @@ class _ModernBottomNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: _navColors[currentIndex].withValues(alpha: 0.12),
+              color: _navColors[accentIdx].withValues(alpha: 0.12),
               blurRadius: 14,
               offset: const Offset(0, 2),
             ),
@@ -156,17 +199,18 @@ class _ModernBottomNav extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: Row(
-            children: List.generate(_destinations.length, (index) {
-              final dest = _destinations[index];
+            children: List.generate(destinations.length, (index) {
+              final dest = destinations[index];
               final selected = currentIndex == index;
               final label = useShortLabels ? dest.shortLabel : dest.label;
+              final cIdx = dest.colorIndex.clamp(0, _navColors.length - 1);
               return Expanded(
                 child: _NavTile(
                   icon: dest.icon,
                   label: label,
                   selected: selected,
-                  accentColor: _navColors[index],
-                  accentTint: _navLightTints[index],
+                  accentColor: _navColors[cIdx],
+                  accentTint: _navLightTints[cIdx],
                   unselectedColor: unselectedColor,
                   onTap: () => onTap(index),
                 ),
@@ -177,18 +221,6 @@ class _ModernBottomNav extends StatelessWidget {
       ),
     );
   }
-}
-
-class _NavDestination {
-  final IconData icon;
-  final String label;
-  final String shortLabel;
-
-  const _NavDestination({
-    required this.icon,
-    required this.label,
-    required this.shortLabel,
-  });
 }
 
 class _NavTile extends StatefulWidget {

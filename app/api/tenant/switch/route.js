@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
+import { getSessionCookieOptions, parseSessionPayload } from '@/lib/sessionCookie';
 
 export async function POST(request) {
   try {
@@ -17,12 +18,29 @@ export async function POST(request) {
     });
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
+    const hasAccess = await prisma.user.findFirst({
+      where: {
+        id: user.id,
+        OR: [{ tenantId }, { tenants: { some: { id: tenantId } } }],
+      },
+      select: { id: true },
+    });
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'You do not have access to this organization' },
+        { status: 403 }
+      );
+    }
+
     const sessionValue = await getSessionTokenFromRequest(request);
     if (!sessionValue) {
       return NextResponse.json({ error: 'No session found' }, { status: 401 });
     }
 
-    let sessionData = JSON.parse(Buffer.from(sessionValue, 'base64').toString());
+    const sessionData = parseSessionPayload(sessionValue);
+    if (!sessionData) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
     sessionData.tenantId = tenantId;
     const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
@@ -30,10 +48,7 @@ export async function POST(request) {
     cookieStore.set({
       name: 'session',
       value: updatedSession,
-      httpOnly: true,
-      path: '/',
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production'
+      ...getSessionCookieOptions(),
     });
 
     await prisma.user.update({

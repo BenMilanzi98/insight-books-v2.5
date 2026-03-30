@@ -1,27 +1,29 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/security/permission_parser.dart';
+import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
+/// Effective permissions from `/api/auth/me` (flattened `role.permissions`).
+/// Refreshes when [authStateProvider] becomes authenticated.
 final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
+  final auth = ref.watch(authStateProvider);
+  if (auth.value != true) {
+    return {};
+  }
+
   try {
     final dio = ref.watch(dioProvider);
     final response = await dio.get('/api/auth/me');
     final data = response.data;
-    final user = data is Map ? (data['user'] ?? data) : data;
-    final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-    final permissions = <String>{};
-    if (raw is List) {
-      for (final p in raw) {
-        if (p != null) permissions.add(p.toString());
-      }
-    }
-    return permissions;
+    if (data is! Map) return {};
+    return parsePermissionsFromMeResponse(Map<String, dynamic>.from(data));
   } catch (_) {
-    return <String>{};
+    return {};
   }
 });
 
 bool hasPermission(Set<String> permissions, String requiredPermission) {
-  if (permissions.isEmpty) return true;
-  if (permissions.contains('all') || permissions.contains('*')) return true;
+  if (permissions.contains('*') || permissions.contains('all')) return true;
+  if (permissions.isEmpty) return false;
   return permissions.contains(requiredPermission);
 }
