@@ -777,7 +777,22 @@ export async function GET(request, { params }) {
       console.warn('Receipt audit log failed (receipt still returned):', auditErr?.message || auditErr);
     }
 
-    // Return HTML response
+    const format = new URL(request.url).searchParams.get('format');
+    if (format === 'pdf') {
+      const { receiptHtmlToPdf } = await import('@/lib/receiptPdf');
+      const buffer = await receiptHtmlToPdf(receiptHtml);
+      const safeSale = (sale.saleNumber || saleId || 'receipt')
+        .toString()
+        .replace(/[^\w.-]+/g, '_');
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="receipt-${safeSale}.pdf"`,
+        },
+      });
+    }
+
+    // Return HTML response (print view)
     return new NextResponse(receiptHtml, {
       headers: {
         'Content-Type': 'text/html',

@@ -15,7 +15,7 @@ class DashboardRepository {
   DashboardRepository(this._dio);
 
   Future<DashboardData> fetchDashboardData({
-    String dateRange = 'thisMonth',
+    String dateRange = 'today',
   }) async {
     try {
       final results = await Future.wait([

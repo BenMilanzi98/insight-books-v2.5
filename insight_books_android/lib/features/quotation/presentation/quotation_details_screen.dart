@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
 import '../data/quotation_repository.dart';
 import '../domain/quotation_model.dart';
 import 'providers/quotation_details_provider.dart';
@@ -65,6 +66,9 @@ class QuotationDetailsScreen extends ConsumerWidget {
         data: (quotation) => _QuotationDetailsBody(
           quotation: quotation,
           quotationId: quotationId,
+          onSharePdf: quotationState.canExportQuotations
+              ? () => _downloadQuotationPdf(context, ref, quotation)
+              : null,
         ),
       ),
     );
@@ -357,12 +361,14 @@ class QuotationDetailsScreen extends ConsumerWidget {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/quotation-${quotation.quotationNumber}.pdf');
       await file.writeAsBytes(bytes);
-      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Quotation PDF ready')));
-      }
+      final xfile = XFile(file.path, mimeType: 'application/pdf');
+      if (!context.mounted) return;
+      await showPdfShareSheet(
+        context,
+        file: xfile,
+        title: 'Quotation ${quotation.quotationNumber}',
+        body: 'Quotation ${quotation.quotationNumber}',
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(
@@ -507,10 +513,12 @@ class QuotationDetailsScreen extends ConsumerWidget {
 class _QuotationDetailsBody extends StatelessWidget {
   final Quotation quotation;
   final String quotationId;
+  final VoidCallback? onSharePdf;
 
   const _QuotationDetailsBody({
     required this.quotation,
     required this.quotationId,
+    this.onSharePdf,
   });
 
   @override
@@ -527,6 +535,31 @@ class _QuotationDetailsBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (onSharePdf != null) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf_outlined, color: theme.colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Quotation PDF',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: onSharePdf,
+                      icon: const Icon(Icons.share_outlined, size: 20),
+                      label: const Text('Share'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(

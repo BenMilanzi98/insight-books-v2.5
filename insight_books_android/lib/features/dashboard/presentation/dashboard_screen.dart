@@ -57,7 +57,7 @@ class DashboardScreen extends ConsumerWidget {
     final businessName = currentTenant?.name.trim();
     final title =
         (businessName != null && businessName.isNotEmpty)
-            ? '$businessName Dashboard'
+            ? businessName
             : 'Dashboard';
 
     final theme = Theme.of(context);

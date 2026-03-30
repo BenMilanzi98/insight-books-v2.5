@@ -10,7 +10,7 @@ final dashboardControllerProvider =
 
 class DashboardController extends AsyncNotifier<DashboardData> {
   late final DashboardRepository _repository;
-  String _dateRange = 'thisMonth';
+  String _dateRange = 'today';
 
   @override
   Future<DashboardData> build() async {

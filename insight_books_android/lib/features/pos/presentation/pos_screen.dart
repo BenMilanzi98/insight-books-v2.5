@@ -12,6 +12,7 @@ import 'package:insightbooks_android/features/pos/presentation/widgets/cart_shee
 import 'package:insightbooks_android/features/pos/presentation/widgets/barcode_scanner_screen.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
 
 double _saleTotalAmount(Map<String, dynamic> sale) {
   final raw = sale['rawTotal'];
@@ -1285,12 +1286,18 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
     }
     setState(() => _actionBusy = true);
     try {
-      await ref.read(posRepositoryProvider).shareSaleReceipt(
-            saleId,
-            shareText: forPrint
-                ? 'Open this receipt to print or share (same as website).'
-                : 'Save this receipt file (same as website).',
-          );
+      final x = await ref.read(posRepositoryProvider).prepareSaleReceiptXFile(saleId);
+      if (!mounted) return;
+      final saleNo = (sale['saleNumber'] ?? '').toString().trim();
+      final label = saleNo.isNotEmpty ? 'Receipt $saleNo' : 'Sale receipt';
+      await showPdfShareSheet(
+        context,
+        file: x,
+        title: label,
+        body: forPrint
+            ? 'Receipt — open in your app to print or forward.'
+            : 'Sale receipt PDF',
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

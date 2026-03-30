@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import '../data/invoice_repository.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
 import 'providers/invoice_provider.dart';
 import '../../../shared/widgets/main_layout.dart';
+import '../../../shared/pdf_share_sheet.dart';
 
 class InvoiceDetailsScreen extends ConsumerStatefulWidget {
   final String invoiceId;
@@ -77,7 +78,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
             ],
           ),
         ),
-        data: (invoice) => _buildBody(invoice, theme),
+        data: (invoice) => _buildBody(invoice, theme, invoiceState),
       ),
     );
   }
@@ -259,7 +260,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   //  Body
   // ═══════════════════════════════════════════════════
 
-  Widget _buildBody(Invoice invoice, ThemeData theme) {
+  Widget _buildBody(Invoice invoice, ThemeData theme, InvoicePageState permissions) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -267,6 +268,32 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
           // ── Status Banner ──
           _buildStatusBanner(invoice, theme),
           const SizedBox(height: 16),
+
+          if (permissions.canExportInvoices) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Icon(Icons.picture_as_pdf_outlined, color: theme.colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Invoice PDF',
+                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    FilledButton.tonalIcon(
+                      onPressed: () => _downloadInvoicePdf(invoice),
+                      icon: const Icon(Icons.share_outlined, size: 20),
+                      label: const Text('Share'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // ── Client & Dates Card ──
           _buildInfoCard(invoice, theme),
@@ -1135,8 +1162,13 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/invoice-${invoice.invoiceNumber}.pdf');
       await file.writeAsBytes(bytes);
-      await SharePlus.instance.share(
-        ShareParams(files: [XFile(file.path)]),
+      final xfile = XFile(file.path, mimeType: 'application/pdf');
+      if (!mounted) return;
+      await showPdfShareSheet(
+        context,
+        file: xfile,
+        title: 'Invoice ${invoice.invoiceNumber}',
+        body: 'Invoice ${invoice.invoiceNumber}',
       );
     } catch (e) {
       if (mounted) {

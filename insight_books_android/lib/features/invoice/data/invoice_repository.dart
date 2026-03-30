@@ -356,7 +356,7 @@ class InvoiceRepository {
   Future<List<int>> downloadInvoicePdf(String invoiceId) async {
     try {
       final response = await _dio.get(
-        '/api/invoices/$invoiceId/download',
+        '/api/invoices/$invoiceId/download/pdf',
         options: Options(responseType: ResponseType.bytes),
       );
       return response.data as List<int>;

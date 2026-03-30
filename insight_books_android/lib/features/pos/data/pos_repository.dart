@@ -268,10 +268,28 @@ class PosRepository {
     }
   }
 
-  /// Server returns HTML receipt (same as web print view). Bytes + file extension for sharing.
+  /// Server returns PDF when `format=pdf`; otherwise HTML print view (legacy).
   Future<({List<int> bytes, String fileExtension, String mimeType})> downloadReceiptForShare(
     String saleId,
   ) async {
+    try {
+      final pdfResp = await _dio.get<List<int>>(
+        '/api/sales/$saleId/receipt',
+        queryParameters: {'format': 'pdf'},
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final ct = (pdfResp.headers.value('content-type') ?? '').toLowerCase();
+      final data = pdfResp.data;
+      if (data != null && ct.contains('application/pdf')) {
+        return (
+          bytes: data,
+          fileExtension: 'pdf',
+          mimeType: 'application/pdf',
+        );
+      }
+    } catch (_) {
+      // Older servers without PDF receipt: fall back to HTML
+    }
     final response = await _dio.get(
       '/api/sales/$saleId/receipt',
       options: Options(responseType: ResponseType.bytes),
@@ -291,20 +309,24 @@ class PosRepository {
     return r.bytes;
   }
 
-  /// Shares the same HTML receipt as the website (print / save from share sheet).
-  Future<void> shareSaleReceipt(
-    String saleId, {
-    String? shareText,
-  }) async {
+  /// Receipt as [XFile] for in-app share sheet (PDF when server supports `format=pdf`).
+  Future<XFile> prepareSaleReceiptXFile(String saleId) async {
     final r = await downloadReceiptForShare(saleId);
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/sale-receipt-$saleId.${r.fileExtension}');
     await file.writeAsBytes(r.bytes);
+    return XFile(file.path, mimeType: r.mimeType);
+  }
+
+  /// Opens system share (legacy); prefer [prepareSaleReceiptXFile] from the POS UI.
+  Future<void> shareSaleReceipt(
+    String saleId, {
+    String? shareText,
+  }) async {
+    final x = await prepareSaleReceiptXFile(saleId);
     await SharePlus.instance.share(
       ShareParams(
-        files: [
-          XFile(file.path, mimeType: r.mimeType),
-        ],
+        files: [x],
         text: shareText ?? 'Sale receipt #$saleId',
       ),
     );

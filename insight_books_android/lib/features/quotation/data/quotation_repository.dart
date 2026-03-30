@@ -172,7 +172,7 @@ class QuotationRepository {
   Future<List<int>> downloadQuotationPdf(String quotationId) async {
     try {
       final response = await _dio.get(
-        '/api/quotations/$quotationId/download',
+        '/api/quotations/$quotationId/download/pdf',
         options: Options(responseType: ResponseType.bytes),
       );
       return response.data as List<int>;

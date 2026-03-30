@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
+import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
 
 class ReceiptScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> saleData;
@@ -317,8 +315,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Opens the same printable receipt as the website (HTML). '
-              'Use your browser’s Print → Save as PDF for a PDF copy.',
+              'Share as PDF when your server supports it, or as HTML for printing.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),
@@ -371,6 +368,10 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   }
 
   Future<void> _shareReceipt(BuildContext context) async {
+    final sale = _detail ?? (widget.saleData['sale'] as Map<String, dynamic>? ?? {});
+    final saleNumber = (sale['saleNumber'] ?? '').toString();
+    final receiptLabel =
+        saleNumber.isNotEmpty ? saleNumber : (sale['id'] ?? 'N/A').toString();
     final saleId = _saleId;
     if (saleId == null || saleId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -388,22 +389,14 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     }
     try {
       final repo = ref.read(posRepositoryProvider);
-      final r = await repo.downloadReceiptForShare(saleId);
-      final dir = await getTemporaryDirectory();
-      final file = File(
-        '${dir.path}/receipt-$saleId.${r.fileExtension}',
-      );
-      await file.writeAsBytes(r.bytes);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile(
-              file.path,
-              mimeType: r.mimeType,
-            ),
-          ],
-          text: 'Sale receipt #$saleId',
-        ),
+      final x = await repo.prepareSaleReceiptXFile(saleId);
+      if (!context.mounted) return;
+      await showPdfShareSheet(
+        context,
+        file: x,
+        title: 'Receipt $receiptLabel',
+        body:
+            saleNumber.isNotEmpty ? 'Sale receipt $saleNumber' : 'Sale receipt $saleId',
       );
     } catch (e) {
       if (!context.mounted) return;
