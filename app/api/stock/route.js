@@ -324,7 +324,7 @@ export async function POST(request) {
       );
     }
 
-    const productNameTrim = body.name.trim();
+    const productNameTrim = String(body.name || '').trim().replace(/\s+/g, ' ');
     const duplicateName = await prisma.product.findFirst({
       where: {
         tenantId: user.tenantId,
@@ -342,8 +342,29 @@ export async function POST(request) {
       );
     }
     
+    // Normalize provided SKU (if any) and validate uniqueness.
+    // SKU uniqueness is enforced per-tenant (active products).
+    let finalSku = body.sku != null ? String(body.sku).trim() : undefined;
+    if (finalSku === '') finalSku = undefined;
+
+    if (finalSku) {
+      const existingActiveSku = await prisma.product.findFirst({
+        where: {
+          sku: finalSku,
+          tenantId: user.tenantId,
+          isDeleted: false,
+        },
+        select: { id: true, name: true, sku: true },
+      });
+      if (existingActiveSku) {
+        return NextResponse.json(
+          { error: `A product with this SKU already exists (${existingActiveSku.name || 'Unnamed'}).` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Auto-generate SKU if not provided
-    let finalSku = body.sku?.trim();
     if (!finalSku || finalSku === '') {
       // Generate SKU from product name
       const cleanName = productNameTrim;
@@ -407,21 +428,8 @@ export async function POST(request) {
       }
     }
     
-    // Check if SKU is unique for this tenant (active products only)
-    const existingActiveSku = await prisma.product.findFirst({
-      where: {
-        sku: finalSku,
-        tenantId: user.tenantId,
-        isDeleted: false
-      }
-    });
-    
-    if (existingActiveSku) {
-      return NextResponse.json(
-        { error: 'A product with this SKU already exists' },
-        { status: 400 }
-      );
-    }
+    // At this point SKU uniqueness has been checked (for provided SKUs) and
+    // auto-generated SKUs are looped until a free value is found.
     
     // Check if there's a soft-deleted product with the same SKU
     const deletedProductWithSku = await prisma.product.findFirst({

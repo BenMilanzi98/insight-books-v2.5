@@ -484,21 +484,43 @@ export async function POST(request) {
       ? total 
       : (subtotal + legacyTaxAmount - totalDiscountAmount - globalDiscount);
     
-    // Generate sale number (e.g., SALE-20250322-001)
-    const today = new Date();
-    const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-    
-    // Get count of sales for today to generate sequential number
-    const salesCount = await prisma.sale.count({
+    // Generate sale number (e.g., SALE-20250322-001).
+    // IMPORTANT: do NOT use "count + 1" (it creates gaps whenever earlier rows are hidden/deleted),
+    // and it is also race-prone. Instead, look up the highest existing sequence for today and increment.
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const prefix = `SALE-${dateStr}-`;
+
+    const latestForToday = await prisma.sale.findFirst({
       where: {
         tenantId: user.tenantId,
-        createdAt: {
-          gte: new Date(today.setHours(0, 0, 0, 0))
-        }
-      }
+        saleNumber: { startsWith: prefix },
+      },
+      orderBy: { saleNumber: 'desc' },
+      select: { saleNumber: true },
     });
-    
-    const saleNumber = `SALE-${dateStr}-${(salesCount + 1).toString().padStart(3, '0')}`;
+
+    let nextSeq = 1;
+    if (latestForToday?.saleNumber) {
+      const m = latestForToday.saleNumber.match(/^SALE-\d{8}-(\d+)$/);
+      if (m?.[1]) {
+        const last = parseInt(m[1], 10);
+        if (!Number.isNaN(last)) nextSeq = last + 1;
+      }
+    }
+
+    // Ensure uniqueness (saleNumber is not DB-unique in schema), retry if collision occurs.
+    let saleNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+    // hard stop to avoid infinite loops in corrupted data
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const exists = await prisma.sale.findFirst({
+        where: { tenantId: user.tenantId, saleNumber },
+        select: { id: true },
+      });
+      if (!exists) break;
+      nextSeq += 1;
+      saleNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
+    }
     
     try {
       // Log the incoming data

@@ -309,27 +309,8 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
     select: { id: true, goodsReceiptId: true, billNumber: true }
   });
   
-  // Get or create inventory account
-  let inventoryAccount = await tx.account.findFirst({
-    where: {
-      tenantId,
-      accountCode: '1300',
-      accountType: 'Asset',
-      isActive: true
-    }
-  });
-
-  if (!inventoryAccount) {
-    inventoryAccount = await tx.account.findFirst({
-      where: {
-        tenantId,
-        accountName: { contains: 'Inventory', mode: 'insensitive' },
-        accountType: 'Asset',
-        isActive: true
-      }
-    });
-  }
-
+  const { resolveOrEnsureInventoryGlAccount } = await import('@/lib/inventoryGlAccount');
+  const inventoryAccount = await resolveOrEnsureInventoryGlAccount(tenantId, tx);
   if (!inventoryAccount) {
     throw new Error('Inventory account not found. Please set up your chart of accounts.');
   }

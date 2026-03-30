@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Loader2,
   X,
+  GitMerge,
   BookOpen
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
@@ -32,6 +33,12 @@ const ChartOfAccountsPage = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState(null);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeSourceAccount, setMergeSourceAccount] = useState(null);
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [mergeAccounts, setMergeAccounts] = useState([]);
+  const [mergeLoading, setMergeLoading] = useState(false);
+  const [mergeError, setMergeError] = useState(null);
   const [formData, setFormData] = useState({
     accountCode: '',
     accountName: '',
@@ -87,6 +94,33 @@ const ChartOfAccountsPage = () => {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMergeAccounts = async () => {
+    const response = await fetch('/api/chart-of-accounts?includeInactive=true');
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Failed to load accounts for merge');
+    }
+    const data = await response.json();
+    setMergeAccounts(data.accounts || []);
+  };
+
+  const openMergeModal = async (sourceAccount) => {
+    if (!sourceAccount) return;
+    if (sourceAccount.isSystem) {
+      setMergeError('System accounts cannot be merged.');
+      return;
+    }
+    setMergeSourceAccount(sourceAccount);
+    setMergeTargetId('');
+    setMergeError(null);
+    setShowMergeModal(true);
+    try {
+      await loadMergeAccounts();
+    } catch (err) {
+      setMergeError(err.message);
     }
   };
 
@@ -169,6 +203,47 @@ const ChartOfAccountsPage = () => {
       loadAccounts();
     } catch (err) {
       setError(err.message);
+    }
+  };
+
+  const handleMergeAccounts = async () => {
+    if (!mergeSourceAccount) return;
+    if (!mergeTargetId) {
+      setMergeError('Please select the target account.');
+      return;
+    }
+    if (mergeTargetId === mergeSourceAccount.id) {
+      setMergeError('Source and target accounts must be different.');
+      return;
+    }
+
+    try {
+      setMergeLoading(true);
+      setMergeError(null);
+
+      const response = await fetch('/api/chart-of-accounts/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceAccountId: mergeSourceAccount.id,
+          targetAccountId: mergeTargetId
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to merge accounts');
+      }
+
+      setShowMergeModal(false);
+      setMergeSourceAccount(null);
+      setMergeTargetId('');
+      setMergeAccounts([]);
+      await loadAccounts();
+    } catch (err) {
+      setMergeError(err.message || 'Failed to merge accounts');
+    } finally {
+      setMergeLoading(false);
     }
   };
 
@@ -498,6 +573,14 @@ const ChartOfAccountsPage = () => {
                 <Edit size={16} />
               </button>
               <button
+                onClick={() => openMergeModal(account)}
+                className={`transition-colors ${account.isSystem ? 'text-gray-300 cursor-not-allowed' : 'text-purple-600 hover:text-purple-800'}`}
+                title={account.isSystem ? 'System account (read-only)' : 'Merge accounts'}
+                disabled={account.isSystem}
+              >
+                <GitMerge size={16} />
+              </button>
+              <button
                 onClick={() => handleDeleteAccount(account.id)}
                 className={`transition-colors ${isLocked ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:text-red-800'}`}
                 title={isLocked ? 'Account in use or system account' : 'Delete'}
@@ -717,6 +800,120 @@ const ChartOfAccountsPage = () => {
               setSelectedAccount(null);
             }}
           />
+        )}
+
+        {/* Merge Accounts Modal */}
+        {showMergeModal && mergeSourceAccount && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            onClick={() => {
+              setShowMergeModal(false);
+              setMergeSourceAccount(null);
+              setMergeTargetId('');
+              setMergeError(null);
+            }}
+          >
+            <div
+              className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b border-gray-200 bg-gray-50/50">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Merge Accounts</h2>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMergeModal(false);
+                      setMergeSourceAccount(null);
+                      setMergeTargetId('');
+                      setMergeError(null);
+                    }}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  This will reassign all references from the source account to the target account and then deactivate the source account.
+                </p>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {mergeError && (
+                  <div className="p-3 border border-red-300 bg-red-50 rounded-md text-red-700 text-sm">
+                    {mergeError}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Source account</label>
+                    <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
+                      <div className="font-semibold text-gray-900">
+                        {mergeSourceAccount.accountCode || mergeSourceAccount.code || 'N/A'} - {mergeSourceAccount.accountName || mergeSourceAccount.name || 'Unnamed Account'}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        Type: {mergeSourceAccount.accountType || mergeSourceAccount.type || 'N/A'} | Normal: {mergeSourceAccount.normalBalance || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Target account</label>
+                    <select
+                      value={mergeTargetId}
+                      onChange={(e) => setMergeTargetId(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      disabled={mergeLoading}
+                    >
+                      <option value="">Select target...</option>
+                      {mergeAccounts
+                        .filter((a) => a && a.id !== mergeSourceAccount.id)
+                        .map((a) => {
+                          const code = a.accountCode || a.code || 'N/A';
+                          const name = a.accountName || a.name || 'Unnamed Account';
+                          const type = a.accountType || a.type || 'N/A';
+                          const isActive = a.isActive ? 'Active' : 'Inactive';
+                          return (
+                            <option key={a.id} value={a.id}>
+                              {code} - {name} ({type}, {isActive})
+                            </option>
+                          );
+                        })}
+                    </select>
+                  </div>
+
+                  <div className="p-3 border border-amber-200 bg-amber-50 rounded-md text-amber-900 text-sm">
+                    Tip: Prefer merging accounts with the same code/type/normal balance. If you’re unsure, check posted usage before merging.
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMergeModal(false);
+                        setMergeSourceAccount(null);
+                        setMergeTargetId('');
+                        setMergeError(null);
+                      }}
+                      className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors"
+                      disabled={mergeLoading}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMergeAccounts}
+                      className="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors disabled:opacity-50"
+                      disabled={mergeLoading || !mergeTargetId}
+                    >
+                      {mergeLoading ? 'Merging…' : 'Merge'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
         </div>
       </div>

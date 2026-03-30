@@ -310,9 +310,11 @@ export async function GET(request) {
           // Calculate total inventory value
           const totalValue = products.reduce((sum, product) => {
             try {
-              // Prefer totalStockValue if available, otherwise calculate from cost/stockLevel
-              if (product.totalStockValue != null && !isNaN(Number(product.totalStockValue))) {
-                return sum + Number(product.totalStockValue);
+              // Prefer totalStockValue only when it is positive.
+              // It can become stale if FIFO consumption fails or legacy adjustments occurred.
+              const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+              if (stored != null && !isNaN(stored) && stored > 0) {
+                return sum + stored;
               } else if (product.cost != null && product.stockLevel != null && 
                          !isNaN(Number(product.cost)) && !isNaN(Number(product.stockLevel))) {
                 return sum + (Number(product.cost) * Number(product.stockLevel));
