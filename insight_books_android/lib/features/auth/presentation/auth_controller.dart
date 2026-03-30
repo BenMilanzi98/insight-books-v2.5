@@ -22,15 +22,15 @@ class AuthController extends Notifier<AsyncValue<bool>> {
     state = AsyncValue.data(isAuth);
   }
 
-  Future<bool> login(String email, String password) async {
+  Future<LoginResult> login(String email, String password) async {
     state = const AsyncValue.loading();
     try {
-      final success = await _repository.login(email, password);
-      state = AsyncValue.data(success);
-      return success;
+      final result = await _repository.login(email, password);
+      state = AsyncValue.data(result.success);
+      return result;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
-      return false;
+      return LoginResult(success: false, message: e.toString());
     }
   }
 

@@ -379,7 +379,7 @@ const POSPage = () => {
     try {
       setIsLoadingBranches(true);
       const [branchesRes, userRes, currentBranchRes] = await Promise.all([
-        fetch('/api/branches?includeInactive=false', { cache: 'no-store' }),
+        fetch('/api/branches', { cache: 'no-store' }),
         fetch('/api/auth/me', { cache: 'no-store' }),
         fetch('/api/branches/switch', { cache: 'no-store' }) // Get current branch from session
       ]);

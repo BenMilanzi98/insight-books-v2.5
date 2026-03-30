@@ -30,12 +30,13 @@ export async function GET(request) {
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const forSelect = searchParams.get('forSelect') === 'true';
+    const includeInactive = searchParams.get('includeInactive') === 'true';
 
     // Parse query parameters - forSelect returns full list of active accounts (e.g. journal entry dropdown)
     const page = parseInt(searchParams.get('page')) || 1;
     const rawLimit = searchParams.get('limit');
     const limit = forSelect
-      ? 5000
+      ? 20000
       : (rawLimit === 'all' ? 5000 : parseInt(rawLimit) || 100);
     const sortBy = searchParams.get('sortBy') || (forSelect ? 'accountCode' : 'code');
     const sortOrder = searchParams.get('sortOrder') || 'asc';
@@ -47,8 +48,8 @@ export async function GET(request) {
       tenantId
     };
 
-    // When forSelect (e.g. journal entry): only active accounts, include parents and children
-    if (forSelect) {
+    // When forSelect (e.g. journal entry): active accounts by default; includeInactive for GL "all accounts" picker
+    if (forSelect && !includeInactive) {
       where.isActive = true;
     }
 
@@ -76,30 +77,48 @@ export async function GET(request) {
 
     // Pagination: skip when not forSelect or when paginating
     const skip = forSelect ? 0 : (page - 1) * limit;
-    const take = forSelect ? 5000 : limit;
+    const take = forSelect ? 20000 : limit;
 
-    // Order by accountCode (matches chart of accounts) or code
-    const orderBy = sortBy === 'accountCode'
-      ? [{ accountCode: sortOrder }, { code: sortOrder }]
-      : { [sortBy]: sortOrder };
+    // forSelect: order by id so NULL accountCode never drops or reorders rows; sort for display in JS.
+    const orderBy = forSelect
+      ? { id: 'asc' }
+      : sortBy === 'accountCode'
+        ? [{ accountCode: sortOrder }, { code: sortOrder }]
+        : { [sortBy]: sortOrder };
 
-    // Fetch accounts (all active + children when forSelect)
     let accounts = await prisma.account.findMany({
       where,
       orderBy,
       skip,
-      take
+      take,
+      include: forSelect
+        ? {
+            parentAccount: {
+              select: {
+                id: true,
+                accountCode: true,
+                accountName: true,
+                code: true,
+                name: true,
+              },
+            },
+          }
+        : undefined,
     });
 
-    // When forSelect, normalize display fields so journal entry dropdown never shows " - " (code/name may be in accountCode/accountName)
     if (forSelect && Array.isArray(accounts)) {
       accounts = accounts.map((acc) => ({
         ...acc,
         code: acc.code ?? acc.accountCode ?? '',
         name: acc.name ?? acc.accountName ?? '',
         accountCode: acc.accountCode ?? acc.code ?? '',
-        accountName: acc.accountName ?? acc.name ?? ''
+        accountName: acc.accountName ?? acc.name ?? '',
       }));
+      accounts.sort((a, b) => {
+        const ca = (a.accountCode ?? a.code ?? '').toString();
+        const cb = (b.accountCode ?? b.code ?? '').toString();
+        return ca.localeCompare(cb, undefined, { numeric: true });
+      });
     }
 
     return NextResponse.json({

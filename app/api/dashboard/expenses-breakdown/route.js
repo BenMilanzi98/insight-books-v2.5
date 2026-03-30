@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { endOfLocalDay } from '@/lib/dateUtils';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -62,8 +63,7 @@ export async function GET(request) {
       case 'thisMonth':
       case 'month':
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        endDate.setHours(23, 59, 59, 999);
+        endDate = endOfLocalDay(new Date(today.getFullYear(), today.getMonth() + 1, 0));
         break;
       case 'lastMonth':
         startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -124,8 +124,7 @@ export async function GET(request) {
         break;
       default:
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        endDate.setHours(23, 59, 59, 999);
+        endDate = endOfLocalDay(new Date(today.getFullYear(), today.getMonth() + 1, 0));
     }
     
     // Get all expenses for the selected period, grouped by category.

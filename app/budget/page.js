@@ -53,7 +53,8 @@ export default function BudgetPage() {
   const [creating, setCreating] = useState(false);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [branchOptions, setBranchOptions] = useState([]);
-  const [categoryOptions, setCategoryOptions] = useState([]);
+  const [expenseAccountOptions, setExpenseAccountOptions] = useState([]);
+  const [inventoryCategoryOptions, setInventoryCategoryOptions] = useState([]);
   const [pagePermissions, setPagePermissions] = useState({
     canCreate: false,
     canUpdate: false,
@@ -126,7 +127,9 @@ export default function BudgetPage() {
       const json = await res.json();
       if (res.ok && json?.data) {
         setBranchOptions(json.data.branches || []);
-        setCategoryOptions(json.data.categories || []);
+        const expense = json.data.expenseAccounts || json.data.categories || [];
+        setExpenseAccountOptions(expense);
+        setInventoryCategoryOptions(json.data.inventoryCategories || []);
       }
     } catch (e) {
       console.error("Error loading options:", e);
@@ -205,8 +208,11 @@ export default function BudgetPage() {
     }));
   };
 
+  const breakdownOptionsFor = (type) =>
+    type === 'branch' ? branchOptions : inventoryCategoryOptions;
+
   const addBreakdown = (type) => {
-    const options = type === 'branch' ? branchOptions : categoryOptions;
+    const options = breakdownOptionsFor(type);
     const existingIds = (form.breakdowns || [])
       .filter(b => b.breakdownType === type)
       .map(b => b.referenceId);
@@ -241,8 +247,8 @@ export default function BudgetPage() {
       breakdowns: prev.breakdowns.map((item, i) => {
         if (i === idx) {
           if (patch.referenceId) {
-            const options = item.breakdownType === 'branch' ? branchOptions : categoryOptions;
-            const selected = options.find(opt => opt.id === patch.referenceId);
+            const options = breakdownOptionsFor(item.breakdownType);
+            const selected = options.find((opt) => opt.id === patch.referenceId);
             return { ...item, ...patch, referenceName: selected?.name || item.referenceName };
           }
           return { ...item, ...patch };
@@ -258,7 +264,10 @@ export default function BudgetPage() {
       return;
     }
     setShowCreate(true);
-    if (branchOptions.length === 0 || categoryOptions.length === 0) {
+    if (
+      branchOptions.length === 0 ||
+      expenseAccountOptions.length === 0
+    ) {
       await loadOptions();
     }
   };
@@ -288,15 +297,7 @@ export default function BudgetPage() {
         : "Expected revenue must be greater than zero";
     }
     
-    // Validate breakdowns
-    const breakdownTotal = calculateBreakdownTotal();
     if (form.budgetType === "revenue" && form.breakdowns && form.breakdowns.length > 0) {
-      const expected = Number(form.expectedRevenue) || 0;
-      const tolerance = 0.01;
-      if (Math.abs(breakdownTotal - expected) > tolerance) {
-        errors.breakdowns = `Breakdown total (${formatCurrency(breakdownTotal)}) must match expected revenue (${formatCurrency(expected)})`;
-      }
-      
       form.breakdowns.forEach((item, idx) => {
         if (!item.budgetedAmount || Number(item.budgetedAmount) <= 0) {
           errors[`breakdown_${idx}_amount`] = "Enter a valid amount";
@@ -330,7 +331,7 @@ export default function BudgetPage() {
       const items = (form.items || [])
         .filter(item => item.budgetedAmount && Number(item.budgetedAmount) > 0)
         .map(item => {
-          const account = categoryOptions.find(acc => acc.id === item.accountId);
+          const account = expenseAccountOptions.find((acc) => acc.id === item.accountId);
           return {
             accountId: item.accountId || null,
             category: account?.name || null,
@@ -894,7 +895,7 @@ export default function BudgetPage() {
                           Optional Breakdown
                         </h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          Break down revenue by branch or product category (optional).
+                          Optionally forecast revenue by branch or inventory category. Splits do not need to add up to your total above.
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -910,7 +911,7 @@ export default function BudgetPage() {
                         <button
                           type="button"
                           onClick={() => addBreakdown('product_category')}
-                          disabled={optionsLoading || categoryOptions.length === 0}
+                          disabled={optionsLoading || inventoryCategoryOptions.length === 0}
                           className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100 text-sm disabled:opacity-50"
                         >
                           <Plus size={14} />
@@ -930,13 +931,13 @@ export default function BudgetPage() {
                       {(form.breakdowns || [])
                         .map((item, idx) => {
                           const hasAmountError = formErrors[`breakdown_${idx}_amount`];
-                          const options = item.breakdownType === 'branch' ? branchOptions : categoryOptions;
+                          const options = breakdownOptionsFor(item.breakdownType);
                           
                           return (
                             <div key={idx} className={`p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 ${hasAmountError ? "bg-red-50/30" : ""}`}>
                               <div className="sm:col-span-4">
                                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                                  {item.breakdownType === 'branch' ? 'Branch' : 'Product Category'}
+                                  {item.breakdownType === 'branch' ? 'Branch' : 'Inventory category'}
                                 </label>
                                 <select
                                   value={item.referenceId || ""}
@@ -1018,20 +1019,20 @@ export default function BudgetPage() {
                   {/* Breakdown total validation */}
                   {form.breakdowns?.length > 0 && (
                     <div className="p-4 bg-gray-50 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div>
-                          <span className="text-sm text-gray-600">Breakdown Total:</span>
-                          <span className={`ml-2 font-semibold ${Math.abs(calculateBreakdownTotal() - Number(form.expectedRevenue || 0)) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+                          <span className="text-sm text-gray-600">Breakdown total (reference only):</span>
+                          <span className="ml-2 font-semibold text-gray-800">
                             {formatCurrency(calculateBreakdownTotal())}
                           </span>
                         </div>
                         <div className="text-sm text-gray-500">
-                          Expected Expense: {formatCurrency(Number(form.expectedRevenue) || 0)}
+                          Expected revenue: {formatCurrency(Number(form.expectedRevenue) || 0)}
                         </div>
                       </div>
-                      {formErrors.breakdowns && (
-                        <p className="text-xs text-red-600 mt-1">{formErrors.breakdowns}</p>
-                      )}
+                      <p className="text-xs text-amber-700 mt-2">
+                        Optional splits for tracking performance; they do not have to match the header total.
+                      </p>
                     </div>
                   )}
                     </div>
@@ -1049,7 +1050,7 @@ export default function BudgetPage() {
                           Expense Lines
                         </h3>
                         <p className="text-xs text-gray-500 mt-1">
-                          Add detailed expense line items for this budget (optional).
+                          Add expense lines by chart account to compare actuals and variance line by line (optional).
                         </p>
                       </div>
                       <button
@@ -1089,7 +1090,7 @@ export default function BudgetPage() {
                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                               >
                                 <option value="">Select an expense account...</option>
-                                {categoryOptions.map((cat) => (
+                                {expenseAccountOptions.map((cat) => (
                                   <option key={cat.id} value={cat.id}>
                                     {cat.code ? `${cat.code} - ${cat.name}` : cat.name}
                                   </option>

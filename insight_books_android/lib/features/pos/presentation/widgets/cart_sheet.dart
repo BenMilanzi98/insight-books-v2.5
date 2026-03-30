@@ -464,7 +464,7 @@ class _CartItemTile extends StatelessWidget {
                                           ),
                                           const SizedBox(height: 8),
                                           DropdownButtonFormField<String>(
-                                            value: accountId,
+                                            initialValue: accountId,
                                             decoration: const InputDecoration(
                                               labelText: 'Account',
                                               border: OutlineInputBorder(),

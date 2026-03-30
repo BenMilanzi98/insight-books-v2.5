@@ -24,16 +24,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _submit() async {
     if (_formKey.currentState!.validate()) {
-      final success = await ref
+      final result = await ref
           .read(authStateProvider.notifier)
           .login(_emailController.text, _passwordController.text);
 
-      if (success && mounted) {
+      if (result.success && mounted) {
         context.go('/dashboard');
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Login failed. Please check your credentials.'),
+            content: Text(
+              result.message ??
+                  'Login failed. Please check your credentials.',
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

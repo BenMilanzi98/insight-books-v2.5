@@ -467,7 +467,7 @@ class PosRepository {
       final raw = prefs.getString(key);
       if (raw == null || raw.isEmpty) return null;
       final decoded = jsonDecode(raw);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded as Map);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
       return null;
     } catch (_) {
       return null;

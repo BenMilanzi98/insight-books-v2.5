@@ -498,8 +498,15 @@ export async function POST(request) {
     const invoiceStatus = body.status || 'Draft';
     const issueDate = new Date(body.issueDate || today);
     
-    // Resolve branchId from request or user's default branch
-    const branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    let branchId;
+    try {
+      branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    } catch (branchErr) {
+      return NextResponse.json(
+        { error: branchErr.message || 'Invalid branch' },
+        { status: 403 }
+      );
+    }
     
     // Check if invoice has service items
     const hasServices = calculations.processedItems.some(item => {

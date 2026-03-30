@@ -13,6 +13,10 @@ import {
   BookOpen
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
+import {
+  groupAccountsForJournalSelect,
+  journalAccountOptionLabel,
+} from "@/lib/journalAccountSelect";
 
 const JournalEntryForm = ({ existingEntry = null }) => {
   const router = useRouter();
@@ -80,20 +84,9 @@ const JournalEntryForm = ({ existingEntry = null }) => {
         const data = await response.json();
         
         // Ensure accounts have proper IDs (all active parents + children from chart of accounts)
-        const validAccounts = (data.accounts || []).filter(account => account.id);
+        const validAccounts = (data.accounts || []).filter((account) => account.id);
         setAccounts(validAccounts);
-        
-        // Group accounts by type for display
-        const groupedAccounts = validAccounts.reduce((groups, account) => {
-          const type = account.type || account.accountType || 'Other';
-          if (!groups[type]) {
-            groups[type] = [];
-          }
-          groups[type].push(account);
-          return groups;
-        }, {});
-        
-        setAccountsByType(groupedAccounts);
+        setAccountsByType(groupAccountsForJournalSelect(validAccounts));
       } catch (err) {
         console.error("Error fetching accounts:", err);
         setError("Failed to load accounts. Please try again.");
@@ -446,16 +439,11 @@ const JournalEntryForm = ({ existingEntry = null }) => {
                             <option value="">Select an account</option>
                             {Object.entries(accountsByType).map(([type, accts]) => (
                               <optgroup key={type} label={type}>
-                                {accts.map(account => {
-                                  const code = (account.accountCode ?? account.code ?? '').toString().trim();
-                                  const name = (account.accountName ?? account.name ?? '').toString().trim();
-                                  const label = (code && name)
-                                    ? `${code} - ${name}`
-                                    : code || name || `Account ${(account.id || '').slice(-8)}`;
-                                  return (
-                                    <option key={account.id} value={account.id}>{label}</option>
-                                  );
-                                })}
+                                {accts.map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    {journalAccountOptionLabel(account)}
+                                  </option>
+                                ))}
                               </optgroup>
                             ))}
                           </select>

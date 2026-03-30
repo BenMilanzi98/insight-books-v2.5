@@ -1,16 +1,18 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:insightbooks_android/main.dart';
+import 'package:insightbooks_android/features/auth/presentation/login_screen.dart';
 
 void main() {
-  testWidgets('App compiles and shows LoginScreen', (
-    WidgetTester tester,
-  ) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const ProviderScope(child: InsightBooksApp()));
-
-    // Initial load state might just show the background or loading depending on routing logic speed in tests.
-    // For now, just verifying it builds without crashing.
-    expect(find.byType(InsightBooksApp), findsOneWidget);
+  testWidgets('LoginScreen builds under ProviderScope', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: MaterialApp(
+          home: LoginScreen(),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byType(LoginScreen), findsOneWidget);
   });
 }

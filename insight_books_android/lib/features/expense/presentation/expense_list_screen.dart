@@ -622,7 +622,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: frequency,
+                initialValue: frequency,
                 decoration: const InputDecoration(labelText: 'Frequency', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
@@ -703,8 +703,10 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                                       onSelected: (v) async {
                                         if (v == 'reverse_gl') {
                                           await _reverseCogsEntry(context, ref, row, saleMode: false);
+                                          return;
                                         }
                                         if (v == 'reverse_sale') {
+                                          if (!context.mounted) return;
                                           await _reverseCogsEntry(context, ref, row, saleMode: true);
                                         }
                                       },
@@ -1053,7 +1055,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: frequency,
+                initialValue: frequency,
                 decoration: const InputDecoration(labelText: 'Frequency', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'weekly', child: Text('Weekly')),
@@ -1117,7 +1119,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: paymentMethod,
+                  initialValue: paymentMethod,
                   decoration: const InputDecoration(labelText: 'Payment Method', border: OutlineInputBorder()),
                   items: paymentAccounts
                       .map((a) => DropdownMenuItem<String>(

@@ -11,7 +11,17 @@ import {
 import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { resolveBranchId } from '@/lib/branchHelpers';
+import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+
+/** Payments that count toward invoice balance (completed, not a reversal row). */
+function sumEligibleInvoicePayments(payments) {
+  if (!payments?.length) return 0;
+  return payments.reduce((sum, p) => {
+    if (!p || p.status !== 'Completed' || p.isReversal) return sum;
+    return sum + (parseFloat(p.amount) || 0);
+  }, 0);
+}
 
 // Helper function to format payment data
 const formatPaymentResponse = (payment) => {
@@ -597,13 +607,18 @@ export async function POST(request) {
 
       invoice = await prisma.invoice.findFirst({
         where: { id: invoiceId, tenantId: user.tenantId },
-        include: { payments: true }
+        include: {
+          payments: {
+            where: { status: 'Completed', isReversal: false }
+          }
+        }
       });
 
       if (!invoice) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
 
-      const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0);
-      const remaining = invoice.total - totalPaid;
+      const invTotal = parseFloat(invoice.total) || 0;
+      const totalPaid = sumEligibleInvoicePayments(invoice.payments);
+      const remaining = invTotal - totalPaid;
       if (amount > remaining) {
         return NextResponse.json({ error: `Payment exceeds remaining invoice amount (${remaining})` }, { status: 400 });
       }
@@ -634,13 +649,19 @@ export async function POST(request) {
       }
     });
 
-    // Resolve branchId from request or user's default branch
-    // For invoice payments, use invoice's branchId if available
     let branchId = null;
-    if (invoice?.branchId) {
-      branchId = invoice.branchId;
-    } else {
-      branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+    try {
+      if (invoice?.branchId) {
+        branchId = invoice.branchId;
+      } else {
+        branchId = await resolveBranchId(user, body.branchId, user.tenantId);
+      }
+      branchId = clampResolvedBranchToUserAccess(user, branchId);
+    } catch (branchErr) {
+      return NextResponse.json(
+        { error: branchErr.message || 'Branch not allowed' },
+        { status: 403 }
+      );
     }
 
     // 🔐 Create payment
@@ -679,13 +700,15 @@ export async function POST(request) {
 
     // Update invoice payment totals if this is an invoice payment
     if (invoice && type === "invoice") {
-      const totalPaid = invoice.payments.reduce((sum, p) => sum + p.amount, 0) + amount;
-      const remainingBalance = invoice.total - totalPaid;
+      const totalPaid =
+        sumEligibleInvoicePayments(invoice.payments) + (parseFloat(amount) || 0);
+      const invTotal = parseFloat(invoice.total) || 0;
+      const remainingBalance = invTotal - totalPaid;
       const lastPaymentDate = new Date(paymentDate);
 
       // Determine new status
       let newStatus;
-      if (remainingBalance <= 0) {
+      if (remainingBalance <= 0.005) {
         newStatus = 'paid';
       } else if (totalPaid > 0) {
         newStatus = 'partial';
@@ -696,7 +719,7 @@ export async function POST(request) {
       await prisma.invoice.update({
         where: { id: invoice.id },
         data: {
-          totalPaid: totalPaid,
+          totalPaid,
           remainingBalance: Math.max(0, remainingBalance),
           lastPaymentDate: lastPaymentDate,
           status: newStatus

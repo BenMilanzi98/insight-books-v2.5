@@ -41,7 +41,9 @@ export async function GET(request, { params }) {
             paymentDate: true,
             paymentMethod: true,
             reference: true,
-            notes: true
+            notes: true,
+            status: true,
+            isReversal: true
           },
           orderBy: {
             paymentDate: 'desc'
@@ -124,13 +126,21 @@ export async function GET(request, { params }) {
       phone: tenant?.settings?.phone || '',
       email: tenant?.settings?.email || '',
       businessPhone: tenant?.settings?.businessPhone || '',
-      defaultBankDetails: tenant?.settings?.defaultBankDetails || ''
+      defaultBankDetails: tenant?.settings?.defaultBankDetails || '',
+      tpin: tenant?.tpin || ''
     };
     
-    // Calculate payment information
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const outstandingAmount = invoice.total - totalPaid;
-    const isFullyPaid = totalPaid >= invoice.total;
+    // Calculate payment information (completed payments only; exclude reversals)
+    const eligiblePayments = (invoice.payments || []).filter(
+      (p) => p && p.status === 'Completed' && !p.isReversal
+    );
+    const totalPaid = eligiblePayments.reduce(
+      (sum, payment) => sum + (parseFloat(payment.amount) || 0),
+      0
+    );
+    const invTotal = parseFloat(invoice.total) || 0;
+    const outstandingAmount = Math.max(0, invTotal - totalPaid);
+    const isFullyPaid = totalPaid >= invTotal - 0.005;
     const isPartiallyPaid = totalPaid > 0 && !isFullyPaid;
     
     // Prepare invoice data in the format expected by client-side PDF generator
@@ -148,7 +158,7 @@ export async function GET(request, { params }) {
         outstandingAmount,
         isFullyPaid,
         isPartiallyPaid,
-        paymentCount: invoice.payments.length
+        paymentCount: eligiblePayments.length
       }
     };
     

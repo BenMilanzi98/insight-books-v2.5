@@ -3,145 +3,150 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+const PAYROLL_EXPENSE_NOTE_PREFIX = 'payrollDashboardExpense:';
+
+function computePayrollOperatingExpense(p) {
+  const gross = Number(p.grossPay) || 0;
+  const basic = Number(p.basicSalary) || 0;
+  const adds = Number(p.additions) || 0;
+  const net = Number(p.netPay) || 0;
+  const deds = Number(p.deductions) || 0;
+  if (gross > 0) return gross + adds;
+  const fromBase = basic + adds;
+  if (fromBase > 0) return fromBase;
+  if (net > 0) return net + deds;
+  return 0;
+}
+
 /**
- * POST - Process a payroll (update status to Completed and set payment date)
+ * POST - Process a payroll (update status to Processed and set payment date)
+ * Creates an Approved Expense so financial dashboard operating totals include payroll immediately.
  */
-export async function POST(request, { params }) {
+export async function POST(request, context) {
   try {
-    // Get user from session
     const user = await getUserFromSession(request);
-    if (!user) {
+    if (!user?.tenantId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       );
     }
-    
-    // In Next.js App Router, we access the ID directly from params
-    const payrollId = params.id;
-    const body = await request.json();
-    
-    // Check if payroll exists
-    const existingPayroll = await prisma.payroll.findUnique({
-      where: { 
-        id: payrollId
+
+    const params = context.params;
+    const resolved = typeof params?.then === 'function' ? await params : params;
+    const payrollId = resolved?.id;
+
+    if (!payrollId) {
+      return NextResponse.json({ error: 'Invalid payroll id' }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+
+    const existingPayroll = await prisma.payroll.findFirst({
+      where: {
+        id: payrollId,
+        tenantId: user.tenantId,
       },
       include: {
         employee: true,
-      }
+      },
     });
-    
+
     if (!existingPayroll) {
-      return NextResponse.json(
-        { error: 'Payroll not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
     }
-    
-    // Check if payroll is already processed
+
     if (existingPayroll.status === 'Processed') {
       return NextResponse.json(
         { error: 'Payroll has already been processed' },
         { status: 400 }
       );
     }
-    
-    // Get payment details from request or use defaults
+
     const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
     const paymentMethod = body.paymentMethod || 'Bank Transfer';
     const notes = body.notes || `Processed on ${new Date().toLocaleDateString()}`;
-    
-    // Update the payroll status from Draft to Processed
-    const updatedPayroll = await prisma.payroll.update({
-      where: { id: payrollId },
-      data: {
-        status: 'Processed',
-        paymentDate: paymentDate,
-        notes: `${existingPayroll.notes ? existingPayroll.notes + '\n' : ''}${notes}`
-      },
-      include: {
-        employee: true,
-      }
-    });
-    
-    // Create a transaction record - commenting out for now as this requires Transaction and JournalEntry models
-    // We'll add a placeholder for now to avoid errors
-    const payment = {
-      id: `payment-${Date.now()}`, // Generate a temporary ID
-      date: paymentDate,
-      description: `Payroll payment for ${existingPayroll.employee.name} (${existingPayroll.periodStart.toLocaleDateString()} - ${existingPayroll.periodEnd.toLocaleDateString()})`,
-    };
-    
-    /* Uncomment and modify this when Transaction and JournalEntry models are available
-    const payment = await prisma.transaction.create({
-      data: {
-        date: paymentDate,
-        description: `Payroll payment for ${existingPayroll.employee.name} (${existingPayroll.periodStart.toLocaleDateString()} - ${existingPayroll.periodEnd.toLocaleDateString()})`,
+
+    const expenseAmount = computePayrollOperatingExpense(existingPayroll);
+    if (expenseAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Payroll has no positive amount to post as operating expense.' },
+        { status: 400 }
+      );
+    }
+
+    const duplicateMarker = `${PAYROLL_EXPENSE_NOTE_PREFIX}${payrollId}`;
+    const already = await prisma.expense.findFirst({
+      where: {
         tenantId: user.tenantId,
-        // Create journal entries for double-entry accounting
-        entries: {
-          create: [
-            {
-              // Debit Salary Expense
-              accountId: 'salary-expense-account-id', // Replace with actual account ID
-              debit: existingPayroll.netPay,
-              credit: 0,
-              description: 'Salary Expense'
-            },
-            {
-              // Credit Cash or Bank
-              accountId: 'cash-account-id', // Replace with actual account ID
-              debit: 0,
-              credit: existingPayroll.netPay,
-              description: 'Cash Payment'
-            }
-          ]
-        }
-      }
-    });
-    */
-    
-    // Create audit log - commenting out for now as we may need to adjust based on schema
-    /* 
-    await prisma.auditLog.create({
-      data: {
-        action: 'PAYROLL_PROCESSED',
-        entityType: 'PAYROLL',
-        entityId: id,
-        userId: user.id,
-        details: JSON.stringify({
-          employeeName: existingPayroll.employee.name,
-          netPay: existingPayroll.netPay,
-          paymentDate: paymentDate,
-          paymentMethod: paymentMethod,
-          transactionId: payment.id
-        }),
+        notes: { contains: duplicateMarker },
+        isDeleted: false,
       },
+      select: { id: true },
     });
-    */
-    
-    // Log the action instead
-    console.log('Audit log would be created:', {
-      action: 'PAYROLL_PROCESSED',
-      entityType: 'PAYROLL',
-      entityId: id,
-      userId: user.id,
-      details: {
-        employeeName: existingPayroll.employee.name,
-        netPay: existingPayroll.netPay,
-        paymentDate: paymentDate,
-        paymentMethod: paymentMethod,
-        transactionId: payment.id
-      }
+    if (already) {
+      return NextResponse.json(
+        { error: 'Dashboard expense for this payroll already exists.' },
+        { status: 400 }
+      );
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedPayroll = await tx.payroll.update({
+        where: { id: payrollId },
+        data: {
+          status: 'Processed',
+          paymentDate,
+          notes: `${existingPayroll.notes ? `${existingPayroll.notes}\n` : ''}${notes}`,
+        },
+        include: {
+          employee: true,
+        },
+      });
+
+      await tx.expense.create({
+        data: {
+          description: `Payroll — ${existingPayroll.employee.name} (${existingPayroll.periodStart.toLocaleDateString()} – ${existingPayroll.periodEnd.toLocaleDateString()})`,
+          amount: expenseAmount,
+          date: paymentDate,
+          category: 'Salary',
+          employeeId: existingPayroll.employeeId,
+          paymentMethod,
+          status: 'Approved',
+          paymentStatus: 'Fully paid',
+          paidAmount: expenseAmount,
+          submittedById: user.id,
+          tenantId: user.tenantId,
+          notes: `${duplicateMarker} | Total payroll cost for dashboard operating expenses.`,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'PAYROLL_PROCESSED',
+          entityType: 'PAYROLL',
+          entityId: payrollId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            employeeName: existingPayroll.employee.name,
+            netPay: existingPayroll.netPay,
+            operatingExpenseRecorded: expenseAmount,
+            paymentDate,
+            paymentMethod,
+          }),
+        },
+      });
+
+      return updatedPayroll;
     });
-    
+
     return NextResponse.json({
       message: 'Payroll processed successfully',
-      payroll: updatedPayroll,
-      transaction: payment
+      payroll: result,
     });
   } catch (error) {
-    console.error(`Error processing payroll:`, error);
+    console.error('Error processing payroll:', error);
     return NextResponse.json(
       { error: `Failed to process payroll: ${error.message}` },
       { status: 500 }

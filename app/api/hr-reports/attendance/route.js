@@ -100,7 +100,7 @@ export async function GET(request) {
       orderBy: {
         date: 'desc'
       },
-      take: 1000 // Limit to prevent memory issues
+      take: 100000 // Large cap; period filter already scopes rows
     });
 
     // Filter by department if specified

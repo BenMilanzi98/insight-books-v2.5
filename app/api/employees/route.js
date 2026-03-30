@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
 export async function POST(request) {
   try {
@@ -189,7 +190,7 @@ export async function POST(request) {
 
         // Fetch tenant pension rates (percentage points)
         // Use raw SQL so this works even if Prisma Client is stale.
-        let npsOptions = { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 };
+        let npsOptions = { npsEmployeeRatePercent: null, npsEmployerRatePercent: null };
         try {
           const rows = await prisma.$queryRaw`
             SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
@@ -199,13 +200,10 @@ export async function POST(request) {
           `;
           const row = Array.isArray(rows) ? rows[0] : null;
           if (row) {
-            npsOptions = {
-              npsEmployeeRatePercent: Number(row.npsEmployeeRatePercent ?? 5) || 5,
-              npsEmployerRatePercent: Number(row.npsEmployerRatePercent ?? 5) || 5,
-            };
+            npsOptions = npsRatesFromTenantSettingsRow(row);
           }
         } catch (e) {
-          console.warn('[Employee Create] Raw NPS rate read failed, using defaults:', e?.message || e);
+          console.warn('[Employee Create] Raw NPS rate read failed:', e?.message || e);
         }
 
         // Calculate payroll

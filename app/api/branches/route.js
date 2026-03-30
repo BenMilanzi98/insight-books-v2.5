@@ -32,6 +32,27 @@ export async function GET(request) {
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
     });
 
+    if (branches.length === 0) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { name: true },
+      });
+      const label = tenant?.name?.trim() ? `${tenant.name.trim()} (Main location)` : 'Main location';
+      return NextResponse.json({
+        success: true,
+        branches: [
+          {
+            id: null,
+            name: label,
+            code: null,
+            isActive: true,
+            isVirtual: true,
+          },
+        ],
+        tenantHasNoBranchRecords: true,
+      });
+    }
+
     return NextResponse.json({ success: true, branches });
   } catch (error) {
     console.error('Error listing branches:', error);

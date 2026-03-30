@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
+import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
 
 /**
  * POST /api/auth/login
@@ -50,6 +51,7 @@ export async function POST(request) {
           name: true,
           password: true,
           isActive: true,
+          isEmailVerified: true,
           tenantId: true,
           role: true,
           tenant: {
@@ -73,6 +75,7 @@ export async function POST(request) {
             name: true,
             password: true,
             isActive: true,
+            isEmailVerified: true,
             tenantId: true,
             tenant: {
               select: {
@@ -92,12 +95,6 @@ export async function POST(request) {
           { status: 500 }
         );
       }
-    }
-
-    // Do not query userBranches/defaultBranchId/ownerUserId here; development/legacy DBs may not have them.
-    if (user) {
-      user.defaultBranchId = null;
-      user.userBranches = [];
     }
 
     // Check if user exists
@@ -151,31 +148,42 @@ export async function POST(request) {
       );
     }
 
-    // Set default branch in session: owner gets all branches; added users get assigned or tenant default/first branch.
-    // Tenants with no branches (no Branch records) are treated as default branch – full tenant access, branchId null.
+    // Block login until email verification (same expectation as mobile: no session without verified user)
+    if (!user.isEmailVerified) {
+      return NextResponse.json(
+        {
+          error: 'Please verify your email before signing in.',
+          code: 'EMAIL_NOT_VERIFIED',
+        },
+        { status: 403 }
+      );
+    }
+
+    // Session branch: owners / single-location tenants may use tenant or user default; assigned users only their allowed set.
     let initialBranchId = null;
     try {
-      const isOwner = user.tenantId && user.tenant?.ownerUserId === user.id;
-      let allowedIds = (user.userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
-      if (!isOwner && allowedIds.length === 0 && user.tenantId) {
-        const defaultBranchId = user.tenant?.defaultBranchId || null;
-        const firstBranch = defaultBranchId
-          ? null
-          : await prisma.branch.findFirst({
-              where: { tenantId: user.tenantId },
-              orderBy: { createdAt: 'asc' },
-              select: { id: true }
-            });
-        if (defaultBranchId) allowedIds = [defaultBranchId];
-        else if (firstBranch) allowedIds = [firstBranch.id];
+      const ctx = await fetchUserBranchAccessContext(user.id, user.tenantId);
+      const { allowedBranchIds } = computeAllowedBranchIds({
+        userId: user.id,
+        tenantId: user.tenantId,
+        roleName: user.role ? user.role.name : null,
+        contextLoadFailed: ctx.contextLoadFailed,
+        tenantBranchCount: ctx.tenantBranchCount,
+        userBranches: ctx.userBranches,
+        tenant: ctx.tenant,
+      });
+      const preferredDefault =
+        ctx.defaultBranchId ?? ctx.tenant?.defaultBranchId ?? null;
+      if (allowedBranchIds == null) {
+        initialBranchId = preferredDefault ?? null;
+      } else if (allowedBranchIds.length > 0) {
+        initialBranchId =
+          preferredDefault && allowedBranchIds.includes(preferredDefault)
+            ? preferredDefault
+            : allowedBranchIds[0];
+      } else {
+        initialBranchId = null;
       }
-      const preferredDefault = user.defaultBranchId ?? user.tenant?.defaultBranchId ?? null;
-      const tenantHasNoBranches = user.tenantId && allowedIds.length === 0;
-      initialBranchId = isOwner || tenantHasNoBranches
-        ? preferredDefault ?? null
-        : allowedIds.length > 0
-          ? (preferredDefault && allowedIds.includes(preferredDefault) ? preferredDefault : allowedIds[0])
-          : null;
     } catch (branchError) {
       console.error('Login branch selection failed (non-fatal, defaulting branchId to null):', branchError?.message || branchError);
       initialBranchId = null;
@@ -242,6 +250,7 @@ export async function POST(request) {
         name: user.name,
 
         email: user.email,
+        isEmailVerified: user.isEmailVerified,
         role: user.role,
         tenant: user.tenant ? {
           id: user.tenant.id,

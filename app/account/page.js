@@ -122,7 +122,15 @@ function AccountContent() {
       // Load tenant settings
       const tenantResponse = await fetch('/api/tenant/settings');
       const tenantData = tenantResponse.ok ? await tenantResponse.json() : {};
-      
+
+      let taxDefaults = {};
+      try {
+        const tdRes = await fetch('/api/settings/tax-defaults');
+        if (tdRes.ok) taxDefaults = await tdRes.json();
+      } catch (_) {
+        /* non-fatal */
+      }
+
       console.log('🔍 LoadSettings - Tenant Settings API response:', tenantData);
       
       // Clean up blob URLs - they won't work across the system
@@ -162,8 +170,10 @@ function AccountContent() {
           : (tenantData.defaultBankDetails && typeof tenantData.defaultBankDetails === 'object')
             ? [tenantData.defaultBankDetails.bankName && `Bank: ${tenantData.defaultBankDetails.bankName}`, tenantData.defaultBankDetails.accountNumber && `Account number: ${tenantData.defaultBankDetails.accountNumber}`, tenantData.defaultBankDetails.accountName && `Account name: ${tenantData.defaultBankDetails.accountName}`].filter(Boolean).join('\n')
             : "",
-        taxInflowAccountId: tenantData.taxInflowAccountId || "",
-        taxOutflowAccountId: tenantData.taxOutflowAccountId || "",
+        taxInflowAccountId:
+          tenantData.taxInflowAccountId || taxDefaults.taxInflowAccountId || "",
+        taxOutflowAccountId:
+          tenantData.taxOutflowAccountId || taxDefaults.taxOutflowAccountId || "",
         emailFooter: accountData.emailFooter || tenantData.emailFooter || "",
         currencyCode: tenantData.currencyCode || "MWK",
         taxEnabled: tenantData.taxEnabled !== undefined ? tenantData.taxEnabled : true,

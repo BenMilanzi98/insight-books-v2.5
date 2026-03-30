@@ -52,7 +52,7 @@ export async function POST(request) {
       },
       include: { 
         payments: {
-          where: { status: 'Completed' },
+          where: { status: 'Completed', isReversal: false },
           orderBy: { paymentDate: 'desc' }
         },
         client: true
@@ -74,9 +74,13 @@ export async function POST(request) {
       );
     }
 
-    // Calculate remaining balance
-    const totalPaid = invoice.payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const remainingBalance = invoice.total - totalPaid;
+    // Calculate remaining balance (only completed, non-reversal payments)
+    const totalPaid = invoice.payments.reduce(
+      (sum, payment) => sum + (parseFloat(payment.amount) || 0),
+      0
+    );
+    const invTotal = parseFloat(invoice.total) || 0;
+    const remainingBalance = invTotal - totalPaid;
 
     // Validate payment amount
     if (numericAmount > remainingBalance) {
@@ -107,12 +111,12 @@ export async function POST(request) {
 
       // Update invoice payment totals
       const newTotalPaid = totalPaid + numericAmount;
-      const newRemainingBalance = invoice.total - newTotalPaid;
+      const newRemainingBalance = invTotal - newTotalPaid;
       const lastPaymentDate = paymentDateObj;
 
       // Determine new status
       let newStatus;
-      if (newRemainingBalance <= 0) {
+      if (newRemainingBalance <= 0.005) {
         newStatus = 'Paid';
       } else if (newTotalPaid > 0) {
         newStatus = 'Partial';
@@ -132,7 +136,7 @@ export async function POST(request) {
         include: {
           client: true,
           payments: {
-            where: { status: 'Completed' },
+            where: { status: 'Completed', isReversal: false },
             orderBy: { paymentDate: 'desc' }
           }
         }
@@ -235,7 +239,7 @@ export async function GET(request) {
       },
       include: { 
         payments: {
-          where: { status: 'Completed' },
+          where: { status: 'Completed', isReversal: false },
           orderBy: { paymentDate: 'desc' }
         },
         client: true

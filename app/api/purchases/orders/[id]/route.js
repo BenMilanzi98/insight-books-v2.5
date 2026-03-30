@@ -40,14 +40,35 @@ async function getPurchaseOrder(id, tenantId) {
       supplier: { select: { supplierName: true, supplierCode: true } },
       items: {
         include: {
-          expenseCategory: { select: { id: true, name: true } },
+          product: { select: { id: true, name: true, sku: true, code: true } },
+          expenseCategory: {
+            select: {
+              id: true,
+              name: true,
+              accountCode: true,
+              account: { select: { accountCode: true, accountName: true } }
+            }
+          },
           taxType: { select: { id: true, taxName: true, taxCode: true, taxRate: true } }
         }
       },
       receipts: {
         select: { id: true, receiptNumber: true, receiptDate: true, totalAmount: true }
       },
-      expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
+      expenses: { select: { id: true, description: true, amount: true, date: true, status: true } },
+      supplierBills: {
+        select: {
+          id: true,
+          billNumber: true,
+          billDate: true,
+          dueDate: true,
+          status: true,
+          totalAmount: true,
+          amountPaid: true,
+          billType: true,
+        },
+        orderBy: { billDate: 'desc' },
+      },
     }
   });
 }
@@ -202,7 +223,19 @@ export async function PUT(request, { params }) {
       data,
       include: {
         supplier: { select: { supplierName: true, supplierCode: true } },
-        items: { include: { expenseCategory: { select: { id: true, name: true } } } },
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true, code: true } },
+            expenseCategory: {
+              select: {
+                id: true,
+                name: true,
+                accountCode: true,
+                account: { select: { accountCode: true, accountName: true } }
+              }
+            }
+          }
+        },
         expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
       }
     });

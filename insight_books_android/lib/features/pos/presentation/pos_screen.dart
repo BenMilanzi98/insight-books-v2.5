@@ -29,6 +29,22 @@ double _parseLocaleMoney(String raw) {
   return double.tryParse(s) ?? 0;
 }
 
+/// Matches API: min length for void/refund reasons (audit / GL reversal).
+const int _kMinAuditReasonLength = 10;
+
+bool _auditReasonOk(String? reason) =>
+    reason != null && reason.trim().length >= _kMinAuditReasonLength;
+
+void _showAuditReasonTooShort(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(
+        'Reason must be at least $_kMinAuditReasonLength characters (audit / GL reversal).',
+      ),
+    ),
+  );
+}
+
 String _saleClientLabel(Map<String, dynamic> sale) {
   final c = sale['client'];
   if (c is String) {
@@ -51,6 +67,15 @@ double _lineAmountFromItem(Map<String, dynamic> m) {
   return _parseLocaleMoney('${m['lineTotal'] ?? m['total'] ?? m['amount'] ?? 0}');
 }
 
+int? _cartQuantityForProduct(PosProduct product, List<CartItem> cart) {
+  for (final item in cart) {
+    if (item.product.id == product.id) {
+      return item.quantity.round();
+    }
+  }
+  return null;
+}
+
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
@@ -63,6 +88,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _historySearchController = TextEditingController();
   String _selectedCategory = 'all';
+  /// Default: list view (primary). Users can switch to grid via the toggle.
+  bool _productLayoutIsList = true;
 
   @override
   void dispose() {
@@ -234,7 +261,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: DropdownButtonFormField<String>(
-              value: posState.selectedBranchId,
+              initialValue: posState.selectedBranchId,
               decoration: const InputDecoration(
                 labelText: 'Branch',
                 border: OutlineInputBorder(),
@@ -303,7 +330,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           : () async {
                               final name = await posNotifier
                                   .addToCartByBarcode(_barcodeController.text);
-                              if (!mounted) return;
+                              if (!context.mounted) return;
                               if (name != null) {
                                 _barcodeController.clear();
                                 ScaffoldMessenger.of(context).showSnackBar(
@@ -333,7 +360,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               onSubmitted: (value) async {
                 if (!posState.canCreateSales) return;
                 final name = await posNotifier.addToCartByBarcode(value);
-                if (!mounted) return;
+                if (!context.mounted) return;
                 if (name != null) {
                   _barcodeController.clear();
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -367,9 +394,55 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             ),
           ),
 
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+            child: Row(
+              children: [
+                Text(
+                  'Products',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                ToggleButtons(
+                  isSelected: [_productLayoutIsList, !_productLayoutIsList],
+                  onPressed: (index) {
+                    setState(() => _productLayoutIsList = index == 0);
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  constraints: const BoxConstraints(minHeight: 36, minWidth: 44),
+                  children: [
+                    Tooltip(
+                      message: 'List view',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Icon(
+                          Icons.view_list_rounded,
+                          size: 22,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Grid view',
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: Icon(
+                          Icons.grid_view_rounded,
+                          size: 22,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
 
-          // Product Grid
+          // Product list (default) or grid
           Expanded(
             child: posState.isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -377,34 +450,51 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 ? Center(child: Text('Error: ${posState.error}', style: TextStyle(color: colorScheme.onSurface)))
                 : posState.filteredProducts.isEmpty
                 ? Center(child: Text('No products found', style: TextStyle(color: colorScheme.onSurfaceVariant)))
-                : GridView.builder(
-                    padding: const EdgeInsets.all(16),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.75,
-                          crossAxisSpacing: 16,
-                          mainAxisSpacing: 16,
-                        ),
-                    itemCount: posState.filteredProducts.length,
-                    itemBuilder: (context, index) {
-                      final product = posState.filteredProducts[index];
-                      int? cartQuantity;
-                      for (final item in posState.cart) {
-                        if (item.product.id == product.id) {
-                          cartQuantity = item.quantity.round();
-                          break;
-                        }
-                      }
-                      return _ProductCard(
-                        product: product,
-                        cartQuantity: cartQuantity,
-                        onAdd: posState.canCreateSales
-                            ? () => posNotifier.addToCart(product)
-                            : () {},
-                      );
-                    },
-                  ),
+                : _productLayoutIsList
+                    ? ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        itemCount: posState.filteredProducts.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (context, index) {
+                          final product = posState.filteredProducts[index];
+                          final cartQuantity = _cartQuantityForProduct(
+                            product,
+                            posState.cart,
+                          );
+                          return _ProductListTile(
+                            product: product,
+                            cartQuantity: cartQuantity,
+                            onAdd: posState.canCreateSales
+                                ? () => posNotifier.addToCart(product)
+                                : () {},
+                          );
+                        },
+                      )
+                    : GridView.builder(
+                        padding: const EdgeInsets.all(16),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                        itemCount: posState.filteredProducts.length,
+                        itemBuilder: (context, index) {
+                          final product = posState.filteredProducts[index];
+                          final cartQuantity = _cartQuantityForProduct(
+                            product,
+                            posState.cart,
+                          );
+                          return _ProductCard(
+                            product: product,
+                            cartQuantity: cartQuantity,
+                            onAdd: posState.canCreateSales
+                                ? () => posNotifier.addToCart(product)
+                                : () {},
+                          );
+                        },
+                      ),
           ),
           ],
         ],
@@ -707,7 +797,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: posState.historyStatusFilter,
+                  initialValue: posState.historyStatusFilter,
                   decoration: const InputDecoration(
                     labelText: 'Status',
                     border: OutlineInputBorder(),
@@ -727,7 +817,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
-                  value: posState.historySortBy,
+                  initialValue: posState.historySortBy,
                   decoration: const InputDecoration(
                     labelText: 'Sort',
                     border: OutlineInputBorder(),
@@ -864,7 +954,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                 if (value == 'void') {
                                   final reason =
                                       await _askReason(context, 'Void reason');
+                                  if (!context.mounted) return;
                                   if (reason == null || reason.isEmpty) {
+                                    return;
+                                  }
+                                  if (!_auditReasonOk(reason)) {
+                                    _showAuditReasonTooShort(context);
                                     return;
                                   }
                                   final err =
@@ -888,7 +983,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                     context,
                                     'Refund reason',
                                   );
+                                  if (!context.mounted) return;
                                   if (reason == null || reason.isEmpty) {
+                                    return;
+                                  }
+                                  if (!_auditReasonOk(reason)) {
+                                    _showAuditReasonTooShort(context);
                                     return;
                                   }
                                   final err = await posNotifier.refundSale(
@@ -1034,9 +1134,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         title: Text(title),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Enter reason',
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText:
+                'Enter reason (min $_kMinAuditReasonLength characters for audit)',
           ),
         ),
         actions: [
@@ -1122,9 +1223,10 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
         title: const Text('Refund reason'),
         content: TextField(
           controller: ctrl,
-          decoration: const InputDecoration(
-            border: OutlineInputBorder(),
-            hintText: 'Enter reason',
+          decoration: InputDecoration(
+            border: const OutlineInputBorder(),
+            hintText:
+                'Enter reason (min $_kMinAuditReasonLength characters for audit)',
           ),
         ),
         actions: [
@@ -1146,6 +1248,10 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
   Future<void> _refundSale(String saleId) async {
     final reason = await _askRefundReason();
     if (reason == null || reason.isEmpty) return;
+    if (!_auditReasonOk(reason)) {
+      if (mounted) _showAuditReasonTooShort(context);
+      return;
+    }
     setState(() => _actionBusy = true);
     try {
       final err = await ref.read(posProvider.notifier).refundSale(saleId, reason);
@@ -1352,6 +1458,142 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
               }),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductListTile extends StatelessWidget {
+  final PosProduct product;
+  final int? cartQuantity;
+  final VoidCallback onAdd;
+
+  const _ProductListTile({
+    required this.product,
+    this.cartQuantity,
+    required this.onAdd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final currencyFormat = NumberFormat.currency(
+      symbol: 'MWK ',
+      decimalDigits: 2,
+    );
+    final colorScheme = Theme.of(context).colorScheme;
+    final inCart = cartQuantity != null;
+    final subtitleParts = <String>[];
+    if (product.category != null && product.category!.trim().isNotEmpty) {
+      subtitleParts.add(product.category!.trim());
+    }
+    if (product.sku != null && product.sku!.trim().isNotEmpty) {
+      subtitleParts.add('SKU: ${product.sku!.trim()}');
+    }
+
+    return Card(
+      elevation: inCart ? 1 : 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: inCart ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.35),
+          width: inCart ? 2 : 1,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      color: inCart ? colorScheme.primaryContainer.withValues(alpha: 0.22) : null,
+      child: InkWell(
+        onTap: onAdd,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              CircleAvatar(
+                backgroundColor: colorScheme.primaryContainer,
+                child: Icon(
+                  Icons.inventory_2_outlined,
+                  color: colorScheme.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      product.name,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                        color: colorScheme.onSurface,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (subtitleParts.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitleParts.join(' · '),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    currencyFormat.format(product.price),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                  if (inCart)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.shopping_cart_checkout,
+                            size: 14,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${cartQuantity!}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.add_circle_outline,
+                color: colorScheme.primary,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );

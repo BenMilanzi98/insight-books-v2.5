@@ -1279,7 +1279,7 @@ useEffect(() => {
     const loadBranchesAndDepartments = async () => {
       try {
         const [branchRes, deptRes] = await Promise.all([
-          fetch("/api/branches?includeInactive=false", { cache: "no-store" }),
+          fetch("/api/branches", { cache: "no-store" }),
           fetch("/api/departments", { cache: "no-store" })
         ]);
         if (branchRes.ok) {

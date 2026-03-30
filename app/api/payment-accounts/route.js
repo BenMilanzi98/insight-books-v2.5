@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
+import { ensurePaymentAccountCoaLink } from '@/lib/paymentAccountCoaLink';
 
 // GET - List all payment accounts for the tenant
 export async function GET(request) {
@@ -22,13 +23,31 @@ export async function GET(request) {
       ...(activeOnly && { isActive: true })
     };
 
-    const paymentAccounts = await prisma.paymentAccount.findMany({
+    let paymentAccounts = await prisma.paymentAccount.findMany({
       where,
       orderBy: [
         { isSystem: 'desc' }, // System accounts first
         { name: 'asc' }
       ]
     });
+
+    const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
+    if (needsLink.length > 0) {
+      for (const p of needsLink.slice(0, 50)) {
+        try {
+          await ensurePaymentAccountCoaLink(user.tenantId, p, prisma);
+        } catch (e) {
+          console.warn('payment-accounts COA link:', p.id, e?.message || e);
+        }
+      }
+      paymentAccounts = await prisma.paymentAccount.findMany({
+        where,
+        orderBy: [
+          { isSystem: 'desc' },
+          { name: 'asc' },
+        ],
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 
@@ -78,7 +97,7 @@ export async function POST(request) {
     }
 
     // Create payment account
-    const paymentAccount = await prisma.paymentAccount.create({
+    let paymentAccount = await prisma.paymentAccount.create({
       data: {
         tenantId: user.tenantId,
         name: name.trim(),
@@ -88,6 +107,7 @@ export async function POST(request) {
         isSystem: false // User-created accounts are not system accounts
       }
     });
+    paymentAccount = await ensurePaymentAccountCoaLink(user.tenantId, paymentAccount, prisma);
 
     // Audit log
     await prisma.auditLog.create({

@@ -48,19 +48,39 @@ export async function GET(request) {
         { status: 400 }
       );
     }
-    const journalTransaction = await prisma.transaction.findFirst({
+    const payrollJournals = await prisma.transaction.findMany({
       where: {
         tenantId: user.tenantId,
         sourceType: 'Payroll',
         sourceId: payrollId,
         status: 'posted',
-        isReversal: false,
-        reversedTransactionId: null
-      }
+        isReversal: false
+      },
+      orderBy: { date: 'asc' }
     });
-    if (!journalTransaction) {
+    if (payrollJournals.length === 0) {
       return NextResponse.json(
         { eligible: false, error: 'No posted journal transaction found for this payroll' },
+        { status: 400 }
+      );
+    }
+    if (payrollJournals.length > 1) {
+      return NextResponse.json(
+        { eligible: false, error: 'Multiple payroll journals exist for this payroll; contact support before reversing.' },
+        { status: 400 }
+      );
+    }
+    const journalTransaction = payrollJournals[0];
+    const existingRev = await prisma.transaction.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        isReversal: true,
+        reversedTransactionId: journalTransaction.id
+      }
+    });
+    if (existingRev) {
+      return NextResponse.json(
+        { eligible: false, error: 'This payroll journal has already been reversed' },
         { status: 400 }
       );
     }
@@ -122,10 +142,17 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+    const trimmedReason = reversalReason.trim();
+    if (trimmedReason.length < 10) {
+      return NextResponse.json(
+        { error: 'Reversal reason must be at least 10 characters' },
+        { status: 400 }
+      );
+    }
 
     const result = await reversePayroll({
       payrollId,
-      reversalReason: reversalReason.trim(),
+      reversalReason: trimmedReason,
       userId: user.id,
       tenantId: user.tenantId
     });
@@ -142,7 +169,10 @@ export async function POST(request) {
     console.error('Payroll reversal error:', error);
     const message = error?.message || 'Payroll reversal failed';
     const status =
-      message.includes('not found') || message.includes('already been reversed')
+      message.includes('not found') ||
+      message.includes('already been reversed') ||
+      message.includes('Multiple payroll') ||
+      message.includes('resolve duplicates')
         ? 400
         : message.includes('accounting period') || message.includes('locked')
           ? 403

@@ -32,6 +32,20 @@ import {
 } from "lucide-react";
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 
+function formatNpsPercentLabel(v) {
+  if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
+  return `${Number(v)}%`;
+}
+
+function formatNpsSidebarLine(rates) {
+  const e = rates?.npsEmployeeRatePercent;
+  const er = rates?.npsEmployerRatePercent;
+  if (e == null && er == null) {
+    return "Not set — configure under HR → Pension";
+  }
+  return `${formatNpsPercentLabel(e)} employee + ${formatNpsPercentLabel(er)} employer`;
+}
+
 // Employee Form Component
 const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments = [], relationships = [], onAddDepartment, onAddRelationship }) => {
   const [formData, setFormData] = useState({
@@ -73,6 +87,10 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
   const [contractUrl, setContractUrl] = useState(null);
   const [idUrl, setIdUrl] = useState(null);
   const [stepNotice, setStepNotice] = useState({ visible: false, type: "success", message: "" });
+  const [pensionNpsRates, setPensionNpsRates] = useState({
+    npsEmployeeRatePercent: null,
+    npsEmployerRatePercent: null,
+  });
 
   const steps = [
     {
@@ -112,6 +130,26 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
       { field: 'startDate', label: 'Start Date' }
     ]
   };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/pension/settings");
+        const data = await res.json();
+        if (cancelled || !res.ok) return;
+        setPensionNpsRates({
+          npsEmployeeRatePercent: data.npsEmployeeRatePercent ?? null,
+          npsEmployerRatePercent: data.npsEmployerRatePercent ?? null,
+        });
+      } catch {
+        if (!cancelled) setPensionNpsRates({ npsEmployeeRatePercent: null, npsEmployerRatePercent: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setCurrentStep(0);
@@ -898,7 +936,10 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                               {deduction.name && deduction.name.toLowerCase().includes('paye') ? (
                                 <span className="text-blue-600 font-medium">Auto-calculated</span>
                               ) : deduction.name && (deduction.name.toLowerCase().includes('nps') || deduction.name.toLowerCase().includes('pension')) ? (
-                                <span className="text-blue-600 font-medium">Auto-calculated (5% + 5%)</span>
+                                <span className="text-blue-600 font-medium">
+                                  Auto-calculated ({formatNpsPercentLabel(pensionNpsRates.npsEmployeeRatePercent)} emp. +{" "}
+                                  {formatNpsPercentLabel(pensionNpsRates.npsEmployerRatePercent)} empr.)
+                                </span>
                               ) : deduction.percentage !== null && deduction.percentage !== undefined
                                 ? `${deduction.percentage}%`
                                 : deduction.amount !== null && deduction.amount !== undefined
@@ -1057,11 +1098,11 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
                           <div className="text-sm font-medium text-gray-700 mb-2">NPS Contributions</div>
                           <div className="space-y-1">
                             <div className="flex justify-between text-sm">
-                              <span>Employee (5%)</span>
+                              <span>Employee ({formatNpsPercentLabel(salaryCalculation.nps.employeeRatePercent)})</span>
                               <span>MWK {(salaryCalculation.nps.employeeAmount || 0).toLocaleString()}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span>Employer (5%)</span>
+                              <span>Employer ({formatNpsPercentLabel(salaryCalculation.nps.employerRatePercent)})</span>
                               <span>MWK {(salaryCalculation.nps.employerAmount || 0).toLocaleString()}</span>
                             </div>
                           </div>
@@ -1684,11 +1725,28 @@ const EmployeeManagement = () => {
     totalCount: 0,
     totalPages: 1
   });
+  const [sidebarNpsRates, setSidebarNpsRates] = useState({
+    npsEmployeeRatePercent: null,
+    npsEmployerRatePercent: null,
+  });
 
   useEffect(() => {
     loadEmployees(1); // Load first page on mount
     loadDeductions();
     loadTenantInfo();
+    (async () => {
+      try {
+        const res = await fetch("/api/pension/settings");
+        const data = await res.json();
+        if (!res.ok) return;
+        setSidebarNpsRates({
+          npsEmployeeRatePercent: data.npsEmployeeRatePercent ?? null,
+          npsEmployerRatePercent: data.npsEmployerRatePercent ?? null,
+        });
+      } catch {
+        setSidebarNpsRates({ npsEmployeeRatePercent: null, npsEmployerRatePercent: null });
+      }
+    })();
   }, []);
 
   // Reload employees when filters or search change (reset to page 1)
@@ -2876,7 +2934,7 @@ const EmployeeManagement = () => {
                 <h4 className="text-sm font-semibold text-gray-900 mb-2">Malawi Tax Info (2025/26)</h4>
                 <div className="text-xs text-gray-700 space-y-1">
                   <div>• PAYE: Progressive rates</div>
-                  <div>• NPS: 5% employee + 5% employer</div>
+                  <div>• NPS: {formatNpsSidebarLine(sidebarNpsRates)}</div>
                   <div>• Up to MK 170,000: 0% (tax-free)</div>
                   <div>• MK 170,001 – 1,570,000: 30%</div>
                   <div>• MK 1,570,001 – 10,000,000: 35%</div>

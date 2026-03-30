@@ -169,12 +169,18 @@ async function autoCreateBillFromReceipt({
   });
   if (existing) return existing;
 
-  const subtotal = goodsReceipt.items.reduce(
+  const fromLines = goodsReceipt.items.reduce(
     (sum, item) =>
       sum +
       Number(item.quantityReceived || 0) * Number(item.unitCost || 0),
     0
   );
+  // Prefer header totalAmount (same as GL journal) so bill, inventory valuation, and posting stay aligned
+  const headerTotal = goodsReceipt.totalAmount != null ? Number(goodsReceipt.totalAmount) : null;
+  const subtotal =
+    headerTotal != null && !Number.isNaN(headerTotal)
+      ? Math.round(headerTotal * 100) / 100
+      : Math.round(fromLines * 100) / 100;
 
   const paymentTerms =
     supplier.paymentTerms ?? purchaseOrder?.paymentTerms ?? 30;

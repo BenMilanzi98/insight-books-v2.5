@@ -463,6 +463,8 @@ const BusinessOwnerDashboard = () => {
   const [payables, setPayables] = useState(null);
   const [incomeExpenses, setIncomeExpenses] = useState(null);
   const [expensesBreakdown, setExpensesBreakdown] = useState(null);
+  const [revenueByCategory, setRevenueByCategory] = useState(null);
+  const [showRevenueByCategory, setShowRevenueByCategory] = useState(false);
   const [upcomingPayments, setUpcomingPayments] = useState(null);
   const [financialPosition, setFinancialPosition] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -698,6 +700,26 @@ const BusinessOwnerDashboard = () => {
       setFinancialPosition(financialPositionData.financialPosition);
 
       setStockAlerts(stockAlertsData.alerts || []);
+
+      const sd = startDate instanceof Date ? startDate : new Date(startDate);
+      const ed = endDate instanceof Date ? endDate : new Date(endDate);
+      try {
+        const revParams = new URLSearchParams();
+        revParams.set('startDate', sd.toISOString().split('T')[0]);
+        revParams.set('endDate', ed.toISOString().split('T')[0]);
+        const revRes = await fetch(
+          `/api/dashboard/revenue-by-category?${revParams.toString()}&_cb=${Date.now()}`,
+          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        );
+        if (revRes.ok) {
+          setRevenueByCategory(await revRes.json());
+        } else {
+          setRevenueByCategory(null);
+        }
+      } catch (revErr) {
+        console.warn('revenue-by-category:', revErr);
+        setRevenueByCategory(null);
+      }
 
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -1134,7 +1156,64 @@ const BusinessOwnerDashboard = () => {
               </div>
             </div>
           </div>
-          
+
+          {revenueByCategory?.categories?.length > 0 && (
+            <div className="mb-6 sm:mb-8">
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowRevenueByCategory((v) => !v)}
+                  className="w-full flex items-center justify-between gap-3 p-4 sm:p-5 text-left hover:bg-gray-50/80 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-violet-400 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-violet-200">
+                      <Package size={20} className="text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <h2 className="font-bold text-gray-900">Revenue by inventory category</h2>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Optional — completed sales by product category for the selected period
+                      </p>
+                    </div>
+                  </div>
+                  <ChevronRight
+                    size={22}
+                    className={`text-gray-400 flex-shrink-0 transition-transform ${showRevenueByCategory ? 'rotate-90' : ''}`}
+                  />
+                </button>
+                {showRevenueByCategory && (
+                  <div className="px-4 sm:px-5 pb-5 overflow-x-auto border-t border-gray-100/80">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b border-gray-100">
+                          <th className="py-2 pr-4 font-medium">Category</th>
+                          <th className="py-2 text-right font-medium">Revenue</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revenueByCategory.categories.map((row) => (
+                          <tr key={row.category} className="border-b border-gray-50">
+                            <td className="py-2.5 pr-4 text-gray-900">{row.category}</td>
+                            <td className="py-2.5 text-right font-medium text-gray-900">
+                              {formatCurrency(row.actualRevenue)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-semibold text-gray-900">
+                          <td className="pt-3">Total</td>
+                          <td className="pt-3 text-right">
+                            {formatCurrency(revenueByCategory.totalActual ?? 0)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Main Dashboard Content */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">

@@ -13,7 +13,7 @@ export default function BranchSwitcher() {
       try {
         setLoading(true);
         const [branchesRes, currentRes] = await Promise.all([
-          fetch('/api/branches?includeInactive=false'),
+          fetch('/api/branches'),
           fetch('/api/branches/switch')
         ]);
         

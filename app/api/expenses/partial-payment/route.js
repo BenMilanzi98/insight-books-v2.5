@@ -140,6 +140,15 @@ export async function POST(request) {
       }
     });
 
+    if (expense.supplierId) {
+      try {
+        const { updateSupplierBalance } = await import('@/lib/supplierService');
+        await updateSupplierBalance(expense.supplierId, user.tenantId);
+      } catch (balErr) {
+        console.error('updateSupplierBalance after expense partial payment:', balErr?.message);
+      }
+    }
+
     return NextResponse.json({
       message: 'Payment added successfully',
       payment: {

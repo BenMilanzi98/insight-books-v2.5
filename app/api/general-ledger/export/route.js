@@ -81,7 +81,7 @@ export async function GET(request) {
       ...(accountId && accountId !== 'all' ? { accountId } : {}),
       transaction: {
         tenantId,
-        status: 'posted',
+        status: { in: ['posted', 'Posted'] },
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
       },

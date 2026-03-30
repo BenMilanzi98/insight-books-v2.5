@@ -163,7 +163,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                           Expanded(
                             flex: 3,
                             child: DropdownButtonFormField<String>(
-                              value: allocation.paymentAccountId,
+                              initialValue: allocation.paymentAccountId,
                               decoration: const InputDecoration(
                                 labelText: 'Account',
                                 border: OutlineInputBorder(),

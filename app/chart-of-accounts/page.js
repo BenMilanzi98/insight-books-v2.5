@@ -202,6 +202,39 @@ const ChartOfAccountsPage = () => {
     }
   };
 
+  /** Baseline CoA from lib/chartOfAccountsInitialization (same as tenant bootstrap) */
+  const handleInitializeBaseline = async () => {
+    if (
+      !confirm(
+        'This will create or update the standard chart of accounts (all account codes and parent/child links) for your business. Existing codes are updated in place. Continue?'
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/chart-of-accounts/bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to initialize chart of accounts');
+      }
+      alert(
+        data.message
+          ? `${data.message} Total accounts: ${data.accountCount ?? '—'}.`
+          : 'Chart of accounts initialized.'
+      );
+      loadAccounts();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleExport = async (format = 'json') => {
     try {
       setLoading(true);
@@ -324,8 +357,18 @@ const ChartOfAccountsPage = () => {
     setShowEditModal(true);
   };
 
-  const openViewModal = (account) => {
-    setSelectedAccount(account);
+  const openViewModal = async (account) => {
+    try {
+      const response = await fetch(`/api/chart-of-accounts/${account.id}`);
+      const data = await response.json();
+      if (response.ok && data && !data.error) {
+        setSelectedAccount(data);
+      } else {
+        setSelectedAccount(account);
+      }
+    } catch {
+      setSelectedAccount(account);
+    }
     setShowViewModal(true);
   };
 
@@ -483,6 +526,15 @@ const ChartOfAccountsPage = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
+                  onClick={handleInitializeBaseline}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
+                  title="Create the standard account list (codes 1000–5280) with parent/child structure"
+                >
+                  <CheckCircle size={18} />
+                  Initialize standard CoA
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleImportTemplate('retail')}
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
                   title="Import Retail Template"
@@ -568,14 +620,25 @@ const ChartOfAccountsPage = () => {
                   <AlertCircle size={48} className="text-slate-400" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-700 mb-2">No accounts found</h3>
-                <p className="text-slate-500 mb-6">Import the standard template or create your first account.</p>
-                <button
-                  type="button"
-                  onClick={() => handleImportTemplate('retail')}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
-                >
-                  Import standard template
-                </button>
+                <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                  Initialize the built-in chart (recommended) or import a retail template. You can also add accounts manually.
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleInitializeBaseline}
+                    className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    Initialize standard chart
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleImportTemplate('retail')}
+                    className="px-5 py-2.5 rounded-xl border border-indigo-200 bg-white text-indigo-700 font-semibold hover:bg-indigo-50 transition-colors"
+                  >
+                    Import retail template
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="overflow-x-auto">

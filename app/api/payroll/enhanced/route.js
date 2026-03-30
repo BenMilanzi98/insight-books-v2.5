@@ -720,9 +720,9 @@ export async function POST(request) {
         gratuityAccrualAmount: gratuityAccrualAmount,
         npsEmployeeAmount,
         npsEmployerAmount,
-        // Store the NPS rates actually used for this payroll run (percentage points)
-        npsEmployeeRatePercent: npsRates.employeeRatePercent,
-        npsEmployerRatePercent: npsRates.employerRatePercent,
+        // Store the NPS rates actually used for this payroll run (matches calculation, not raw tenant nulls)
+        npsEmployeeRatePercent: payrollCalculation.npsRatesApplied?.employeeRatePercent ?? null,
+        npsEmployerRatePercent: payrollCalculation.npsRatesApplied?.employerRatePercent ?? null,
         hoursWorked: totalHoursWorked,
         overtimeHours: totalOvertimeHours,
         overtimePay: Number(payrollCalculation.overtimePay) || 0,
@@ -822,8 +822,8 @@ export async function POST(request) {
       // Create separate expense records for each payroll component
       // This provides better breakdown for dashboard expenses
       
-      // Use periodEnd date for expense records
-      const expenseDate = periodEnd;
+      // Align expense dates with payment / GL (so MTD dashboard includes payroll immediately; periodEnd can be future)
+      const expenseDate = paymentDate || periodEnd;
       
       // 1. Net Pay expense (actual payment to employee)
       if (netPay > 0) {

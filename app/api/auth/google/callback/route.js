@@ -701,9 +701,8 @@ async function handleGoogleSignup(googleUser) {
         }
       });
 
-      // Initialize default payment accounts
-      const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
-      await initializeDefaultPaymentAccounts(tenant.id, tx);
+      const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
+      await initializeNewTenantFinancialDefaults(tenant.id, tx);
 
       // Create user with Google OAuth data (main tenant / owner)
       const user = await tx.user.create({

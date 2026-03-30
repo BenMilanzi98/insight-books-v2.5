@@ -718,6 +718,14 @@ export async function POST(request) {
       : 'cash';
     const totalWithTax = amount + (taxAmount || 0);
     const paymentAmount = paymentStatus === 'Partially' ? (body.paidAmount ?? totalWithTax) : totalWithTax;
+    const paidAmountForExpense =
+      paymentStatus === 'Fully paid'
+        ? (body.paidAmount != null && body.paidAmount !== ''
+            ? Number(body.paidAmount)
+            : totalWithTax)
+        : paymentStatus === 'Partially'
+          ? (body.paidAmount != null ? Number(body.paidAmount) : null)
+          : null;
     const rawDate = body.historicalDate ?? body.date;
     const expenseDate = rawDate ? new Date(rawDate) : new Date();
     if (Number.isNaN(expenseDate.getTime())) {
@@ -751,12 +759,14 @@ export async function POST(request) {
       }
     }
 
-    // Resolve branchId from request or user's default branch (don't 500 on invalid branch)
     let branchId = null;
     try {
       branchId = await resolveBranchId(user, body.branchId, user.tenantId);
     } catch (branchError) {
-      console.warn('Expense POST: resolveBranchId failed, using null:', branchError?.message);
+      return NextResponse.json(
+        { error: branchError.message || 'Invalid branch' },
+        { status: 403 }
+      );
     }
     
     // Coerce required string fields so Prisma never receives wrong types
@@ -783,7 +793,7 @@ export async function POST(request) {
       tenantId: user.tenantId,
       branchId: branchId,
       paymentStatus: paymentStatus,
-      paidAmount: body.paidAmount || null,
+      paidAmount: paidAmountForExpense,
       paymentReference: body.paymentReference || null,
       isHistorical: body.isHistorical || false,
       historicalDate: body.historicalDate ? new Date(body.historicalDate) : null,
@@ -851,7 +861,7 @@ export async function POST(request) {
             userId: user.id,
             expenseId: expense.id,
             expenseDate: paymentDate,
-            amount: paymentAmount,
+            amount,
             taxAmount: taxAmount || 0,
             taxTypeId: effectiveTaxTypeId || null,
             category: selectedCategory,
@@ -927,6 +937,15 @@ export async function POST(request) {
       });
     } catch (auditError) {
       console.warn('Audit log create failed (expense still created):', auditError?.message);
+    }
+
+    if (expense.supplierId) {
+      try {
+        const { updateSupplierBalance } = await import('@/lib/supplierService');
+        await updateSupplierBalance(expense.supplierId, user.tenantId);
+      } catch (balErr) {
+        console.error('updateSupplierBalance after expense create:', balErr?.message);
+      }
     }
 
     // Return the created expense

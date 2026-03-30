@@ -639,7 +639,8 @@ export default function AttendancePage() {
 
       const params = new URLSearchParams({
         fromDate: startDate.toISOString(),
-        toDate: endDate.toISOString()
+        toDate: endDate.toISOString(),
+        limit: 'all'
       });
 
       if (reportEmployeeId !== "all") {

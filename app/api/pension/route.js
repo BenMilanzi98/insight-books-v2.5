@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
 function safeNumber(n) {
   const v = Number(n);
@@ -102,8 +103,9 @@ export async function GET(request) {
       `;
       const row = Array.isArray(rows) ? rows[0] : null;
       if (row && typeof row === 'object') {
-        fallbackEmployeeRate = Number(row.npsEmployeeRatePercent ?? row.npsemployeeratepercent ?? 5) || 5;
-        fallbackEmployerRate = Number(row.npsEmployerRatePercent ?? row.npsemployerratepercent ?? 5) || 5;
+        const r = npsRatesFromTenantSettingsRow(row);
+        fallbackEmployeeRate = r.npsEmployeeRatePercent != null ? r.npsEmployeeRatePercent : 5;
+        fallbackEmployerRate = r.npsEmployerRatePercent != null ? r.npsEmployerRatePercent : 5;
       }
     } catch (e) {
       console.warn('Pension report raw rate read failed, falling back to defaults:', e?.message || e);

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt, FileBarChart } from "lucide-react";
+import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Edit, FileText, Trash2, Receipt, FileBarChart, Undo2 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatSalaryAmount } from "@/lib/currencyUtils";
 
 export default function PayrollProcessing() {
+  const router = useRouter();
   const [payrollRuns, setPayrollRuns] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -43,6 +45,15 @@ export default function PayrollProcessing() {
     sendEmails: false // Option to send payslips via email
   });
   const [sendingEmails, setSendingEmails] = useState(false);
+  const [showReverseModal, setShowReverseModal] = useState(false);
+  const [reverseTarget, setReverseTarget] = useState(null);
+  const [reverseReason, setReverseReason] = useState('');
+  const [reverseLoading, setReverseLoading] = useState(false);
+  const [reversePreflight, setReversePreflight] = useState(null);
+  const [npsDisplayRates, setNpsDisplayRates] = useState({
+    npsEmployeeRatePercent: null,
+    npsEmployerRatePercent: null,
+  });
 
   // Month names for the selector
   const months = [
@@ -64,6 +75,19 @@ export default function PayrollProcessing() {
     fetchPayrollRuns();
     loadAccounts();
     loadPaymentAccounts();
+    (async () => {
+      try {
+        const res = await fetch("/api/pension/settings");
+        const data = await res.json();
+        if (!res.ok) return;
+        setNpsDisplayRates({
+          npsEmployeeRatePercent: data.npsEmployeeRatePercent ?? null,
+          npsEmployerRatePercent: data.npsEmployerRatePercent ?? null,
+        });
+      } catch {
+        setNpsDisplayRates({ npsEmployeeRatePercent: null, npsEmployerRatePercent: null });
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -266,6 +290,77 @@ export default function PayrollProcessing() {
       setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
     } finally {
       setViewLoading(false);
+    }
+  };
+
+  const payrollStatusBadge = (status) => {
+    if (status === 'Reversed') return 'bg-gray-200 text-gray-800';
+    if (status === 'Draft') return 'bg-yellow-100 text-yellow-800';
+    if (status === 'Posted') return 'bg-green-100 text-green-800';
+    if (status === 'Processed') return 'bg-emerald-100 text-emerald-800';
+    return 'bg-blue-100 text-blue-800';
+  };
+
+  const canReversePayrollEntry = (entry) => {
+    if (!entry?.id) return false;
+    if (entry.status === 'Reversed') return false;
+    if (entry.status === 'Draft' || entry.status === 'Pending') return false;
+    return entry.status === 'Posted' || entry.status === 'Processed';
+  };
+
+  const openReversePayroll = async (entry) => {
+    setReverseTarget(entry);
+    setReverseReason('');
+    setReversePreflight({ pending: true });
+    setShowReverseModal(true);
+    try {
+      const res = await fetch(`/api/payroll/reverse?payrollId=${encodeURIComponent(entry.id)}`);
+      const data = await res.json().catch(() => ({}));
+      setReversePreflight({ ...data, pending: false });
+    } catch {
+      setReversePreflight({ eligible: false, error: 'Failed to check reversal eligibility', pending: false });
+    }
+  };
+
+  const handleReverseSubmit = async () => {
+    if (!reverseTarget) return;
+    const reason = reverseReason.trim();
+    if (reason.length < 10) {
+      setToast({ visible: true, type: 'error', message: 'Reversal reason must be at least 10 characters.' });
+      setTimeout(() => setToast((t) => ({ ...t, visible: false })), 4000);
+      return;
+    }
+    const target = reverseTarget;
+    setReverseLoading(true);
+    try {
+      const res = await fetch('/api/payroll/reverse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payrollId: target.id, reversalReason: reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Payroll reversal failed');
+      setToast({
+        visible: true,
+        type: 'success',
+        message: data.message || 'Payroll reversed successfully. GL and balances have been updated.',
+      });
+      setShowReverseModal(false);
+      setReverseTarget(null);
+      setReversePreflight(null);
+      if (showViewModal) {
+        const start = new Date(target.periodStart).toISOString().split('T')[0];
+        const end = new Date(target.periodEnd).toISOString().split('T')[0];
+        const r = await fetch(`/api/payroll?start=${start}&end=${end}`);
+        const d = await r.json();
+        if (r.ok) setViewEntries(d.payrolls || []);
+      }
+      fetchPayrollRuns();
+    } catch (e) {
+      setToast({ visible: true, type: 'error', message: e.message || 'Payroll reversal failed' });
+    } finally {
+      setReverseLoading(false);
+      setTimeout(() => setToast((t) => ({ ...t, visible: false })), 5000);
     }
   };
 
@@ -700,6 +795,7 @@ export default function PayrollProcessing() {
 
       setShowProcessModal(false);
       fetchPayrollRuns();
+      router.refresh();
     } catch (error) {
       console.error('Error processing payroll:', error);
       setToast({ visible: true, type: 'error', message: error.message || 'Failed to process payroll' });
@@ -1086,10 +1182,21 @@ export default function PayrollProcessing() {
                             <td className="px-4 py-2 text-sm text-right">{formatCurrency(entry.totalNpsAmount)}</td>
                             <td className="px-4 py-2 text-sm text-right">{formatCurrency(entry.netPay)}</td>
                             <td className="px-4 py-2 text-sm">
-                              <span className={`px-2 py-1 rounded-full text-xs ${entry.status === 'Draft' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>{entry.status}</span>
+                              <span className={`px-2 py-1 rounded-full text-xs ${payrollStatusBadge(entry.status)}`}>{entry.status}</span>
                             </td>
                             <td className="px-4 py-2 text-sm text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              <div className="flex flex-wrap items-center justify-center gap-2">
+                                {canReversePayrollEntry(entry) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openReversePayroll(entry)}
+                                    className="px-2 py-1 text-xs bg-amber-50 hover:bg-amber-100 rounded border border-amber-200 text-amber-900 flex items-center gap-1"
+                                    title="Reverse payroll GL posting (requires reason)"
+                                  >
+                                    <Undo2 size={14} />
+                                    Reverse
+                                  </button>
+                                )}
                                 {entry.status === 'Draft' && (
                                   <button 
                                     onClick={() => handleEditPayroll(entry)} 
@@ -1100,27 +1207,27 @@ export default function PayrollProcessing() {
                                     Edit
                                   </button>
                                 )}
-                                {entry.status === 'Processed' && (
-                                  <>
-                                    <button 
-                                      onClick={() => handleGeneratePayslip(entry.id)} 
-                                      className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-md text-white flex items-center gap-1.5 shadow-sm transition-colors"
-                                      title="Generate Payslip"
-                                    >
-                                      <Receipt size={14} />
-                                      Generate Payslip
-                                    </button>
-                                    <button 
-                                      onClick={() => markDraft(entry.id)} 
-                                      className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
-                                      title="Mark as Draft"
-                                    >
-                                      Draft
-                                    </button>
-                                  </>
+                                {(entry.status === 'Processed' || entry.status === 'Posted') && (
+                                  <button 
+                                    onClick={() => handleGeneratePayslip(entry.id)} 
+                                    className="px-3 py-1.5 text-xs font-medium bg-green-600 hover:bg-green-700 rounded-md text-white flex items-center gap-1.5 shadow-sm transition-colors"
+                                    title="Generate Payslip"
+                                  >
+                                    <Receipt size={14} />
+                                    Payslip
+                                  </button>
                                 )}
-                                {entry.status !== 'Draft' && entry.status !== 'Processed' && (
-                                  <button onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">Mark Draft</button>
+                                {entry.status === 'Processed' && (
+                                  <button 
+                                    onClick={() => markDraft(entry.id)} 
+                                    className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border"
+                                    title="Mark as Draft"
+                                  >
+                                    Draft
+                                  </button>
+                                )}
+                                {entry.status !== 'Draft' && entry.status !== 'Processed' && entry.status !== 'Posted' && entry.status !== 'Reversed' && (
+                                  <button type="button" onClick={() => markDraft(entry.id)} className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border">Mark Draft</button>
                                 )}
                               </div>
                             </td>
@@ -1131,6 +1238,86 @@ export default function PayrollProcessing() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reverse payroll (GL + side effects) */}
+      {showReverseModal && reverseTarget && (
+        <div
+          className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-[60] p-4"
+          onClick={() => !reverseLoading && setShowReverseModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Reverse payroll</h2>
+                <button
+                  type="button"
+                  className="text-gray-500 hover:text-gray-700"
+                  disabled={reverseLoading}
+                  onClick={() => setShowReverseModal(false)}
+                >
+                  ×
+                </button>
+              </div>
+              <p className="text-sm text-gray-600 mb-2">
+                <span className="font-medium">{reverseTarget.employee?.name || 'Employee'}</span>
+                {' · '}
+                Reverses the posted journal (salary expense, PAYE, liabilities, net pay/cash, etc.) and restores related balances.
+              </p>
+              {reversePreflight?.pending && (
+                <div className="mb-4 text-sm text-gray-600">Checking eligibility…</div>
+              )}
+              {reversePreflight && !reversePreflight.pending && !reversePreflight.eligible && (
+                <div className="mb-4 p-3 rounded-md bg-red-50 text-red-800 text-sm border border-red-200">
+                  {reversePreflight.error || 'This payroll cannot be reversed.'}
+                </div>
+              )}
+              {reversePreflight?.eligible && !reversePreflight?.pending && (
+                <div className="mb-4 p-3 rounded-md bg-amber-50 text-amber-900 text-sm border border-amber-200">
+                  This action posts offsetting journal entries. It cannot be undone from this screen. Accounting period must be open.
+                </div>
+              )}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reversal reason (min. 10 characters)</label>
+              <textarea
+                value={reverseReason}
+                onChange={(e) => setReverseReason(e.target.value)}
+                disabled={reverseLoading || reversePreflight?.pending || !(reversePreflight?.eligible)}
+                rows={4}
+                className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-amber-500"
+                placeholder="e.g. Incorrect overtime hours for this period — reversing to re-run payroll."
+              />
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowReverseModal(false)}
+                  disabled={reverseLoading}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReverseSubmit}
+                  disabled={
+                    reverseLoading ||
+                    reversePreflight?.pending ||
+                    !(reversePreflight?.eligible) ||
+                    reverseReason.trim().length < 10
+                  }
+                  className="px-4 py-2 bg-amber-600 text-white rounded-md hover:bg-amber-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {reverseLoading && (
+                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  Confirm reversal
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1295,7 +1482,14 @@ export default function PayrollProcessing() {
                     <div className="pt-2 space-y-1">
                       <div className="text-xs text-gray-500 font-medium mb-1">Deductions (will be calculated):</div>
                       <div className="text-xs text-gray-500 pl-2">• PAYE (based on gross pay)</div>
-                      <div className="text-xs text-gray-500 pl-2">• NPS Employee (5% of gross pay)</div>
+                      <div className="text-xs text-gray-500 pl-2">
+                        • NPS Employee (
+                        {npsDisplayRates.npsEmployeeRatePercent != null
+                          ? `${Number(npsDisplayRates.npsEmployeeRatePercent)}%`
+                          : "tenant rate — HR → Pension"}
+                        {" "}
+                        of gross pay)
+                      </div>
                       {Object.keys(editFormData.deductions || {}).length > 0 && (
                         <>
                           {Object.entries(editFormData.deductions || {}).map(([name, value]) => (

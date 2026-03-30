@@ -48,9 +48,8 @@ export async function POST(request) {
       }
     });
 
-    // Initialize default payment accounts
-    const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
-    await initializeDefaultPaymentAccounts(tenant.id);
+    const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
+    await initializeNewTenantFinancialDefaults(tenant.id, prisma);
 
     return NextResponse.json({ success: true, tenant });
   } catch (err) {

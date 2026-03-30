@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { permissionModules } from '@/lib/permissionsMap';
+import { applyBranchAccessToSessionUser } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request) {
   try {
     // Get session cookie - FIXED: Properly await cookies()
     const cookieStore = await cookies();
@@ -101,15 +102,30 @@ export async function GET() {
         console.error('Budget permissions backfill failed:', e?.message || e);
       }
      
+      let effectiveTenantId = user.tenantId;
+      if (sessionData.tenantId != null) {
+        effectiveTenantId = sessionData.tenantId;
+      }
+      const branchCtxUser = {
+        id: user.id,
+        tenantId: effectiveTenantId,
+        role: user.role,
+        currentBranchId: sessionData.branchId || null,
+      };
+      await applyBranchAccessToSessionUser(branchCtxUser);
+
       return NextResponse.json({
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         tenantId: user.tenantId,
-        defaultBranchId: user.defaultBranchId,
+        defaultBranchId: branchCtxUser.defaultBranchId ?? user.defaultBranchId ?? null,
         defaultBranch: user.defaultBranch,
-        tenant: user.tenant
+        tenant: user.tenant,
+        currentBranchId: branchCtxUser.currentBranchId,
+        allowedBranchIds: branchCtxUser.allowedBranchIds,
+        sessionTenantId: sessionData.tenantId ?? null,
       });
      
     } catch (error) {

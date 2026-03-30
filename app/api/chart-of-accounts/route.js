@@ -587,6 +587,39 @@ export async function GET(request) {
       payrollCount: payrolls.length
     });
 
+    // Posted GL lines from Transaction model (sales, payroll, etc.) — one aggregate for all accounts
+    let txnByAccountId = {};
+    try {
+      const txnAggRows = await prisma.transactionLine.groupBy({
+        by: ['accountId'],
+        where: {
+          transaction: {
+            tenantId: user.tenantId,
+            status: { in: ['posted', 'Posted'] },
+          },
+        },
+        _sum: {
+          debitAmount: true,
+          creditAmount: true,
+        },
+        _count: {
+          id: true,
+        },
+      });
+      txnByAccountId = Object.fromEntries(
+        txnAggRows.map((r) => [
+          r.accountId,
+          {
+            debit: Number(r._sum.debitAmount || 0),
+            credit: Number(r._sum.creditAmount || 0),
+            lineCount: r._count.id,
+          },
+        ])
+      );
+    } catch (e) {
+      console.error('Error aggregating transaction lines for chart of accounts:', e);
+    }
+
     // Calculate current balances from journal entries
     // Wrap in try-catch to handle any individual account calculation errors
     const accountsWithBalances = await Promise.allSettled(accounts.map(async (account) => {
@@ -608,20 +641,30 @@ export async function GET(request) {
           }
         });
 
-        // Separate Posted and Draft entries
-        const postedLines = allJournalLines.filter(line => line.journalEntry?.status === 'Posted');
-        const draftLines = allJournalLines.filter(line => line.journalEntry?.status === 'Draft');
+        const journalStatus = (s) => (s || '').toString().trim().toLowerCase();
 
-        // Calculate totals from Posted entries only
-        const totalDebits = postedLines.reduce((sum, line) => {
-          const debit = parseFloat(line.debitAmount) || 0;
-          return sum + debit;
-        }, 0);
-        
-        const totalCredits = postedLines.reduce((sum, line) => {
-          const credit = parseFloat(line.creditAmount) || 0;
-          return sum + credit;
-        }, 0);
+        // Separate Posted and Draft entries (support Posted / posted)
+        const postedLines = allJournalLines.filter(
+          (line) => journalStatus(line.journalEntry?.status) === 'posted'
+        );
+        const draftLines = allJournalLines.filter(
+          (line) => journalStatus(line.journalEntry?.status) === 'draft'
+        );
+
+        const txAgg = txnByAccountId[account.id] || { debit: 0, credit: 0, lineCount: 0 };
+
+        // Calculate totals from Posted journal lines + posted Transaction lines (GL)
+        const totalDebits =
+          postedLines.reduce((sum, line) => {
+            const debit = parseFloat(line.debitAmount) || 0;
+            return sum + debit;
+          }, 0) + txAgg.debit;
+
+        const totalCredits =
+          postedLines.reduce((sum, line) => {
+            const credit = parseFloat(line.creditAmount) || 0;
+            return sum + credit;
+          }, 0) + txAgg.credit;
 
         // Determine normal balance - use account.normalBalance or infer from account type
         const normalBalance = account.normalBalance || 
@@ -652,12 +695,11 @@ export async function GET(request) {
           console.log(`✅ Matched AR account: ${accountCode} - ${account.accountName || account.name}, value: ${totalAccountsReceivable}`);
         }
         
-        // Inventory (code 1200 or name contains "inventory")
-        // Check both accountCode and account name variations
-        const isInventoryAccount = accountCode === '1200' || 
-                                   accountCode.startsWith('1200') ||
-                                   accountName.includes('inventory') ||
-                                   accountName === 'inventory';
+        // Inventory: standard code 1300 (1200 is AR in this product). Name match for custom setups.
+        const isInventoryAccount = accountCode === '1300' ||
+                                   accountCode.startsWith('1300') ||
+                                   (accountName.includes('inventory') &&
+                                     !accountName.includes('receivable'));
         
         if (isInventoryAccount && (accountType === 'ASSET' || accountType === 'Asset')) {
           additionalBalance += totalInventoryValue;
@@ -952,8 +994,8 @@ export async function GET(request) {
         const accountResult = {
           ...account,
           currentBalance: finalBalance,
-          transactionCount: allJournalLines.length,
-          postedEntryCount: postedLines.length,
+          transactionCount: postedLines.length + txAgg.lineCount,
+          postedEntryCount: postedLines.length + txAgg.lineCount,
           draftEntryCount: draftLines.length,
           additionalBalance: additionalBalance,
           journalEntryBalance: balance
@@ -961,7 +1003,7 @@ export async function GET(request) {
         
         // Debug log for accounts with zero balance but should have values
         if (finalBalance === 0 && (totalInventoryValue > 0 || totalAssetsValue > 0 || totalAccountsReceivable > 0)) {
-          if ((accountCode === '1200' || accountName.includes('inventory')) && accountType === 'Asset') {
+          if ((accountCode === '1300' || (accountName.includes('inventory') && !accountName.includes('receivable'))) && accountType === 'Asset') {
             console.log(`⚠️ Inventory account ${accountCode} - ${account.accountName || account.name} has zero balance but inventory value is ${totalInventoryValue}`);
           }
           if (isAssetAccount && accountType === 'Asset' && totalAssetsValue > 0) {
@@ -1010,12 +1052,11 @@ export async function GET(request) {
     // Deduplicate accounts by accountCode (keep the one with the highest balance or most recent)
     const accountMap = new Map();
     for (const account of successfulAccounts) {
-      const code = account.accountCode || account.code || '';
-      if (!code) continue;
-      
-      const existing = accountMap.get(code);
+      const code = (account.accountCode || account.code || '').trim();
+      const dedupeKey = code || `__id__${account.id}`;
+      const existing = accountMap.get(dedupeKey);
       if (!existing) {
-        accountMap.set(code, account);
+        accountMap.set(dedupeKey, account);
       } else {
         // If duplicate, keep the one with higher balance or more transactions
         const existingBalance = Math.abs(existing.currentBalance || 0);
@@ -1025,7 +1066,7 @@ export async function GET(request) {
         
         if (newBalance > existingBalance || 
             (newBalance === existingBalance && newTransactions > existingTransactions)) {
-          accountMap.set(code, account);
+          accountMap.set(dedupeKey, account);
         }
       }
     }
@@ -1216,7 +1257,10 @@ export async function POST(request) {
           isActive,
           tenantId: user.tenantId,
           isSystem: false,
-          balance: 0
+          balance: 0,
+          code: accountCode,
+          name: accountName,
+          type: normalizedType
         },
         include: {
           parentAccount: {

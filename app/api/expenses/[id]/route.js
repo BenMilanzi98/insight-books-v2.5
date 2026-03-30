@@ -322,7 +322,8 @@ export async function DELETE(request, { params }) {
         isReversal: true,
         amount: true,
         description: true,
-        category: true
+        category: true,
+        supplierId: true
       }
     });
     if (!raw || raw.isDeleted) {
@@ -423,6 +424,15 @@ export async function DELETE(request, { params }) {
         }
       });
     });
+
+    if (raw.supplierId) {
+      try {
+        const { updateSupplierBalance } = await import('@/lib/supplierService');
+        await updateSupplierBalance(raw.supplierId, user.tenantId);
+      } catch (balErr) {
+        console.error('updateSupplierBalance after expense delete:', balErr?.message);
+      }
+    }
 
     return NextResponse.json({
       message: 'Expense removed from the register; accounting reversed where applicable.'

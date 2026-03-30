@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
 function safeNumber(n) {
   const v = Number(n);
@@ -24,7 +25,6 @@ function parseNotesJSON(notes) {
 }
 
 async function getTenantNpsRatesFallback(tenantId) {
-  // Raw read so this works even if Prisma client is stale.
   let employee = 5;
   let employer = 5;
   try {
@@ -36,8 +36,9 @@ async function getTenantNpsRatesFallback(tenantId) {
     `;
     const row = Array.isArray(rows) ? rows[0] : null;
     if (row) {
-      employee = Number(row.npsEmployeeRatePercent ?? 5) || 5;
-      employer = Number(row.npsEmployerRatePercent ?? 5) || 5;
+      const r = npsRatesFromTenantSettingsRow(row);
+      employee = r.npsEmployeeRatePercent != null ? r.npsEmployeeRatePercent : 5;
+      employer = r.npsEmployerRatePercent != null ? r.npsEmployerRatePercent : 5;
     }
   } catch (e) {
     console.warn('Pension clear raw rate read failed, using defaults:', e?.message || e);

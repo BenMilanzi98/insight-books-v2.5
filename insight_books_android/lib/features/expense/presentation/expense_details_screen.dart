@@ -603,7 +603,7 @@ class _ExpenseDetailsBody extends ConsumerWidget {
               ? Image.network(
                   url,
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) =>
+                  errorBuilder: (context, error, stackTrace) =>
                       const Text('Unable to preview image'),
                 )
               : isPdf

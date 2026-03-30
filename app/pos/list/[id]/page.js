@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { fetchSaleById, voidSale, refundSale, printReceipt } from "@/app/services/salesService";
 import { getPaymentMethodIcon, getPaymentMethodName } from "@/lib/paymentMethods";
+import { MIN_AUDIT_REASON_LENGTH } from "@/lib/auditReasonConstants";
 
 // This is the page component
 const SaleDetailPage = () => {
@@ -93,8 +94,10 @@ const SaleDetailPage = () => {
   
   // Handle void sale
   const handleVoidSale = async () => {
-    if (!voidReason.trim()) {
-      alert("Please provide a reason for voiding this sale.");
+    if (voidReason.trim().length < MIN_AUDIT_REASON_LENGTH) {
+      alert(
+        `Please provide a reason of at least ${MIN_AUDIT_REASON_LENGTH} characters (audit / GL reversal requirement).`
+      );
       return;
     }
     
@@ -122,8 +125,10 @@ const SaleDetailPage = () => {
   
   // Handle refund sale
   const handleRefundSale = async () => {
-    if (!refundReason.trim()) {
-      alert("Please provide a reason for refunding this sale.");
+    if (refundReason.trim().length < MIN_AUDIT_REASON_LENGTH) {
+      alert(
+        `Please provide a reason of at least ${MIN_AUDIT_REASON_LENGTH} characters (audit / GL reversal requirement).`
+      );
       return;
     }
     
@@ -656,9 +661,12 @@ const handleDeleteSale = async () => {
                 rows="3"
                 value={voidReason}
                 onChange={(e) => setVoidReason(e.target.value)}
-                placeholder="Please provide a reason for voiding this sale..."
+                placeholder="At least 10 characters required for audit..."
                 required
               ></textarea>
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum {MIN_AUDIT_REASON_LENGTH} characters (audit / GL reversal)
+              </p>
             </div>
             
             <div className="flex justify-end space-x-3">
@@ -675,7 +683,10 @@ const handleDeleteSale = async () => {
               <button 
                 className="px-4 py-2 bg-red-600 text-white rounded-md flex items-center"
                 onClick={handleVoidSale}
-                disabled={isSubmitting || !voidReason.trim()}
+                disabled={
+                  isSubmitting ||
+                  voidReason.trim().length < MIN_AUDIT_REASON_LENGTH
+                }
               >
                 {isSubmitting ? (
                   <>
@@ -710,9 +721,12 @@ const handleDeleteSale = async () => {
                 rows="3"
                 value={refundReason}
                 onChange={(e) => setRefundReason(e.target.value)}
-                placeholder="Please provide a reason for refunding this sale..."
+                placeholder="At least 10 characters required for audit..."
                 required
               ></textarea>
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum {MIN_AUDIT_REASON_LENGTH} characters (audit / GL reversal)
+              </p>
             </div>
             
             <div className="flex justify-end space-x-3">
@@ -729,7 +743,10 @@ const handleDeleteSale = async () => {
               <button 
                 className="px-4 py-2 bg-purple-600 text-white rounded-md flex items-center"
                 onClick={handleRefundSale}
-                disabled={isSubmitting || !refundReason.trim()}
+                disabled={
+                  isSubmitting ||
+                  refundReason.trim().length < MIN_AUDIT_REASON_LENGTH
+                }
               >
                 {isSubmitting ? (
                   <>

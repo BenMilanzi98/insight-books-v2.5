@@ -495,8 +495,8 @@ class ExpenseRepository {
     final response = await _dio.get(
       '/api/expenses/cogs-summary',
       queryParameters: {
-        if (startDate != null) 'startDate': startDate,
-        if (endDate != null) 'endDate': endDate,
+        'startDate': ?startDate,
+        'endDate': ?endDate,
       },
     );
     return Map<String, dynamic>.from(response.data as Map);
@@ -607,7 +607,7 @@ class ExpenseRepository {
   }) async {
     final response = await _dio.post(
       '/api/expense-categories',
-      data: {'name': name, if (description != null) 'description': description},
+      data: {'name': name, 'description': ?description},
     );
     final raw = response.data;
     final map = raw is Map && raw['category'] != null

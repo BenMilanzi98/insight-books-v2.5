@@ -9,11 +9,25 @@ const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Receive
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
 
 async function generatePurchaseOrderNumber() {
-  // Generate a globally unique PO-XXXXX number to avoid collisions across tenants
-  let seq = (await prisma.purchaseOrder.count()) + 1;
+  const parseSeq = (poNumber) => {
+    const m = String(poNumber || '').match(/(\d+)\s*$/);
+    return m ? parseInt(m[1], 10) : 0;
+  };
+  // Use max numeric suffix from recent POs (not count()), so deletes/manual numbers don't skip as badly.
+  const recent = await prisma.purchaseOrder.findMany({
+    select: { poNumber: true },
+    orderBy: { createdAt: 'desc' },
+    take: 5000,
+  });
+  let maxSeq = 0;
+  for (const r of recent) {
+    const n = parseSeq(r.poNumber);
+    if (n > maxSeq) maxSeq = n;
+  }
+  let seq = maxSeq + 1;
   let number = `PO-${String(seq).padStart(5, '0')}`;
   while (await prisma.purchaseOrder.findUnique({ where: { poNumber: number } })) {
-    seq++;
+    seq += 1;
     number = `PO-${String(seq).padStart(5, '0')}`;
   }
   return number;
@@ -103,7 +117,19 @@ export async function GET(request) {
     const totalCount = await prisma.purchaseOrder.count({ where });
     const includeFull = {
       supplier: { select: { supplierName: true, supplierCode: true } },
-      items: true,
+      items: {
+        include: {
+          product: { select: { id: true, name: true, sku: true, code: true } },
+          expenseCategory: {
+            select: {
+              id: true,
+              name: true,
+              accountCode: true,
+              account: { select: { accountCode: true, accountName: true } }
+            }
+          }
+        }
+      },
       receipts: { select: { id: true, receiptNumber: true, receiptDate: true } },
       expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
     };
@@ -303,7 +329,19 @@ export async function POST(request) {
       },
       include: {
         supplier: { select: { supplierName: true } },
-        items: true
+        items: {
+          include: {
+            product: { select: { id: true, name: true, sku: true, code: true } },
+            expenseCategory: {
+              select: {
+                id: true,
+                name: true,
+                accountCode: true,
+                account: { select: { accountCode: true, accountName: true } }
+              }
+            }
+          }
+        }
       }
     });
 

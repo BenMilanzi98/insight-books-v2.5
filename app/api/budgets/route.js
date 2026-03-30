@@ -7,6 +7,7 @@ import {
   createRevenueBudget,
   getBranchesForBudget,
   getCategoriesForBudget,
+  getInventoryCategoriesForBudget,
   autoCloseExpiredBudgets,
   PERIOD_TYPES
 } from '@/lib/budgetService';
@@ -160,23 +161,6 @@ export async function POST(request) {
       }
     }
 
-    // Validate breakdowns total matches expected revenue
-    if (budgetType === 'revenue' && breakdowns && Array.isArray(breakdowns) && breakdowns.length > 0) {
-      const breakdownTotal = breakdowns.reduce(
-        (sum, item) => sum + (item.budgetedAmount || 0),
-        0
-      );
-      const tolerance = 0.01;
-      if (Math.abs(breakdownTotal - expectedRevenue) > tolerance) {
-        return NextResponse.json(
-          { 
-            error: `Breakdown total (${breakdownTotal.toFixed(2)}) must match expected revenue (${expectedRevenue.toFixed(2)})` 
-          },
-          { status: 400 }
-        );
-      }
-    }
-
     const budget = await createRevenueBudget(user.tenantId, user.id, {
       name,
       description,
@@ -222,9 +206,10 @@ export async function OPTIONS(request) {
       );
     }
 
-    const [branches, categories] = await Promise.all([
+    const [branches, categories, inventoryCategories] = await Promise.all([
       getBranchesForBudget(user.tenantId),
-      getCategoriesForBudget(user.tenantId)
+      getCategoriesForBudget(user.tenantId),
+      getInventoryCategoriesForBudget(user.tenantId)
     ]);
 
     return NextResponse.json({
@@ -232,6 +217,8 @@ export async function OPTIONS(request) {
       data: {
         branches,
         categories,
+        expenseAccounts: categories,
+        inventoryCategories,
         periodTypes: Object.entries(PERIOD_TYPES).map(([key, value]) => ({
           value,
           label: key.charAt(0) + key.slice(1)

@@ -17,6 +17,7 @@ import {
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getCurrentUser, getPermission } from "@/lib/permissions";
+import { journalAccountOptionLabel, sortAccountsForJournalSelect } from "@/lib/journalAccountSelect";
 
 const JournalEntries = () => {
   // State variables
@@ -151,7 +152,8 @@ const JournalEntries = () => {
       }
       
       const data = await response.json();
-      setAccounts(data.accounts || []);
+      const list = data.accounts || [];
+      setAccounts(sortAccountsForJournalSelect(list.filter((a) => a.id)));
     } catch (error) {
       console.error("Error fetching accounts:", error);
       setError("Failed to load accounts. Please try again later.");
@@ -1036,14 +1038,11 @@ const handleDeleteEntry = async (entryId) => {
                                 required
                               >
                                 <option value="">Select Account</option>
-                                {accounts.map(account => {
-                                  const code = (account.accountCode ?? account.code ?? '').toString().trim();
-                                  const name = (account.accountName ?? account.name ?? '').toString().trim();
-                                  const label = (code && name) ? `${code} - ${name}` : (code || name || `Account ${(account.id || '').slice(-8)}`);
-                                  return (
-                                    <option key={account.id} value={account.id}>{label}</option>
-                                  );
-                                })}
+                                {accounts.map((account) => (
+                                  <option key={account.id} value={account.id}>
+                                    {journalAccountOptionLabel(account)}
+                                  </option>
+                                ))}
                               </select>
                             </td>
                             <td className="p-2">

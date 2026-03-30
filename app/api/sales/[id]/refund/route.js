@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { updateAccountBalance } from '@/lib/core';
+import { reverseSaleGlForRefundInTx } from '@/lib/transactionReversalService';
 
 export async function POST(request, { params }) {
   try {
@@ -25,6 +26,12 @@ export async function POST(request, { params }) {
     if (!reason || reason.trim() === '') {
       return NextResponse.json(
         { error: 'Refund reason is required' },
+        { status: 400 }
+      );
+    }
+    if (reason.trim().length < 10) {
+      return NextResponse.json(
+        { error: 'Refund reason must be at least 10 characters (audit and GL reversal requirement).' },
         { status: 400 }
       );
     }
@@ -196,40 +203,18 @@ export async function POST(request, { params }) {
         // Continue without failing the transaction
       }
 
-      // Reverse tax postings for refunded sale
-      try {
-        const saleItemTaxes = await tx.saleItemTax.findMany({
-          where: { saleItem: { saleId: sale.id } },
-          select: { taxTypeId: true, taxAmount: true, taxName: true },
-        });
-        const taxesByType = {};
-        saleItemTaxes.forEach(tax => {
-          if (!taxesByType[tax.taxTypeId]) {
-            taxesByType[tax.taxTypeId] = { taxTypeId: tax.taxTypeId, taxAmount: 0, taxName: tax.taxName };
-          }
-          taxesByType[tax.taxTypeId].taxAmount += Number(tax.taxAmount || 0);
-        });
-        for (const taxData of Object.values(taxesByType)) {
-          if (taxData.taxAmount > 0) {
-            const { reverseAutoPostTaxEntry } = await import('@/lib/taxCalculationService');
-            await reverseAutoPostTaxEntry({
-              tenantId: user.tenantId,
-              userId: user.id,
-              taxTypeId: taxData.taxTypeId,
-              taxAmount: taxData.taxAmount,
-              transactionDate: new Date(),
-              sourceType: 'SaleRefund',
-              sourceId: sale.id,
-              description: `Tax reversal for refunded sale ${sale.saleNumber}`,
-              tx,
-            });
-          }
-        }
-      } catch (taxReversalError) {
-        console.error('Error reversing tax for refunded sale:', taxReversalError);
-      }
+      // Reverse posted GL: revenue, payment-side lines, COGS/inventory, and Tax-Sale (or line-tax fallback)
+      const glSummary = await reverseSaleGlForRefundInTx({
+        tx,
+        saleId: sale.id,
+        saleNumber: sale.saleNumber,
+        userId: user.id,
+        tenantId: user.tenantId,
+        reversalReason: reason,
+        context: 'refund',
+      });
 
-      // Create audit log
+      // Create audit log (includes traceable GL reversal ids for accountants / auditors)
       await tx.auditLog.create({
         data: {
           action: 'SALE_REFUNDED',
@@ -241,7 +226,14 @@ export async function POST(request, { params }) {
             saleNumber: sale.saleNumber,
             reason: reason,
             refundAmount: sale.total,
-            itemsRestored: sale.items.filter(item => !item.isCustom && item.productId).length
+            itemsRestored: sale.items.filter(item => !item.isCustom && item.productId).length,
+            glReversal: {
+              saleJournalReversalsCreated: glSummary.reversedJournals,
+              taxJournalReversalsCreated: glSummary.reversedTax,
+              journalReversalTransactionIds: glSummary.journalReversalIds,
+              taxReversalTransactionIds: glSummary.taxReversalIds,
+              fallbackTaxAutoPostEntries: glSummary.fallbackTaxEntries,
+            },
           })
         }
       });

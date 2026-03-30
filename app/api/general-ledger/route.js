@@ -98,7 +98,7 @@ export async function GET(request) {
       ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       transaction: {
         tenantId,
-        status: 'posted',
+        status: { in: ['posted', 'Posted'] },
         // Include reversals so ledger reflects full history (invoice/sale reversals are real entries)
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),

@@ -652,22 +652,26 @@ model Payment {
 }
 
 model PaymentAccount {
-  id          String              @id @default(cuid())
-  tenantId    String
-  name        String
-  accountType String // Cash, Bank, Mobile Money, Wallet, POS Terminal
-  reference   String? // Account number, wallet ID, etc.
-  isActive    Boolean             @default(true)
-  isSystem    Boolean             @default(false) // System accounts (like Cash) cannot be deleted
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  allocations PaymentAllocation[]
+  id           String              @id @default(cuid())
+  tenantId     String
+  name         String
+  accountType  String // Cash, Bank, Mobile Money, Wallet, POS Terminal
+  reference    String? // Account number, wallet ID, etc.
+  isActive     Boolean             @default(true)
+  isSystem     Boolean             @default(false) // System accounts (like Cash) cannot be deleted
+  /// Links this POS/payment method to a Chart of Accounts asset (cash/bank) so GL and A/L stay in sync
+  coaAccountId String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  coaAccount   Account?            @relation("PaymentAccountCoa", fields: [coaAccountId], references: [id], onDelete: SetNull)
+  allocations  PaymentAllocation[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([isActive])
   @@index([isSystem])
+  @@index([coaAccountId])
 }
 
 model PaymentAllocation {
@@ -1783,6 +1787,7 @@ model Account {
   invoiceItems             InvoiceItem[]
   saleItems                SaleItem[]
   expenseCategory          ExpenseCategory? @relation("ExpenseCategoryAccount")
+  paymentAccountsLinked    PaymentAccount[] @relation("PaymentAccountCoa")
 
   @@unique([tenantId, accountCode])
   @@index([tenantId])

@@ -3,7 +3,6 @@ import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
 import jwt from 'jsonwebtoken';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
-import { getCurrentDateInAfricaBlantyre } from '@/lib/dateUtils';
 
 export async function GET(request) {
   try {
@@ -191,67 +190,16 @@ export async function POST(request) {
       }
     });
 
-    // Initialize default payment accounts
-    const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
-    await initializeDefaultPaymentAccounts(newTenant.id);
-
-    // Initialize default Chart of Accounts (baseline CoA)
+    // Same financial bootstrap as self-serve signup: CoA, tax GL, open period, Cash payment account active.
+    // Used by /insightbooks/tenant-management when an admin creates a tenant.
     try {
-      const { ensureChartOfAccountsForTenant } = await import('@/lib/chartOfAccountsInitialization');
-      await ensureChartOfAccountsForTenant(newTenant.id);
-    } catch (coaErr) {
-      console.warn('Chart of accounts initialization for admin-created tenant failed (non-fatal):', coaErr?.message || coaErr);
-    }
-
-    // Ensure an open monthly accounting period exists for the current month
-    // (1st to last day), even if the tenant is created mid-month.
-    try {
-      const nowBlantyre = getCurrentDateInAfricaBlantyre();
-      const periodStart = new Date(nowBlantyre.getFullYear(), nowBlantyre.getMonth(), 1, 0, 0, 0, 0);
-      const periodEnd = new Date(
-        nowBlantyre.getFullYear(),
-        nowBlantyre.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999
+      const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
+      await initializeNewTenantFinancialDefaults(newTenant.id, prisma);
+    } catch (financialInitErr) {
+      console.error(
+        'initializeNewTenantFinancialDefaults failed for admin-created tenant (tenant still created):',
+        financialInitErr?.message || financialInitErr
       );
-
-      const month = periodStart.toLocaleString('en-US', { month: 'short' });
-      const name = `${month} ${periodStart.getFullYear()}`;
-
-      const existingOverlap = await prisma.accountingPeriod.findFirst({
-        where: {
-          tenantId: newTenant.id,
-          periodType: 'Monthly',
-          startDate: { lte: periodEnd },
-          endDate: { gte: periodStart },
-        },
-      });
-
-      if (!existingOverlap) {
-        await prisma.accountingPeriod.create({
-          data: {
-            tenantId: newTenant.id,
-            name,
-            periodType: 'Monthly',
-            startDate: periodStart,
-            endDate: periodEnd,
-            status: 'open',
-          },
-        });
-      }
-    } catch (periodErr) {
-      console.warn('Accounting period initialization failed (non-fatal) for admin tenant:', periodErr?.message || periodErr);
-    }
-
-    // Create default tax inflow/outflow GL accounts and set as tenant defaults
-    try {
-      const { ensureDefaultTaxAccountsForTenant } = await import('@/lib/taxAccountsInitialization');
-      await ensureDefaultTaxAccountsForTenant(newTenant.id, prisma, true);
-    } catch (taxAccErr) {
-      console.warn('Tax accounts initialization for new tenant (non-fatal):', taxAccErr?.message || taxAccErr);
     }
 
     // Get tenant settings for business email

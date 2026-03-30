@@ -1,7 +1,7 @@
-// app/api/inventory/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveProductListBranchId, clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 
@@ -47,36 +47,23 @@ export async function GET(request) {
       isDeleted: false, // Exclude soft-deleted products by default
     };
     
-    // Branch scoping: Priority: query param > session branch > user default branch
-    // Use branchId from query param, session, or user default
-    // Ensure branchId is a string, not an object
-    let desiredBranchId = branchIdParam || user.currentBranchId || user.defaultBranchId || null;
-    if (desiredBranchId && typeof desiredBranchId !== 'string') {
-      // If it's an object, try to extract the id
-      if (desiredBranchId.id && typeof desiredBranchId.id === 'string') {
-        desiredBranchId = desiredBranchId.id;
-      } else {
-        console.warn('Invalid branchId type in GET, defaulting to null:', typeof desiredBranchId, desiredBranchId);
-        desiredBranchId = null;
-      }
-    }
-    
-    if (desiredBranchId && typeof desiredBranchId === 'string') {
+    // Branch scoping: query param (if allowed) + session + default; restricted users cannot see all branches.
+    const desiredBranchId = resolveProductListBranchId(user, branchIdParam);
+
+    if (desiredBranchId === false) {
+      where.AND = [...(where.AND || []), { id: { in: [] } }];
+    } else if (desiredBranchId && typeof desiredBranchId === 'string') {
       const branch = await prisma.branch.findFirst({
         where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
         select: { id: true }
       });
       if (branch) {
-        // Include both branch-specific and global products.
-        // Global products (branchId=null) should remain visible in every branch context.
+        // Branch-specific rows + global products (branchId=null) for all-branches catalog items.
         where.AND = [
           ...(where.AND || []),
           { OR: [{ branchId: desiredBranchId }, { branchId: null }] }
         ];
       }
-    } else if (user?.currentBranchId === null) {
-      // If explicitly set to null (All Branches), don't filter by branch
-      // This allows viewing all products across branches
     }
     
     // Add search filter if provided (name, SKU, barcode; barcode matches prefix/partial via Product + ProductBarcode)
@@ -320,11 +307,37 @@ export async function POST(request) {
       });
       if (branch) branchIdToSet = desiredBranchId;
     }
-    
+    try {
+      branchIdToSet = clampResolvedBranchToUserAccess(user, branchIdToSet);
+    } catch (branchAccessErr) {
+      return NextResponse.json(
+        { error: branchAccessErr.message || 'Branch not allowed' },
+        { status: 403 }
+      );
+    }
+
     // Validate required fields
     if (!body.name) {
       return NextResponse.json(
         { error: 'Product name is required' },
+        { status: 400 }
+      );
+    }
+
+    const productNameTrim = body.name.trim();
+    const duplicateName = await prisma.product.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        isDeleted: false,
+        name: { equals: productNameTrim, mode: 'insensitive' },
+      },
+      select: { id: true, name: true, sku: true },
+    });
+    if (duplicateName) {
+      return NextResponse.json(
+        {
+          error: `A product with this name already exists (SKU: ${duplicateName.sku || 'n/a'}). Use a different name or edit the existing product.`,
+        },
         { status: 400 }
       );
     }
@@ -333,7 +346,7 @@ export async function POST(request) {
     let finalSku = body.sku?.trim();
     if (!finalSku || finalSku === '') {
       // Generate SKU from product name
-      const cleanName = body.name.trim();
+      const cleanName = productNameTrim;
       let skuBase = cleanName
         .toUpperCase()
         .replace(/[^A-Z0-9]/g, '')

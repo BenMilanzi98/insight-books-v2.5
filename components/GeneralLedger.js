@@ -155,7 +155,7 @@ const GeneralLedger = () => {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const response = await fetch('/api/accounts');
+        const response = await fetch('/api/accounts?forSelect=true&includeInactive=true');
         if (!response.ok) {
           throw new Error(`Error fetching accounts: ${response.statusText}`);
         }
@@ -190,7 +190,8 @@ const GeneralLedger = () => {
           page,
           limit,
           startDate: dateRange.startDate,
-          endDate: dateRange.endDate
+          endDate: dateRange.endDate,
+          branchId: "all",
         });
         
         if (accountFilter !== "all") {
@@ -367,7 +368,8 @@ const GeneralLedger = () => {
       const queryParams = new URLSearchParams({
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        format: 'csv'
+        format: 'csv',
+        branchId: 'all',
       });
       
       if (accountFilter !== "all") {
@@ -606,11 +608,15 @@ const GeneralLedger = () => {
                   onChange={(e) => setAccountFilter(e.target.value)}
                 >
                   <option value="all">All Accounts</option>
-                  {accounts.map(account => (
-                    <option key={account.id} value={account.id}>
-                      {account.code} - {account.name}
-                    </option>
-                  ))}
+                  {accounts.map((account) => {
+                    const code = account.accountCode || account.code || '';
+                    const name = account.accountName || account.name || 'Account';
+                    return (
+                      <option key={account.id} value={account.id}>
+                        {code ? `${code} — ${name}` : name}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
               <button

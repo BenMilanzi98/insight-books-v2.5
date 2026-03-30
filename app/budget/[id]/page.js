@@ -119,15 +119,19 @@ export default function RevenueBudgetDetailsPage() {
   };
 
   const isLocked = budget?.isLocked || false;
+  const isExpense =
+    budget?.budgetType === "expense" ||
+    comparison?.budget?.budgetType === "expense";
 
-  // Comparison data
+  // Comparison data (API returns { budget, comparison, breakdowns, expenseLines, ... })
   const comp = comparison?.comparison;
   const budgetedAmount = comp?.budgetedRevenue || 0;
   const actualAmount = comp?.actualRevenue || 0;
   const variance = comp?.variance?.amount || 0;
   const variancePercent = comp?.variance?.percent || 0;
   const achievement = comp?.achievement?.percent || 0;
-  const status = comp?.achievement?.status || 'unknown';
+  const status = comp?.achievement?.status || "unknown";
+  const expenseLines = comparison?.expenseLines || [];
 
   // Chart data
   const chartData = useMemo(() => {
@@ -150,28 +154,58 @@ export default function RevenueBudgetDetailsPage() {
     }));
   }, [comparison]);
 
-  // Variance status helpers
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'over':
-        return (
+  const expenseLineChartData = useMemo(() => {
+    if (!expenseLines.length) return [];
+    return expenseLines.map((row, idx) => ({
+      name:
+        row.accountCode
+          ? `${row.accountCode} ${row.accountName}`.slice(0, 28)
+          : row.accountName,
+      budgeted: row.budgetedAmount,
+      actual: row.actualAmount,
+      fill: COLORS[idx % COLORS.length],
+    }));
+  }, [expenseLines]);
+
+  const breakdownSectionTitle = useMemo(() => {
+    const t = comparison?.breakdowns?.[0]?.breakdownType;
+    if (t === "branch") return "Branch";
+    if (t === "product_category") return "Inventory category";
+    return "Category";
+  }, [comparison?.breakdowns]);
+
+  // Variance status helpers (revenue: over target = good; expense: over budget = bad)
+  const getStatusBadge = (st) => {
+    switch (st) {
+      case "over":
+        return isExpense ? (
+          <span className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+            <TrendingUp size={14} />
+            Over budget
+          </span>
+        ) : (
           <span className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200">
             <TrendingUp size={14} />
-            Over Target
+            Over target
           </span>
         );
-      case 'under':
-        return (
+      case "under":
+        return isExpense ? (
+          <span className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-green-100 text-green-700 border border-green-200">
+            <TrendingDown size={14} />
+            Under budget
+          </span>
+        ) : (
           <span className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
             <TrendingDown size={14} />
-            Under Target
+            Under target
           </span>
         );
-      case 'on_target':
+      case "on_target":
         return (
           <span className="inline-flex items-center gap-1 text-sm px-3 py-1 rounded-full bg-blue-100 text-blue-700 border border-blue-200">
             <Target size={14} />
-            On Target
+            {isExpense ? "On budget" : "On target"}
           </span>
         );
       default:
@@ -273,7 +307,9 @@ export default function RevenueBudgetDetailsPage() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h1 className="text-2xl font-bold text-gray-900">{budget?.name || "Revenue Budget"}</h1>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                      {budget?.name || (isExpense ? "Expense budget" : "Revenue budget")}
+                    </h1>
                     {isLocked && (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-300">
                         <Lock size={12} />
@@ -322,37 +358,72 @@ export default function RevenueBudgetDetailsPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-600 mb-2">
                     <Target size={18} className="text-blue-600" />
-                    <span className="text-sm font-medium">Budgeted Revenue</span>
+                    <span className="text-sm font-medium">
+                      {isExpense ? "Budgeted expense" : "Budgeted revenue"}
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">{formatCurrency(budgetedAmount)}</div>
-                  <div className="text-xs text-gray-500 mt-1">Expected revenue for the period</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {isExpense ? "Planned spending for the period" : "Expected revenue for the period"}
+                  </div>
                 </div>
 
                 {/* Actual */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-600 mb-2">
                     <DollarSign size={18} className="text-green-600" />
-                    <span className="text-sm font-medium">Actual Revenue</span>
+                    <span className="text-sm font-medium">
+                      {isExpense ? "Actual expense" : "Actual revenue"}
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">{formatCurrency(actualAmount)}</div>
-                  <div className="text-xs text-gray-500 mt-1">Revenue achieved so far</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {isExpense ? "Posted to expense accounts in period" : "Revenue achieved so far"}
+                  </div>
                 </div>
 
                 {/* Variance */}
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-600 mb-2">
-                    {variance >= 0 ? (
+                    {isExpense ? (
+                      variance > 0 ? (
+                        <TrendingUp size={18} className="text-red-600" />
+                      ) : (
+                        <TrendingDown size={18} className="text-green-600" />
+                      )
+                    ) : variance >= 0 ? (
                       <TrendingUp size={18} className="text-green-600" />
                     ) : (
                       <TrendingDown size={18} className="text-red-600" />
                     )}
                     <span className="text-sm font-medium">Variance</span>
                   </div>
-                  <div className={`text-2xl font-bold ${variance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {variance >= 0 ? '+' : ''}{formatCurrency(variance)}
+                  <div
+                    className={`text-2xl font-bold ${
+                      isExpense
+                        ? variance > 0
+                          ? "text-red-600"
+                          : variance < 0
+                            ? "text-green-600"
+                            : "text-gray-900"
+                        : variance >= 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                    }`}
+                  >
+                    {variance >= 0 ? "+" : ""}
+                    {formatCurrency(variance)}
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {variance >= 0 ? 'Over target' : 'Under target'}
+                    {isExpense
+                      ? variance > 0
+                        ? "Over budget (unfavorable)"
+                        : variance < 0
+                          ? "Under budget (favorable)"
+                          : "On budget"
+                      : variance >= 0
+                        ? "Over target"
+                        : "Under target"}
                   </div>
                 </div>
 
@@ -360,15 +431,25 @@ export default function RevenueBudgetDetailsPage() {
                 <div className="bg-white border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center gap-2 text-gray-600 mb-2">
                     <Percent size={18} className="text-purple-600" />
-                    <span className="text-sm font-medium">Achievement</span>
+                    <span className="text-sm font-medium">
+                      {isExpense ? "% of budget used" : "Achievement"}
+                    </span>
                   </div>
                   <div className="text-2xl font-bold text-gray-900">{achievement.toFixed(1)}%</div>
                   <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                    <div 
+                    <div
                       className={`h-2 rounded-full ${
-                        achievement >= 100 ? 'bg-green-500' : 
-                        achievement >= 80 ? 'bg-blue-500' : 
-                        achievement >= 50 ? 'bg-yellow-500' : 'bg-red-500'
+                        isExpense
+                          ? achievement <= 100
+                            ? "bg-blue-500"
+                            : "bg-red-500"
+                          : achievement >= 100
+                            ? "bg-green-500"
+                            : achievement >= 80
+                              ? "bg-blue-500"
+                              : achievement >= 50
+                                ? "bg-yellow-500"
+                                : "bg-red-500"
                       }`}
                       style={{ width: `${Math.min(achievement, 100)}%` }}
                     />
@@ -409,7 +490,7 @@ export default function RevenueBudgetDetailsPage() {
                   <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5">
                     <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                       <BarChart3 size={18} className="text-purple-600" />
-                      Breakdown by {comparison.breakdowns?.[0]?.breakdownType === 'branch' ? 'Branch' : 'Category'}
+                      Breakdown by {breakdownSectionTitle}
                     </h3>
                     <div className="h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
@@ -421,6 +502,28 @@ export default function RevenueBudgetDetailsPage() {
                           <Legend />
                           <Bar dataKey="budgeted" name="Budgeted" fill="#3b82f6" />
                           <Bar dataKey="actual" name="Actual" fill="#10b981" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
+
+                {isExpense && expenseLineChartData.length > 0 && (
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-5 lg:col-span-2">
+                    <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <BarChart3 size={18} className="text-orange-600" />
+                      Expense lines: budget vs actual
+                    </h3>
+                    <div className="h-[320px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={expenseLineChartData} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" tickFormatter={(v) => formatCurrency(v).replace("MWK ", "")} />
+                          <YAxis dataKey="name" type="category" width={140} tick={{ fontSize: 11 }} />
+                          <Tooltip formatter={(v) => formatCurrency(v)} />
+                          <Legend />
+                          <Bar dataKey="budgeted" name="Budgeted" fill="#3b82f6" />
+                          <Bar dataKey="actual" name="Actual" fill="#f97316" />
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
@@ -454,7 +557,11 @@ export default function RevenueBudgetDetailsPage() {
                             {item.referenceName}
                           </td>
                           <td className="px-4 py-3 text-gray-600 capitalize">
-                            {item.breakdownType === 'branch' ? 'Branch' : 'Category'}
+                            {item.breakdownType === "branch"
+                              ? "Branch"
+                              : item.breakdownType === "product_category"
+                                ? "Inventory category"
+                                : "Category"}
                           </td>
                           <td className="px-4 py-3 text-right">{formatCurrency(item.budgetedAmount)}</td>
                           <td className="px-4 py-3 text-right">{formatCurrency(item.actualAmount || 0)}</td>
@@ -463,6 +570,52 @@ export default function RevenueBudgetDetailsPage() {
                           </td>
                           <td className="px-4 py-3 text-right text-gray-600">
                             {item.variancePercent?.toFixed(1) || '0.0'}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {isExpense && expenseLines.length > 0 && (
+              <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden mb-6">
+                <div className="p-4 border-b border-gray-200">
+                  <h3 className="font-semibold text-gray-900">Expense lines — variance</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Budget vs posted GL per expense account. Positive variance means over budget.
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="text-left px-4 py-3 font-medium">Account</th>
+                        <th className="text-right px-4 py-3 font-medium">Budgeted</th>
+                        <th className="text-right px-4 py-3 font-medium">Actual</th>
+                        <th className="text-right px-4 py-3 font-medium">Variance</th>
+                        <th className="text-right px-4 py-3 font-medium">%</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {expenseLines.map((row) => (
+                        <tr key={row.accountId} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-gray-900 font-medium">
+                            {row.accountCode ? `${row.accountCode} — ${row.accountName}` : row.accountName}
+                          </td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(row.budgetedAmount)}</td>
+                          <td className="px-4 py-3 text-right">{formatCurrency(row.actualAmount)}</td>
+                          <td
+                            className={`px-4 py-3 text-right font-medium ${
+                              row.variance > 0 ? "text-red-600" : row.variance < 0 ? "text-green-600" : "text-gray-700"
+                            }`}
+                          >
+                            {row.variance >= 0 ? "+" : ""}
+                            {formatCurrency(row.variance)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-gray-600">
+                            {Number(row.variancePercent || 0).toFixed(1)}%
                           </td>
                         </tr>
                       ))}

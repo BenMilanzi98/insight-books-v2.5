@@ -1,4 +1,7 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
+import 'package:insightbooks_android/features/dashboard/presentation/dashboard_controller.dart';
 import '../../data/tenant_repository.dart';
 import '../../domain/tenant_models.dart';
 
@@ -90,7 +93,11 @@ class TenantNotifier extends _$TenantNotifier {
     try {
       final repository = ref.read(tenantRepositoryProvider);
       await repository.switchTenant(tenantId);
-      state = state.copyWith(isSwitching: false, currentTenantId: tenantId);
+      ref.invalidate(dashboardControllerProvider);
+      ref.invalidate(userPermissionsProvider);
+      ref.invalidate(accountProvider);
+      await loadData();
+      state = state.copyWith(isSwitching: false);
       return true;
     } catch (e) {
       state = state.copyWith(

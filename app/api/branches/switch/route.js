@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
 import { getFreeBranchId, hasActiveBranchSubscription, syncBranchActiveStatus } from '@/lib/branchSubscriptionService';
 
 export async function POST(request) {
@@ -9,13 +9,24 @@ export async function POST(request) {
     const body = await request.json();
     const { branchId } = body;
     
-    // Allow null/empty to clear branch selection
+    // null clears branch in session; undefined is invalid
     if (branchId === undefined) {
       return NextResponse.json({ error: 'Branch ID required' }, { status: 400 });
     }
 
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    // Branch-assigned users cannot switch to "all branches" (would bypass isolation).
+    if (!branchId && user.allowedBranchIds != null) {
+      return NextResponse.json(
+        {
+          error: 'Select a branch. You do not have access to all branches.',
+          code: 'BRANCH_REQUIRED',
+        },
+        { status: 403 }
+      );
+    }
 
     // Keep branch activeness in sync with subscription expiry.
     // This ensures expired branches auto-deactivate.
@@ -61,18 +72,16 @@ export async function POST(request) {
       }
     }
 
-    // Update session cookie with branchId
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    
-    if (!sessionCookie) {
+    const sessionValue = await getSessionTokenFromRequest(request);
+    if (!sessionValue) {
       return NextResponse.json({ error: 'No session found' }, { status: 401 });
     }
 
-    let sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
+    let sessionData = JSON.parse(Buffer.from(sessionValue, 'base64').toString());
     sessionData.branchId = branchId || null; // Store null if clearing branch
     const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
+    const cookieStore = await cookies();
     cookieStore.set({
       name: 'session',
       value: updatedSession,
@@ -82,9 +91,10 @@ export async function POST(request) {
       secure: process.env.NODE_ENV === 'production'
     });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      branchId: branchId || null
+      branchId: branchId || null,
+      token: updatedSession
     });
   } catch (err) {
     console.error('Branch switch error:', err);

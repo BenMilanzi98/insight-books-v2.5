@@ -350,17 +350,21 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
     );
+    if (!context.mounted) return;
     if (picked == null || picked.files.isEmpty || picked.files.first.path == null) return;
     final file = File(picked.files.first.path!);
     Map<String, dynamic> scanned = {};
+    String? scanError;
     try {
       scanned = await ref.read(expenseRepositoryProvider).scanExpenseReceipt(file.path);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('OCR scan failed, please fill manually: $e')),
-        );
-      }
+      scanError = e.toString();
+    }
+    if (!mounted) return;
+    if (scanError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('OCR scan failed, please fill manually: $scanError')),
+      );
     }
     final amountGuess = '${scanned['amount'] ?? ''}'.trim();
     final dateGuess = '${scanned['date'] ?? ''}'.trim();
@@ -375,6 +379,7 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
     );
     DateTime localDate = dateGuess.isNotEmpty ? (DateTime.tryParse(dateGuess) ?? _date) : _date;
 
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(

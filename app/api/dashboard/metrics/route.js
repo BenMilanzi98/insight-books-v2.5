@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { endOfLocalDay } from '@/lib/dateUtils';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -87,17 +88,17 @@ export async function GET(request) {
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
         // Previous month
         previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 0));
         break;
       }
       
       case 'lastMonth': {
         // Last month's data
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 0));
         // Month before last month
         previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() - 1, 0));
         break;
       }
       
@@ -108,7 +109,7 @@ export async function GET(request) {
         const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
         const prevQuarterYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
         previousPeriodStart = new Date(prevQuarterYear, prevQuarter * 3, 1);
-        previousPeriodEnd = new Date(now.getFullYear(), currentQuarter * 3, 0);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), currentQuarter * 3, 0));
         break;
       }
       
@@ -118,32 +119,32 @@ export async function GET(request) {
         const lastQuarterYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
         // Last quarter's data
         currentPeriodStart = new Date(lastQuarterYear, lastQuarter * 3, 1);
-        currentPeriodEnd = new Date(lastQuarterYear, (lastQuarter + 1) * 3, 0);
+        currentPeriodEnd = endOfLocalDay(new Date(lastQuarterYear, (lastQuarter + 1) * 3, 0));
         // Quarter before last quarter
         const prevQuarter = lastQuarter === 0 ? 3 : lastQuarter - 1;
         const prevQuarterYear = lastQuarter === 0 ? lastQuarterYear - 1 : lastQuarterYear;
         previousPeriodStart = new Date(prevQuarterYear, prevQuarter * 3, 1);
-        previousPeriodEnd = new Date(lastQuarterYear, lastQuarter * 3, 0);
+        previousPeriodEnd = endOfLocalDay(new Date(lastQuarterYear, lastQuarter * 3, 0));
         break;
       }
       
       case 'thisYear': {
         // This year's data
         currentPeriodStart = new Date(now.getFullYear(), 0, 1);
-        currentPeriodEnd = new Date(now.getFullYear(), 11, 31);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), 11, 31));
         // Previous year
         previousPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
-        previousPeriodEnd = new Date(now.getFullYear() - 1, 11, 31);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear() - 1, 11, 31));
         break;
       }
       
       case 'lastYear': {
         // Last year's data
         currentPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
-        currentPeriodEnd = new Date(now.getFullYear() - 1, 11, 31);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear() - 1, 11, 31));
         // Year before last year
         previousPeriodStart = new Date(now.getFullYear() - 2, 0, 1);
-        previousPeriodEnd = new Date(now.getFullYear() - 2, 11, 31);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear() - 2, 11, 31));
         break;
       }
       
@@ -209,18 +210,18 @@ export async function GET(request) {
         } else {
           // Default to this month if custom dates not provided
           currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-          currentPeriodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+          currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
           previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+          previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 0));
         }
         break;
       }
       
       default: { // month
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
         previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 0));
       }
     }
     

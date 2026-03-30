@@ -51,19 +51,23 @@ export async function GET(request, { params }) {
         _count: true
       });
 
-      // Get expenses summary
-      const expensesAggregation = await prisma.expense.aggregate({
+      const expenseRowsForSummary = await prisma.expense.findMany({
         where: {
           supplierId: params.id,
           tenantId: user.tenantId,
           isDeleted: false
         },
-        _sum: {
-          amount: true,
-          paidAmount: true
-        },
-        _count: true
+        select: { amount: true, taxAmount: true, paidAmount: true, paymentStatus: true }
       });
+      const { expenseGrossAmount, expenseOutstandingPayable } = await import('@/lib/supplierService');
+      const totalExpensesGross = expenseRowsForSummary.reduce((s, e) => s + expenseGrossAmount(e), 0);
+      const totalExpensesPaidOnRows = expenseRowsForSummary.reduce(
+        (s, e) => s + (Number(e.paidAmount) || 0),
+        0
+      );
+      const expensesOutstandingFromRows = expenseRowsForSummary
+        .filter((e) => e.paymentStatus === 'Pending' || e.paymentStatus === 'Partially')
+        .reduce((s, e) => s + expenseOutstandingPayable(e), 0);
 
       // Get payments summary
       const paymentsAggregation = await prisma.supplierPayment.aggregate({
@@ -81,9 +85,9 @@ export async function GET(request, { params }) {
       const totalBillsPaid = Number(billsAggregation._sum.amountPaid || 0);
       const billsOutstanding = totalBills - totalBillsPaid;
 
-      const totalExpenses = Number(expensesAggregation._sum.amount || 0);
-      const totalExpensesPaid = Number(expensesAggregation._sum.paidAmount || 0);
-      const expensesOutstanding = totalExpenses - totalExpensesPaid;
+      const totalExpenses = totalExpensesGross;
+      const totalExpensesPaid = totalExpensesPaidOnRows;
+      const expensesOutstanding = expensesOutstandingFromRows;
 
       const totalPayments = Number(paymentsAggregation._sum.totalAmount || 0);
 
@@ -97,7 +101,7 @@ export async function GET(request, { params }) {
             outstanding: billsOutstanding
           },
           expenses: {
-            total: expensesAggregation._count || 0,
+            total: expenseRowsForSummary.length || 0,
             totalAmount: totalExpenses,
             totalPaid: totalExpensesPaid,
             outstanding: expensesOutstanding

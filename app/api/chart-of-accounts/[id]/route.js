@@ -37,20 +37,6 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
-      return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
-        { status: 403 }
-      );
-    }
-
-    if (!isFinanceAdmin(user)) {
-      return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
-        { status: 403 }
-      );
-    }
-
     const { id } = params;
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
@@ -73,11 +59,6 @@ export async function GET(request, { params }) {
             isActive: true,
             accountType: true
           }
-        },
-        _count: {
-          select: {
-            journalEntryLines: true
-          }
         }
       }
     });
@@ -89,20 +70,16 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (account.isSystem) {
-      return NextResponse.json(
-        { error: 'System accounts cannot be deleted or deactivated.' },
-        { status: 400 }
-      );
-    }
+    const postedJournalStatus = { in: ['Posted', 'posted'] };
+    const postedGlTransactionStatus = { in: ['posted', 'Posted'] };
 
     if (action === 'usage') {
-      const [journalCount, transactionCount] = await Promise.all([
+      const [journalCount, glTransactionLineCount] = await Promise.all([
         prisma.journalEntryLine.count({
           where: {
             accountId: account.id,
             journalEntry: {
-              status: 'Posted',
+              status: postedJournalStatus,
               tenantId: user.tenantId
             }
           }
@@ -111,7 +88,7 @@ export async function GET(request, { params }) {
           where: {
             accountId: account.id,
             transaction: {
-              status: 'posted',
+              status: postedGlTransactionStatus,
               tenantId: user.tenantId
             }
           }
@@ -121,28 +98,46 @@ export async function GET(request, { params }) {
       return NextResponse.json({
         accountId: account.id,
         journalEntryLines: journalCount,
-        transactionLines: transactionCount,
-        hasUsage: journalCount > 0 || transactionCount > 0
+        transactionLines: glTransactionLineCount,
+        hasUsage: journalCount > 0 || glTransactionLineCount > 0
       });
     }
 
-    // Calculate current balance
-    const journalLines = await prisma.journalEntryLine.findMany({
-      where: {
-        accountId: account.id,
-        journalEntry: {
-          status: 'Posted',
-          tenantId: user.tenantId
+    const [journalLines, txnLines] = await Promise.all([
+      prisma.journalEntryLine.findMany({
+        where: {
+          accountId: account.id,
+          journalEntry: {
+            status: postedJournalStatus,
+            tenantId: user.tenantId
+          }
+        },
+        select: {
+          debitAmount: true,
+          creditAmount: true
         }
-      },
-      select: {
-        debitAmount: true,
-        creditAmount: true
-      }
-    });
+      }),
+      prisma.transactionLine.findMany({
+        where: {
+          accountId: account.id,
+          transaction: {
+            status: postedGlTransactionStatus,
+            tenantId: user.tenantId
+          }
+        },
+        select: {
+          debitAmount: true,
+          creditAmount: true
+        }
+      })
+    ]);
 
-    const totalDebits = journalLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
-    const totalCredits = journalLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
+    const totalDebits =
+      journalLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0) +
+      txnLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
+    const totalCredits =
+      journalLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0) +
+      txnLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
 
     let balance = 0;
     if (account.normalBalance === 'Debit') {
@@ -151,10 +146,31 @@ export async function GET(request, { params }) {
       balance = totalCredits - totalDebits;
     }
 
+    const [journalLineCount, glTransactionLineCount] = await Promise.all([
+      prisma.journalEntryLine.count({
+        where: {
+          accountId: account.id,
+          journalEntry: {
+            status: postedJournalStatus,
+            tenantId: user.tenantId
+          }
+        }
+      }),
+      prisma.transactionLine.count({
+        where: {
+          accountId: account.id,
+          transaction: {
+            status: postedGlTransactionStatus,
+            tenantId: user.tenantId
+          }
+        }
+      })
+    ]);
+
     return NextResponse.json({
       ...account,
       currentBalance: balance,
-      transactionCount: account._count.journalEntryLines
+      transactionCount: journalLineCount + glTransactionLineCount
     });
   } catch (error) {
     console.error('Error fetching account:', error);
@@ -203,7 +219,8 @@ export async function PUT(request, { params }) {
         where: {
           accountId: id,
           journalEntry: {
-            status: 'Posted'
+            status: { in: ['Posted', 'posted'] },
+            tenantId: user.tenantId,
           }
         }
       }),
@@ -211,7 +228,8 @@ export async function PUT(request, { params }) {
         where: {
           accountId: id,
           transaction: {
-            status: 'posted'
+            status: { in: ['posted', 'Posted'] },
+            tenantId: user.tenantId,
           }
         }
       })
@@ -379,7 +397,8 @@ export async function DELETE(request, { params }) {
         where: {
           accountId: id,
           journalEntry: {
-            status: 'Posted'
+            status: { in: ['Posted', 'posted'] },
+            tenantId: user.tenantId,
           }
         }
       }),
@@ -387,7 +406,8 @@ export async function DELETE(request, { params }) {
         where: {
           accountId: id,
           transaction: {
-            status: 'posted'
+            status: { in: ['posted', 'Posted'] },
+            tenantId: user.tenantId,
           }
         }
       })

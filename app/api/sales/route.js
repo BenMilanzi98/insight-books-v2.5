@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveBranchId } from '@/lib/branchHelpers';
 import { updateAccountBalance } from '@/lib/core';
 import { consumeFifoForSale } from '@/lib/fifoCosting';
 import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
@@ -757,6 +758,19 @@ export async function POST(request) {
         // Continue - will try inside transaction as fallback
       }
 
+      let saleBranchId = null;
+      try {
+        saleBranchId = await resolveBranchId(user, data.branchId ?? null, user.tenantId);
+      } catch (branchErr) {
+        return NextResponse.json(
+          {
+            error: branchErr.message || 'Branch not allowed',
+            code: 'BRANCH_ACCESS_DENIED',
+          },
+          { status: 403 }
+        );
+      }
+
       // Create the sale in a transaction with increased timeout (30 seconds)
       const result = await prisma.$transaction(async (tx) => {
         // Track if transaction has been aborted
@@ -790,16 +804,7 @@ export async function POST(request) {
           }
         }
         
-        // Validate branchId if provided (must belong to user's tenant)
-        let branchId = data.branchId || null;
-        if (branchId) {
-          const branch = await tx.branch.findFirst({
-            where: { id: branchId, tenantId: user.tenantId, isActive: true }
-          });
-          if (!branch) {
-            throw new Error('Invalid or inactive branch selected');
-          }
-        }
+        const branchId = saleBranchId;
 
         // Create the sale with enhanced fields
         const sale = await tx.sale.create({

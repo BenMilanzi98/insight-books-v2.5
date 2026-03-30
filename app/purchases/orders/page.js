@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
+import ProductSearchSelect from "@/components/ProductSearchSelect";
 
 const statusColors = {
   Draft: "bg-gray-100 text-gray-800",
@@ -186,6 +187,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                   <tr>
                     <th className="px-4 py-2">Type</th>
                     <th className="px-4 py-2">Product / Description</th>
+                    <th className="px-4 py-2">Expense category (code)</th>
                     <th className="px-4 py-2">Qty</th>
                     <th className="px-4 py-2">Unit Cost</th>
                     <th className="px-4 py-2 text-right">Tax %</th>
@@ -203,6 +205,9 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                       <tr key={item.id}>
                         <td className="px-4 py-2 text-gray-700 capitalize">{item.lineType || "goods"}</td>
                         <td className="px-4 py-2 text-gray-900">{item.description || (item.product?.name) || "—"}</td>
+                        <td className="px-4 py-2 text-gray-700 text-sm">
+                          {formatExpenseCategoryLabel(item.expenseCategory)}
+                        </td>
                         <td className="px-4 py-2 text-gray-700">
                           {Number(item.quantityOrdered || 0).toLocaleString()}
                         </td>
@@ -224,7 +229,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                 </tbody>
                 <tfoot className="bg-gray-50 font-medium text-gray-900">
                   <tr>
-                    <td colSpan={5} className="px-4 py-2 text-right text-sm text-gray-600">
+                    <td colSpan={6} className="px-4 py-2 text-right text-sm text-gray-600">
                       Subtotal (excl. tax)
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700">—</td>
@@ -233,7 +238,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="px-4 py-2 text-right text-sm text-gray-600">
+                    <td colSpan={6} className="px-4 py-2 text-right text-sm text-gray-600">
                       Total tax
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -242,7 +247,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     <td className="px-4 py-2 text-right">—</td>
                   </tr>
                   <tr className="border-t border-gray-200">
-                    <td colSpan={5} className="px-4 py-3 text-right text-sm uppercase text-gray-500">
+                    <td colSpan={6} className="px-4 py-3 text-right text-sm uppercase text-gray-500">
                       Total (incl. tax)
                     </td>
                     <td className="px-4 py-3 text-right">—</td>
@@ -255,9 +260,49 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
             </div>
           </div>
 
+          {order.supplierBills?.length > 0 ? (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700">Supplier bills (payables)</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Created when the PO is fully received. Pay from Purchases → Bills / Payments until status is Paid.
+              </p>
+              <div className="mt-2 space-y-3">
+                {order.supplierBills.map((bill) => {
+                  const unpaid =
+                    Number(bill.totalAmount || 0) - Number(bill.amountPaid || 0);
+                  return (
+                    <div
+                      key={bill.id}
+                      className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-2 text-sm"
+                    >
+                      <div>
+                        <div className="font-medium text-gray-900">{bill.billNumber}</div>
+                        <div className="text-xs text-gray-500">
+                          {bill.billDate ? format(new Date(bill.billDate), "dd MMM yyyy") : "—"} · {bill.status}
+                          {bill.billType ? ` · ${bill.billType}` : ""}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-medium text-gray-900">
+                          MWK {Number(bill.totalAmount || 0).toLocaleString()}
+                        </div>
+                        {unpaid > 0 && bill.status !== "Paid" && (
+                          <div className="text-xs text-amber-700">Due: MWK {unpaid.toLocaleString()}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           {order.expenses?.length > 0 ? (
             <div>
-              <h3 className="text-sm font-semibold text-gray-700">Linked expenses (services)</h3>
+              <h3 className="text-sm font-semibold text-gray-700">Linked expenses (legacy)</h3>
+              <p className="mt-1 text-xs text-gray-500">
+                Older PO-linked expense rows; new service POs use supplier bills only after receipt.
+              </p>
               <div className="mt-2 space-y-3">
                 {order.expenses.map((exp) => (
                   <div
@@ -406,6 +451,15 @@ const ORDER_TYPES = [
   { value: "assets", label: "Asset Purchase (integrates with Asset Management)" },
 ];
 
+/** Expense category row from API: chart code + name for PO lines (Goods & Services). */
+function formatExpenseCategoryLabel(cat) {
+  if (!cat) return "—";
+  const code = cat.accountCode || cat.account?.accountCode || "";
+  const name = cat.account?.accountName || cat.name || "";
+  if (code && name) return `${code} — ${name}`;
+  return code || name || "—";
+}
+
 function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [], initialData = null, onSave, onCancel }) {
   const isEdit = Boolean(initialData?.id);
   const [form, setForm] = useState(() => ({
@@ -445,11 +499,35 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [productSearchByLine, setProductSearchByLine] = useState({});
+  const [expenseCategorySearch, setExpenseCategorySearch] = useState("");
+
+  const expenseCategoriesSorted = useMemo(() => {
+    return [...expenseCategories].sort((a, b) => {
+      const codeA = String(a.accountCode || a.account?.accountCode || "").toLowerCase();
+      const codeB = String(b.accountCode || b.account?.accountCode || "").toLowerCase();
+      if (codeA !== codeB) return codeA.localeCompare(codeB);
+      return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
+    });
+  }, [expenseCategories]);
+
+  const filteredExpenseCategories = useMemo(() => {
+    const term = expenseCategorySearch.trim().toLowerCase();
+    if (!term) return expenseCategoriesSorted;
+    return expenseCategoriesSorted.filter((cat) => {
+      const parts = [
+        cat.accountCode,
+        cat.account?.accountCode,
+        cat.name,
+        cat.account?.accountName,
+      ]
+        .filter(Boolean)
+        .map((s) => String(s).toLowerCase());
+      return parts.some((p) => p.includes(term));
+    });
+  }, [expenseCategoriesSorted, expenseCategorySearch]);
 
   useEffect(() => {
     if (!initialData) return;
-    setProductSearchByLine({});
     setForm({
       supplierId: initialData.supplierId || "",
       orderType: initialData.orderType || "goods",
@@ -746,6 +824,21 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             : "Add goods (inventory) and/or services (expenses). Tax per line is captured for receipt and billing."
         }
       >
+        {(form.orderType === "services" || form.orderType === "mixed") &&
+          expenseCategoriesSorted.length > 0 && (
+          <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
+            <label className="block text-xs font-medium text-gray-600">
+              Filter expense categories (code or name)
+            </label>
+            <input
+              type="search"
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Type to narrow the category list…"
+              value={expenseCategorySearch}
+              onChange={(e) => setExpenseCategorySearch(e.target.value)}
+            />
+          </div>
+        )}
         <div className="space-y-3">
           {items.map((item, idx) => {
             const isService = form.orderType === "services" || (item.lineType || "goods") === "service";
@@ -788,39 +881,15 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                   {!isService ? (
                     <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
                       <label className="block text-xs font-medium text-gray-600">Product <span className="text-red-500">*</span></label>
-                      <input
-                        type="text"
-                        placeholder="Search products..."
-                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-400"
-                        value={productSearchByLine[idx] ?? ""}
-                        onChange={(e) => setProductSearchByLine((prev) => ({ ...prev, [idx]: e.target.value }))}
-                      />
-                      <select
-                        className="mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                        value={item.productId}
-                        onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
-                        required={!isService}
-                      >
-                        <option value="">Select product</option>
-                        {(() => {
-                          const searchTerm = (productSearchByLine[idx] ?? "").trim().toLowerCase();
-                          const match = (p) =>
-                            !searchTerm ||
-                            (p.name && p.name.toLowerCase().includes(searchTerm)) ||
-                            (p.sku && String(p.sku).toLowerCase().includes(searchTerm)) ||
-                            (p.code && String(p.code).toLowerCase().includes(searchTerm));
-                          let filtered = searchTerm ? products.filter(match) : products;
-                          const selected = item.productId && products.find((p) => p.id === item.productId);
-                          if (selected && !filtered.some((p) => p.id === selected.id)) {
-                            filtered = [selected, ...filtered];
-                          }
-                          return filtered.map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ));
-                        })()}
-                      </select>
+                      <div className="mt-1">
+                        <ProductSearchSelect
+                          products={products}
+                          value={item.productId}
+                          onChange={(productId) => handleItemChange(idx, "productId", productId)}
+                          required={!isService}
+                          placeholder="Search by name, SKU, code, or barcode…"
+                        />
+                      </div>
                     </div>
                   ) : (
                     <>
@@ -836,18 +905,20 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-600">Expense account</label>
+                        <label className="block text-xs font-medium text-gray-600">
+                          Expense category{" "}
+                          <span className="font-normal text-gray-500">(chart code)</span>
+                        </label>
                         <select
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.expenseCategoryId}
                           onChange={(e) => handleItemChange(idx, "expenseCategoryId", e.target.value)}
                           required={isService}
                         >
-                          <option value="">—</option>
-                          {expenseCategories.map((cat) => (
+                          <option value="">Select category (code — name)</option>
+                          {filteredExpenseCategories.map((cat) => (
                             <option key={cat.id} value={cat.id}>
-                              {cat.accountCode ? `${cat.accountCode} - ` : ""}
-                              {cat.account?.accountName || cat.name}
+                              {formatExpenseCategoryLabel(cat)}
                             </option>
                           ))}
                         </select>
@@ -1240,7 +1311,14 @@ export default function PurchaseOrdersPage() {
                       <div className="flex justify-end gap-2">
                         <button
                           className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                          onClick={() => setViewingOrder(order)}
+                          onClick={async () => {
+                            try {
+                              const full = await fetchOrderById(order.id);
+                              setViewingOrder(full);
+                            } catch {
+                              setViewingOrder(order);
+                            }
+                          }}
                         >
                           View
                         </button>
@@ -1314,7 +1392,7 @@ export default function PurchaseOrdersPage() {
       {deletingOrder && (
         <ConfirmDialog
           title="Delete Purchase Order"
-          message={`Are you sure you want to delete ${deletingOrder.poNumber}? This cannot be undone.`}
+          message={`Cancel ${deletingOrder.poNumber}? The system will reverse linked bills/expenses where allowed and keep an audit trail. If goods were already received, cancellation may be blocked.`}
           onConfirm={handleDeleteOrder}
           onCancel={() => setDeletingOrder(null)}
           loading={deleteLoading}

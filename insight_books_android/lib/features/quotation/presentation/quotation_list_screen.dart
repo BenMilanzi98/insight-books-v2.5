@@ -666,7 +666,7 @@ class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String?>(
-                  value: selectedClientId,
+                  initialValue: selectedClientId,
                   decoration: const InputDecoration(
                     labelText: 'Client',
                     border: OutlineInputBorder(),

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -17,12 +17,16 @@ export async function POST(request) {
     });
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('session');
-    let sessionData = JSON.parse(Buffer.from(sessionCookie.value, 'base64').toString());
+    const sessionValue = await getSessionTokenFromRequest(request);
+    if (!sessionValue) {
+      return NextResponse.json({ error: 'No session found' }, { status: 401 });
+    }
+
+    let sessionData = JSON.parse(Buffer.from(sessionValue, 'base64').toString());
     sessionData.tenantId = tenantId;
     const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
+    const cookieStore = await cookies();
     cookieStore.set({
       name: 'session',
       value: updatedSession,
@@ -37,7 +41,10 @@ export async function POST(request) {
         data: { tenantId }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      token: updatedSession
+    });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
