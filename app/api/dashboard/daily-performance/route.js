@@ -424,6 +424,7 @@ export async function GET(request) {
             lte: currentPeriodEnd
           },
           status: 'Approved',
+          isReversal: false,
           OR: [
             { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
             { paidAmount: { gt: 0 } }
@@ -468,6 +469,7 @@ export async function GET(request) {
             lte: previousPeriodEnd
           },
           status: 'Approved',
+          isReversal: false,
           OR: [
             { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
             { paidAmount: { gt: 0 } }
@@ -519,6 +521,7 @@ export async function GET(request) {
                   lte: dayEnd
                 },
                 status: 'Approved',
+                isReversal: false,
                 OR: [
                   { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
                   { paidAmount: { gt: 0 } }

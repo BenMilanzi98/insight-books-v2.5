@@ -584,6 +584,7 @@ export async function GET(request) {
             tenantId,
             type: { in: ['invoice', 'sale'] },
             status: 'Completed',
+            isReversal: false,
             paymentDate: { gte: currentPeriodStart, lte: currentPeriodEnd }
           }),
           _sum: { amount: true }
@@ -594,6 +595,7 @@ export async function GET(request) {
             tenantId,
             type: 'expense',
             status: 'Completed',
+            isReversal: false,
             paymentDate: { gte: currentPeriodStart, lte: currentPeriodEnd }
           }),
           _sum: { amount: true }
@@ -607,6 +609,7 @@ export async function GET(request) {
             tenantId,
             type: { in: ['invoice', 'sale'] },
             status: 'Completed',
+            isReversal: false,
             paymentDate: { gte: previousPeriodStart, lte: previousPeriodEnd }
           }),
           _sum: { amount: true }
@@ -617,6 +620,7 @@ export async function GET(request) {
             tenantId,
             type: 'expense',
             status: 'Completed',
+            isReversal: false,
             paymentDate: { gte: previousPeriodStart, lte: previousPeriodEnd }
           }),
           _sum: { amount: true }

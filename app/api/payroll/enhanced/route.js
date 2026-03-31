@@ -55,7 +55,8 @@ export async function POST(request) {
       where: {
         periodStart,
         periodEnd,
-        tenantId: user.tenantId
+        tenantId: user.tenantId,
+        status: { not: 'Reversed' },
       }
     });
 
