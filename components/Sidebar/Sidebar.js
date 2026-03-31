@@ -1139,7 +1139,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
         </Link>
       )}
 
-      {/* Branch Switcher */}
+      {/* Branches/Businesses: switch active business (tenant) from sidebar */}
       {!collapsed && user?.tenant && (
         <div style={{
           padding: "8px",
