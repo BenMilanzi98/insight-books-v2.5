@@ -29,7 +29,9 @@ import {
   Download,
   Settings,
   RefreshCw,
-  Wallet
+  Wallet,
+  Truck,
+  Eye,
 } from "lucide-react";
 import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
@@ -446,6 +448,8 @@ const BusinessOwnerDashboard = () => {
   const [error, setError] = useState(null);
   const [showTrialCountdown, setShowTrialCountdown] = useState(true);
   const [stockAlerts, setStockAlerts] = useState([]);
+  const [stockReceiptNotices, setStockReceiptNotices] = useState([]);
+  const [stockReceiptDetail, setStockReceiptDetail] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [dateRange, setDateRange] = useState({ start: null, end: null });
   const [filteredData, setFilteredData] = useState(null);
@@ -721,6 +725,21 @@ const BusinessOwnerDashboard = () => {
         setRevenueByCategory(null);
       }
 
+      try {
+        const recRes = await fetch(
+          `/api/dashboard/stock-transfer-receipts?_cb=${Date.now()}`,
+          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        );
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          setStockReceiptNotices(recData.notices || []);
+        } else {
+          setStockReceiptNotices([]);
+        }
+      } catch {
+        setStockReceiptNotices([]);
+      }
+
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data. Please try again.');
@@ -849,6 +868,22 @@ const BusinessOwnerDashboard = () => {
       </div>
     </div>
   );
+
+  async function openStockReceiptDetail(notice) {
+    try {
+      await fetch(`/api/dashboard/stock-transfer-receipts/${notice.id}`, {
+        method: 'PATCH',
+      });
+      setStockReceiptNotices((prev) =>
+        prev.map((n) =>
+          n.id === notice.id ? { ...n, readAt: new Date().toISOString() } : n
+        )
+      );
+    } catch (_) {
+      /* non-fatal */
+    }
+    setStockReceiptDetail(notice);
+  }
 
   function renderDashboard() {
     return (
@@ -1463,6 +1498,61 @@ const BusinessOwnerDashboard = () => {
             
           </div>
 
+          {/* Stock received from other businesses (cross-tenant transfers) */}
+          {stockReceiptNotices.length > 0 && (
+            <div className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 overflow-visible relative">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-teal-400 via-emerald-500 to-cyan-500 rounded-t-2xl" />
+              <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-wrap justify-between items-center gap-3 bg-gradient-to-r from-teal-500/5 via-transparent to-emerald-500/5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-teal-400 to-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-teal-200">
+                    <Truck size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-800 truncate">Stock received</h2>
+                    <p className="text-xs text-gray-500">Inventory transferred into this business</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-5 space-y-3">
+                {stockReceiptNotices.map((notice) => {
+                  const srcName =
+                    notice.sourceTenantName ||
+                    notice.stockTransfer?.fromBranch?.tenant?.name ||
+                    'Another business';
+                  const unread = !notice.readAt;
+                  return (
+                    <div
+                      key={notice.id}
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 rounded-xl border transition-colors ${
+                        unread
+                          ? 'border-teal-200 bg-emerald-50/90 border-l-4 border-l-teal-500'
+                          : 'border-gray-100 bg-gray-50/80'
+                      }`}
+                    >
+                      <p className="text-sm text-gray-700">
+                        <span className="font-medium text-gray-900">New stock received</span>
+                        {' from '}
+                        <span className="font-semibold text-teal-800">{srcName}</span>
+                        <span className="text-gray-500">
+                          {' '}
+                          · {new Date(notice.createdAt).toLocaleString()}
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => openStockReceiptDetail(notice)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors shadow-sm shrink-0"
+                      >
+                        <Eye size={16} />
+                        View
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Stock Alerts Section */}
           <div className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
             <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-wrap justify-between items-center gap-3 bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5">
@@ -1565,6 +1655,117 @@ const BusinessOwnerDashboard = () => {
             </div>
           </div>
         </div>
+
+        {stockReceiptDetail && (() => {
+          const t = stockReceiptDetail.stockTransfer;
+          const p = stockReceiptDetail.receiptProduct || t?.product;
+          const qty = t?.quantity != null ? Number(t.quantity) : 0;
+          const unitPrice = p?.price != null ? Number(p.price) : 0;
+          const lineTotal = unitPrice * qty;
+          const dec = (v) => {
+            if (v == null) return null;
+            if (typeof v === 'object' && typeof v.toNumber === 'function') return v.toNumber();
+            const n = Number(v);
+            return Number.isNaN(n) ? null : n;
+          };
+          const costBasis =
+            p?.cost != null
+              ? dec(p.cost)
+              : p?.lastPurchaseCost != null
+                ? dec(p.lastPurchaseCost)
+                : p?.averageCost != null
+                  ? dec(p.averageCost)
+                  : null;
+          const fromBiz =
+            stockReceiptDetail.sourceTenantName ||
+            t?.fromBranch?.tenant?.name ||
+            'Another business';
+          return (
+            <div
+              className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="stock-receipt-title"
+              onClick={() => setStockReceiptDetail(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
+                  <div>
+                    <h2 id="stock-receipt-title" className="text-lg font-bold text-gray-900">
+                      Received stock
+                    </h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      From <span className="font-semibold text-teal-800">{fromBiz}</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {t?.createdAt
+                        ? new Date(t.createdAt).toLocaleString()
+                        : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setStockReceiptDetail(null)}
+                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+                    aria-label="Close"
+                  >
+                    <span className="text-xl leading-none">&times;</span>
+                  </button>
+                </div>
+                <div className="p-5">
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 text-left text-gray-600 border-b border-gray-200">
+                          <th className="py-2.5 px-3 font-medium">Product</th>
+                          <th className="py-2.5 px-3 font-medium">SKU</th>
+                          <th className="py-2.5 px-3 font-medium text-right">Qty</th>
+                          <th className="py-2.5 px-3 font-medium text-right">Unit price</th>
+                          <th className="py-2.5 px-3 font-medium text-right">Line total</th>
+                          <th className="py-2.5 px-3 font-medium text-right">Cost basis</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="border-b border-gray-100">
+                          <td className="py-3 px-3 text-gray-900 font-medium">{p?.name || '—'}</td>
+                          <td className="py-3 px-3 text-gray-600">{p?.sku || '—'}</td>
+                          <td className="py-3 px-3 text-right tabular-nums">{qty}</td>
+                          <td className="py-3 px-3 text-right tabular-nums">
+                            {formatCurrency(unitPrice)}
+                          </td>
+                          <td className="py-3 px-3 text-right tabular-nums font-medium text-gray-900">
+                            {formatCurrency(lineTotal)}
+                          </td>
+                          <td className="py-3 px-3 text-right tabular-nums text-gray-600">
+                            {costBasis != null && !Number.isNaN(costBasis)
+                              ? formatCurrency(costBasis)
+                              : '—'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-3">
+                    Unit price reflects the product record in this business after receipt. Cost basis is the
+                    recorded product cost when available.
+                  </p>
+                  <div className="mt-6 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setStockReceiptDetail(null)}
+                      className="px-4 py-2 rounded-lg bg-gray-100 text-gray-800 text-sm font-medium hover:bg-gray-200"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }

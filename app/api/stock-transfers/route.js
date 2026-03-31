@@ -650,6 +650,29 @@ export async function POST(request) {
       console.warn('[Stock Transfer] Failed to create audit log:', auditError?.message || auditError);
     }
 
+    // Dashboard notification for the receiving business (cross-tenant only)
+    if (fromTenantId !== toTenantId && result?.id && directTransfer) {
+      try {
+        const srcTenant = await prisma.tenant.findUnique({
+          where: { id: fromTenantId },
+          select: { name: true },
+        });
+        await prisma.stockTransferReceiptNotice.create({
+          data: {
+            tenantId: toTenantId,
+            stockTransferId: result.id,
+            sourceTenantId: fromTenantId,
+            sourceTenantName: srcTenant?.name ?? null,
+          },
+        });
+      } catch (noticeErr) {
+        console.warn(
+          '[Stock Transfer] Receipt notice create failed:',
+          noticeErr?.message || noticeErr
+        );
+      }
+    }
+
     return NextResponse.json({
       message: 'Stock transfer created successfully',
       transfer: result

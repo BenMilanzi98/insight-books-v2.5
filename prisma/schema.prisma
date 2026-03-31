@@ -91,6 +91,7 @@ model Tenant {
   members                    User[]                      @relation("UserTenants")
   accountingPeriods          AccountingPeriod[]
   stockTransfers             StockTransfer[]
+  stockTransferReceiptNotices StockTransferReceiptNotice[]
   tpin                       String?
   eisEnabled                 Boolean                     @default(false)
   eisInvoices                EISInvoice[]
@@ -2660,6 +2661,24 @@ model StockTransfer {
   @@index([productId])
   @@index([status])
   @@index([createdById])
+  receiptNotice StockTransferReceiptNotice?
+}
+
+/// In-app notice on the receiving business dashboard when stock arrives from another tenant.
+model StockTransferReceiptNotice {
+  id               String   @id @default(cuid())
+  tenantId         String
+  stockTransferId  String   @unique
+  sourceTenantId   String
+  sourceTenantName String?
+  readAt           DateTime?
+  createdAt        DateTime @default(now())
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  stockTransfer StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, readAt])
 }
 
 // ─── MRA EIS (Electronic Invoice System) Models ───

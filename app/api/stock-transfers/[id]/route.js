@@ -5,6 +5,68 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 
+// GET — Transfer detail (source or receiving business)
+export async function GET(request, { params }) {
+  try {
+    const accessError = await requireStandardAccess(request);
+    if (accessError) return accessError;
+
+    const user = await getUserFromSession(request);
+    if (!user?.tenantId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    const { id: transferId } = await params;
+
+    const transfer = await prisma.stockTransfer.findFirst({
+      where: {
+        id: transferId,
+        OR: [
+          { tenantId: user.tenantId },
+          { toBranch: { tenantId: user.tenantId } },
+        ],
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            sku: true,
+            price: true,
+            cost: true,
+            averageCost: true,
+            lastPurchaseCost: true,
+          },
+        },
+        fromBranch: {
+          select: {
+            id: true,
+            name: true,
+            tenant: { select: { id: true, name: true } },
+          },
+        },
+        toBranch: {
+          select: {
+            id: true,
+            name: true,
+            tenant: { select: { id: true, name: true } },
+          },
+        },
+        createdBy: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    if (!transfer) {
+      return NextResponse.json({ error: 'Stock transfer not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ transfer });
+  } catch (error) {
+    console.error('stock-transfers GET [id]:', error);
+    return NextResponse.json({ error: 'Failed to load stock transfer' }, { status: 500 });
+  }
+}
+
 // PUT - Update stock transfer (approve, receive, reject)
 export async function PUT(request, { params }) {
   try {
@@ -36,11 +98,14 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Fetch transfer with validation
+    // Fetch transfer with validation (sending or receiving business)
     const transfer = await prisma.stockTransfer.findFirst({
       where: {
         id: transferId,
-        tenantId: user.tenantId
+        OR: [
+          { tenantId: user.tenantId },
+          { toBranch: { tenantId: user.tenantId } },
+        ],
       },
       include: {
         product: true,
