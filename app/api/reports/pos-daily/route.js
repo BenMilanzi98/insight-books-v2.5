@@ -24,16 +24,47 @@ export async function GET(request) {
     }
 
     const branchIdParam = searchParams.get('branchId');
-    const branchForReport =
-      branchIdParam && branchIdParam.trim() !== ''
-        ? branchIdParam
-        : user.currentBranchId || null;
+    const allBranches = /^(1|true|yes)$/i.test(String(searchParams.get('allBranches') || ''));
 
-    const report = await generatePosDailyReport(
-      user.tenantId,
-      date,
-      branchForReport
-    );
+    let branchForReport = null;
+    let branchIdsIn = null;
+
+    if (branchIdParam && branchIdParam.trim() !== '') {
+      branchForReport = branchIdParam.trim();
+    } else if (allBranches) {
+      const allowed = user.allowedBranchIds;
+      if (Array.isArray(allowed) && allowed.length === 0) {
+        return NextResponse.json({
+          companyName: '',
+          logoUrl: null,
+          date,
+          period: { startDate: date, endDate: date },
+          totalSales: 0,
+          transactionCount: 0,
+          itemsSold: 0,
+          averageSaleValue: 0,
+          paymentBreakdown: [],
+          paymentGrandTotal: 0,
+          cashierBreakdown: [],
+          totalCogs: 0,
+          grossProfit: 0,
+          voidedCount: 0,
+          refundCount: 0,
+          productsAffected: 0,
+          metadata: { generatedAt: new Date().toISOString(), noBranchAccess: true }
+        });
+      }
+      branchForReport = null;
+      if (allowed != null && Array.isArray(allowed) && allowed.length > 0) {
+        branchIdsIn = allowed;
+      }
+    } else {
+      branchForReport = user.currentBranchId || null;
+    }
+
+    const report = await generatePosDailyReport(user.tenantId, date, branchForReport, {
+      branchIdsIn
+    });
 
     return NextResponse.json(report);
   } catch (error) {

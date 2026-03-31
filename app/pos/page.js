@@ -137,9 +137,6 @@ const POSPage = () => {
   const [isLoadingPaymentAccounts, setIsLoadingPaymentAccounts] = useState(true);
   const [paymentAllocations, setPaymentAllocations] = useState([]); // [{ paymentAccountId, amount }]
   const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
-  const [selectedBranchId, setSelectedBranchId] = useState(null);
-  const [branches, setBranches] = useState([]);
-  const [isLoadingBranches, setIsLoadingBranches] = useState(true);
   const [tenants, setTenants] = useState([]);
   const [currentTenantId, setCurrentTenantId] = useState(null);
   const [isLoadingTenants, setIsLoadingTenants] = useState(true);
@@ -379,61 +376,8 @@ const POSPage = () => {
     }
   };
 
-  // Load branches and auto-select user's current branch from session
-  const loadBranches = async () => {
-    try {
-      setIsLoadingBranches(true);
-      const [branchesRes, userRes, currentBranchRes] = await Promise.all([
-        fetch('/api/branches', { cache: 'no-store' }),
-        fetch('/api/auth/me', { cache: 'no-store' }),
-        fetch('/api/branches/switch', { cache: 'no-store' }) // Get current branch from session
-      ]);
-      
-      if (branchesRes.ok) {
-        const branchesJson = await branchesRes.json();
-        if (branchesJson.branches) {
-          setBranches(branchesJson.branches);
-          
-          // Priority 1: Use current branch from session (user's active branch)
-          let autoSelectBranchId = null;
-          if (currentBranchRes.ok) {
-            const currentBranchJson = await currentBranchRes.json();
-            autoSelectBranchId = currentBranchJson.branchId;
-          }
-          
-          // Priority 2: Fall back to user's default branch
-          if (!autoSelectBranchId && userRes.ok) {
-            const userJson = await userRes.json();
-            autoSelectBranchId = userJson.defaultBranchId;
-          }
-          
-          // Priority 3: Use first available branch
-          if (!autoSelectBranchId && branchesJson.branches.length > 0) {
-            autoSelectBranchId = branchesJson.branches[0].id;
-          }
-          
-          // Auto-select branch if not already selected
-          if (!selectedBranchId && autoSelectBranchId) {
-            // Verify branch exists and is active
-            const branchExists = branchesJson.branches.find(b => b.id === autoSelectBranchId && b.isActive);
-            if (branchExists) {
-              setSelectedBranchId(autoSelectBranchId);
-            } else if (branchesJson.branches.length > 0) {
-              // Fallback to first active branch
-              const firstActiveBranch = branchesJson.branches.find(b => b.isActive);
-              if (firstActiveBranch) {
-                setSelectedBranchId(firstActiveBranch.id);
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error('Failed to load branches:', e);
-    } finally {
-      setIsLoadingBranches(false);
-    }
-  };
+  // NOTE: Branch switching option was removed from POS by request.
+  // Branch context (if any) is taken from the server session/user defaults.
 
   const loadTenants = async () => {
     try {
@@ -451,19 +395,17 @@ const POSPage = () => {
     }
   };
 
-  /** Reload POS-scoped data for the active business + branch (products, sales, taxes, payments, daily report). */
-  const refreshPosData = async (branchIdExplicit) => {
-    const branchForApi =
-      branchIdExplicit !== undefined ? branchIdExplicit : selectedBranchId;
+  /** Reload POS-scoped data for the active business (tenant). */
+  const refreshPosData = async () => {
     await Promise.all([
-      loadRecentSales(branchForApi),
-      loadProducts(branchForApi),
+      loadRecentSales(),
+      loadProducts(),
       loadClients(),
-      loadStatistics(branchForApi),
+      loadStatistics(),
       loadPaymentAccounts(),
       loadIncomeAccounts(),
       fetchPosTaxTypes(),
-      loadDailyReport(dailyReportDate, branchForApi),
+      loadDailyReport(dailyReportDate),
       loadEISStatus(),
     ]);
   };
@@ -487,22 +429,6 @@ const POSPage = () => {
     } finally {
       setIsSwitchingBusiness(false);
     }
-  };
-
-  const handleBranchChange = async (e) => {
-    const id = e.target.value || null;
-    setSelectedBranchId(id);
-    try {
-      const res = await fetch('/api/branches/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ branchId: id }),
-      });
-      if (!res.ok) console.warn('Branch session update failed');
-    } catch (err) {
-      console.error('Branch switch failed:', err);
-    }
-    await refreshPosData(id);
   };
 
   // Load payment accounts
@@ -569,7 +495,6 @@ const POSPage = () => {
     loadProducts();
     loadClients();
     loadStatistics();
-    loadBranches();
     loadPaymentAccounts();
     loadIncomeAccounts();
     // Daily POS report defaults to today (calendar day)
@@ -787,9 +712,8 @@ const POSPage = () => {
     }
   }, [saleSuccess, saleError]);
   
-  // Load recent sales (optional branchId aligns list with selected Branch/Business context)
-  const loadRecentSales = async (branchIdOpt) => {
-    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
+  // Load recent sales
+  const loadRecentSales = async () => {
     try {
       setIsLoadingSales(true);
       setSalesError(null);
@@ -798,7 +722,6 @@ const POSPage = () => {
         limit: 5,
         sortBy: 'createdAt',
         sortOrder: 'desc',
-        ...(branchId ? { branchId } : {}),
       });
       setRecentSales(response.sales || []);
     } catch (error) {
@@ -810,10 +733,9 @@ const POSPage = () => {
   };
   
   // Load sales statistics
-  const loadStatistics = async (branchIdOpt) => {
-    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
+  const loadStatistics = async () => {
     try {
-      const stats = await getSalesStatistics(branchId ? { branchId } : {});
+      const stats = await getSalesStatistics();
       setStatistics(stats);
     } catch (error) {
       console.error("Error loading statistics:", error);
@@ -821,14 +743,13 @@ const POSPage = () => {
     }
   };
 
-  // Load daily POS report for the selected date (optional branchId matches POS branch filter)
-  const loadDailyReport = useCallback(async (date, branchIdOpt) => {
+  // Load daily POS report for the selected date
+  const loadDailyReport = useCallback(async (date) => {
     try {
       setIsLoadingDailyReport(true);
-      const params = new URLSearchParams({ date: date || '' });
-      const b = branchIdOpt !== undefined ? branchIdOpt : null;
-      if (b) params.set('branchId', b);
-      const res = await fetch(`/api/reports/pos-daily?${params.toString()}`);
+      const res = await fetch(
+        `/api/reports/pos-daily?date=${encodeURIComponent(date)}&allBranches=true`
+      );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to load daily POS report');
@@ -842,16 +763,15 @@ const POSPage = () => {
     }
   }, []);
   
-  // Load products (scoped by branch when selected — see /api/stock?branchId=)
-  const loadProducts = async (branchIdOpt) => {
-    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
+  // Load products
+  const loadProducts = async () => {
     try {
       setIsLoadingProducts(true);
       setProductsError(null);
       
       const productsData = await fetchProductsForSaleAll({
         pageSize: 100,
-        ...(branchId ? { branchId } : {}),
+        allBranches: true,
       });
       setProducts(productsData);
       setFilteredProducts(productsData);
@@ -1930,7 +1850,7 @@ const POSPage = () => {
       // Prepare sale data
       const saleData = {
         clientId: (activeTab === "registered" || activeTab === "historical") && selectedCustomer ? selectedCustomer : null,
-        branchId: selectedBranchId || null,
+        branchId: null,
         items: selectedProducts.map(product => {
           // Recalculate taxes to ensure they're correct for the current quantity
           // This is important because taxBreakdown might be stale if quantity was changed
@@ -3244,10 +3164,10 @@ const POSPage = () => {
         {/* Right Column - Payment Method & Action Buttons */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
-          {/* Branch / Business — switch tenant (business) or branch; data reloads for the active context */}
-          {((!isLoadingTenants && tenants.length > 0) || (!isLoadingBranches && branches.length > 0)) && (
+          {/* Business (tenant) — POS is scoped per business */}
+          {(!isLoadingTenants && tenants.length > 0) && (
             <div className="mb-6 space-y-3">
-              <label className="block text-sm font-medium text-gray-700">Branch / Business</label>
+              <label className="block text-sm font-medium text-gray-700">Business</label>
               {isLoadingTenants ? (
                 <div className="text-sm text-gray-500 py-2">Loading businesses...</div>
               ) : tenants.length > 1 ? (
@@ -3269,23 +3189,6 @@ const POSPage = () => {
                   <span className="truncate font-medium">{tenants[0].name}</span>
                 </div>
               ) : null}
-              {branches.length > 0 && (
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Branch (location)</label>
-                  <select
-                    value={selectedBranchId || ''}
-                    onChange={handleBranchChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">-- All branches / default --</option>
-                    {branches.map((branch) => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name} {branch.code ? `(${branch.code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
           )}
 
@@ -3433,7 +3336,7 @@ const POSPage = () => {
               onChange={(e) => {
                 const val = e.target.value;
                 setDailyReportDate(val);
-                if (val) loadDailyReport(val, selectedBranchId);
+                if (val) loadDailyReport(val);
               }}
             />
           </div>

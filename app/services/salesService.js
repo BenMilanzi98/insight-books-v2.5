@@ -424,7 +424,7 @@ export const fetchProductsForSalePage = async (params = {}) => {
 // Fetch all products for sale across pages (server-backed, de-duplicated)
 export const fetchProductsForSaleAll = async (params = {}) => {
   try {
-    const { search, category, pageSize = 100, maxPages = 50, branchId } = params;
+    const { search, category, pageSize = 100, maxPages = 50, branchId, allBranches } = params;
 
     const allProducts = [];
     const seenIds = new Set();
@@ -434,6 +434,7 @@ export const fetchProductsForSaleAll = async (params = {}) => {
       if (search) queryParams.append('search', search);
       if (category && category !== 'all') queryParams.append('category', category);
       if (branchId) queryParams.append('branchId', branchId);
+      if (allBranches) queryParams.append('allBranches', 'true');
       queryParams.append('limit', pageSize);
       queryParams.append('page', String(page));
 

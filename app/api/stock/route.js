@@ -37,6 +37,8 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const location = searchParams.get('location');
     const branchIdParam = searchParams.get('branchId');
+    const allBranchesParam = searchParams.get('allBranches');
+    const allBranches = /^(1|true|yes)$/i.test(String(allBranchesParam || ''));
     
     // Calculate pagination (only if limit is specified and > 0)
     const skip = limit > 0 ? (page - 1) * limit : 0;
@@ -47,22 +49,37 @@ export async function GET(request) {
       isDeleted: false, // Exclude soft-deleted products by default
     };
     
-    // Branch scoping: query param (if allowed) + session + default; restricted users cannot see all branches.
-    const desiredBranchId = resolveProductListBranchId(user, branchIdParam);
-
-    if (desiredBranchId === false) {
-      where.AND = [...(where.AND || []), { id: { in: [] } }];
-    } else if (desiredBranchId && typeof desiredBranchId === 'string') {
-      const branch = await prisma.branch.findFirst({
-        where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
-        select: { id: true }
-      });
-      if (branch) {
-        // Branch-specific rows + global products (branchId=null) for all-branches catalog items.
+    // Tenant-wide catalog (e.g. POS): all branches in the business. Explicit branchId wins over allBranches.
+    if (allBranches && !branchIdParam) {
+      const allowed = user?.allowedBranchIds;
+      if (Array.isArray(allowed) && allowed.length === 0) {
+        where.AND = [...(where.AND || []), { id: { in: [] } }];
+      } else if (allowed == null) {
+        // Full tenant catalog — no branch filter beyond tenantId
+      } else {
         where.AND = [
           ...(where.AND || []),
-          { OR: [{ branchId: desiredBranchId }, { branchId: null }] }
+          { OR: [{ branchId: null }, { branchId: { in: allowed } }] }
         ];
+      }
+    } else {
+      // Branch scoping: query param (if allowed) + session + default; restricted users cannot see all branches.
+      const desiredBranchId = resolveProductListBranchId(user, branchIdParam);
+
+      if (desiredBranchId === false) {
+        where.AND = [...(where.AND || []), { id: { in: [] } }];
+      } else if (desiredBranchId && typeof desiredBranchId === 'string') {
+        const branch = await prisma.branch.findFirst({
+          where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
+          select: { id: true }
+        });
+        if (branch) {
+          // Branch-specific rows + global products (branchId=null) for all-branches catalog items.
+          where.AND = [
+            ...(where.AND || []),
+            { OR: [{ branchId: desiredBranchId }, { branchId: null }] }
+          ];
+        }
       }
     }
     
