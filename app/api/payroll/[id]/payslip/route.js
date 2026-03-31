@@ -118,9 +118,8 @@ function formatDate(date) {
 // Generate payslip PDF using Puppeteer (like invoices) for proper logo display
 async function generatePayslipPDFWithPuppeteer(processedPayslip) {
   try {
-    // Dynamic import of puppeteer
-    const puppeteer = (await import('puppeteer')).default;
-    
+    const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+
     const tenant = processedPayslip.employee.tenant;
     const tenantSettings = tenant.settings;
 
@@ -299,18 +298,12 @@ async function generatePayslipPDFWithPuppeteer(processedPayslip) {
       </html>
     `;
 
-    // Launch puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    
+    const browser = await launchPuppeteer();
+
     const page = await browser.newPage();
-    
-    // Set content and wait for rendering
-    await page.setContent(fullHtml, { waitUntil: 'networkidle0' });
-    
-    // Generate PDF
+
+    await page.setContent(fullHtml, PDF_SET_CONTENT_OPTIONS);
+
     const pdf = await page.pdf({
       format: 'A4',
       printBackground: true,

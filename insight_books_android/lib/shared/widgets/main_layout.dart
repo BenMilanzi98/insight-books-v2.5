@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+import 'package:insightbooks_android/features/branch/presentation/branch_context_provider.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 
@@ -371,6 +373,14 @@ class AppDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AsyncValue<bool>>(authStateProvider, (prev, next) {
+      if (next.value == true) {
+        Future.microtask(
+          () => ref.read(branchContextProvider.notifier).refresh(),
+        );
+      }
+    });
+
     final currentRoute = GoRouterState.of(context).matchedLocation;
     final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
     final tenantState = ref.watch(tenantProvider);
@@ -432,6 +442,7 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(height: 1, color: Colors.white12),
+            const _BranchSwitcherSection(),
             // Scrollable nav
             Expanded(
               child: ListView(
@@ -533,6 +544,188 @@ class AppDrawer extends ConsumerWidget {
       child: content,
     );
   }
+}
+
+class _BranchSwitcherSection extends ConsumerWidget {
+  const _BranchSwitcherSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final b = ref.watch(branchContextProvider);
+    if (b.error != null && !b.hasBranches) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Text(
+          'Branch: unavailable',
+          style: TextStyle(color: Colors.red.shade200, fontSize: 12),
+        ),
+      );
+    }
+    if (!b.loading && !b.hasBranches) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: b.switching
+              ? null
+              : () => _openBranchSheet(context, ref),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.storefront_rounded, color: _activeTextColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'BRANCH',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.7,
+                          color: _sectionLabelColor,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        b.loading && !b.hasBranches ? 'Loading…' : b.currentBranchLabel,
+                        style: const TextStyle(
+                          color: _defaultTextColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                if (b.switching)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: _activeTextColor,
+                    ),
+                  )
+                else
+                  const Icon(Icons.expand_more_rounded, color: _defaultTextColor),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openBranchSheet(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(branchContextProvider.notifier);
+    final state = ref.read(branchContextProvider);
+    final selectable = _selectableBranches(state);
+    if (selectable.isEmpty) return;
+
+    final picked = await showModalBottomSheet<_BranchPick?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Switch branch',
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
+                ),
+                const Divider(height: 1),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      if (state.canSelectAllBranches)
+                        ListTile(
+                          leading: Icon(
+                            state.currentBranchId == null
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            color: state.currentBranchId == null
+                                ? _activeTextColor
+                                : _defaultTextColor,
+                          ),
+                          title: const Text('All branches'),
+                          onTap: () => Navigator.pop(ctx, _BranchPick(null)),
+                        ),
+                      ...selectable.map((row) {
+                        final id = (row['id'] ?? '').toString();
+                        final name = (row['name'] ?? 'Branch').toString();
+                        final code = (row['code'] ?? '').toString();
+                        final label = code.isEmpty ? name : '$name ($code)';
+                        final selected = state.currentBranchId == id;
+                        return ListTile(
+                          leading: Icon(
+                            selected
+                                ? Icons.check_circle_rounded
+                                : Icons.circle_outlined,
+                            color: selected ? _activeTextColor : _defaultTextColor,
+                          ),
+                          title: Text(label),
+                          onTap: () => Navigator.pop(ctx, _BranchPick(id)),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (!context.mounted || picked == null) return;
+    if (picked.id == state.currentBranchId) return;
+
+    final ok = await notifier.selectBranch(picked.id);
+    if (!context.mounted) return;
+    if (!ok && ref.read(branchContextProvider).error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            ref.read(branchContextProvider).error ?? 'Could not switch branch',
+          ),
+        ),
+      );
+    }
+  }
+
+  List<Map<String, dynamic>> _selectableBranches(BranchContextState state) {
+    if (state.canSelectAllBranches) {
+      return state.branches;
+    }
+    final allowed = state.allowedBranchIds ?? [];
+    if (allowed.isEmpty) return state.branches;
+    return state.branches
+        .where((b) => allowed.contains((b['id'] ?? '').toString()))
+        .toList();
+  }
+}
+
+class _BranchPick {
+  final String? id;
+  _BranchPick(this.id);
 }
 
 class _SectionLabel extends StatelessWidget {

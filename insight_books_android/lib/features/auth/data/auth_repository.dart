@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/storage/app_preferences_clear.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 
 /// Collects all [Set-Cookie] header lines (Dio may expose multiple values).
@@ -146,8 +147,11 @@ class AuthRepository {
   Future<void> logout() async {
     try {
       await _dio.post('/api/auth/logout');
+    } catch (_) {
+      // Still wipe local session if the server call fails.
     } finally {
       await _storageService.clearAuth();
+      await clearSharedPreferencesExceptTheme();
     }
   }
 
@@ -170,6 +174,7 @@ class AuthRepository {
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
         await _storageService.clearAuth();
+        await clearSharedPreferencesExceptTheme();
         return false;
       }
       if (e.response == null) {

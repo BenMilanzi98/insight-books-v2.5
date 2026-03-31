@@ -51,6 +51,15 @@ class TenantRepository {
     await _persistSessionFromResponse(response);
   }
 
+  /// Updates session branch (same session token shape as login). [branchId] null = all branches.
+  Future<void> switchBranch(String? branchId) async {
+    final response = await _dio.post(
+      '/api/branches/switch',
+      data: {'branchId': branchId},
+    );
+    await _persistSessionFromResponse(response);
+  }
+
   Future<Tenant> createTenant(String name) async {
     try {
       final response = await _dio.post('/api/tenant/add', data: {'name': name});

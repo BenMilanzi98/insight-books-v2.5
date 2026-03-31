@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/storage/app_preferences_clear.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
@@ -58,9 +59,11 @@ class AuthInterceptor extends QueuedInterceptor {
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
     if (err.response?.statusCode == 401) {
-      ref.read(storageServiceProvider).clearAuth().then((_) {
+      () async {
+        await ref.read(storageServiceProvider).clearAuth();
+        await clearSharedPreferencesExceptTheme();
         ref.read(authStateProvider.notifier).forceLogout();
-      });
+      }();
     }
     handler.next(err);
   }
