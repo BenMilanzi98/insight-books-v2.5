@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { resolveProductListBranchId, clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
+import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -39,18 +40,42 @@ export async function GET(request) {
     const branchIdParam = searchParams.get('branchId');
     const allBranchesParam = searchParams.get('allBranches');
     const allBranches = /^(1|true|yes)$/i.test(String(allBranchesParam || ''));
+    const tenantIdParam = searchParams.get('tenantId')?.trim();
+    const effectiveTenantId = tenantIdParam || user.tenantId;
+
+    if (tenantIdParam && effectiveTenantId !== user.tenantId) {
+      const ok = await userHasAccessToTenant(user, effectiveTenantId);
+      if (!ok) {
+        return NextResponse.json({ error: 'Access denied to this business' }, { status: 403 });
+      }
+    }
     
     // Calculate pagination (only if limit is specified and > 0)
     const skip = limit > 0 ? (page - 1) * limit : 0;
     
     // Build filter object for Prisma
     const where = {
-      tenantId: user.tenantId,
+      tenantId: effectiveTenantId,
       isDeleted: false, // Exclude soft-deleted products by default
     };
-    
-    // Tenant-wide catalog (e.g. POS): all branches in the business. Explicit branchId wins over allBranches.
-    if (allBranches && !branchIdParam) {
+
+    const isForeignTenant = effectiveTenantId !== user.tenantId;
+
+    // Another business (tenant): full catalog for that tenant; session branch rules do not apply.
+    if (isForeignTenant) {
+      if (branchIdParam) {
+        const branch = await prisma.branch.findFirst({
+          where: { id: branchIdParam, tenantId: effectiveTenantId, isActive: true },
+          select: { id: true }
+        });
+        if (branch) {
+          where.AND = [
+            { OR: [{ branchId: branchIdParam }, { branchId: null }] }
+          ];
+        }
+      }
+    } else if (allBranches && !branchIdParam) {
+      // Tenant-wide catalog (e.g. POS): all branches in the business. Explicit branchId wins over allBranches.
       const allowed = user?.allowedBranchIds;
       if (Array.isArray(allowed) && allowed.length === 0) {
         where.AND = [...(where.AND || []), { id: { in: [] } }];

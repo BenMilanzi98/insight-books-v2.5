@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 import { Prisma } from '@prisma/client';
+import { userHasAccessToTenant, resolvePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
 
 // GET - Fetch stock transfers for the tenant
 export async function GET(request) {
@@ -28,21 +29,24 @@ export async function GET(request) {
     const status = searchParams.get('status');
     const branchId = searchParams.get('branchId');
 
-    // Build where clause
-    const where = {
-      tenantId: user.tenantId
-    };
-
+    // Transfers involving this business (tenant), including cross-business moves
+    const conditions = [
+      {
+        OR: [
+          { fromBranch: { tenantId: user.tenantId } },
+          { toBranch: { tenantId: user.tenantId } },
+        ],
+      },
+    ];
     if (status && status !== 'all') {
-      where.status = status;
+      conditions.push({ status });
     }
-
     if (branchId) {
-      where.OR = [
-        { fromBranchId: branchId },
-        { toBranchId: branchId }
-      ];
+      conditions.push({
+        OR: [{ fromBranchId: branchId }, { toBranchId: branchId }],
+      });
     }
+    const where = { AND: conditions };
 
     // Fetch transfers with related data
     // Handle case where StockTransfer table might not exist yet
@@ -62,13 +66,15 @@ export async function GET(request) {
           fromBranch: {
             select: {
               id: true,
-              name: true
+              name: true,
+              tenant: { select: { id: true, name: true } }
             }
           },
           toBranch: {
             select: {
               id: true,
-              name: true
+              name: true,
+              tenant: { select: { id: true, name: true } }
             }
           },
           createdBy: {
@@ -156,24 +162,91 @@ export async function POST(request) {
 
     const body = await request.json();
     console.log('[Stock Transfer] Request body:', JSON.stringify(body, null, 2));
-    const { fromBranch, toBranch, productId, quantity, notes } = body;
+    const {
+      fromTenantId: bodyFromTenant,
+      toTenantId: bodyToTenant,
+      fromBranch,
+      toBranch,
+      productId,
+      quantity,
+      notes,
+    } = body;
+
+    let fromTenantId;
+    let toTenantId;
+    let resolvedFromBranch;
+    let resolvedToBranch;
+
+    if (bodyFromTenant && bodyToTenant) {
+      if (bodyFromTenant === bodyToTenant) {
+        return NextResponse.json(
+          { error: 'Source and destination businesses must be different' },
+          { status: 400 }
+        );
+      }
+      const [canFrom, canTo] = await Promise.all([
+        userHasAccessToTenant(user, bodyFromTenant),
+        userHasAccessToTenant(user, bodyToTenant),
+      ]);
+      if (!canFrom || !canTo) {
+        return NextResponse.json(
+          { error: 'You do not have access to one or both businesses' },
+          { status: 403 }
+        );
+      }
+      fromTenantId = bodyFromTenant;
+      toTenantId = bodyToTenant;
+      resolvedFromBranch = await resolvePrimaryBranchForTenant(fromTenantId);
+      resolvedToBranch = await resolvePrimaryBranchForTenant(toTenantId);
+      if (!resolvedFromBranch || !resolvedToBranch) {
+        return NextResponse.json(
+          {
+            error:
+              'Each business must have at least one active location. Add a branch in settings or complete business setup.',
+          },
+          { status: 400 }
+        );
+      }
+    } else if (fromBranch && toBranch) {
+      fromTenantId = user.tenantId;
+      toTenantId = user.tenantId;
+      resolvedFromBranch = fromBranch;
+      resolvedToBranch = toBranch;
+    } else {
+      console.error('[Stock Transfer] Missing required fields:', {
+        bodyFromTenant,
+        bodyToTenant,
+        fromBranch,
+        toBranch,
+        productId,
+        quantity,
+      });
+      return NextResponse.json(
+        {
+          error:
+            'From business, to business, product, and quantity are required (or legacy fromBranch / toBranch)',
+        },
+        { status: 400 }
+      );
+    }
 
     // Validate required fields
-    if (!fromBranch || !toBranch || !productId || !quantity) {
-      console.error('[Stock Transfer] Missing required fields:', { fromBranch, toBranch, productId, quantity });
+    if (!resolvedFromBranch || !resolvedToBranch || !productId || !quantity) {
       return NextResponse.json(
         { error: 'From business, to business, product, and quantity are required' },
         { status: 400 }
       );
     }
-    
+
     console.log('[Stock Transfer] Validating transfer:', {
-      fromBranch,
-      toBranch,
+      fromTenantId,
+      toTenantId,
+      resolvedFromBranch,
+      resolvedToBranch,
       productId,
       quantity,
-      tenantId: user.tenantId,
-      userId: user.id
+      sessionTenantId: user.tenantId,
+      userId: user.id,
     });
 
     // Validate quantity
@@ -186,29 +259,28 @@ export async function POST(request) {
     }
 
     // Validate branches are different
-    if (fromBranch === toBranch) {
+    if (resolvedFromBranch === resolvedToBranch && fromTenantId === toTenantId) {
       return NextResponse.json(
         { error: 'Source and destination businesses must be different' },
         { status: 400 }
       );
     }
 
-    // Validate branches belong to tenant
     const [fromBranchData, toBranchData] = await Promise.all([
       prisma.branch.findFirst({
         where: {
-          id: fromBranch,
-          tenantId: user.tenantId,
-          isActive: true
-        }
+          id: resolvedFromBranch,
+          tenantId: fromTenantId,
+          isActive: true,
+        },
       }),
       prisma.branch.findFirst({
         where: {
-          id: toBranch,
-          tenantId: user.tenantId,
-          isActive: true
-        }
-      })
+          id: resolvedToBranch,
+          tenantId: toTenantId,
+          isActive: true,
+        },
+      }),
     ]);
 
     if (!fromBranchData) {
@@ -229,9 +301,9 @@ export async function POST(request) {
     const sourceProduct = await prisma.product.findFirst({
       where: {
         id: productId,
-        tenantId: user.tenantId,
+        tenantId: fromTenantId,
         isDeleted: false,
-        OR: [{ branchId: fromBranch }, { branchId: null }]
+        OR: [{ branchId: resolvedFromBranch }, { branchId: null }],
       },
       select: {
         id: true,
@@ -275,6 +347,7 @@ export async function POST(request) {
 
     // Check if this should be a direct transfer (auto-complete) or pending
     const { directTransfer = true } = body; // Default to direct transfer for simplicity
+    const sameTenantTransfer = fromTenantId === toTenantId;
 
     // Create transfer and execute in a transaction
     console.log('[Stock Transfer] Starting transaction...');
@@ -287,9 +360,9 @@ export async function POST(request) {
         // Create the transfer record
         const transfer = await tx.stockTransfer.create({
         data: {
-          tenantId: user.tenantId,
-          fromBranchId: fromBranch,
-          toBranchId: toBranch,
+          tenantId: fromTenantId,
+          fromBranchId: resolvedFromBranch,
+          toBranchId: resolvedToBranch,
           productId: productId,
           quantity: transferQtyDecimal,
           status: directTransfer ? 'approved' : 'pending',
@@ -334,8 +407,8 @@ export async function POST(request) {
         if (sourceProduct.sku) {
           destinationProduct = await tx.product.findFirst({
             where: {
-              tenantId: user.tenantId,
-              branchId: toBranch,
+              tenantId: toTenantId,
+              branchId: resolvedToBranch,
               sku: sourceProduct.sku,
               isDeleted: false
             }
@@ -346,8 +419,8 @@ export async function POST(request) {
         if (!destinationProduct) {
           destinationProduct = await tx.product.findFirst({
             where: {
-              tenantId: user.tenantId,
-              branchId: toBranch,
+              tenantId: toTenantId,
+              branchId: resolvedToBranch,
               name: sourceProduct.name,
               isDeleted: false
             }
@@ -366,7 +439,7 @@ export async function POST(request) {
           console.log('[Stock Transfer] Creating destination product...');
           try {
             const newSku = sourceProduct.sku 
-              ? `${sourceProduct.sku}-${toBranch.substring(0, 8)}` 
+              ? `${sourceProduct.sku}-${resolvedToBranch.substring(0, 8)}` 
               : `TRANSFER-${sourceProduct.id.substring(0, 8)}-${Date.now()}`;
             
             destinationProduct = await tx.product.create({
@@ -382,11 +455,11 @@ export async function POST(request) {
                 image: sourceProduct.image || null,
                 isService: sourceProduct.isService || false,
                 stockLevel: new Prisma.Decimal(0),
-                tenantId: user.tenantId,
-                branchId: toBranch,
-                categoryId: sourceProduct.categoryId || null,
-                inventoryAccountId: sourceProduct.inventoryAccountId || null,
-                cogsAccountId: sourceProduct.cogsAccountId || null,
+                tenantId: toTenantId,
+                branchId: resolvedToBranch,
+                categoryId: sameTenantTransfer ? sourceProduct.categoryId || null : null,
+                inventoryAccountId: sameTenantTransfer ? sourceProduct.inventoryAccountId || null : null,
+                cogsAccountId: sameTenantTransfer ? sourceProduct.cogsAccountId || null : null,
                 taxRate: sourceProduct.taxRate || 0
               }
             });
@@ -424,14 +497,14 @@ export async function POST(request) {
             productId: destinationProduct.id,
             qty: qtyForFifo,
             cost: unitCost,
-            branchId: toBranch,
-            tenantId: user.tenantId,
+            branchId: resolvedToBranch,
+            tenantId: toTenantId,
             sourceId: sourceId
           });
           
           await createFifoBatch({
-            tenantId: user.tenantId,
-            branchId: toBranch,
+            tenantId: toTenantId,
+            branchId: resolvedToBranch,
             productId: destinationProduct.id,
             quantityPurchased: qtyForFifo,
             unitCost: unitCost,
@@ -485,8 +558,8 @@ export async function POST(request) {
                 notes: `Stock transfer to ${toBranchData.name}`,
                 productId: sourceProduct.id,
                 userId: user.id,
-                tenantId: user.tenantId,
-                branchId: fromBranch
+                tenantId: fromTenantId,
+                branchId: resolvedFromBranch
               },
               {
                 type: 'Stock In',
@@ -494,8 +567,8 @@ export async function POST(request) {
                 notes: `Stock transfer from ${fromBranchData.name}`,
                 productId: destinationProduct.id,
                 userId: user.id,
-                tenantId: user.tenantId,
-                branchId: toBranch
+                tenantId: toTenantId,
+                branchId: resolvedToBranch
               }
             ]
           });
@@ -521,13 +594,15 @@ export async function POST(request) {
           fromBranch: {
             select: {
               id: true,
-              name: true
+              name: true,
+              tenant: { select: { id: true, name: true } }
             }
           },
           toBranch: {
             select: {
               id: true,
-              name: true
+              name: true,
+              tenant: { select: { id: true, name: true } }
             }
           }
         }
@@ -555,12 +630,14 @@ export async function POST(request) {
             entityType: 'STOCK_TRANSFER',
             entityId: result.id,
             userId: user.id,
-            tenantId: user.tenantId,
+            tenantId: fromTenantId,
             details: JSON.stringify({
               transferId: result.id,
               productName: sourceProduct.name,
               fromBranch: fromBranchData.name,
               toBranch: toBranchData.name,
+              fromTenantId,
+              toTenantId,
               quantity: transferQuantity,
               directTransfer
             })

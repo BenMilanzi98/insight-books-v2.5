@@ -1053,7 +1053,11 @@ const InventoryManagement = () => {
       await fetchTransfers();
       await fetchStockByBranch();
       await loadInventory(); // Refresh inventory to show updated stock
-      showToast('success', `Stock transferred successfully from ${result.transfer?.fromBranch?.name} to ${result.transfer?.toBranch?.name}`);
+      const fromLabel =
+        result.transfer?.fromBranch?.tenant?.name || result.transfer?.fromBranch?.name || "source";
+      const toLabel =
+        result.transfer?.toBranch?.tenant?.name || result.transfer?.toBranch?.name || "destination";
+      showToast("success", `Stock transferred successfully from ${fromLabel} to ${toLabel}`);
       return true;
     } catch (err) {
       console.error('[Frontend] Error creating transfer:', err);
@@ -4014,8 +4018,6 @@ const InventoryManagement = () => {
           if (success) setShowTransferModal(false);
           return success;
         }}
-        businesses={branches}
-        products={inventory}
         loading={isSubmitting}
       />
 

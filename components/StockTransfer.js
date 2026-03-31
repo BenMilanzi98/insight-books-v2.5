@@ -1,34 +1,80 @@
 "use client";
 
-import { useState } from "react";
-import { X, Package, ArrowRight, Check, RefreshCw, Building2, AlertCircle, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Package, ArrowRight, Check, RefreshCw, Building2, Plus, Trash2 } from "lucide-react";
 
-// Stock Transfer Modal — "Business" = operating unit (maps to a branch id for the API).
+/**
+ * Transfer stock between businesses (tenants) — same list as /switch-tenant via /api/tenant/list.
+ * Server resolves default branch per business and runs the transfer.
+ */
 export const StockTransferModal = ({
   isOpen,
   onClose,
   onSubmit,
-  branches = [],
-  businesses = null,
-  products = [],
   loading = false
 }) => {
-  const businessList = businesses ?? branches;
-  const [fromBusiness, setFromBusiness] = useState("");
-  const [toBusiness, setToBusiness] = useState("");
+  const [tenants, setTenants] = useState([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
+  const [fromTenantId, setFromTenantId] = useState("");
+  const [toTenantId, setToTenantId] = useState("");
+  const [sourceProducts, setSourceProducts] = useState([]);
+  const [loadingSourceProducts, setLoadingSourceProducts] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]); // Array of {productId, quantity, availableStock}
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState({});
 
-  // Source = selected business (branch id) or org-wide rows (branchId null = all branches)
-  const isAtSourceBusiness = (p) => {
-    if (!fromBusiness) return false;
-    const bid = p.branchId ?? null;
-    return bid === null || bid === fromBusiness || String(bid) === String(fromBusiness);
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    (async () => {
+      setLoadingTenants(true);
+      try {
+        const res = await fetch("/api/tenant/list", { cache: "no-store" });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) {
+          setTenants(Array.isArray(data.tenants) ? data.tenants : []);
+        }
+      } catch {
+        if (!cancelled) setTenants([]);
+      } finally {
+        if (!cancelled) setLoadingTenants(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !fromTenantId) {
+      setSourceProducts([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoadingSourceProducts(true);
+      try {
+        const params = new URLSearchParams({
+          allBranches: "true",
+          tenantId: fromTenantId,
+          limit: "0",
+          page: "1",
+        });
+        const res = await fetch(`/api/stock?${params.toString()}`);
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled) {
+          setSourceProducts(Array.isArray(data.products) ? data.products : []);
+        }
+      } catch {
+        if (!cancelled) setSourceProducts([]);
+      } finally {
+        if (!cancelled) setLoadingSourceProducts(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, fromTenantId]);
+
+  const products = sourceProducts;
 
   const availableProducts = products.filter(p =>
-    isAtSourceBusiness(p) &&
     parseFloat(p.stockLevel || 0) > 0 &&
     !selectedProducts.find(sp => sp.productId === (p.id || p._id))
   );
@@ -87,10 +133,10 @@ export const StockTransferModal = ({
   const validate = () => {
     const newErrors = {};
     
-    if (!fromBusiness) newErrors.fromBusiness = "Source business is required";
-    if (!toBusiness) newErrors.toBusiness = "Destination business is required";
-    if (fromBusiness === toBusiness) {
-      newErrors.toBusiness = "Source and destination businesses must be different";
+    if (!fromTenantId) newErrors.fromTenant = "Source business is required";
+    if (!toTenantId) newErrors.toTenant = "Destination business is required";
+    if (fromTenantId === toTenantId) {
+      newErrors.toTenant = "Source and destination businesses must be different";
     }
     if (selectedProducts.length === 0) {
       newErrors.products = "Please select at least one product to transfer";
@@ -113,10 +159,9 @@ export const StockTransferModal = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // API expects fromBranch / toBranch (branch ids)
     const transfers = selectedProducts.map(sp => ({
-      fromBranch: fromBusiness,
-      toBranch: toBusiness,
+      fromTenantId,
+      toTenantId,
       productId: sp.productId,
       quantity: parseFloat(sp.quantity),
       notes: notes || null
@@ -129,8 +174,9 @@ export const StockTransferModal = ({
     }
 
     if (successCount === transfers.length) {
-      setFromBusiness("");
-      setToBusiness("");
+      setFromTenantId("");
+      setToTenantId("");
+      setSourceProducts([]);
       setSelectedProducts([]);
       setNotes("");
       setErrors({});
@@ -138,8 +184,9 @@ export const StockTransferModal = ({
   };
 
   const handleClose = () => {
-    setFromBusiness("");
-    setToBusiness("");
+    setFromTenantId("");
+    setToTenantId("");
+    setSourceProducts([]);
     setSelectedProducts([]);
     setNotes("");
     setErrors({});
@@ -160,7 +207,7 @@ export const StockTransferModal = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Transfer Stock</h3>
-                <p className="text-sm text-gray-500 mt-1">Move stock from one business to another</p>
+                <p className="text-sm text-gray-500 mt-1">Same businesses as &quot;Switch business&quot; — stock uses each business&apos;s default location</p>
               </div>
               <button
                 onClick={handleClose}
@@ -170,6 +217,12 @@ export const StockTransferModal = ({
               </button>
             </div>
 
+            {tenants.length > 0 && tenants.length < 2 && (
+              <div className="mb-4 rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
+                Add another business (from <a href="/switch-tenant" className="underline font-medium">Switch business</a>) to transfer stock between businesses.
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="w-full">
               <div className="space-y-4 w-full">
                 {/* From business */}
@@ -178,35 +231,33 @@ export const StockTransferModal = ({
                     From business *
                   </label>
                   <select
-                    value={fromBusiness}
+                    value={fromTenantId}
                     onChange={(e) => {
-                      setFromBusiness(e.target.value);
+                      setFromTenantId(e.target.value);
                       setSelectedProducts([]);
-                      setToBusiness("");
-                      if (errors.fromBusiness) {
+                      setToTenantId("");
+                      if (errors.fromTenant) {
                         const newErrors = { ...errors };
-                        delete newErrors.fromBusiness;
+                        delete newErrors.fromTenant;
                         setErrors(newErrors);
                       }
                     }}
-                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.fromBusiness ? 'border-red-500' : 'border-gray-300'}`}
+                    disabled={loadingTenants}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.fromTenant ? 'border-red-500' : 'border-gray-300'}`}
                   >
                     <option value="">Select source business</option>
-                    {businessList && businessList.length > 0 ? (
-                      businessList.filter(b => b.isActive !== false).map((b) => (
-                        <option key={b.id || b._id} value={b.id || b._id}>
-                          {b.name}
+                    {tenants.length > 0 ? (
+                      tenants.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
                         </option>
                       ))
                     ) : (
-                      <option value="" disabled>No businesses available</option>
+                      <option value="" disabled>{loadingTenants ? "Loading businesses..." : "No businesses available"}</option>
                     )}
                   </select>
-                  {errors.fromBusiness && (
-                    <p className="mt-1 text-sm text-red-600">{errors.fromBusiness}</p>
-                  )}
-                  {businessList.length === 0 && (
-                    <p className="mt-1 text-xs text-amber-600">Loading businesses...</p>
+                  {errors.fromTenant && (
+                    <p className="mt-1 text-sm text-red-600">{errors.fromTenant}</p>
                   )}
                 </div>
 
@@ -221,40 +272,42 @@ export const StockTransferModal = ({
                     To business *
                   </label>
                   <select
-                    value={toBusiness}
+                    value={toTenantId}
                     onChange={(e) => {
-                      setToBusiness(e.target.value);
-                      if (errors.toBusiness) {
+                      setToTenantId(e.target.value);
+                      if (errors.toTenant) {
                         const newErrors = { ...errors };
-                        delete newErrors.toBusiness;
+                        delete newErrors.toTenant;
                         setErrors(newErrors);
                       }
                     }}
-                    disabled={!fromBusiness}
-                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.toBusiness ? 'border-red-500' : 'border-gray-300'} ${!fromBusiness ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    disabled={!fromTenantId || loadingTenants}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.toTenant ? 'border-red-500' : 'border-gray-300'} ${!fromTenantId ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">{fromBusiness ? 'Select destination business' : 'Select source business first'}</option>
-                    {businessList && businessList.length > 0 && fromBusiness ? (
-                      businessList.filter(b => (b.isActive !== false) && (b.id || b._id) !== fromBusiness).map((b) => (
-                        <option key={b.id || b._id} value={b.id || b._id}>
-                          {b.name}
-                        </option>
-                      ))
-                    ) : null}
+                    <option value="">{fromTenantId ? 'Select destination business' : 'Select source business first'}</option>
+                    {fromTenantId
+                      ? tenants
+                          .filter((t) => t.id !== fromTenantId)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.name}
+                            </option>
+                          ))
+                      : null}
                   </select>
-                  {errors.toBusiness && (
-                    <p className="mt-1 text-sm text-red-600">{errors.toBusiness}</p>
+                  {errors.toTenant && (
+                    <p className="mt-1 text-sm text-red-600">{errors.toTenant}</p>
                   )}
                 </div>
 
                 {/* Products Section */}
-                {fromBusiness && toBusiness && (
+                {fromTenantId && toTenantId && (
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <label className="block text-sm font-medium text-gray-700">
                         Products to Transfer *
                       </label>
-                      {availableProducts.length > 0 && (
+                      {!loadingSourceProducts && availableProducts.length > 0 && (
                         <button
                           type="button"
                           onClick={handleAddProduct}
@@ -263,6 +316,12 @@ export const StockTransferModal = ({
                           <Plus className="w-4 h-4" />
                           Add Product
                         </button>
+                      )}
+                      {loadingSourceProducts && (
+                        <span className="text-xs text-gray-500 flex items-center gap-1">
+                          <RefreshCw className="w-3 h-3 animate-spin" />
+                          Loading inventory…
+                        </span>
                       )}
                     </div>
 
@@ -294,7 +353,6 @@ export const StockTransferModal = ({
                                 <option value="">Select product</option>
                                 {products
                                   .filter(p =>
-                                    isAtSourceBusiness(p) &&
                                     parseFloat(p.stockLevel || 0) > 0 &&
                                     ((p.id || p._id) === sp.productId ||
                                       !selectedProducts.find(
@@ -357,7 +415,7 @@ export const StockTransferModal = ({
                   </div>
                 )}
 
-                {!fromBusiness && (
+                {!fromTenantId && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                     <p>Select source and destination businesses first</p>
@@ -365,7 +423,7 @@ export const StockTransferModal = ({
                   </div>
                 )}
                 
-                {fromBusiness && !toBusiness && (
+                {fromTenantId && !toTenantId && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
                     <p>Select destination business to continue</p>
@@ -373,7 +431,7 @@ export const StockTransferModal = ({
                 )}
 
                 {/* Notes */}
-                {fromBusiness && toBusiness && (
+                {fromTenantId && toTenantId && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Notes (Optional)
@@ -401,7 +459,7 @@ export const StockTransferModal = ({
                 <button
                   type="submit"
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center"
-                  disabled={loading || selectedProducts.length === 0}
+                  disabled={loading || loadingSourceProducts || selectedProducts.length === 0}
                 >
                   {loading ? (
                     <>
@@ -489,12 +547,22 @@ export const StockTransfersList = ({
                     <span className="text-sm text-gray-500">({transfer.product.sku})</span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mt-2">
                   <span className="text-gray-500">From</span>
-                  <span className="font-medium">{transfer.fromBranch?.name || "N/A"}</span>
-                  <ArrowRight className="w-4 h-4 text-gray-400" />
+                  <span className="font-medium text-gray-900">
+                    {transfer.fromBranch?.tenant?.name || transfer.fromBranch?.name || "N/A"}
+                  </span>
+                  {transfer.fromBranch?.tenant?.name && transfer.fromBranch?.name ? (
+                    <span className="text-xs text-gray-500">({transfer.fromBranch.name})</span>
+                  ) : null}
+                  <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
                   <span className="text-gray-500">To</span>
-                  <span className="font-medium">{transfer.toBranch?.name || "N/A"}</span>
+                  <span className="font-medium text-gray-900">
+                    {transfer.toBranch?.tenant?.name || transfer.toBranch?.name || "N/A"}
+                  </span>
+                  {transfer.toBranch?.tenant?.name && transfer.toBranch?.name ? (
+                    <span className="text-xs text-gray-500">({transfer.toBranch.name})</span>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
                   <span>Qty: {transfer.quantity || 0}</span>
