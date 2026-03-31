@@ -139,7 +139,13 @@ export async function GET(request) {
       tenantId,
       isReversal: false,
       date: { gte: startDate, lte: endDate },
-      status: { in: ['Approved', 'Pending'] },
+      // Only count expenses that have been paid (or partially paid).
+      // Pending liabilities (e.g. PAYE/NPS created during payroll) should not inflate dashboard expenses.
+      status: { in: ['Approved'] },
+      OR: [
+        { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+        { paidAmount: { gt: 0 } }
+      ],
       isDeleted: false
     });
 

@@ -268,13 +268,18 @@ export async function GET(request) {
           }),
           _sum: { total: true }
         }),
-        // Operating expenses: includes payroll, approved expenses, and supplier/PO expenses (unassigned branch).
+        // Operating expenses (cash-ish): ONLY count paid/partial expenses.
+        // This prevents pending statutory liabilities (PAYE/NPS) from showing as expenses before payment is recorded.
         prisma.expense.aggregate({
           where: addBranchFilterIncludeUnassigned(user, {
             tenantId,
             status: 'Approved',
             isDeleted: false,
             isReversal: false,
+            OR: [
+              { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+              { paidAmount: { gt: 0 } }
+            ],
             date: { gte: filterStartDate, lte: filterEndDate }
           }),
           _sum: { amount: true }

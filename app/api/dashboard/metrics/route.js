@@ -284,13 +284,18 @@ export async function GET(request) {
         }),
         _sum: { total: true }
       }),
-      // Operating expenses from Expense table (accrual): includes payroll, approved expenses, and supplier/PO expenses (include unassigned branch).
+      // Operating expenses from Expense table (cash-ish): ONLY count expenses that have been paid (or partially paid).
+      // This prevents pending statutory liabilities (PAYE/NPS) from inflating expenses before payment is recorded.
       prisma.expense.aggregate({
         where: addBranchFilterIncludeUnassigned(user, {
           tenantId,
           status: 'Approved',
           isDeleted: false,
           isReversal: false,
+          OR: [
+            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+            { paidAmount: { gt: 0 } }
+          ],
           date: {
             gte: currentPeriodStart,
             lte: currentPeriodEndDate
@@ -350,13 +355,17 @@ export async function GET(request) {
         }),
         _sum: { total: true }
       }),
-      // Operating expenses: include supplier/PO expenses (unassigned branch).
+      // Operating expenses (cash-ish): ONLY count paid/partial expenses (exclude pending liabilities like PAYE/NPS).
       prisma.expense.aggregate({
         where: addBranchFilterIncludeUnassigned(user, {
           tenantId,
           status: 'Approved',
           isDeleted: false,
           isReversal: false,
+          OR: [
+            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+            { paidAmount: { gt: 0 } }
+          ],
           date: {
             gte: previousPeriodStart,
             lte: previousPeriodEnd

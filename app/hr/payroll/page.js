@@ -71,6 +71,14 @@ export default function PayrollProcessing() {
     { value: 12, label: 'December' }
   ];
 
+  const toYmdLocal = (value) => {
+    const d = new Date(value);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   useEffect(() => {
     fetchPayrollRuns();
     loadAccounts();
@@ -273,8 +281,8 @@ export default function PayrollProcessing() {
     try {
       setViewLoading(true);
       setShowViewModal(true);
-      const start = new Date(run.periodStart).toISOString().split('T')[0];
-      const end = new Date(run.periodEnd).toISOString().split('T')[0];
+      const start = toYmdLocal(run.periodStart);
+      const end = toYmdLocal(run.periodEnd);
       const res = await fetch(`/api/payroll?start=${start}&end=${end}`);
       const data = await res.json();
       if (res.ok) {
@@ -349,8 +357,8 @@ export default function PayrollProcessing() {
       setReverseTarget(null);
       setReversePreflight(null);
       if (showViewModal) {
-        const start = new Date(target.periodStart).toISOString().split('T')[0];
-        const end = new Date(target.periodEnd).toISOString().split('T')[0];
+        const start = toYmdLocal(target.periodStart);
+        const end = toYmdLocal(target.periodEnd);
         const r = await fetch(`/api/payroll?start=${start}&end=${end}`);
         const d = await r.json();
         if (r.ok) setViewEntries(d.payrolls || []);
@@ -376,8 +384,8 @@ export default function PayrollProcessing() {
       setIsDeleting(true);
       
       // Fetch all payroll entries for this period
-      const start = new Date(payrollToDelete.periodStart).toISOString().split('T')[0];
-      const end = new Date(payrollToDelete.periodEnd).toISOString().split('T')[0];
+      const start = toYmdLocal(payrollToDelete.periodStart);
+      const end = toYmdLocal(payrollToDelete.periodEnd);
       const res = await fetch(`/api/payroll?start=${start}&end=${end}`);
       const data = await res.json();
       

@@ -35,6 +35,14 @@ export default function PayeSummaryPage() {
     { value: '12', label: 'December' },
   ];
 
+  const toYmdLocal = (value) => {
+    const d = new Date(value);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   useEffect(() => {
     fetchPayeSummary();
   }, [dateRange, fromDate, toDate, selectedMonth, selectedYear]);
@@ -56,7 +64,7 @@ export default function PayeSummaryPage() {
         // Filter by specific month
         const startDate = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1);
         const endDate = new Date(parseInt(selectedYear), parseInt(selectedMonth), 0);
-        url += `fromDate=${startDate.toISOString().split('T')[0]}&toDate=${endDate.toISOString().split('T')[0]}`;
+        url += `fromDate=${toYmdLocal(startDate)}&toDate=${toYmdLocal(endDate)}`;
       } else if (dateRange === 'custom' && fromDate && toDate) {
         url += `fromDate=${fromDate}&toDate=${toDate}`;
       } else if (dateRange === 'custom' && fromDate) {
@@ -68,7 +76,7 @@ export default function PayeSummaryPage() {
         lastMonth.setMonth(lastMonth.getMonth() - 1);
         const startDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
         const endDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
-        url += `fromDate=${startDate.toISOString().split('T')[0]}&toDate=${endDate.toISOString().split('T')[0]}`;
+        url += `fromDate=${toYmdLocal(startDate)}&toDate=${toYmdLocal(endDate)}`;
       } else if (dateRange === 'lastYear') {
         const lastYear = new Date().getFullYear() - 1;
         url += `fromDate=${lastYear}-01-01&toDate=${lastYear}-12-31`;

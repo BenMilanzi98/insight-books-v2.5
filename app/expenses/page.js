@@ -2265,6 +2265,17 @@ const handleFileUpload = async (e) => {
                             >
                                 <FileText size={18} />
                             </button>
+
+                            {/* Record Payment Button - only when Pending/Partially */}
+                            {isEligibleForPartialPayment(expense) && (
+                              <button
+                                className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-all rounded-lg p-2"
+                                title="Record Payment"
+                                onClick={() => handlePartialPayment(expense)}
+                              >
+                                <DollarSign size={18} />
+                              </button>
+                            )}
                             
                             {pagePermissions.canUpdateExpenses && (
                               <button 

@@ -413,7 +413,7 @@ export async function GET(request) {
       cogsAccountIds = [];
     }
 
-    // Count expenses from expense records created today
+    // Count expenses (cash-ish): ONLY paid/partial expenses so pending PAYE/NPS don't inflate totals.
     const [todayExpensesSettled, todayCOGSSettled] = await Promise.allSettled([
       // Expenses created today
       prisma.expense.aggregate({
@@ -423,6 +423,11 @@ export async function GET(request) {
             gte: currentPeriodStart,
             lte: currentPeriodEnd
           },
+          status: 'Approved',
+          OR: [
+            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+            { paidAmount: { gt: 0 } }
+          ],
           isDeleted: false
         }),
         _sum: { amount: true }
@@ -462,6 +467,11 @@ export async function GET(request) {
             gte: previousPeriodStart,
             lte: previousPeriodEnd
           },
+          status: 'Approved',
+          OR: [
+            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+            { paidAmount: { gt: 0 } }
+          ],
           isDeleted: false
         }),
         _sum: { amount: true }
@@ -508,6 +518,11 @@ export async function GET(request) {
                   gte: dayStart,
                   lte: dayEnd
                 },
+                status: 'Approved',
+                OR: [
+                  { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
+                  { paidAmount: { gt: 0 } }
+                ],
                 isDeleted: false
               }),
               _sum: { amount: true }

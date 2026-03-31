@@ -6,10 +6,11 @@ import { getUserFromSession } from '@/lib/auth';
 /**
  * Helper function to get payroll by ID with proper tenant isolation
  */
-async function getPayrollById(id) {
-  return prisma.payroll.findUnique({
-    where: { 
-      id
+async function getPayrollById(id, tenantId) {
+  return prisma.payroll.findFirst({
+    where: {
+      id,
+      tenantId,
     },
     include: {
       employee: true,
@@ -34,7 +35,7 @@ export async function GET(request, context) {
     const payrollId = context.params.id;
     
     // Check if payroll exists
-    const payroll = await getPayrollById(payrollId);
+    const payroll = await getPayrollById(payrollId, user.tenantId);
     
     if (!payroll) {
       return NextResponse.json(
@@ -43,20 +44,9 @@ export async function GET(request, context) {
       );
     }
     
-    // Check if payroll belongs to the user's tenant (if multi-tenancy is implemented)
-    // This check can be uncommented when tenantId is added to the Payroll model
-    /*
-    if (payroll.tenantId !== user.tenantId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-    */
-    
     return NextResponse.json(payroll);
   } catch (error) {
-    console.error(`Error fetching payroll ${params.id}:`, error);
+    console.error(`Error fetching payroll ${context?.params?.id}:`, error);
     return NextResponse.json(
       { error: 'Failed to fetch payroll. Please try again.' },
       { status: 500 }
@@ -82,7 +72,7 @@ export async function PUT(request, context) {
     const body = await request.json();
     
     // Check if payroll exists
-    const existingPayroll = await getPayrollById(payrollId);
+    const existingPayroll = await getPayrollById(payrollId, user.tenantId);
     
     if (!existingPayroll) {
       return NextResponse.json(
@@ -154,7 +144,7 @@ export async function PUT(request, context) {
       payroll: updatedPayroll
     });
   } catch (error) {
-    console.error(`Error updating payroll ${params.id}:`, error);
+    console.error(`Error updating payroll ${context?.params?.id}:`, error);
     return NextResponse.json(
       { error: 'Failed to update payroll. Please try again.' },
       { status: 500 }
@@ -196,17 +186,6 @@ export async function DELETE(request, context) {
       );
     }
     
-    // Check if payroll belongs to the user's tenant (if multi-tenancy is implemented)
-    // This check can be uncommented when tenantId is added to the Payroll model
-    /*
-    if (existingPayroll.tenantId !== user.tenantId) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      );
-    }
-    */
-    
     // Delete the payroll
     await prisma.payroll.delete({
       where: { id: payrollId }
@@ -232,7 +211,7 @@ export async function DELETE(request, context) {
       message: 'Payroll deleted successfully'
     });
   } catch (error) {
-    console.error(`Error deleting payroll ${params.id}:`, error);
+    console.error(`Error deleting payroll ${context?.params?.id}:`, error);
     return NextResponse.json(
       { error: 'Failed to delete payroll. Please try again.' },
       { status: 500 }

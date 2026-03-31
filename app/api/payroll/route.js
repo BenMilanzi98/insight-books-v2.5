@@ -31,8 +31,12 @@ export async function GET(request) {
     }
 
     if (start && end) {
+      // Frontend passes YYYY-MM-DD. Normalize to inclusive day range so
+      // stored periodEnd timestamps like 23:59:59.999 aren't excluded.
       const startDate = new Date(start);
+      startDate.setHours(0, 0, 0, 0);
       const endDate = new Date(end);
+      endDate.setHours(23, 59, 59, 999);
       where.AND = [
         { periodStart: { gte: startDate } },
         { periodEnd: { lte: endDate } }
