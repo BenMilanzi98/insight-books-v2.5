@@ -35,6 +35,14 @@ export default function TaxAccountsPage() {
   const [selectedAccount, setSelectedAccount] = useState(null);
   const [settlementSuccess, setSettlementSuccess] = useState(false);
 
+  const toYmdLocal = (value) => {
+    const d = new Date(value);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   useEffect(() => {
     checkPermissions();
     setDefaultDates();
@@ -75,8 +83,8 @@ export default function TaxAccountsPage() {
         end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
 
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
+    setStartDate(toYmdLocal(start));
+    setEndDate(toYmdLocal(end));
   };
 
   useEffect(() => {
@@ -103,8 +111,8 @@ export default function TaxAccountsPage() {
     if (!effectiveStartDate || !effectiveEndDate) {
       // Set default dates for the current month
       const now = new Date();
-      effectiveStartDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-      effectiveEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      effectiveStartDate = toYmdLocal(new Date(now.getFullYear(), now.getMonth(), 1));
+      effectiveEndDate = toYmdLocal(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     }
     
     setIsLoading(true);

@@ -63,11 +63,18 @@ export default function TaxTypesPage() {
   const [exportingReversedTaxes, setExportingReversedTaxes] = useState(false);
   // Balance period: same options as /tax-accounts so numbers match when same period is selected
   const [balancePeriod, setBalancePeriod] = useState('thisMonth');
+  const toYmdLocal = (value) => {
+    const d = new Date(value);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
   const getDefaultBalanceDates = () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+    return { start: toYmdLocal(start), end: toYmdLocal(end) };
   };
   const defaultBalanceDates = getDefaultBalanceDates();
   const [balanceStartDate, setBalanceStartDate] = useState(defaultBalanceDates.start);
@@ -104,8 +111,8 @@ export default function TaxTypesPage() {
         start = new Date(now.getFullYear(), now.getMonth(), 1);
         end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
-    setBalanceStartDate(start.toISOString().split('T')[0]);
-    setBalanceEndDate(end.toISOString().split('T')[0]);
+    setBalanceStartDate(toYmdLocal(start));
+    setBalanceEndDate(toYmdLocal(end));
   };
 
   useEffect(() => {

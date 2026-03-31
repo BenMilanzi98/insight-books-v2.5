@@ -31,6 +31,14 @@ export default function TaxAccountDetailPage() {
   const [endDate, setEndDate] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('thisMonth');
 
+  const toYmdLocal = (value) => {
+    const d = new Date(value);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   useEffect(() => {
     checkPermissions();
     setDefaultDates();
@@ -73,8 +81,8 @@ export default function TaxAccountDetailPage() {
         end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     }
 
-    setStartDate(start.toISOString().split('T')[0]);
-    setEndDate(end.toISOString().split('T')[0]);
+    setStartDate(toYmdLocal(start));
+    setEndDate(toYmdLocal(end));
   };
 
   const checkPermissions = async () => {

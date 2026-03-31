@@ -29,6 +29,8 @@ export async function GET(request) {
     const groupBy = searchParams.get('groupBy') || 'month';
 
     const start = startDate ? new Date(startDate) : new Date(new Date().getFullYear(), 0, 1);
+    // Normalize to inclusive local day range to avoid UTC shifting from YYYY-MM-DD strings
+    start.setHours(0, 0, 0, 0);
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
     const dateFilter = { gte: start, lte: end };
