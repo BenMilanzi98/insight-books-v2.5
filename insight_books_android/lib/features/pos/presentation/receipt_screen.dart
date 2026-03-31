@@ -315,7 +315,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Share as PDF when your server supports it, or as HTML for printing.',
+              'Share downloads a PDF receipt from your server.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
             ),

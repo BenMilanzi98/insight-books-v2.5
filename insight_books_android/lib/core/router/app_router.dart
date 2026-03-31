@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/login_screen.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:insightbooks_android/features/pos/presentation/pos_screen.dart';
@@ -23,6 +24,7 @@ import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
   final permissionAsync = ref.watch(userPermissionsProvider);
+  final tenantState = ref.watch(tenantProvider);
 
   return GoRouter(
     initialLocation: '/dashboard',
@@ -30,6 +32,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isLoading = authState.isLoading;
       final isAuthenticated = authState.value ?? false;
       final permissions = permissionAsync.asData?.value ?? <String>{};
+      final tenantCountForRoute = tenantState.isLoading
+          ? null
+          : tenantState.tenants.length;
 
       final isGoingToLogin = state.matchedLocation == '/login';
 
@@ -42,18 +47,39 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (isAuthenticated && isGoingToLogin) {
-        return firstAccessibleRoute(permissions);
+        return firstAccessibleRoute(
+          permissions,
+          tenantCount: tenantCountForRoute,
+        );
       }
 
       if (!isAuthenticated) return null;
       if (permissionAsync.isLoading) return null;
 
       final location = state.matchedLocation;
+
+      if (location == '/switch-tenant' ||
+          location.startsWith('/switch-tenant/')) {
+        if (tenantState.isLoading) return null;
+        if (!canAccessSwitchTenant(
+          permissions: permissions,
+          tenantCount: tenantState.tenants.length,
+        )) {
+          return firstAccessibleRoute(
+            permissions,
+            tenantCount: tenantState.tenants.length,
+          );
+        }
+      }
+
       final required = requiredPermissionForLocation(location);
       if (required != null &&
           required.isNotEmpty &&
           !hasPermission(permissions, required)) {
-        return firstAccessibleRoute(permissions);
+        return firstAccessibleRoute(
+          permissions,
+          tenantCount: tenantCountForRoute,
+        );
       }
 
       return null;

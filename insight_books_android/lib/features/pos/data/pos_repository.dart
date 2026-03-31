@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:share_plus/share_plus.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/pdf_bytes.dart';
 import '../domain/pos_models.dart';
 
 final posRepositoryProvider = Provider<PosRepository>((ref) {
@@ -268,39 +269,20 @@ class PosRepository {
     }
   }
 
-  /// Server returns PDF when `format=pdf`; otherwise HTML print view (legacy).
+  /// Server returns PDF when `format=pdf` (same as web print/download).
   Future<({List<int> bytes, String fileExtension, String mimeType})> downloadReceiptForShare(
     String saleId,
   ) async {
-    try {
-      final pdfResp = await _dio.get<List<int>>(
-        '/api/sales/$saleId/receipt',
-        queryParameters: {'format': 'pdf'},
-        options: Options(responseType: ResponseType.bytes),
-      );
-      final ct = (pdfResp.headers.value('content-type') ?? '').toLowerCase();
-      final data = pdfResp.data;
-      if (data != null && ct.contains('application/pdf')) {
-        return (
-          bytes: data,
-          fileExtension: 'pdf',
-          mimeType: 'application/pdf',
-        );
-      }
-    } catch (_) {
-      // Older servers without PDF receipt: fall back to HTML
-    }
-    final response = await _dio.get(
+    final pdfResp = await _dio.get<List<int>>(
       '/api/sales/$saleId/receipt',
+      queryParameters: {'format': 'pdf'},
       options: Options(responseType: ResponseType.bytes),
     );
-    final bytes = response.data as List<int>;
-    final ct = (response.headers.value('content-type') ?? '').toLowerCase();
-    final isHtml = ct.contains('text/html');
+    final data = requirePdfBytesFromResponse(pdfResp.data, label: 'Receipt');
     return (
-      bytes: bytes,
-      fileExtension: isHtml ? 'html' : 'pdf',
-      mimeType: isHtml ? 'text/html' : 'application/pdf',
+      bytes: data,
+      fileExtension: 'pdf',
+      mimeType: 'application/pdf',
     );
   }
 

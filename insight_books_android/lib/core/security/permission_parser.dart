@@ -22,6 +22,7 @@ const Map<String, List<String>> _kPermissionModules = {
   'accounts': ['create', 'view', 'update', 'delete', 'export'],
   'trialBalance': ['view', 'export'],
   'assets': ['create', 'view', 'update', 'delete', 'export'],
+  'tenants': ['switch'],
 };
 
 Set<String> get fullPermissionSet {
@@ -64,14 +65,18 @@ Set<String> parsePermissionsFromMeResponse(Map<String, dynamic> data) {
     }
   }
 
-  // Sales / cashier roles: if permissions are missing or empty, POS + client lookup only.
-  if (out.isEmpty && _isSalesOnlyRole(roleDisplayName, name)) {
-    return {
-      'sales.view',
-      'sales.create',
-      'sales.update',
-      'clients.view',
-    };
+  // Sales / cashier: POS + client lookup; allow switching businesses when tenant list has 2+.
+  if (_isSalesOnlyRole(roleDisplayName, name)) {
+    if (out.isEmpty) {
+      return {
+        'sales.view',
+        'sales.create',
+        'sales.update',
+        'clients.view',
+        'tenants.switch',
+      };
+    }
+    out.add('tenants.switch');
   }
 
   return out;

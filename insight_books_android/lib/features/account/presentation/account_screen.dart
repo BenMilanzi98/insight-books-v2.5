@@ -6,6 +6,7 @@ import 'package:insightbooks_android/features/account/data/account_repository.da
 import 'package:insightbooks_android/features/account/domain/user_model.dart';
 import 'package:insightbooks_android/features/account/domain/business_settings.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import 'package:insightbooks_android/core/config/app_public_urls.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -39,7 +40,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
 
     if (!state.canViewSystem) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Account & Settings')),
+        appBar: AppBar(title: const Text('Account Settings')),
         drawer: const AppDrawer(),
         body: const Center(
           child: Text('You do not have permission to view this page.'),
@@ -47,9 +48,27 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
       );
     }
 
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Account & Settings'),
+        toolbarHeight: 72,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Account Settings', style: theme.textTheme.titleLarge),
+            Text(
+              'Manage business information, receipts, and account preferences.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.normal,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
         leading: Builder(
           builder: (context) => IconButton(
             icon: const Icon(LucideIcons.menu),
@@ -60,9 +79,9 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
           controller: _tabController,
           isScrollable: true,
           tabs: const [
-            Tab(text: 'Business', icon: Icon(LucideIcons.building, size: 20)),
+            Tab(text: 'Business Info', icon: Icon(LucideIcons.building, size: 20)),
             Tab(text: 'Receipt', icon: Icon(LucideIcons.fileText, size: 20)),
-            Tab(text: 'Settings', icon: Icon(LucideIcons.settings, size: 20)),
+            Tab(text: 'Account', icon: Icon(LucideIcons.user, size: 20)),
             Tab(text: 'Templates', icon: Icon(LucideIcons.layoutTemplate, size: 20)),
             Tab(text: 'Notifications', icon: Icon(LucideIcons.bell, size: 20)),
             Tab(text: 'Legal', icon: Icon(LucideIcons.shield, size: 20)),
@@ -285,6 +304,7 @@ class _BusinessTab extends ConsumerStatefulWidget {
 
 class _BusinessTabState extends ConsumerState<_BusinessTab> {
   late TextEditingController _nameController;
+  late TextEditingController _subdomainController;
   late TextEditingController _buildingController;
   late TextEditingController _streetController;
   late TextEditingController _cityController;
@@ -303,6 +323,9 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.settings?.name);
+    _subdomainController = TextEditingController(
+      text: widget.settings?.subdomain,
+    );
     _buildingController = TextEditingController(
       text: widget.settings?.buildingName,
     );
@@ -357,6 +380,7 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
   @override
   void dispose() {
     _nameController.dispose();
+    _subdomainController.dispose();
     _buildingController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -432,9 +456,7 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   ),
                   const SizedBox(height: 16),
                   TextField(
-                    controller: TextEditingController(
-                      text: widget.settings?.subdomain,
-                    ),
+                    controller: _subdomainController,
                     decoration: const InputDecoration(
                       labelText: 'Subdomain (Read-only)',
                     ),
@@ -468,7 +490,9 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   TextField(
                     controller: _tpinController,
                     decoration: const InputDecoration(
-                      labelText: 'TPIN (8 digits)',
+                      labelText: 'Taxpayer Identification Number (TPIN)',
+                      helperText:
+                          '8-digit TPIN from Malawi Revenue Authority (MRA EIS)',
                     ),
                     keyboardType: TextInputType.number,
                     maxLength: 8,
@@ -487,8 +511,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                       border: Border.all(color: Colors.grey[300]!),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: widget.settings?.logoUrl != null
-                        ? Image.network(widget.settings!.logoUrl!) // Simplified
+                    child: resolveAppAssetUrl(widget.settings?.logoUrl) != null
+                        ? Image.network(
+                            resolveAppAssetUrl(widget.settings!.logoUrl)!,
+                            fit: BoxFit.contain,
+                          )
                         : const Center(
                             child: Icon(
                               LucideIcons.image,
@@ -517,8 +544,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                       border: Border.all(color: Colors.grey[300]!),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: widget.settings?.faviconUrl != null
-                        ? Image.network(widget.settings!.faviconUrl!)
+                    child: resolveAppAssetUrl(widget.settings?.faviconUrl) != null
+                        ? Image.network(
+                            resolveAppAssetUrl(widget.settings!.faviconUrl)!,
+                            fit: BoxFit.contain,
+                          )
                         : const Center(
                             child: Icon(
                               LucideIcons.image,
@@ -583,22 +613,56 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   ),
                   const Divider(height: 32),
                   const Text(
-                    'Default Bank Account Details',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    'Banking & tax',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: _bankDetailsController,
-                    maxLines: 4,
-                    decoration: const InputDecoration(
-                      labelText: 'Bank details footer block',
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Default bank details and default tax accounts (inflow & outflow). Shown in invoice, quotation and receipt footers where applicable.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    controller: _bankDetailsController,
+                    maxLines: 5,
+                    decoration: const InputDecoration(
+                      labelText: 'Default bank account details',
+                      hintText:
+                          'Bank: …\nAccount name: …\nAccount number: …\nBranch: …',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Default tax accounts (fixed)',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Tax is always recorded to these system accounts. They cannot be changed by tenants.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 10),
+                  _TaxAccountInfoTile(
+                    label: 'Tax inflow (collected)',
+                    accountLine: '2041 – Tax Inflow (Collected)',
+                    hint: 'Tax from sales, invoices and POS',
+                  ),
+                  const SizedBox(height: 8),
+                  _TaxAccountInfoTile(
+                    label: 'Tax outflow (paid)',
+                    accountLine: '2045 – Tax Outflow (Paid)',
+                    hint: 'Tax on expenses and supplier bills',
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Optional: link a chart account for tax outflow overrides (tenant default).',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  ),
+                  const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
                     initialValue: _taxOutflowAccountId,
                     decoration: const InputDecoration(
-                      labelText: 'Tax Outflow Account (optional)',
+                      labelText: 'Tax outflow account (optional)',
                     ),
                     items: [
                       const DropdownMenuItem<String>(
@@ -629,6 +693,7 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   onPressed: () {
                     setState(() {
                       _nameController.text = widget.settings?.name ?? '';
+                      _subdomainController.text = widget.settings?.subdomain ?? '';
                       _buildingController.text = widget.settings?.buildingName ?? '';
                       _streetController.text = widget.settings?.businessAddress ?? '';
                       _cityController.text = widget.settings?.businessCity ?? '';
@@ -741,18 +806,30 @@ class _ReceiptTabState extends State<_ReceiptTab> {
                   'Receipt Customization',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'Customize the footer message that appears on your receipts.',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _receiptFooterController,
                   maxLines: 3,
                   decoration: const InputDecoration(
                     labelText: 'Receipt Footer Message',
+                    helperText:
+                        'Appears at the bottom of receipts. Leave empty to use the default.',
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+                const Text(
+                  'Business settings',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _currencyCode,
-                  decoration: const InputDecoration(labelText: 'Currency'),
+                  decoration: const InputDecoration(labelText: 'Currency Code'),
                   items: const [
                     DropdownMenuItem(value: 'MWK', child: Text('MWK - Malawian Kwacha')),
                     DropdownMenuItem(value: 'USD', child: Text('USD - US Dollar')),
@@ -834,12 +911,16 @@ class _SettingsTab extends ConsumerStatefulWidget {
 }
 
 class _SettingsTabState extends ConsumerState<_SettingsTab> {
+  late TextEditingController _subscriptionPlanController;
   late TextEditingController _customDomainController;
   late TextEditingController _emailFooterController;
 
   @override
   void initState() {
     super.initState();
+    _subscriptionPlanController = TextEditingController(
+      text: widget.settings?.subscriptionPlan ?? '',
+    );
     _customDomainController = TextEditingController(
       text: widget.settings?.customDomain,
     );
@@ -850,6 +931,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
 
   @override
   void dispose() {
+    _subscriptionPlanController.dispose();
     _customDomainController.dispose();
     _emailFooterController.dispose();
     super.dispose();
@@ -895,9 +977,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                   ),
                   const Divider(height: 24),
                   TextField(
-                    controller: TextEditingController(
-                      text: widget.settings?.subscriptionPlan ?? '',
-                    ),
+                    controller: _subscriptionPlanController,
                     decoration: const InputDecoration(labelText: 'Subscription Plan'),
                     enabled: false,
                   ),
@@ -906,6 +986,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                     controller: _customDomainController,
                     decoration: const InputDecoration(
                       labelText: 'Custom Domain',
+                      hintText: 'yourbusiness.com',
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -913,6 +994,7 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                     controller: _emailFooterController,
                     decoration: const InputDecoration(
                       labelText: 'Email Footer',
+                      hintText: 'Custom footer for email communications…',
                     ),
                     maxLines: 3,
                   ),
@@ -961,6 +1043,8 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                 child: OutlinedButton(
                   onPressed: () {
                     setState(() {
+                      _subscriptionPlanController.text =
+                          widget.settings?.subscriptionPlan ?? '';
                       _customDomainController.text = widget.settings?.customDomain ?? '';
                       _emailFooterController.text = widget.settings?.emailFooter ?? '';
                     });
@@ -1027,16 +1111,26 @@ class _NotificationsTabState extends State<_NotificationsTab> {
             children: [
               const Padding(
                 padding: EdgeInsets.all(16.0),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(LucideIcons.bell, size: 20, color: Colors.orange),
-                    SizedBox(width: 8),
+                    Row(
+                      children: [
+                        Icon(LucideIcons.bell, size: 20, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Text(
+                          'Notification Preferences',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
                     Text(
-                      'Global Notifications',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      'Choose how you want to receive notifications about your business.',
+                      style: TextStyle(fontSize: 13, color: Colors.black54),
                     ),
                   ],
                 ),
@@ -1044,7 +1138,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
               const Divider(height: 1),
               SwitchListTile(
                 title: const Text('Email Notifications'),
-                subtitle: const Text('Receive reports and alerts via email'),
+                subtitle: const Text('Receive important updates via email'),
                 value: _draft.emailNotifications,
                 onChanged: (val) {
                   setState(() => _draft = _draft.copyWith(emailNotifications: val));
@@ -1053,7 +1147,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
               const Divider(height: 1),
               SwitchListTile(
                 title: const Text('SMS Notifications'),
-                subtitle: const Text('Get critical alerts on your phone'),
+                subtitle: const Text('Receive urgent alerts via SMS'),
                 value: _draft.smsNotifications,
                 onChanged: (val) {
                   setState(() => _draft = _draft.copyWith(smsNotifications: val));
@@ -1062,7 +1156,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
               const Divider(height: 1),
               SwitchListTile(
                 title: const Text('In-App Notifications'),
-                subtitle: const Text('Show badges and popups in the app'),
+                subtitle: const Text('Receive notifications within the application'),
                 value: _draft.inAppNotifications,
                 onChanged: (val) {
                   setState(() => _draft = _draft.copyWith(inAppNotifications: val));
@@ -1154,11 +1248,86 @@ class _NotificationsTabState extends State<_NotificationsTab> {
   }
 }
 
-class _LegalTab extends StatelessWidget {
-  const _LegalTab();
+/// Read-only info matching web account “Default tax accounts (fixed)”.
+class _TaxAccountInfoTile extends StatelessWidget {
+  final String label;
+  final String accountLine;
+  final String hint;
+
+  const _TaxAccountInfoTile({
+    required this.label,
+    required this.accountLine,
+    required this.hint,
+  });
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+              color: Colors.grey.shade600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            accountLine,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            hint,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Same content as web `/account?tab=legal`: Terms (`/terms`) and Privacy (`/privacy`) on the app host.
+class _LegalTab extends StatelessWidget {
+  const _LegalTab();
+
+  Future<void> _open(BuildContext context, Uri uri) async {
+    try {
+      final ok = await launchUrl(
+        uri,
+        mode: LaunchMode.inAppBrowserView,
+      );
+      if (!ok && context.mounted) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open link: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final termsUri = uriTermsOfService();
+    final privacyUri = uriPrivacyPolicy();
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -1170,45 +1339,126 @@ class _LegalTab extends StatelessWidget {
               children: [
                 const Row(
                   children: [
-                    Icon(LucideIcons.shield, size: 20, color: Colors.grey),
+                    Icon(LucideIcons.shield, size: 22, color: Colors.black54),
                     SizedBox(width: 8),
                     Text(
                       'Legal Information',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(LucideIcons.fileText),
-                  title: const Text('Terms of Service'),
-                  subtitle: const Text('Read our terms and conditions'),
-                  onTap: () async {
-                    final uri = Uri.parse('https://insightbooksafrica.com/terms');
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                const SizedBox(height: 8),
+                Text(
+                  'Important legal documents and policies for your business.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                ),
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final wide = constraints.maxWidth >= 520;
+                    final termsCard = _LegalLinkCard(
+                      icon: LucideIcons.fileText,
+                      iconColor: Colors.blue.shade700,
+                      title: 'Terms of Service',
+                      subtitle: 'Read our terms and conditions',
+                      onTap: () => _open(context, termsUri),
+                    );
+                    final privacyCard = _LegalLinkCard(
+                      icon: LucideIcons.shield,
+                      iconColor: Colors.green.shade700,
+                      title: 'Privacy Policy',
+                      subtitle: 'Learn about data protection',
+                      onTap: () => _open(context, privacyUri),
+                    );
+                    if (wide) {
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: termsCard),
+                          const SizedBox(width: 12),
+                          Expanded(child: privacyCard),
+                        ],
+                      );
                     }
+                    return Column(
+                      children: [
+                        termsCard,
+                        const SizedBox(height: 12),
+                        privacyCard,
+                      ],
+                    );
                   },
                 ),
-                const Divider(),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(LucideIcons.shieldCheck),
-                  title: const Text('Privacy Policy'),
-                  subtitle: const Text('Learn about data protection'),
-                  onTap: () async {
-                    final uri = Uri.parse('https://insightbooksafrica.com/privacy');
-                    if (await canLaunchUrl(uri)) {
-                      await launchUrl(uri, mode: LaunchMode.externalApplication);
-                    }
-                  },
+                const SizedBox(height: 12),
+                Text(
+                  'Opens the same pages as the website (${termsUri.host}).',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LegalLinkCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _LegalLinkCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade300),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 22, color: iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.open_in_new, size: 18, color: Colors.grey[600]),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/pdf_bytes.dart';
 import '../domain/invoice_model.dart';
 
 final invoiceRepositoryProvider = Provider<InvoiceRepository>((ref) {
@@ -359,7 +360,7 @@ class InvoiceRepository {
         '/api/invoices/$invoiceId/download/pdf',
         options: Options(responseType: ResponseType.bytes),
       );
-      return response.data as List<int>;
+      return requirePdfBytesFromResponse(response.data, label: 'Invoice');
     } catch (e) {
       rethrow;
     }

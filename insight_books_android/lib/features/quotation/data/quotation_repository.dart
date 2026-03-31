@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/pdf_bytes.dart';
 import '../domain/quotation_model.dart';
 
 final quotationRepositoryProvider = Provider<QuotationRepository>((ref) {
@@ -175,7 +176,7 @@ class QuotationRepository {
         '/api/quotations/$quotationId/download/pdf',
         options: Options(responseType: ResponseType.bytes),
       );
-      return response.data as List<int>;
+      return requirePdfBytesFromResponse(response.data, label: 'Quotation');
     } catch (e) {
       rethrow;
     }

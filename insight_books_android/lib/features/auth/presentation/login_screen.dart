@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -33,11 +34,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (result.success && mounted) {
         try {
           final perms = await ref.read(userPermissionsProvider.future);
+          await ref.read(tenantProvider.notifier).loadData();
           if (!mounted) return;
-          context.go(firstAccessibleRoute(perms));
+          final tenantState = ref.read(tenantProvider);
+          final tenantCount =
+              tenantState.isLoading ? null : tenantState.tenants.length;
+          context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
         } catch (_) {
           if (!mounted) return;
-          context.go('/switch-tenant');
+          try {
+            await ref.read(tenantProvider.notifier).loadData();
+          } catch (_) {}
+          if (!mounted) return;
+          final tenantState = ref.read(tenantProvider);
+          final tenantCount =
+              tenantState.isLoading ? null : tenantState.tenants.length;
+          context.go(firstAccessibleRoute({}, tenantCount: tenantCount));
         }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 
 /// Bottom bar items (subset of drawer): filtered by [hasPermission].
@@ -371,6 +373,12 @@ class AppDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentRoute = GoRouterState.of(context).matchedLocation;
     final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
+    final tenantState = ref.watch(tenantProvider);
+    final showSwitchTenant = !tenantState.isLoading &&
+        canAccessSwitchTenant(
+          permissions: perms,
+          tenantCount: tenantState.tenants.length,
+        );
     final drawerWidth = isPermanent ? 280.0 : null;
 
     Widget content = Container(
@@ -472,14 +480,16 @@ class AppDrawer extends ConsumerWidget {
                       currentRoute: currentRoute,
                     ),
                   const SizedBox(height: 8),
-                  _SectionLabel(label: 'ACCOUNT'),
-                  _NavItem(
-                    title: 'Switch Business',
-                    icon: Icons.business_rounded,
-                    iconKey: 'business',
-                    route: '/switch-tenant',
-                    currentRoute: currentRoute,
-                  ),
+                  if (showSwitchTenant || hasPermission(perms, 'system.view'))
+                    _SectionLabel(label: 'ACCOUNT'),
+                  if (showSwitchTenant)
+                    _NavItem(
+                      title: 'Switch Business',
+                      icon: Icons.business_rounded,
+                      iconKey: 'business',
+                      route: '/switch-tenant',
+                      currentRoute: currentRoute,
+                    ),
                   if (hasPermission(perms, 'system.view'))
                     _NavItem(
                       title: 'Account Settings',

@@ -279,18 +279,33 @@ export const refundSale = async (saleId, reason, refundMethod = null) => {
   }
 };
 
-// Print receipt
+// Print receipt (PDF from server; HTML is only returned without ?format=pdf)
 export const printReceipt = async (saleId) => {
   try {
-    const response = await fetch(`/api/sales/${saleId}/receipt`, {
-      method: 'GET'
-    });
+    const response = await fetch(
+      `/api/sales/${saleId}/receipt?format=pdf`,
+      {
+        method: 'GET'
+      }
+    );
     
     if (!response.ok) {
       throw new Error(`Error generating receipt: ${response.statusText}`);
     }
-    
+
+    const ct = (response.headers.get('content-type') || '').toLowerCase();
+    if (ct.includes('application/json')) {
+      throw new Error('Receipt API returned JSON instead of a PDF.');
+    }
+
     const blob = await response.blob();
+    const blobType = (blob.type || '').toLowerCase();
+    if (blobType.includes('text/html')) {
+      throw new Error(
+        'Receipt was returned as HTML instead of PDF. Ensure the server can generate PDFs (format=pdf).'
+      );
+    }
+
     const url = window.URL.createObjectURL(blob);
     
     // Open a new window/tab with the receipt
