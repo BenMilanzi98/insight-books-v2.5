@@ -176,6 +176,8 @@ export async function POST(request) {
     let toTenantId;
     let resolvedFromBranch;
     let resolvedToBranch;
+    /** Cross-tenant UI: source branch comes from the product row (all-branches listing), not the default branch only. */
+    const crossTenantTransfer = !!(bodyFromTenant && bodyToTenant);
 
     if (bodyFromTenant && bodyToTenant) {
       if (bodyFromTenant === bodyToTenant) {
@@ -196,9 +198,9 @@ export async function POST(request) {
       }
       fromTenantId = bodyFromTenant;
       toTenantId = bodyToTenant;
-      resolvedFromBranch = await resolvePrimaryBranchForTenant(fromTenantId);
+      resolvedFromBranch = null;
       resolvedToBranch = await resolvePrimaryBranchForTenant(toTenantId);
-      if (!resolvedFromBranch || !resolvedToBranch) {
+      if (!resolvedToBranch) {
         return NextResponse.json(
           {
             error:
@@ -231,9 +233,83 @@ export async function POST(request) {
     }
 
     // Validate required fields
-    if (!resolvedFromBranch || !resolvedToBranch || !productId || !quantity) {
+    if (!resolvedToBranch || !productId || !quantity) {
       return NextResponse.json(
         { error: 'From business, to business, product, and quantity are required' },
+        { status: 400 }
+      );
+    }
+    if (!crossTenantTransfer && (!resolvedFromBranch || !resolvedToBranch)) {
+      return NextResponse.json(
+        { error: 'From business, to business, product, and quantity are required' },
+        { status: 400 }
+      );
+    }
+
+    const productSelect = {
+      id: true,
+      name: true,
+      sku: true,
+      description: true,
+      price: true,
+      cost: true,
+      category: true,
+      location: true,
+      reorderPoint: true,
+      image: true,
+      isService: true,
+      stockLevel: true,
+      categoryId: true,
+      inventoryAccountId: true,
+      cogsAccountId: true,
+      branchId: true,
+      tenantId: true,
+      taxRate: true,
+    };
+
+    // Validate quantity
+    const transferQuantity = parseFloat(quantity);
+    if (isNaN(transferQuantity) || transferQuantity <= 0) {
+      return NextResponse.json(
+        { error: 'Quantity must be a positive number' },
+        { status: 400 }
+      );
+    }
+
+    let sourceProduct;
+
+    if (crossTenantTransfer) {
+      sourceProduct = await prisma.product.findFirst({
+        where: {
+          id: productId,
+          tenantId: fromTenantId,
+          isDeleted: false,
+        },
+        select: productSelect,
+      });
+      if (!sourceProduct) {
+        return NextResponse.json(
+          { error: 'Product not found at the source business or access denied' },
+          { status: 404 }
+        );
+      }
+      resolvedFromBranch =
+        sourceProduct.branchId ?? (await resolvePrimaryBranchForTenant(fromTenantId));
+      if (!resolvedFromBranch) {
+        return NextResponse.json(
+          {
+            error:
+              'Product has no location and the source business has no default branch. Assign the product to a branch or set a default location.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate branches are different (same-tenant legacy transfers)
+    if (resolvedFromBranch === resolvedToBranch && fromTenantId === toTenantId) {
+      return NextResponse.json(
+        { error: 'Source and destination businesses must be different' },
         { status: 400 }
       );
     }
@@ -248,23 +324,6 @@ export async function POST(request) {
       sessionTenantId: user.tenantId,
       userId: user.id,
     });
-
-    // Validate quantity
-    const transferQuantity = parseFloat(quantity);
-    if (isNaN(transferQuantity) || transferQuantity <= 0) {
-      return NextResponse.json(
-        { error: 'Quantity must be a positive number' },
-        { status: 400 }
-      );
-    }
-
-    // Validate branches are different
-    if (resolvedFromBranch === resolvedToBranch && fromTenantId === toTenantId) {
-      return NextResponse.json(
-        { error: 'Source and destination businesses must be different' },
-        { status: 400 }
-      );
-    }
 
     const [fromBranchData, toBranchData] = await Promise.all([
       prisma.branch.findFirst({
@@ -297,41 +356,23 @@ export async function POST(request) {
       );
     }
 
-    // Source row: at the chosen branch, or org-wide (branchId null = all branches)
-    const sourceProduct = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        tenantId: fromTenantId,
-        isDeleted: false,
-        OR: [{ branchId: resolvedFromBranch }, { branchId: null }],
-      },
-      select: {
-        id: true,
-        name: true,
-        sku: true,
-        description: true,
-        price: true,
-        cost: true,
-        category: true,
-        location: true,
-        reorderPoint: true,
-        image: true,
-        isService: true,
-        stockLevel: true,
-        categoryId: true,
-        inventoryAccountId: true,
-        cogsAccountId: true,
-        branchId: true,
-        tenantId: true,
-        taxRate: true
+    // Source row: legacy path — at the chosen branch, or org-wide (branchId null)
+    if (!crossTenantTransfer) {
+      sourceProduct = await prisma.product.findFirst({
+        where: {
+          id: productId,
+          tenantId: fromTenantId,
+          isDeleted: false,
+          OR: [{ branchId: resolvedFromBranch }, { branchId: null }],
+        },
+        select: productSelect,
+      });
+      if (!sourceProduct) {
+        return NextResponse.json(
+          { error: 'Product not found at the source business or access denied' },
+          { status: 404 }
+        );
       }
-    });
-
-    if (!sourceProduct) {
-      return NextResponse.json(
-        { error: 'Product not found at the source business or access denied' },
-        { status: 404 }
-      );
     }
 
     // Check if sufficient stock is available

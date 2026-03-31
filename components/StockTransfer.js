@@ -207,7 +207,7 @@ export const StockTransferModal = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Transfer Stock</h3>
-                <p className="text-sm text-gray-500 mt-1">Same businesses as &quot;Switch business&quot; — stock uses each business&apos;s default location</p>
+                <p className="text-sm text-gray-500 mt-1">Same businesses as &quot;Switch business&quot;. Stock is taken from each product&apos;s location; the destination uses this business&apos;s default location.</p>
               </div>
               <button
                 onClick={handleClose}
