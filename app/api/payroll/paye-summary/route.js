@@ -31,45 +31,40 @@ export async function GET(request) {
       dateFilter.lte = d;
     }
 
-    // Build expense filter
-    const expenseWhere = {
+    // Payroll deductions are the source-of-truth for PAYE withheld.
+    // Use Payroll table instead of relying on Expense rows (which may not exist in some flows).
+    const payrollWhere = {
       tenantId: user.tenantId,
-      category: 'Tax',
-      description: { contains: 'PAYE', mode: 'insensitive' },
-      isDeleted: false,
-      status: 'Approved',
+      payeAmount: { gt: 0 },
     };
-
+    // Filter by paymentDate if available; otherwise fall back to periodEnd.
+    // We implement this as OR so payrolls without paymentDate are still included.
     if (Object.keys(dateFilter).length > 0) {
-      expenseWhere.date = dateFilter;
+      payrollWhere.OR = [
+        { paymentDate: dateFilter },
+        { paymentDate: null, periodEnd: dateFilter },
+      ];
     }
-
-    // Optional high-level filter: "Paid" means fully/partially paid; "Pending" means no payment yet.
     if (status === 'Paid') {
-      expenseWhere.OR = [
-        { paymentStatus: { in: ['Fully paid', 'Paid', 'Partially', 'Partially paid'] } },
-        { paidAmount: { gt: 0 } }
-      ];
+      // PAYE "paid" here means payroll was processed (i.e., deduction occurred) and not reversed.
+      // Remittance to MRA is tracked separately via expense payments and is not per-employee.
+      payrollWhere.status = { not: 'Reversed' };
     } else if (status === 'Pending') {
-      expenseWhere.AND = [
-        { OR: [{ paymentStatus: 'Pending' }, { paymentStatus: null }] },
-        { OR: [{ paidAmount: null }, { paidAmount: { lte: 0 } }] }
-      ];
+      // Pending here means deduction exists and payroll not reversed.
+      payrollWhere.status = { not: 'Reversed' };
     }
 
-    // Get PAYE expenses grouped by employee
-    const payeExpenses = await prisma.expense.findMany({
-      where: expenseWhere,
-      orderBy: { date: 'desc' },
+    const payrolls = await prisma.payroll.findMany({
+      where: payrollWhere,
+      orderBy: { periodEnd: 'desc' },
       select: {
         id: true,
-        date: true,
-        description: true,
-        amount: true,
-        paidAmount: true,
-        paymentStatus: true,
-        notes: true,
         employeeId: true,
+        periodStart: true,
+        periodEnd: true,
+        paymentDate: true,
+        payeAmount: true,
+        status: true,
         employee: {
           select: {
             id: true,
@@ -85,59 +80,53 @@ export async function GET(request) {
       const n = Number(v);
       return Number.isFinite(n) ? n : 0;
     };
-    const clamp = (x, min, max) => Math.max(min, Math.min(max, x));
 
-    // For PAYE expenses: `amount` = assessed PAYE; `paidAmount` = remitted amount (may be partial).
-    const totals = payeExpenses.reduce(
-      (acc, exp) => {
-        const assessed = num(exp.amount);
-        const paid = clamp(num(exp.paidAmount), 0, assessed);
-        acc.total += assessed;
-        acc.paid += paid;
-        acc.pending += Math.max(0, assessed - paid);
+    // Totals: treat reversed payrolls as negative deductions (for audit correctness).
+    const totals = payrolls.reduce(
+      (acc, p) => {
+        const amt = num(p.payeAmount);
+        const signed = p.status === 'Reversed' ? -amt : amt;
+        acc.total += signed;
+        if (p.status === 'Reversed') acc.reversed += amt;
+        else acc.deducted += amt;
         return acc;
       },
-      { total: 0, paid: 0, pending: 0 }
+      { total: 0, deducted: 0, reversed: 0 }
     );
 
     // Group by employee for detailed breakdown
     const employeeBreakdown = {};
     
-    for (const expense of payeExpenses) {
-      const assessed = num(expense.amount);
-      const paid = clamp(num(expense.paidAmount), 0, assessed);
-      const pending = Math.max(0, assessed - paid);
-
-      const empId = expense.employeeId || expense.employee?.id || 'unknown';
-      const empName = expense.employee?.name || (() => {
-        const nameMatch = expense.description?.match(/PAYE Tax\s*-\s*(.+)/i);
-        return nameMatch ? nameMatch[1] : 'Unknown';
-      })();
+    for (const p of payrolls) {
+      const amt = num(p.payeAmount);
+      const signed = p.status === 'Reversed' ? -amt : amt;
+      const empId = p.employeeId || p.employee?.id || 'unknown';
+      const empName = p.employee?.name || 'Unknown';
       
       if (!employeeBreakdown[empId]) {
         employeeBreakdown[empId] = {
           employeeId: empId,
           employeeName: empName,
-          employeeNumber: expense.employee?.employeeNumber || 'N/A',
-          department: expense.employee?.department || 'N/A',
+          employeeNumber: p.employee?.employeeNumber || 'N/A',
+          department: p.employee?.department || 'N/A',
           totalPaye: 0,
-          pendingAmount: 0,
-          paidAmount: 0,
+          pendingAmount: 0, // PAYE withheld (not reversed)
+          paidAmount: 0,    // Remittance is not tracked per employee; keep 0 for now
           periods: []
         };
       }
 
-      employeeBreakdown[empId].totalPaye += assessed;
-      employeeBreakdown[empId].paidAmount += paid;
-      employeeBreakdown[empId].pendingAmount += pending;
+      employeeBreakdown[empId].totalPaye += signed;
+      if (p.status !== 'Reversed') {
+        employeeBreakdown[empId].pendingAmount += amt;
+      }
 
-      // Extract period from notes or description
-      const periodMatch = expense.notes?.match(/Period: ([^|]+)/);
+      const periodLabel = `${new Date(p.periodStart).toLocaleDateString()} - ${new Date(p.periodEnd).toLocaleDateString()}`;
       employeeBreakdown[empId].periods.push({
-        date: expense.date,
-        amount: assessed,
-        status: pending > 0 ? (paid > 0 ? 'Partially' : 'Pending') : 'Paid',
-        period: periodMatch ? periodMatch[1].trim() : expense.date.toLocaleDateString()
+        date: p.paymentDate || p.periodEnd,
+        amount: signed,
+        status: p.status === 'Reversed' ? 'Reversed' : 'Pending',
+        period: periodLabel
       });
     }
 
@@ -148,28 +137,26 @@ export async function GET(request) {
     return NextResponse.json({
       summary: {
         totalPaye: totals.total,
-        pendingPaye: totals.pending,
-        paidPaye: totals.paid,
-        expenseCount: payeExpenses.length,
+        pendingPaye: totals.deducted,
+        paidPaye: 0,
+        reversedPaye: totals.reversed,
+        payrollCount: payrolls.length,
         employeeCount: breakdownArray.length
       },
       byEmployee: breakdownArray,
-      details: payeExpenses.map(exp => {
-        const assessed = num(exp.amount);
-        const paid = clamp(num(exp.paidAmount), 0, assessed);
-        const pending = Math.max(0, assessed - paid);
-        const nameMatch = exp.description?.match(/PAYE Tax\s*-\s*(.+)/i);
+      details: payrolls.map(p => {
+        const amt = num(p.payeAmount);
+        const signed = p.status === 'Reversed' ? -amt : amt;
         return {
-          id: exp.id,
-          date: exp.date,
-          employeeName: exp.employee?.name || (nameMatch ? nameMatch[1] : 'Unknown'),
-          employeeNumber: exp.employee?.employeeNumber || 'N/A',
-          department: exp.employee?.department || 'N/A',
-          amount: assessed,
-          paidAmount: paid,
-          pendingAmount: pending,
-          status: pending > 0 ? (paid > 0 ? 'Partially' : 'Pending') : 'Paid',
-          notes: exp.notes
+          id: p.id,
+          date: p.paymentDate || p.periodEnd,
+          employeeName: p.employee?.name || 'Unknown',
+          employeeNumber: p.employee?.employeeNumber || 'N/A',
+          department: p.employee?.department || 'N/A',
+          amount: signed,
+          status: p.status === 'Reversed' ? 'Reversed' : 'Pending',
+          periodStart: p.periodStart,
+          periodEnd: p.periodEnd
         };
       })
     });

@@ -491,6 +491,41 @@ export async function GET(request) {
         console.warn('Tax balances: Transaction query failed for', taxType.taxId, err?.message);
       }
 
+      // ========== PAYE FALLBACK (Payroll table) ==========
+      // If PAYE was not posted via GL (or tax account linkage differs), still reflect PAYE withheld.
+      try {
+        const isPAYE =
+          (taxType.taxId || '').toString().toUpperCase() === 'PAYE' ||
+          (taxType.taxName || '').toString().toUpperCase().includes('PAYE');
+        if (isPAYE) {
+          const payrolls = await prisma.payroll.findMany({
+            where: {
+              tenantId: user.tenantId,
+              payeAmount: { gt: 0 },
+              OR: [
+                { paymentDate: dateFilter },
+                { paymentDate: null, periodEnd: dateFilter },
+              ],
+            },
+            select: { payeAmount: true, status: true, paymentDate: true, periodEnd: true }
+          });
+          for (const p of payrolls) {
+            const amt = Number(p.payeAmount || 0);
+            if (amt <= 0) continue;
+            const d = p.paymentDate || p.periodEnd;
+            if (p.status === 'Reversed') {
+              totalRefunded += amt;
+              addToBreakdown(d, 'refunded', amt);
+            } else {
+              totalCollected += amt;
+              addToBreakdown(d, 'collected', amt);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Tax balances: PAYE payroll fallback failed for', taxType.taxId, err?.message);
+      }
+
       const netPayable = totalCollected - totalPaid - totalRefunded;
 
       taxAccountBalances.push({
