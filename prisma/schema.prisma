@@ -281,6 +281,8 @@ model User {
   reopenedAccountingPeriods      AccountingPeriod[]     @relation("AccountingPeriodReopenedBy")
   stockTransfersCreated          StockTransfer[]        @relation("StockTransferCreatedBy")
   stockTransfersApproved         StockTransfer[]        @relation("StockTransferApprovedBy")
+  stockTransfersReceived         StockTransfer[]        @relation("StockTransferReceivedBy")
+  stockTransfersRejected         StockTransfer[]        @relation("StockTransferRejectedBy")
   defaultBranch                  Branch?                @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
   userBranches                   UserBranch[]
   role                           Role                   @relation(fields: [roleId], references: [id])
@@ -2635,25 +2637,32 @@ model ExchangeRate {
 }
 
 model StockTransfer {
-  id            String    @id @default(cuid())
-  tenantId      String
-  fromBranchId  String
-  toBranchId    String
-  productId     String
-  quantity      Decimal   @db.Decimal(18, 4)
-  status        String    @default("pending") // pending, approved, cancelled
-  notes         String?
-  createdById   String
-  approvedById  String?
-  approvedAt    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  fromBranch    Branch    @relation("StockTransferFrom", fields: [fromBranchId], references: [id])
-  toBranch      Branch    @relation("StockTransferTo", fields: [toBranchId], references: [id])
-  product       Product   @relation(fields: [productId], references: [id])
-  createdBy     User      @relation("StockTransferCreatedBy", fields: [createdById], references: [id])
-  approvedBy    User?     @relation("StockTransferApprovedBy", fields: [approvedById], references: [id])
+  id               String    @id @default(cuid())
+  tenantId         String
+  fromBranchId     String
+  toBranchId       String
+  productId        String
+  quantity         Decimal   @db.Decimal(18, 4)
+  status           String    @default("pending") // pending, approved, received, rejected, cancelled
+  notes            String?
+  createdById      String
+  approvedById     String?
+  approvedAt       DateTime?
+  receivedById     String?
+  receivedAt       DateTime?
+  rejectedById     String?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  fromBranch       Branch    @relation("StockTransferFrom", fields: [fromBranchId], references: [id])
+  toBranch         Branch    @relation("StockTransferTo", fields: [toBranchId], references: [id])
+  product          Product   @relation(fields: [productId], references: [id])
+  createdBy        User      @relation("StockTransferCreatedBy", fields: [createdById], references: [id])
+  approvedBy       User?     @relation("StockTransferApprovedBy", fields: [approvedById], references: [id])
+  receivedBy       User?     @relation("StockTransferReceivedBy", fields: [receivedById], references: [id])
+  rejectedBy       User?     @relation("StockTransferRejectedBy", fields: [rejectedById], references: [id])
 
   @@index([tenantId])
   @@index([fromBranchId])
@@ -2661,6 +2670,8 @@ model StockTransfer {
   @@index([productId])
   @@index([status])
   @@index([createdById])
+  @@index([receivedById])
+  @@index([rejectedById])
   receiptNotice StockTransferReceiptNotice?
 }
 
