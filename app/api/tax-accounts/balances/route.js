@@ -370,8 +370,12 @@ export async function GET(request) {
             deletedExpenseTaxSourceIds = new Set(deletedExpenses.map((e) => e.id));
           }
 
-          const isLiability = taxType.account?.accountType === 'Liability';
-          const isAsset = taxType.account?.accountType === 'Asset';
+          const accountTypeNorm = (taxType.account?.accountType || '')
+            .toString()
+            .trim()
+            .toLowerCase();
+          const isLiability = accountTypeNorm === 'liability';
+          const isAsset = accountTypeNorm === 'asset';
           const isPAYE =
             (taxType.taxId || '').toString().toUpperCase() === 'PAYE' ||
             (taxType.taxName || '').toString().toUpperCase().includes('PAYE');
