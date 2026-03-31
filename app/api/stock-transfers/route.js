@@ -162,7 +162,7 @@ export async function POST(request) {
     if (!fromBranch || !toBranch || !productId || !quantity) {
       console.error('[Stock Transfer] Missing required fields:', { fromBranch, toBranch, productId, quantity });
       return NextResponse.json(
-        { error: 'From branch, to branch, product, and quantity are required' },
+        { error: 'From business, to business, product, and quantity are required' },
         { status: 400 }
       );
     }
@@ -188,7 +188,7 @@ export async function POST(request) {
     // Validate branches are different
     if (fromBranch === toBranch) {
       return NextResponse.json(
-        { error: 'Source and destination branches must be different' },
+        { error: 'Source and destination businesses must be different' },
         { status: 400 }
       );
     }
@@ -213,25 +213,25 @@ export async function POST(request) {
 
     if (!fromBranchData) {
       return NextResponse.json(
-        { error: 'Source branch not found or inactive' },
+        { error: 'Source business not found or inactive' },
         { status: 404 }
       );
     }
 
     if (!toBranchData) {
       return NextResponse.json(
-        { error: 'Destination branch not found or inactive' },
+        { error: 'Destination business not found or inactive' },
         { status: 404 }
       );
     }
 
-    // Validate product exists and belongs to tenant - fetch all fields needed for transfer
+    // Source row: at the chosen branch, or org-wide (branchId null = all branches)
     const sourceProduct = await prisma.product.findFirst({
       where: {
         id: productId,
         tenantId: user.tenantId,
-        branchId: fromBranch,
-        isDeleted: false
+        isDeleted: false,
+        OR: [{ branchId: fromBranch }, { branchId: null }]
       },
       select: {
         id: true,
@@ -257,7 +257,7 @@ export async function POST(request) {
 
     if (!sourceProduct) {
       return NextResponse.json(
-        { error: 'Product not found in source branch or access denied' },
+        { error: 'Product not found at the source business or access denied' },
         { status: 404 }
       );
     }

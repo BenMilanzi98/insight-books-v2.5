@@ -378,6 +378,8 @@ const InventoryManagement = () => {
         if (order) queryParams.append('order', order);
         if (page) queryParams.append('page', page);
         if (limit) queryParams.append('limit', limit);
+        // Tenant-wide inventory: all branches, not scoped to session branchId
+        queryParams.append('allBranches', 'true');
         
         const queryString = queryParams.toString();
         const url = `/api/stock${queryString ? `?${queryString}` : ''}`;
@@ -3935,7 +3937,7 @@ const InventoryManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">Stock Transfers</h2>
-              <p className="text-gray-500 mt-1">Manage stock movements between branches</p>
+              <p className="text-gray-500 mt-1">Manage stock movements between businesses</p>
             </div>
             <button
               onClick={() => { fetchTransfers(); fetchStockByBranch(); }}
@@ -4012,7 +4014,7 @@ const InventoryManagement = () => {
           if (success) setShowTransferModal(false);
           return success;
         }}
-        branches={branches}
+        businesses={branches}
         products={inventory}
         loading={isSubmitting}
       />

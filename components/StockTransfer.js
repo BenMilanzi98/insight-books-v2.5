@@ -1,38 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { X, Package, ArrowRight, Check, RefreshCw, Building2, AlertCircle, Plus, Trash2 } from "lucide-react";
 
-// Simplified Stock Transfer Modal - Multi-Product Support
+// Stock Transfer Modal — "Business" = operating unit (maps to a branch id for the API).
 export const StockTransferModal = ({
   isOpen,
   onClose,
   onSubmit,
   branches = [],
+  businesses = null,
   products = [],
   loading = false
 }) => {
-  const [fromBranch, setFromBranch] = useState("");
-  const [toBranch, setToBranch] = useState("");
+  const businessList = businesses ?? branches;
+  const [fromBusiness, setFromBusiness] = useState("");
+  const [toBusiness, setToBusiness] = useState("");
   const [selectedProducts, setSelectedProducts] = useState([]); // Array of {productId, quantity, availableStock}
   const [notes, setNotes] = useState("");
   const [errors, setErrors] = useState({});
 
-  // Debug: Log props to see what's being passed (must be before early return)
-  useEffect(() => {
-    if (isOpen) {
-      console.log('StockTransferModal opened:', {
-        branchesCount: branches.length,
-        productsCount: products.length,
-        branches: branches,
-        isOpen
-      });
-    }
-  }, [isOpen, branches.length, products.length]);
+  // Source = selected business (branch id) or org-wide rows (branchId null = all branches)
+  const isAtSourceBusiness = (p) => {
+    if (!fromBusiness) return false;
+    const bid = p.branchId ?? null;
+    return bid === null || bid === fromBusiness || String(bid) === String(fromBusiness);
+  };
 
-  // Get available products from source branch
-  const availableProducts = products.filter(p => 
-    p.branchId === fromBranch && 
+  const availableProducts = products.filter(p =>
+    isAtSourceBusiness(p) &&
     parseFloat(p.stockLevel || 0) > 0 &&
     !selectedProducts.find(sp => sp.productId === (p.id || p._id))
   );
@@ -91,10 +87,10 @@ export const StockTransferModal = ({
   const validate = () => {
     const newErrors = {};
     
-    if (!fromBranch) newErrors.fromBranch = "Source branch is required";
-    if (!toBranch) newErrors.toBranch = "Destination branch is required";
-    if (fromBranch === toBranch) {
-      newErrors.toBranch = "Source and destination must be different";
+    if (!fromBusiness) newErrors.fromBusiness = "Source business is required";
+    if (!toBusiness) newErrors.toBusiness = "Destination business is required";
+    if (fromBusiness === toBusiness) {
+      newErrors.toBusiness = "Source and destination businesses must be different";
     }
     if (selectedProducts.length === 0) {
       newErrors.products = "Please select at least one product to transfer";
@@ -117,10 +113,10 @@ export const StockTransferModal = ({
     e.preventDefault();
     if (!validate()) return;
 
-    // Create transfers for each product
+    // API expects fromBranch / toBranch (branch ids)
     const transfers = selectedProducts.map(sp => ({
-      fromBranch,
-      toBranch,
+      fromBranch: fromBusiness,
+      toBranch: toBusiness,
       productId: sp.productId,
       quantity: parseFloat(sp.quantity),
       notes: notes || null
@@ -133,9 +129,8 @@ export const StockTransferModal = ({
     }
 
     if (successCount === transfers.length) {
-      // Reset form on success
-      setFromBranch("");
-      setToBranch("");
+      setFromBusiness("");
+      setToBusiness("");
       setSelectedProducts([]);
       setNotes("");
       setErrors({});
@@ -143,8 +138,8 @@ export const StockTransferModal = ({
   };
 
   const handleClose = () => {
-    setFromBranch("");
-    setToBranch("");
+    setFromBusiness("");
+    setToBusiness("");
     setSelectedProducts([]);
     setNotes("");
     setErrors({});
@@ -165,7 +160,7 @@ export const StockTransferModal = ({
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-medium text-gray-900">Transfer Stock</h3>
-                <p className="text-sm text-gray-500 mt-1">Move stock between branches</p>
+                <p className="text-sm text-gray-500 mt-1">Move stock from one business to another</p>
               </div>
               <button
                 onClick={handleClose}
@@ -177,41 +172,41 @@ export const StockTransferModal = ({
 
             <form onSubmit={handleSubmit} className="w-full">
               <div className="space-y-4 w-full">
-                {/* From Branch */}
+                {/* From business */}
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    From Branch *
+                    From business *
                   </label>
                   <select
-                    value={fromBranch}
+                    value={fromBusiness}
                     onChange={(e) => {
-                      setFromBranch(e.target.value);
-                      setSelectedProducts([]); // Clear selected products when branch changes
-                      setToBranch(""); // Clear destination if same as new source
-                      if (errors.fromBranch) {
+                      setFromBusiness(e.target.value);
+                      setSelectedProducts([]);
+                      setToBusiness("");
+                      if (errors.fromBusiness) {
                         const newErrors = { ...errors };
-                        delete newErrors.fromBranch;
+                        delete newErrors.fromBusiness;
                         setErrors(newErrors);
                       }
                     }}
-                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.fromBranch ? 'border-red-500' : 'border-gray-300'}`}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.fromBusiness ? 'border-red-500' : 'border-gray-300'}`}
                   >
-                    <option value="">Select source branch</option>
-                    {branches && branches.length > 0 ? (
-                      branches.filter(b => b.isActive !== false).map(branch => (
-                        <option key={branch.id || branch._id} value={branch.id || branch._id}>
-                          {branch.name}
+                    <option value="">Select source business</option>
+                    {businessList && businessList.length > 0 ? (
+                      businessList.filter(b => b.isActive !== false).map((b) => (
+                        <option key={b.id || b._id} value={b.id || b._id}>
+                          {b.name}
                         </option>
                       ))
                     ) : (
-                      <option value="" disabled>No branches available</option>
+                      <option value="" disabled>No businesses available</option>
                     )}
                   </select>
-                  {errors.fromBranch && (
-                    <p className="mt-1 text-sm text-red-600">{errors.fromBranch}</p>
+                  {errors.fromBusiness && (
+                    <p className="mt-1 text-sm text-red-600">{errors.fromBusiness}</p>
                   )}
-                  {branches.length === 0 && (
-                    <p className="mt-1 text-xs text-amber-600">Loading branches...</p>
+                  {businessList.length === 0 && (
+                    <p className="mt-1 text-xs text-amber-600">Loading businesses...</p>
                   )}
                 </div>
 
@@ -220,40 +215,40 @@ export const StockTransferModal = ({
                   <ArrowRight className="w-5 h-5 text-gray-400" />
                 </div>
 
-                {/* To Branch */}
+                {/* To business */}
                 <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    To Branch *
+                    To business *
                   </label>
                   <select
-                    value={toBranch}
+                    value={toBusiness}
                     onChange={(e) => {
-                      setToBranch(e.target.value);
-                      if (errors.toBranch) {
+                      setToBusiness(e.target.value);
+                      if (errors.toBusiness) {
                         const newErrors = { ...errors };
-                        delete newErrors.toBranch;
+                        delete newErrors.toBusiness;
                         setErrors(newErrors);
                       }
                     }}
-                    disabled={!fromBranch}
-                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.toBranch ? 'border-red-500' : 'border-gray-300'} ${!fromBranch ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                    disabled={!fromBusiness}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white ${errors.toBusiness ? 'border-red-500' : 'border-gray-300'} ${!fromBusiness ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                   >
-                    <option value="">{fromBranch ? 'Select destination branch' : 'Select source branch first'}</option>
-                    {branches && branches.length > 0 && fromBranch ? (
-                      branches.filter(b => (b.isActive !== false) && (b.id || b._id) !== fromBranch).map(branch => (
-                        <option key={branch.id || branch._id} value={branch.id || branch._id}>
-                          {branch.name}
+                    <option value="">{fromBusiness ? 'Select destination business' : 'Select source business first'}</option>
+                    {businessList && businessList.length > 0 && fromBusiness ? (
+                      businessList.filter(b => (b.isActive !== false) && (b.id || b._id) !== fromBusiness).map((b) => (
+                        <option key={b.id || b._id} value={b.id || b._id}>
+                          {b.name}
                         </option>
                       ))
                     ) : null}
                   </select>
-                  {errors.toBranch && (
-                    <p className="mt-1 text-sm text-red-600">{errors.toBranch}</p>
+                  {errors.toBusiness && (
+                    <p className="mt-1 text-sm text-red-600">{errors.toBusiness}</p>
                   )}
                 </div>
 
                 {/* Products Section */}
-                {fromBranch && toBranch && (
+                {fromBusiness && toBusiness && (
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-3">
                       <label className="block text-sm font-medium text-gray-700">
@@ -298,11 +293,13 @@ export const StockTransferModal = ({
                               >
                                 <option value="">Select product</option>
                                 {products
-                                  .filter(p => 
-                                    p.branchId === fromBranch && 
+                                  .filter(p =>
+                                    isAtSourceBusiness(p) &&
                                     parseFloat(p.stockLevel || 0) > 0 &&
-                                    (p.id || p._id) === sp.productId || 
-                                    !selectedProducts.find((sp2, i2) => i2 !== index && sp2.productId === (p.id || p._id))
+                                    ((p.id || p._id) === sp.productId ||
+                                      !selectedProducts.find(
+                                        (sp2, i2) => i2 !== index && sp2.productId === (p.id || p._id)
+                                      ))
                                   )
                                   .map(product => (
                                     <option key={product.id || product._id} value={product.id || product._id}>
@@ -360,23 +357,23 @@ export const StockTransferModal = ({
                   </div>
                 )}
 
-                {!fromBranch && (
+                {!fromBusiness && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>Select source and destination branches first</p>
+                    <p>Select source and destination businesses first</p>
                     <p className="text-xs text-gray-400 mt-1">Then you can add products to transfer</p>
                   </div>
                 )}
                 
-                {fromBranch && !toBranch && (
+                {fromBusiness && !toBusiness && (
                   <div className="text-center py-4 text-sm text-gray-500 border-t pt-4">
                     <Package className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                    <p>Select destination branch to continue</p>
+                    <p>Select destination business to continue</p>
                   </div>
                 )}
 
                 {/* Notes */}
-                {fromBranch && toBranch && (
+                {fromBusiness && toBusiness && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Notes (Optional)
@@ -493,8 +490,10 @@ export const StockTransfersList = ({
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm text-gray-600 mt-2">
+                  <span className="text-gray-500">From</span>
                   <span className="font-medium">{transfer.fromBranch?.name || "N/A"}</span>
                   <ArrowRight className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-500">To</span>
                   <span className="font-medium">{transfer.toBranch?.name || "N/A"}</span>
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -566,14 +565,14 @@ export const StockPerBranch = ({
     return (
       <div className="text-center py-8 text-gray-500">
         <Building2 className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-        <p>No branch stock data available</p>
+        <p>No business stock data available</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock by Branch</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock by business</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {branches.map((branch) => {
           // Calculate total value if not provided
@@ -589,7 +588,7 @@ export const StockPerBranch = ({
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium text-gray-900 flex items-center">
                   <Building2 className="w-4 h-4 mr-2 text-gray-500" />
-                  {branch.name || "Unnamed Branch"}
+                  {branch.name || "Unnamed business"}
                 </h4>
               </div>
               <div className="space-y-2">
