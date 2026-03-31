@@ -9,6 +9,7 @@ import { formatSalaryAmount } from "@/lib/currencyUtils";
 export default function PayrollProcessing() {
   const router = useRouter();
   const [payrollRuns, setPayrollRuns] = useState([]);
+  const [runFilter, setRunFilter] = useState('active'); // all | active | reversed
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [showProcessModal, setShowProcessModal] = useState(false);
@@ -259,7 +260,7 @@ export default function PayrollProcessing() {
             totalNet: 0,
             totalPAYE: 0,
             totalNPS: 0,
-            status: payroll.status
+            _statuses: [],
           };
         }
         grouped[key].employees++;
@@ -267,9 +268,25 @@ export default function PayrollProcessing() {
         grouped[key].totalNet += parseFloat(payroll.netPay || 0);
         grouped[key].totalPAYE += parseFloat(payroll.payeAmount || 0);
         grouped[key].totalNPS += parseFloat(payroll.totalNpsAmount || 0);
+        grouped[key]._statuses.push(payroll.status || 'Pending');
       });
+
+      const computeRunStatus = (statuses = []) => {
+        const s = statuses.filter(Boolean);
+        if (s.length > 0 && s.every(x => x === 'Reversed')) return 'Reversed';
+        if (s.includes('Processed')) return 'Processed';
+        if (s.includes('Posted')) return 'Posted';
+        if (s.includes('Draft')) return 'Draft';
+        if (s.includes('Pending')) return 'Pending';
+        return s[0] || 'Pending';
+      };
       
-      setPayrollRuns(Object.values(grouped));
+      setPayrollRuns(
+        Object.values(grouped).map((run) => ({
+          ...run,
+          status: computeRunStatus(run._statuses),
+        }))
+      );
     } catch (error) {
       console.error('Error fetching payroll runs:', error);
     } finally {
@@ -308,6 +325,13 @@ export default function PayrollProcessing() {
     if (status === 'Processed') return 'bg-emerald-100 text-emerald-800';
     return 'bg-blue-100 text-blue-800';
   };
+
+  const filteredRuns = useMemo(() => {
+    if (runFilter === 'all') return payrollRuns;
+    if (runFilter === 'reversed') return payrollRuns.filter(r => r.status === 'Reversed');
+    // active
+    return payrollRuns.filter(r => r.status !== 'Reversed');
+  }, [payrollRuns, runFilter]);
 
   const canReversePayrollEntry = (entry) => {
     if (!entry?.id) return false;
@@ -411,7 +435,11 @@ export default function PayrollProcessing() {
       for (const entry of payrollEntries) {
         try {
           const deleteRes = await fetch(`/api/payroll/${entry.id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reversalReason: `Payroll reversal from payroll run delete (${formatDate(payrollToDelete.periodStart)} - ${formatDate(payrollToDelete.periodEnd)})`
+            })
           });
 
           if (deleteRes.ok) {
@@ -824,10 +852,10 @@ export default function PayrollProcessing() {
   };
 
   const totalStats = {
-    totalRuns: payrollRuns.length,
-    totalEmployees: payrollRuns.reduce((sum, run) => sum + run.employees, 0),
-    totalGross: payrollRuns.reduce((sum, run) => sum + run.totalGross, 0),
-    totalNet: payrollRuns.reduce((sum, run) => sum + run.totalNet, 0)
+    totalRuns: filteredRuns.length,
+    totalEmployees: filteredRuns.reduce((sum, run) => sum + run.employees, 0),
+    totalGross: filteredRuns.reduce((sum, run) => sum + run.totalGross, 0),
+    totalNet: filteredRuns.reduce((sum, run) => sum + run.totalNet, 0)
   };
 
   return (
@@ -909,6 +937,44 @@ export default function PayrollProcessing() {
 
       {/* Payroll Runs Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b bg-white">
+          <div className="text-sm font-medium text-gray-700">Runs</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRunFilter('active')}
+              className={`px-3 py-1.5 rounded-md text-sm border ${
+                runFilter === 'active'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              onClick={() => setRunFilter('reversed')}
+              className={`px-3 py-1.5 rounded-md text-sm border ${
+                runFilter === 'reversed'
+                  ? 'bg-gray-800 text-white border-gray-800'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Reversed
+            </button>
+            <button
+              type="button"
+              onClick={() => setRunFilter('all')}
+              className={`px-3 py-1.5 rounded-md text-sm border ${
+                runFilter === 'all'
+                  ? 'bg-white text-gray-900 border-gray-900'
+                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              All
+            </button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
@@ -925,7 +991,7 @@ export default function PayrollProcessing() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {payrollRuns.map((run, index) => (
+              {filteredRuns.map((run, index) => (
                 <tr key={index} className="hover:bg-gray-50">
                   <td className="px-6 py-4 text-sm text-gray-900">
                     {formatDate(run.periodStart)} - {formatDate(run.periodEnd)}
@@ -937,8 +1003,8 @@ export default function PayrollProcessing() {
                   <td className="px-6 py-4 text-sm text-gray-900 text-right">{formatCurrency(run.totalNPS)}</td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900 text-right">{formatCurrency(run.totalNet)}</td>
                   <td className="px-6 py-4 text-sm">
-                    <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                      {run.status || 'Processed'}
+                    <span className={`px-2 py-1 rounded-full text-xs ${payrollStatusBadge(run.status)}`}>
+                      {run.status}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-center">
@@ -950,13 +1016,15 @@ export default function PayrollProcessing() {
                       >
                         <Eye size={18} />
                       </button>
-                      <button 
-                        className="text-red-600 hover:text-red-800" 
-                        onClick={() => handleDeleteClick(run)}
-                        title="Delete Payroll"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {run.status !== 'Reversed' && (
+                        <button 
+                          className="text-red-600 hover:text-red-800" 
+                          onClick={() => handleDeleteClick(run)}
+                          title="Reverse Payroll"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -965,7 +1033,7 @@ export default function PayrollProcessing() {
           </table>
         </div>
         
-        {payrollRuns.length === 0 && !loading && (
+        {filteredRuns.length === 0 && !loading && (
           <div className="text-center py-12">
             <DollarSign size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-1">No payroll runs found</h3>

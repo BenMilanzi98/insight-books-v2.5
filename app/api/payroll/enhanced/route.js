@@ -824,6 +824,8 @@ export async function POST(request) {
       
       // Align expense dates with payment / GL (so MTD dashboard includes payroll immediately; periodEnd can be future)
       const expenseDate = paymentDate || periodEnd;
+      const PAYROLL_DASHBOARD_EXPENSE_PREFIX = 'payrollDashboardExpense:';
+      const payrollExpenseMarker = `${PAYROLL_DASHBOARD_EXPENSE_PREFIX}${payrollEntry.id}`;
       
       // 1. Net Pay expense (actual payment to employee)
       if (netPay > 0) {
@@ -841,7 +843,8 @@ export async function POST(request) {
             paidAmount: netPay,
             submittedById: user.id,
             tenantId: user.tenantId,
-            notes: `Net Pay for ${employee.name} after all deductions`
+            originalReference: payrollEntry.id,
+            notes: `Net Pay for ${employee.name} after all deductions | ${payrollExpenseMarker}`
           }
         });
 
@@ -861,6 +864,17 @@ export async function POST(request) {
 
       // 2. PAYE expense (employer's tax expense - different from withholding)
       if (payeAmount > 0) {
+        // Link to PAYE tax type for reporting and reconciliation (liability postings are in GL).
+        const payeTaxTypeRow = await prisma.taxType.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            OR: [
+              { taxId: 'PAYE' },
+              { taxName: { contains: 'PAYE', mode: 'insensitive' } }
+            ]
+          },
+          select: { id: true }
+        });
         const payeExpense = await prisma.expense.create({
           data: {
             description: `PAYE Tax - ${employee.name}`,
@@ -874,7 +888,9 @@ export async function POST(request) {
             paidAmount: 0,
             submittedById: user.id,
             tenantId: user.tenantId,
-            notes: `PAYE for ${employee.name} | Gross: ${grossPay.toFixed(2)} | PAYE: ${payeAmount.toFixed(2)} | Period: ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()} | For MRA Settlement`
+            taxTypeId: payeTaxTypeRow?.id || null,
+            originalReference: payrollEntry.id,
+            notes: `PAYE for ${employee.name} | Gross: ${grossPay.toFixed(2)} | PAYE: ${payeAmount.toFixed(2)} | Period: ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()} | For MRA Settlement | ${payrollExpenseMarker}`
           }
         });
 
@@ -896,7 +912,8 @@ export async function POST(request) {
             paidAmount: 0,
             submittedById: user.id,
             tenantId: user.tenantId,
-            notes: `Employer pension contribution (${npsRates.employerRatePercent}%) for ${employee.name} - This amount is owed to NPS`
+            originalReference: payrollEntry.id,
+            notes: `Employer pension contribution (${npsRates.employerRatePercent}%) for ${employee.name} - This amount is owed to NPS | ${payrollExpenseMarker}`
           }
         });
       }
@@ -917,7 +934,8 @@ export async function POST(request) {
             paidAmount: additions,
             submittedById: user.id,
             tenantId: user.tenantId,
-            notes: `Overtime payment for ${employee.name}`
+            originalReference: payrollEntry.id,
+            notes: `Overtime payment for ${employee.name} | ${payrollExpenseMarker}`
           }
         });
 

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { reversePayroll } from '@/lib/transactionReversalService';
 
 /**
  * Helper function to get payroll by ID with proper tenant isolation
@@ -167,6 +168,10 @@ export async function DELETE(request, context) {
     }
     
     const payrollId = context.params.id;
+    const body = await request.json().catch(() => ({}));
+    const reversalReasonRaw =
+      typeof body?.reversalReason === 'string' ? body.reversalReason : 'Payroll deleted (auto reversal)';
+    const reversalReason = reversalReasonRaw.trim();
     
     // Check if payroll exists and belongs to the user's tenant
     const existingPayroll = await getPayrollById(payrollId, user.tenantId);
@@ -178,23 +183,40 @@ export async function DELETE(request, context) {
       );
     }
     
-    // Prevent deleting processed payrolls
-    if (existingPayroll.status === 'Processed') {
-      return NextResponse.json(
-        { error: 'Cannot delete a processed payroll. Set to void status instead.' },
-        { status: 400 }
-      );
+    // No hard delete: deleting payroll performs a full accounting reversal.
+    // If this payroll has no posted journal, we still keep the record and mark it reversed.
+    if (existingPayroll.status === 'Reversed') {
+      return NextResponse.json({ message: 'Payroll already reversed' });
     }
-    
-    // Delete the payroll
-    await prisma.payroll.delete({
-      where: { id: payrollId }
-    });
+
+    let reversal = null;
+    try {
+      reversal = await reversePayroll({
+        payrollId,
+        reversalReason: reversalReason.length >= 10 ? reversalReason : 'Payroll deleted (auto reversal)',
+        userId: user.id,
+        tenantId: user.tenantId
+      });
+    } catch (e) {
+      // If there is no posted journal transaction (e.g. legacy/draft payroll),
+      // keep the payroll and just mark it as reversed (no partial state).
+      const msg = (e?.message || '').toLowerCase();
+      const noJournal =
+        msg.includes('no posted journal') ||
+        msg.includes('no posted journal transaction') ||
+        msg.includes('cannot be performed without gl entries');
+      if (!noJournal) throw e;
+
+      await prisma.payroll.update({
+        where: { id: payrollId },
+        data: { status: 'Reversed' }
+      });
+    }
     
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        action: 'PAYROLL_DELETED',
+        action: 'PAYROLL_REVERSED',
         entityType: 'PAYROLL',
         entityId: payrollId,
         userId: user.id,
@@ -203,12 +225,15 @@ export async function DELETE(request, context) {
           employeeName: existingPayroll.employee.name,
           periodStart: existingPayroll.periodStart,
           periodEnd: existingPayroll.periodEnd,
+          reversalReason: reversalReason,
+          reversalTransactionId: reversal?.reversal?.id || null,
         }),
       },
     });
     
     return NextResponse.json({
-      message: 'Payroll deleted successfully'
+      message: 'Payroll reversed successfully',
+      reversal: reversal || null
     });
   } catch (error) {
     console.error(`Error deleting payroll ${context?.params?.id}:`, error);

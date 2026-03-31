@@ -372,6 +372,9 @@ export async function GET(request) {
 
           const isLiability = taxType.account?.accountType === 'Liability';
           const isAsset = taxType.account?.accountType === 'Asset';
+          const isPAYE =
+            (taxType.taxId || '').toString().toUpperCase() === 'PAYE' ||
+            (taxType.taxName || '').toString().toUpperCase().includes('PAYE');
 
           for (const tx of transactions) {
             const line = tx.lines[0];
@@ -379,6 +382,23 @@ export async function GET(request) {
 
             const debitAmount = Number(line.debitAmount || 0);
             const creditAmount = Number(line.creditAmount || 0);
+
+            // PAYE special-case: payroll processing posts PAYE as a credit to the PAYE liability account
+            // inside the Payroll journal (sourceType 'Payroll'). Treat that as "collected/assessed" PAYE
+            // so Tax Types shows PAYE correctly under the linked PAYE account.
+            // Reversal payroll journals (isReversal=true) will appear as a debit on this liability and are treated as refunded.
+            if (isPAYE && tx.sourceType === 'Payroll') {
+              if (isLiability) {
+                if (creditAmount > 0) {
+                  totalCollected += creditAmount;
+                  addToBreakdown(tx.date, 'collected', creditAmount);
+                } else if (debitAmount > 0) {
+                  totalRefunded += debitAmount;
+                  addToBreakdown(tx.date, 'refunded', debitAmount);
+                }
+              }
+              continue;
+            }
 
             if (
               tx.sourceType === 'Tax-Expense' &&
