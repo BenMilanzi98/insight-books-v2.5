@@ -153,8 +153,8 @@ export async function PUT(request, { params }) {
           where: { id: transferId },
           data: {
             status: 'approved',
-            approvedById: user.id,
-            approvedAt: new Date()
+            approvedBy: { connect: { id: user.id } },
+            approvedAt: new Date(),
           },
           include: {
             product: {
@@ -379,8 +379,8 @@ export async function PUT(request, { params }) {
           data: {
             status: 'rejected',
             rejectionReason: rejectionReason,
-            rejectedById: user.id,
-            rejectedAt: new Date()
+            rejectedBy: { connect: { id: user.id } },
+            rejectedAt: new Date(),
           },
           include: {
             product: {

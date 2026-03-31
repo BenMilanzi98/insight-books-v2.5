@@ -580,9 +580,9 @@ export async function POST(request) {
           where: { id: transfer.id },
           data: {
             status: 'received',
-            receivedById: user.id,
-            receivedAt: new Date()
-          }
+            receivedBy: { connect: { id: user.id } },
+            receivedAt: new Date(),
+          },
         });
 
         // Create inventory transactions
