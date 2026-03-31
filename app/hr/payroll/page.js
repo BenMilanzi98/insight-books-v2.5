@@ -249,12 +249,17 @@ export default function PayrollProcessing() {
       // Group payroll by period
       const grouped = {};
       (data.payrolls || []).forEach(payroll => {
-        const key = `${payroll.periodStart}-${payroll.periodEnd}`;
+        // IMPORTANT:
+        // A period can have both Reversed and newly-created payroll entries.
+        // Never merge those into one "run", otherwise totals (net pay, PAYE, NPS) get double-counted.
+        const groupKind = payroll.status === 'Reversed' ? 'reversed' : 'active';
+        const key = `${payroll.periodStart}-${payroll.periodEnd}-${groupKind}`;
         if (!grouped[key]) {
           grouped[key] = {
             periodStart: payroll.periodStart,
             periodEnd: payroll.periodEnd,
             paymentDate: payroll.paymentDate,
+            groupKind,
             employees: 0,
             totalGross: 0,
             totalNet: 0,
@@ -303,7 +308,13 @@ export default function PayrollProcessing() {
       const res = await fetch(`/api/payroll?start=${start}&end=${end}`);
       const data = await res.json();
       if (res.ok) {
-        setViewEntries(data.payrolls || []);
+        const rows = data.payrolls || [];
+        // Keep the entry list consistent with how the run totals were grouped.
+        setViewEntries(
+          run.groupKind === 'reversed'
+            ? rows.filter((p) => p.status === 'Reversed')
+            : rows.filter((p) => p.status !== 'Reversed')
+        );
       } else {
         setViewEntries([]);
         setToast({ visible: true, type: 'error', message: data.error || 'Failed to load payroll entries' });

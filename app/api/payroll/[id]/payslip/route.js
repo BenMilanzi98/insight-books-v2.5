@@ -76,7 +76,9 @@ function processPayslipData(payroll) {
   const additions = payroll.additions || 0;
   const deductions = payroll.deductions || 0;
   const grossPay = basicSalary + additions;
-  const tax = 0; // Tax field not available in current schema
+  const paye = Number(payroll.payeAmount || 0) || 0;
+  const pension = Number(payroll.totalNpsAmount || 0) || 0;
+  const tax = paye;
   const netPay = payroll.netPay || 0;
 
   return {
@@ -84,6 +86,8 @@ function processPayslipData(payroll) {
     basicSalary,
     additions,
     deductions,
+    pension,
+    paye,
     deductionsTotal: deductions,
     netPay,
     tax,
@@ -456,12 +460,16 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
               <td>${formatSalaryAmount(processedPayslip.deductions)}</td>
             </tr>
             <tr>
+              <td>Pension (NPS)</td>
+              <td>${formatSalaryAmount(processedPayslip.pension || 0)}</td>
+            </tr>
+            <tr>
               <td>Income Tax (PAYE)</td>
-              <td>${formatSalaryAmount(processedPayslip.tax)}</td>
+              <td>${formatSalaryAmount(processedPayslip.paye || 0)}</td>
             </tr>
             <tr class="total-row">
               <td><strong>Total Deductions</strong></td>
-              <td><strong>${formatSalaryAmount(processedPayslip.deductions + processedPayslip.tax)}</strong></td>
+              <td><strong>${formatSalaryAmount((processedPayslip.deductions || 0) + (processedPayslip.pension || 0) + (processedPayslip.paye || 0))}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -643,8 +651,16 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       head: [['Description', 'Amount']],
       body: [
         ['Deductions', formatSalaryAmount(processedPayslip.deductions)],
-        ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.tax)],
-        ['Total Deductions', formatSalaryAmount(processedPayslip.deductions + processedPayslip.tax)]
+        ['Pension (NPS)', formatSalaryAmount(processedPayslip.pension || 0)],
+        ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.paye || 0)],
+        [
+          'Total Deductions',
+          formatSalaryAmount(
+            (processedPayslip.deductions || 0) +
+              (processedPayslip.pension || 0) +
+              (processedPayslip.paye || 0)
+          )
+        ]
       ],
       headStyles: {
         fillColor: [40, 40, 40],
