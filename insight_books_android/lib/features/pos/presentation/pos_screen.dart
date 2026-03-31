@@ -262,6 +262,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: DropdownButtonFormField<String>(
+              key: ValueKey('branch_${posState.selectedBranchId}'),
               initialValue: posState.selectedBranchId,
               decoration: const InputDecoration(
                 labelText: 'Branch',
@@ -798,6 +799,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
             children: [
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  key: ValueKey('hist_status_${posState.historyStatusFilter}'),
                   initialValue: posState.historyStatusFilter,
                   decoration: const InputDecoration(
                     labelText: 'Status',
@@ -818,6 +820,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               const SizedBox(width: 8),
               Expanded(
                 child: DropdownButtonFormField<String>(
+                  key: ValueKey('hist_sort_${posState.historySortBy}'),
                   initialValue: posState.historySortBy,
                   decoration: const InputDecoration(
                     labelText: 'Sort',

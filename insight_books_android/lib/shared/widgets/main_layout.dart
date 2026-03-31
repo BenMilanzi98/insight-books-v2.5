@@ -373,14 +373,6 @@ class AppDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen<AsyncValue<bool>>(authStateProvider, (prev, next) {
-      if (next.value == true) {
-        Future.microtask(
-          () => ref.read(branchContextProvider.notifier).refresh(),
-        );
-      }
-    });
-
     final currentRoute = GoRouterState.of(context).matchedLocation;
     final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
     final tenantState = ref.watch(tenantProvider);
@@ -546,12 +538,81 @@ class AppDrawer extends ConsumerWidget {
   }
 }
 
-class _BranchSwitcherSection extends ConsumerWidget {
+/// Normalizes API branch ids: null or blank means “no branch id” (e.g. main / default row).
+String? _branchIdFromRow(Map<String, dynamic> row) {
+  final raw = row['id'];
+  if (raw == null) return null;
+  final s = raw.toString().trim();
+  return s.isEmpty ? null : s;
+}
+
+bool _branchIdsEqual(String? a, String? b) {
+  final na = a == null || a.isEmpty ? null : a;
+  final nb = b == null || b.isEmpty ? null : b;
+  return na == nb;
+}
+
+class _BranchSwitcherSection extends ConsumerStatefulWidget {
   const _BranchSwitcherSection();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_BranchSwitcherSection> createState() =>
+      _BranchSwitcherSectionState();
+}
+
+class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> {
+  bool _scheduledRefresh = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = ref.watch(authStateProvider);
+    if (auth.value != true) {
+      if (_scheduledRefresh) _scheduledRefresh = false;
+      return const SizedBox.shrink();
+    }
+
+    if (!_scheduledRefresh) {
+      _scheduledRefresh = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(branchContextProvider.notifier).refresh();
+      });
+    }
+
     final b = ref.watch(branchContextProvider);
+
+    if (!b.hasLoadedOnce) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: _activeTextColor,
+                ),
+              ),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Loading branches…',
+                  style: TextStyle(color: _defaultTextColor, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (b.error != null && !b.hasBranches) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -595,7 +656,7 @@ class _BranchSwitcherSection extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        b.loading && !b.hasBranches ? 'Loading…' : b.currentBranchLabel,
+                        b.currentBranchLabel,
                         style: const TextStyle(
                           color: _defaultTextColor,
                           fontSize: 14,
@@ -696,7 +757,7 @@ class _BranchSwitcherSection extends ConsumerWidget {
     );
 
     if (!context.mounted || picked == null) return;
-    if (picked.id == state.currentBranchId) return;
+    if (_branchIdsEqual(picked.id, state.currentBranchId)) return;
 
     final ok = await notifier.selectBranch(picked.id);
     if (!context.mounted) return;
@@ -717,9 +778,11 @@ class _BranchSwitcherSection extends ConsumerWidget {
     }
     final allowed = state.allowedBranchIds ?? [];
     if (allowed.isEmpty) return state.branches;
-    return state.branches
-        .where((b) => allowed.contains((b['id'] ?? '').toString()))
-        .toList();
+    return state.branches.where((b) {
+      final id = _branchIdFromRow(b);
+      final key = id ?? '';
+      return allowed.contains(key);
+    }).toList();
   }
 }
 

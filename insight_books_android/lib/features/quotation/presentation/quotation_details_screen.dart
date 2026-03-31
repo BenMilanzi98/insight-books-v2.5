@@ -371,9 +371,18 @@ class QuotationDetailsScreen extends ConsumerWidget {
       );
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to download PDF: $e')));
+        final msg = e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg.contains('HTML')
+                  ? 'Server returned an error page instead of PDF. The quotation PDF may not be ready yet.'
+                  : msg.contains('JSON')
+                      ? 'Server could not generate quotation PDF.'
+                      : 'Failed to download PDF: $e',
+            ),
+          ),
+        );
       }
     }
   }

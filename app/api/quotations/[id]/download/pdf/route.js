@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateQuotationPdf } from '@/lib/server-pdf';
+import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
 export async function GET(request, { params }) {
   try {
@@ -114,7 +115,37 @@ export async function GET(request, { params }) {
       total: parseFloat(quotation.total) || 0,
     };
 
-    const buffer = await generateQuotationPdf(preparedQuotation, template, branding);
+    let buffer;
+    try {
+      buffer = await generateQuotationPdf(preparedQuotation, template, branding);
+    } catch (pdfErr) {
+      const pdfMsg = pdfErr?.message || String(pdfErr);
+      console.error('Quotation PDF (puppeteer) failed, falling back to text PDF:', pdfMsg);
+      if (pdfErr?.stack) console.error(pdfErr.stack);
+
+      const lines = [];
+      lines.push(`${branding?.companyName || 'Quotation'}`);
+      lines.push(`Quotation #${preparedQuotation.quotationNumber || quotationId}`);
+      lines.push(`Client: ${preparedQuotation.client?.name || 'N/A'}`);
+      lines.push(`Issue: ${preparedQuotation.issueDate || ''}`);
+      lines.push(`Valid until: ${preparedQuotation.validUntil || ''}`);
+      lines.push('');
+      lines.push('Items:');
+      for (const item of preparedQuotation.items || []) {
+        const qty = Number(item.quantity || 0);
+        const unit = Number(item.unitPrice || 0);
+        const desc = (item.description || '').toString();
+        lines.push(`- ${desc}  (${qty} x ${unit})`);
+      }
+      lines.push('');
+      lines.push(`Subtotal: ${preparedQuotation.subtotal}`);
+      lines.push(`Tax: ${preparedQuotation.taxAmount}`);
+      lines.push(`TOTAL: ${preparedQuotation.total}`);
+      lines.push('');
+      lines.push('This PDF is a fallback (reduced formatting).');
+      lines.push(`PDF error: ${pdfMsg}`);
+      buffer = textToMinimalPdf(lines.join('\n'));
+    }
     const safeName = (quotation.quotationNumber || quotationId).toString().replace(/[^\w.-]+/g, '_');
 
     return new NextResponse(buffer, {

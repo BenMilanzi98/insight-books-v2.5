@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { getPaymentMethodName } from '@/lib/paymentMethods';
+import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
 export async function GET(request, { params }) {
   const resolvedParams = typeof params.then === 'function' ? await params : params;
@@ -779,8 +780,39 @@ export async function GET(request, { params }) {
 
     const format = new URL(request.url).searchParams.get('format');
     if (format === 'pdf') {
-      const { receiptHtmlToPdf } = await import('@/lib/receiptPdf');
-      const buffer = await receiptHtmlToPdf(receiptHtml);
+      let buffer;
+      try {
+        const { receiptHtmlToPdf } = await import('@/lib/receiptPdf');
+        buffer = await receiptHtmlToPdf(receiptHtml);
+      } catch (pdfErr) {
+        const pdfMsg = pdfErr?.message || String(pdfErr);
+        console.error('Receipt PDF (puppeteer) failed, falling back to text PDF:', pdfMsg);
+        if (pdfErr?.stack) console.error(pdfErr.stack);
+
+        const lines = [];
+        lines.push(`${sale.tenant?.name || 'Receipt'}`);
+        lines.push(`Receipt #${sale.saleNumber || saleId}`);
+        lines.push(`Date: ${formatDateDDMMYYYY(sale.saleDate)} ${formatTime(sale.saleDate)}`);
+        lines.push(`Customer: ${sale.client ? sale.client.name : 'Walk-in Customer'}`);
+        lines.push(`Cashier: ${sale.createdBy?.name || ''}`);
+        lines.push('');
+        lines.push('Items:');
+        for (const item of sale.items || []) {
+          const qty = Number(item.quantity || 1);
+          const unit = Number(item.unitPrice || 0);
+          const desc = (item.description || '').toString();
+          lines.push(`- ${desc}  (${qty} x ${unit})`);
+        }
+        lines.push('');
+        lines.push(`Subtotal: ${sale.subtotal}`);
+        lines.push(`Tax: ${sale.totalTaxAmount}`);
+        lines.push(`Discount: ${sale.totalDiscountAmount}`);
+        lines.push(`TOTAL: ${sale.total}`);
+        lines.push('');
+        lines.push('This PDF is a fallback (reduced formatting).');
+        lines.push(`PDF error: ${pdfMsg}`);
+        buffer = textToMinimalPdf(lines.join('\n'));
+      }
       const safeSale = (sale.saleNumber || saleId || 'receipt')
         .toString()
         .replace(/[^\w.-]+/g, '_');

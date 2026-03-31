@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/pdf_bytes.dart';
 import '../domain/quotation_model.dart';
@@ -174,8 +175,22 @@ class QuotationRepository {
     try {
       final response = await _dio.get(
         '/api/quotations/$quotationId/download/pdf',
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (_) => true,
+        ),
       );
+      final code = response.statusCode ?? 0;
+      if (code < 200 || code >= 300) {
+        final raw = bytesFromDioResponse(response.data, label: 'Quotation');
+        final preview = previewNonPdfBytes(raw);
+        if (kDebugMode && preview.isNotEmpty) {
+          debugPrint('Quotation PDF error body (HTTP $code): $preview');
+        }
+        throw Exception(
+          'Quotation PDF download failed (HTTP $code). ${preview.isEmpty ? '' : 'Server said: $preview'}',
+        );
+      }
       return requirePdfBytesFromResponse(response.data, label: 'Quotation');
     } catch (e) {
       rethrow;

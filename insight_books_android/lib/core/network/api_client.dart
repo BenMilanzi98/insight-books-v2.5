@@ -5,15 +5,15 @@ import 'package:insightbooks_android/core/storage/app_preferences_clear.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
-// Update this to match the production domain later
 const String apiBaseUrl = 'https://development.insightbooksafrica.com';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: apiBaseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 15),
+      connectTimeout: const Duration(seconds: 30),
+      receiveTimeout: const Duration(seconds: 60),
+      sendTimeout: const Duration(seconds: 60),
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -24,7 +24,10 @@ final dioProvider = Provider<Dio>((ref) {
   dio.interceptors.add(AuthInterceptor(ref));
 
   if (kDebugMode) {
-    dio.interceptors.add(LogInterceptor(requestBody: true, responseBody: true));
+    dio.interceptors.add(LogInterceptor(
+      requestBody: true,
+      responseBody: false,
+    ));
   }
 
   return dio;
@@ -32,6 +35,7 @@ final dioProvider = Provider<Dio>((ref) {
 
 class AuthInterceptor extends QueuedInterceptor {
   final Ref ref;
+  bool _loggingOut = false;
 
   AuthInterceptor(this.ref);
 
@@ -50,20 +54,25 @@ class AuthInterceptor extends QueuedInterceptor {
       if (cookie != null) {
         options.headers['Cookie'] = cookie;
       }
-    } catch (_) {
-      // Still send request; server may return 401
-    }
+    } catch (_) {}
     handler.next(options);
   }
 
   @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (err.response?.statusCode == 401) {
-      () async {
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    if (err.response?.statusCode == 401 && !_loggingOut) {
+      _loggingOut = true;
+      try {
         await ref.read(storageServiceProvider).clearAuth();
         await clearSharedPreferencesExceptTheme();
         ref.read(authStateProvider.notifier).forceLogout();
-      }();
+      } catch (_) {
+      } finally {
+        _loggingOut = false;
+      }
     }
     handler.next(err);
   }

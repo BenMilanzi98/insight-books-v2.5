@@ -19,6 +19,8 @@ class BranchContextState {
   final bool loading;
   final bool switching;
   final String? error;
+  /// True after the first [refresh] completes (success or failure).
+  final bool hasLoadedOnce;
 
   const BranchContextState({
     this.branches = const [],
@@ -26,9 +28,10 @@ class BranchContextState {
     this.currentBranchLabel = '',
     this.allowedBranchIds,
     this.canSelectAllBranches = true,
-    this.loading = true,
+    this.loading = false,
     this.switching = false,
     this.error,
+    this.hasLoadedOnce = false,
   });
 
   BranchContextState copyWith({
@@ -40,6 +43,7 @@ class BranchContextState {
     bool? loading,
     bool? switching,
     String? error,
+    bool? hasLoadedOnce,
     bool clearError = false,
   }) {
     return BranchContextState(
@@ -51,6 +55,7 @@ class BranchContextState {
       loading: loading ?? this.loading,
       switching: switching ?? this.switching,
       error: clearError ? null : (error ?? this.error),
+      hasLoadedOnce: hasLoadedOnce ?? this.hasLoadedOnce,
     );
   }
 
@@ -69,6 +74,7 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
   }
 
   Future<void> refresh() async {
+    if (state.loading) return;
     state = state.copyWith(loading: true, clearError: true);
     try {
       final dio = ref.read(dioProvider);
@@ -87,17 +93,24 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
 
       final rawCurrent = me['currentBranchId'];
       String? currentId;
-      if (rawCurrent != null && rawCurrent.toString().isNotEmpty) {
-        currentId = rawCurrent.toString();
+      if (rawCurrent != null && rawCurrent.toString().trim().isNotEmpty) {
+        currentId = rawCurrent.toString().trim();
       }
       final rows = await accountRepo.fetchBranches();
       final active = rows.where((b) => (b['isActive'] ?? true) == true).toList();
+
+      String? idFromRow(Map<String, dynamic> b) {
+        final raw = b['id'];
+        if (raw == null) return null;
+        final s = raw.toString().trim();
+        return s.isEmpty ? null : s;
+      }
 
       String label = 'All branches';
       if (currentId != null) {
         Map<String, dynamic>? found;
         for (final b in active) {
-          if ((b['id'] ?? '').toString() == currentId) {
+          if (idFromRow(b) == currentId) {
             found = b;
             break;
           }
@@ -118,11 +131,13 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
         allowedBranchIds: allowed,
         canSelectAllBranches: canAll,
         loading: false,
+        hasLoadedOnce: true,
       );
     } catch (e) {
       state = state.copyWith(
         loading: false,
         error: e.toString(),
+        hasLoadedOnce: true,
       );
     }
   }
@@ -145,7 +160,6 @@ class BranchContextNotifier extends Notifier<BranchContextState> {
       await repo.switchBranch(branchId);
       await _invalidateAfterBranchChange();
       await refresh();
-      state = state.copyWith(switching: false);
       return true;
     } catch (e) {
       state = state.copyWith(

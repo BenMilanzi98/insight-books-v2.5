@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
@@ -273,11 +274,25 @@ class PosRepository {
   Future<({List<int> bytes, String fileExtension, String mimeType})> downloadReceiptForShare(
     String saleId,
   ) async {
-    final pdfResp = await _dio.get<List<int>>(
+    final pdfResp = await _dio.get(
       '/api/sales/$saleId/receipt',
       queryParameters: {'format': 'pdf'},
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+        validateStatus: (_) => true,
+      ),
     );
+    final code = pdfResp.statusCode ?? 0;
+    if (code < 200 || code >= 300) {
+      final raw = bytesFromDioResponse(pdfResp.data, label: 'Receipt');
+      final preview = previewNonPdfBytes(raw);
+      if (kDebugMode && preview.isNotEmpty) {
+        debugPrint('Receipt PDF error body (HTTP $code): $preview');
+      }
+      throw Exception(
+        'Receipt download failed (HTTP $code). ${preview.isEmpty ? '' : 'Server said: $preview'}',
+      );
+    }
     final data = requirePdfBytesFromResponse(pdfResp.data, label: 'Receipt');
     return (
       bytes: data,

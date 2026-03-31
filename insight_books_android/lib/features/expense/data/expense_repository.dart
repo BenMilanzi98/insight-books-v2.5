@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/api_client.dart';
+import '../../../core/utils/pdf_bytes.dart';
 import '../domain/expense_model.dart';
 
 final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
@@ -635,9 +637,23 @@ class ExpenseRepository {
     final response = await _dio.get(
       '/api/payments/receipt',
       queryParameters: {'paymentId': paymentId},
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(
+        responseType: ResponseType.bytes,
+        validateStatus: (_) => true,
+      ),
     );
-    return response.data as List<int>;
+    final code = response.statusCode ?? 0;
+    if (code < 200 || code >= 300) {
+      final raw = bytesFromDioResponse(response.data, label: 'Payment receipt');
+      final preview = previewNonPdfBytes(raw);
+      if (kDebugMode && preview.isNotEmpty) {
+        debugPrint('Payment receipt PDF error body (HTTP $code): $preview');
+      }
+      throw Exception(
+        'Payment receipt download failed (HTTP $code). ${preview.isEmpty ? '' : 'Server said: $preview'}',
+      );
+    }
+    return requirePdfBytesFromResponse(response.data, label: 'Payment receipt');
   }
 
   Future<Map<String, dynamic>> scanExpenseReceipt(String filePath) async {

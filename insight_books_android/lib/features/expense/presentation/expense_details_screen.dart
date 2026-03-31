@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../shared/legal/legal_document_screen.dart';
+import '../../../shared/pdf_share_sheet.dart';
 import '../data/expense_repository.dart';
 import '../domain/expense_model.dart';
 import 'providers/expense_details_provider.dart';
@@ -593,6 +595,21 @@ class _ExpenseDetailsBody extends ConsumerWidget {
         lowerName.endsWith('.webp');
     final isPdf = lowerType.contains('pdf') || lowerName.endsWith('.pdf');
 
+    if (isPdf && url.isNotEmpty) {
+      final uri = Uri.tryParse(url);
+      if (uri != null) {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => LegalDocumentScreen(
+              uri: uri,
+              title: attachment.name ?? 'PDF',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -606,11 +623,9 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                   errorBuilder: (context, error, stackTrace) =>
                       const Text('Unable to preview image'),
                 )
-              : isPdf
-                  ? const Text('PDF can be opened in-app browser for quick verification.')
-                  : const Text(
-                      'Preview is not available for this file type. Open externally.',
-                    ),
+              : const Text(
+                  'Preview is not available for this file type. Open externally.',
+                ),
         ),
         actions: [
           TextButton(
@@ -621,15 +636,12 @@ class _ExpenseDetailsBody extends ConsumerWidget {
             onPressed: () async {
               final uri = Uri.tryParse(url);
               if (uri != null) {
-                await launchUrl(
-                  uri,
-                  mode: isPdf ? LaunchMode.inAppBrowserView : LaunchMode.externalApplication,
-                );
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
               if (ctx.mounted) Navigator.pop(ctx);
             },
             icon: const Icon(Icons.open_in_new, size: 18),
-            label: Text(isPdf ? 'Open PDF' : 'Open'),
+            label: const Text('Open'),
           ),
         ],
       ),
@@ -642,15 +654,33 @@ class _ExpenseDetailsBody extends ConsumerWidget {
     String paymentId,
   ) async {
     try {
-      final bytes = await ref.read(expenseRepositoryProvider).fetchPaymentReceiptPdf(paymentId);
+      final bytes = await ref
+          .read(expenseRepositoryProvider)
+          .fetchPaymentReceiptPdf(paymentId);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/payment-receipt-$paymentId.pdf');
       await file.writeAsBytes(bytes, flush: true);
-      await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
+      final xfile = XFile(file.path, mimeType: 'application/pdf');
+      if (!context.mounted) return;
+      await showPdfShareSheet(
+        context,
+        file: xfile,
+        title: 'Payment Receipt',
+        body: 'Payment receipt for payment $paymentId',
+      );
     } catch (e) {
       if (context.mounted) {
+        final msg = e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to download receipt: $e')),
+          SnackBar(
+            content: Text(
+              msg.contains('HTML')
+                  ? 'Server returned an error page instead of PDF. The receipt may not be available yet.'
+                  : msg.contains('JSON')
+                      ? 'Server could not generate receipt PDF.'
+                      : 'Failed to download receipt: $e',
+            ),
+          ),
         );
       }
     }

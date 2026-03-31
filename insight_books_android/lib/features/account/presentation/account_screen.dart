@@ -7,8 +7,8 @@ import 'package:insightbooks_android/features/account/domain/user_model.dart';
 import 'package:insightbooks_android/features/account/domain/business_settings.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/core/config/app_public_urls.dart';
+import 'package:insightbooks_android/shared/legal/legal_document_screen.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class AccountScreen extends ConsumerStatefulWidget {
   const AccountScreen({super.key});
@@ -1305,22 +1305,12 @@ class _TaxAccountInfoTile extends StatelessWidget {
 class _LegalTab extends StatelessWidget {
   const _LegalTab();
 
-  Future<void> _open(BuildContext context, Uri uri) async {
-    try {
-      final ok = await launchUrl(
-        uri,
-        mode: LaunchMode.inAppBrowserView,
-      );
-      if (!ok && context.mounted) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open link: $e')),
-        );
-      }
-    }
+  void _openInApp(BuildContext context, {required Uri uri, required String title}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LegalDocumentScreen(uri: uri, title: title),
+      ),
+    );
   }
 
   @override
@@ -1361,14 +1351,22 @@ class _LegalTab extends StatelessWidget {
                       iconColor: Colors.blue.shade700,
                       title: 'Terms of Service',
                       subtitle: 'Read our terms and conditions',
-                      onTap: () => _open(context, termsUri),
+                      onTap: () => _openInApp(
+                        context,
+                        uri: termsUri,
+                        title: 'Terms of Service',
+                      ),
                     );
                     final privacyCard = _LegalLinkCard(
                       icon: LucideIcons.shield,
                       iconColor: Colors.green.shade700,
                       title: 'Privacy Policy',
                       subtitle: 'Learn about data protection',
-                      onTap: () => _open(context, privacyUri),
+                      onTap: () => _openInApp(
+                        context,
+                        uri: privacyUri,
+                        title: 'Privacy Policy',
+                      ),
                     );
                     if (wide) {
                       return Row(
@@ -1391,7 +1389,7 @@ class _LegalTab extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Opens the same pages as the website (${termsUri.host}).',
+                  'Same content as the website; shown inside the app.',
                   style: TextStyle(fontSize: 11, color: Colors.grey[600]),
                 ),
               ],

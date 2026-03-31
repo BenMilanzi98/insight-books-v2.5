@@ -38,6 +38,17 @@ void ensurePdfResponseBytes(List<int> data, {required String label}) {
   throw Exception('$label was not returned as a valid PDF.');
 }
 
+/// Best-effort short preview for debugging server errors (JSON/HTML/text).
+String previewNonPdfBytes(List<int> data, {int maxChars = 600}) {
+  if (data.isEmpty) return '';
+  try {
+    final s = String.fromCharCodes(data.take(maxChars));
+    return s.trim();
+  } catch (_) {
+    return '';
+  }
+}
+
 /// Use after a PDF GET: validates and returns bytes for saving/sharing.
 List<int> requirePdfBytesFromResponse(dynamic data, {required String label}) {
   final bytes = bytesFromDioResponse(data, label: label);

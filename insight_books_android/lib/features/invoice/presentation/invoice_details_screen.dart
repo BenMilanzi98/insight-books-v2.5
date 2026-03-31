@@ -1172,8 +1172,17 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       );
     } catch (e) {
       if (mounted) {
+        final msg = e.toString();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to download invoice: $e')),
+          SnackBar(
+            content: Text(
+              msg.contains('HTML')
+                  ? 'Server returned an error page instead of PDF. The invoice PDF may not be ready yet.'
+                  : msg.contains('JSON')
+                      ? 'Server could not generate invoice PDF.'
+                      : 'Failed to download invoice: $e',
+            ),
+          ),
         );
       }
     }

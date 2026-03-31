@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generatePdf } from '@/lib/server-pdf';
+import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
 /**
  * GET binary PDF for invoice (mobile app / download).
@@ -119,7 +120,37 @@ export async function GET(request, { params }) {
       })),
     };
 
-    const buffer = await generatePdf(inv, template, branding);
+    let buffer;
+    try {
+      buffer = await generatePdf(inv, template, branding);
+    } catch (pdfErr) {
+      const pdfMsg = pdfErr?.message || String(pdfErr);
+      console.error('Invoice PDF (puppeteer) failed, falling back to text PDF:', pdfMsg);
+      if (pdfErr?.stack) console.error(pdfErr.stack);
+
+      const lines = [];
+      lines.push(`${branding?.companyName || 'Invoice'}`);
+      lines.push(`Invoice #${invoice.invoiceNumber || invoiceId}`);
+      lines.push(`Client: ${invoice.client?.name || 'N/A'}`);
+      lines.push(`Issue: ${invoice.issueDate ? invoice.issueDate.toISOString?.() || invoice.issueDate : ''}`);
+      lines.push(`Due: ${invoice.dueDate ? invoice.dueDate.toISOString?.() || invoice.dueDate : ''}`);
+      lines.push('');
+      lines.push('Items:');
+      for (const item of inv.items || []) {
+        const qty = Number(item.quantity || 0);
+        const unit = Number(item.unitPrice || 0);
+        const desc = (item.description || '').toString();
+        lines.push(`- ${desc}  (${qty} x ${unit})`);
+      }
+      lines.push('');
+      lines.push(`Subtotal: ${inv.subtotal}`);
+      lines.push(`Tax: ${inv.taxAmount}`);
+      lines.push(`TOTAL: ${inv.total}`);
+      lines.push('');
+      lines.push('This PDF is a fallback (reduced formatting).');
+      lines.push(`PDF error: ${pdfMsg}`);
+      buffer = textToMinimalPdf(lines.join('\n'));
+    }
     const safeName = (invoice.invoiceNumber || invoiceId).toString().replace(/[^\w.-]+/g, '_');
 
     return new NextResponse(buffer, {

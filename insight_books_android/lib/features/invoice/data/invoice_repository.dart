@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/utils/pdf_bytes.dart';
 import '../domain/invoice_model.dart';
@@ -131,7 +132,11 @@ class InvoiceRepository {
       );
     }
     final first = accounts.first;
-    if (first is! Map) return (first as dynamic).toString();
+    if (first is! Map) {
+      throw Exception(
+        'Invalid income account format. Check Chart of Accounts.',
+      );
+    }
     final id = first['id'];
     if (id == null || id.toString().isEmpty) {
       throw Exception(
@@ -358,8 +363,22 @@ class InvoiceRepository {
     try {
       final response = await _dio.get(
         '/api/invoices/$invoiceId/download/pdf',
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (_) => true,
+        ),
       );
+      final code = response.statusCode ?? 0;
+      if (code < 200 || code >= 300) {
+        final raw = bytesFromDioResponse(response.data, label: 'Invoice');
+        final preview = previewNonPdfBytes(raw);
+        if (kDebugMode && preview.isNotEmpty) {
+          debugPrint('Invoice PDF error body (HTTP $code): $preview');
+        }
+        throw Exception(
+          'Invoice PDF download failed (HTTP $code). ${preview.isEmpty ? '' : 'Server said: $preview'}',
+        );
+      }
       return requirePdfBytesFromResponse(response.data, label: 'Invoice');
     } catch (e) {
       rethrow;
