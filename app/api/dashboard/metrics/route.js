@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
+import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -292,10 +293,7 @@ export async function GET(request) {
           status: 'Approved',
           isDeleted: false,
           isReversal: false,
-          OR: [
-            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-            { paidAmount: { gt: 0 } }
-          ],
+          ...settledExpensePaymentOr(),
           date: {
             gte: currentPeriodStart,
             lte: currentPeriodEndDate
@@ -362,10 +360,7 @@ export async function GET(request) {
           status: 'Approved',
           isDeleted: false,
           isReversal: false,
-          OR: [
-            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-            { paidAmount: { gt: 0 } }
-          ],
+          ...settledExpensePaymentOr(),
           date: {
             gte: previousPeriodStart,
             lte: previousPeriodEnd

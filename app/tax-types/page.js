@@ -725,7 +725,7 @@ export default function TaxTypesPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Reversed Taxes</h2>
               <p className="text-sm text-gray-500">
-                POS and invoice refunds, standalone GL <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries, and tax lines reversed inside compound expense journals (typical posted expense with tax). Hover a row for expense and journal IDs.
+                POS and invoice refunds, standalone GL <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries, tax lines reversed inside compound expense journals, and PAYE reversed from payroll journal postings (including embedded PAYE when no separate Tax-Payroll entry exists). Hover a row for journal IDs.
               </p>
             </div>
           </div>

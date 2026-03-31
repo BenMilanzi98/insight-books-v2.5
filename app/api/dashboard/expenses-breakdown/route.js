@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
+import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -142,10 +143,7 @@ export async function GET(request) {
       // Only count expenses that have been paid (or partially paid).
       // Pending liabilities (e.g. PAYE/NPS created during payroll) should not inflate dashboard expenses.
       status: { in: ['Approved'] },
-      OR: [
-        { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-        { paidAmount: { gt: 0 } }
-      ],
+      ...settledExpensePaymentOr(),
       isDeleted: false
     });
 

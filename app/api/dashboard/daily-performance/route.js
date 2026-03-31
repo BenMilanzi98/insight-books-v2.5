@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -425,10 +426,7 @@ export async function GET(request) {
           },
           status: 'Approved',
           isReversal: false,
-          OR: [
-            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-            { paidAmount: { gt: 0 } }
-          ],
+          ...settledExpensePaymentOr(),
           isDeleted: false
         }),
         _sum: { amount: true }
@@ -470,10 +468,7 @@ export async function GET(request) {
           },
           status: 'Approved',
           isReversal: false,
-          OR: [
-            { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-            { paidAmount: { gt: 0 } }
-          ],
+          ...settledExpensePaymentOr(),
           isDeleted: false
         }),
         _sum: { amount: true }
@@ -522,10 +517,7 @@ export async function GET(request) {
                 },
                 status: 'Approved',
                 isReversal: false,
-                OR: [
-                  { paymentStatus: { in: ['Fully paid', 'Partially', 'Partially paid'] } },
-                  { paidAmount: { gt: 0 } }
-                ],
+                ...settledExpensePaymentOr(),
                 isDeleted: false
               }),
               _sum: { amount: true }
