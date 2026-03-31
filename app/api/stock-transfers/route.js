@@ -6,6 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 import { Prisma } from '@prisma/client';
 import { userHasAccessToTenant, resolvePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
+import { upsertReceiptNoticeForTransfer } from '@/lib/stockTransferReceiptNotices';
 
 // GET - Fetch stock transfers for the tenant
 export async function GET(request) {
@@ -681,17 +682,15 @@ export async function POST(request) {
           where: { id: fromTenantId },
           select: { name: true },
         });
-        await prisma.stockTransferReceiptNotice.create({
-          data: {
-            tenantId: toTenantId,
-            stockTransferId: result.id,
-            sourceTenantId: fromTenantId,
-            sourceTenantName: srcTenant?.name ?? null,
-          },
+        await upsertReceiptNoticeForTransfer({
+          tenantId: toTenantId,
+          stockTransferId: result.id,
+          sourceTenantId: fromTenantId,
+          sourceTenantName: srcTenant?.name ?? null,
         });
       } catch (noticeErr) {
-        console.warn(
-          '[Stock Transfer] Receipt notice create failed:',
+        console.error(
+          '[Stock Transfer] Receipt notice upsert failed:',
           noticeErr?.message || noticeErr
         );
       }

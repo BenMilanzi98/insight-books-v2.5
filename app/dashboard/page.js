@@ -513,6 +513,29 @@ const BusinessOwnerDashboard = () => {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
+
+  // Refresh cross-tenant stock receipts when returning to the tab (e.g. after a transfer elsewhere).
+  useEffect(() => {
+    const loadReceipts = async () => {
+      try {
+        const recRes = await fetch(
+          `/api/dashboard/stock-transfer-receipts?_cb=${Date.now()}`,
+          { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        );
+        if (recRes.ok) {
+          const recData = await recRes.json();
+          setStockReceiptNotices(recData.notices || []);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === 'visible') loadReceipts();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
   
   useEffect(() => {
     const fetchPermissions = async () => {
