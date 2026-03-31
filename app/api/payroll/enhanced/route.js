@@ -475,17 +475,56 @@ export async function POST(request) {
       let applyNPS = false; // NPS is optional (only apply when selected for the employee)
       
       if (employee.selectedDeductions) {
+        // Normalize legacy/new shapes:
+        // - Array of IDs: ["ded1","ded2"]
+        // - Array of objects: [{id:"ded1"}, ...]
+        // - Map of ids to true/false: { "ded1": true }
+        // - Map of names/ids to numeric amounts: { "Loan": 5000 } (treated as otherDeductions)
+        // - Mixed maps: values that look like string IDs are treated as ids
+        const raw = employee.selectedDeductions;
         let deductionIds = [];
 
-        if (Array.isArray(employee.selectedDeductions)) {
-          deductionIds = employee.selectedDeductions;
-        } else if (typeof employee.selectedDeductions === 'object') {
-          if (Object.values(employee.selectedDeductions).every(v => typeof v === 'number')) {
-            otherDeductions = employee.selectedDeductions;
+        const pushId = (v) => {
+          const s = typeof v === 'string' ? v : (typeof v === 'number' ? String(v) : null);
+          if (s && s.trim()) deductionIds.push(s.trim());
+        };
+
+        if (Array.isArray(raw)) {
+          for (const item of raw) {
+            if (typeof item === 'string' || typeof item === 'number') {
+              pushId(item);
+            } else if (item && typeof item === 'object' && (item.id || item.deductionId)) {
+              pushId(item.id || item.deductionId);
+            }
+          }
+        } else if (raw && typeof raw === 'object') {
+          const values = Object.values(raw);
+          const keys = Object.keys(raw);
+
+          const allNumeric = values.length > 0 && values.every(v => typeof v === 'number' && Number.isFinite(v));
+          const allBool = values.length > 0 && values.every(v => typeof v === 'boolean');
+
+          if (allNumeric) {
+            // Treat as otherDeductions map (name/id -> amount)
+            otherDeductions = raw;
+          } else if (allBool) {
+            // Treat keys with true as selected deduction IDs
+            keys.forEach((k) => {
+              if (raw[k] === true) pushId(k);
+            });
           } else {
-            deductionIds = Object.values(employee.selectedDeductions).filter(id => typeof id === 'string');
+            // Mixed: capture string-like ids in values, and true-ish keys if present
+            values.forEach((v) => {
+              if (typeof v === 'string' || typeof v === 'number') pushId(v);
+              else if (v && typeof v === 'object' && (v.id || v.deductionId)) pushId(v.id || v.deductionId);
+            });
+            keys.forEach((k) => {
+              if (raw[k] === true) pushId(k);
+            });
           }
         }
+
+        deductionIds = [...new Set(deductionIds)].filter((id) => typeof id === 'string' && id.length > 0);
 
         if (deductionIds.length > 0) {
           const deductions = await prisma.deduction.findMany({
