@@ -41,7 +41,8 @@ import {
   WifiOff,
   Shield,
   Globe,
-  Lock
+  Lock,
+  Building2
 
 } from 'lucide-react';
 import { 
@@ -139,6 +140,10 @@ const POSPage = () => {
   const [selectedBranchId, setSelectedBranchId] = useState(null);
   const [branches, setBranches] = useState([]);
   const [isLoadingBranches, setIsLoadingBranches] = useState(true);
+  const [tenants, setTenants] = useState([]);
+  const [currentTenantId, setCurrentTenantId] = useState(null);
+  const [isLoadingTenants, setIsLoadingTenants] = useState(true);
+  const [isSwitchingBusiness, setIsSwitchingBusiness] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSuccess, setSaleSuccess] = useState(false);
   const [saleError, setSaleError] = useState(null);
@@ -430,6 +435,76 @@ const POSPage = () => {
     }
   };
 
+  const loadTenants = async () => {
+    try {
+      setIsLoadingTenants(true);
+      const res = await fetch('/api/tenant/list', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setTenants(data.tenants || []);
+        setCurrentTenantId(data.currentTenantId || null);
+      }
+    } catch (e) {
+      console.error('Failed to load businesses:', e);
+    } finally {
+      setIsLoadingTenants(false);
+    }
+  };
+
+  /** Reload POS-scoped data for the active business + branch (products, sales, taxes, payments, daily report). */
+  const refreshPosData = async (branchIdExplicit) => {
+    const branchForApi =
+      branchIdExplicit !== undefined ? branchIdExplicit : selectedBranchId;
+    await Promise.all([
+      loadRecentSales(branchForApi),
+      loadProducts(branchForApi),
+      loadClients(),
+      loadStatistics(branchForApi),
+      loadPaymentAccounts(),
+      loadIncomeAccounts(),
+      fetchPosTaxTypes(),
+      loadDailyReport(dailyReportDate, branchForApi),
+      loadEISStatus(),
+    ]);
+  };
+
+  const handleTenantChange = async (e) => {
+    const tenantId = e.target.value;
+    if (!tenantId || tenantId === currentTenantId) return;
+    setIsSwitchingBusiness(true);
+    try {
+      const res = await fetch('/api/tenant/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId }),
+      });
+      if (res.ok) {
+        window.location.reload();
+        return;
+      }
+    } catch (err) {
+      console.error('Business switch failed:', err);
+    } finally {
+      setIsSwitchingBusiness(false);
+    }
+  };
+
+  const handleBranchChange = async (e) => {
+    const id = e.target.value || null;
+    setSelectedBranchId(id);
+    try {
+      const res = await fetch('/api/branches/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ branchId: id }),
+      });
+      if (!res.ok) console.warn('Branch session update failed');
+    } catch (err) {
+      console.error('Branch switch failed:', err);
+    }
+    await refreshPosData(id);
+  };
+
   // Load payment accounts
   const loadPaymentAccounts = async () => {
     try {
@@ -489,6 +564,7 @@ const POSPage = () => {
 
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
+    loadTenants();
     loadRecentSales();
     loadProducts();
     loadClients();
@@ -711,13 +787,19 @@ const POSPage = () => {
     }
   }, [saleSuccess, saleError]);
   
-  // Load recent sales
-  const loadRecentSales = async () => {
+  // Load recent sales (optional branchId aligns list with selected Branch/Business context)
+  const loadRecentSales = async (branchIdOpt) => {
+    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
     try {
       setIsLoadingSales(true);
       setSalesError(null);
       
-      const response = await fetchSales({ limit: 5, sortBy: 'createdAt', sortOrder: 'desc' });
+      const response = await fetchSales({
+        limit: 5,
+        sortBy: 'createdAt',
+        sortOrder: 'desc',
+        ...(branchId ? { branchId } : {}),
+      });
       setRecentSales(response.sales || []);
     } catch (error) {
       console.error("Error loading sales:", error);
@@ -728,9 +810,10 @@ const POSPage = () => {
   };
   
   // Load sales statistics
-  const loadStatistics = async () => {
+  const loadStatistics = async (branchIdOpt) => {
+    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
     try {
-      const stats = await getSalesStatistics();
+      const stats = await getSalesStatistics(branchId ? { branchId } : {});
       setStatistics(stats);
     } catch (error) {
       console.error("Error loading statistics:", error);
@@ -738,11 +821,14 @@ const POSPage = () => {
     }
   };
 
-  // Load daily POS report for the selected date
-  const loadDailyReport = useCallback(async (date) => {
+  // Load daily POS report for the selected date (optional branchId matches POS branch filter)
+  const loadDailyReport = useCallback(async (date, branchIdOpt) => {
     try {
       setIsLoadingDailyReport(true);
-      const res = await fetch(`/api/reports/pos-daily?date=${encodeURIComponent(date)}`);
+      const params = new URLSearchParams({ date: date || '' });
+      const b = branchIdOpt !== undefined ? branchIdOpt : null;
+      if (b) params.set('branchId', b);
+      const res = await fetch(`/api/reports/pos-daily?${params.toString()}`);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data?.error || 'Failed to load daily POS report');
@@ -756,21 +842,23 @@ const POSPage = () => {
     }
   }, []);
   
-  // Load products
-  const loadProducts = async () => {
+  // Load products (scoped by branch when selected — see /api/stock?branchId=)
+  const loadProducts = async (branchIdOpt) => {
+    const branchId = branchIdOpt !== undefined ? branchIdOpt : selectedBranchId;
     try {
       setIsLoadingProducts(true);
       setProductsError(null);
       
-      // Fetch all products across pages so everything is searchable and scrollable
-      const productsData = await fetchProductsForSaleAll({ pageSize: 100 });
+      const productsData = await fetchProductsForSaleAll({
+        pageSize: 100,
+        ...(branchId ? { branchId } : {}),
+      });
       setProducts(productsData);
       setFilteredProducts(productsData);
     } catch (error) {
       console.error("Error loading products:", error);
       setProductsError("Failed to load products");
       
-      // Use sample data if API fails
       const sampleProducts = [
       ];
       setProducts(sampleProducts);
@@ -3156,22 +3244,48 @@ const POSPage = () => {
         {/* Right Column - Payment Method & Action Buttons */}
         <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-6 lg:p-8 border border-gray-100 relative overflow-hidden">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
-          {/* Branch Selection */}
-          {branches.length > 0 && (
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Branch</label>
-              <select
-                value={selectedBranchId || ''}
-                onChange={(e) => setSelectedBranchId(e.target.value || null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">-- Select Branch --</option>
-                {branches.map(branch => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name} {branch.code ? `(${branch.code})` : ''}
-                  </option>
-                ))}
-              </select>
+          {/* Branch / Business — switch tenant (business) or branch; data reloads for the active context */}
+          {((!isLoadingTenants && tenants.length > 0) || (!isLoadingBranches && branches.length > 0)) && (
+            <div className="mb-6 space-y-3">
+              <label className="block text-sm font-medium text-gray-700">Branch / Business</label>
+              {isLoadingTenants ? (
+                <div className="text-sm text-gray-500 py-2">Loading businesses...</div>
+              ) : tenants.length > 1 ? (
+                <select
+                  value={currentTenantId || ''}
+                  onChange={handleTenantChange}
+                  disabled={isSwitchingBusiness}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
+                >
+                  {tenants.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              ) : tenants.length === 1 ? (
+                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-800 flex items-center gap-2">
+                  <Building2 className="w-4 h-4 flex-shrink-0 text-gray-500" />
+                  <span className="truncate font-medium">{tenants[0].name}</span>
+                </div>
+              ) : null}
+              {branches.length > 0 && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Branch (location)</label>
+                  <select
+                    value={selectedBranchId || ''}
+                    onChange={handleBranchChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">-- All branches / default --</option>
+                    {branches.map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name} {branch.code ? `(${branch.code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
 
@@ -3319,7 +3433,7 @@ const POSPage = () => {
               onChange={(e) => {
                 const val = e.target.value;
                 setDailyReportDate(val);
-                if (val) loadDailyReport(val);
+                if (val) loadDailyReport(val, selectedBranchId);
               }}
             />
           </div>

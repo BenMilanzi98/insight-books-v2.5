@@ -3,7 +3,7 @@
 // Fetch sales with optional filters, sorting, and pagination
 export const fetchSales = async (params = {}) => {
   try {
-    const { page, limit, sortBy, sortOrder, status, clientId, search, dateFrom, dateTo } = params;
+    const { page, limit, sortBy, sortOrder, status, clientId, search, dateFrom, dateTo, branchId } = params;
     
     // Build query string from params
     const queryParams = new URLSearchParams();
@@ -16,6 +16,7 @@ export const fetchSales = async (params = {}) => {
     if (search) queryParams.append('search', search);
     if (dateFrom) queryParams.append('dateFrom', dateFrom);
     if (dateTo) queryParams.append('dateTo', dateTo);
+    if (branchId) queryParams.append('branchId', branchId);
     
     const queryString = queryParams.toString();
     const url = `/api/sales${queryString ? `?${queryString}` : ''}`;
@@ -38,13 +39,14 @@ export const fetchSales = async (params = {}) => {
 // Get sales statistics
 export const getSalesStatistics = async (params = {}) => {
   try {
-    const { dateFrom, dateTo, period } = params;
+    const { dateFrom, dateTo, period, branchId } = params;
     
     // Build query string from params
     const queryParams = new URLSearchParams();
     if (dateFrom) queryParams.append('dateFrom', dateFrom);
     if (dateTo) queryParams.append('dateTo', dateTo);
     if (period) queryParams.append('period', period);
+    if (branchId) queryParams.append('branchId', branchId);
     
     const queryString = queryParams.toString();
     const url = `/api/sales/statistics${queryString ? `?${queryString}` : ''}`;
@@ -422,7 +424,7 @@ export const fetchProductsForSalePage = async (params = {}) => {
 // Fetch all products for sale across pages (server-backed, de-duplicated)
 export const fetchProductsForSaleAll = async (params = {}) => {
   try {
-    const { search, category, pageSize = 100, maxPages = 50 } = params;
+    const { search, category, pageSize = 100, maxPages = 50, branchId } = params;
 
     const allProducts = [];
     const seenIds = new Set();
@@ -431,6 +433,7 @@ export const fetchProductsForSaleAll = async (params = {}) => {
       const queryParams = new URLSearchParams();
       if (search) queryParams.append('search', search);
       if (category && category !== 'all') queryParams.append('category', category);
+      if (branchId) queryParams.append('branchId', branchId);
       queryParams.append('limit', pageSize);
       queryParams.append('page', String(page));
 

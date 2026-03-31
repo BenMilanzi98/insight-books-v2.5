@@ -23,10 +23,16 @@ export async function GET(request) {
       date = t.toISOString().slice(0, 10);
     }
 
+    const branchIdParam = searchParams.get('branchId');
+    const branchForReport =
+      branchIdParam && branchIdParam.trim() !== ''
+        ? branchIdParam
+        : user.currentBranchId || null;
+
     const report = await generatePosDailyReport(
       user.tenantId,
       date,
-      user.currentBranchId || null
+      branchForReport
     );
 
     return NextResponse.json(report);
