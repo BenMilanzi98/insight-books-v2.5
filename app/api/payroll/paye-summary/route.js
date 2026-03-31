@@ -69,7 +69,7 @@ export async function GET(request) {
           select: {
             id: true,
             name: true,
-            employeeNumber: true,
+            employeeId: true,
             department: true,
           }
         }
@@ -107,7 +107,7 @@ export async function GET(request) {
         employeeBreakdown[empId] = {
           employeeId: empId,
           employeeName: empName,
-          employeeNumber: p.employee?.employeeNumber || 'N/A',
+          employeeNumber: p.employee?.employeeId || 'N/A',
           department: p.employee?.department || 'N/A',
           totalPaye: 0,
           pendingAmount: 0, // PAYE withheld (not reversed)
@@ -151,7 +151,7 @@ export async function GET(request) {
           id: p.id,
           date: p.paymentDate || p.periodEnd,
           employeeName: p.employee?.name || 'Unknown',
-          employeeNumber: p.employee?.employeeNumber || 'N/A',
+          employeeNumber: p.employee?.employeeId || 'N/A',
           department: p.employee?.department || 'N/A',
           amount: signed,
           status: p.status === 'Reversed' ? 'Reversed' : 'Pending',
