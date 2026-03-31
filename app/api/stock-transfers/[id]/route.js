@@ -296,14 +296,10 @@ export async function PUT(request, { params }) {
           });
         }
 
-        // Update transfer status to received
+        // Status only: compatible with Prisma clients that predate StockTransfer received* fields.
         const updatedTransfer = await tx.stockTransfer.update({
           where: { id: transferId },
-          data: {
-            status: 'received',
-            receivedById: user.id,
-            receivedAt: new Date()
-          },
+          data: { status: 'received' },
           include: {
             product: {
               select: {
@@ -373,14 +369,15 @@ export async function PUT(request, { params }) {
 
         return updatedTransfer;
       } else if (action === 'reject') {
-        // Update transfer status to rejected
+        const rejectNote = rejectionReason?.trim()
+          ? `Rejected: ${rejectionReason.trim()}`
+          : null;
+        const mergedNotes = [transfer.notes, rejectNote].filter(Boolean).join('\n');
         const updatedTransfer = await tx.stockTransfer.update({
           where: { id: transferId },
           data: {
             status: 'rejected',
-            rejectionReason: rejectionReason,
-            rejectedBy: { connect: { id: user.id } },
-            rejectedAt: new Date(),
+            ...(mergedNotes ? { notes: mergedNotes } : {}),
           },
           include: {
             product: {

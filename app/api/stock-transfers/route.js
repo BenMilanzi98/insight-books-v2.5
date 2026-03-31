@@ -91,20 +91,6 @@ export async function GET(request) {
               email: true
             }
           },
-          receivedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          },
-          rejectedBy: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
-          }
         },
         orderBy: {
           createdAt: 'desc'
@@ -575,14 +561,11 @@ export async function POST(request) {
           });
         }
 
-        // Update transfer status to received
+        // Status only: older deployed Prisma clients omit receivedBy/receivedAt on StockTransfer.
+        // After prisma migrate deploy + generate, optional columns can be set here again if needed.
         await tx.stockTransfer.update({
           where: { id: transfer.id },
-          data: {
-            status: 'received',
-            receivedBy: { connect: { id: user.id } },
-            receivedAt: new Date(),
-          },
+          data: { status: 'received' },
         });
 
         // Create inventory transactions
