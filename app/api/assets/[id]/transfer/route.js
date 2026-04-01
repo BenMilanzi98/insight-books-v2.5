@@ -49,6 +49,21 @@ async function findCategoryByNameCaseInsensitive(tx, targetTenantId, sourceName)
   return all.find((c) => c.name.toLowerCase() === sourceName.toLowerCase()) || null;
 }
 
+/** True if the *connected* DB (DATABASE_URL for this process) has the transfer table. */
+async function assetTransferTableExistsOnConnectedDb() {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT 1 AS ok FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'AssetInterBusinessTransfer'
+      LIMIT 1
+    `;
+    return Array.isArray(rows) && rows.length > 0;
+  } catch (e) {
+    console.warn('Could not verify AssetInterBusinessTransfer table (information_schema):', e?.message || e);
+    return true;
+  }
+}
+
 async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explicitCategoryId) {
   const sourceName = (sourceCategory?.name || 'Uncategorized').trim() || 'Uncategorized';
 
@@ -85,7 +100,7 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
  * POST — move asset from session tenant to another business the user may access.
  * Creates AssetInterBusinessTransfer + audit logs; depreciation/journal rows stay on the asset.
  */
-async function handleAssetTransferPost(request, { params }) {
+async function handleAssetTransferPost(request, routeContext) {
   try {
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
@@ -106,8 +121,21 @@ async function handleAssetTransferPost(request, { params }) {
       );
     }
 
-    // Next.js 15: dynamic route params may be a Promise
-    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const hasTable = await assetTransferTableExistsOnConnectedDb();
+    if (!hasTable) {
+      return NextResponse.json(
+        {
+          error:
+            'This server is connected to a database that does not have the asset-transfer table yet. Run `npx prisma migrate deploy` using the same DATABASE_URL as this deployment (not only on your laptop).',
+          code: 'TABLE_MISSING',
+        },
+        { status: 503 }
+      );
+    }
+
+    // Next.js 15: route context may omit params in edge cases; params may be a Promise
+    const rawParams = routeContext && typeof routeContext === 'object' ? routeContext.params : undefined;
+    const resolvedParams = typeof rawParams?.then === 'function' ? await rawParams : rawParams;
     const { id: assetId } = resolvedParams || {};
     if (!assetId || typeof assetId !== 'string') {
       return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
