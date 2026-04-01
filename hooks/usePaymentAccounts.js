@@ -16,11 +16,12 @@ export function usePaymentAccounts() {
         setError(null);
         
         const response = await fetch('/api/payment-accounts');
+        const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error('Failed to fetch payment accounts');
+          const msg = data?.hint || data?.error || 'Failed to fetch payment accounts';
+          console.error('payment-accounts API error:', response.status, data);
+          throw new Error(msg);
         }
-        
-        const data = await response.json();
         
         // Filter to only active accounts
         const activeAccounts = (data.paymentAccounts || []).filter(acc => acc.isActive);
