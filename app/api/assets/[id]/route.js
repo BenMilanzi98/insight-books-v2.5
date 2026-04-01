@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
 
     const { id } = params;
 
-    // Fetch asset with all related data
+    // Fetch asset for the current session business
     const asset = await prisma.asset.findFirst({
       where: {
         id: id,
@@ -47,7 +47,16 @@ export async function GET(request, { params }) {
             periodStart: 'desc'
           },
           take: 10 // Get last 10 depreciation records
-        }
+        },
+        interBusinessTransfers: {
+          orderBy: { transferredAt: 'desc' },
+          take: 50,
+          include: {
+            transferredBy: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
       }
     });
 

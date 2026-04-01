@@ -30,6 +30,8 @@ model Tenant {
   affiliateReferrals         AffiliateReferral[]
   assets                     Asset[]
   assetCategories            AssetCategory[]
+  assetTransfersOut          AssetInterBusinessTransfer[] @relation("AssetTransferFromTenant")
+  assetTransfersIn           AssetInterBusinessTransfer[] @relation("AssetTransferToTenant")
   attendanceRecords          AttendanceRecord[]
   attendanceRegisters        AttendanceRegister[]
   bankAccounts               BankAccount[]
@@ -239,6 +241,7 @@ model User {
   adminActivityLogs              AdminActivityLog[]     @relation("AdminActivityLog")
   affiliateReferrals             AffiliateReferral[]
   createdAssets                  Asset[]                @relation("AssetCreatedBy")
+  assetInterBusinessTransfers    AssetInterBusinessTransfer[] @relation("AssetInterBusinessTransferBy")
   attendanceRegistersFinalized   AttendanceRegister[]
   auditLogs                      AuditLog[]
   approvedBudgets                Budget[]               @relation("BudgetApprover")
@@ -2398,12 +2401,41 @@ model Asset {
   tenant                  Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   journalEntries          AssetJournalEntry[]
   depreciationSchedules   DepreciationSchedule[]
+  interBusinessTransfers  AssetInterBusinessTransfer[]
 
   @@index([tenantId])
   @@index([categoryId])
   @@index([createdById])
   @@index([status])
   @@index([purchaseDate])
+}
+
+/// Immutable audit row each time an asset is moved to another tenant (business).
+model AssetInterBusinessTransfer {
+  id               String   @id @default(cuid())
+  assetId          String
+  fromTenantId     String
+  toTenantId       String
+  fromTenantName   String
+  toTenantName     String
+  fromCategoryId   String
+  toCategoryId     String
+  fromCategoryName String
+  toCategoryName   String
+  transferredById  String
+  transferredAt    DateTime @default(now())
+  notes            String?
+  snapshotJson     String
+
+  asset          Asset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fromTenant     Tenant @relation("AssetTransferFromTenant", fields: [fromTenantId], references: [id])
+  toTenant       Tenant @relation("AssetTransferToTenant", fields: [toTenantId], references: [id])
+  transferredBy  User   @relation("AssetInterBusinessTransferBy", fields: [transferredById], references: [id])
+
+  @@index([assetId])
+  @@index([fromTenantId])
+  @@index([toTenantId])
+  @@index([transferredAt])
 }
 
 model DepreciationSchedule {

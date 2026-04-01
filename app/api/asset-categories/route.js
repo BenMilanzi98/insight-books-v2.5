@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
 
 /**
  * GET handler for asset categories
@@ -25,12 +26,21 @@ export async function GET(request) {
       );
     }
     
-    const tenantId = user.tenantId;
-    
-    // Get query parameters
     const { searchParams } = new URL(request.url);
+    const forTenantId = searchParams.get('forTenantId')?.trim() || null;
+    let tenantId = user.tenantId;
+
+    if (forTenantId) {
+      const accessible = await getAccessibleTenantIdsForUser(user);
+      if (!accessible.includes(forTenantId)) {
+        return NextResponse.json({ error: 'Access denied for that business' }, { status: 403 });
+      }
+      tenantId = forTenantId;
+    }
+
+    // Get query parameters
     const search = searchParams.get('search');
-    
+
     // Build filter object for Prisma
     const where = {
       tenantId

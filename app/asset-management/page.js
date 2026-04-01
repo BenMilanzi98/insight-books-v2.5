@@ -14,7 +14,8 @@ import {
   TrendingDown,
   Calendar,
   CreditCard,
-  DollarSign
+  DollarSign,
+  ArrowLeftRight,
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
@@ -196,6 +197,15 @@ const AssetManagement = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDepreciationModal, setShowDepreciationModal] = useState(false);
   const [showDisposalModal, setShowDisposalModal] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferAsset, setTransferAsset] = useState(null);
+  const [transferTargetTenantId, setTransferTargetTenantId] = useState("");
+  const [transferTargetCategories, setTransferTargetCategories] = useState([]);
+  const [transferCategoryId, setTransferCategoryId] = useState("");
+  const [transferNotes, setTransferNotes] = useState("");
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [userTenants, setUserTenants] = useState([]);
+  const [currentTenantId, setCurrentTenantId] = useState(null);
   const [viewAsset, setViewAsset] = useState(null);
   const [assetEditId, setAssetEditId] = useState(null);
   const [disposalAsset, setDisposalAsset] = useState(null);
@@ -469,6 +479,49 @@ const AssetManagement = () => {
       paymentMethod: prev.paymentMethod || paymentAccounts[0]?.key || ""
     }));
   }, [showPaymentModal, paymentLiability, paymentAccounts]);
+
+  useEffect(() => {
+    const loadTenants = async () => {
+      try {
+        const res = await fetch("/api/tenant/list", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        setUserTenants(data.tenants || []);
+        setCurrentTenantId(data.currentTenantId ?? null);
+      } catch (e) {
+        console.error("Error loading tenant list:", e);
+      }
+    };
+    loadTenants();
+  }, []);
+
+  useEffect(() => {
+    if (!showTransferModal) {
+      setTransferTargetCategories([]);
+      return;
+    }
+    if (!transferTargetTenantId) {
+      setTransferTargetCategories([]);
+      return;
+    }
+    const load = async () => {
+      try {
+        const res = await fetch(
+          `/api/asset-categories?forTenantId=${encodeURIComponent(transferTargetTenantId)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) {
+          setTransferTargetCategories([]);
+          return;
+        }
+        const data = await res.json();
+        setTransferTargetCategories(data.categories || []);
+      } catch {
+        setTransferTargetCategories([]);
+      }
+    };
+    load();
+  }, [showTransferModal, transferTargetTenantId]);
   
   // Fetch asset categories from API
   const fetchAssetCategories = async () => {
@@ -1213,6 +1266,48 @@ const AssetManagement = () => {
   
   const assetStatusOptions = ["all", "active", "disposed", "sold"];
   const liabilityStatusOptions = ["all", "active", "paid_off", "defaulted"];
+
+  const hasMultipleBusinesses = userTenants.length > 1;
+
+  const openTransferModal = (asset) => {
+    setTransferAsset(asset);
+    setTransferTargetTenantId("");
+    setTransferCategoryId("");
+    setTransferNotes("");
+    setTransferTargetCategories([]);
+    setShowTransferModal(true);
+  };
+
+  const handleTransferSubmit = async (e) => {
+    e.preventDefault();
+    if (!transferAsset?.id || !transferTargetTenantId) return;
+    setTransferSubmitting(true);
+    try {
+      const res = await fetch(`/api/assets/${transferAsset.id}/transfer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          targetTenantId: transferTargetTenantId,
+          ...(transferCategoryId ? { targetCategoryId: transferCategoryId } : {}),
+          ...(transferNotes.trim() ? { notes: transferNotes.trim() } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Transfer failed");
+      setAlertMessage(data.message || "Asset transferred to the other business.");
+      setAlertType("success");
+      setShowAlert(true);
+      setShowTransferModal(false);
+      setTransferAsset(null);
+      fetchAssets();
+    } catch (err) {
+      setAlertMessage(err.message || "Transfer failed");
+      setAlertType("error");
+      setShowAlert(true);
+    } finally {
+      setTransferSubmitting(false);
+    }
+  };
   
   return (
     <div>
@@ -1408,9 +1503,20 @@ const AssetManagement = () => {
                           <button 
                             className="text-blue-600 hover:text-blue-800"
                             onClick={() => handleViewAsset(asset)}
+                            title="View"
                           >
                             <Eye size={16} />
                           </button>
+                          {hasMultipleBusinesses && asset.status === "active" && (
+                            <button
+                              type="button"
+                              className="text-violet-600 hover:text-violet-800"
+                              title="Transfer to another business"
+                              onClick={() => openTransferModal(asset)}
+                            >
+                              <ArrowLeftRight size={16} />
+                            </button>
+                          )}
                           <button 
                             className={`${asset.status === 'disposed' ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:text-orange-800'}`}
                             onClick={() => asset.status !== 'disposed' && handleEditAsset(asset)}
@@ -2226,6 +2332,49 @@ const AssetManagement = () => {
                   )}
                 </div>
                 
+                {viewAsset.interBusinessTransfers && viewAsset.interBusinessTransfers.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-semibold mb-3">Transfer history (between businesses)</h3>
+                    <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 text-left">
+                            <th className="p-3 font-medium">Date</th>
+                            <th className="p-3 font-medium">From</th>
+                            <th className="p-3 font-medium">To</th>
+                            <th className="p-3 font-medium">Category change</th>
+                            <th className="p-3 font-medium">By</th>
+                            <th className="p-3 font-medium">Notes</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {viewAsset.interBusinessTransfers.map((row) => (
+                            <tr key={row.id} className="border-t border-gray-200">
+                              <td className="p-3 whitespace-nowrap">
+                                {new Date(row.transferredAt).toLocaleString()}
+                              </td>
+                              <td className="p-3">{row.fromTenantName}</td>
+                              <td className="p-3">{row.toTenantName}</td>
+                              <td className="p-3 text-xs text-gray-600">
+                                {row.fromCategoryName} → {row.toCategoryName}
+                              </td>
+                              <td className="p-3">
+                                {row.transferredBy?.name || row.transferredBy?.email || "—"}
+                              </td>
+                              <td className="p-3 text-xs text-gray-600 max-w-[200px]">
+                                {row.notes || "—"}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Each transfer is also recorded in audit logs for both businesses. Financial snapshot at transfer is stored on the server.
+                    </p>
+                  </div>
+                )}
+
                 {viewAsset.depreciationSchedules && viewAsset.depreciationSchedules.length > 0 && (
                   <div className="mt-6">
                     <h3 className="text-sm font-semibold mb-3">Depreciation History</h3>
@@ -2265,6 +2414,115 @@ const AssetManagement = () => {
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showTransferModal && transferAsset && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+              <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h2 className="text-xl font-semibold">Transfer asset to another business</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTransferModal(false);
+                    setTransferAsset(null);
+                  }}
+                  className="text-gray-500 hover:text-gray-700"
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleTransferSubmit}>
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Asset:{" "}
+                    <span className="font-medium text-gray-900">{transferAsset.name}</span>
+                  </p>
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                    This moves the asset register entry (and linked depreciation schedules) to the
+                    selected business. Inter-company accounting entries are not posted automatically;
+                    consult your accountant if required.
+                  </div>
+                  <div>
+                    <label htmlFor="transfer-target-tenant" className="block text-sm font-medium mb-1">
+                      Destination business <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="transfer-target-tenant"
+                      className="w-full p-2 border border-gray-200 rounded"
+                      required
+                      value={transferTargetTenantId}
+                      onChange={(e) => {
+                        setTransferTargetTenantId(e.target.value);
+                        setTransferCategoryId("");
+                      }}
+                    >
+                      <option value="">Select business…</option>
+                      {userTenants
+                        .filter((t) => t.id !== (currentTenantId ?? ""))
+                        .map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="transfer-target-category" className="block text-sm font-medium mb-1">
+                      Category in destination (optional)
+                    </label>
+                    <select
+                      id="transfer-target-category"
+                      className="w-full p-2 border border-gray-200 rounded"
+                      value={transferCategoryId}
+                      onChange={(e) => setTransferCategoryId(e.target.value)}
+                      disabled={!transferTargetTenantId}
+                    >
+                      <option value="">Match by name or create automatically</option>
+                      {transferTargetCategories.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="transfer-notes" className="block text-sm font-medium mb-1">
+                      Notes (optional)
+                    </label>
+                    <textarea
+                      id="transfer-notes"
+                      rows={2}
+                      className="w-full p-2 border border-gray-200 rounded text-sm"
+                      value={transferNotes}
+                      onChange={(e) => setTransferNotes(e.target.value)}
+                      placeholder="Reason or reference"
+                    />
+                  </div>
+                </div>
+                <div className="p-6 border-t bg-gray-50 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-200 rounded"
+                    onClick={() => {
+                      setShowTransferModal(false);
+                      setTransferAsset(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={transferSubmitting || !transferTargetTenantId}
+                    className="px-4 py-2 bg-violet-600 text-white rounded hover:bg-violet-700 disabled:opacity-50"
+                  >
+                    {transferSubmitting ? "Transferring…" : "Confirm transfer"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}
