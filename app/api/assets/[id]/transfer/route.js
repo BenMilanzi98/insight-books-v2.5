@@ -3,9 +3,32 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
+import { getErrorChain, findInChain, findPrismaCode } from '@/lib/prismaErrorChain';
 
 /** Prisma + DB drivers require Node (not Edge). */
 export const runtime = 'nodejs';
+
+/** Avoid accidental caching of auth-bound routes. */
+export const dynamic = 'force-dynamic';
+
+/**
+ * Prisma models can carry Date instances; ensure response JSON never throws (e.g. BigInt edge cases).
+ * @param {unknown} value
+ */
+function jsonSafe(value) {
+  try {
+    return JSON.parse(
+      JSON.stringify(value, (_k, v) => {
+        if (typeof v === 'bigint') return v.toString();
+        if (v instanceof Date) return v.toISOString();
+        return v;
+      })
+    );
+  } catch (serializeErr) {
+    console.error('jsonSafe failed, returning minimal payload:', serializeErr);
+    return { _serializationNote: 'Partial response; see server logs.' };
+  }
+}
 
 async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explicitCategoryId) {
   const sourceName = (sourceCategory?.name || 'Uncategorized').trim() || 'Uncategorized';
@@ -23,15 +46,30 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
     },
   });
   if (byName) return byName;
-  return tx.assetCategory.create({
-    data: {
-      tenantId: targetTenantId,
-      name: sourceName,
-      description:
-        sourceCategory?.description?.trim() ||
-        'Category created when an asset was transferred from another business',
-    },
-  });
+
+  try {
+    return await tx.assetCategory.create({
+      data: {
+        tenantId: targetTenantId,
+        name: sourceName,
+        description:
+          sourceCategory?.description?.trim() ||
+          'Category created when an asset was transferred from another business',
+      },
+    });
+  } catch (e) {
+    // Concurrent transfer / race: unique (tenantId, name) — re-fetch by case-insensitive name
+    if (/** @type {{ code?: string }} */ (e).code === 'P2002') {
+      const retry = await tx.assetCategory.findFirst({
+        where: {
+          tenantId: targetTenantId,
+          name: { equals: sourceName, mode: 'insensitive' },
+        },
+      });
+      if (retry) return retry;
+    }
+    throw e;
+  }
 }
 
 /**
@@ -132,13 +170,13 @@ export async function POST(request, { params }) {
     });
     const currentAccumulatedDepreciation =
       latest?.accumulatedDepreciation ?? asset.accumulatedDepreciation ?? 0;
-    const currentNetBookValue = asset.originalCost - currentAccumulatedDepreciation;
+    const currentNetBookValue = Number(asset.originalCost) - Number(currentAccumulatedDepreciation);
 
     const snapshot = {
       transferredAt: new Date().toISOString(),
       name: asset.name,
-      originalCost: asset.originalCost,
-      accumulatedDepreciation: currentAccumulatedDepreciation,
+      originalCost: Number(asset.originalCost),
+      accumulatedDepreciation: Number(currentAccumulatedDepreciation),
       netBookValue: currentNetBookValue,
       status: asset.status,
       serialNumber: asset.serialNumber,
@@ -147,49 +185,52 @@ export async function POST(request, { params }) {
       toTenantId,
     };
 
-    const result = await prisma.$transaction(async (tx) => {
-      const targetCategory = await resolveTargetCategory(
-        tx,
-        targetTenantId,
-        asset.category,
-        targetCategoryId
-      );
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const targetCategory = await resolveTargetCategory(
+          tx,
+          targetTenantId,
+          asset.category,
+          targetCategoryId
+        );
 
-      if (!targetCategory) {
-        throw Object.assign(new Error('INVALID_TARGET_CATEGORY'), { code: 'INVALID_TARGET_CATEGORY' });
-      }
+        if (!targetCategory) {
+          throw Object.assign(new Error('INVALID_TARGET_CATEGORY'), { code: 'INVALID_TARGET_CATEGORY' });
+        }
 
-      const transfer = await tx.assetInterBusinessTransfer.create({
-        data: {
-          assetId: asset.id,
-          fromTenantId,
-          toTenantId,
-          fromTenantName: fromTenant.name,
-          toTenantName: toTenant.name,
-          fromCategoryId: asset.categoryId,
-          toCategoryId: targetCategory.id,
-          fromCategoryName: asset.category.name,
-          toCategoryName: targetCategory.name,
-          transferredById: user.id,
-          notes: notes || null,
-          snapshotJson: JSON.stringify(snapshot),
-        },
-      });
+        const transfer = await tx.assetInterBusinessTransfer.create({
+          data: {
+            assetId: asset.id,
+            fromTenantId,
+            toTenantId,
+            fromTenantName: fromTenant.name,
+            toTenantName: toTenant.name,
+            fromCategoryId: asset.categoryId,
+            toCategoryId: targetCategory.id,
+            fromCategoryName: asset.category.name,
+            toCategoryName: targetCategory.name,
+            transferredById: user.id,
+            notes: notes || null,
+            snapshotJson: JSON.stringify(snapshot),
+          },
+        });
 
-      const updated = await tx.asset.update({
-        where: { id: asset.id },
-        data: {
-          tenantId: targetTenantId,
-          categoryId: targetCategory.id,
-        },
-        include: {
-          category: true,
-          createdBy: { select: { id: true, name: true, email: true } },
-        },
-      });
+        const updated = await tx.asset.update({
+          where: { id: asset.id },
+          data: {
+            tenantId: targetTenantId,
+            categoryId: targetCategory.id,
+          },
+          include: {
+            category: true,
+            createdBy: { select: { id: true, name: true, email: true } },
+          },
+        });
 
-      return { transfer, asset: updated };
-    });
+        return { transfer, asset: updated };
+      },
+      { timeout: 20000, maxWait: 10000 }
+    );
 
     const detailOut = {
       transferId: result.transfer.id,
@@ -239,24 +280,70 @@ export async function POST(request, { params }) {
 
     return NextResponse.json({
       message: 'Asset transferred successfully',
-      transfer: result.transfer,
-      asset: result.asset,
+      transfer: jsonSafe(result.transfer),
+      asset: jsonSafe(result.asset),
     });
   } catch (error) {
-    if (error?.code === 'INVALID_TARGET_CATEGORY') {
+    const chain = getErrorChain(error);
+
+    if (findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'INVALID_TARGET_CATEGORY')) {
       return NextResponse.json({ error: 'Invalid category for the target business' }, { status: 400 });
     }
-    if (error?.code === 'P2002') {
+
+    if (findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'P2002')) {
       return NextResponse.json(
-        { error: 'Could not create matching category in target business (duplicate name). Pick a category manually.' },
+        {
+          error:
+            'Could not complete transfer due to a duplicate record (e.g. category name). Pick a target category manually and try again.',
+          code: 'P2002',
+        },
         { status: 409 }
       );
     }
-    const errMsg = String(error?.message || error || '');
+
+    const p2003 = findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'P2003');
+    if (p2003) {
+      const meta = /** @type {{ meta?: { field_name?: string } }} */ (p2003).meta;
+      return NextResponse.json(
+        {
+          error: 'Database rejected the transfer (related record missing or invalid).',
+          code: 'P2003',
+          field: meta?.field_name,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'P2025')) {
+      return NextResponse.json({ error: 'Asset or related record was not found.', code: 'P2025' }, { status: 404 });
+    }
+
+    if (findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'P2034')) {
+      return NextResponse.json(
+        {
+          error: 'Transfer conflicted with another update. Please try again.',
+          code: 'P2034',
+        },
+        { status: 409 }
+      );
+    }
+
+    if (findInChain(chain, (e) => /** @type {{ code?: string }} */ (e).code === 'P2028')) {
+      return NextResponse.json(
+        {
+          error: 'Transfer timed out on the database. Please try again in a moment.',
+          code: 'P2028',
+        },
+        { status: 504 }
+      );
+    }
+
+    const errMsg = chain.map((e) => String(/** @type {Error} */ (e).message || e)).join(' | ') || String(error);
+    const prismaCode = findPrismaCode(chain);
+
     // Table missing / wrong schema if migrations not applied
     if (
-      error?.code === 'P2021' ||
-      error?.code === 'P2010' ||
+      findInChain(chain, (e) => ['P2021', 'P2010'].includes(/** @type {{ code?: string }} */ (e).code || '')) ||
       /does not exist/i.test(errMsg) ||
       /AssetInterBusinessTransfer/i.test(errMsg)
     ) {
@@ -264,17 +351,18 @@ export async function POST(request, { params }) {
         {
           error:
             'Asset transfer requires a database migration. On the server run: npx prisma migrate deploy',
-          code: error?.code || 'SCHEMA_MISSING',
+          code: prismaCode || 'SCHEMA_MISSING',
         },
         { status: 503 }
       );
     }
+
     console.error('Asset transfer error:', error);
     return NextResponse.json(
       {
         error: 'Failed to transfer asset',
-        code: error?.code || undefined,
-        details: process.env.NODE_ENV === 'development' ? errMsg : undefined,
+        code: prismaCode,
+        hint: errMsg.length > 280 ? `${errMsg.slice(0, 280)}…` : errMsg,
       },
       { status: 500 }
     );

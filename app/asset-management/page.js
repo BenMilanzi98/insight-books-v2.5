@@ -1293,7 +1293,15 @@ const AssetManagement = () => {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Transfer failed");
+      if (!res.ok) {
+        const parts = [
+          data.error || "Transfer failed",
+          data.code ? `[${data.code}]` : null,
+          data.field ? `field: ${data.field}` : null,
+          data.hint ? data.hint : null,
+        ].filter(Boolean);
+        throw new Error(parts.join(" — "));
+      }
       setAlertMessage(data.message || "Asset transferred to the other business.");
       setAlertType("success");
       setShowAlert(true);
