@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "cross-env NODE_ENV=development next dev -p 3000",
     "build": "cross-env NODE_ENV=production next build",
+    "build:clean": "rimraf .next && cross-env NODE_ENV=production next build",
     "start": "cross-env NODE_ENV=production next start",
     "lint": "next lint",
     "db:seed:coa": "ts-node prisma/seed/chartOfAccountsSeed.ts",
@@ -82,6 +83,7 @@
     "eslint-config-next": "16.2.1",
     "postcss": "^8.5.3",
     "prisma": "^6.8.1",
+    "rimraf": "^6.1.3",
     "tailwindcss": "^4.0.15",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
