@@ -686,13 +686,6 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    if (hasPermission(user.role.permissions, "branches.view")) {
-      additionalItems.push({
-        href: "/branches",
-        icon: "tenants",
-        text: "Branches",
-      });
-    }
     
     // Add Purchases if user has inventory or purchases permission
     const canViewPurchases = hasPermission(user.role.permissions, "purchases.view") || hasPermission(user.role.permissions, "inventory.view");
