@@ -223,7 +223,7 @@ async function handleAssetTransferPost(request, routeContext) {
       serialNumber: asset.serialNumber,
       categoryName: asset.category.name,
       fromTenantId,
-      toTenantId,
+      toTenantId: targetTenantId,
     };
 
     const result = await prisma.$transaction(
@@ -243,7 +243,7 @@ async function handleAssetTransferPost(request, routeContext) {
           data: {
             assetId: asset.id,
             fromTenantId,
-            toTenantId,
+            toTenantId: targetTenantId,
             fromTenantName: fromTenant.name,
             toTenantName: toTenant.name,
             fromCategoryId: asset.categoryId,
@@ -277,7 +277,7 @@ async function handleAssetTransferPost(request, routeContext) {
       transferId: result.transfer.id,
       assetId: asset.id,
       assetName: asset.name,
-      toTenantId,
+      toTenantId: targetTenantId,
       toTenantName: toTenant.name,
       netBookValue: currentNetBookValue,
     };
