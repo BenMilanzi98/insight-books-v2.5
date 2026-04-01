@@ -88,9 +88,14 @@ function NavigationBar() {
                     Dashboard
                   </Link>
                 ) : (
-                  <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
-                    Log In
-                  </Link>
+                  <>
+                    <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
+                      Log In
+                    </Link>
+                    <Link href="/auth/signup" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
+                      Register
+                    </Link>
+                  </>
                 )}
                 <Link href="/contact" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
                   Book a Demo
@@ -124,9 +129,14 @@ function NavigationBar() {
                     Dashboard
                   </Link>
                 ) : (
-                  <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                    Log In
-                  </Link>
+                  <>
+                    <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
+                      Log In
+                    </Link>
+                    <Link href="/auth/signup" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
+                      Register
+                    </Link>
+                  </>
                 )}
                 <Link href="/contact" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
                   Book a Demo
