@@ -130,6 +130,15 @@ export default function BudgetPage() {
         const expense = json.data.expenseAccounts || json.data.categories || [];
         setExpenseAccountOptions(expense);
         setInventoryCategoryOptions(json.data.inventoryCategories || []);
+      } else {
+        // Fallback: load expense accounts directly (some environments block OPTIONS via access controls)
+        const catRes = await fetch("/api/categories?type=expense", { cache: "no-store" });
+        const catJson = await catRes.json().catch(() => ({}));
+        if (catRes.ok) {
+          setExpenseAccountOptions(catJson.categories || []);
+        } else {
+          console.warn("Budget options failed:", catJson?.error || catRes.statusText);
+        }
       }
     } catch (e) {
       console.error("Error loading options:", e);
