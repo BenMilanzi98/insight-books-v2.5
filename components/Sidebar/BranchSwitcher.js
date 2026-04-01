@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Check, Building2 } from 'lucide-react';
+import { checkPermission } from '@/lib/permissions';
 
 /**
  * Sidebar control labeled "Branches/Businesses": opens a dropdown to switch
@@ -14,6 +15,7 @@ export default function BranchSwitcher() {
   const [currentTenantId, setCurrentTenantId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState(false);
+  const [canManageBusinesses, setCanManageBusinesses] = useState(false);
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -34,6 +36,14 @@ export default function BranchSwitcher() {
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    checkPermission('system.switchTenant')
+      .then((ok) => { if (mounted) setCanManageBusinesses(!!ok); })
+      .catch(() => { if (mounted) setCanManageBusinesses(false); });
+    return () => { mounted = false; };
   }, []);
 
   useEffect(() => {
@@ -97,12 +107,18 @@ export default function BranchSwitcher() {
         <div className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">
           Branches/Businesses
         </div>
-        <Link
-          href="/switch-tenant"
-          className="text-blue-300 hover:text-blue-200 underline text-xs"
-        >
-          Add or manage businesses
-        </Link>
+        {canManageBusinesses ? (
+          <Link
+            href="/switch-tenant"
+            className="text-blue-300 hover:text-blue-200 underline text-xs"
+          >
+            Add or manage businesses
+          </Link>
+        ) : (
+          <div className="text-gray-300 text-xs">
+            No businesses assigned
+          </div>
+        )}
       </div>
     );
   }
