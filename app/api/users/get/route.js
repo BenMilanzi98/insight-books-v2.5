@@ -1,11 +1,14 @@
 // app/api/users/get/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 // GET - Fetch a single user by ID
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'users.view');
+    if (perm) return perm;
+
     // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
@@ -55,9 +58,26 @@ export async function GET(request) {
 
     const { userBranches, ...rest } = targetUser;
     const allowedBranchIds = (userBranches ?? []).map((ub) => ub.branchId).filter(Boolean);
+
+    let memberships = [];
+    try {
+      memberships = await prisma.tenantMembership.findMany({
+        where: { userId: targetUser.id, status: 'active' },
+        select: {
+          tenantId: true,
+          roleId: true,
+          tenant: { select: { id: true, name: true } },
+          role: { select: { id: true, name: true } },
+        },
+      });
+    } catch (e) {
+      // Backward compatible: membership table may not be deployed yet.
+      memberships = [];
+    }
     return NextResponse.json({
       ...rest,
-      allowedBranchIds: allowedBranchIds.length > 0 ? allowedBranchIds : []
+      allowedBranchIds: allowedBranchIds.length > 0 ? allowedBranchIds : [],
+      memberships
     });
   } catch (error) {
     console.error('Error fetching user:', error);

@@ -1,9 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 export async function GET(request) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const perm = await requirePermission(request, 'system.view');
+    if (perm) return perm;
+
     const userItem = await getUserFromSession(request);
     if (!userItem) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });

@@ -2,11 +2,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 
 // GET - Fetch users with filtering, sorting, and pagination
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'users.view');
+    if (perm) return perm;
+
     // Get authenticated user and ensure tenant isolation
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
@@ -133,6 +137,9 @@ export async function GET(request) {
 // POST - Create a new user
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'users.create');
+    if (perm) return perm;
+
     // Get authenticated user to get the tenant ID
     const currentUser = await getUserFromSession(request);
     if (!currentUser || !currentUser.tenantId) {
@@ -206,6 +213,66 @@ export async function POST(request) {
         role: true // Include the role in the returned user object
       }
     });
+
+    // Multi-business memberships (role per business).
+    // Backward compatible: if membership tables aren't deployed yet, this block will no-op.
+    const requestedMemberships = Array.isArray(body.memberships) ? body.memberships : null;
+    const normalizedMemberships = (requestedMemberships && requestedMemberships.length > 0)
+      ? requestedMemberships
+      : [{ tenantId, roleId: body.role }];
+
+    // Ensure current tenant membership exists
+    if (!normalizedMemberships.some((m) => m?.tenantId === tenantId)) {
+      normalizedMemberships.unshift({ tenantId, roleId: body.role });
+    }
+
+    // Validate requested tenant access (prevent indirect assignment / escalation)
+    const finalMemberships = [];
+    for (const m of normalizedMemberships) {
+      const tId = String(m?.tenantId || '').trim();
+      const rId = String(m?.roleId || '').trim();
+      if (!tId || !rId) continue;
+      // Only allow assigning tenants the current user can access
+      const ok = await userHasAccessToTenant(currentUser, tId);
+      if (ok) finalMemberships.push({ tenantId: tId, roleId: rId });
+    }
+
+    try {
+      // Ensure role belongs to target tenant for each membership.
+      for (const m of finalMemberships) {
+        const role = await prisma.role.findFirst({
+          where: { id: m.roleId, tenantId: m.tenantId },
+          select: { id: true },
+        });
+        if (!role) {
+          throw new Error('Invalid role assignment for selected business');
+        }
+      }
+
+      // Create memberships
+      await prisma.tenantMembership.createMany({
+        data: finalMemberships.map((m) => ({
+          userId: newUser.id,
+          tenantId: m.tenantId,
+          roleId: m.roleId,
+          status: 'active',
+        })),
+        skipDuplicates: true,
+      });
+
+      // Keep legacy join table in sync for existing tenant switching logic.
+      await prisma.user.update({
+        where: { id: newUser.id },
+        data: {
+          tenants: {
+            connect: finalMemberships.map((m) => ({ id: m.tenantId })),
+          },
+        },
+        select: { id: true },
+      });
+    } catch (membershipWriteError) {
+      console.warn('Skipping membership writes (legacy DB / not deployed yet):', membershipWriteError?.message || membershipWriteError);
+    }
 
     // Assign allowed branches (user-branch separation)
     if (allowedBranchIds.length > 0 && newUser.id) {

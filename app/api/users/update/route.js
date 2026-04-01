@@ -2,11 +2,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 
 // PUT - Update a user
 export async function PUT(request) {
   try {
+    const perm = await requirePermission(request, 'users.update');
+    if (perm) return perm;
+
     // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
@@ -98,6 +102,58 @@ export async function PUT(request) {
             data: ids.map((branchId) => ({ userId, branchId }))
           });
         }
+      }
+    }
+
+    // Multi-business memberships (role per business)
+    if (Array.isArray(updateData.memberships)) {
+      const requested = updateData.memberships;
+
+      const finalMemberships = [];
+      for (const m of requested) {
+        const tId = String(m?.tenantId || '').trim();
+        const rId = String(m?.roleId || '').trim();
+        if (!tId || !rId) continue;
+        const ok = await userHasAccessToTenant(user, tId);
+        if (ok) finalMemberships.push({ tenantId: tId, roleId: rId });
+      }
+
+      try {
+        // Validate roles belong to their tenants
+        for (const m of finalMemberships) {
+          const role = await prisma.role.findFirst({
+            where: { id: m.roleId, tenantId: m.tenantId },
+            select: { id: true },
+          });
+          if (!role) {
+            throw new Error('Invalid role assignment for selected business');
+          }
+        }
+
+        await prisma.tenantMembership.deleteMany({ where: { userId } });
+        if (finalMemberships.length > 0) {
+          await prisma.tenantMembership.createMany({
+            data: finalMemberships.map((m) => ({
+              userId,
+              tenantId: m.tenantId,
+              roleId: m.roleId,
+              status: 'active',
+            })),
+          });
+        }
+
+        // Keep legacy join table in sync
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            tenants: {
+              set: finalMemberships.map((m) => ({ id: m.tenantId })),
+            },
+          },
+          select: { id: true },
+        });
+      } catch (membershipWriteError) {
+        console.warn('Skipping membership updates (legacy DB / not deployed yet):', membershipWriteError?.message || membershipWriteError);
       }
     }
 

@@ -1,11 +1,14 @@
 // app/api/roles/get/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 // GET - Fetch a single role by ID with tenant isolation
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'roles.view');
+    if (perm) return perm;
+
     // Get authenticated user and ensure tenant isolation
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {

@@ -631,12 +631,14 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    // Always show Asset & Liability Management (no permission check for now)
-    coreItems.push({
-      href: "/asset-management",
-      icon: "reports",
-      text: "Assets & Liabilities"
-    });
+    // Assets & Liabilities should be permission-gated (deny-by-default).
+    if (hasPermission(user.role.permissions, "assets.view")) {
+      coreItems.push({
+        href: "/asset-management",
+        icon: "reports",
+        text: "Assets & Liabilities"
+      });
+    }
 
     if (hasPermission(user.role.permissions, "hr.view")) {
       coreItems.push({
@@ -739,29 +741,33 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
-    // Accounting section - always show for all authenticated users
-    sections.push({
-      label: "Accounting",
-      items: [
-        {
-          href: "/accounting",
-          icon: "coa",
-          text: "Accounting",
-          expandable: true,
-          subItems: [
-            { href: "/general-ledger", text: "General Ledger" },
-            { href: "/accounting/receivables", text: "Receivables" },
-            { href: "/accounting/payables", text: "Payables" },
-            { href: "/accounting-periods", text: "Accounting Periods" },
-            { href: "/chart-of-accounts", text: "Chart of Accounts" },
-            { href: "/journal-entries", text: "Journal Entries" },
-            { href: "/capital-account", text: "Capital Account" },
-            { href: "/trial-balance", text: "Trial Balance" },
-            { href: "/transactions/reversals", text: "Reversals" },
-          ]
-        },
-      ]
-    });
+    // Accounting section: include only items explicitly permitted.
+    const accountingSubItems = [
+      { href: "/general-ledger", text: "General Ledger", permission: "generalLedger.view" },
+      { href: "/accounting/receivables", text: "Receivables", permission: "invoices.view" },
+      { href: "/accounting/payables", text: "Payables", permission: "expenses.view" },
+      { href: "/accounting-periods", text: "Accounting Periods", permission: "journalEntries.view" },
+      { href: "/chart-of-accounts", text: "Chart of Accounts", permission: "accounts.view" },
+      { href: "/journal-entries", text: "Journal Entries", permission: "journalEntries.view" },
+      { href: "/capital-account", text: "Capital Account", permission: "reports.view" },
+      { href: "/trial-balance", text: "Trial Balance", permission: "trialBalance.view" },
+      { href: "/transactions/reversals", text: "Reversals", permission: "journalEntries.view" },
+    ].filter((i) => hasPermission(user.role.permissions, i.permission));
+
+    if (accountingSubItems.length > 0) {
+      sections.push({
+        label: "Accounting",
+        items: [
+          {
+            href: "/accounting",
+            icon: "coa",
+            text: "Accounting",
+            expandable: true,
+            subItems: accountingSubItems.map(({ permission, ...rest }) => rest),
+          },
+        ],
+      });
+    }
     
     // Create a business management section if user has access to any of these
     const businessItems = [];

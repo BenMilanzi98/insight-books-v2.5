@@ -91,6 +91,7 @@ model Tenant {
   transactions               Transaction[]
   users                      User[]
   members                    User[]                      @relation("UserTenants")
+  memberships                TenantMembership[]
   accountingPeriods          AccountingPeriod[]
   stockTransfers             StockTransfer[]
   stockTransferReceiptNotices StockTransferReceiptNotice[]
@@ -209,9 +210,28 @@ model Role {
   tenantId    String?
   tenant      Tenant?  @relation(fields: [tenantId], references: [id])
   users       User[]
+  memberships TenantMembership[]
 
   @@unique([name, tenantId])
   @@index([tenantId])
+}
+
+model TenantMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  tenantId  String
+  roleId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  status    String   @default("active")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+  @@index([roleId])
 }
 
 model User {
@@ -292,6 +312,7 @@ model User {
   tenant                         Tenant?                @relation(fields: [tenantId], references: [id])
   tenants                        Tenant[]               @relation("UserTenants")
   ownedTenants                   Tenant[]               @relation("TenantOwner")
+  memberships                    TenantMembership[]
 
   @@index([email])
   @@index([tenantId])

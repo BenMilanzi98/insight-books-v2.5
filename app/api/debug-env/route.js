@@ -1,7 +1,15 @@
 // app/api/debug-env/route.js
 import { NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
+  const perm = await requirePermission(request, 'system.view');
+  if (perm) return perm;
+
   // Get all environment variables
   const envVars = {
     NODE_ENV: process.env.NODE_ENV,

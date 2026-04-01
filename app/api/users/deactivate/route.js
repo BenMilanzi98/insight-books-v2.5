@@ -1,11 +1,14 @@
 // app/api/users/deactivate/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 // POST - Deactivate a user (soft delete)
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'users.delete');
+    if (perm) return perm;
+
     // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {

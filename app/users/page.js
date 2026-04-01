@@ -1192,11 +1192,14 @@ const defaultConfig = {
     lastName: "",
     email: "",
     role: "",
+    memberships: [],
     department: "",
     status: "active",
     sendEmail: true
   });
   const [departments, setDepartments] = useState([]);
+  const [availableTenants, setAvailableTenants] = useState([]);
+  const [rolesByTenantId, setRolesByTenantId] = useState({});
   const [showNewDepartment, setShowNewDepartment] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState("");
   const [addingDepartment, setAddingDepartment] = useState(false);
@@ -1273,7 +1276,7 @@ useEffect(() => {
   // When Add User modal opens, fetch departments for the current tenant
   useEffect(() => {
     if (!showAddUserModal) return;
-    const loadDepartments = async () => {
+    const loadModalData = async () => {
       try {
         const deptRes = await fetch("/api/departments", { cache: "no-store" });
         if (deptRes.ok) {
@@ -1283,9 +1286,55 @@ useEffect(() => {
       } catch (e) {
         console.error("Error loading departments:", e);
       }
+
+      try {
+        const [meRes, tenantsRes] = await Promise.all([
+          fetch("/api/auth/me", { cache: "no-store" }),
+          fetch("/api/tenant/list", { cache: "no-store" }),
+        ]);
+
+        const me = meRes.ok ? await meRes.json() : null;
+        const tenantsPayload = tenantsRes.ok ? await tenantsRes.json() : null;
+
+        const tenants = Array.isArray(tenantsPayload)
+          ? tenantsPayload
+          : (Array.isArray(tenantsPayload?.tenants) ? tenantsPayload.tenants : []);
+
+        setAvailableTenants(tenants);
+
+        // Default: assign the user to the current business (active tenant)
+        const activeTenantId = me?.tenantId || me?.tenant?.id || null;
+        if (activeTenantId) {
+          setUserFormData((prev) => ({
+            ...prev,
+            memberships: [{ tenantId: activeTenantId, roleId: prev.role || "" }],
+          }));
+        }
+      } catch (e) {
+        console.error("Error loading tenants/me:", e);
+      }
     };
-    loadDepartments();
+    loadModalData();
   }, [showAddUserModal]);
+
+  // When Edit User modal opens, ensure tenant list is loaded (for memberships UI)
+  useEffect(() => {
+    if (!showEditUserModal) return;
+    if (availableTenants.length > 0) return;
+    const loadTenants = async () => {
+      try {
+        const res = await fetch("/api/tenant/list", { cache: "no-store" });
+        const payload = res.ok ? await res.json() : null;
+        const tenants = Array.isArray(payload)
+          ? payload
+          : (Array.isArray(payload?.tenants) ? payload.tenants : []);
+        setAvailableTenants(tenants);
+      } catch (e) {
+        console.error("Error loading tenants:", e);
+      }
+    };
+    loadTenants();
+  }, [showEditUserModal, availableTenants.length]);
 
   // Load users and roles on component mount
   useEffect(() => {
@@ -1682,9 +1731,17 @@ useEffect(() => {
   // Handle user form input change
   const handleUserFormChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setUserFormData({
-      ...userFormData,
-      [name]: type === "checkbox" ? checked : value
+    const nextValue = type === "checkbox" ? checked : value;
+    setUserFormData((prev) => {
+      const next = { ...prev, [name]: nextValue };
+      // If the "default role" changes, use it as a default for any membership roleId not yet chosen.
+      if (name === "role") {
+        next.memberships = (prev.memberships || []).map((m) => ({
+          ...m,
+          roleId: m.roleId || nextValue,
+        }));
+      }
+      return next;
     });
     
     // Clear validation error for this field if it exists
@@ -1694,6 +1751,43 @@ useEffect(() => {
         [name]: null
       });
     }
+  };
+
+  const ensureTenantRolesLoaded = async (tenantId) => {
+    if (!tenantId || rolesByTenantId[tenantId]) return;
+    try {
+      const res = await fetch(`/api/roles?tenantId=${encodeURIComponent(tenantId)}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      const roles = Array.isArray(data) ? data : [];
+      setRolesByTenantId((prev) => ({ ...prev, [tenantId]: roles }));
+    } catch (e) {
+      console.error("Error loading roles for tenant:", e);
+    }
+  };
+
+  const toggleMembershipTenant = async (tenantId) => {
+    if (!tenantId) return;
+    setUserFormData((prev) => {
+      const memberships = Array.isArray(prev.memberships) ? prev.memberships : [];
+      const exists = memberships.some((m) => m.tenantId === tenantId);
+      const nextMemberships = exists
+        ? memberships.filter((m) => m.tenantId !== tenantId)
+        : [...memberships, { tenantId, roleId: prev.role || "" }];
+      return { ...prev, memberships: nextMemberships };
+    });
+    await ensureTenantRolesLoaded(tenantId);
+  };
+
+  const setMembershipRole = async (tenantId, roleId) => {
+    if (!tenantId) return;
+    setUserFormData((prev) => ({
+      ...prev,
+      memberships: (Array.isArray(prev.memberships) ? prev.memberships : []).map((m) =>
+        m.tenantId === tenantId ? { ...m, roleId } : m
+      ),
+    }));
+    await ensureTenantRolesLoaded(tenantId);
   };
 
   const handleAddDepartment = async () => {
@@ -1853,6 +1947,9 @@ const toggleModulePermissions = (module) => {
         name: `${userFormData.firstName} ${userFormData.lastName}`,
         email: userFormData.email,
         role: selectedRole?.id || userFormData.role,
+        memberships: (Array.isArray(userFormData.memberships) ? userFormData.memberships : [])
+          .map((m) => ({ tenantId: m.tenantId, roleId: m.roleId || (selectedRole?.id || userFormData.role) }))
+          .filter((m) => m.tenantId && m.roleId),
         department: userFormData.department || null,
         status: userFormData.status,
         sendEmail: userFormData.sendEmail
@@ -1874,6 +1971,7 @@ const toggleModulePermissions = (module) => {
         lastName: "",
         email: "",
         role: "",
+        memberships: [],
         department: "",
         status: "active",
         sendEmail: true
@@ -1964,19 +2062,29 @@ const toggleModulePermissions = (module) => {
   // Handle edit user
   const handleEditUser = async (userData) => {
     try {
+      let fullUser = userData;
+      try {
+        fullUser = await api.fetchUserById(userData.id);
+      } catch (e) {
+        fullUser = userData;
+      }
+
       // Parse user data for editing
-      const [firstName, ...lastNameParts] = (userData.name || '').split(' ');
+      const [firstName, ...lastNameParts] = (fullUser.name || '').split(' ');
       const lastName = lastNameParts.join(' ') || '';
       
       // Set editing user data
       setEditingUser({
-        id: userData.id,
+        id: fullUser.id,
         firstName: firstName || '',
         lastName: lastName || '',
-        email: userData.email || '',
-        role: userData.role?.id || userData.role || '',
-        department: userData.department || '',
-        status: userData.status || 'active'
+        email: fullUser.email || '',
+        role: fullUser.role?.id || fullUser.role || '',
+        memberships: Array.isArray(fullUser.memberships)
+          ? fullUser.memberships.map((m) => ({ tenantId: m.tenantId, roleId: m.roleId }))
+          : [],
+        department: fullUser.department || '',
+        status: fullUser.status || 'active'
       });
       
       // Show edit modal
@@ -2040,6 +2148,9 @@ const toggleModulePermissions = (module) => {
         name: `${editingUser.firstName} ${editingUser.lastName}`,
         email: editingUser.email,
         role: selectedRole?.id || editingUser.role, // Prefer ID if available
+        memberships: (Array.isArray(editingUser.memberships) ? editingUser.memberships : [])
+          .map((m) => ({ tenantId: m.tenantId, roleId: m.roleId || (selectedRole?.id || editingUser.role) }))
+          .filter((m) => m.tenantId && m.roleId),
         department: editingUser.department || null,
         status: editingUser.status
       };
@@ -2727,6 +2838,52 @@ const toggleModulePermissions = (module) => {
               {formErrors.role && (
                 <p className="mt-1 text-sm text-red-600">{formErrors.role}</p>
               )}
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2">
+                Businesses (assign one or more)
+              </label>
+              {availableTenants.length === 0 ? (
+                <div className="text-sm text-gray-500">Loading businesses...</div>
+              ) : (
+                <div className="space-y-2 border border-gray-200 rounded p-3 bg-gray-50">
+                  {availableTenants.map((t) => {
+                    const isSelected = (userFormData.memberships || []).some((m) => m.tenantId === t.id);
+                    const selectedRoleId = (userFormData.memberships || []).find((m) => m.tenantId === t.id)?.roleId || "";
+                    const tenantRoles = rolesByTenantId[t.id] || rolesData;
+                    return (
+                      <div key={t.id} className="flex flex-col md:flex-row md:items-center gap-2 bg-white rounded p-2 border border-gray-100">
+                        <label className="flex items-center gap-2 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleMembershipTenant(t.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-800">{t.name}</span>
+                        </label>
+                        <div className="md:w-72">
+                          <select
+                            className="w-full p-2 border border-gray-200 rounded"
+                            disabled={!isSelected}
+                            value={selectedRoleId}
+                            onChange={(e) => setMembershipRole(t.id, e.target.value)}
+                          >
+                            <option value="">Select role</option>
+                            {(Array.isArray(tenantRoles) ? tenantRoles : []).map((r) => (
+                              <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              <p className="mt-2 text-xs text-gray-500">
+                Users can switch between assigned businesses. Roles can differ per business.
+              </p>
             </div>
 
             <div className="col-span-2">
@@ -3455,6 +3612,61 @@ const toggleModulePermissions = (module) => {
               )}
             </div>
             
+            <div className="col-span-2">
+              <label className="block text-sm font-medium mb-2">
+                Businesses (assign one or more)
+              </label>
+              {availableTenants.length === 0 ? (
+                <div className="text-sm text-gray-500">Loading businesses...</div>
+              ) : (
+                <div className="space-y-2 border border-gray-200 rounded p-3 bg-gray-50">
+                  {availableTenants.map((t) => {
+                    const memberships = Array.isArray(editingUser.memberships) ? editingUser.memberships : [];
+                    const isSelected = memberships.some((m) => m.tenantId === t.id);
+                    const selectedRoleId = memberships.find((m) => m.tenantId === t.id)?.roleId || "";
+                    const tenantRoles = rolesByTenantId[t.id] || rolesData;
+                    return (
+                      <div key={t.id} className="flex flex-col md:flex-row md:items-center gap-2 bg-white rounded p-2 border border-gray-100">
+                        <label className="flex items-center gap-2 flex-1">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={async () => {
+                              const next = isSelected
+                                ? memberships.filter((m) => m.tenantId !== t.id)
+                                : [...memberships, { tenantId: t.id, roleId: editingUser.role || "" }];
+                              setEditingUser({ ...editingUser, memberships: next });
+                              await ensureTenantRolesLoaded(t.id);
+                            }}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-800">{t.name}</span>
+                        </label>
+                        <div className="md:w-72">
+                          <select
+                            className="w-full p-2 border border-gray-200 rounded"
+                            disabled={!isSelected}
+                            value={selectedRoleId}
+                            onChange={async (e) => {
+                              const roleId = e.target.value;
+                              const next = memberships.map((m) => m.tenantId === t.id ? { ...m, roleId } : m);
+                              setEditingUser({ ...editingUser, memberships: next });
+                              await ensureTenantRolesLoaded(t.id);
+                            }}
+                          >
+                            <option value="">Select role</option>
+                            {(Array.isArray(tenantRoles) ? tenantRoles : []).map((r) => (
+                              <option key={r.id} value={r.id}>{r.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="col-span-1">
               <label htmlFor="edit-department" className="block text-sm font-medium mb-1">
                 Department

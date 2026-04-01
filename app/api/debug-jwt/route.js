@@ -1,8 +1,16 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { requirePermission } from '@/lib/auth';
 
 export async function GET(request) {
   try {
+    if (process.env.NODE_ENV === 'production') {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const perm = await requirePermission(request, 'system.view');
+    if (perm) return perm;
+
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     

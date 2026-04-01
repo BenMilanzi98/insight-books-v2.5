@@ -1,7 +1,14 @@
 import { NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/emailService';
+import { requirePermission } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const perm = await requirePermission(request, 'system.view');
+  if (perm) return perm;
+
   try {
     console.log('Testing email configuration...');
 

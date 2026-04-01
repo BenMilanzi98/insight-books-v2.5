@@ -1,0 +1,30 @@
+import { describe, it, expect } from 'vitest';
+import { hasPermission } from '../lib/auth.js';
+
+describe('RBAC permission checks (hasPermission)', () => {
+  it('denies when user/role/permissions missing', () => {
+    expect(hasPermission(null, 'users.view')).toBe(false);
+    expect(hasPermission({}, 'users.view')).toBe(false);
+    expect(hasPermission({ role: {} }, 'users.view')).toBe(false);
+    expect(hasPermission({ role: { permissions: null } }, 'users.view')).toBe(false);
+  });
+
+  it('allows MASTER_ADMIN for any permission', () => {
+    const user = { role: { name: 'MASTER_ADMIN', permissions: {} } };
+    expect(hasPermission(user, 'users.view')).toBe(true);
+    expect(hasPermission(user, 'roles.delete')).toBe(true);
+  });
+
+  it('supports nested permission maps', () => {
+    const user = { role: { name: 'Staff', permissions: { users: { view: true, create: false } } } };
+    expect(hasPermission(user, 'users.view')).toBe(true);
+    expect(hasPermission(user, 'users.create')).toBe(false);
+  });
+
+  it('supports flat permission maps', () => {
+    const user = { role: { name: 'Staff', permissions: { 'users.view': true, 'users.create': false } } };
+    expect(hasPermission(user, 'users.view')).toBe(true);
+    expect(hasPermission(user, 'users.create')).toBe(false);
+  });
+});
+

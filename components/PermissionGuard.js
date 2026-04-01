@@ -2,11 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { checkPermission } from "@/lib/permissions";
 
 export default function PermissionGuard({ permission, children }) {
-  const router = useRouter();
   const [allowed, setAllowed] = useState(null);
 
   useEffect(() => {
@@ -27,15 +25,15 @@ export default function PermissionGuard({ permission, children }) {
       .catch((error) => {
         console.error('Permission check failed:', error);
         if (mounted) {
-          // On error, allow access but log the issue
-          setAllowed(true);
+          // Fail closed: never broaden access on auth/permission check failures.
+          setAllowed(false);
         }
       });
 
     return () => {
       mounted = false;
     };
-  }, [permission, router]);
+  }, [permission]);
 
   if (allowed === null) return null; // Loading state
   if (allowed === false) {

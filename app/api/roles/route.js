@@ -1,11 +1,15 @@
 // app/api/roles/route.js - New route to properly handle role management
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 
 // GET - Fetch roles with filtering
 export async function GET(request) {
   try {
+    const perm = await requirePermission(request, 'roles.view');
+    if (perm) return perm;
+
     // Get authenticated user and ensure tenant isolation
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
@@ -14,10 +18,16 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    
     const { searchParams } = new URL(request.url);
+    const tenantIdParam = searchParams.get('tenantId')?.trim() || null;
+    const tenantId = tenantIdParam || user.tenantId;
+
+    if (tenantIdParam && tenantId !== user.tenantId) {
+      const ok = await userHasAccessToTenant(user, tenantId);
+      if (!ok) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    }
     
     // Parse query parameters
     const sortBy = searchParams.get('sortBy') || 'name';
@@ -75,6 +85,9 @@ export async function GET(request) {
 // POST - Create a new role
 export async function POST(request) {
   try {
+    const perm = await requirePermission(request, 'roles.create');
+    if (perm) return perm;
+
     // Get authenticated user and ensure tenant isolation
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {

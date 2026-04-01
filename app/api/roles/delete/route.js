@@ -1,11 +1,14 @@
 // app/api/roles/delete/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 // DELETE - Delete a role
 export async function DELETE(request) {
   try {
+    const perm = await requirePermission(request, 'roles.delete');
+    if (perm) return perm;
+
     // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {

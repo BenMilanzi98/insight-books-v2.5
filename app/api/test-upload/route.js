@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { requirePermission } from '@/lib/auth';
 
 export async function POST(request) {
+  if (process.env.NODE_ENV === 'production') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+  const perm = await requirePermission(request, 'system.view');
+  if (perm) return perm;
+
   try {
     const formData = await request.formData();
     const file = formData.get('file');

@@ -1,11 +1,14 @@
 // app/api/roles/update/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, requirePermission } from '@/lib/auth';
 
 // PUT - Update an existing role
 export async function PUT(request) {
   try {
+    const perm = await requirePermission(request, 'roles.update');
+    if (perm) return perm;
+
     // Get authenticated user
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) {
