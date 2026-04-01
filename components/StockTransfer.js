@@ -516,8 +516,8 @@ export const StockTransfersList = ({
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Recent Transfers</h3>
-          <p className="text-sm text-gray-500">Last 10 completed transfers</p>
+          <h3 className="text-lg font-semibold text-gray-900">Recent transfers</h3>
+          <p className="text-sm text-gray-500">Last 10 completed moves between businesses</p>
         </div>
         {onRefresh && (
           <button
@@ -548,20 +548,20 @@ export const StockTransfersList = ({
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-600 mt-2">
-                  <span className="text-gray-500">From</span>
+                  <span className="text-gray-500">From business</span>
                   <span className="font-medium text-gray-900">
                     {transfer.fromBranch?.tenant?.name || transfer.fromBranch?.name || "N/A"}
                   </span>
                   {transfer.fromBranch?.tenant?.name && transfer.fromBranch?.name ? (
-                    <span className="text-xs text-gray-500">({transfer.fromBranch.name})</span>
+                    <span className="text-xs text-gray-500">· {transfer.fromBranch.name}</span>
                   ) : null}
                   <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                  <span className="text-gray-500">To</span>
+                  <span className="text-gray-500">To business</span>
                   <span className="font-medium text-gray-900">
                     {transfer.toBranch?.tenant?.name || transfer.toBranch?.name || "N/A"}
                   </span>
                   {transfer.toBranch?.tenant?.name && transfer.toBranch?.name ? (
-                    <span className="text-xs text-gray-500">({transfer.toBranch.name})</span>
+                    <span className="text-xs text-gray-500">· {transfer.toBranch.name}</span>
                   ) : null}
                 </div>
                 <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">
@@ -590,11 +590,13 @@ export const StockTransfersList = ({
   );
 };
 
-// Stock Per Branch Component
-export const StockPerBranch = ({
-  branches = [],
-  loading = false
+// Stock summary by business (data from /api/stock-by-branch — one row per linked business)
+export const StockPerBusiness = ({
+  businesses,
+  branches,
+  loading = false,
 }) => {
+  const rows = businesses ?? branches ?? [];
   // Format currency in Malawi Kwacha
   const formatCurrency = (amount) => {
     if (amount === null || amount === undefined || isNaN(Number(amount))) {
@@ -629,7 +631,7 @@ export const StockPerBranch = ({
     );
   }
 
-  if (branches.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         <Building2 className="w-12 h-12 mx-auto mb-2 text-gray-400" />
@@ -640,40 +642,40 @@ export const StockPerBranch = ({
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Stock by business</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-1">Stock by business</h3>
+      <p className="text-sm text-gray-500 mb-4">Totals for each business you can access</p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {branches.map((branch) => {
-          // Calculate total value if not provided
-          const totalValue = branch.totalValue !== undefined 
-            ? branch.totalValue 
-            : (branch.totalStockValue || branch.stockValue || 0);
-          
+        {rows.map((biz) => {
+          const totalValue = biz.totalValue !== undefined
+            ? biz.totalValue
+            : (biz.totalStockValue || biz.stockValue || 0);
+
           return (
             <div
-              key={branch.id || branch._id}
+              key={biz.id || biz._id}
               className="bg-gray-50 rounded-lg p-4 border border-gray-200 hover:border-blue-300 transition-colors"
             >
               <div className="flex items-center justify-between mb-3">
                 <h4 className="font-medium text-gray-900 flex items-center">
                   <Building2 className="w-4 h-4 mr-2 text-gray-500" />
-                  {branch.name || "Unnamed business"}
+                  {biz.name || "Unnamed business"}
                 </h4>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Products:</span>
+                  <span className="text-gray-600">Products</span>
                   <span className="font-medium text-gray-900">
-                    {branch.productCount || branch.products?.length || 0}
+                    {biz.productCount || biz.products?.length || 0}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Total Stock:</span>
+                  <span className="text-gray-600">Total units</span>
                   <span className="font-medium text-gray-900">
-                    {branch.totalQuantity || branch.quantity || 0}
+                    {biz.totalQuantity || biz.quantity || 0}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Stock Value:</span>
+                  <span className="text-gray-600">Stock value</span>
                   <span className="font-medium text-gray-900">
                     {formatCurrency(totalValue)}
                   </span>
@@ -686,3 +688,6 @@ export const StockPerBranch = ({
     </div>
   );
 };
+
+/** @deprecated Use StockPerBusiness */
+export const StockPerBranch = StockPerBusiness;

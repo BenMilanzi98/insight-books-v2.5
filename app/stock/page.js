@@ -53,7 +53,7 @@ import BulkTaxApplicationModal from "@/components/BulkTaxApplicationModal";
 import {
   StockTransferModal,
   StockTransfersList,
-  StockPerBranch,
+  StockPerBusiness,
 } from "@/components/StockTransfer";
 import { fetchStockMovement, exportReport } from "@/app/services/financialReportingService";
 import { StockMovementReport } from "@/components/FinancialReportComponents";
@@ -118,8 +118,7 @@ const InventoryManagement = () => {
   // Stock transfer states
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transfers, setTransfers] = useState([]);
-  const [stockByBranch, setStockByBranch] = useState([]);
-  const [branches, setBranches] = useState([]);
+  const [stockByBusiness, setStockByBusiness] = useState([]);
   const [transfersLoading, setTransfersLoading] = useState(false);
 
   // Stock Movement Report (in-page)
@@ -281,10 +280,9 @@ const InventoryManagement = () => {
     loadLocations();
     loadCategories();
     loadRecentTransactions();
-    // Preload transfers/branch stock for transfers view
+    // Preload transfers and per-business stock for transfers view
     fetchTransfers();
-    fetchStockByBranch();
-    fetchBranches();
+    fetchStockByBusiness();
   }, []);
   
   // Handle search and filter changes
@@ -378,7 +376,7 @@ const InventoryManagement = () => {
         if (order) queryParams.append('order', order);
         if (page) queryParams.append('page', page);
         if (limit) queryParams.append('limit', limit);
-        // Tenant-wide inventory: all branches, not scoped to session branchId
+        // Tenant-wide inventory: entire business, not scoped to a single location
         queryParams.append('allBranches', 'true');
         
         const queryString = queryParams.toString();
@@ -995,28 +993,16 @@ const InventoryManagement = () => {
     }
   };
 
-  const fetchStockByBranch = async (opts = {}) => {
+  const fetchStockByBusiness = async (opts = {}) => {
     try {
       const query = new URLSearchParams(opts).toString();
       const res = await fetch(`/api/stock-by-branch${query ? `?${query}` : ''}`);
-      if (!res.ok) return setStockByBranch([]);
+      if (!res.ok) return setStockByBusiness([]);
       const data = await res.json();
-      setStockByBranch(data.branches || []);
+      setStockByBusiness(data.branches || []);
     } catch (err) {
-      console.error('Error fetching stock by branch:', err);
-      setStockByBranch([]);
-    }
-  };
-
-  const fetchBranches = async () => {
-    try {
-      const res = await fetch('/api/branches');
-      if (!res.ok) return setBranches([]);
-      const data = await res.json();
-      setBranches(data.branches || data || []);
-    } catch (err) {
-      console.error('Error fetching branches:', err);
-      setBranches([]);
+      console.error('Error fetching stock by business:', err);
+      setStockByBusiness([]);
     }
   };
 
@@ -1051,7 +1037,7 @@ const InventoryManagement = () => {
       
       const result = responseData;
       await fetchTransfers();
-      await fetchStockByBranch();
+      await fetchStockByBusiness();
       await loadInventory(); // Refresh inventory to show updated stock
       const fromLabel =
         result.transfer?.fromBranch?.tenant?.name || result.transfer?.fromBranch?.name || "source";
@@ -1095,7 +1081,7 @@ const InventoryManagement = () => {
         return null;
       }
       await fetchTransfers();
-      await fetchStockByBranch();
+      await fetchStockByBusiness();
       showToast('success', 'Transfer received');
       return await res.json();
     } catch (err) {
@@ -1774,8 +1760,8 @@ const InventoryManagement = () => {
       });
       setStockMovementReportData(data);
     } catch (err) {
-      console.error("Stock movement report error:", err);
-      setStockMovementReportError(err?.message || "Failed to load stock movement report.");
+      console.error("Inventory movement report error:", err);
+      setStockMovementReportError(err?.message || "Failed to load inventory movement report.");
       setStockMovementReportData(null);
     } finally {
       setStockMovementReportLoading(false);
@@ -1807,7 +1793,7 @@ const InventoryManagement = () => {
         customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
         productId: stockMovementReportProductId || undefined,
       });
-      showToast("success", "Export complete", `Stock movement report downloaded as ${format.toUpperCase()}`);
+      showToast("success", "Export complete", `Inventory movement report downloaded as ${format.toUpperCase()}`);
     } catch (err) {
       showToast("error", "Export failed", err?.message || "Failed to export report.");
     }
@@ -2264,7 +2250,7 @@ const InventoryManagement = () => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 lg:mb-8">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Stock Management</h1>
-          <p className="text-gray-500 mt-1">Manage your products, track stock levels, and monitor inventory movements</p>
+          <p className="text-gray-500 mt-1">Manage your products, track stock levels, and monitor inventory activity for this business</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* View Toggle */}
@@ -2599,7 +2585,7 @@ const InventoryManagement = () => {
             onClick={handleOpenStockMovementReport}
           >
             <FileText size={16} />
-            <span className="text-sm">Stock Movement Report</span>
+            <span className="text-sm">Inventory movement report</span>
           </button>
         </div>
       </div>
@@ -2608,7 +2594,7 @@ const InventoryManagement = () => {
       {stockMovementReportOpen && (
         <div className="mb-6 lg:mb-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-slate-50">
-            <h2 className="text-lg font-semibold text-gray-900">Stock Movement Report</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Inventory movement report</h2>
             <button
               type="button"
               onClick={handleCloseStockMovementReport}
@@ -3200,7 +3186,7 @@ const InventoryManagement = () => {
                   <RefreshCw className="h-7 w-7 text-gray-400" />
                 </div>
                 <p className="font-medium text-gray-600">No recent transactions found</p>
-                <p className="text-sm text-gray-400 mt-1">Stock movements will appear here</p>
+                <p className="text-sm text-gray-400 mt-1">Inventory activity for this business will appear here</p>
               </div>
             )}
           </div>
@@ -3488,8 +3474,8 @@ const InventoryManagement = () => {
               
               <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-medium text-lg">Stock Movement History</h3>
-                  <p className="text-xs text-gray-500 mt-1">Complete timeline of stock ins, stock outs, and adjustments for accurate tracking and auditability.</p>
+                  <h3 className="font-medium text-lg">Inventory activity</h3>
+                  <p className="text-xs text-gray-500 mt-1">Timeline of stock ins, stock outs, and adjustments for this business.</p>
                 </div>
                 
                 <div className="max-h-96 overflow-y-auto">
@@ -3595,8 +3581,8 @@ const InventoryManagement = () => {
                   ) : (
                     <div className="p-8 text-center text-gray-500">
                       <RefreshCw className="mx-auto h-8 w-8 text-gray-300 mb-2" />
-                      <p className="text-sm">No movement history found</p>
-                      <p className="text-xs text-gray-400 mt-1">Stock transactions will appear here</p>
+                      <p className="text-sm">No activity recorded yet</p>
+                      <p className="text-xs text-gray-400 mt-1">Transactions will appear here for this product</p>
                     </div>
                   )}
                 </div>
@@ -3751,7 +3737,6 @@ const InventoryManagement = () => {
           customCategories={customCategories}
           categoryOptions={categoryOptions}
           locations={locations}
-          branches={branches}
           onLocationAdd={(newLocation) => {
             setLocations(prev => {
               if (!prev.includes(newLocation)) {
@@ -3944,7 +3929,7 @@ const InventoryManagement = () => {
               <p className="text-gray-500 mt-1">Manage stock movements between businesses</p>
             </div>
             <button
-              onClick={() => { fetchTransfers(); fetchStockByBranch(); }}
+              onClick={() => { fetchTransfers(); fetchStockByBusiness(); }}
               className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-gray-700 hover:bg-gray-50 hover:shadow-sm transition-all duration-200 flex items-center gap-2"
               title="Refresh"
             >
@@ -3954,8 +3939,8 @@ const InventoryManagement = () => {
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-            <StockPerBranch
-              branches={stockByBranch}
+            <StockPerBusiness
+              businesses={stockByBusiness}
               loading={transfersLoading}
             />
           </div>
@@ -3978,7 +3963,6 @@ const InventoryManagement = () => {
         onUpload={handleBulkUpload}
         onExport={handleBulkExport}
         showToast={showToast}
-        branches={branches}
       />
       
       {/* NEW: Bulk Tax Application Modal */}
@@ -4521,7 +4505,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   );
 }
 
-const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd, branches = [] }) => {
+const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -4533,7 +4517,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     costPrice: "",
     location: "",
     image: "", // This will store the URL, not the blob
-    branchId: "", // Branch assignment
     // New enhanced fields
     expiryDate: "",
     discountAmount: "",
@@ -4688,7 +4671,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         costPrice: "",
         location: "",
         image: "",
-        branchId: "",
         expiryDate: "",
         discountAmount: "",
         isPerishable: false,
@@ -4803,7 +4785,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         costPrice: product.costPrice || "",
         location: product.location || "",
         image: product.image || "", // Use the stored URL
-        branchId: product.branchId || "", // Branch assignment
         // New enhanced fields
         expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : "",
         discountAmount: product.discountAmount || "",
@@ -4975,8 +4956,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         costPrice: formData.costPrice === '' ? null : parseFloat(formData.costPrice),
         discountAmount: formData.discountAmount === '' ? null : parseFloat(formData.discountAmount),
         weight: formData.weight === '' ? null : parseFloat(formData.weight),
-        // Branch assignment - only include if selected
-        branchId: formData.branchId || null,
+        // Catalog-wide for this business (all locations)
+        branchId: null,
         // Unit management data
         unitManagementEnabled: formData.unitManagementEnabled,
         selectedBaseUnit: formData.selectedBaseUnit,
@@ -5258,31 +5239,6 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                   label="Location"
                 />
               </div>
-              
-              {/* Branch Selection */}
-              {branches.length > 0 && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch (Optional)</label>
-                  <select
-                    name="branchId"
-                    value={formData.branchId}
-                    onChange={handleChange}
-                    className="w-full p-2 border border-gray-300 rounded-md bg-white"
-                  >
-                    <option value="">All Branches (No specific branch)</option>
-                    {branches
-                      .filter(branch => branch.isActive !== false)
-                      .map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name || branch.branchName || `Branch ${branch.id.substring(0, 8)}`}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Select a branch to assign this product to. Leave unselected to create a product available across all branches.
-                  </p>
-                </div>
-              )}
               
               {/* Tax Assignment Section */}
               <div className="md:col-span-2">

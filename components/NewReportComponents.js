@@ -25,7 +25,7 @@ function groupMovements(movements, groupBy) {
 }
 
 /**
- * Stock Movement Report Component
+ * Inventory movement report (business-wide stock activity)
  * Read-only. Shows Date, Transaction Type, Qty In, Qty Out, Balance, Reference. Opening row once per product; never "-" for qty (use 0).
  */
 export const StockMovementReport = ({ 
@@ -136,7 +136,7 @@ export const StockMovementReport = ({
 
   return (
     <FinancialReport
-      title="Stock Movement Report"
+      title="Inventory movement report"
       subtitle={periodLabel}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
@@ -320,7 +320,7 @@ export const StockMovementReport = ({
         </div>
       ) : (
         <div className="text-center p-8 sm:p-10 text-slate-500 text-sm rounded-2xl bg-slate-50 border border-slate-200">
-          No stock movements found for the selected period.
+          No inventory movements found for the selected period.
         </div>
       )}
     </FinancialReport>
@@ -456,7 +456,7 @@ export const PosDailyReport = ({
           <div className="rounded-2xl border border-slate-200 p-4 bg-gradient-to-r from-slate-50 to-emerald-50/50 border-l-4 border-l-emerald-500">
             <p className="text-sm font-medium text-slate-800">Stock impact</p>
             <p className="text-sm text-slate-600 mt-1">Total qty out today: <strong>{itemsSold}</strong> · Products affected: <strong>{productsAffected}</strong></p>
-            <a href="/reports?report=stock-movement" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">View Stock Movement</a>
+            <a href="/reports?report=stock-movement" className="text-sm text-emerald-600 hover:underline mt-2 inline-block font-medium">View inventory movement</a>
           </div>
           {/* Cashier breakdown */}
           {cashierBreakdown.length > 0 && (

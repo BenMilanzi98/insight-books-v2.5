@@ -3,13 +3,12 @@
 import { useState, useRef } from 'react';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 
-const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToast, branches = [] }) => {
+const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToast }) => {
   const [uploadMode, setUploadMode] = useState('upload'); // 'upload' or 'export'
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
   const [previewData, setPreviewData] = useState([]);
   const [errors, setErrors] = useState([]);
-  const [selectedBranchId, setSelectedBranchId] = useState('');
   const fileInputRef = useRef(null);
 
   // Parse CSV content with proper handling of quoted fields
@@ -325,21 +324,14 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
     try {
       setIsProcessing(true);
       
-      // Add branchId to each product if branch is selected
-      const productsWithBranch = previewData.map(product => ({
-        ...product,
-        ...(selectedBranchId && { branchId: selectedBranchId })
-      }));
-      
-      // Call the parent component's upload handler
-      await onUpload(productsWithBranch);
+      // Products apply to the whole business (all locations); no per-location assignment in bulk upload.
+      await onUpload(previewData);
       
       showToast('success', 'Bulk upload completed', `${previewData.length} products uploaded successfully`);
       onClose();
       // Reset form
       setUploadedFile(null);
       setPreviewData([]);
-      setSelectedBranchId('');
       setErrors([]);
     } catch (error) {
       console.error('Error during bulk upload:', error);
@@ -460,34 +452,9 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
                   <li>• Maximum file size: 5MB</li>
                   <li>• Required fields: Name, SKU, Category, Price, Stock Level</li>
                   <li>• Download the template below for the correct format</li>
+                  <li>• New products apply across your whole business (all locations)</li>
                 </ul>
               </div>
-
-              {/* Branch Selection */}
-              {branches.length > 0 && (
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Select Branch (Optional)
-                  </label>
-                  <select
-                    value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
-                  >
-                    <option value="">All Branches (No specific branch)</option>
-                    {branches
-                      .filter(branch => branch.isActive !== false)
-                      .map((branch) => (
-                        <option key={branch.id} value={branch.id}>
-                          {branch.name || branch.branchName || `Branch ${branch.id.substring(0, 8)}`}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-500">
-                    Select a branch to assign all uploaded products to that branch. Leave unselected to create products without branch assignment.
-                  </p>
-                </div>
-              )}
 
               <div className="flex space-x-4">
                 <button
