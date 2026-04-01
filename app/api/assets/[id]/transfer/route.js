@@ -43,7 +43,12 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const { id: assetId } = params;
+    // Next.js 15: dynamic route params may be a Promise
+    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const { id: assetId } = resolvedParams || {};
+    if (!assetId || typeof assetId !== 'string') {
+      return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
+    }
     const body = await request.json().catch(() => ({}));
     const targetTenantId = typeof body.targetTenantId === 'string' ? body.targetTenantId.trim() : '';
     const targetCategoryId =
@@ -215,6 +220,16 @@ export async function POST(request, { params }) {
       return NextResponse.json(
         { error: 'Could not create matching category in target business (duplicate name). Pick a category manually.' },
         { status: 409 }
+      );
+    }
+    // Table missing if migrations not applied
+    if (error?.code === 'P2021' || /AssetInterBusinessTransfer/i.test(String(error?.message || ''))) {
+      return NextResponse.json(
+        {
+          error:
+            'Asset transfer is not available until the database is updated. Run: npx prisma migrate deploy',
+        },
+        { status: 503 }
       );
     }
     console.error('Asset transfer error:', error);

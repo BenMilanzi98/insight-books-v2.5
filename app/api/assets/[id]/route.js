@@ -25,7 +25,11 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const { id } = resolvedParams || {};
+    if (!id) {
+      return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
+    }
 
     // Fetch asset for the current session business
     const asset = await prisma.asset.findFirst({
@@ -114,7 +118,11 @@ export async function PUT(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const { id } = resolvedParams || {};
+    if (!id) {
+      return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
+    }
     const body = await request.json();
 
     // Validate required fields
@@ -222,7 +230,11 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params?.then === 'function' ? await params : params;
+    const { id } = resolvedParams || {};
+    if (!id) {
+      return NextResponse.json({ error: 'Invalid asset id' }, { status: 400 });
+    }
 
     // Check if asset exists and belongs to tenant
     const existingAsset = await prisma.asset.findFirst({
