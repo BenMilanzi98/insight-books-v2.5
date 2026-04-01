@@ -231,15 +231,21 @@ function validateTransaction(transaction, rowNumber, applyDefaults = false) {
     return str.replace(/[$,\s]/g, '');
   };
 
-  // Get field values - use EXACT column names from template
+  // Get field values (support variations; deny-by-default on missing required fields).
   // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
-  let transactionDate = transaction['Transaction Date'] || '';
-  let productDescription = transaction['Product/Service Description'] || '';
-  let quantity = transaction['Quantity'] || '';
-  let unitPrice = transaction['Unit Price'] || '';
-  const taxRate = transaction['Tax Rate (%)'] || '';
-  const discountAmount = transaction['Discount Amount'] || '';
-  let paymentMethod = transaction['Payment Method'] || '';
+  const transactionDateRaw = getColumnValue(transaction, ['Transaction Date', 'Recorded Date', 'Sale Date', 'Date']);
+  const productDescriptionRaw = getColumnValue(transaction, ['Product/Service Description', 'Product Description', 'Description', 'Item']);
+  const quantityRaw = getColumnValue(transaction, ['Quantity', 'Qty']);
+  const unitPriceRaw = getColumnValue(transaction, ['Unit Price', 'Price', 'UnitPrice']);
+  const taxRate = getColumnValue(transaction, ['Tax Rate (%)', 'Tax Rate', 'Tax %']) || '';
+  const discountAmount = getColumnValue(transaction, ['Discount Amount', 'Discount', 'Discount (Amount)']) || '';
+  const paymentMethodRaw = getColumnValue(transaction, ['Payment Method', 'Payment']) || '';
+
+  let transactionDate = transactionDateRaw || '';
+  let productDescription = productDescriptionRaw || '';
+  let quantity = quantityRaw || '';
+  let unitPrice = unitPriceRaw;
+  let paymentMethod = paymentMethodRaw || '';
   
   // Apply default values if enabled and field is empty
   if (applyDefaults) {
@@ -513,24 +519,22 @@ export async function POST(request) {
             if (processedCount % 50 === 0 || processedCount === 1) {
               console.log(`Processing transaction ${processedCount}/${validTransactions.length} (row ${transaction?.rowNumber || 'unknown'})...`);
             }
-          // Get field values - use EXACT column names from template (matching template/route.js)
-          // Template columns: Transaction Date,Customer Name,Customer Email,Product/Service Description,Quantity,Unit Price,Tax Rate (%),Discount Amount,Payment Method,Original Reference,Notes
-          const customerName = transaction['Customer Name'] || '';
-          const customerEmail = transaction['Customer Email'] || '';
-          // Use validated data if available (from validation with defaults), otherwise get from transaction
-          const transactionDate = transaction.transactionDate || transaction['Transaction Date'] || '';
-          const productDescription = transaction.productDescription || transaction['Product/Service Description'] || '';
-          const quantity = transaction.quantity || transaction['Quantity'] || '';
-          const unitPrice = transaction.unitPrice || transaction['Unit Price'] || '';
+          // Get field values (support column variations; rely on validated defaults when present)
+          const customerName = getColumnValue(transaction, ['Customer Name', 'Client Name']) || '';
+          const customerEmail = getColumnValue(transaction, ['Customer Email', 'Client Email']) || '';
+          const transactionDate = transaction.transactionDate || getColumnValue(transaction, ['Transaction Date', 'Recorded Date', 'Sale Date', 'Date']) || '';
+          const productDescription = transaction.productDescription || getColumnValue(transaction, ['Product/Service Description', 'Product Description', 'Description', 'Item']) || '';
+          const quantity = transaction.quantity || getColumnValue(transaction, ['Quantity', 'Qty']) || '';
+          const unitPrice = transaction.unitPrice || getColumnValue(transaction, ['Unit Price', 'Price', 'UnitPrice']) || '';
           // Validate Unit Price is not empty (should have been caught in validation, but double-check)
           if (!unitPrice || unitPrice.trim() === '') {
             throw new Error(`Row ${transaction.rowNumber}: Unit Price is required but is empty. This row should have been skipped during validation.`);
           }
-          const taxRate = transaction.taxRate || transaction['Tax Rate (%)'] || '0';
-          const discountAmount = transaction.discountAmount || transaction['Discount Amount'] || '0';
-          const paymentMethod = transaction.paymentMethod || transaction['Payment Method'] || 'cash';
-          const originalReference = transaction['Original Reference'] || '';
-          const notes = transaction['Notes'] || '';
+          const taxRate = transaction.taxRate || getColumnValue(transaction, ['Tax Rate (%)', 'Tax Rate', 'Tax %']) || '0';
+          const discountAmount = transaction.discountAmount || getColumnValue(transaction, ['Discount Amount', 'Discount', 'Discount (Amount)']) || '0';
+          const paymentMethod = transaction.paymentMethod || getColumnValue(transaction, ['Payment Method', 'Payment']) || 'cash';
+          const originalReference = getColumnValue(transaction, ['Original Reference', 'Reference']) || '';
+          const notes = getColumnValue(transaction, ['Notes', 'Note', 'Remarks']) || '';
 
           // Find or create client if provided
           let clientId = null;
