@@ -80,30 +80,7 @@ export async function GET(request, routeContext) {
       push('AssetInterBusinessTransfer table in DB', false, e?.message);
     }
 
-    // 6 — asset lookup
-    let asset;
-    if (assetId && user?.tenantId) {
-      try {
-        asset = await prisma.asset.findFirst({
-          where: { id: assetId, tenantId: user.tenantId },
-          include: { category: true },
-        });
-        push('asset lookup', !!asset, asset ? {
-          id: asset.id,
-          name: asset.name,
-          status: asset.status,
-          tenantId: asset.tenantId,
-          categoryId: asset.categoryId,
-          categoryName: asset.category?.name,
-        } : 'not found — does this asset belong to your current session tenant?');
-      } catch (e) {
-        push('asset lookup', false, e?.message);
-      }
-    } else {
-      push('asset lookup', false, 'skipped (no assetId or no user.tenantId)');
-    }
-
-    // 7 — accessible tenants
+    // 6 — accessible tenants (must run before asset lookup)
     let accessible = [];
     if (user?.id) {
       try {
@@ -121,6 +98,31 @@ export async function GET(request, routeContext) {
       }
     } else {
       push('getAccessibleTenantIdsForUser', false, 'skipped (no user)');
+    }
+
+    // 7 — asset lookup (searches across ALL accessible tenants, not just session tenant)
+    let asset;
+    if (assetId && accessible.length > 0) {
+      try {
+        asset = await prisma.asset.findFirst({
+          where: { id: assetId, tenantId: { in: accessible } },
+          include: { category: true },
+        });
+        push('asset lookup (across accessible tenants)', !!asset, asset ? {
+          id: asset.id,
+          name: asset.name,
+          status: asset.status,
+          assetTenantId: asset.tenantId,
+          sessionTenantId: user?.tenantId,
+          sameAsSession: asset.tenantId === user?.tenantId,
+          categoryId: asset.categoryId,
+          categoryName: asset.category?.name,
+        } : 'not found in any of your accessible tenants');
+      } catch (e) {
+        push('asset lookup (across accessible tenants)', false, e?.message);
+      }
+    } else {
+      push('asset lookup (across accessible tenants)', false, 'skipped (no assetId or no accessible tenants)');
     }
 
     // 8 — pick a target tenant and simulate category resolution (read-only)

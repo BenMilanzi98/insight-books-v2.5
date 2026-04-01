@@ -152,30 +152,34 @@ async function handleAssetTransferPost(request, routeContext) {
       return NextResponse.json({ error: 'targetTenantId is required' }, { status: 400 });
     }
 
-    const fromTenantId = user.tenantId;
-    if (targetTenantId === fromTenantId) {
-      return NextResponse.json(
-        { error: 'Choose a different business than the current one' },
-        { status: 400 }
-      );
-    }
-
     const accessible = await getAccessibleTenantIdsForUser(user);
     const allowed = new Set(accessible);
-    if (!allowed.has(fromTenantId) || !allowed.has(targetTenantId)) {
-      return NextResponse.json(
-        { error: 'You do not have access to transfer between these businesses' },
-        { status: 403 }
-      );
-    }
 
+    // Look up asset across ALL tenants the user can access (not just the session tenant),
+    // because the user may be viewing asset-management for a different business.
     const asset = await prisma.asset.findFirst({
-      where: { id: assetId, tenantId: fromTenantId },
+      where: { id: assetId, tenantId: { in: [...allowed] } },
       include: { category: true },
     });
 
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+
+    const fromTenantId = asset.tenantId;
+
+    if (targetTenantId === fromTenantId) {
+      return NextResponse.json(
+        { error: 'Choose a different business than the one the asset belongs to' },
+        { status: 400 }
+      );
+    }
+
+    if (!allowed.has(targetTenantId)) {
+      return NextResponse.json(
+        { error: 'You do not have access to the target business' },
+        { status: 403 }
+      );
     }
 
     if (!asset.category) {
