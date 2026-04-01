@@ -63,28 +63,27 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Your account has been deactivated' }, { status: 401 });
     }
 
-    // Backfill permissions for existing tenants that were created before newer modules existed.
+    // Backfill permissions for full-access roles (Admin/Owner) that were created
+    // before newer permission modules/actions were added to permissionModules.
     try {
-      if (user?.role?.name === 'Admin') {
+      const isFullAccessRole = ['Admin', 'Owner'].includes(user?.role?.name);
+      if (isFullAccessRole) {
         const existingPerms = user?.role?.permissions || {};
-        const nextPerms = { ...existingPerms };
+        const nextPerms = JSON.parse(JSON.stringify(existingPerms));
+        let changed = false;
 
-        const ensureModule = (moduleKey) => {
-          if (nextPerms[moduleKey]) return;
-          const actions = permissionModules?.[moduleKey]?.actions || [];
-          nextPerms[moduleKey] = actions.reduce((acc, action) => {
-            acc[action] = true;
-            return acc;
-          }, {});
-        };
+        for (const [moduleKey, { actions }] of Object.entries(permissionModules)) {
+          if (!nextPerms[moduleKey]) {
+            nextPerms[moduleKey] = {};
+          }
+          for (const action of actions) {
+            if (nextPerms[moduleKey][action] !== true) {
+              nextPerms[moduleKey][action] = true;
+              changed = true;
+            }
+          }
+        }
 
-        ensureModule('budgets');
-        ensureModule('branches');
-        ensureModule('journalEntries');
-        ensureModule('trialBalance');
-        ensureModule('generalLedger');
-
-        const changed = JSON.stringify(nextPerms) !== JSON.stringify(existingPerms);
         if (changed) {
           const updatedRole = await prisma.role.update({
             where: { id: user.role.id },
@@ -94,7 +93,7 @@ export async function GET(request) {
         }
       }
     } catch (e) {
-      console.error('Budget permissions backfill failed:', e?.message || e);
+      console.error('Permissions backfill failed:', e?.message || e);
     }
 
     const effectiveTenantId =

@@ -198,21 +198,62 @@ export async function DELETE(request, { params }) {
     }
 
     if (bill.journalEntryId) {
-      const alreadyReversed = await prisma.transaction.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          isReversal: true,
-          reversedTransactionId: bill.journalEntryId
-        },
+      // bill.journalEntryId may point to a Transaction or a JournalEntry depending on
+      // which code path created the bill. Try Transaction first (current creation path),
+      // then fall back to JournalEntry-based reversal, then skip if neither found.
+      const linkedTransaction = await prisma.transaction.findFirst({
+        where: { id: bill.journalEntryId, tenantId: user.tenantId },
         select: { id: true }
       });
-      if (!alreadyReversed) {
-        await createTransactionReversal({
-          transactionId: bill.journalEntryId,
-          reversalReason: `${reversalReason} (Bill ${bill.billNumber || bill.id})`,
-          userId: user.id,
-          tenantId: user.tenantId
+
+      if (linkedTransaction) {
+        const alreadyReversed = await prisma.transaction.findFirst({
+          where: {
+            tenantId: user.tenantId,
+            isReversal: true,
+            reversedTransactionId: linkedTransaction.id
+          },
+          select: { id: true }
         });
+        if (!alreadyReversed) {
+          await createTransactionReversal({
+            transactionId: linkedTransaction.id,
+            reversalReason: `${reversalReason} (Bill ${bill.billNumber || bill.id})`,
+            userId: user.id,
+            tenantId: user.tenantId
+          });
+        }
+      } else {
+        // journalEntryId might reference a JournalEntry record instead of a Transaction.
+        // Look up the JournalEntry and reverse via its linked transactionId if available.
+        const journalEntry = await prisma.journalEntry.findFirst({
+          where: { id: bill.journalEntryId, tenantId: user.tenantId },
+          select: { id: true, transactionId: true }
+        });
+
+        if (journalEntry?.transactionId) {
+          const alreadyReversed = await prisma.transaction.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              isReversal: true,
+              reversedTransactionId: journalEntry.transactionId
+            },
+            select: { id: true }
+          });
+          if (!alreadyReversed) {
+            await createTransactionReversal({
+              transactionId: journalEntry.transactionId,
+              reversalReason: `${reversalReason} (Bill ${bill.billNumber || bill.id})`,
+              userId: user.id,
+              tenantId: user.tenantId
+            });
+          }
+        } else {
+          console.warn(
+            `[Bill Reversal] No Transaction found for bill ${bill.id} journalEntryId=${bill.journalEntryId}. ` +
+            `Proceeding with cancellation without accounting reversal.`
+          );
+        }
       }
     }
 

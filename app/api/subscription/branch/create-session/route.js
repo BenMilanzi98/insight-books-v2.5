@@ -63,16 +63,20 @@ export async function POST(request) {
       },
       body: JSON.stringify({
         currency: 'MWK',
-        tx_ref: `${Math.floor(Math.random() * 1000000000) + 1}`,
+        tx_ref: `IB-BR-${branch.id.slice(-6)}-${Date.now()}`,
         amount: amount.toString(),
-        callback_url: `${process.env.APP_URL}/api/subscription/paychangu/callback`,
-        return_url: `${process.env.APP_URL}/subscription/cancel`,
+        callback_url: `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL}/api/subscription/paychangu/callback`,
+        return_url: `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL}/subscription/cancel`,
         email: user.email,
-        first_name: user.name,
-        uuid: `${user.tenantId}:${branch.id}`, // track both tenant + branch
+        first_name: user.name.split(' ')[0] || user.name,
+        last_name: user.name.split(' ').slice(1).join(' ') || '',
         customization: {
           title: 'Branch Subscription',
           description: `Subscription payment for branch: ${branch.name}`,
+        },
+        meta: {
+          tenantId: user.tenantId,
+          branchId: branch.id,
         },
       }),
     };

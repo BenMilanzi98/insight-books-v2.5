@@ -491,6 +491,7 @@ export default function SupplierBillsPage() {
       await loadData();
     } catch (err) {
       console.error(err);
+      setError(err.message || "Failed to reverse bill");
     } finally {
       setDeleteLoading(false);
     }

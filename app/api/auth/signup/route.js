@@ -19,8 +19,7 @@ export async function POST(request) {
       !body.fullName ||
       !body.email ||
       !body.phone ||
-      !body.password ||
-      !body.selectedPlan
+      !body.password
     ) {
       return NextResponse.json(
         { error: 'All fields are required' },
@@ -107,10 +106,7 @@ export async function POST(request) {
         data: {
           name: body.businessName,
           subdomain: subdomain,
-          // Set subscription based on the selected plan
-          subscriptionPlan: body.selectedPlan === '1year' ? '1year' : 
-                           body.selectedPlan === '3months' ? '3months' : 
-                           body.selectedPlan === '1month' ? '1month' : '1month',
+          subscriptionPlan: body.selectedPlan || 'trial',
           status: 'active',
         }
       });
@@ -286,7 +282,7 @@ export async function POST(request) {
         trial: {
           startDate: trialSubscription.trialStartDate.toISOString(),
           endDate: trialSubscription.trialEndDate.toISOString(),
-          daysRemaining: 3
+          daysRemaining: 2
         },
         tenant: {
           id: result.tenant.id,
@@ -308,7 +304,7 @@ export async function POST(request) {
         trial: {
           startDate: trialSubscription.trialStartDate.toISOString(),
           endDate: trialSubscription.trialEndDate.toISOString(),
-          daysRemaining: 3
+          daysRemaining: 2
         },
         tenant: {
           id: result.tenant.id,
