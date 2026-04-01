@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requirePremiumAccess } from '@/lib/accessControl';
+import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 
 export async function POST(request) {
   try {
@@ -50,6 +51,21 @@ export async function POST(request) {
 
     const { initializeNewTenantFinancialDefaults } = await import('@/lib/initializeNewTenantFinancialDefaults');
     await initializeNewTenantFinancialDefaults(tenant.id, prisma);
+
+    // Seed role templates for the new tenant
+    let seededRoles = null;
+    try {
+      seededRoles = await seedDefaultRolesForTenant(tenant.id, prisma);
+      const ownerRole = seededRoles?.Owner;
+      if (ownerRole?.id) {
+        // Ensure the creator has an explicit membership for this tenant
+        await prisma.tenantMembership.create({
+          data: { userId: user.id, tenantId: tenant.id, roleId: ownerRole.id, status: 'active' }
+        });
+      }
+    } catch (e) {
+      // Backward compatible if membership table isn't deployed yet
+    }
 
     return NextResponse.json({ success: true, tenant });
   } catch (err) {

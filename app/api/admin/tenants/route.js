@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
+import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import jwt from 'jsonwebtoken';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
 
@@ -200,6 +201,13 @@ export async function POST(request) {
         'initializeNewTenantFinancialDefaults failed for admin-created tenant (tenant still created):',
         financialInitErr?.message || financialInitErr
       );
+    }
+
+    // Seed default role templates for this tenant
+    try {
+      await seedDefaultRolesForTenant(newTenant.id, prisma);
+    } catch (e) {
+      console.error('Default role seeding failed for admin-created tenant:', e?.message || e);
     }
 
     // Get tenant settings for business email

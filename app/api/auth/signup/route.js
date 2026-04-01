@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { sendOTPEmail } from '@/lib/email';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
+import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 
 // Ensure environment variables are loaded
 import 'dotenv/config';
@@ -126,19 +127,17 @@ export async function POST(request) {
         }
       });
     
-      const fullAdminPermissions = generateFullPermissions(); 
-      
-    
-      const adminRole =  await tx.role.upsert({
+      // Seed role templates for the tenant (Owner/Manager/Sales/Inventory/Accountant/ReportsOnly)
+      const seededRoles = await seedDefaultRolesForTenant(tenant.id, tx);
+      const ownerRole = seededRoles.Owner;
+
+      // Keep legacy Admin role for backward compatibility (existing installs/users may reference it)
+      const fullAdminPermissions = generateFullPermissions();
+      const adminRole = await tx.role.upsert({
         where: {
-          name_tenantId: {
-            name: 'Admin',
-            tenantId: tenant.id
-          }
+          name_tenantId: { name: 'Admin', tenantId: tenant.id }
         },
-        update: {
-          permissions: fullAdminPermissions
-        },
+        update: { permissions: fullAdminPermissions },
         create: {
           name: 'Admin',
           description: 'Full access to all tenant features',
@@ -159,14 +158,14 @@ export async function POST(request) {
       
    
      
-      // Create user with admin role (main tenant / owner)
+      // Create user with owner-level role (main tenant / owner)
       const user = await tx.user.create({
         data: {
           name: body.fullName,
           email: body.email,
           password: hashedPassword,
           phone: body.phone,
-          roleId: adminRole.id, // Use the adminRole ID instead of 'ADMIN' string
+          roleId: ownerRole?.id || adminRole.id,
           tenantId: tenant.id,
           isActive: true,
           isEmailVerified: false, // Set to false until OTP is verified
@@ -177,6 +176,20 @@ export async function POST(request) {
           }
         }
       });
+
+      // Create per-tenant membership record (role per business)
+      try {
+        await tx.tenantMembership.create({
+          data: {
+            userId: user.id,
+            tenantId: tenant.id,
+            roleId: ownerRole?.id || adminRole.id,
+            status: 'active',
+          }
+        });
+      } catch (e) {
+        // Backward compatible if table isn't deployed yet
+      }
 
       // Main tenant user has access to all branches
       await tx.tenant.update({

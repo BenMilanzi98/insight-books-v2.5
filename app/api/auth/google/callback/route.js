@@ -4,6 +4,7 @@ import { OAuth2Client } from 'google-auth-library';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { generateFullPermissions } from '@/lib/permissionsMap';
+import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
 
@@ -651,17 +652,16 @@ async function handleGoogleSignup(googleUser) {
         }
       });
 
-      // Create default roles for the tenant
+      // Seed role templates for the tenant (Owner/Manager/Sales/Inventory/Accountant/ReportsOnly)
+      const seededRoles = await seedDefaultRolesForTenant(tenant.id, tx);
+      const ownerRole = seededRoles.Owner;
+
+      // Keep legacy Admin role for backward compatibility
       const adminRole = await tx.role.upsert({
         where: {
-          name_tenantId: {
-            name: 'Admin',
-            tenantId: tenant.id
-          }
+          name_tenantId: { name: 'Admin', tenantId: tenant.id }
         },
-        update: {
-          permissions: generateFullPermissions()
-        },
+        update: { permissions: generateFullPermissions() },
         create: {
           name: 'Admin',
           description: 'Full access to all tenant features',
@@ -713,7 +713,7 @@ async function handleGoogleSignup(googleUser) {
           isActive: true,
           isEmailVerified: true, // Google emails are verified
           tenantId: tenant.id,
-          roleId: adminRole.id, // Updated to use adminRole
+          roleId: ownerRole?.id || adminRole.id,
           authProvider: 'google',
           authProviderId: googleUser.id,
           profilePicture: googleUser.picture,
@@ -726,6 +726,20 @@ async function handleGoogleSignup(googleUser) {
           tenant: true
         }
       });
+
+      // Create per-tenant membership record (role per business)
+      try {
+        await tx.tenantMembership.create({
+          data: {
+            userId: user.id,
+            tenantId: tenant.id,
+            roleId: ownerRole?.id || adminRole.id,
+            status: 'active',
+          }
+        });
+      } catch (e) {
+        // Backward compatible if table isn't deployed yet
+      }
 
       // Main tenant user has access to all branches
       await tx.tenant.update({

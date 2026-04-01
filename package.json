@@ -29,6 +29,7 @@
     "validate:data-integrity": "node scripts/validate-data-integrity.js",
     "validate:quick": "node scripts/quick-validation.js",
     "verify-system": "node scripts/verify-system.js",
+    "seed:roles": "node scripts/seed-default-roles.js",
     "normalize:expenses": "node scripts/normalize-expense-categories.js",
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run"
