@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -17,18 +23,21 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    if (!tenantId) {
+
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
       return NextResponse.json(
-        { error: 'Tenant context required' },
-        { status: 401 }
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
       );
     }
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
     const now = new Date();
-    
-    // Get date range from query parameters (front-end may send 'thisMonth')
-    const { searchParams } = new URL(request.url);
     const dateRangeParam = searchParams.get('dateRange') || 'month';
     const dateRange = dateRangeParam === 'thisMonth' ? 'month' : dateRangeParam;
     
@@ -137,7 +146,7 @@ export async function GET(request) {
     
     // Upcoming = not fully paid, due on or after today; optionally scoped by creation date range
     const baseWhere = {
-      tenantId,
+      ...tw,
       isDeleted: false,
       paymentStatus: { in: ['Pending', 'Partially'] },
       date: { gte: now }
@@ -149,7 +158,7 @@ export async function GET(request) {
         lte: endDate
       };
     }
-    const whereClause = addBranchFilter(user, { ...baseWhere });
+    const whereClause = addBranchFilter(userQ, { ...baseWhere });
 
     let expenses = [];
     try {

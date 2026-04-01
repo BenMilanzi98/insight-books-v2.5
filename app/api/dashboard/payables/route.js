@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -17,14 +23,19 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    if (!tenantId) {
+
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
       return NextResponse.json(
-        { error: 'No tenant associated with user' },
+        { error: scope.error || 'Invalid business scope' },
         { status: 400 }
       );
     }
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
 
     const now = new Date();
     
@@ -32,12 +43,12 @@ export async function GET(request) {
     // Filter by branch through goods receipt items -> products -> branchId
     // Note: GoodsReceipt model doesn't have branchId, so we filter through product relationships
     const goodsReceiptWhere = {
-      tenantId,
+      ...tw,
       status: 'Posted'
     };
     
     // If user has a branch selected, filter goods receipts by products in that branch
-    if (user?.currentBranchId) {
+    if (branchScoped && user?.currentBranchId) {
       goodsReceiptWhere.items = {
         some: {
           product: {
@@ -63,7 +74,7 @@ export async function GET(request) {
         supplierBills: {
           // Exclude settled/cancelled; balance due is applied in JS (avoids the old over-broad OR that matched almost every bill)
           where: {
-            tenantId,
+            ...tw,
             status: { notIn: ['Paid', 'Cancelled'] },
           },
           select: {
@@ -86,8 +97,8 @@ export async function GET(request) {
     
     // Get all Expenses with Pending or Partially paid status
     const expenses = await prisma.expense.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         paymentStatus: { in: ['Pending', 'Partially'] },
         isDeleted: false
       }),

@@ -2,9 +2,15 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
 import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -19,17 +25,18 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    if (!user.tenantId) {
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
       return NextResponse.json(
-        { error: 'No tenant associated with user' },
+        { error: scope.error || 'Invalid business scope' },
         { status: 400 }
       );
     }
-
-    const tenantId = user.tenantId;
-    
-    // Get date range from query parameters
-    const { searchParams } = new URL(request.url);
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -136,8 +143,8 @@ export async function GET(request) {
     
     // Get all expenses for the selected period, grouped by category.
     // Use date range only so this works with DBs that may not have isHistorical.
-    const expenseWhere = addBranchFilterIncludeUnassigned(user, {
-      tenantId,
+    const expenseWhere = addBranchFilterIncludeUnassigned(userQ, {
+      ...tw,
       isReversal: false,
       date: { gte: startDate, lte: endDate },
       // Only count expenses that have been paid (or partially paid).
@@ -173,7 +180,7 @@ export async function GET(request) {
     try {
       const cogsAccounts = await prisma.account.findMany({
         where: {
-          tenantId,
+          ...tw,
           isActive: true,
           accountType: 'Expense',
           OR: [
@@ -198,8 +205,8 @@ export async function GET(request) {
     let cogsTotal = 0;
     if (cogsAccountIds.length > 0) {
       try {
-        const txFilter = { tenantId, date: { gte: startDate, lte: endDate }, status: 'posted' };
-        const branchFilter = addBranchFilter(user, {});
+        const txFilter = { ...tw, date: { gte: startDate, lte: endDate }, status: 'posted' };
+        const branchFilter = addBranchFilter(userQ, {});
         if (Object.keys(branchFilter).length > 0) Object.assign(txFilter, branchFilter);
         const cogsData = await prisma.transactionLine.aggregate({
           where: {

@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -17,12 +23,21 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    const now = new Date();
-    
-    // Get date range from query parameters
+
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
+      return NextResponse.json(
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
+    const now = new Date();
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -180,8 +195,8 @@ export async function GET(request) {
     const invoices = await prisma.invoice.findMany({
       // Receivables: include unassigned (null branchId) invoices even when a branch is selected.
       // This prevents missing invoices for tenants/users in "default branch" scenarios.
-      where: addBranchFilterIncludeUnassigned(user, {
-        tenantId,
+      where: addBranchFilterIncludeUnassigned(userQ, {
+        ...tw,
         ...(shouldFilterByPaymentDate
           ? {
               payments: {

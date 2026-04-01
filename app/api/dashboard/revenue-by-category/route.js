@@ -3,6 +3,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+} from '@/lib/dashboardTenantScope';
 
 export async function GET(request) {
   try {
@@ -10,11 +15,20 @@ export async function GET(request) {
     if (accessError) return accessError;
 
     const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
+    if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
+      return NextResponse.json(
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const tw = tenantWhereIn(scope.tenantIds);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const forecastGrowthPct = Math.min(
@@ -23,7 +37,7 @@ export async function GET(request) {
     );
 
     const whereSale = {
-      tenantId: user.tenantId,
+      ...tw,
       status: 'completed',
       ...(startDate && endDate
         ? {

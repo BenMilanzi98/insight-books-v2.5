@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -17,13 +23,24 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    
+
+    const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
+      return NextResponse.json(
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { branchScoped } = scope;
+    const tw = tenantWhereIn(scope.tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
     // Get all products for this tenant that are not services and not deleted
     const allProducts = await prisma.product.findMany({
-      where: addBranchFilter(user, {
-        tenantId,
+      where: addBranchFilter(userQ, {
+        ...tw,
         isService: false, // Only physical products, not services
         isDeleted: false // Exclude soft-deleted products
       }),

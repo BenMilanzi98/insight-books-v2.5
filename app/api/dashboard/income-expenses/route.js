@@ -5,6 +5,12 @@ import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
 import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -14,12 +20,19 @@ export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    if (!user.tenantId) {
-      return NextResponse.json({ error: 'No tenant associated with user' }, { status: 400 });
-    }
 
-    const tenantId = user.tenantId;
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
+      return NextResponse.json(
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
     const dateRange = searchParams.get('dateRange') || 'thisMonth';
     const customStartDate = searchParams.get('startDate');
     const customEndDate = searchParams.get('endDate');
@@ -31,7 +44,7 @@ export async function GET(request) {
         dateRange,
         customStartDate,
         customEndDate,
-        tenantId
+        tenantIds,
       });
     }
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
@@ -168,7 +181,7 @@ export async function GET(request) {
     try {
       const cogsAccounts = await prisma.account.findMany({
         where: {
-          tenantId,
+          ...tw,
           isActive: true,
           accountType: 'Expense',
           OR: [
@@ -228,21 +241,23 @@ export async function GET(request) {
         return { income: 0, expenses: 0 };
       }
 
-      const branchIdForPayments = normalizeBranchId(user?.currentBranchId);
+      const branchIdForPayments = branchScoped ? normalizeBranchId(user?.currentBranchId) : null;
 
-      const effTxBranch = getEffectiveDashboardBranchId(user);
+      const effTxBranch = branchScoped ? getEffectiveDashboardBranchId(userQ) : null;
       const transactionBranchClause =
-        effTxBranch === false
-          ? { branchId: { in: [] } }
-          : effTxBranch
-            ? { branchId: effTxBranch }
-            : {};
+        !branchScoped
+          ? {}
+          : effTxBranch === false
+            ? { branchId: { in: [] } }
+            : effTxBranch
+              ? { branchId: effTxBranch }
+              : {};
 
       const [invoiceRevenue, salesRevenue, expenses, loanPayments, cogsData] = await Promise.all([
         // Revenue (cash): include invoice payments received in the period
         prisma.payment.aggregate({
           where: {
-            tenantId,
+            ...tw,
             isReversal: false,
           invoiceId: { not: null },
             status: { in: ['Completed', 'completed'] },
@@ -260,8 +275,8 @@ export async function GET(request) {
         }),
         // POS sales revenue (completed)
         prisma.sale.aggregate({
-          where: addBranchFilter(user, {
-            tenantId,
+          where: addBranchFilter(userQ, {
+            ...tw,
             saleDate: { gte: filterStartDate, lte: filterEndDate },
             status: { in: ['completed', 'Completed'] },
             voidedAt: null,
@@ -272,8 +287,8 @@ export async function GET(request) {
         // Operating expenses (cash-ish): ONLY count paid/partial expenses.
         // This prevents pending statutory liabilities (PAYE/NPS) from showing as expenses before payment is recorded.
         prisma.expense.aggregate({
-          where: addBranchFilterIncludeUnassigned(user, {
-            tenantId,
+          where: addBranchFilterIncludeUnassigned(userQ, {
+            ...tw,
             status: 'Approved',
             isDeleted: false,
             isReversal: false,
@@ -285,7 +300,7 @@ export async function GET(request) {
         // Loan payments (not always stored as Expense) so dashboard still reflects them
         prisma.payment.aggregate({
           where: {
-            tenantId,
+            ...tw,
           type: { in: ['Loan Payment', 'Loan Payment - Principal', 'Loan Payment - Interest'] },
             status: 'Completed',
             paymentDate: { gte: filterStartDate, lte: filterEndDate }
@@ -298,7 +313,7 @@ export async function GET(request) {
             accountId: { in: cogsAccountIds },
             debitAmount: { gt: 0 },
             transaction: {
-              tenantId,
+              ...tw,
               ...transactionBranchClause,
               date: {
                 gte: filterStartDate,

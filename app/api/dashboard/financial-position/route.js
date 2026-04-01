@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import {
+  getAccessibleTenantIdsForUser,
+  parseDashboardTenantScope,
+  tenantWhereIn,
+  userForDashboardBranchFilter,
+} from '@/lib/dashboardTenantScope';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -17,12 +23,21 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const tenantId = user.tenantId;
-    const now = new Date();
-    
-    // Get date range from query parameters
+
     const { searchParams } = new URL(request.url);
+    const accessible = await getAccessibleTenantIdsForUser(user);
+    const scope = parseDashboardTenantScope(searchParams, user, accessible);
+    if (!scope.ok) {
+      return NextResponse.json(
+        { error: scope.error || 'Invalid business scope' },
+        { status: 400 }
+      );
+    }
+    const { tenantIds, branchScoped } = scope;
+    const tw = tenantWhereIn(tenantIds);
+    const userQ = userForDashboardBranchFilter(user, branchScoped);
+
+    const now = new Date();
     const dateRange = searchParams.get('dateRange') || 'month';
     
     // Calculate date range based on the parameter
@@ -133,8 +148,8 @@ export async function GET(request) {
     ] = await Promise.all([
       // Outstanding receivables (invoices)
       prisma.invoice.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           status: { in: ['Pending', 'Partial'] },
           NOT: { 
             status: { in: ['void', 'refunded', 'partially_refunded'] }
@@ -164,7 +179,7 @@ export async function GET(request) {
       // Note: Quotation model may not have branchId field
       prisma.quotation.findMany({
         where: {
-          tenantId,
+          ...tw,
           status: { in: ['Pending', 'Sent'] }
         },
         select: {
@@ -185,8 +200,8 @@ export async function GET(request) {
       
       // Outstanding payables (expenses)
       prisma.expense.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           paymentStatus: { in: ['Pending', 'Partially'] },
           isDeleted: false
         }),
@@ -208,12 +223,12 @@ export async function GET(request) {
       // Note: SupplierBill model doesn't have branchId field, so filter through items -> products -> branchId
       (async () => {
         const supplierBillWhere = {
-          tenantId,
+          ...tw,
           status: { in: ['Unpaid', 'Partially Paid'] }
         };
         
         // If user has a branch selected, filter supplier bills by products in that branch
-        if (user?.currentBranchId) {
+        if (branchScoped && user?.currentBranchId) {
           supplierBillWhere.items = {
             some: {
               product: {
@@ -247,8 +262,8 @@ export async function GET(request) {
       
       // Recent payments (cash flow)
       prisma.payment.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           status: 'Completed',
           paymentDate: {
             gte: startDate,
@@ -285,7 +300,7 @@ export async function GET(request) {
       
       // Account balances
       prisma.accountBalance.findMany({
-        where: { tenantId },
+        where: { ...tw },
         select: {
           account: true,
           balance: true
@@ -295,8 +310,8 @@ export async function GET(request) {
       // Inventory value (if inventory module exists)
       // Calculate inventory value using totalStockValue or cost * stockLevel
       prisma.product.findMany({
-        where: addBranchFilter(user, {
-          tenantId,
+        where: addBranchFilter(userQ, {
+          ...tw,
           isDeleted: false
         }),
         select: {
