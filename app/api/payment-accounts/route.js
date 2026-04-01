@@ -1,8 +1,27 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
-import { ensurePaymentAccountCoaLink } from '@/lib/paymentAccountCoaLink';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+async function safeInitializeDefaults(tenantId) {
+  try {
+    const { initializeDefaultPaymentAccounts } = await import('@/lib/paymentAccountInitialization');
+    await initializeDefaultPaymentAccounts(tenantId, prisma);
+  } catch (e) {
+    console.warn('initializeDefaultPaymentAccounts failed (non-fatal):', e?.message || e);
+  }
+}
+
+async function safeLinkCoa(tenantId, paymentAccount) {
+  try {
+    const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
+    await ensurePaymentAccountCoaLink(tenantId, paymentAccount, prisma);
+  } catch (e) {
+    console.warn('ensurePaymentAccountCoaLink failed (non-fatal):', paymentAccount?.id, e?.message || e);
+  }
+}
 
 // GET - List all payment accounts for the tenant
 export async function GET(request) {
@@ -11,12 +30,17 @@ export async function GET(request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (!user.tenantId) {
+      return NextResponse.json({ error: 'No tenant associated with user' }, { status: 400 });
+    }
 
-    // Ensure system default payment accounts exist (e.g. Cash) for this tenant.
-    await initializeDefaultPaymentAccounts(user.tenantId, prisma);
+    await safeInitializeDefaults(user.tenantId);
 
-    const { searchParams } = new URL(request.url);
-    const activeOnly = searchParams.get('activeOnly') === 'true';
+    let activeOnly = false;
+    try {
+      const { searchParams } = new URL(request.url);
+      activeOnly = searchParams.get('activeOnly') === 'true';
+    } catch (_) {}
 
     const where = {
       tenantId: user.tenantId,
@@ -26,7 +50,7 @@ export async function GET(request) {
     let paymentAccounts = await prisma.paymentAccount.findMany({
       where,
       orderBy: [
-        { isSystem: 'desc' }, // System accounts first
+        { isSystem: 'desc' },
         { name: 'asc' }
       ]
     });
@@ -34,11 +58,7 @@ export async function GET(request) {
     const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
     if (needsLink.length > 0) {
       for (const p of needsLink.slice(0, 50)) {
-        try {
-          await ensurePaymentAccountCoaLink(user.tenantId, p, prisma);
-        } catch (e) {
-          console.warn('payment-accounts COA link:', p.id, e?.message || e);
-        }
+        await safeLinkCoa(user.tenantId, p);
       }
       paymentAccounts = await prisma.paymentAccount.findMany({
         where,
@@ -70,21 +90,21 @@ export async function POST(request) {
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
+    if (!user.tenantId) {
+      return NextResponse.json({ error: 'No tenant associated with user' }, { status: 400 });
+    }
 
-    // Make sure the system account set exists even if this is the first request.
-    await initializeDefaultPaymentAccounts(user.tenantId, prisma);
+    await safeInitializeDefaults(user.tenantId);
 
     const body = await request.json();
     const { name, accountType, reference, isActive = true } = body;
 
-    // Validation
     if (!name || !accountType) {
       return NextResponse.json({ 
         error: 'Name and account type are required' 
       }, { status: 400 });
     }
 
-    // Check if account with same name already exists for this tenant
     const existing = await prisma.paymentAccount.findUnique({
       where: {
         tenantId_name: {
@@ -100,7 +120,6 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Create payment account
     let paymentAccount = await prisma.paymentAccount.create({
       data: {
         tenantId: user.tenantId,
@@ -108,25 +127,34 @@ export async function POST(request) {
         accountType,
         reference: reference?.trim() || null,
         isActive,
-        isSystem: false // User-created accounts are not system accounts
+        isSystem: false
       }
     });
-    paymentAccount = await ensurePaymentAccountCoaLink(user.tenantId, paymentAccount, prisma);
 
-    // Audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'PAYMENT_ACCOUNT_CREATED',
-        entityType: 'PAYMENT_ACCOUNT',
-        entityId: paymentAccount.id,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          name: paymentAccount.name,
-          accountType: paymentAccount.accountType
-        })
-      }
-    });
+    try {
+      const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
+      paymentAccount = await ensurePaymentAccountCoaLink(user.tenantId, paymentAccount, prisma);
+    } catch (linkErr) {
+      console.warn('COA link failed for new payment account:', linkErr?.message || linkErr);
+    }
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'PAYMENT_ACCOUNT_CREATED',
+          entityType: 'PAYMENT_ACCOUNT',
+          entityId: paymentAccount.id,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            name: paymentAccount.name,
+            accountType: paymentAccount.accountType
+          })
+        }
+      });
+    } catch (auditErr) {
+      console.warn('Audit log failed for payment account creation:', auditErr?.message || auditErr);
+    }
 
     return NextResponse.json({ 
       success: true, 
@@ -134,7 +162,10 @@ export async function POST(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating payment account:', error);
-    return NextResponse.json({ error: 'Failed to create payment account' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to create payment account',
+      hint: error?.message?.slice(0, 300) || undefined,
+      code: error?.code || undefined,
+    }, { status: 500 });
   }
 }
-
