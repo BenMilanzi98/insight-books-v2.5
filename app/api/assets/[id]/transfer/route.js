@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
-import { getErrorChain, findInChain, findPrismaCode } from '@/lib/prismaErrorChain';
+import { getErrorChain, findInChain, findPrismaCode, joinChainMessages } from '@/lib/prismaErrorChain';
 
 /** Prisma + DB drivers require Node (not Edge). */
 export const runtime = 'nodejs';
@@ -30,6 +30,25 @@ function jsonSafe(value) {
   }
 }
 
+async function findCategoryByNameCaseInsensitive(tx, targetTenantId, sourceName) {
+  try {
+    const row = await tx.assetCategory.findFirst({
+      where: {
+        tenantId: targetTenantId,
+        name: { equals: sourceName, mode: 'insensitive' },
+      },
+    });
+    if (row) return row;
+  } catch (lookupErr) {
+    console.warn('Insensitive category lookup failed, using JS fallback:', lookupErr?.message || lookupErr);
+  }
+  const all = await tx.assetCategory.findMany({
+    where: { tenantId: targetTenantId },
+    take: 500,
+  });
+  return all.find((c) => c.name.toLowerCase() === sourceName.toLowerCase()) || null;
+}
+
 async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explicitCategoryId) {
   const sourceName = (sourceCategory?.name || 'Uncategorized').trim() || 'Uncategorized';
 
@@ -39,12 +58,7 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
     });
     return cat;
   }
-  const byName = await tx.assetCategory.findFirst({
-    where: {
-      tenantId: targetTenantId,
-      name: { equals: sourceName, mode: 'insensitive' },
-    },
-  });
+  const byName = await findCategoryByNameCaseInsensitive(tx, targetTenantId, sourceName);
   if (byName) return byName;
 
   try {
@@ -60,12 +74,7 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
   } catch (e) {
     // Concurrent transfer / race: unique (tenantId, name) — re-fetch by case-insensitive name
     if (/** @type {{ code?: string }} */ (e).code === 'P2002') {
-      const retry = await tx.assetCategory.findFirst({
-        where: {
-          tenantId: targetTenantId,
-          name: { equals: sourceName, mode: 'insensitive' },
-        },
-      });
+      const retry = await findCategoryByNameCaseInsensitive(tx, targetTenantId, sourceName);
       if (retry) return retry;
     }
     throw e;
@@ -76,7 +85,7 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
  * POST — move asset from session tenant to another business the user may access.
  * Creates AssetInterBusinessTransfer + audit logs; depreciation/journal rows stay on the asset.
  */
-export async function POST(request, { params }) {
+async function handleAssetTransferPost(request, { params }) {
   try {
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
@@ -338,7 +347,7 @@ export async function POST(request, { params }) {
       );
     }
 
-    const errMsg = chain.map((e) => String(/** @type {Error} */ (e).message || e)).join(' | ') || String(error);
+    const errMsg = joinChainMessages(chain, error);
     const prismaCode = findPrismaCode(chain);
 
     // Table missing / wrong schema if migrations not applied
@@ -363,6 +372,24 @@ export async function POST(request, { params }) {
         error: 'Failed to transfer asset',
         code: prismaCode,
         hint: errMsg.length > 280 ? `${errMsg.slice(0, 280)}…` : errMsg,
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request, context) {
+  try {
+    return await handleAssetTransferPost(request, context);
+  } catch (fatal) {
+    const chain = getErrorChain(fatal);
+    const hint = joinChainMessages(chain, fatal).slice(0, 400);
+    console.error('POST /api/assets/[id]/transfer uncaught:', fatal);
+    return NextResponse.json(
+      {
+        error: 'Asset transfer failed unexpectedly',
+        code: 'UNHANDLED',
+        hint: hint || undefined,
       },
       { status: 500 }
     );
