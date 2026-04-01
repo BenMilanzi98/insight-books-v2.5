@@ -55,7 +55,11 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching payment accounts:', error);
-    return NextResponse.json({ error: 'Failed to fetch payment accounts' }, { status: 500 });
+    return NextResponse.json({
+      error: 'Failed to fetch payment accounts',
+      hint: error?.message?.slice(0, 300) || undefined,
+      code: error?.code || undefined,
+    }, { status: 500 });
   }
 }
 
