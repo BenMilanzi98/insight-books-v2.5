@@ -1194,11 +1194,8 @@ const defaultConfig = {
     role: "",
     department: "",
     status: "active",
-    sendEmail: true,
-    defaultBranchId: "",
-    allowedBranchIds: []
+    sendEmail: true
   });
-  const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [showNewDepartment, setShowNewDepartment] = useState(false);
   const [newDepartmentName, setNewDepartmentName] = useState("");
@@ -1273,28 +1270,21 @@ useEffect(() => {
   initializePermissions();
 }, []);
   
-  // When Add User modal opens, fetch branches and departments for the current tenant
+  // When Add User modal opens, fetch departments for the current tenant
   useEffect(() => {
     if (!showAddUserModal) return;
-    const loadBranchesAndDepartments = async () => {
+    const loadDepartments = async () => {
       try {
-        const [branchRes, deptRes] = await Promise.all([
-          fetch("/api/branches?scope=full", { cache: "no-store" }),
-          fetch("/api/departments", { cache: "no-store" })
-        ]);
-        if (branchRes.ok) {
-          const b = await branchRes.json();
-          setBranches(b.branches || []);
-        }
+        const deptRes = await fetch("/api/departments", { cache: "no-store" });
         if (deptRes.ok) {
           const d = await deptRes.json();
           setDepartments(Array.isArray(d) ? d : d.departments || []);
         }
       } catch (e) {
-        console.error("Error loading branches/departments:", e);
+        console.error("Error loading departments:", e);
       }
     };
-    loadBranchesAndDepartments();
+    loadDepartments();
   }, [showAddUserModal]);
 
   // Load users and roles on component mount
@@ -1865,9 +1855,7 @@ const toggleModulePermissions = (module) => {
         role: selectedRole?.id || userFormData.role,
         department: userFormData.department || null,
         status: userFormData.status,
-        sendEmail: userFormData.sendEmail,
-        defaultBranchId: userFormData.defaultBranchId || undefined,
-        allowedBranchIds: Array.isArray(userFormData.allowedBranchIds) ? userFormData.allowedBranchIds : []
+        sendEmail: userFormData.sendEmail
       };
       
       // Create user
@@ -1888,9 +1876,7 @@ const toggleModulePermissions = (module) => {
         role: "",
         department: "",
         status: "active",
-        sendEmail: true,
-        defaultBranchId: "",
-        allowedBranchIds: []
+        sendEmail: true
       });
       setShowNewDepartment(false);
       setNewDepartmentName("");
@@ -2743,25 +2729,6 @@ const toggleModulePermissions = (module) => {
               )}
             </div>
 
-            <div className="col-span-1">
-              <label htmlFor="defaultBranchId" className="block text-sm font-medium mb-1">
-                Default branch (optional)
-              </label>
-              <select
-                id="defaultBranchId"
-                name="defaultBranchId"
-                className="w-full p-2 border border-gray-200 rounded"
-                value={userFormData.defaultBranchId || ""}
-                onChange={handleUserFormChange}
-              >
-                <option value="">None</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}{b.code ? ` (${b.code})` : ""}</option>
-                ))}
-              </select>
-              <p className="mt-0.5 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
-            </div>
-
             <div className="col-span-2">
               <label className="block text-sm font-medium mb-1">
                 Department (optional)
@@ -2809,38 +2776,6 @@ const toggleModulePermissions = (module) => {
               )}
             </div>
 
-            <div className="col-span-2">
-              <label className="block text-sm font-medium mb-1">
-                Allowed branches (optional)
-              </label>
-              <p className="text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
-              {branches.length > 0 ? (
-                <div className="space-y-1 max-h-28 overflow-y-auto border border-gray-200 rounded p-2 bg-gray-50">
-                  {branches.map((branch) => (
-                    <label key={branch.id} className="flex items-center gap-2 py-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={(userFormData.allowedBranchIds || []).includes(branch.id)}
-                        onChange={(e) => {
-                          const ids = userFormData.allowedBranchIds || [];
-                          setUserFormData({
-                            ...userFormData,
-                            allowedBranchIds: e.target.checked
-                              ? [...ids, branch.id]
-                              : ids.filter((id) => id !== branch.id)
-                          });
-                        }}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                      />
-                      <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ""}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-gray-500">No branches available. Create branches in Settings first.</p>
-              )}
-            </div>
-            
             <div className="col-span-1">
               <label htmlFor="status" className="block text-sm font-medium mb-1">
                 Status
