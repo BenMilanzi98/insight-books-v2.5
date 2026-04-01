@@ -45,12 +45,13 @@ export async function GET(request) {
       const tenantId = user.tenantId;
 
       const categoriesById = new Map();
-      const toEntry = (id, code, name, account, description, fromExpenseCategory = false) => {
+      const toEntry = (accountId, code, name, account, description, fromExpenseCategory = false, expCatId = null) => {
         const entry = {
-          id,
+          id: expCatId || accountId,
           code: code || '',
           name: name || 'Unnamed',
-          accountId: id,
+          accountId,
+          expenseCategoryId: expCatId || null,
           account: account ?? null,
           description: description ?? null
         };
@@ -87,9 +88,9 @@ export async function GET(request) {
           orderBy: { name: 'asc' }
         });
         expenseCategories.forEach(cat => {
-          const id = cat.accountId;
-          if (categoriesById.has(id)) return;
-          categoriesById.set(id, toEntry(id, cat.accountCode, cat.name, cat.account, cat.description, true));
+          const accountId = cat.accountId;
+          if (categoriesById.has(accountId)) return;
+          categoriesById.set(accountId, toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, true, cat.id));
         });
       } catch (expenseCatErr) {
         console.warn('Categories API: expense categories unavailable:', expenseCatErr?.message || expenseCatErr);
@@ -163,6 +164,33 @@ export async function GET(request) {
         console.warn('Categories API: expense accounts unavailable:', accountErr?.message || accountErr);
       }
 
+      // Auto-create ExpenseCategory records for Account-only entries so dropdowns always have valid IDs
+      const accountOnlyEntries = Array.from(categoriesById.values()).filter(e => !e.expenseCategoryId);
+      if (accountOnlyEntries.length > 0) {
+        for (const entry of accountOnlyEntries) {
+          try {
+            let ec = await prisma.expenseCategory.findFirst({
+              where: { accountId: entry.accountId, tenantId }
+            });
+            if (!ec) {
+              ec = await prisma.expenseCategory.create({
+                data: {
+                  name: entry.name || 'Unnamed',
+                  accountId: entry.accountId,
+                  accountCode: entry.code || '',
+                  tenantId,
+                }
+              });
+            }
+            entry.id = ec.id;
+            entry.expenseCategoryId = ec.id;
+            entry._fromExpenseCategory = true;
+          } catch (autoCreateErr) {
+            // Non-fatal: keep the Account ID; backend will handle lookup
+          }
+        }
+      }
+
       let list = Array.from(categoriesById.values());
       // Deduplicate by normalized name: keep one per logical name (prefer ExpenseCategory entry, else smallest code)
       const byNormalizedName = new Map();
@@ -222,6 +250,7 @@ export async function GET(request) {
       categories = Array.from(merged.values()).map(({ _fromExpenseCategory, ...cat }) => ({
         ...cat,
         name: cleanDisplayName(cat.name),
+        expenseCategoryId: cat.expenseCategoryId || null,
       }));
       categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }

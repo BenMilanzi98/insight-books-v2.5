@@ -40,7 +40,7 @@ async function generatePurchaseOrderNumber() {
 
 function getLineType(item) {
   const t = (item.lineType || '').toLowerCase();
-  if (t === 'service' || t === 'goods') return t;
+  if (t === 'service' || t === 'goods' || t === 'asset') return t;
   return item.productId ? 'goods' : 'service';
 }
 
@@ -52,6 +52,8 @@ function validateItems(items, orderType = 'goods') {
     const lineType = getLineType(item);
     if (lineType === 'goods') {
       if (!item.productId) throw new Error(`Item ${idx + 1}: productId is required for goods lines`);
+    } else if (lineType === 'asset') {
+      if (!item.description?.trim()) throw new Error(`Item ${idx + 1}: description/asset name is required for asset lines`);
     } else {
       if (!item.description?.trim()) throw new Error(`Item ${idx + 1}: description is required for service lines`);
     }
@@ -222,16 +224,54 @@ export async function POST(request) {
       }
     }
 
-    // Validate expense category IDs for service lines if provided
-    const expenseCategoryIds = [...new Set((body.items || []).map((it) => it.expenseCategoryId).filter(Boolean))];
-    if (expenseCategoryIds.length > 0) {
-      const categories = await prisma.expenseCategory.findMany({
-        where: { id: { in: expenseCategoryIds }, tenantId: user.tenantId }
+    // Validate expense category IDs for service/asset lines if provided.
+    // The frontend may send either ExpenseCategory IDs or Account IDs; resolve both.
+    const rawExpCatIds = [...new Set((body.items || []).map((it) => it.expenseCategoryId).filter(Boolean))];
+    const resolvedExpCatMap = new Map(); // frontend-sent ID → valid ExpenseCategory ID
+    if (rawExpCatIds.length > 0) {
+      // 1. Direct ExpenseCategory lookup
+      const byId = await prisma.expenseCategory.findMany({
+        where: { id: { in: rawExpCatIds }, tenantId: user.tenantId }
       });
-      if (categories.length !== expenseCategoryIds.length) {
-        const found = new Set(categories.map((c) => c.id));
-        const missing = expenseCategoryIds.filter((id) => !found.has(id));
-        return NextResponse.json({ error: `Expense categories not found: ${missing.join(', ')}` }, { status: 400 });
+      byId.forEach(c => resolvedExpCatMap.set(c.id, c.id));
+
+      const remaining = rawExpCatIds.filter(id => !resolvedExpCatMap.has(id));
+      if (remaining.length > 0) {
+        // 2. Maybe Account IDs — find ExpenseCategory by accountId
+        const byAccountId = await prisma.expenseCategory.findMany({
+          where: { accountId: { in: remaining }, tenantId: user.tenantId }
+        });
+        byAccountId.forEach(c => resolvedExpCatMap.set(c.accountId, c.id));
+
+        // 3. Still missing? Verify they are valid expense Accounts and auto-create ExpenseCategory
+        const stillMissing = remaining.filter(id => !resolvedExpCatMap.has(id));
+        if (stillMissing.length > 0) {
+          const accounts = await prisma.account.findMany({
+            where: { id: { in: stillMissing }, tenantId: user.tenantId, isActive: true }
+          });
+          for (const acc of accounts) {
+            try {
+              const newCat = await prisma.expenseCategory.create({
+                data: {
+                  name: acc.accountName || acc.name || 'Expense',
+                  accountId: acc.id,
+                  accountCode: acc.accountCode || acc.code || '',
+                  tenantId: user.tenantId,
+                }
+              });
+              resolvedExpCatMap.set(acc.id, newCat.id);
+            } catch (dupErr) {
+              // Unique constraint — re-query
+              const existing = await prisma.expenseCategory.findFirst({ where: { accountId: acc.id, tenantId: user.tenantId } });
+              if (existing) resolvedExpCatMap.set(acc.id, existing.id);
+            }
+          }
+        }
+      }
+
+      const unresolvedIds = rawExpCatIds.filter(id => !resolvedExpCatMap.has(id));
+      if (unresolvedIds.length > 0) {
+        return NextResponse.json({ error: `Expense categories not found: ${unresolvedIds.join(', ')}` }, { status: 400 });
       }
     }
 
@@ -272,11 +312,12 @@ export async function POST(request) {
       }
       lineSubtotal = round2(lineSubtotal);
       lineTaxAmount = round2(lineTaxAmount);
+      const resolvedExpCatId = item.expenseCategoryId ? (resolvedExpCatMap.get(item.expenseCategoryId) || item.expenseCategoryId) : null;
       return {
         lineNumber: index + 1,
         lineType,
         productId: item.productId || null,
-        expenseCategoryId: item.expenseCategoryId || null,
+        expenseCategoryId: resolvedExpCatId,
         description: item.description?.trim() || null,
         quantityOrdered: new Prisma.Decimal(qty),
         unitCost: new Prisma.Decimal(unitCost),

@@ -446,16 +446,15 @@ function FormSection({ title, description, children }) {
 }
 
 const ORDER_TYPES = [
-  { value: "goods", label: "Inventory Purchase (does not hit expenses; receivables only)" },
-  { value: "services", label: "Goods & Services Purchase (Hits Expenses)" },
-  { value: "assets", label: "Asset Purchase (integrates with Asset Management)" },
+  { value: "goods", label: "Inventory / Goods Purchase" },
+  { value: "services", label: "Goods & Services Purchase" },
+  { value: "assets", label: "Asset Purchase" },
 ];
 
-/** Expense category row from API: chart code + name for PO lines (Goods & Services). */
 function formatExpenseCategoryLabel(cat) {
   if (!cat) return "—";
-  const code = cat.accountCode || cat.code || cat.account?.accountCode || "";
-  const name = cat.account?.accountName || cat.name || "";
+  const code = cat.code || cat.accountCode || cat.account?.accountCode || "";
+  const name = cat.name || cat.account?.accountName || "";
   if (code && name) return `${code} — ${name}`;
   return code || name || "—";
 }
@@ -475,6 +474,13 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
     notes: initialData?.notes || "",
     pricesIncludeTax: initialData?.pricesIncludeTax ?? false,
   }));
+
+  const defaultLineType = (orderType) => {
+    if (orderType === "assets") return "asset";
+    if (orderType === "services") return "service";
+    return "goods";
+  };
+
   const [items, setItems] = useState(() => {
     if (initialData?.items?.length) {
       return initialData.items.map((item) => ({
@@ -503,8 +509,8 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
 
   const expenseCategoriesSorted = useMemo(() => {
     return [...expenseCategories].sort((a, b) => {
-      const codeA = String(a.accountCode || a.account?.accountCode || "").toLowerCase();
-      const codeB = String(b.accountCode || b.account?.accountCode || "").toLowerCase();
+      const codeA = String(a.code || a.accountCode || a.account?.accountCode || "").toLowerCase();
+      const codeB = String(b.code || b.accountCode || b.account?.accountCode || "").toLowerCase();
       if (codeA !== codeB) return codeA.localeCompare(codeB);
       return String(a.name || "").localeCompare(String(b.name || ""), undefined, { sensitivity: "base" });
     });
@@ -515,6 +521,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
     if (!term) return expenseCategoriesSorted;
     return expenseCategoriesSorted.filter((cat) => {
       const parts = [
+        cat.code,
         cat.accountCode,
         cat.account?.accountCode,
         cat.name,
@@ -588,6 +595,17 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
 
   const handleChange = (name, value) => {
     setForm((prev) => ({ ...prev, [name]: value }));
+    // When order type changes, reset line types and clear inappropriate fields
+    if (name === "orderType") {
+      setItems((prev) =>
+        prev.map((item) => {
+          if (value === "goods") return { ...item, lineType: "goods", expenseCategoryId: "" };
+          if (value === "assets") return { ...item, lineType: "asset", productId: "" };
+          // services: keep existing lineType if valid, otherwise default to service
+          return { ...item, lineType: item.lineType === "goods" ? "goods" : "service" };
+        })
+      );
+    }
   };
 
   const getDefaultProductCost = (product) => {
@@ -669,10 +687,10 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
   };
 
   const addItem = () => {
-    const defaultLineType = form.orderType === "services" ? "service" : "goods";
+    const lt = defaultLineType(form.orderType);
     setItems((prev) => [
       ...prev,
-      { lineType: defaultLineType, productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" },
+      { lineType: lt, productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" },
     ]);
   };
 
@@ -700,7 +718,9 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
           lineSub = qty * unitCost;
           if (taxAmount === 0 && taxRatePct > 0) taxAmount = lineSub * (taxRatePct / 100);
         }
-        const lineType = form.orderType === "services" ? "service" : (item.lineType || (item.productId ? "goods" : "service"));
+        const lineType = form.orderType === "assets" ? "asset"
+          : form.orderType === "goods" ? "goods"
+          : (item.lineType || (item.productId ? "goods" : "service"));
         return {
           lineType,
           productId: item.productId || undefined,
@@ -816,24 +836,24 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         title="Line Items"
         description={
           form.orderType === "goods"
-            ? "Products for inventory/operations. Saving this order does not change stock; quantities increase when you post a goods receipt under Purchases → Receipts. Taxes per line apply at receipt and billing."
+            ? "Select products from your inventory. Stock increases only when you post a goods receipt, not when saving the PO."
             : form.orderType === "services"
-            ? "Service lines are confirmed via Service Receipt, then moved to payables."
+            ? "Add goods (product select) and/or service lines (custom description + expense account). Toggle per line."
             : form.orderType === "assets"
-            ? "Asset lines are received via Inventory Receipt and auto-created in Asset Management for depreciation setup."
-            : "Add goods (inventory) and/or services (expenses). Goods stock increases only after a posted receipt, not when saving the PO. Tax per line is captured for receipt and billing."
+            ? "Describe each asset being purchased. Assets are received via receipt and auto-created in Asset Management."
+            : ""
         }
       >
-        {(form.orderType === "services" || form.orderType === "mixed") &&
+        {(form.orderType === "services" || form.orderType === "assets") &&
           expenseCategoriesSorted.length > 0 && (
           <div className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
             <label className="block text-xs font-medium text-gray-600">
-              Filter expense categories (code or name)
+              Filter expense accounts (code or name)
             </label>
             <input
               type="search"
               className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="Type to narrow the category list…"
+              placeholder="Type to narrow the account list…"
               value={expenseCategorySearch}
               onChange={(e) => setExpenseCategorySearch(e.target.value)}
             />
@@ -841,7 +861,19 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         )}
         <div className="space-y-3">
           {items.map((item, idx) => {
-            const isService = form.orderType === "services" || (item.lineType || "goods") === "service";
+            // Determine effective line type based on order type
+            const effectiveLineType =
+              form.orderType === "assets" ? "asset"
+              : form.orderType === "goods" ? "goods"
+              : (item.lineType || "goods");
+
+            const isGoods = effectiveLineType === "goods";
+            const isService = effectiveLineType === "service";
+            const isAsset = effectiveLineType === "asset";
+            const showExpenseAccount = isService || isAsset;
+            const showProductSelect = isGoods;
+            const showLineToggle = form.orderType === "services";
+
             const pricesIncludeTax = form.pricesIncludeTax;
             const qty = Number(item.quantityOrdered || 0);
             const unitCost = Number(item.unitCost || 0);
@@ -865,59 +897,68 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                 className="rounded-xl border border-gray-200 bg-gray-50/80 p-3 space-y-3"
               >
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {(form.orderType === "mixed") && (
+                  {/* Line type toggle for Goods & Services orders */}
+                  {showLineToggle && (
                     <div>
-                      <label className="block text-xs font-medium text-gray-600">Type</label>
+                      <label className="block text-xs font-medium text-gray-600">Line Type</label>
                       <select
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         value={item.lineType || "goods"}
-                        onChange={(e) => handleItemChange(idx, "lineType", e.target.value)}
+                        onChange={(e) => {
+                          handleItemChange(idx, "lineType", e.target.value);
+                          if (e.target.value === "goods") handleItemChange(idx, "expenseCategoryId", "");
+                          if (e.target.value === "service") handleItemChange(idx, "productId", "");
+                        }}
                       >
-                        <option value="goods">Goods</option>
-                        <option value="service">Service</option>
+                        <option value="goods">Goods (Product)</option>
+                        <option value="service">Service (Custom)</option>
                       </select>
                     </div>
                   )}
-                  {!isService ? (
-                    <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
+
+                  {/* GOODS lines: product select */}
+                  {showProductSelect && (
+                    <div className={showLineToggle ? "" : "sm:col-span-2"}>
                       <label className="block text-xs font-medium text-gray-600">Product <span className="text-red-500">*</span></label>
                       <div className="mt-1">
                         <ProductSearchSelect
                           products={products}
                           value={item.productId}
                           onChange={(productId) => handleItemChange(idx, "productId", productId)}
-                          required={!isService}
+                          required
                           placeholder="Search by name, SKU, code, or barcode…"
                         />
                       </div>
                     </div>
-                  ) : (
+                  )}
+
+                  {/* SERVICE lines: description + expense account */}
+                  {isService && (
                     <>
-                      <div className={form.orderType === "mixed" ? "" : "sm:col-span-2"}>
+                      <div className={showLineToggle ? "" : "sm:col-span-2"}>
                         <label className="block text-xs font-medium text-gray-600">Description <span className="text-red-500">*</span></label>
                         <input
                           type="text"
-                          placeholder="e.g. Maintenance, Consultancy"
+                          placeholder="e.g. Maintenance, Consultancy, Cleaning"
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.description}
                           onChange={(e) => handleItemChange(idx, "description", e.target.value)}
-                          required={isService}
+                          required
                         />
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-600">
-                          Expense category{" "}
-                          <span className="font-normal text-gray-500">(chart code)</span>
+                          Expense Account <span className="text-red-500">*</span>
                         </label>
                         <select
                           className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                           value={item.expenseCategoryId}
                           onChange={(e) => handleItemChange(idx, "expenseCategoryId", e.target.value)}
-                          required={isService}
+                          required
                         >
-                          <option value="">Select category (code — name)</option>
+                          <option value="">Select account (code — name)</option>
                           {filteredExpenseCategories.map((cat) => (
-                            <option key={cat.id} value={cat.id}>
+                            <option key={cat.id} value={cat.expenseCategoryId || cat.id}>
                               {formatExpenseCategoryLabel(cat)}
                             </option>
                           ))}
@@ -925,18 +966,54 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                       </div>
                     </>
                   )}
-                  {isService && item.productId ? null : !isService ? (
+
+                  {/* ASSET lines: asset name + description + expense account */}
+                  {isAsset && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600">Asset Name <span className="text-red-500">*</span></label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Laptop, Office Desk, Vehicle"
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                          value={item.description}
+                          onChange={(e) => handleItemChange(idx, "description", e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600">
+                          Expense Account
+                        </label>
+                        <select
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                          value={item.expenseCategoryId}
+                          onChange={(e) => handleItemChange(idx, "expenseCategoryId", e.target.value)}
+                        >
+                          <option value="">Select account (code — name)</option>
+                          {filteredExpenseCategories.map((cat) => (
+                            <option key={cat.id} value={cat.expenseCategoryId || cat.id}>
+                              {formatExpenseCategoryLabel(cat)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Optional description for goods lines */}
+                  {showProductSelect && (
                     <div>
                       <label className="block text-xs font-medium text-gray-600">Description</label>
                       <input
                         type="text"
-                        placeholder="Optional"
+                        placeholder="Optional note"
                         className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                         value={item.description}
                         onChange={(e) => handleItemChange(idx, "description", e.target.value)}
                       />
                     </div>
-                  ) : null}
+                  )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                   <div>
@@ -944,7 +1021,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                     <input
                       type="number"
                       min="0"
-                      step={isService ? "0.01" : "1"}
+                      step={isGoods ? "1" : "0.01"}
                       className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
                       value={item.quantityOrdered}
                       onChange={(e) => handleItemChange(idx, "quantityOrdered", e.target.value)}
@@ -1098,13 +1175,34 @@ export default function PurchaseOrdersPage() {
         getOrders({ search, status: statusFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
         fetch("/api/stock").then((res) => res.json()),
-        fetch("/api/categories?type=expense").then((res) => res.ok ? res.json() : { categories: [] }),
+        fetch("/api/categories?type=expense").then((res) => res.ok ? res.json() : { categories: [] }).catch(() => ({ categories: [] })),
         fetch("/api/tax-types?status=Active").then((res) => res.ok ? res.json() : []).catch(() => []),
       ]);
       setOrders(orderRes.purchaseOrders ?? []);
       setSuppliers(supplierRes.suppliers ?? []);
       setProducts(productRes.products ?? []);
-      setExpenseCategories(categoriesRes.categories ?? []);
+
+      let expCats = categoriesRes.categories ?? [];
+
+      // Fallback: if categories endpoint returned empty, try expense-categories endpoint
+      if (expCats.length === 0) {
+        try {
+          const fallbackRes = await fetch("/api/expense-categories");
+          if (fallbackRes.ok) {
+            const fallbackData = await fallbackRes.json();
+            expCats = (fallbackData.categories ?? []).map((cat) => ({
+              id: cat.id,
+              code: cat.accountCode || cat.account?.accountCode || "",
+              name: cat.name || cat.account?.accountName || "",
+              accountId: cat.accountId || cat.id,
+              expenseCategoryId: cat.id,
+              account: cat.account ?? null,
+            }));
+          }
+        } catch (_) { /* non-fatal */ }
+      }
+
+      setExpenseCategories(expCats);
       setTaxTypes(Array.isArray(taxTypesRes) ? taxTypesRes : (taxTypesRes?.taxTypes ?? taxTypesRes?.data ?? []));
       setError(null);
     } catch (err) {
