@@ -281,46 +281,27 @@ export const refundSale = async (saleId, reason, refundMethod = null) => {
   }
 };
 
-// Print receipt (PDF from server; HTML is only returned without ?format=pdf)
+// Print receipt — opens the thermal-sized HTML receipt which auto-triggers window.print()
 export const printReceipt = async (saleId) => {
   try {
-    const response = await fetch(
-      `/api/sales/${saleId}/receipt?format=pdf`,
-      {
-        method: 'GET'
-      }
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Error generating receipt: ${response.statusText}`);
-    }
+    // Open the HTML receipt directly; the page contains window.print() on load
+    // and @page { size: 80mm auto } CSS for thermal printers.
+    const receiptUrl = `/api/sales/${saleId}/receipt`;
+    const receiptWindow = window.open(receiptUrl, '_blank', 'width=350,height=600');
 
-    const ct = (response.headers.get('content-type') || '').toLowerCase();
-    if (ct.includes('application/json')) {
-      throw new Error('Receipt API returned JSON instead of a PDF.');
-    }
-
-    const blob = await response.blob();
-    const blobType = (blob.type || '').toLowerCase();
-    if (blobType.includes('text/html')) {
-      throw new Error(
-        'Receipt was returned as HTML instead of PDF. Ensure the server can generate PDFs (format=pdf).'
-      );
-    }
-
-    const url = window.URL.createObjectURL(blob);
-    
-    // Open a new window/tab with the receipt
-    const receiptWindow = window.open(url, '_blank');
     if (!receiptWindow) {
-      // If popup is blocked, create a download link
+      // Popup blocked — fall back to PDF download
+      const response = await fetch(`${receiptUrl}?format=pdf`);
+      if (!response.ok) throw new Error(`Error generating receipt: ${response.statusText}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `receipt-${saleId}.pdf`;
       link.click();
       window.URL.revokeObjectURL(url);
     }
-    
+
     return true;
   } catch (error) {
     console.error(`Error printing receipt for sale ${saleId}:`, error);
