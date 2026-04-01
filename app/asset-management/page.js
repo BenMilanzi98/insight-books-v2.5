@@ -1292,13 +1292,21 @@ const AssetManagement = () => {
           ...(transferNotes.trim() ? { notes: transferNotes.trim() } : {}),
         }),
       });
-      const data = await res.json().catch(() => ({}));
+      let data;
+      const rawText = await res.text().catch(() => "");
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
+        console.error("Transfer API response:", res.status, data, rawText?.slice(0, 500));
         const parts = [
-          data.error || "Transfer failed",
+          data.error || `Transfer failed (HTTP ${res.status})`,
           data.code ? `[${data.code}]` : null,
           data.field ? `field: ${data.field}` : null,
           data.hint ? data.hint : null,
+          !data.error && !data.code ? rawText?.slice(0, 200) : null,
         ].filter(Boolean);
         throw new Error(parts.join(" — "));
       }
