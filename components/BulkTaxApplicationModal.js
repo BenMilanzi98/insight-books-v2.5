@@ -35,7 +35,7 @@ const BulkTaxApplicationModal = ({
       const response = await fetch('/api/tax-types?status=Active');
       if (response.ok) {
         const data = await response.json();
-        setTaxTypes(data);
+        setTaxTypes(Array.isArray(data?.taxTypes) ? data.taxTypes : (Array.isArray(data) ? data : []));
       }
     } catch (error) {
       console.error('Error fetching tax types:', error);
