@@ -4,7 +4,12 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { getAccessibleTenantIdsForUser } from '@/lib/dashboardTenantScope';
 
+/** Prisma + DB drivers require Node (not Edge). */
+export const runtime = 'nodejs';
+
 async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explicitCategoryId) {
+  const sourceName = (sourceCategory?.name || 'Uncategorized').trim() || 'Uncategorized';
+
   if (explicitCategoryId) {
     const cat = await tx.assetCategory.findFirst({
       where: { id: explicitCategoryId, tenantId: targetTenantId },
@@ -14,16 +19,16 @@ async function resolveTargetCategory(tx, targetTenantId, sourceCategory, explici
   const byName = await tx.assetCategory.findFirst({
     where: {
       tenantId: targetTenantId,
-      name: { equals: sourceCategory.name, mode: 'insensitive' },
+      name: { equals: sourceName, mode: 'insensitive' },
     },
   });
   if (byName) return byName;
   return tx.assetCategory.create({
     data: {
       tenantId: targetTenantId,
-      name: sourceCategory.name,
+      name: sourceName,
       description:
-        sourceCategory.description?.trim() ||
+        sourceCategory?.description?.trim() ||
         'Category created when an asset was transferred from another business',
     },
   });
@@ -39,8 +44,19 @@ export async function POST(request, { params }) {
     if (accessError) return accessError;
 
     const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
+    if (!user?.tenantId || !user?.id) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    if (typeof prisma.assetInterBusinessTransfer?.create !== 'function') {
+      return NextResponse.json(
+        {
+          error:
+            'This server build is missing the asset transfer module. Redeploy after running prisma generate.',
+          code: 'PRISMA_CLIENT_STALE',
+        },
+        { status: 503 }
+      );
     }
 
     // Next.js 15: dynamic route params may be a Promise
@@ -85,6 +101,13 @@ export async function POST(request, { params }) {
 
     if (!asset) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 });
+    }
+
+    if (!asset.category) {
+      return NextResponse.json(
+        { error: 'Asset has no category; assign a category before transferring.' },
+        { status: 400 }
+      );
     }
 
     if (asset.status !== 'active') {
@@ -165,24 +188,28 @@ export async function POST(request, { params }) {
         },
       });
 
-      const detailOut = {
-        transferId: transfer.id,
-        assetId: asset.id,
-        assetName: asset.name,
-        toTenantId,
-        toTenantName: toTenant.name,
-        netBookValue: currentNetBookValue,
-      };
-      const detailIn = {
-        transferId: transfer.id,
-        assetId: asset.id,
-        assetName: asset.name,
-        fromTenantId,
-        fromTenantName: fromTenant.name,
-        netBookValue: currentNetBookValue,
-      };
+      return { transfer, asset: updated };
+    });
 
-      await tx.auditLog.create({
+    const detailOut = {
+      transferId: result.transfer.id,
+      assetId: asset.id,
+      assetName: asset.name,
+      toTenantId,
+      toTenantName: toTenant.name,
+      netBookValue: currentNetBookValue,
+    };
+    const detailIn = {
+      transferId: result.transfer.id,
+      assetId: asset.id,
+      assetName: asset.name,
+      fromTenantId,
+      fromTenantName: fromTenant.name,
+      netBookValue: currentNetBookValue,
+    };
+
+    try {
+      await prisma.auditLog.create({
         data: {
           action: 'ASSET_TRANSFER_OUT',
           entityType: 'Asset',
@@ -192,8 +219,11 @@ export async function POST(request, { params }) {
           details: JSON.stringify(detailOut),
         },
       });
-
-      await tx.auditLog.create({
+    } catch (auditErr) {
+      console.error('ASSET_TRANSFER_OUT audit log failed:', auditErr?.message || auditErr);
+    }
+    try {
+      await prisma.auditLog.create({
         data: {
           action: 'ASSET_TRANSFER_IN',
           entityType: 'Asset',
@@ -203,9 +233,9 @@ export async function POST(request, { params }) {
           details: JSON.stringify(detailIn),
         },
       });
-
-      return { transfer, asset: updated };
-    });
+    } catch (auditErr) {
+      console.error('ASSET_TRANSFER_IN audit log failed:', auditErr?.message || auditErr);
+    }
 
     return NextResponse.json({
       message: 'Asset transferred successfully',
@@ -222,19 +252,30 @@ export async function POST(request, { params }) {
         { status: 409 }
       );
     }
-    // Table missing if migrations not applied
-    if (error?.code === 'P2021' || /AssetInterBusinessTransfer/i.test(String(error?.message || ''))) {
+    const errMsg = String(error?.message || error || '');
+    // Table missing / wrong schema if migrations not applied
+    if (
+      error?.code === 'P2021' ||
+      error?.code === 'P2010' ||
+      /does not exist/i.test(errMsg) ||
+      /AssetInterBusinessTransfer/i.test(errMsg)
+    ) {
       return NextResponse.json(
         {
           error:
-            'Asset transfer is not available until the database is updated. Run: npx prisma migrate deploy',
+            'Asset transfer requires a database migration. On the server run: npx prisma migrate deploy',
+          code: error?.code || 'SCHEMA_MISSING',
         },
         { status: 503 }
       );
     }
     console.error('Asset transfer error:', error);
     return NextResponse.json(
-      { error: 'Failed to transfer asset', details: error?.message },
+      {
+        error: 'Failed to transfer asset',
+        code: error?.code || undefined,
+        details: process.env.NODE_ENV === 'development' ? errMsg : undefined,
+      },
       { status: 500 }
     );
   }
