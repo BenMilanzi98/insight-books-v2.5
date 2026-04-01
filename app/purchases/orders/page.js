@@ -454,7 +454,7 @@ const ORDER_TYPES = [
 /** Expense category row from API: chart code + name for PO lines (Goods & Services). */
 function formatExpenseCategoryLabel(cat) {
   if (!cat) return "—";
-  const code = cat.accountCode || cat.account?.accountCode || "";
+  const code = cat.accountCode || cat.code || cat.account?.accountCode || "";
   const name = cat.account?.accountName || cat.name || "";
   if (code && name) return `${code} — ${name}`;
   return code || name || "—";
@@ -1098,7 +1098,7 @@ export default function PurchaseOrdersPage() {
         getOrders({ search, status: statusFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
         fetch("/api/stock").then((res) => res.json()),
-        fetch("/api/expense-categories").then((res) => res.ok ? res.json() : { categories: [] }),
+        fetch("/api/categories?type=expense").then((res) => res.ok ? res.json() : { categories: [] }),
         fetch("/api/tax-types?status=Active").then((res) => res.ok ? res.json() : []).catch(() => []),
       ]);
       setOrders(orderRes.purchaseOrders ?? []);
