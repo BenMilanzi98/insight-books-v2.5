@@ -18,8 +18,8 @@ import {
   ArrowRight,
   Calendar,
 } from "lucide-react";
-import OTPVerification from "@/components/auth/OTPVerification";
 import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
+import { clearUserCache } from "@/lib/permissions";
 
 const Signup = () => {
   const router = useRouter();
@@ -41,8 +41,6 @@ const Signup = () => {
     score: 0,
     feedback: "Enter a password",
   });
-  const [showOtpVerification, setShowOtpVerification] = useState(false);
-  const [userId, setUserId] = useState(null);
   const [referralSuccess, setReferralSuccess] = useState(false);
 
   useEffect(() => {
@@ -150,46 +148,17 @@ const Signup = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Failed to create account");
 
-      if (data.requiresVerification) {
-        if (data.emailError) {
-          setError("Account created, but verification email failed. You can resend from the next screen.");
-        }
-        if (data.referralProcessed) {
-          setSuccess(`Referral code ${data.referralCode} applied! Check your email for the verification code.`);
-        }
-        setUserId(data.userId);
-        setShowOtpVerification(true);
-      } else {
-        router.push("/dashboard");
+      clearUserCache();
+      if (data.referralProcessed && data.referralCode) {
+        setSuccess(`Referral code ${data.referralCode} applied.`);
       }
+      router.push("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to create account. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
-
-  if (showOtpVerification) {
-    return (
-      <div className="min-h-screen flex flex-col md:flex-row">
-        <div className="hidden md:flex md:w-2/5 bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-900 text-white p-10 flex-col justify-between">
-          <div>
-            <img src="/logo.png" alt="InsightBooks" className="h-10 w-auto object-contain rounded-md" />
-            <div className="mt-8 max-w-sm">
-              <h2 className="text-3xl font-bold mb-4">Almost there!</h2>
-              <p className="text-indigo-200">
-                Verify your email address to activate your 2-day free trial and start managing your business.
-              </p>
-            </div>
-          </div>
-          <div className="text-sm opacity-70">© {new Date().getFullYear()} InsightBooks. All rights reserved.</div>
-        </div>
-        <div className="w-full md:w-3/5 p-6 flex items-center justify-center">
-          <OTPVerification email={formData.email} userId={userId} onBackToSignIn={() => router.push("/auth/login")} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">

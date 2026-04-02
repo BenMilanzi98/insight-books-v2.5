@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
-import { sendOTPEmail } from '@/lib/email';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
+import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
+import { getSessionCookieOptions } from '@/lib/sessionCookie';
 
 // Ensure environment variables are loaded
 import 'dotenv/config';
@@ -92,12 +94,6 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-   
-    
-    // Generate OTP (6-digit number)
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    // Set OTP expiry (10 minutes from now)
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
    
     // Create tenant, roles and user in a transaction
     const result = await prisma.$transaction(async (tx) => {
@@ -244,75 +240,124 @@ export async function POST(request) {
     // Initialize trial subscription for the new tenant
     // Note: While a trial is created, subscription payment is required for full business functionality
     const trialSubscription = await initializeTenantTrial(result.tenant.id);
-    
-    // Send OTP email
-    let emailSent = false;
-    let emailError = null;
-    
-    try {
-      console.log(`Attempting to send OTP email to: ${body.email}`);
-      const emailResult = await sendOTPEmail(
-        body.email, 
-        otp, 
-        body.fullName
+
+    // Log the user in immediately (same session shape as POST /api/auth/login)
+    const userWithRole = await prisma.user.findUnique({
+      where: { id: result.user.id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        tenantId: true,
+        role: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            subdomain: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    if (!userWithRole) {
+      console.error('Signup: user missing after transaction');
+      return NextResponse.json(
+        { error: 'Account created but session could not be started. Please log in.' },
+        { status: 500 }
       );
-      
-      if (emailResult.success) {
-        emailSent = true;
-        console.log('OTP email sent successfully:', emailResult.messageId);
+    }
+
+    let initialBranchId = null;
+    try {
+      const ctx = await fetchUserBranchAccessContext(userWithRole.id, userWithRole.tenantId);
+      const { allowedBranchIds } = computeAllowedBranchIds({
+        userId: userWithRole.id,
+        tenantId: userWithRole.tenantId,
+        roleName: userWithRole.role ? userWithRole.role.name : null,
+        contextLoadFailed: ctx.contextLoadFailed,
+        tenantBranchCount: ctx.tenantBranchCount,
+        userBranches: ctx.userBranches,
+        tenant: ctx.tenant,
+      });
+      const preferredDefault =
+        ctx.defaultBranchId ?? ctx.tenant?.defaultBranchId ?? null;
+      if (allowedBranchIds == null) {
+        initialBranchId = preferredDefault ?? null;
+      } else if (allowedBranchIds.length > 0) {
+        initialBranchId =
+          preferredDefault && allowedBranchIds.includes(preferredDefault)
+            ? preferredDefault
+            : allowedBranchIds[0];
       } else {
-        emailError = emailResult.error;
-        console.error('OTP email failed:', emailResult.error);
+        initialBranchId = null;
       }
-    } catch (emailError) {
-      console.error('Error sending OTP email:', emailError);
-      emailError = emailError.message;
+    } catch (branchError) {
+      console.error('Signup branch selection failed (non-fatal):', branchError?.message || branchError);
+      initialBranchId = null;
     }
-   
-    // Return response based on email status
-    if (emailSent) {
-      return NextResponse.json({
+
+    const sessionData = {
+      userId: userWithRole.id,
+      tenantId: userWithRole.tenantId,
+      branchId: initialBranchId,
+      role: userWithRole.role ? userWithRole.role.name : null,
+    };
+    const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    const cookieStore = await cookies();
+    cookieStore.set({
+      name: 'session',
+      value: session,
+      ...getSessionCookieOptions(),
+    });
+
+    try {
+      await prisma.user.update({
+        where: { id: userWithRole.id },
+        data: { lastLogin: new Date() },
+      });
+    } catch (_) {
+      /* non-fatal */
+    }
+
+    return NextResponse.json(
+      {
         success: true,
-        message: 'Account created successfully. Please check your email for the verification code.',
+        message: 'Account created successfully.',
+        requiresVerification: false,
+        token: session,
         userId: result.user.id,
         email: result.user.email,
-        requiresVerification: true,
-        referralProcessed: !!affiliate, // Indicate if referral was processed
-        referralCode: affiliate ? referralCode : null, // Include referral code if processed
+        referralProcessed: !!affiliate,
+        referralCode: affiliate ? referralCode : null,
         trial: {
           startDate: trialSubscription.trialStartDate.toISOString(),
           endDate: trialSubscription.trialEndDate.toISOString(),
-          daysRemaining: 2
+          daysRemaining: 2,
         },
         tenant: {
           id: result.tenant.id,
           name: result.tenant.name,
-          subdomain: result.tenant.subdomain
-        }
-      }, { status: 201 });
-    } else {
-      // Account created but OTP email failed
-      return NextResponse.json({
-        success: true,
-        message: 'Account created but verification email failed to send. Please contact support.',
-        userId: result.user.id,
-        email: result.user.email,
-        requiresVerification: true,
-        emailError: emailError,
-        referralProcessed: !!affiliate, // Indicate if referral was processed
-        referralCode: affiliate ? referralCode : null, // Include referral code if processed
-        trial: {
-          startDate: trialSubscription.trialStartDate.toISOString(),
-          endDate: trialSubscription.trialEndDate.toISOString(),
-          daysRemaining: 2
+          subdomain: result.tenant.subdomain,
         },
-        tenant: {
-          id: result.tenant.id,
-          name: result.tenant.name,
-          subdomain: result.tenant.subdomain
-        }
-      }, { status: 201 });
-    }
+        user: {
+          id: userWithRole.id,
+          name: userWithRole.name,
+          email: userWithRole.email,
+          isEmailVerified: true,
+          role: userWithRole.role,
+          tenant: userWithRole.tenant
+            ? {
+                id: userWithRole.tenant.id,
+                name: userWithRole.tenant.name,
+                subdomain: userWithRole.tenant.subdomain,
+              }
+            : null,
+        },
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error creating account:', error);
     return NextResponse.json(
