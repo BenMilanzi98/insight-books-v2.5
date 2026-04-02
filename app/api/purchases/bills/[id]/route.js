@@ -4,9 +4,15 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { updateAccountBalance } from '@/lib/core';
 import { createTransactionReversal, validateReversalReason } from '@/lib/transactionReversalService';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
+
+function normalizePaymentMethod(method) {
+  if (!method) return 'cash';
+  return method.toString().trim().toLowerCase().replace(/\s+/g, '_') || 'cash';
+}
 
 async function findBill(id, tenantId) {
   const bill = await prisma.supplierBill.findFirst({
@@ -156,11 +162,188 @@ export async function DELETE(request, { params }) {
       return NextResponse.json({ error: 'This bill is already cancelled.' }, { status: 400 });
     }
 
-    if (bill.amountPaid > 0) {
-      return NextResponse.json(
-        { error: 'Cannot cancel a bill that has payments applied. Reverse supplier payments first.' },
-        { status: 400 }
-      );
+    // If payments were applied, auto-reverse them (when safe) so paid bills can be cancelled.
+    // Safety rule: we only auto-reverse supplier payments that are allocated exclusively to THIS bill.
+    if (Number(bill.amountPaid || 0) > 0) {
+      await prisma.$transaction(async (tx) => {
+        const allocations = await tx.supplierPaymentAllocation.findMany({
+          where: {
+            tenantId: user.tenantId,
+            billId: bill.id,
+            amount: { gt: 0 },
+          },
+          include: {
+            payment: {
+              select: {
+                id: true,
+                supplierId: true,
+                paymentNumber: true,
+                paymentMethod: true,
+                totalAmount: true,
+                journalEntryId: true,
+                currency: true,
+              },
+            },
+          },
+        });
+
+        if (!allocations.length) {
+          // amountPaid > 0 but no allocations found; don't guess.
+          throw new Error(
+            'This bill shows as paid but has no payment allocations. Please contact support or reverse the payment manually.'
+          );
+        }
+
+        const paymentIds = Array.from(new Set(allocations.map((a) => a.paymentId)));
+        for (const paymentId of paymentIds) {
+          const paymentAllocCount = await tx.supplierPaymentAllocation.count({
+            where: {
+              tenantId: user.tenantId,
+              paymentId,
+              amount: { gt: 0 },
+            },
+          });
+
+          if (paymentAllocCount > 1) {
+            const p = allocations.find((a) => a.paymentId === paymentId)?.payment;
+            throw new Error(
+              `Cannot auto-cancel this paid bill because payment ${p?.paymentNumber || paymentId} was allocated across multiple bills. Reverse/unallocate that payment first, then cancel the bill.`
+            );
+          }
+
+          const alloc = allocations.find((a) => a.paymentId === paymentId);
+          const payment = alloc?.payment;
+          const amountToReverse = Number(alloc?.amount || 0);
+          if (!payment || amountToReverse <= 0) continue;
+
+          // Reverse payment journal entry (cash/bank + AP) if posted.
+          if (payment.journalEntryId) {
+            const linkedPaymentTx = await tx.transaction.findFirst({
+              where: { id: payment.journalEntryId, tenantId: user.tenantId },
+              select: { id: true },
+            });
+            if (linkedPaymentTx) {
+              const alreadyReversed = await tx.transaction.findFirst({
+                where: {
+                  tenantId: user.tenantId,
+                  isReversal: true,
+                  reversedTransactionId: linkedPaymentTx.id,
+                },
+                select: { id: true },
+              });
+              if (!alreadyReversed) {
+                await createTransactionReversal({
+                  transactionId: linkedPaymentTx.id,
+                  reversalReason: `Supplier payment reversal for bill ${bill.billNumber || bill.id}: ${reversalReason}`,
+                  userId: user.id,
+                  tenantId: user.tenantId,
+                });
+              }
+            }
+          }
+
+          // Reverse any tax-only transactions created at supplier payment time.
+          const taxTxs = await tx.transaction.findMany({
+            where: {
+              tenantId: user.tenantId,
+              sourceType: 'Tax-SupplierPayment',
+              sourceId: payment.id,
+              status: 'posted',
+              isReversal: false,
+            },
+            select: { id: true },
+          });
+          for (const t of taxTxs) {
+            const alreadyReversedTax = await tx.transaction.findFirst({
+              where: {
+                tenantId: user.tenantId,
+                isReversal: true,
+                reversedTransactionId: t.id,
+              },
+              select: { id: true },
+            });
+            if (!alreadyReversedTax) {
+              await createTransactionReversal({
+                transactionId: t.id,
+                reversalReason: `Tax reversal for supplier payment ${payment.paymentNumber || payment.id}: ${reversalReason}`,
+                userId: user.id,
+                tenantId: user.tenantId,
+              });
+            }
+          }
+
+          // Create a reversal SupplierPayment row + opposite allocation for audit trail.
+          await tx.supplierPayment.create({
+            data: {
+              tenantId: user.tenantId,
+              supplierId: payment.supplierId,
+              paymentNumber: `SP-REV-${Date.now()}-${String(payment.id).slice(-6)}`,
+              paymentDate: new Date(),
+              paymentMethod: payment.paymentMethod,
+              bankAccountId: null,
+              referenceNumber: `REV-${payment.paymentNumber || payment.id}`,
+              totalAmount: -amountToReverse,
+              currency: payment.currency || 'MWK',
+              notes: `REVERSAL (bill cancel): ${bill.billNumber || bill.id} - ${reversalReason}`,
+              createdById: user.id,
+              isReversal: true,
+              reversedTransactionId: payment.id,
+              reversalReason,
+              reversedAt: new Date(),
+              reversedById: user.id,
+              allocations: {
+                create: [{
+                  tenantId: user.tenantId,
+                  billId: bill.id,
+                  amount: -amountToReverse,
+                }],
+              },
+            },
+          });
+
+          // Undo supplier balance effect of payment (payment reduced AP balance).
+          await tx.supplier.update({
+            where: { id: payment.supplierId },
+            data: {
+              currentBalance: {
+                increment: amountToReverse,
+              },
+            },
+          });
+
+          // Undo the "account balance" shortcut used by the payments endpoint.
+          try {
+            const normalized = normalizePaymentMethod(payment.paymentMethod);
+            await updateAccountBalance(user.tenantId, normalized, amountToReverse, 'add', tx);
+          } catch (balErr) {
+            console.warn('Bill cancel: failed to update account balance for payment reversal', balErr?.message || balErr);
+          }
+
+          // Reduce bill amountPaid back down.
+          const currentBill = await tx.supplierBill.findFirst({
+            where: { id: bill.id, tenantId: user.tenantId },
+            select: { id: true, amountPaid: true, totalAmount: true, status: true },
+          });
+          if (currentBill) {
+            const newAmountPaid = Math.max(0, Number(currentBill.amountPaid || 0) - amountToReverse);
+            const total = Number(currentBill.totalAmount || 0);
+            const newStatus =
+              newAmountPaid <= 0 ? 'Unpaid' : newAmountPaid >= total ? 'Paid' : 'Partially Paid';
+            await tx.supplierBill.update({
+              where: { id: currentBill.id },
+              data: { amountPaid: newAmountPaid, status: newStatus },
+            });
+          }
+        }
+      });
+
+      // Re-fetch the bill after payment reversals so the rest of the flow sees the updated amounts/status.
+      const refreshed = await findBill(params.id, user.tenantId);
+      if (!refreshed) return NextResponse.json({ error: 'Supplier bill not found' }, { status: 404 });
+      // eslint-disable-next-line no-param-reassign
+      bill.amountPaid = refreshed.amountPaid;
+      // eslint-disable-next-line no-param-reassign
+      bill.status = refreshed.status;
     }
 
     // Inventory safety checks: only reverse stock if FIFO batches from this bill
