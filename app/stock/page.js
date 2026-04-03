@@ -43,7 +43,7 @@ import ProductSearchSelect from "@/components/ProductSearchSelect";
 import Link from "next/link";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
-import BulkInventoryOperations from "@/components/BulkInventoryOperations";
+import BulkStockOperations from "@/components/BulkStockOperations";
 import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
 import DynamicCategorySelect from "@/components/DynamicCategorySelect";
 import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
@@ -59,7 +59,7 @@ import { fetchStockMovement, exportReport } from "@/app/services/financialReport
 import { StockMovementReport } from "@/components/FinancialReportComponents";
 
 // Main Stock Management Component
-const InventoryManagement = () => {
+const StockManagement = () => {
   // State management
   const [inventory, setInventory] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -130,11 +130,11 @@ const InventoryManagement = () => {
   const [stockMovementReportProductId, setStockMovementReportProductId] = useState(null);
   const [stockMovementReportCustomDateRange, setStockMovementReportCustomDateRange] = useState(null);
   const [pagePermissions, setPagePermissions] = useState({  
-    canCreateInventory: false,
-    canDeleteInventory:false, 
-    canExportInventory:false, 
-    canAdjustInventory:false, 
-    canUpdateInventory:false, 
+    canCreateStock: false,
+    canDeleteStock: false,
+    canExportStock: false,
+    canAdjustStock: false,
+    canUpdateStock: false,
   });
   
   // NEW: Pagination state
@@ -167,7 +167,7 @@ const InventoryManagement = () => {
   // Load categories from API
   const loadCategories = async () => {
     try {
-      const response = await fetch('/api/categories?type=inventory');
+      const response = await fetch('/api/categories?type=stock');
       if (response.ok) {
         const data = await response.json();
         // Combine API categories with default ones
@@ -204,18 +204,18 @@ const InventoryManagement = () => {
   ]);
   useEffect(() => {
     const fetchPermissions = async () => {  
-      const canCreateInventory = await getPermission("inventory.create");
-      const canDeleteInventory = await getPermission("inventory.delete");
-      const canExportInventory = await getPermission("inventory.export"); 
-      const canAdjustInventory = await getPermission("inventory.adjust");
-      const canUpdateInventory = await getPermission("inventory.update"); 
+      const canCreateStock = await getPermission("stock.create");
+      const canDeleteStock = await getPermission("stock.delete");
+      const canExportStock = await getPermission("stock.export");
+      const canAdjustStock = await getPermission("stock.adjust");
+      const canUpdateStock = await getPermission("stock.update");
   
       setPagePermissions({ 
-        canCreateInventory,
-        canDeleteInventory, 
-        canExportInventory, 
-        canAdjustInventory, 
-        canUpdateInventory,   
+        canCreateStock,
+        canDeleteStock,
+        canExportStock,
+        canAdjustStock,
+        canUpdateStock,
         });
     };
   
@@ -245,7 +245,7 @@ const InventoryManagement = () => {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   
-  // Get unique categories from inventory
+  // Get unique categories from loaded products
   const categories = useMemo(() => {
     const uniqueCategories = [...new Set(inventory.map(item => item.category ? item.category : "Uncategorized"))];
     return ["All", ...uniqueCategories.filter(Boolean)];
@@ -359,7 +359,7 @@ const InventoryManagement = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFormOpen, isDetailOpen, isTransactionFormOpen, confirmDialog.isOpen, isUploadModalOpen]);
   
-  // Inventory API service
+  // Stock / products API service
   const inventoryService = {
     // Fetch products with filtering and sorting
     fetchProducts: async (params = {}) => {
@@ -376,7 +376,7 @@ const InventoryManagement = () => {
         if (order) queryParams.append('order', order);
         if (page) queryParams.append('page', page);
         if (limit) queryParams.append('limit', limit);
-        // Tenant-wide inventory: entire business, not scoped to a single location
+        // Tenant-wide stock: entire business, not scoped to a single location
         queryParams.append('allBranches', 'true');
         
         const queryString = queryParams.toString();
@@ -526,23 +526,23 @@ const InventoryManagement = () => {
       }
     },
     
-    // Get inventory statistics
+    // Get stock statistics
     getInventoryStatistics: async () => {
       try {
         const response = await fetch('/api/stock/statistics');
         
         if (!response.ok) {
-          throw new Error(`Error fetching inventory statistics: ${response.statusText}`);
+          throw new Error(`Error fetching stock statistics: ${response.statusText}`);
         }
         
         return await response.json();
       } catch (error) {
-        console.error('Error fetching inventory statistics:', error);
+        console.error('Error fetching stock statistics:', error);
         throw error;
       }
     },
     
-    // Get inventory transactions
+    // Get stock transactions
     getTransactions: async (params = {}) => {
       try {
         const { limit, productId } = params;
@@ -590,18 +590,18 @@ const InventoryManagement = () => {
       }
     },
     
-    // Export inventory data to CSV
+    // Export stock data to CSV
     exportInventory: async (format = 'csv') => {
       try {
         const response = await fetch(`/api/stock/export?format=${format}`);
         
         if (!response.ok) {
-          throw new Error(`Error exporting inventory: ${response.statusText}`);
+          throw new Error(`Error exporting stock: ${response.statusText}`);
         }
         
         return await response.blob();
       } catch (error) {
-        console.error('Error exporting inventory:', error);
+        console.error('Error exporting stock:', error);
         throw error;
       }
     },
@@ -639,7 +639,7 @@ const InventoryManagement = () => {
     }
   };
   
-  // Load inventory data
+  // Load stock / product list
   const loadInventory = async () => {
     try {
       setIsLoading(true);
@@ -695,9 +695,9 @@ const InventoryManagement = () => {
         }
       }
     } catch (error) {
-      console.error("Error loading inventory:", error);
-      setError("Failed to load inventory. Please try again.");
-      showToast("error", "Failed to load inventory", error.message);
+      console.error("Error loading stock:", error);
+      setError("Failed to load stock. Please try again.");
+      showToast("error", "Failed to load stock", error.message);
     } finally {
       setIsLoading(false);
     }
@@ -813,7 +813,7 @@ const InventoryManagement = () => {
         }
       }
       
-      // Reload inventory
+      // Reload stock list
       await loadInventory();
       
       // Show summary
@@ -842,7 +842,7 @@ const InventoryManagement = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `inventory_export.${format}`;
+      a.download = `stock_export.${format}`;
       a.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -863,7 +863,7 @@ const InventoryManagement = () => {
           },
           body: JSON.stringify({
             name: categoryName.trim(),
-            type: 'inventory'
+            type: 'stock'
           })
         });
 
@@ -896,14 +896,14 @@ const InventoryManagement = () => {
     setIsDetailOpen(true);
   };
   
-  // Load inventory statistics
+  // Load stock statistics
   const loadStatistics = async () => {
     setStatisticsLoading(true);
     try {
-      // Try to get from API, fall back to calculated stats from inventory
+      // Try to get from API, fall back to calculated stats from loaded products
       const stats = await inventoryService.getInventoryStatistics().catch((error) => {
         console.log('Statistics API failed, using fallback calculation:', error.message);
-        // Calculate from inventory data as fallback
+        // Calculate from product list as fallback
         const activeInventory = inventory.filter(item => !item.isDeleted);
         return {
           totalItems: activeInventory.length,
@@ -1038,7 +1038,7 @@ const InventoryManagement = () => {
       const result = responseData;
       await fetchTransfers();
       await fetchStockByBusiness();
-      await loadInventory(); // Refresh inventory to show updated stock
+      await loadInventory(); // Refresh product list to show updated stock
       const fromLabel =
         result.transfer?.fromBranch?.tenant?.name || result.transfer?.fromBranch?.name || "source";
       const toLabel =
@@ -1135,12 +1135,12 @@ const InventoryManagement = () => {
         const completeProduct = await response.json();
         setSelectedItem(completeProduct);
       } else {
-        // Fallback to the item from inventory list
+        // Fallback to the item from product list
         setSelectedItem(item);
       }
     } catch (error) {
       console.error('Error fetching complete product data:', error);
-      // Fallback to the item from inventory list
+      // Fallback to the item from product list
       setSelectedItem(item);
     }
     
@@ -1210,12 +1210,12 @@ const InventoryManagement = () => {
         const completeProduct = await response.json();
         setSelectedItem(completeProduct);
       } else {
-        // Fallback to the product from inventory list
+        // Fallback to the product from product list
     setSelectedItem(product);
       }
     } catch (error) {
       console.error('Error fetching complete product data for editing:', error);
-      // Fallback to the product from inventory list
+      // Fallback to the product from product list
       setSelectedItem(product);
     }
     
@@ -1269,7 +1269,7 @@ const InventoryManagement = () => {
       // Close the infinite duration toast
       closeToast();
       
-      // Update inventory list by removing the deleted product
+      // Update product list by removing the deleted product
       setInventory(prevInventory => 
         prevInventory.filter(p => p.id !== product.id)
       );
@@ -1331,7 +1331,7 @@ const InventoryManagement = () => {
       showToast("success", "Purchase order created successfully", "");
       setShowPurchaseOrderModal(false);
       setPurchaseOrderProduct(null);
-      // Optionally reload inventory to reflect any changes
+      // Optionally reload stock list to reflect any changes
       loadInventory();
     } catch (error) {
       console.error("Error creating purchase order:", error);
@@ -1389,7 +1389,7 @@ const InventoryManagement = () => {
           showToast("error", "Taxes not saved", error.message || "Product updated but tax assignment failed. Please try assigning taxes again.");
         }
         
-        // Update inventory list with the product data (without image yet)
+        // Update product list with the product data (without image yet)
         // For products with units, use the original stock level for display, not the calculated total
         const updatedProduct = {
           ...resultProduct,
@@ -1439,10 +1439,10 @@ const InventoryManagement = () => {
           showToast("error", "Taxes not saved", error.message || "Product created but tax assignment failed. Please try assigning taxes again.");
         }
         
-        // Add to inventory list (without image yet)
+        // Add to product list (without image yet)
         setInventory([resultProduct, ...inventory]);
         
-        showToast("success", `${formData.name} created`, "New product added to inventory");
+        showToast("success", `${formData.name} created`, "New product added to stock");
       }
       
       // Important: Don't close the form yet if there's an image to upload
@@ -1484,7 +1484,7 @@ const InventoryManagement = () => {
             }
             
             if (imageUrl) {
-              // Update inventory with the new image URL
+              // Update product list with the new image URL
               setInventory(currentInventory => 
                 currentInventory.map(item => 
                   item.id === productId 
@@ -1559,7 +1559,7 @@ const InventoryManagement = () => {
       // Show success message
       showToast("success", "Product restored", "The deleted product has been restored successfully");
       
-      // Refresh inventory
+      // Refresh stock list
       loadInventory();
       
       // Now create the new product with the same SKU
@@ -1627,7 +1627,7 @@ const InventoryManagement = () => {
       // Close the infinite toast
       closeToast();
       
-      // Update inventory list with fresh data to avoid stale/partial fields (category, value)
+      // Update product list with fresh data to avoid stale/partial fields (category, value)
       if (result.updatedProduct) {
         let hydratedProduct = null;
         try {
@@ -1678,7 +1678,7 @@ const InventoryManagement = () => {
                          type === "Stock Out" ? "removed from" : 
                          "adjusted in";
       
-      showToast("success", `Inventory updated`, `${quantity} units ${actionText} ${productName}`);
+      showToast("success", `Stock updated`, `${quantity} units ${actionText} ${productName}`);
     } catch (error) {
       console.error("Error recording transaction:", error);
       
@@ -1730,7 +1730,7 @@ const InventoryManagement = () => {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      a.download = `inventory-${new Date().toISOString().split('T')[0]}.${format}`;
+      a.download = `stock-${new Date().toISOString().split('T')[0]}.${format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -1738,13 +1738,13 @@ const InventoryManagement = () => {
       // Show success toast
       showToast("success", "Export complete", `Downloaded as ${format.toUpperCase()}`);
     } catch (error) {
-      console.error("Error exporting inventory:", error);
+      console.error("Error exporting stock:", error);
       
       // Close the infinite toast
       closeToast();
       
       // Show error toast
-      showToast("error", "Failed to export inventory", error.message);
+      showToast("error", "Failed to export stock", error.message);
     }
   };
 
@@ -1760,8 +1760,8 @@ const InventoryManagement = () => {
       });
       setStockMovementReportData(data);
     } catch (err) {
-      console.error("Inventory movement report error:", err);
-      setStockMovementReportError(err?.message || "Failed to load inventory movement report.");
+      console.error("Stock movement report error:", err);
+      setStockMovementReportError(err?.message || "Failed to load stock movement report.");
       setStockMovementReportData(null);
     } finally {
       setStockMovementReportLoading(false);
@@ -1793,7 +1793,7 @@ const InventoryManagement = () => {
         customDateRange: stockMovementReportTimeframe === 'custom' ? stockMovementReportCustomDateRange : null,
         productId: stockMovementReportProductId || undefined,
       });
-      showToast("success", "Export complete", `Inventory movement report downloaded as ${format.toUpperCase()}`);
+      showToast("success", "Export complete", `Stock movement report downloaded as ${format.toUpperCase()}`);
     } catch (err) {
       showToast("error", "Export failed", err?.message || "Failed to export report.");
     }
@@ -1976,7 +1976,7 @@ const InventoryManagement = () => {
         }
         
         if (imageUrl) {
-          // Update inventory with the new image URL
+          // Update stock list with the new image URL
           setInventory(currentInventory => 
             currentInventory.map(item => 
               item.id === selectedItem.id 
@@ -2186,9 +2186,9 @@ const InventoryManagement = () => {
     }
     // Always refresh statistics when switching views to ensure accuracy
     loadStatistics();
-  }, [showDeletedItems, inventory]); // Add inventory dependency to refresh stats when inventory changes
+  }, [showDeletedItems, inventory]); // Refresh stats when product list changes
 
-  // Status badge component for inventory items
+  // Status badge component for products
   const StatusBadge = ({ status }) => {
     let badgeClass = "";
     let icon = null;
@@ -2220,7 +2220,7 @@ const InventoryManagement = () => {
 
 
   return (
-    <PermissionGuard permission="inventory.view" >
+    <PermissionGuard permission="stock.view" >
     <div className="p-4 sm:p-6 lg:p-8 bg-gray-50 min-h-screen">
       {/* Toast Notification */}
       {toast.show && (
@@ -2250,7 +2250,7 @@ const InventoryManagement = () => {
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 lg:mb-8">
         <div>
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Stock Management</h1>
-          <p className="text-gray-500 mt-1">Manage your products, track stock levels, and monitor inventory activity for this business</p>
+          <p className="text-gray-500 mt-1">Manage your products, track stock levels, and monitor stock activity for this business</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {/* View Toggle */}
@@ -2380,7 +2380,7 @@ const InventoryManagement = () => {
                   <p className="text-3xl font-bold text-gray-900">{statistics.totalItems}</p>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Active items in inventory</p>
+              <p className="text-xs text-gray-400 mt-1">Active items in stock</p>
             </div>
             <div className="p-3 bg-blue-50 rounded-xl">
               <Package size={24} className="text-blue-600" />
@@ -2388,11 +2388,11 @@ const InventoryManagement = () => {
           </div>
         </div>
         
-        {/* Inventory Value Card */}
+        {/* Stock value card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Inventory Value</p>
+              <p className="text-sm font-medium text-gray-500">Stock value</p>
               <div className="mt-2">
                 {statisticsLoading ? (
                   <div className="h-8 w-32 bg-gray-200 rounded animate-pulse"></div>
@@ -2549,7 +2549,7 @@ const InventoryManagement = () => {
             </button>
           </div>
           
-          {pagePermissions.canExportInventory && (
+          {pagePermissions.canExportStock && (
             <button 
               className="flex items-center gap-2 border border-gray-200 rounded-lg px-4 py-2.5 bg-white hover:bg-gray-50 hover:shadow-sm transition-all duration-200 text-gray-700"
               onClick={() => handleExport('csv')}
@@ -2585,7 +2585,7 @@ const InventoryManagement = () => {
             onClick={handleOpenStockMovementReport}
           >
             <FileText size={16} />
-            <span className="text-sm">Inventory movement report</span>
+            <span className="text-sm">Stock movement report</span>
           </button>
         </div>
       </div>
@@ -2594,7 +2594,7 @@ const InventoryManagement = () => {
       {stockMovementReportOpen && (
         <div className="mb-6 lg:mb-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-slate-50">
-            <h2 className="text-lg font-semibold text-gray-900">Inventory movement report</h2>
+            <h2 className="text-lg font-semibold text-gray-900">Stock movement report</h2>
             <button
               type="button"
               onClick={handleCloseStockMovementReport}
@@ -2626,7 +2626,7 @@ const InventoryManagement = () => {
             <div className="h-14 w-14 border-4 border-gray-200 rounded-full animate-spin"></div>
             <div className="absolute top-0 left-0 h-14 w-14 border-4 border-t-blue-600 border-r-transparent border-l-transparent border-b-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="text-gray-600 mt-4 font-medium">Loading inventory...</p>
+          <p className="text-gray-600 mt-4 font-medium">Loading stock...</p>
           <p className="text-gray-400 text-sm mt-1">Please wait while we fetch your data</p>
         </div>
       ) : error ? (
@@ -2635,7 +2635,7 @@ const InventoryManagement = () => {
             <AlertTriangle size={20} className="text-red-600" />
           </div>
           <div className="flex-grow">
-            <h3 className="text-red-800 font-semibold mb-1">Error Loading Inventory</h3>
+            <h3 className="text-red-800 font-semibold mb-1">Error loading stock</h3>
             <p className="text-red-600 text-sm mb-4">{error}</p>
             <button 
               className="px-4 py-2 bg-red-100 text-red-800 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
@@ -2729,7 +2729,7 @@ const InventoryManagement = () => {
                         )}
                       </div>
                     </th>
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Inventory Value</th>
+                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock value</th>
                     <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -2823,7 +2823,7 @@ const InventoryManagement = () => {
                               >
                                 <Eye size={16} />
                               </button>
-                              {pagePermissions.canUpdateInventory && (
+                              {pagePermissions.canUpdateStock && (
                                 <button 
                                   className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                                   onClick={(e) => handleEditProduct(item, e)}
@@ -2832,7 +2832,7 @@ const InventoryManagement = () => {
                                   <Edit size={16} />
                                 </button>
                               )}
-                              {pagePermissions.canDeleteInventory && (
+                              {pagePermissions.canDeleteStock && (
                                 <button 
                                   className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                                   onClick={(e) => handleDeleteProduct(item.id, e)}
@@ -2860,7 +2860,7 @@ const InventoryManagement = () => {
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
                   {(searchTerm || categoryFilter !== "All" || statusFilter !== "All") 
                     ? "Try adjusting your search or filter criteria" 
-                    : "Get started by adding your first product to the inventory"}
+                    : "Get started by adding your first product to stock"}
                 </p>
                 <button 
                   className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 mx-auto"
@@ -2981,7 +2981,7 @@ const InventoryManagement = () => {
                       >
                         <Eye size={16} />
                       </button>
-                      {pagePermissions.canUpdateInventory && (
+                      {pagePermissions.canUpdateStock && (
                         <button 
                           className="p-2 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                           onClick={(e) => handleEditProduct(item, e)}
@@ -2990,7 +2990,7 @@ const InventoryManagement = () => {
                           <Edit size={16} />
                         </button>
                       )}
-                      {pagePermissions.canDeleteInventory && (
+                      {pagePermissions.canDeleteStock && (
                         <button 
                           className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                           onClick={(e) => handleDeleteProduct(item.id, e)}
@@ -3014,7 +3014,7 @@ const InventoryManagement = () => {
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
                   {(searchTerm || categoryFilter !== "All" || statusFilter !== "All" || locationFilter !== "All") 
                     ? "Try adjusting your search or filter criteria" 
-                    : "Get started by adding your first product to the inventory"}
+                    : "Get started by adding your first product to stock"}
                 </p>
                 <button 
                   className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 mx-auto"
@@ -3186,7 +3186,7 @@ const InventoryManagement = () => {
                   <RefreshCw className="h-7 w-7 text-gray-400" />
                 </div>
                 <p className="font-medium text-gray-600">No recent transactions found</p>
-                <p className="text-sm text-gray-400 mt-1">Inventory activity for this business will appear here</p>
+                <p className="text-sm text-gray-400 mt-1">Stock activity for this business will appear here</p>
               </div>
             )}
           </div>
@@ -3474,7 +3474,7 @@ const InventoryManagement = () => {
               
               <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <h3 className="font-medium text-lg">Inventory activity</h3>
+                  <h3 className="font-medium text-lg">Stock activity</h3>
                   <p className="text-xs text-gray-500 mt-1">Timeline of stock ins, stock outs, and adjustments for this business.</p>
                 </div>
                 
@@ -3591,7 +3591,7 @@ const InventoryManagement = () => {
             
             <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-between">
               <div className="flex space-x-2">
-              {pagePermissions.canAdjustInventory &&(<> <button 
+              {pagePermissions.canAdjustStock &&(<> <button 
                   className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
                   onClick={() => {
                     setIsDetailOpen(false);
@@ -3621,7 +3621,7 @@ const InventoryManagement = () => {
                   <RefreshCw size={14} />
                   <span>Adjust</span>
                 </button> </>)}
-                 {pagePermissions.canUpdateInventory &&(
+                 {pagePermissions.canUpdateStock &&(
                 <button 
                   className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
                   onClick={() => {
@@ -3641,7 +3641,7 @@ const InventoryManagement = () => {
                 >
                   Close
                 </button>
-                {pagePermissions.canUpdateInventory &&(<button 
+                {pagePermissions.canUpdateStock &&(<button 
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                   onClick={() => {
                     setIsDetailOpen(false);
@@ -3734,6 +3734,7 @@ const InventoryManagement = () => {
           onSubmit={handleProductSubmit}
           isSubmitting={isSubmitting}
           showToast={showToast}
+          existingProducts={inventory}
           customCategories={customCategories}
           categoryOptions={categoryOptions}
           locations={locations}
@@ -3957,7 +3958,7 @@ const InventoryManagement = () => {
       )}
       
       {/* NEW: Bulk Operations Modal */}
-      <BulkInventoryOperations
+      <BulkStockOperations
         isOpen={isBulkOperationsOpen}
         onClose={() => setIsBulkOperationsOpen(false)}
         onUpload={handleBulkUpload}
@@ -4505,7 +4506,51 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   );
 }
 
-const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
+function normalizeProductNameForMatch(s) {
+  return (s || "").trim().toLowerCase();
+}
+
+function isSameProductId(a, b) {
+  if (a == null || b == null) return false;
+  return String(a) === String(b);
+}
+
+function findDuplicateProductByName(name, products, excludeId) {
+  const n = normalizeProductNameForMatch(name);
+  if (!n) return null;
+  return (
+    (products || []).find(
+      (p) =>
+        p &&
+        p.id != null &&
+        (excludeId == null || !isSameProductId(p.id, excludeId)) &&
+        normalizeProductNameForMatch(p.name) === n
+    ) || null
+  );
+}
+
+function filterProductNameSuggestions(query, products, excludeId, limit = 8) {
+  const q = normalizeProductNameForMatch(query);
+  if (!q) return [];
+  const matches = (products || []).filter(
+    (p) =>
+      p &&
+      p.id != null &&
+      (excludeId == null || !isSameProductId(p.id, excludeId)) &&
+      (p.name || "").toLowerCase().includes(q)
+  );
+  matches.sort((a, b) => {
+    const an = (a.name || "").toLowerCase();
+    const bn = (b.name || "").toLowerCase();
+    const aStart = an.startsWith(q) ? 0 : 1;
+    const bStart = bn.startsWith(q) ? 0 : 1;
+    if (aStart !== bStart) return aStart - bStart;
+    return an.localeCompare(bn);
+  });
+  return matches.slice(0, limit);
+}
+
+const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToast, existingProducts = [], customCategories = [], categoryOptions = [], locations = [], onLocationAdd, onCategoryAdd }) => {
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
@@ -4540,6 +4585,10 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
   const [errors, setErrors] = useState({});
   const fileInputRef = useRef(null);
   const barcodeInputRef = useRef(null);
+  const nameInputRef = useRef(null);
+  const nameSuggestBlurTimeoutRef = useRef(null);
+  const [nameSuggestOpen, setNameSuggestOpen] = useState(false);
+  const [nameSuggestIndex, setNameSuggestIndex] = useState(-1);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [newTag, setNewTag] = useState("");
   const [newBarcode, setNewBarcode] = useState("");
@@ -4642,6 +4691,92 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       setFormData(prev => ({ ...prev, selectedTaxIds: [] }));
     }
   }, [isOpen, product]);
+
+  const editingProductId = product?.id ?? null;
+
+  const nameSuggestions = useMemo(
+    () => filterProductNameSuggestions(formData.name, existingProducts, editingProductId, 8),
+    [formData.name, existingProducts, editingProductId]
+  );
+
+  const duplicateNameProduct = useMemo(
+    () => findDuplicateProductByName(formData.name, existingProducts, editingProductId),
+    [formData.name, existingProducts, editingProductId]
+  );
+
+  const clearNameSuggestBlurTimeout = useCallback(() => {
+    if (nameSuggestBlurTimeoutRef.current) {
+      clearTimeout(nameSuggestBlurTimeoutRef.current);
+      nameSuggestBlurTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleNameFocus = useCallback(() => {
+    clearNameSuggestBlurTimeout();
+    if ((formData.name || "").trim().length >= 1) setNameSuggestOpen(true);
+  }, [clearNameSuggestBlurTimeout, formData.name]);
+
+  const handleNameBlur = useCallback(() => {
+    clearNameSuggestBlurTimeout();
+    nameSuggestBlurTimeoutRef.current = setTimeout(() => {
+      setNameSuggestOpen(false);
+      setNameSuggestIndex(-1);
+    }, 180);
+  }, [clearNameSuggestBlurTimeout]);
+
+  const applySuggestionName = useCallback(
+    (pickedName) => {
+      setFormData((prev) => ({ ...prev, name: pickedName }));
+      setErrors((prev) => ({ ...prev, name: null }));
+      setNameSuggestOpen(false);
+      setNameSuggestIndex(-1);
+    },
+    []
+  );
+
+  const handleNameKeyDown = useCallback(
+    (e) => {
+      const list = nameSuggestions;
+      if (e.key === "Escape") {
+        setNameSuggestOpen(false);
+        setNameSuggestIndex(-1);
+        return;
+      }
+      if (!list.length) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setNameSuggestOpen(true);
+        setNameSuggestIndex((prev) => {
+          if (prev < 0) return 0;
+          return Math.min(prev + 1, list.length - 1);
+        });
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setNameSuggestOpen(true);
+        setNameSuggestIndex((prev) => (prev <= 0 ? -1 : prev - 1));
+        return;
+      }
+      if (e.key === "Enter" && nameSuggestOpen && nameSuggestIndex >= 0) {
+        e.preventDefault();
+        const picked = list[nameSuggestIndex];
+        if (picked?.name != null) applySuggestionName(picked.name);
+      }
+    },
+    [nameSuggestions, nameSuggestOpen, nameSuggestIndex, applySuggestionName]
+  );
+
+  useEffect(() => {
+    if (nameSuggestions.length === 0) setNameSuggestIndex(-1);
+    else
+      setNameSuggestIndex((i) =>
+        i >= nameSuggestions.length ? nameSuggestions.length - 1 : i
+      );
+  }, [nameSuggestions]);
+
+  useEffect(() => () => clearNameSuggestBlurTimeout(), [clearNameSuggestBlurTimeout]);
 
   // Stable callbacks for unit management
   const handleUnitConfigurationChange = useCallback((configs) => {
@@ -4824,6 +4959,11 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
       ...prev,
       [name]: processedValue
     }));
+
+    if (name === "name" && type !== "checkbox") {
+      setNameSuggestOpen(String(processedValue).trim().length >= 1);
+      setNameSuggestIndex(-1);
+    }
     
     // Clear error for this field when user changes it
     if (errors[name]) {
@@ -4899,6 +5039,11 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     
     if (!formData.name.trim()) {
       newErrors.name = "Product name is required";
+    } else {
+      const dup = findDuplicateProductByName(formData.name, existingProducts, editingProductId);
+      if (dup) {
+        newErrors.name = "A product with this name already exists.";
+      }
     }
     
     if (!formData.category.trim()) {
@@ -5045,17 +5190,65 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               
               {/* Form fields on the right side */}
               <div className="md:col-span-1 space-y-4">
-                <div>
+                <div className="relative">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Product Name*</label>
                   <input
+                    ref={nameInputRef}
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    className={`w-full p-2 border ${errors.name ? 'border-red-500' : 'border-gray-300'} rounded-md`}
+                    onFocus={handleNameFocus}
+                    onBlur={handleNameBlur}
+                    onKeyDown={handleNameKeyDown}
+                    autoComplete="off"
+                    className={`w-full p-2 border rounded-md ${
+                      errors.name
+                        ? "border-red-500"
+                        : duplicateNameProduct
+                          ? "border-amber-500"
+                          : "border-gray-300"
+                    }`}
                     placeholder="Enter product name"
+                    role="combobox"
+                    aria-expanded={nameSuggestOpen && nameSuggestions.length > 0}
+                    aria-controls="product-name-suggestions"
+                    aria-autocomplete="list"
                   />
+                  {nameSuggestOpen && nameSuggestions.length > 0 && (
+                    <ul
+                      id="product-name-suggestions"
+                      className="absolute z-30 mt-0.5 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+                      role="listbox"
+                    >
+                      {nameSuggestions.map((p, idx) => (
+                        <li key={p.id}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={nameSuggestIndex === idx}
+                            className={`flex w-full flex-col items-start px-3 py-2 text-left hover:bg-gray-100 ${
+                              nameSuggestIndex === idx ? "bg-blue-50" : ""
+                            }`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => applySuggestionName(p.name || "")}
+                          >
+                            <span className="font-medium text-gray-900">{p.name}</span>
+                            {p.sku ? (
+                              <span className="text-xs text-gray-500">SKU: {p.sku}</span>
+                            ) : null}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {errors.name && <p className="mt-1 text-sm text-red-500">{errors.name}</p>}
+                  {!errors.name && duplicateNameProduct && (
+                    <p className="mt-1 text-sm text-amber-700">
+                      A product with this name already exists.
+                      {duplicateNameProduct.sku ? ` SKU: ${duplicateNameProduct.sku}` : ""}
+                    </p>
+                  )}
                 </div>
 
                 {/* Barcodes – right after name; Enter or Add lets you add another */}
@@ -5117,7 +5310,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
                           },
                           body: JSON.stringify({
                             name: newCategory.trim(),
-                            type: 'inventory'
+                            type: 'stock'
                           })
                         });
 
@@ -5685,10 +5878,10 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
                 
                 <p className="mt-1 text-xs text-gray-500">
                   {formData.type === "Stock In" ? 
-                    "Add inventory when new stock arrives" : 
+                    "Add stock when new goods arrive" : 
                     formData.type === "Stock Out" ? 
-                    "Remove inventory when stock is taken" : 
-                    "Set the exact inventory count (after physical count)"}
+                    "Remove stock when items are sold or used" : 
+                    "Set the exact stock count (after a physical count)"}
                 </p>
               </div>
               
@@ -5780,4 +5973,4 @@ const TransactionForm = ({ isOpen, onClose, product, initialType, onSubmit, isSu
   );
 };
 
-export default InventoryManagement;
+export default StockManagement;

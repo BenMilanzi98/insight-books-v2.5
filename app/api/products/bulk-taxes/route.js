@@ -18,7 +18,7 @@ export async function POST(request) {
     }
 
     // Check permissions - only Admin or Manager can assign taxes
-    const canManageInventory = hasPermission(user, 'inventory.update');
+    const canManageInventory = hasPermission(user, 'stock.update');
     const roleName = user.role?.name || '';
     const isAdmin = roleName === 'Admin' || roleName === 'MASTER_ADMIN';
     const isManager = roleName === 'Manager';

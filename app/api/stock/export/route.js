@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 
-// GET - Export inventory data in CSV format
+// GET - Export stock data in CSV format
 export async function GET(request) {
   try {
     // Get user from session
@@ -96,9 +96,9 @@ export async function GET(request) {
       { status: 400 }
     );
   } catch (error) {
-    console.error('Error exporting inventory:', error);
+    console.error('Error exporting stock:', error);
     return NextResponse.json(
-      { error: 'Failed to export inventory. Please try again.' },
+      { error: 'Failed to export stock. Please try again.' },
       { status: 500 }
     );
   }
@@ -161,8 +161,8 @@ async function generateCsvResponse(products, tenantId) {
   
   // Create filename with tenant name and current date
   const date = new Date().toISOString().split('T')[0];
-  const tenantName = tenant?.name?.replace(/\s+/g, '_').toLowerCase() || 'inventory';
-  const filename = `${tenantName}_inventory_${date}.csv`;
+  const tenantName = tenant?.name?.replace(/\s+/g, '_').toLowerCase() || 'stock';
+  const filename = `${tenantName}_stock_${date}.csv`;
   
   // Return CSV file
   return new NextResponse(csvContent, {

@@ -1,5 +1,5 @@
-import 'package:insightbooks_android/core/security/permissions_provider.dart';
-
+import 'package:insightbooks_android/core/security/permissions_provider.dart'
+    show hasPermission, satisfiesPermission;
 class RoutePermissionRule {
   final String prefix;
   final String permission;
@@ -13,7 +13,7 @@ const List<RoutePermissionRule> kRoutePermissionRules = [
   RoutePermissionRule('/invoice', 'invoices.view'),
   RoutePermissionRule('/quotation', 'quotations.view'),
   RoutePermissionRule('/expenses', 'expenses.view'),
-  RoutePermissionRule('/stock', 'inventory.view'),
+  RoutePermissionRule('/stock', 'stock.view'),
   RoutePermissionRule('/reports', 'reports.view'),
   RoutePermissionRule('/account', 'system.view'),
   RoutePermissionRule('/payments', 'payments.view'),
@@ -43,7 +43,7 @@ String firstAccessibleRoute(
   if (hasPermission(permissions, 'invoices.view')) return '/invoice';
   if (hasPermission(permissions, 'quotations.view')) return '/quotation';
   if (hasPermission(permissions, 'expenses.view')) return '/expenses';
-  if (hasPermission(permissions, 'inventory.view')) return '/stock';
+  if (satisfiesPermission(permissions, 'stock.view')) return '/stock';
   if (hasPermission(permissions, 'reports.view')) return '/reports';
   if (hasPermission(permissions, 'payments.view')) return '/payments';
   if (hasPermission(permissions, 'system.view')) return '/account';

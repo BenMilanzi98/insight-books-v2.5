@@ -75,7 +75,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final required = requiredPermissionForLocation(location);
       if (required != null &&
           required.isNotEmpty &&
-          !hasPermission(permissions, required)) {
+          !satisfiesPermission(permissions, required)) {
         return firstAccessibleRoute(
           permissions,
           tenantCount: tenantCountForRoute,

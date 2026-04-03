@@ -4,6 +4,11 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { ensureExpenseAccountsForTenant, EXPENSE_ACCOUNTS_TEMPLATE } from '@/lib/expenseCategoriesTemplate';
 
+/** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
+function isProductCategoryType(type) {
+  return type === 'inventory' || type === 'stock';
+}
+
 // GET - Fetch categories for a tenant
 export async function GET(request) {
   try {
@@ -16,11 +21,11 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const type = searchParams.get('type'); // 'expense' or 'inventory'
+    const type = searchParams.get('type'); // 'expense', 'inventory', or 'stock'
 
     let categories = [];
 
-    if (type === 'inventory') {
+    if (isProductCategoryType(type)) {
       // For inventory categories, we'll use the InventoryCategory model
       const inventoryCategories = await prisma.inventoryCategory.findMany({
         where: {
@@ -291,7 +296,7 @@ export async function POST(request) {
 
     let category;
 
-    if (type === 'inventory') {
+    if (isProductCategoryType(type)) {
       // Create inventory category
       category = await prisma.inventoryCategory.create({
         data: {
@@ -309,7 +314,7 @@ export async function POST(request) {
       );
     } else {
       return NextResponse.json(
-        { error: 'Invalid category type. Use "inventory" or "expense"' },
+        { error: 'Invalid category type. Use "stock", "inventory", or "expense"' },
         { status: 400 }
       );
     }

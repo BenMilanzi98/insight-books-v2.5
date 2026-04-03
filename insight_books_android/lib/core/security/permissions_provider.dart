@@ -27,3 +27,17 @@ bool hasPermission(Set<String> permissions, String requiredPermission) {
   if (permissions.isEmpty) return false;
   return permissions.contains(requiredPermission);
 }
+
+/// Stored roles use `inventory.*`; newer UI checks may use `stock.*`. Treat as equivalent (no DB change).
+bool satisfiesPermission(Set<String> permissions, String requiredPermission) {
+  if (hasPermission(permissions, requiredPermission)) return true;
+  if (requiredPermission.startsWith('stock.')) {
+    final legacy = 'inventory.${requiredPermission.substring(6)}';
+    if (hasPermission(permissions, legacy)) return true;
+  }
+  if (requiredPermission.startsWith('inventory.')) {
+    final modern = 'stock.${requiredPermission.substring(10)}';
+    if (hasPermission(permissions, modern)) return true;
+  }
+  return false;
+}

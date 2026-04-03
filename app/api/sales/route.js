@@ -296,10 +296,15 @@ export async function GET(request) {
             return sale.total ? `MK ${Number(sale.total).toLocaleString()} sale` : 'No items';
           })();
       
+      // For historical sales, prefer historicalDate for the display date
+      const displayDate = (sale.isHistorical && sale.historicalDate)
+        ? sale.historicalDate.toISOString().split('T')[0]
+        : sale.saleDate.toISOString().split('T')[0];
+
       return {
         id: sale.id,
         saleNumber: sale.saleNumber,
-        date: sale.saleDate.toISOString().split('T')[0],
+        date: displayDate,
         client: sale.client ? sale.client.name : 'Walk-in Customer',
         clientId: sale.clientId,
         createdBy: sale.createdBy.name,
@@ -828,20 +833,26 @@ export async function POST(request) {
         
         const branchId = saleBranchId;
 
+        // Resolve the effective sale date: historical transactions use their
+        // business date; regular sales use saleDate from payload or now.
+        const effectiveSaleDate = (data.isHistorical && data.historicalDate)
+          ? new Date(data.historicalDate)
+          : (data.saleDate ? new Date(data.saleDate) : new Date());
+
         // Create the sale with enhanced fields
         const sale = await tx.sale.create({
           data: {
             saleNumber,
             title: data.title || null,
             orderNumber: data.orderNumber || null,
-            saleDate: data.saleDate ? new Date(data.saleDate) : new Date(),
+            saleDate: effectiveSaleDate,
             subtotal,
             // Enhanced: Store individual tax amounts
             totalTaxAmount: finalTaxAmount,
             totalDiscountAmount: totalDiscountAmount + globalDiscount,
             total: finalTotal,
             status: saleStatus,
-            paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
+            paymentMethod: paymentMethodInput,
             notes: data.notes,
             // Backward compatibility: keep legacy taxRate and taxAmount
             taxRate: legacyTaxRate,

@@ -146,7 +146,12 @@ export const createSale = async (saleData) => {
       isHistorical: Boolean(saleData.isHistorical || false),
       historicalDate: saleData.historicalDate || null,
       migrationBatch: saleData.migrationBatch || null,
-      originalReference: saleData.originalReference || null
+      originalReference: saleData.originalReference || null,
+      // Forward saleDate so historical sales record the actual business date
+      ...(saleData.saleDate ? { saleDate: saleData.saleDate } : {}),
+      ...(saleData.isHistorical && saleData.historicalDate && !saleData.saleDate
+        ? { saleDate: saleData.historicalDate }
+        : {}),
     };
 
     console.log('Sending sale payload:', JSON.stringify(payload, null, 2));

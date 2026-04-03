@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain } from 'lucide-react';
+import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain, Sparkles, MapPin, Mail, Phone } from 'lucide-react';
 import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 
 export default function LandingPage() {
@@ -23,16 +23,20 @@ export default function LandingPage() {
 // Navigation Bar
 function NavigationBar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [scrollY, setScrollY] = useState(0);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
+  const scrolled = scrollY > 20;
+  const showRegisterAndDemo = scrollY > 72;
+
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 20);
+      setScrollY(window.scrollY);
     };
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Check if user is logged in
@@ -61,7 +65,7 @@ function NavigationBar() {
       scrolled ? "bg-white py-3 shadow-sm" : "bg-transparent py-5"
     }`}>
       <div className="max-w-6xl mx-auto px-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center gap-4">
           {/* <div className="flex items-center">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-indigo-600 rounded-md flex items-center justify-center mr-3">
@@ -80,7 +84,7 @@ function NavigationBar() {
             />
           </Link>
           
-          <div className="hidden md:flex space-x-8">
+          <div className="hidden md:flex flex-wrap items-center justify-end gap-x-6 gap-y-2">
             {!isCheckingAuth && (
               <>
                 {isLoggedIn ? (
@@ -92,14 +96,24 @@ function NavigationBar() {
                     <Link href="/auth/login" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
                       Log In
                     </Link>
-                    <Link href="/auth/signup" className={`border ${scrolled ? "border-slate-700 text-slate-700 hover:bg-slate-50" : "border-white text-white hover:bg-white hover:text-indigo-900"} text-sm px-4 py-2 rounded-md transition-colors`}>
-                      Register
-                    </Link>
+                    {showRegisterAndDemo && (
+                      <Link
+                        href="/auth/signup"
+                        className={`border ${scrolled ? 'border-slate-700 text-slate-700 hover:bg-slate-50' : 'border-white text-white hover:bg-white hover:text-indigo-900'} text-sm px-4 py-2 rounded-md transition-all duration-300`}
+                      >
+                        Register
+                      </Link>
+                    )}
                   </>
                 )}
-                <Link href="/contact" className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-md hover:bg-indigo-700">
-                  Book a Demo
-                </Link>
+                {showRegisterAndDemo && (
+                  <Link
+                    href="/contact"
+                    className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition-all duration-300"
+                  >
+                    Book a Demo
+                  </Link>
+                )}
               </>
             )}
           </div>
@@ -133,14 +147,22 @@ function NavigationBar() {
                     <Link href="/auth/login" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
                       Log In
                     </Link>
-                    <Link href="/auth/signup" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
-                      Register
-                    </Link>
+                    {showRegisterAndDemo && (
+                      <Link href="/auth/signup" className="block text-slate-800" onClick={() => setMobileMenuOpen(false)}>
+                        Register
+                      </Link>
+                    )}
                   </>
                 )}
-                <Link href="/contact" className="block w-full text-center bg-indigo-600 text-white py-3 rounded-md" onClick={() => setMobileMenuOpen(false)}>
-                  Book a Demo
-                </Link>
+                {showRegisterAndDemo && (
+                  <Link
+                    href="/contact"
+                    className="block w-full text-center bg-blue-600 text-white py-3 rounded-md"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Book a Demo
+                  </Link>
+                )}
               </>
             )}
           </div>
@@ -215,122 +237,238 @@ function HeroSection() {
     return () => clearInterval(interval);
   }, []);
 
+  const pts = dashboardData.graphPoints;
+  const polylinePoints = pts.map((point) => `${point.x},${point.y}`).join(' ');
+  const first = pts[0];
+  const last = pts[pts.length - 1];
+  const chartBaseY = 268;
+  const areaPath =
+    first && last
+      ? `M ${first.x} ${first.y} ${pts
+          .slice(1)
+          .map((p) => `L ${p.x} ${p.y}`)
+          .join(' ')} L ${last.x} ${chartBaseY} L ${first.x} ${chartBaseY} Z`
+      : '';
+
   return (
-    <section className="relative bg-indigo-900 pt-32 pb-20 overflow-hidden">
-      <div className="absolute inset-0 opacity-10" style={{
-        backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)`,
-        backgroundSize: '20px 20px'
-      }}></div>
-      <div className="absolute top-0 right-0 w-1/2 h-full bg-indigo-800 clip-diagonal"></div>
-      
-      <div className="max-w-6xl mx-auto px-6 relative">
-        <div className="flex flex-col md:flex-row items-center gap-16">
-          <div className="md:w-1/2 text-white">
-            <h1 className="text-4xl md:text-5xl font-bold leading-tight mb-6">
-              Financial Management <span className="text-indigo-300">Simplified</span>
+    <section className="relative min-h-[88vh] flex items-center pt-28 pb-16 md:pt-32 md:pb-24 overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950" aria-hidden />
+      <div
+        className="absolute inset-0 opacity-90"
+        style={{
+          background:
+            'radial-gradient(ellipse 100% 80% at 50% -28%, rgba(67, 56, 202, 0.5), transparent 52%), radial-gradient(ellipse 55% 45% at 100% 45%, rgba(29, 78, 216, 0.35), transparent), radial-gradient(ellipse 40% 40% at 0% 80%, rgba(30, 58, 138, 0.4), transparent)',
+        }}
+        aria-hidden
+      />
+      <div
+        className="absolute inset-0 opacity-[0.4]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(96, 165, 250, 0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(96, 165, 250, 0.07) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+        aria-hidden
+      />
+      <div className="absolute top-20 left-1/4 w-[420px] h-[420px] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" aria-hidden />
+      <div className="absolute bottom-10 right-0 w-[380px] h-[380px] bg-blue-600/25 rounded-full blur-[90px] pointer-events-none" aria-hidden />
+
+      <div className="relative max-w-7xl mx-auto px-6 w-full">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
+          <div className="text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-blue-950/40 px-3 py-1.5 text-xs font-medium text-sky-100/90 backdrop-blur-sm mb-8">
+              <Sparkles className="w-3.5 h-3.5 text-sky-300 shrink-0" aria-hidden />
+              <span>Invoices, expenses & reports — in one place</span>
+            </div>
+
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08] mb-6">
+              Financial Management{' '}
+              <span className="bg-gradient-to-r from-sky-200 via-white to-indigo-200 bg-clip-text text-transparent">
+                Simplified
+              </span>
             </h1>
-            <p className="text-indigo-100 text-lg mb-10">
-              One platform to manage your invoices, expenses, and financial reports. Built for growing businesses.
+
+            <p className="text-lg sm:text-xl text-blue-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10">
+              One platform to manage your invoices, expenses, and financial reports. Built for growing
+              businesses.
             </p>
-            {/* <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/contact" className="bg-white text-indigo-900 px-6 py-3 rounded-md font-medium hover:bg-indigo-50 text-center">
-                Request a Demo
+
+            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-12">
+              <Link
+                href="/auth/signup"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-6 py-3.5 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors"
+              >
+                Get started
+                <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
-              <Link href="#features" className="border border-indigo-300 text-white px-6 py-3 rounded-md font-medium hover:bg-indigo-800 text-center">
-                Learn More
+              <Link
+                href="/contact"
+                className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-6 py-3.5 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors"
+              >
+                Book a demo
               </Link>
-            </div> */}
-            <div className="mt-10 text-sm text-indigo-200">
-              Trusted by growing businesses in Malawi
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-blue-200/70">
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950/50 border border-sky-400/20">
+                  <MapPin className="w-4 h-4 text-sky-300" aria-hidden />
+                </span>
+                <span className="text-left text-blue-100/90">
+                  Trusted by growing businesses in <span className="text-white font-medium">Malawi</span>
+                </span>
+              </div>
+              <div className="hidden sm:block h-4 w-px bg-sky-400/20" aria-hidden />
+              <div className="flex items-center gap-1.5 text-sky-300/95">
+                <Check className="w-4 h-4 shrink-0" strokeWidth={2.5} aria-hidden />
+                <span>Bank-grade security & multi-user access</span>
+              </div>
             </div>
           </div>
-          
-          <div className="md:w-1/2">
-            <div className="relative">
-              <svg viewBox="0 0 400 300" className="w-full h-auto drop-shadow-xl">
-                {/* Main app window with border and rounded corners */}
-                <rect x="10" y="10" width="380" height="280" rx="10" fill="white" stroke="#e2e8f0" strokeWidth="2" />
-                
-                {/* Window header/toolbar */}
-                <rect x="10" y="10" width="380" height="30" rx="10" fill="#f1f5f9" />
-                <rect x="10" y="30" width="380" height="10" fill="#f1f5f9" />
-                
-                {/* Window control buttons */}
-                <circle cx="30" cy="25" r="6" fill="#f87171" /> {/* Close */}
-                <circle cx="50" cy="25" r="6" fill="#fbbf24" /> {/* Minimize */}
-                <circle cx="70" cy="25" r="6" fill="#34d399" /> {/* Expand */}
-                
-                {/* App header */}
-                <rect x="20" y="50" width="360" height="40" rx="6" fill="#f8fafc" />
-                <text x="40" y="75" fill="#334155" fontWeight="600" fontSize="14">InsightBooks Dashboard</text>
-                
-                {/* Left panel - summary numbers */}
-                <rect x="20" y="100" width="170" height="80" rx="6" fill="#f1f5f9" />
-                <rect x="30" y="110" width="80" height="20" rx="4" fill="#dbeafe" />
-                <text x="40" y="125" fill="#1e40af" fontWeight="600" fontSize="12">Revenue</text>
-                <text x="130" y="125" fill="#1e40af" fontWeight="600" fontSize="12">K{dashboardData.revenue.toLocaleString()}</text>
 
-                <rect x="30" y="140" width="150" height="30" rx="4" fill="white" />
-                <text x="40" y="160" fill="#64748b" fontSize="11">Monthly Growth</text>
-                <text x="140" y="160" fill={dashboardData.revenueGrowth >= 0 ? "#059669" : "#dc2626"} fontWeight="600" fontSize="11">
-                  {dashboardData.revenueGrowth >= 0 ? '+' : ''}{dashboardData.revenueGrowth}%
-                </text>
+          <div className="relative w-full max-w-lg mx-auto lg:max-w-none">
+            <div
+              className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-indigo-600/35 via-blue-600/20 to-blue-950/30 blur-2xl pointer-events-none"
+              aria-hidden
+            />
+            <div className="relative rounded-2xl border border-sky-400/15 bg-blue-950/35 shadow-2xl shadow-blue-950/60 backdrop-blur-xl overflow-hidden ring-1 ring-indigo-500/20">
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-blue-500/20 bg-blue-950/60">
+                <div className="flex gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
+                </div>
+                <div className="flex-1 flex justify-center">
+                  <span className="text-[11px] text-blue-300/70 font-mono truncate px-2">
+                    www.insightbooksafrica.com/dashboard
+                  </span>
+                </div>
+                <span className="flex items-center gap-1 rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300 border border-sky-400/25">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-400" />
+                  </span>
+                  Live
+                </span>
+              </div>
 
-                {/* Vertical separator */}
-                <line x1="200" y1="100" x2="200" y2="180" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 2" />
+              <div className="p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h3 className="text-sm font-semibold text-white">Overview</h3>
+                  <span className="text-[11px] text-blue-300/60">Last 30 days</span>
+                </div>
 
-                {/* Right panel - summary numbers */}
-                <rect x="210" y="100" width="170" height="80" rx="6" fill="#f1f5f9" />
-                <rect x="220" y="110" width="80" height="20" rx="4" fill="#ede9fe" />
-                <text x="230" y="125" fill="#5b21b6" fontWeight="600" fontSize="12">Expenses</text>
-                <text x="320" y="125" fill="#5b21b6" fontWeight="600" fontSize="12">K{dashboardData.expenses.toLocaleString()}</text>
+                <div className="grid grid-cols-2 gap-3 mb-5">
+                  <div className="rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-600/25 to-blue-950/20 p-4">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-200/90 mb-1">
+                      Revenue
+                    </p>
+                    <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
+                      K{dashboardData.revenue.toLocaleString()}
+                    </p>
+                    <p
+                      className={`text-xs font-medium mt-2 tabular-nums ${
+                        dashboardData.revenueGrowth >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}
+                    >
+                      {dashboardData.revenueGrowth >= 0 ? '↑' : '↓'}{' '}
+                      {dashboardData.revenueGrowth >= 0 ? '+' : ''}
+                      {dashboardData.revenueGrowth}% vs last month
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-indigo-950/20 p-4">
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-sky-200/90 mb-1">
+                      Expenses
+                    </p>
+                    <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
+                      K{dashboardData.expenses.toLocaleString()}
+                    </p>
+                    <p
+                      className={`text-xs font-medium mt-2 tabular-nums ${
+                        dashboardData.expensesChange >= 0 ? 'text-amber-400' : 'text-emerald-400'
+                      }`}
+                    >
+                      {dashboardData.expensesChange >= 0 ? '↑' : '↓'}{' '}
+                      {dashboardData.expensesChange >= 0 ? '+' : ''}
+                      {dashboardData.expensesChange}% vs last month
+                    </p>
+                  </div>
+                </div>
 
-                <rect x="220" y="140" width="150" height="30" rx="4" fill="white" />
-                <text x="230" y="160" fill="#64748b" fontSize="11">Monthly Change</text>
-                <text x="340" y="160" fill={dashboardData.expensesChange >= 0 ? "#dc2626" : "#059669"} fontWeight="600" fontSize="11">
-                  {dashboardData.expensesChange >= 0 ? '+' : ''}{dashboardData.expensesChange}%
-                </text>
-                
-                {/* Graph area */}
-                <rect x="20" y="190" width="360" height="90" rx="6" fill="#f1f5f9" />
-
-                {/* Graph line */}
-                <polyline
-                  points={dashboardData.graphPoints.map(point => `${point.x},${point.y}`).join(' ')}
-                  fill="none"
-                  stroke="#4f46e5"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                {/* Graph dots */}
-                {dashboardData.graphPoints.map((point, index) => (
-                  <circle
-                    key={index}
-                    cx={point.x}
-                    cy={point.y}
-                    r="4"
-                    fill="#4f46e5"
-                  >
-                    <animate
-                      attributeName="r"
-                      dur="2s"
-                      repeatCount="indefinite"
-                      values="4;6;4"
+                <div className="rounded-xl border border-blue-500/20 bg-blue-950/70 p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-semibold text-blue-100/90">Cash performance</span>
+                    <span className="flex items-center gap-3 text-[10px] text-blue-300/70">
+                      <span className="flex items-center gap-1">
+                        <span className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.6)]" />
+                        Net trend
+                      </span>
+                    </span>
+                  </div>
+                  <svg viewBox="0 0 400 120" className="w-full h-auto" role="img" aria-label="Demo chart of monthly performance">
+                    <defs>
+                      <linearGradient id="heroLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#2563eb" />
+                        <stop offset="100%" stopColor="#38bdf8" />
+                      </linearGradient>
+                      <linearGradient id="heroAreaGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="rgb(37, 99, 235)" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="rgb(30, 58, 138)" stopOpacity="0" />
+                      </linearGradient>
+                      <filter id="heroGlow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="2" result="blur" />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    {[0, 1, 2, 3].map((i) => (
+                      <line
+                        key={i}
+                        x1="24"
+                        y1={24 + i * 28}
+                        x2="376"
+                        y2={24 + i * 28}
+                        stroke="rgba(59, 130, 246, 0.12)"
+                        strokeWidth="1"
+                      />
+                    ))}
+                    {areaPath ? (
+                      <path d={areaPath} fill="url(#heroAreaGrad)" transform="translate(0, -168)" />
+                    ) : null}
+                    <polyline
+                      points={polylinePoints}
+                      fill="none"
+                      stroke="url(#heroLineGrad)"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      filter="url(#heroGlow)"
+                      transform="translate(0, -168)"
                     />
-                  </circle>
-                ))}
-
-                {/* Horizontal line (x-axis) */}
-                <line x1="30" y1="260" x2="370" y2="260" stroke="#cbd5e1" strokeWidth="1" />
-
-                {/* Chart title and legend */}
-                <text x="30" y="210" fill="#334155" fontWeight="600" fontSize="12">Monthly Performance</text>
-
-                {/* Live indicator */}
-                
-              </svg>
+                    {pts.map((point, index) => (
+                      <circle
+                        key={index}
+                        cx={point.x}
+                        cy={point.y - 168}
+                        r="3.5"
+                        fill="#dbeafe"
+                        stroke="#2563eb"
+                        strokeWidth="1.5"
+                      />
+                    ))}
+                    <line
+                      x1="24"
+                      y1="104"
+                      x2="376"
+                      y2="104"
+                      stroke="rgba(59, 130, 246, 0.25)"
+                      strokeWidth="1"
+                    />
+                  </svg>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -339,207 +477,262 @@ function HeroSection() {
   );
 }
 
-// Features Section
+// Features Section — icon accents stay in the blue / indigo family (logo-aligned)
+const FEATURE_ICON_TONES = {
+  spotlight:
+    'bg-gradient-to-br from-indigo-600 via-blue-600 to-sky-500 shadow-lg shadow-blue-500/30',
+  indigo: 'bg-gradient-to-br from-indigo-600 to-blue-800 shadow-md shadow-indigo-500/20',
+  blue: 'bg-gradient-to-br from-blue-600 to-indigo-700 shadow-md shadow-blue-500/20',
+  sky: 'bg-gradient-to-br from-sky-500 to-blue-600 shadow-md shadow-sky-500/25',
+  cyan: 'bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-500/20',
+  deep: 'bg-gradient-to-br from-blue-800 to-indigo-900 shadow-md shadow-blue-900/25',
+};
+
 function FeaturesSection() {
   const features = [
     {
       icon: Brain,
-      color: "bg-gradient-to-br from-cyan-500 via-blue-500 to-indigo-600",
-      title: "AI Assistant",
-      description: "Intelligent chatbot to help with accounting, payroll, and business queries.",
-      isNew: true,
-      isHighlighted: true
+      tone: 'spotlight',
+      title: 'AI Assistant',
+      description: 'Context-aware help for accounting, payroll, and day-to-day questions.',
+      detail:
+        'Get answers in plain language about workflows, reports, and where to record transactions. The assistant is designed to guide your team inside InsightBooks—so you spend less time hunting menus and more time running the business.',
+      isHighlighted: true,
     },
     {
       icon: UserPlus,
-      color: "bg-gradient-to-br from-indigo-500 to-purple-600",
-      title: "HR & Payroll",
-      description: "Employee records, salaries, deductions, and payroll processing.",
-      isNew: true,
-      isHighlighted: true
+      tone: 'indigo',
+      title: 'HR & Payroll',
+      description: 'Employees, salaries, deductions, and payroll runs in one workflow.',
+      detail:
+        'Maintain staff records, structure pay components, and process payroll with clear audit trails. Built for growing teams that need consistency between HR data and the numbers that hit your books.',
+      isHighlighted: true,
     },
     {
       icon: BookOpen,
-      color: "bg-yellow-500",
-      title: "Accounting",
-      description: "Chart of Accounts, Journal Entries, and Trial Balance management.",
-      isNew: true,
-      isHighlighted: true
+      tone: 'blue',
+      title: 'Accounting',
+      description: 'Chart of accounts, journals, and trial balance—proper double-entry.',
+      detail:
+        'Structure your books with a chart of accounts, post journal entries, and review trial balance before period close. Ideal when you are ready to move from spreadsheets to disciplined bookkeeping.',
+      isHighlighted: true,
     },
     {
       icon: Truck,
-      color: "bg-lime-500",
-      title: "Supplier Management",
-      description: "Manage suppliers, purchases, and transactions.",
-      isNew: true,
-      isHighlighted: true
+      tone: 'sky',
+      title: 'Supplier Management',
+      description: 'Suppliers, purchase orders, bills, and goods linked to stock.',
+      detail:
+        'Onboard suppliers, track purchase orders and bills, and connect receipts to inventory where it matters. Fewer gaps between what you buy, what you owe, and what you still have on hand.',
+      isHighlighted: true,
     },
     {
       icon: LayoutDashboard,
-      color: "bg-blue-500",
-      title: "Dashboard",
-      description: "Real-time overview of key business metrics, performance, and activity."
+      tone: 'cyan',
+      title: 'Dashboard',
+      description: 'At-a-glance revenue, expenses, and activity across the business.',
+      detail:
+        'See the metrics that matter on one screen: performance trends, alerts, and recent activity so owners and managers can align quickly without exporting spreadsheets.',
     },
     {
       icon: UserCheck,
-      color: "bg-green-500",
-      title: "User & Role Management",
-      description: "Assign roles and permissions to control system access."
+      tone: 'deep',
+      title: 'User & Role Management',
+      description: 'Granular permissions so each role sees only what they need.',
+      detail:
+        'Create roles, assign module-level permissions, and onboard users safely. Scale your team without sacrificing control over sensitive financial and HR data.',
     },
     {
       icon: Building2,
-      color: "bg-purple-500",
-      title: "Business Management",
-      description: "Comprehensive business setup and configuration tools."
+      tone: 'indigo',
+      title: 'Business Management',
+      description: 'Branches, settings, and structure that match how you operate.',
+      detail:
+        'Configure businesses, branches, and core preferences so reporting and access reflect your real-world organization—not a one-size template.',
     },
     {
       icon: User,
-      color: "bg-orange-500",
-      title: "Client Management",
-      description: "Manage customer details, contacts, and transaction history."
+      tone: 'blue',
+      title: 'Client Management',
+      description: 'Clients, contacts, and a full history of quotes and invoices.',
+      detail:
+        'Keep customer records current, track communication context, and tie every quotation and invoice back to the right client for clean receivables.',
     },
     {
       icon: CreditCard,
-      color: "bg-red-500",
-      title: "POS (Point of Sale)",
-      description: "Handle in-store sales, receipts, and payment processing."
+      tone: 'sky',
+      title: 'POS (Point of Sale)',
+      description: 'Fast checkout, receipts, and stock impact at the counter.',
+      detail:
+        'Ring up sales in real time, print or share receipts, and keep stock levels honest at the point of purchase—whether you run a shop floor or a service desk.',
     },
     {
       icon: FileTextIcon,
-      color: "bg-indigo-500",
-      title: "Quotations",
-      description: "Create and manage customer price estimates."
+      tone: 'indigo',
+      title: 'Quotations',
+      description: 'Professional quotes you can convert to invoices in a click.',
+      detail:
+        'Build line-item quotations with clear terms, track status with customers, and convert accepted quotes to invoices without retyping line items.',
     },
     {
       icon: Receipt,
-      color: "bg-cyan-500",
-      title: "Invoicing",
-      description: "Generate, send, and track invoices and payment status."
+      tone: 'cyan',
+      title: 'Invoicing',
+      description: 'Issue invoices, track payments, and reduce follow-up friction.',
+      detail:
+        'Create branded invoices, monitor balances due, and record payments against the right documents so your revenue picture stays accurate month to month.',
     },
     {
       icon: DollarSign,
-      color: "bg-emerald-500",
-      title: "Expense Tracking",
-      description: "Record and monitor expenses to control costs and spending."
+      tone: 'blue',
+      title: 'Expense Tracking',
+      description: 'Capture spend, categorize costs, and see where money goes.',
+      detail:
+        'Record expenses with supporting detail, categorize for reporting, and give leadership a clearer view of operating costs before they become surprises.',
     },
     {
       icon: Wallet,
-      color: "bg-amber-500",
-      title: "Assets & Liabilities",
-      description: "Track what the business owns and owes."
+      tone: 'deep',
+      title: 'Assets & Liabilities',
+      description: 'Balance-sheet view of what you own and what you owe.',
+      detail:
+        'Track assets and liabilities with context so your financial position is visible alongside income and expenses—not buried in disconnected lists.',
     },
     {
       icon: Banknote,
-      color: "bg-teal-500",
-      title: "Payment Processing",
-      description: "Process and record incoming and outgoing payments."
+      tone: 'sky',
+      title: 'Payment Processing',
+      description: 'Record incoming and outgoing payments with clean allocation.',
+      detail:
+        'Apply payments to invoices and bills, reduce manual reconciliation, and keep cash movement aligned with your bank and your books.',
     },
     {
       icon: TrendingUp,
-      color: "bg-rose-500",
-      title: "Financial Reporting",
-      description: "Generate financial statements and performance reports."
+      tone: 'indigo',
+      title: 'Financial Reporting',
+      description: 'Statements and reports leadership can trust for decisions.',
+      detail:
+        'Generate the reports you need for management and compliance—from profitability to position—without stitching together multiple exports.',
     },
     {
       icon: Package,
-      color: "bg-pink-500",
-      title: "Stock Management",
-      description: "Track stock levels, movements, and availability."
+      tone: 'blue',
+      title: 'Stock Management',
+      description: 'Products, levels, transfers, and movements with full traceability.',
+      detail:
+        'Maintain catalogs, monitor stock across locations, and follow movements so sales, purchasing, and inventory stay in sync as you scale.',
     },
     {
       icon: Calculator,
-      color: "bg-violet-500",
-      title: "Tax Management",
-      description: "Calculate and track taxes in compliance with regulations."
-    }
+      tone: 'cyan',
+      title: 'Tax Management',
+      description: 'Tax codes, calculations, and reporting support built in.',
+      detail:
+        'Configure tax treatment consistently across documents and leverage reporting hooks that make statutory work more structured and less last-minute.',
+    },
   ];
 
   return (
-    <section id="features" className="py-20 bg-gradient-to-br from-slate-50 to-white">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-slate-900 mb-4">Features</h2>
-          <p className="text-slate-600 max-w-3xl mx-auto text-lg">
-            Everything you need to manage your business finances efficiently and effectively.
+    <section
+      id="features"
+      className="relative py-24 md:py-28 overflow-hidden bg-gradient-to-b from-slate-50 via-blue-50/40 to-white"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.45]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(59, 130, 246, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 130, 246, 0.06) 1px, transparent 1px)',
+          backgroundSize: '56px 56px',
+        }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute -top-32 right-0 h-96 w-96 rounded-full bg-blue-400/10 blur-3xl"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute bottom-0 left-0 h-80 w-80 rounded-full bg-indigo-400/10 blur-3xl"
+        aria-hidden
+      />
+
+      <div className="relative max-w-7xl mx-auto px-6">
+        <div className="mx-auto max-w-3xl text-center mb-14 md:mb-16">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/80 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800/90 shadow-sm backdrop-blur-sm mb-6">
+            <BarChart3 className="h-3.5 w-3.5 text-blue-600" aria-hidden />
+            Platform capabilities
+          </div>
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-5">
+            Everything to run your{' '}
+            <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 bg-clip-text text-transparent">
+              finances in one place
+            </span>
+          </h2>
+          <p className="text-lg text-slate-600 leading-relaxed">
+            Invoicing, stock, payroll, accounting, and reporting — designed for teams that outgrow
+            spreadsheets.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 md:gap-6">
           {features.map((feature, index) => {
             const IconComponent = feature.icon;
-            const isComingSoon = feature.title.includes("Coming Soon");
-            const isNew = feature.isNew || false;
+            const isComingSoon = feature.title.includes('Coming Soon');
             const isHighlighted = feature.isHighlighted || false;
+            const iconClass =
+              FEATURE_ICON_TONES[feature.tone] || FEATURE_ICON_TONES.blue;
 
             return (
-              <div
+              <article
                 key={index}
-                className={`group relative p-8 rounded-2xl bg-white border-2 transition-all duration-500 cursor-pointer overflow-hidden ${
-                  isHighlighted 
-                    ? 'border-indigo-500 shadow-xl shadow-indigo-100/50 ring-2 ring-indigo-200' 
-                    : 'border-slate-200 hover:border-indigo-300 hover:shadow-2xl hover:shadow-indigo-100/50'
+                tabIndex={0}
+                className={`group relative min-h-[260px] rounded-2xl border bg-white/70 shadow-sm backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 ${
+                  isHighlighted
+                    ? 'border-blue-300/80 ring-1 ring-blue-200/60 hover:border-blue-400'
+                    : 'border-slate-200/90 hover:border-blue-200'
                 } ${isComingSoon ? 'opacity-75' : ''}`}
               >
-                {/* Background gradient on hover */}
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 ${
-                  isHighlighted 
-                    ? 'bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50' 
-                    : 'bg-gradient-to-br from-indigo-50 to-purple-50'
-                }`}></div>
+                <div
+                  className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100 bg-gradient-to-br from-blue-50/90 via-indigo-50/50 to-sky-50/40"
+                  aria-hidden
+                />
 
-                {/* Content */}
-                <div className="relative z-10">
-                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 ${feature.color} shadow-lg ${
-                    isHighlighted ? 'ring-2 ring-indigo-300 ring-offset-2' : ''
-                  }`}>
-                    <IconComponent size={28} className="text-white" />
+                {/* Default: icon + short copy */}
+                <div className="absolute inset-0 z-10 flex flex-col p-6 md:p-7 transition-opacity duration-300 group-hover:opacity-0 group-hover:pointer-events-none group-focus-within:opacity-0 group-focus-within:pointer-events-none">
+                  <div className="mb-5 flex items-start justify-between gap-3">
+                    <div
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-white transition-transform duration-300 ${iconClass} ${
+                        isHighlighted ? 'ring-2 ring-blue-200 ring-offset-2 ring-offset-white' : ''
+                      }`}
+                    >
+                      <IconComponent size={22} className="text-white" strokeWidth={2} aria-hidden />
+                    </div>
+                    {isComingSoon && (
+                      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/80">
+                        Soon
+                      </span>
+                    )}
                   </div>
-
-                  <h3 className={`text-xl font-bold mb-3 group-hover:text-indigo-700 transition-colors duration-300 ${
-                    isHighlighted ? 'text-indigo-700' : 'text-slate-900'
-                  }`}>
+                  <h3
+                    className={`text-lg font-bold leading-snug mb-2 ${
+                      isHighlighted ? 'text-blue-950' : 'text-slate-900'
+                    }`}
+                  >
                     {feature.title}
                   </h3>
-
-                  <p className="text-slate-600 leading-relaxed group-hover:text-slate-700 transition-colors duration-300">
+                  <p className="text-sm leading-relaxed text-slate-600 line-clamp-3 flex-1">
                     {feature.description}
                   </p>
-
-                  {/* New Feature Badge - Fancy */}
-                  {isNew && (
-                    <div className="absolute top-4 right-4">
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 rounded-full blur-sm opacity-75 animate-pulse"></div>
-                        <div className="relative bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg transform hover:scale-110 transition-transform duration-300">
-                          <span className="relative z-10 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping"></span>
-                            NEW
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Coming Soon Badge */}
-                  {isComingSoon && (
-                    <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-1 rounded-full">
-                      Soon
-                    </div>
-                  )}
+                  <p className="mt-4 text-xs font-medium text-blue-600/80">
+                    Hover or focus for details
+                  </p>
                 </div>
 
-                {/* Hover effect line */}
-                <div className={`absolute bottom-0 left-0 w-0 h-1 group-hover:w-full transition-all duration-500 ${
-                  isHighlighted 
-                    ? 'bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500' 
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-600'
-                }`}></div>
-
-                {/* Highlighted feature glow effect */}
-                {isHighlighted && (
-                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-2xl opacity-20 blur-xl -z-10"></div>
-                )}
-              </div>
+                {/* Hover / keyboard focus: title + full description (no icon) */}
+                <div className="absolute inset-0 z-20 flex flex-col justify-center overflow-y-auto rounded-2xl p-6 md:p-7 opacity-0 transition-opacity duration-300 group-hover:opacity-100 group-focus-within:opacity-100 bg-gradient-to-br from-white via-blue-50/80 to-indigo-50/90 ring-1 ring-blue-200/50">
+                  <h3 className="text-xl font-bold leading-tight text-blue-950 pr-2">{feature.title}</h3>
+                  <p className="mt-4 text-sm leading-relaxed text-slate-700">{feature.detail}</p>
+                </div>
+              </article>
             );
           })}
         </div>
@@ -621,146 +814,161 @@ function VideoShowcaseSection() {
 }
 
 
-// Clients Section
+// Clients / social proof strip
 function TestimonialsSection() {
-  const [currentIndex, setCurrentIndex] = useState(0);
   const clients = [
-    "TechInnovate",
-    "Retail Plus",
-    "Finance Corp",
-    "Business Solutions",
-    "Enterprise Ltd",
-    "Startup Hub",
-    "Global Trade",
-    "Local Services",
-    "Digital Solutions",
-    "Manufacturing Inc",
-    "Healthcare Plus",
-    "Education Hub"
+    'TechInnovate',
+    'Retail Plus',
+    'Finance Corp',
+    'Business Solutions',
+    'Enterprise Ltd',
+    'Startup Hub',
+    'Global Trade',
+    'Local Services',
+    'Digital Solutions',
+    'Manufacturing Inc',
+    'Healthcare Plus',
+    'Education Hub',
   ];
 
-  // Duplicate clients for infinite scroll effect
-  const duplicatedClients = [...clients, ...clients];
-
-  const nextSlide = () => {
-    setCurrentIndex((prevIndex) => (prevIndex + 1) % clients.length);
-  };
-
-  const prevSlide = () => {
-    setCurrentIndex((prevIndex) =>
-      prevIndex === 0 ? clients.length - 1 : prevIndex - 1
-    );
-  };
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prevIndex) => (prevIndex + 1) % clients.length);
-    }, 3000); // Auto-play every 3 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
+  return (
+    <section className="relative border-y border-blue-100/80 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 py-14">
+      <div className="mx-auto max-w-7xl px-6">
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-blue-600/80 mb-8">
+          Teams that ship with InsightBooks
+        </p>
+        <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
+          {clients.map((name) => (
+            <span
+              key={name}
+              className="text-sm font-medium text-slate-600 transition-colors hover:text-blue-800"
+            >
+              {name}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 // Pricing Section
 function PricingSection() {
   const plans = PUBLIC_SUBSCRIPTION_PLANS;
 
-  // Enhanced features list with new features highlighted
   const allFeatures = [
-    "POS (Point of Sale)",
-    "Inventory Tracking",
-    "Expenses Tracking",
-    "Invoices",
-    "Quotations",
-    "Customer Database",
-    "Financial Reporting",
-    "AI Assistant",
-    "HR & Payroll",
-    "Supplier Management",
-    "Tax Management",
-    "Accounting & Bookkeeping"
+    'POS (Point of Sale)',
+    'Stock management',
+    'Expense tracking',
+    'Invoices',
+    'Quotations',
+    'Customer database',
+    'Financial reporting',
+    'AI assistant',
+    'HR & payroll',
+    'Supplier management',
+    'Tax management',
+    'Accounting & bookkeeping',
   ];
 
   return (
-    <section id="pricing" className="py-24 bg-gradient-to-br from-slate-50 via-white to-indigo-50">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-slate-900 mb-4">Our Pricing</h2>
-          <p className="text-slate-600 max-w-2xl mx-auto text-lg">
-            All features included with every plan. Choose the option that works best for your business.
+    <section
+      id="pricing"
+      className="relative overflow-hidden py-24 md:py-28 bg-gradient-to-b from-slate-50 via-blue-50/35 to-white"
+    >
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.4]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(59, 130, 246, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 130, 246, 0.06) 1px, transparent 1px)',
+          backgroundSize: '56px 56px',
+        }}
+        aria-hidden
+      />
+      <div className="pointer-events-none absolute -top-24 right-0 h-72 w-72 rounded-full bg-blue-400/15 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute bottom-0 left-0 h-64 w-64 rounded-full bg-indigo-400/10 blur-3xl" aria-hidden />
+
+      <div className="relative mx-auto max-w-6xl px-6">
+        <div className="mx-auto mb-14 max-w-3xl text-center md:mb-16">
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200/80 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800 shadow-sm backdrop-blur-sm">
+            <DollarSign className="h-3.5 w-3.5 text-blue-600" aria-hidden />
+            Simple pricing
+          </div>
+          <h2 className="mb-5 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl md:text-5xl">
+            Our pricing —{' '}
+            <span className="bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-600 bg-clip-text text-transparent">
+              full platform access
+            </span>
+          </h2>
+          <p className="text-lg leading-relaxed text-slate-600">
+            Every plan includes the same capabilities. Choose monthly flexibility or lock in annual savings.
           </p>
         </div>
-        
-        <div className="flex flex-wrap justify-center gap-8">
+
+        <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-2">
           {plans.map((plan, index) => (
             <div
-              key={index}
-              className={`bg-white rounded-xl p-8 shadow-lg hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer opacity-0 animate-fade-in border-2 ${
-                plan.highlight 
-                  ? "ring-4 ring-indigo-200 border-indigo-500 relative bg-gradient-to-br from-white to-indigo-50" 
-                  : "border-slate-200"
+              key={plan.id || index}
+              className={`relative flex flex-col rounded-2xl border bg-white/85 p-8 shadow-lg backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-900/10 ${
+                plan.highlight
+                  ? 'border-blue-400/80 ring-2 ring-blue-200/70 md:scale-[1.02]'
+                  : 'border-slate-200/90 hover:border-blue-200'
               }`}
-              style={{
-                animationDelay: `${index * 0.2}s`,
-                animationFillMode: 'both'
-              }}
             >
               {plan.highlight && (
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-1.5 rounded-full text-sm font-bold shadow-lg">
-                  Best Value
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-1.5 text-xs font-bold uppercase tracking-wide text-white shadow-lg shadow-blue-600/30">
+                  Best value
                 </div>
               )}
-              <h3 className="text-2xl font-bold text-slate-900 mb-3">{plan.name}</h3>
-              <div className="flex items-baseline mb-3">
-                <span className="text-4xl font-bold text-slate-900">{plan.priceFormatted}</span>
-                {plan.periodDisplay && <span className="text-slate-600 ml-2 text-lg">{plan.periodDisplay}</span>}
+              <h3 className="text-2xl font-bold text-slate-900">{plan.name}</h3>
+              <div className="mt-4 flex flex-wrap items-baseline gap-2">
+                <span className="text-4xl font-bold tracking-tight text-blue-950 tabular-nums">
+                  {plan.priceFormatted}
+                </span>
+                {plan.periodDisplay && (
+                  <span className="text-lg text-slate-600">{plan.periodDisplay}</span>
+                )}
               </div>
               {plan.savings && (
-                <div className="mb-6 text-sm text-green-600 font-semibold bg-green-50 px-3 py-1.5 rounded-lg inline-block">
+                <div className="mt-4 inline-flex rounded-lg border border-emerald-200/80 bg-emerald-50/90 px-3 py-1.5 text-sm font-semibold text-emerald-800">
                   {plan.savings}
                 </div>
               )}
-              <div className="mb-6">
-                <h4 className="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">All Features Included:</h4>
-                <ul className="space-y-2.5">
-                  {allFeatures.map((feature, fIndex) => {
-                    const isNewFeature = ["AI Assistant", "HR & Payroll", "Accounting & Bookkeeping", "Supplier Management"].includes(feature);
-                    return (
-                      <li key={fIndex} className={`flex items-center ${isNewFeature ? 'bg-gradient-to-r from-indigo-50 to-purple-50 px-2 py-1.5 rounded-lg -mx-2' : ''}`}>
-                        <div className={`w-5 h-5 rounded-full flex items-center justify-center mr-3 flex-shrink-0 ${
-                          isNewFeature 
-                            ? 'bg-gradient-to-r from-indigo-500 to-purple-600 shadow-md' 
-                            : 'bg-indigo-100'
-                        }`}>
-                          <Check className={`w-3 h-3 ${isNewFeature ? 'text-white' : 'text-indigo-600'}`} />
-                        </div>
-                        <span className={`text-slate-700 text-sm ${isNewFeature ? 'font-semibold text-indigo-700' : ''}`}>
-                          {feature}
-                          {isNewFeature && (
-                            <span className="ml-2 inline-flex items-center gap-1">
-                              <span className="relative">
-                                <span className="absolute inset-0 bg-gradient-to-r from-pink-500 to-purple-500 rounded-full blur opacity-50"></span>
-                                <span className="relative bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                                  NEW
-                                </span>
-                              </span>
-                            </span>
-                          )}
-                        </span>
-                      </li>
-                    );
-                  })}
+
+              <div className="mt-8 flex-1">
+                <h4 className="mb-4 text-xs font-bold uppercase tracking-wider text-blue-900/70">
+                  Everything included
+                </h4>
+                <ul className="max-h-[340px] space-y-2.5 overflow-y-auto pr-1 text-sm [scrollbar-width:thin]">
+                  {allFeatures.map((feature, fIndex) => (
+                    <li key={fIndex} className="flex items-start gap-3 rounded-lg py-0.5">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-600 shadow-sm">
+                        <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                      </span>
+                      <span className="text-slate-700 leading-snug">{feature}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
-              {/* <Link href={plan.name === "Tailor-Made" ? "/contact" : "/contact"} 
-                className={`block w-full py-3 rounded-md text-center font-medium ${
-                  plan.highlight 
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700" 
-                    : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                }`}>
-                {plan.name === "Tailor-Made" ? "Contact Us" : "Book a Demo"}
-              </Link> */}
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  href="/auth/signup"
+                  className={`flex-1 rounded-xl py-3 text-center text-sm font-semibold transition-colors ${
+                    plan.highlight
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-600/25 hover:from-blue-700 hover:to-indigo-700'
+                      : 'border border-blue-200 bg-blue-50/80 text-blue-900 hover:bg-blue-100'
+                  }`}
+                >
+                  Get started
+                </Link>
+                <Link
+                  href="/contact"
+                  className="flex-1 rounded-xl border border-slate-200 py-3 text-center text-sm font-semibold text-slate-700 transition-colors hover:border-blue-200 hover:bg-blue-50/50"
+                >
+                  Talk to us
+                </Link>
+              </div>
             </div>
           ))}
         </div>
@@ -769,21 +977,59 @@ function PricingSection() {
   );
 }
 
-// CTA Section
+// CTA Section (visual language aligned with hero)
 function CtaSection() {
   return (
-    <section className="py-20 bg-indigo-600 text-white">
-      <div className="max-w-4xl mx-auto px-6 text-center">
-        <h2 className="text-3xl font-bold mb-6">Ready to simplify your finances?</h2>
-        <p className="text-indigo-100 mb-10 max-w-xl mx-auto">
-         Join a community of growing businesses that trust InsightBooks for their financial management.
+    <section className="relative overflow-hidden py-24 md:py-28">
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950" aria-hidden />
+      <div
+        className="absolute inset-0 opacity-90"
+        style={{
+          background:
+            'radial-gradient(ellipse 100% 80% at 50% -28%, rgba(67, 56, 202, 0.5), transparent 52%), radial-gradient(ellipse 55% 45% at 100% 45%, rgba(29, 78, 216, 0.35), transparent)',
+        }}
+        aria-hidden
+      />
+      <div
+        className="absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(96, 165, 250, 0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(96, 165, 250, 0.07) 1px, transparent 1px)',
+          backgroundSize: '48px 48px',
+        }}
+        aria-hidden
+      />
+      <div className="absolute top-1/4 left-1/4 h-80 w-80 rounded-full bg-indigo-600/20 blur-[100px] pointer-events-none" aria-hidden />
+      <div className="absolute bottom-0 right-0 h-96 w-96 rounded-full bg-blue-600/25 blur-[90px] pointer-events-none" aria-hidden />
+
+      <div className="relative mx-auto max-w-4xl px-6 text-center">
+        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-blue-950/40 px-3 py-1.5 text-xs font-medium text-sky-100/90 backdrop-blur-sm">
+          <Sparkles className="h-3.5 w-3.5 text-sky-300" aria-hidden />
+          <span>Join businesses across Malawi</span>
+        </div>
+        <h2 className="mb-6 text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
+          Ready to simplify your{' '}
+          <span className="bg-gradient-to-r from-sky-200 via-white to-indigo-200 bg-clip-text text-transparent">
+            finances?
+          </span>
+        </h2>
+        <p className="mx-auto mb-10 max-w-xl text-lg leading-relaxed text-blue-100/90">
+          One platform for invoices, expenses, payroll, and reporting — built for teams that want clarity
+          without the spreadsheet chaos.
         </p>
-        <div className="flex flex-col sm:flex-row justify-center gap-4">
-          {/* <Link href="/auth/signup" className="bg-white text-indigo-600 px-6 py-3 rounded-md font-medium hover:bg-indigo-50">
-            Create Account
-          </Link> */}
-          <Link href="/contact" className="border border-white text-white px-6 py-3 rounded-md font-medium hover:bg-indigo-500">
-            Book a Demo
+        <div className="flex flex-col justify-center gap-3 sm:flex-row sm:gap-4">
+          <Link
+            href="/auth/signup"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 text-sm font-semibold text-blue-950 shadow-lg shadow-blue-950/40 transition-colors hover:bg-sky-50"
+          >
+            Register
+            <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+          <Link
+            href="/contact"
+            className="inline-flex items-center justify-center rounded-xl border border-sky-300/30 bg-blue-950/40 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-blue-900/50"
+          >
+            Book a demo
           </Link>
         </div>
       </div>
@@ -794,84 +1040,114 @@ function CtaSection() {
 // Footer
 function Footer() {
   return (
-    <footer className="bg-slate-900 text-slate-400 py-16">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className="col-span-2 md:col-span-1">
-            {/* <div className="flex items-center mb-6">
-              <div className="w-8 h-8 bg-indigo-600 rounded-md flex items-center justify-center mr-3">
-                <span className="text-white font-medium text-sm">IB</span>
-              </div>
-              <span className="text-white font-semibold">InsightBooks</span>
-            </div> */}
-            <Link href="/" className="flex items-center">
+    <footer className="relative overflow-hidden border-t border-blue-900/50 bg-gradient-to-b from-slate-950 via-blue-950 to-slate-950 text-slate-400">
+      <div
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, rgba(59, 130, 246, 0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(59, 130, 246, 0.06) 1px, transparent 1px)',
+          backgroundSize: '40px 40px',
+        }}
+        aria-hidden
+      />
+      <div className="pointer-events-none absolute bottom-0 right-0 h-64 w-64 rounded-full bg-indigo-600/10 blur-3xl" aria-hidden />
+
+      <div className="relative mx-auto max-w-6xl px-6 py-16 md:py-20">
+        <div className="grid grid-cols-1 gap-12 md:grid-cols-2 lg:grid-cols-12 lg:gap-10">
+          <div className="lg:col-span-5">
+            <Link href="/" className="inline-flex items-center">
               <img
                 src="/logo.png"
                 alt="InsightBooks Logo"
-                className="h-10 w-auto object-contain rounded-md"
+                className="h-11 w-auto object-contain rounded-md"
               />
             </Link>
-            <p className="mb-6 mt-6">Financial management solution that helps businesses make better decisions.</p>
+            <p className="mt-6 max-w-md text-sm leading-relaxed text-slate-400">
+              Financial management for growing businesses — invoicing, stock, payroll, accounting, and
+              reporting in one secure platform.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link
+                href="/auth/signup"
+                className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition-opacity hover:opacity-95"
+              >
+                Get started
+              </Link>
+              <Link
+                href="/contact"
+                className="rounded-lg border border-sky-400/30 bg-blue-950/50 px-4 py-2 text-sm font-semibold text-sky-100 transition-colors hover:border-sky-400/50 hover:bg-blue-900/50"
+              >
+                Book a demo
+              </Link>
+            </div>
           </div>
-          
-<div>
-  <h3 className="text-white font-medium mb-4">Email</h3>
-  <ul className="space-y-2">
-    <li>
-      <a href="mailto:insightinnovationsltd@gmail.com" className="hover:text-white">
-        insightinnovationsltd@gmail.com
-      </a>
-    </li>
-    <li>
-      <a href="mailto:info@insightbooksafrica.com" className="hover:text-white">
-        info@insightbooksafrica.com
-      </a>
-    </li>
-  </ul>
-</div>
-          
-          <div>
-            <h3 className="text-white font-medium mb-4">Contact Us</h3>
-            <ul className="space-y-2">
-              <li>
-                <a href="tel:+265894092494" className="hover:text-white">
-                  +265 894 09 24 94
-                </a>
-              </li>
-              <li>
-                <a href="tel:+265888437000" className="hover:text-white">
-                  +265 888 43 70 00
-                </a>
-              </li>
-            </ul>
-          </div>
-          
-          <div>
-            <h3 className="text-white font-medium mb-4">Legal</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link href="/privacy" className="hover:text-white">
-                  Privacy Policy
-                </Link>
-              </li>
-              <li>
-                <Link href="/terms" className="hover:text-white">
-                  Terms of Service
-                </Link>
-              </li>
-              {/* <li>
-                <Link href="/security" className="hover:text-white">
-                  Security
-                </Link>
-              </li> */}
-            </ul>
+
+          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3 lg:col-span-7">
+            <div>
+              <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-200/90">
+                <Mail className="h-4 w-4 text-sky-400" aria-hidden />
+                Email
+              </h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <a
+                    href="mailto:insightinnovationsltd@gmail.com"
+                    className="text-slate-400 transition-colors hover:text-white"
+                  >
+                    insightinnovationsltd@gmail.com
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="mailto:info@insightbooksafrica.com"
+                    className="text-slate-400 transition-colors hover:text-white"
+                  >
+                    info@insightbooksafrica.com
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-200/90">
+                <Phone className="h-4 w-4 text-sky-400" aria-hidden />
+                Phone
+              </h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <a href="tel:+265894092494" className="text-slate-400 transition-colors hover:text-white">
+                    +265 894 09 24 94
+                  </a>
+                </li>
+                <li>
+                  <a href="tel:+265888437000" className="text-slate-400 transition-colors hover:text-white">
+                    +265 888 43 70 00
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="mb-4 text-xs font-bold uppercase tracking-wider text-sky-200/90">Legal</h3>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <Link href="/privacy" className="text-slate-400 transition-colors hover:text-white">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms" className="text-slate-400 transition-colors hover:text-white">
+                    Terms of Service
+                  </Link>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
-        
-        <div className="border-t border-slate-800 pt-8">
-          <div className="text-sm">
-            © InsightBooks 2025. All rights reserved.
-          </div>
+
+        <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-blue-900/60 pt-8 text-sm text-slate-500 sm:flex-row">
+          <p>© {new Date().getFullYear()} InsightBooks. All rights reserved.</p>
+          <p className="text-slate-600">Built for businesses in Malawi and beyond.</p>
         </div>
       </div>
     </footer>

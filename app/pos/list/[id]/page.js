@@ -416,7 +416,7 @@ const handleDeleteSale = async () => {
                   <div>
                     <h3 className="text-sm font-medium text-amber-800">Historical Transaction</h3>
                     <p className="text-xs text-amber-700 mt-1">
-                      This transaction was recorded for historical purposes with date: {sale.saleDate}
+                      This transaction was recorded for historical purposes with date: {sale.historicalDate || sale.saleDate}
                     </p>
                     {sale.originalReference && (
                       <p className="text-xs text-amber-700">

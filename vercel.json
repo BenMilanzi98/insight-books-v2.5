@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/eis-sync",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/apply-deferred-goods-receipts",
+      "schedule": "5 0 * * *"
     }
   ]
 } 

@@ -4,10 +4,13 @@ import prisma from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { createFifoBatch } from '@/lib/fifoCosting';
-import { resolveBranchId } from '@/lib/branchHelpers';
-import { createPurchaseReceiptJournalEntry } from '@/lib/purchaseAccounting';
 import { createBillFromApprovedServicePO } from '@/lib/purchaseOrderToBill';
+import { applyGoodsReceiptInventoryPosting } from '@/lib/applyGoodsReceiptInventoryPosting';
+import { syncAssetsFromAssetReceipt } from '@/lib/goodsReceiptFollowOn';
+import {
+  assertReceiptDateOnOrAfterPurchaseOrder,
+  isReceiptDateStrictlyAfterTodayUTC,
+} from '@/lib/goodsReceiptDateUtils';
 
 async function generateReceiptNumber(tenantId) {
   // Try to generate a unique receipt number with retry logic to handle race conditions
@@ -82,169 +85,6 @@ function validateServiceReceipt(body, purchaseOrder) {
   }
 }
 
-async function ensureDefaultAssetCategory(tenantId, userId, tx) {
-  let category = await tx.assetCategory.findFirst({
-    where: { tenantId },
-    orderBy: { createdAt: 'asc' }
-  });
-  if (category) return category;
-
-  category = await tx.assetCategory.create({
-    data: {
-      tenantId,
-      name: 'Uncategorized Assets',
-      description: 'Auto-created category for assets received from purchase orders.'
-    }
-  });
-  return category;
-}
-
-async function syncAssetsFromAssetReceipt({ tx, goodsReceipt, purchaseOrder, tenantId, userId, supplierName }) {
-  if (!goodsReceipt || !purchaseOrder) return { created: 0 };
-  if ((purchaseOrder.orderType || '').toLowerCase() !== 'assets') return { created: 0 };
-  if (goodsReceipt.status !== 'Posted') return { created: 0 };
-
-  const defaultCategory = await ensureDefaultAssetCategory(tenantId, userId, tx);
-  let created = 0;
-
-  for (const item of goodsReceipt.items || []) {
-    const qty = Math.max(0, Math.floor(Number(item.quantityReceived || 0)));
-    const unitCost = Number(item.unitCost || 0);
-    if (qty <= 0 || unitCost <= 0) continue;
-
-    const product = await tx.product.findFirst({
-      where: { id: item.productId, tenantId },
-      select: { id: true, name: true, sku: true }
-    });
-    const baseName = product?.name || `Asset Item ${item.lineNumber || ''}`.trim();
-    const noteMarker = `AUTO_ASSET_FROM_GR:${goodsReceipt.id}:${item.id}`;
-
-    const existing = await tx.asset.count({
-      where: {
-        tenantId,
-        notes: { contains: noteMarker, mode: 'insensitive' }
-      }
-    });
-    if (existing >= qty) continue;
-
-    for (let i = existing; i < qty; i++) {
-      const suffix = qty > 1 ? ` (${i + 1}/${qty})` : '';
-      await tx.asset.create({
-        data: {
-          tenantId,
-          createdById: userId,
-          categoryId: defaultCategory.id,
-          name: `${baseName}${suffix}`.slice(0, 255),
-          description: `Auto-created from Asset PO ${purchaseOrder.poNumber}`,
-          purchaseDate: goodsReceipt.receiptDate || new Date(),
-          originalCost: unitCost,
-          usefulLifeYears: 5,
-          depreciationMethod: 'straight_line',
-          status: 'draft',
-          supplier: supplierName || null,
-          serialNumber: product?.sku || null,
-          notes: `${noteMarker}. Complete depreciation settings in Asset Management.`
-        }
-      });
-      created++;
-    }
-  }
-
-  return { created };
-}
-
-async function autoCreateBillFromReceipt({
-  tx,
-  goodsReceipt,
-  supplier,
-  purchaseOrder,
-  tenantId,
-  userId,
-  journalEntryId
-}) {
-  if (!goodsReceipt?.items?.length) return null;
-
-  const existing = await tx.supplierBill.findFirst({
-    where: { goodsReceiptId: goodsReceipt.id, tenantId }
-  });
-  if (existing) return existing;
-
-  const fromLines = goodsReceipt.items.reduce(
-    (sum, item) =>
-      sum +
-      Number(item.quantityReceived || 0) * Number(item.unitCost || 0),
-    0
-  );
-  // Prefer header totalAmount (same as GL journal) so bill, inventory valuation, and posting stay aligned
-  const headerTotal = goodsReceipt.totalAmount != null ? Number(goodsReceipt.totalAmount) : null;
-  const subtotal =
-    headerTotal != null && !Number.isNaN(headerTotal)
-      ? Math.round(headerTotal * 100) / 100
-      : Math.round(fromLines * 100) / 100;
-
-  const paymentTerms =
-    supplier.paymentTerms ?? purchaseOrder?.paymentTerms ?? 30;
-  const billDate =
-    goodsReceipt.receiptDate instanceof Date
-      ? goodsReceipt.receiptDate
-      : new Date(goodsReceipt.receiptDate);
-  const dueDate = new Date(billDate);
-  dueDate.setDate(dueDate.getDate() + paymentTerms);
-
-  const billNumber = `GRB-${goodsReceipt.receiptNumber}`;
-
-  const bill = await tx.supplierBill.create({
-    data: {
-      tenantId,
-      supplierId: supplier.id,
-      purchaseOrderId:
-        goodsReceipt.purchaseOrderId || purchaseOrder?.id || null,
-      goodsReceiptId: goodsReceipt.id,
-      billNumber,
-      billDate,
-      dueDate,
-      billType: 'inventory',
-      supplierInvoiceNumber: goodsReceipt.supplierReference || null,
-      subtotal,
-      taxAmount: 0,
-      totalAmount: subtotal,
-      amountPaid: 0,
-      status: 'Unpaid',
-      paymentTerms,
-      currency: supplier.currency || 'MWK',
-      notes: goodsReceipt.notes || null,
-      createdById: userId,
-      finalizedAt: new Date(),
-      finalizedById: userId,
-      journalEntryId: journalEntryId || null,
-      items: {
-        create: goodsReceipt.items.map((item, index) => ({
-          lineNumber: index + 1,
-          productId: item.productId,
-          description: item.notes || '',
-          quantity: Number(item.quantityReceived || 0),
-          unitCost: Number(item.unitCost || 0),
-          lineTotal:
-            Number(item.quantityReceived || 0) * Number(item.unitCost || 0),
-          taxRate: 0,
-          taxAmount: 0
-        }))
-      }
-    }
-  });
-
-  await tx.supplier.update({
-    where: { id: supplier.id },
-    data: {
-      currentBalance: {
-        increment: subtotal
-      }
-    }
-  });
-
-  return bill;
-}
-
 export async function GET(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -279,11 +119,19 @@ export async function GET(request) {
     });
 
     return NextResponse.json({
-      receipts: receipts.map((receipt) => ({
-        ...receipt,
-        // Service receipts are created without inventory items.
-        receiptType: Array.isArray(receipt.items) && receipt.items.length > 0 ? 'inventory' : 'service'
-      })),
+      receipts: receipts.map((receipt) => {
+        const hasInventoryItems = Array.isArray(receipt.items) && receipt.items.length > 0;
+        const inventoryNotApplied =
+          receipt.status === 'Posted' && hasInventoryItems && !receipt.inventoryAppliedAt;
+        const deferredStockPosting =
+          inventoryNotApplied && isReceiptDateStrictlyAfterTodayUTC(receipt.receiptDate);
+        return {
+          ...receipt,
+          receiptType: hasInventoryItems ? 'inventory' : 'service',
+          deferredStockPosting,
+          stockPostingPending: inventoryNotApplied,
+        };
+      }),
       pagination: {
         page,
         limit,
@@ -298,9 +146,6 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const transactionClient = prisma;
-  const tx = transactionClient.$transaction ? transactionClient : prisma;
-
   try {
     const accessError = await requireStandardAccess(request);
     if (accessError) return accessError;
@@ -356,6 +201,21 @@ export async function POST(request) {
           0
         );
 
+    const parsedReceiptDate = new Date(body.receiptDate);
+    if (Number.isNaN(parsedReceiptDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid receiptDate' }, { status: 400 });
+    }
+    try {
+      assertReceiptDateOnOrAfterPurchaseOrder(parsedReceiptDate, purchaseOrder);
+    } catch (e) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
+
+    const deferInventoryPosting =
+      body.status === 'Posted' &&
+      !isServiceReceipt &&
+      isReceiptDateStrictlyAfterTodayUTC(parsedReceiptDate);
+
     // Function to create goods receipt with unique receipt number handling
     const createGoodsReceipt = async (trx, receiptNumber) => {
       return await trx.goodsReceipt.create({
@@ -364,10 +224,11 @@ export async function POST(request) {
           supplierId: supplier.id,
           purchaseOrderId: purchaseOrder?.id || null,
           receiptNumber,
-          receiptDate: new Date(body.receiptDate),
+          receiptDate: parsedReceiptDate,
           supplierReference: body.supplierReference || null,
           totalAmount,
           status: body.status === 'Posted' ? 'Posted' : 'Draft',
+          postedDate: body.status === 'Posted' ? new Date() : null,
           receivedById: user.id,
           notes: isServiceReceipt
             ? (body.notes || `Service receipt for PO ${purchaseOrder?.poNumber || ''}`.trim())
@@ -441,70 +302,17 @@ export async function POST(request) {
         throw new Error('Failed to create goods receipt after maximum attempts');
       }
 
-      // Resolve branchId once for all items (from request body, session, or user default)
-      const requestBranchId = body.branchId || null;
-      const branchId = await resolveBranchId(user, requestBranchId, user.tenantId);
-      
-      // IMPORTANT: Only update inventory for inventory receipts when Posted.
-      let journalEntryResult = null;
-      if (!isServiceReceipt && goodsReceipt.status === 'Posted') {
-        // Create FIFO batches and update inventory only when Posted
-        for (const item of goodsReceipt.items) {
-          await createFifoBatch({
-            tenantId: user.tenantId,
-            branchId,
-            productId: item.productId,
-            quantityPurchased: item.quantityReceived,
-            unitCost: item.unitCost,
-            purchaseDate: goodsReceipt.receiptDate || goodsReceipt.createdAt || new Date(),
-            sourceType: 'GoodsReceipt',
-            sourceId: goodsReceipt.id,
-            tx: trx,
-          });
-
-          await trx.inventoryTransaction.create({
-            data: {
-              productId: item.productId,
-              tenantId: user.tenantId,
-              userId: user.id,
-              type: 'goods_receipt',
-              quantity: Number(item.quantityReceived),
-              branchId: branchId,
-              notes: `Receipt ${goodsReceipt.receiptNumber}`
-            }
-          });
-        }
-        journalEntryResult = await createPurchaseReceiptJournalEntry({
+      // Posted inventory receipts: apply stock/GL/bill immediately unless receipt date is in the future (UTC calendar day).
+      if (!isServiceReceipt && goodsReceipt.status === 'Posted' && !deferInventoryPosting) {
+        await applyGoodsReceiptInventoryPosting(trx, {
+          goodsReceipt,
           tenantId: user.tenantId,
           userId: user.id,
-          goodsReceiptId: goodsReceipt.id,
-          supplierId: supplier.id,
-          totalAmount,
-          reference: goodsReceipt.receiptNumber,
-          tx: trx
-        });
-
-        await trx.goodsReceipt.update({
-          where: { id: goodsReceipt.id },
-          data: {
-            status: 'Posted',
-            postedDate: new Date(),
-            journalEntryId:
-              journalEntryResult.journalEntryId || journalEntryResult.id
-          }
-        });
-      }
-
-      if (!isServiceReceipt && goodsReceipt.status === 'Posted') {
-        await autoCreateBillFromReceipt({
-          tx: trx,
-          goodsReceipt,
+          actingUser: user,
           supplier,
           purchaseOrder,
-          tenantId: user.tenantId,
-          userId: user.id,
-          journalEntryId:
-            journalEntryResult?.journalEntryId || journalEntryResult?.id || null
+          totalAmount,
+          requestBranchId: body.branchId ?? null,
         });
       }
 
@@ -577,7 +385,11 @@ export async function POST(request) {
           await createBillFromApprovedServicePO(updatedPo.id, user.tenantId, user.id, trx);
         }
 
-        if (updatedPo.status === 'Received' && updatedPo.orderType === 'assets') {
+        if (
+          updatedPo.status === 'Received' &&
+          updatedPo.orderType === 'assets' &&
+          !deferInventoryPosting
+        ) {
           await syncAssetsFromAssetReceipt({
             tx: trx,
             goodsReceipt,
@@ -592,7 +404,31 @@ export async function POST(request) {
       return goodsReceipt;
     });
 
-    return NextResponse.json({ goodsReceipt: result }, { status: 201 });
+    const goodsReceiptOut = await prisma.goodsReceipt.findFirst({
+      where: { id: result.id, tenantId: user.tenantId },
+      include: {
+        items: true,
+        supplier: { select: { supplierName: true, supplierCode: true } },
+        purchaseOrder: { select: { poNumber: true, orderType: true } },
+        receivedBy: { select: { name: true } },
+      },
+    });
+
+    const hasInventoryItems =
+      Array.isArray(goodsReceiptOut?.items) && goodsReceiptOut.items.length > 0;
+    const inventoryNotApplied =
+      goodsReceiptOut?.status === 'Posted' && hasInventoryItems && !goodsReceiptOut.inventoryAppliedAt;
+    const responsePayload = goodsReceiptOut
+      ? {
+          ...goodsReceiptOut,
+          receiptType: hasInventoryItems ? 'inventory' : 'service',
+          deferredStockPosting:
+            inventoryNotApplied && isReceiptDateStrictlyAfterTodayUTC(goodsReceiptOut.receiptDate),
+          stockPostingPending: inventoryNotApplied,
+        }
+      : result;
+
+    return NextResponse.json({ goodsReceipt: responsePayload }, { status: 201 });
   } catch (error) {
     console.error('Error posting goods receipt:', error);
     return NextResponse.json(

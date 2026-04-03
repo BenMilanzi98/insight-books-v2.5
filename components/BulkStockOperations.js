@@ -3,7 +3,7 @@
 import { useState, useRef } from 'react';
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle, X } from 'lucide-react';
 
-const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToast }) => {
+const BulkStockOperations = ({ isOpen, onClose, onUpload, onExport, showToast }) => {
   const [uploadMode, setUploadMode] = useState('upload'); // 'upload' or 'export'
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadedFile, setUploadedFile] = useState(null);
@@ -349,7 +349,7 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
       // Call the parent component's export handler
       await onExport();
       
-      showToast('success', 'Export completed', 'Inventory data exported successfully');
+      showToast('success', 'Export completed', 'Stock data exported successfully');
       onClose();
     } catch (error) {
       console.error('Error during export:', error);
@@ -392,7 +392,7 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'inventory_template.csv';
+    a.download = 'stock_template.csv';
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -404,7 +404,7 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-fadeInUp">
         <div className="p-5 border-b border-gray-200 flex-shrink-0">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-semibold">Bulk Inventory Operations</h2>
+            <h2 className="text-xl font-semibold">Bulk stock operations</h2>
             <button 
               className="text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 rounded-full"
               onClick={onClose}
@@ -553,7 +553,7 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
               <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                 <h3 className="font-medium text-green-800 mb-2">Export Options</h3>
                 <p className="text-sm text-green-700">
-                  Export your current inventory data to Excel or CSV format for backup or analysis.
+                  Export your current stock data to Excel or CSV format for backup or analysis.
                 </p>
               </div>
 
@@ -618,4 +618,4 @@ const BulkInventoryOperations = ({ isOpen, onClose, onUpload, onExport, showToas
   );
 };
 
-export default BulkInventoryOperations; 
+export default BulkStockOperations;

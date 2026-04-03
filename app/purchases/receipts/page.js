@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
+import {
+  assertReceiptDateOnOrAfterPurchaseOrder,
+  isReceiptDateStrictlyAfterTodayUTC,
+} from "@/lib/goodsReceiptDateUtils";
 
 const statusOptions = ["Draft", "Posted"];
 
@@ -61,15 +65,40 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const selectedPo = useMemo(
+    () => purchaseOrders.find((po) => po.id === form.purchaseOrderId) || null,
+    [purchaseOrders, form.purchaseOrderId]
+  );
+
+  const receiptDateMin = selectedPo?.createdAt
+    ? format(new Date(selectedPo.createdAt), "yyyy-MM-dd")
+    : undefined;
+
+  const showFutureStockNotice =
+    !isServiceMode &&
+    form.status === "Posted" &&
+    form.receiptDate &&
+    isReceiptDateStrictlyAfterTodayUTC(form.receiptDate);
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     if (name === "purchaseOrderId" && value) {
       const selectedPO = purchaseOrders.find((po) => po.id === value);
-      setForm((prev) => ({
-        ...prev,
-        purchaseOrderId: value,
-        ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
-      }));
+      const poMin = selectedPO?.createdAt
+        ? format(new Date(selectedPO.createdAt), "yyyy-MM-dd")
+        : null;
+      setForm((prev) => {
+        let nextReceiptDate = prev.receiptDate;
+        if (poMin && prev.receiptDate && prev.receiptDate < poMin) {
+          nextReceiptDate = poMin;
+        }
+        return {
+          ...prev,
+          purchaseOrderId: value,
+          receiptDate: nextReceiptDate,
+          ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
+        };
+      });
       if (!isServiceMode && selectedPO?.items?.length) {
         const goodsItems = selectedPO.items.filter(
           (line) => line.productId && (line.lineType || "goods") === "goods"
@@ -108,6 +137,13 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     setSaving(true);
     setError(null);
     try {
+      if (selectedPo?.createdAt && form.receiptDate) {
+        try {
+          assertReceiptDateOnOrAfterPurchaseOrder(form.receiptDate, selectedPo);
+        } catch (validationErr) {
+          throw new Error(validationErr.message || String(validationErr));
+        }
+      }
       const payload = isServiceMode
         ? { ...form, receiptType: "service", items: [] }
         : { ...form, receiptType: "inventory", items };
@@ -155,9 +191,21 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
               name="receiptDate"
               value={form.receiptDate}
               onChange={handleChange}
+              min={receiptDateMin}
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             />
+            {receiptDateMin && (
+              <p className="mt-1 text-xs text-gray-500">
+                Cannot be before the linked purchase order date ({format(new Date(selectedPo.createdAt), "dd MMM yyyy")}).
+              </p>
+            )}
+            {showFutureStockNotice && (
+              <p className="mt-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+                This receipt date is in the future. Stock, inventory valuation, and the linked supplier bill will be
+                applied automatically on that date (daily job). You can still record the receipt now.
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Purchase Order</label>
@@ -337,7 +385,7 @@ function ReceiptDetails({ receipt, onClose }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <div className="text-xs uppercase text-gray-500">Status</div>
-              <div className="mt-1">
+              <div className="mt-1 space-y-1">
                 <span
                   className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
                     receipt.status === "Posted"
@@ -347,6 +395,17 @@ function ReceiptDetails({ receipt, onClose }) {
                 >
                   {receipt.status}
                 </span>
+                {receipt.deferredStockPosting && (
+                  <p className="text-xs text-sky-800">
+                    Stock scheduled for{" "}
+                    {receipt.receiptDate ? formatDateDDMMYYYY(receipt.receiptDate) : "receipt date"}.
+                  </p>
+                )}
+                {receipt.stockPostingPending && !receipt.deferredStockPosting && (
+                  <p className="text-xs text-amber-800">
+                    Stock posting pending (runs on the next scheduled job if not applied yet).
+                  </p>
+                )}
               </div>
             </div>
             <div>
@@ -625,15 +684,22 @@ export default function GoodsReceiptsPage() {
                         : "—"}
                     </td>
                     <td className="px-4 py-2">
-                      <span
-                        className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                          receipt.status === "Posted"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {receipt.status}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span
+                          className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                            receipt.status === "Posted"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-800"
+                          }`}
+                        >
+                          {receipt.status}
+                        </span>
+                        {receipt.deferredStockPosting && (
+                          <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-medium text-sky-900">
+                            Stock on receipt date
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-2 text-right text-gray-900">
                       MWK {Number(receipt.totalAmount || 0).toLocaleString()}

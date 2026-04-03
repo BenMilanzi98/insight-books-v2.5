@@ -11,7 +11,7 @@ import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { finalizeExpenseBill } from '@/lib/supplierBillExpenseFinalize';
 
 const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
-const BILL_TYPES = ['inventory', 'expense'];
+const BILL_TYPES = ['inventory', 'expense', 'stock'];
 
 function parsePagination(searchParams) {
   const page = Math.max(parseInt(searchParams.get('page') || '1', 10), 1);
@@ -144,10 +144,14 @@ export async function POST(request) {
       return NextResponse.json({ error: 'At least one bill item is required' }, { status: 400 });
     }
 
-    const billType = body.billType || 'inventory';
-    if (!BILL_TYPES.includes(billType)) {
-      return NextResponse.json({ error: 'Invalid bill type. Must be "inventory" or "expense"' }, { status: 400 });
+    const rawBillType = String(body.billType || 'inventory').toLowerCase();
+    if (!BILL_TYPES.includes(rawBillType)) {
+      return NextResponse.json(
+        { error: 'Invalid bill type. Must be "stock", "inventory", or "expense"' },
+        { status: 400 }
+      );
     }
+    const billType = rawBillType === 'stock' ? 'inventory' : rawBillType;
 
     const supplier = await prisma.supplier.findFirst({
       where: { id: body.supplierId, tenantId: user.tenantId }

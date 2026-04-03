@@ -36,6 +36,7 @@ import {
   PieChart,
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
+import { hasPermission } from "@/lib/permissions";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -355,7 +356,7 @@ const navigationByPermission = {
   stock: {
     label: "Stock",
     items: [
-      { href: "/stock", icon: "stock", text: "Stock Management", permission: "inventory.view" },
+      { href: "/stock", icon: "stock", text: "Stock Management", permission: "stock.view" },
     ]
   },
   assets: {
@@ -414,19 +415,6 @@ const getInitials = (name) => {
   const lastName = nameParts[nameParts.length - 1];
   
   return (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
-};
-
-// Helper function to check if user has a specific permission
-const hasPermission = (permissions, permission) => {
-  if (!permissions) return false;
-  if (permissions[permission] === true) {
-    return true;
-  }
-  // Split the permission string (e.g., "users.view" -> ["users", "view"])
-  const [category, action] = permission.split('.');
-  
-  // Check if the user has the specified permission
-  return permissions[category]?.[action] === true;
 };
 
 const Sidebar = ({ collapsed = false, toggleSidebar }) => {
@@ -672,7 +660,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Create an Additional Modules section based on permissions
     const additionalItems = [];
     
-    if (hasPermission(user.role.permissions, "inventory.view")) {
+    if (hasPermission(user.role.permissions, "stock.view")) {
       additionalItems.push({
         href: "/stock",
         icon: "stock",
@@ -690,7 +678,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     
     // Add Purchases if user has inventory or purchases permission
-    const canViewPurchases = hasPermission(user.role.permissions, "purchases.view") || hasPermission(user.role.permissions, "inventory.view");
+    const canViewPurchases = hasPermission(user.role.permissions, "purchases.view") || hasPermission(user.role.permissions, "stock.view");
     if (canViewPurchases) {
       additionalItems.push({
         href: "/purchases/suppliers",

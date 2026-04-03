@@ -109,8 +109,11 @@ async function getSaleWithValidation(id, userId, tenantId) {
       total: sale.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       // Use calculated tax rate for display
       taxRate: actualTaxRate,
-      // Format date
-      saleDate: sale.saleDate.toISOString().split('T')[0],
+      // For historical sales, prefer historicalDate (handles legacy records
+      // where saleDate may have been stored as the upload date)
+      saleDate: (sale.isHistorical && sale.historicalDate)
+        ? sale.historicalDate.toISOString().split('T')[0]
+        : sale.saleDate.toISOString().split('T')[0],
       // Add raw values for frontend calculations
       rawSubtotal: sale.subtotal,
       rawTaxAmount: actualTaxAmount,

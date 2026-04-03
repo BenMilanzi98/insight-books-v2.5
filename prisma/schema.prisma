@@ -1153,6 +1153,8 @@ model GoodsReceipt {
   receivedById      String?
   notes             String?
   journalEntryId    String?
+  /// Set when FIFO/stock, GL journal, and linked supplier bill have been applied (immediate or via scheduled job).
+  inventoryAppliedAt DateTime?
   createdAt         DateTime           @default(now())
   postedDate        DateTime?
   updatedAt         DateTime           @updatedAt
@@ -1166,6 +1168,7 @@ model GoodsReceipt {
 
   @@index([tenantId, supplierId])
   @@index([tenantId, status])
+  @@index([status, inventoryAppliedAt, receiptDate])
 }
 
 model GoodsReceiptItem {
