@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/router/app_router.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/core/theme/theme_mode_provider.dart';
+import 'package:insightbooks_android/core/update/app_update_gate.dart';
 
 void main() {
   runApp(const ProviderScope(child: InsightBooksApp()));
@@ -22,6 +23,8 @@ class InsightBooksApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) =>
+          AppUpdateGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -251,7 +251,7 @@ function HeroSection() {
       : '';
 
   return (
-    <section className="relative min-h-[88vh] flex items-center pt-28 pb-16 md:pt-32 md:pb-24 overflow-hidden">
+    <section className="relative min-h-[100dvh] flex items-center overflow-x-hidden overflow-y-visible pt-[calc(7rem+env(safe-area-inset-top,0px))] pb-[max(3rem,env(safe-area-inset-bottom,0px))] sm:pb-16 md:pt-32 md:pb-24">
       <div className="absolute inset-0 bg-gradient-to-b from-blue-950 via-indigo-950 to-blue-950" aria-hidden />
       <div
         className="absolute inset-0 opacity-90"
@@ -270,80 +270,81 @@ function HeroSection() {
         }}
         aria-hidden
       />
-      <div className="absolute top-20 left-1/4 w-[420px] h-[420px] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" aria-hidden />
-      <div className="absolute bottom-10 right-0 w-[380px] h-[380px] bg-blue-600/25 rounded-full blur-[90px] pointer-events-none" aria-hidden />
+      <div className="hidden sm:block absolute top-20 left-1/4 w-[min(420px,55vw)] h-[min(420px,55vw)] max-w-[90vw] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" aria-hidden />
+      <div className="hidden sm:block absolute bottom-10 right-0 w-[min(380px,50vw)] h-[min(380px,50vw)] max-w-[85vw] bg-blue-600/25 rounded-full blur-[90px] pointer-events-none" aria-hidden />
 
-      <div className="relative max-w-7xl mx-auto px-6 w-full">
-        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
-          <div className="text-center lg:text-left">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-blue-950/40 px-3 py-1.5 text-xs font-medium text-sky-100/90 backdrop-blur-sm mb-8">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 w-full min-w-0">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-8 sm:gap-10 lg:gap-16 items-center">
+          <div className="text-center lg:text-left min-w-0">
+            <div className="inline-flex max-w-full items-center justify-center gap-2 rounded-full border border-sky-400/20 bg-blue-950/40 px-2.5 py-1.5 sm:px-3 sm:py-1.5 text-[11px] sm:text-xs font-medium text-sky-100/90 backdrop-blur-sm mb-6 sm:mb-8 text-center leading-snug">
               <Sparkles className="w-3.5 h-3.5 text-sky-300 shrink-0" aria-hidden />
-              <span>Invoices, expenses & reports — in one place</span>
+              <span className="min-w-0">Invoices, expenses & reports — in one place</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.08] mb-6">
+            <h1 className="text-[clamp(1.65rem,5.5vw,2.25rem)] sm:text-5xl lg:text-6xl font-bold tracking-tight text-white leading-[1.12] sm:leading-[1.08] mb-5 sm:mb-6 text-balance px-0.5 sm:px-0">
               Financial Management{' '}
               <span className="bg-gradient-to-r from-sky-200 via-white to-indigo-200 bg-clip-text text-transparent">
                 Simplified
               </span>
             </h1>
 
-            <p className="text-lg sm:text-xl text-blue-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-10">
+            <p className="text-base sm:text-xl text-blue-100/90 max-w-xl mx-auto lg:mx-0 leading-relaxed mb-8 sm:mb-10 text-balance px-0.5 sm:px-0">
               One platform to manage your invoices, expenses, and financial reports. Built for growing
               businesses.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-12">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-10 sm:mb-12 max-w-md mx-auto lg:max-w-none lg:mx-0">
               <Link
                 href="/auth/signup"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-6 py-3.5 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors w-full sm:w-auto"
               >
                 Get started
                 <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
               <Link
                 href="/contact"
-                className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-6 py-3.5 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors"
+                className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors w-full sm:w-auto"
               >
                 Book a demo
               </Link>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-blue-200/70">
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950/50 border border-sky-400/20">
+            <div className="flex flex-col sm:flex-row items-center sm:items-center justify-center lg:justify-start gap-3 sm:gap-6 text-xs sm:text-sm text-blue-200/70 max-w-md mx-auto lg:max-w-none">
+              <div className="flex w-full sm:w-auto items-start sm:items-center gap-2.5 text-left">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-950/50 border border-sky-400/20">
                   <MapPin className="w-4 h-4 text-sky-300" aria-hidden />
                 </span>
-                <span className="text-left text-blue-100/90">
+                <span className="text-blue-100/90 pt-0.5 sm:pt-0">
                   Trusted by growing businesses in <span className="text-white font-medium">Malawi</span>
                 </span>
               </div>
-              <div className="hidden sm:block h-4 w-px bg-sky-400/20" aria-hidden />
-              <div className="flex items-center gap-1.5 text-sky-300/95">
-                <Check className="w-4 h-4 shrink-0" strokeWidth={2.5} aria-hidden />
-                <span>Bank-grade security & multi-user access</span>
+              <div className="hidden sm:block h-4 w-px shrink-0 bg-sky-400/20" aria-hidden />
+              <div className="flex w-full sm:w-auto items-start sm:items-center gap-1.5 text-sky-300/95 text-left sm:text-center">
+                <Check className="w-4 h-4 shrink-0 mt-0.5 sm:mt-0" strokeWidth={2.5} aria-hidden />
+                <span className="leading-snug">Bank-grade security & multi-user access</span>
               </div>
             </div>
           </div>
 
-          <div className="relative w-full max-w-lg mx-auto lg:max-w-none">
+          <div className="relative w-full max-w-lg mx-auto lg:max-w-none min-w-0 mt-2 sm:mt-0">
             <div
               className="absolute -inset-4 rounded-[2rem] bg-gradient-to-br from-indigo-600/35 via-blue-600/20 to-blue-950/30 blur-2xl pointer-events-none"
               aria-hidden
             />
             <div className="relative rounded-2xl border border-sky-400/15 bg-blue-950/35 shadow-2xl shadow-blue-950/60 backdrop-blur-xl overflow-hidden ring-1 ring-indigo-500/20">
-              <div className="flex items-center gap-3 px-4 py-3 border-b border-blue-500/20 bg-blue-950/60">
-                <div className="flex gap-1.5">
+              <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 border-b border-blue-500/20 bg-blue-950/60 min-w-0">
+                <div className="flex gap-1.5 shrink-0">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-400/90" />
                   <span className="h-2.5 w-2.5 rounded-full bg-amber-400/90" />
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90" />
                 </div>
-                <div className="flex-1 flex justify-center">
-                  <span className="text-[11px] text-blue-300/70 font-mono truncate px-2">
-                    www.insightbooksafrica.com/dashboard
+                <div className="flex-1 flex justify-center min-w-0">
+                  <span className="text-[10px] sm:text-[11px] text-blue-300/70 font-mono truncate px-1 sm:px-2 text-center">
+                    <span className="sm:hidden">insightbooksafrica.com/…</span>
+                    <span className="hidden sm:inline">www.insightbooksafrica.com/dashboard</span>
                   </span>
                 </div>
-                <span className="flex items-center gap-1 rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300 border border-sky-400/25">
+                <span className="flex shrink-0 items-center gap-1 rounded-md bg-sky-500/15 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-300 border border-sky-400/25">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60" />
                     <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-sky-400" />
@@ -352,22 +353,22 @@ function HeroSection() {
                 </span>
               </div>
 
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <h3 className="text-sm font-semibold text-white">Overview</h3>
-                  <span className="text-[11px] text-blue-300/60">Last 30 days</span>
+              <div className="p-4 sm:p-6">
+                <div className="flex items-center justify-between gap-2 mb-4 sm:mb-5 min-w-0">
+                  <h3 className="text-sm font-semibold text-white truncate">Overview</h3>
+                  <span className="text-[10px] sm:text-[11px] text-blue-300/60 shrink-0">Last 30 days</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  <div className="rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-600/25 to-blue-950/20 p-4">
+                <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4 sm:mb-5">
+                  <div className="rounded-xl border border-indigo-400/20 bg-gradient-to-br from-indigo-600/25 to-blue-950/20 p-3 sm:p-4 min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-indigo-200/90 mb-1">
                       Revenue
                     </p>
-                    <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
+                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight truncate">
                       K{dashboardData.revenue.toLocaleString()}
                     </p>
                     <p
-                      className={`text-xs font-medium mt-2 tabular-nums ${
+                      className={`text-[10px] sm:text-xs font-medium mt-1.5 sm:mt-2 tabular-nums leading-snug ${
                         dashboardData.revenueGrowth >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
@@ -376,15 +377,15 @@ function HeroSection() {
                       {dashboardData.revenueGrowth}% vs last month
                     </p>
                   </div>
-                  <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-indigo-950/20 p-4">
+                  <div className="rounded-xl border border-blue-400/20 bg-gradient-to-br from-blue-600/25 to-indigo-950/20 p-3 sm:p-4 min-w-0">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-sky-200/90 mb-1">
                       Expenses
                     </p>
-                    <p className="text-2xl font-semibold text-white tabular-nums tracking-tight">
+                    <p className="text-lg sm:text-2xl font-semibold text-white tabular-nums tracking-tight truncate">
                       K{dashboardData.expenses.toLocaleString()}
                     </p>
                     <p
-                      className={`text-xs font-medium mt-2 tabular-nums ${
+                      className={`text-[10px] sm:text-xs font-medium mt-1.5 sm:mt-2 tabular-nums leading-snug ${
                         dashboardData.expensesChange >= 0 ? 'text-amber-400' : 'text-emerald-400'
                       }`}
                     >
@@ -395,7 +396,7 @@ function HeroSection() {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-blue-500/20 bg-blue-950/70 p-4">
+                <div className="rounded-xl border border-blue-500/20 bg-blue-950/70 p-3 sm:p-4 overflow-hidden">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold text-blue-100/90">Cash performance</span>
                     <span className="flex items-center gap-3 text-[10px] text-blue-300/70">
@@ -405,7 +406,7 @@ function HeroSection() {
                       </span>
                     </span>
                   </div>
-                  <svg viewBox="0 0 400 120" className="w-full h-auto" role="img" aria-label="Demo chart of monthly performance">
+                  <svg viewBox="0 0 400 120" className="w-full h-auto min-w-0 max-w-full" role="img" aria-label="Demo chart of monthly performance">
                     <defs>
                       <linearGradient id="heroLineGrad" x1="0%" y1="0%" x2="100%" y2="0%">
                         <stop offset="0%" stopColor="#2563eb" />

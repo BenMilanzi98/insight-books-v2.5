@@ -2834,3 +2834,21 @@ model EISUsage {
   @@index([tenantId])
   @@index([monthYear])
 }
+
+/// Singleton row (id = "global") — Android app version policy and optional broadcast.
+model MobileAppConfig {
+  id                 String    @id @default("global")
+  latestVersionCode  Int       @default(1)
+  latestVersionName  String    @default("1.0.0")
+  apkDownloadUrl     String    @default("")
+  releaseNotes       String?
+  /// When this rollout was published; grace window ends at publishedAt + gracePeriodHours.
+  publishedAt        DateTime?
+  gracePeriodHours   Int       @default(24)
+  /// Immediately lock all clients below latestVersionCode (ignores grace).
+  forceLock          Boolean   @default(false)
+  /// Optional message shown in the Android app (poll).
+  broadcastMessage   String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}

@@ -47,6 +47,7 @@ const AdminSidebar = ({ collapsed, setCollapsed, admin }) => {
           text: 'User Management',
         },
         { href: '/insightbooks/global-settings', icon: '⚙️', text: 'Global Settings' },
+        { href: '/insightbooks/mobile-app', icon: '📱', text: 'Android app' },
         { href: '/insightbooks/affiliate', icon: '🤝', text: 'Affiliate Management' },
         { 
           href: '/insightbooks/billing', 

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
-import 'package:insightbooks_android/features/branch/presentation/branch_context_provider.dart';
+import 'package:insightbooks_android/features/tenant/domain/tenant_models.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 
@@ -434,7 +434,7 @@ class AppDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(height: 1, color: Colors.white12),
-            const _BranchSwitcherSection(),
+            const _BusinessSwitcherSection(),
             // Scrollable nav
             Expanded(
               child: ListView(
@@ -538,50 +538,29 @@ class AppDrawer extends ConsumerWidget {
   }
 }
 
-/// Normalizes API branch ids: null or blank means “no branch id” (e.g. main / default row).
-String? _branchIdFromRow(Map<String, dynamic> row) {
-  final raw = row['id'];
-  if (raw == null) return null;
-  final s = raw.toString().trim();
-  return s.isEmpty ? null : s;
-}
-
-bool _branchIdsEqual(String? a, String? b) {
-  final na = a == null || a.isEmpty ? null : a;
-  final nb = b == null || b.isEmpty ? null : b;
-  return na == nb;
-}
-
-class _BranchSwitcherSection extends ConsumerStatefulWidget {
-  const _BranchSwitcherSection();
+class _BusinessSwitcherSection extends ConsumerStatefulWidget {
+  const _BusinessSwitcherSection();
 
   @override
-  ConsumerState<_BranchSwitcherSection> createState() =>
-      _BranchSwitcherSectionState();
+  ConsumerState<_BusinessSwitcherSection> createState() =>
+      _BusinessSwitcherSectionState();
 }
 
-class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> {
-  bool _scheduledRefresh = false;
-
+class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSection> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authStateProvider);
-    if (auth.value != true) {
-      if (_scheduledRefresh) _scheduledRefresh = false;
-      return const SizedBox.shrink();
-    }
+    if (auth.value != true) return const SizedBox.shrink();
 
-    if (!_scheduledRefresh) {
-      _scheduledRefresh = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(branchContextProvider.notifier).refresh();
-      });
-    }
+    final tenantState = ref.watch(tenantProvider);
+    final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
+    final showManageNav = !tenantState.isLoading &&
+        canAccessSwitchTenant(
+          permissions: perms,
+          tenantCount: tenantState.tenants.length,
+        );
 
-    final b = ref.watch(branchContextProvider);
-
-    if (!b.hasLoadedOnce) {
+    if (tenantState.isLoading && tenantState.tenants.isEmpty) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
         child: Container(
@@ -603,7 +582,7 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
               SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Loading branches…',
+                  'Loading businesses…',
                   style: TextStyle(color: _defaultTextColor, fontSize: 13),
                 ),
               ),
@@ -613,18 +592,35 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
       );
     }
 
-    if (b.error != null && !b.hasBranches) {
+    if (tenantState.error != null && tenantState.tenants.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         child: Text(
-          'Branch: unavailable',
+          'Branches/Businesses: unavailable',
           style: TextStyle(color: Colors.red.shade200, fontSize: 12),
         ),
       );
     }
-    if (!b.loading && !b.hasBranches) {
-      return const SizedBox.shrink();
+
+    if (tenantState.tenants.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+        child: Text(
+          'No businesses assigned',
+          style: TextStyle(color: _defaultTextColor.withValues(alpha: 0.85), fontSize: 12),
+        ),
+      );
     }
+
+    Tenant? current;
+    for (final t in tenantState.tenants) {
+      if (t.id == tenantState.currentTenantId) {
+        current = t;
+        break;
+      }
+    }
+    current ??= tenantState.tenants.first;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Material(
@@ -632,31 +628,31 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: b.switching
+          onTap: tenantState.isSwitching
               ? null
-              : () => _openBranchSheet(context, ref),
+              : () => _openBusinessSheet(context, ref, showManageNav),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               children: [
-                const Icon(Icons.storefront_rounded, color: _activeTextColor, size: 20),
+                const Icon(Icons.business_rounded, color: _activeTextColor, size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'BRANCH',
+                        'BRANCHES / BUSINESSES',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 0.7,
+                          letterSpacing: 0.5,
                           color: _sectionLabelColor,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        b.currentBranchLabel,
+                        current.name,
                         style: const TextStyle(
                           color: _defaultTextColor,
                           fontSize: 14,
@@ -668,7 +664,7 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
                     ],
                   ),
                 ),
-                if (b.switching)
+                if (tenantState.isSwitching)
                   const SizedBox(
                     width: 22,
                     height: 22,
@@ -687,13 +683,16 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
     );
   }
 
-  Future<void> _openBranchSheet(BuildContext context, WidgetRef ref) async {
-    final notifier = ref.read(branchContextProvider.notifier);
-    final state = ref.read(branchContextProvider);
-    final selectable = _selectableBranches(state);
-    if (selectable.isEmpty) return;
+  Future<void> _openBusinessSheet(
+    BuildContext context,
+    WidgetRef ref,
+    bool showManageNav,
+  ) async {
+    final notifier = ref.read(tenantProvider.notifier);
+    final state = ref.read(tenantProvider);
+    if (state.tenants.isEmpty) return;
 
-    final picked = await showModalBottomSheet<_BranchPick?>(
+    final picked = await showModalBottomSheet<Tenant?>(
       context: context,
       isScrollControlled: true,
       builder: (ctx) {
@@ -707,7 +706,7 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
-                    'Switch branch',
+                    'Switch business',
                     style: Theme.of(ctx).textTheme.titleMedium,
                   ),
                 ),
@@ -716,25 +715,8 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      if (state.canSelectAllBranches)
-                        ListTile(
-                          leading: Icon(
-                            state.currentBranchId == null
-                                ? Icons.check_circle_rounded
-                                : Icons.circle_outlined,
-                            color: state.currentBranchId == null
-                                ? _activeTextColor
-                                : _defaultTextColor,
-                          ),
-                          title: const Text('All branches'),
-                          onTap: () => Navigator.pop(ctx, _BranchPick(null)),
-                        ),
-                      ...selectable.map((row) {
-                        final id = (row['id'] ?? '').toString();
-                        final name = (row['name'] ?? 'Branch').toString();
-                        final code = (row['code'] ?? '').toString();
-                        final label = code.isEmpty ? name : '$name ($code)';
-                        final selected = state.currentBranchId == id;
+                      ...state.tenants.map((t) {
+                        final selected = t.id == state.currentTenantId;
                         return ListTile(
                           leading: Icon(
                             selected
@@ -742,13 +724,24 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
                                 : Icons.circle_outlined,
                             color: selected ? _activeTextColor : _defaultTextColor,
                           ),
-                          title: Text(label),
-                          onTap: () => Navigator.pop(ctx, _BranchPick(id)),
+                          title: Text(t.name),
+                          onTap: () => Navigator.pop(ctx, t),
                         );
                       }),
                     ],
                   ),
                 ),
+                if (showManageNav)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                    child: TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        context.go('/switch-tenant');
+                      },
+                      child: const Text('Manage businesses'),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -757,38 +750,21 @@ class _BranchSwitcherSectionState extends ConsumerState<_BranchSwitcherSection> 
     );
 
     if (!context.mounted || picked == null) return;
-    if (_branchIdsEqual(picked.id, state.currentBranchId)) return;
+    if (picked.id == state.currentTenantId) return;
 
-    final ok = await notifier.selectBranch(picked.id);
+    final ok = await notifier.switchTenant(picked.id);
     if (!context.mounted) return;
-    if (!ok && ref.read(branchContextProvider).error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            ref.read(branchContextProvider).error ?? 'Could not switch branch',
-          ),
-        ),
-      );
+    if (ok) {
+      context.go('/dashboard');
+    } else {
+      final err = ref.read(tenantProvider).error;
+      if (err != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(err)),
+        );
+      }
     }
   }
-
-  List<Map<String, dynamic>> _selectableBranches(BranchContextState state) {
-    if (state.canSelectAllBranches) {
-      return state.branches;
-    }
-    final allowed = state.allowedBranchIds ?? [];
-    if (allowed.isEmpty) return state.branches;
-    return state.branches.where((b) {
-      final id = _branchIdFromRow(b);
-      final key = id ?? '';
-      return allowed.contains(key);
-    }).toList();
-  }
-}
-
-class _BranchPick {
-  final String? id;
-  _BranchPick(this.id);
 }
 
 class _SectionLabel extends StatelessWidget {
