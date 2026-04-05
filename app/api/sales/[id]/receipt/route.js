@@ -488,35 +488,40 @@ export async function GET(request, { params }) {
           font-weight: bold;
         }
         
-        /* Thermal printer optimizations — avoid viewport/min-height forcing extra blank paper (roll waste) */
+        /* Thermal printer optimizations — end print right after content + fixed 10px feed (no extra roll) */
         @media print {
           html.thermal-receipt,
           html.thermal-receipt body {
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             font-size: 10px;
-            overflow: visible !important;
           }
           @page {
-            /* 80mm roll; height auto = shrink to content (Chrome/Edge/Firefox; avoids A4-sized blank tail) */
             size: 80mm auto;
-            margin: 2mm;
+            /* Outer margin adds blank beyond content on many thermal drivers — keep 0 */
+            margin: 0;
           }
           .receipt {
-            width: 76mm;
-            max-width: 76mm;
-            padding: 2mm;
-            margin-bottom: 0;
+            width: 80mm;
+            max-width: 80mm;
+            /* Sides/top in mm; exactly 10px white after last line (matches JS TAIL_PX) */
+            /* 10px = only trailing feed after last printed line */
+            padding: 2mm 2mm 10px 2mm;
+            margin: 0 auto;
+            margin-bottom: 0 !important;
             page-break-after: auto;
             break-after: auto;
+            overflow: visible;
           }
           .footer,
           .copyright {
-            margin-bottom: 0;
-            padding-bottom: 0;
+            margin-bottom: 0 !important;
+            padding-bottom: 0 !important;
           }
         }
         
@@ -770,18 +775,28 @@ export async function GET(request, { params }) {
           function clampDocumentHeightToContent() {
             var el = document.documentElement;
             var b = document.body;
-            var h = Math.max(
-              b.scrollHeight,
-              b.offsetHeight,
-              el.scrollHeight,
-              el.offsetHeight
-            );
+            var receipt = document.querySelector('.receipt');
+            var h;
+            if (receipt) {
+              // Use receipt box only — body scrollHeight often includes collapsed margins / extra slack
+              h = receipt.offsetTop + receipt.offsetHeight;
+            } else {
+              h = Math.max(
+                b.scrollHeight,
+                b.offsetHeight,
+                el.scrollHeight,
+                el.offsetHeight
+              );
+            }
+            h = Math.ceil(h);
             if (h > 0) {
               el.style.height = h + 'px';
               b.style.height = h + 'px';
+              el.style.minHeight = '0';
+              b.style.minHeight = '0';
             }
-            el.style.overflow = 'visible';
-            b.style.overflow = 'visible';
+            el.style.overflow = 'hidden';
+            b.style.overflow = 'hidden';
           }
           function whenImagesReady(cb) {
             var imgs = document.images;
@@ -813,6 +828,9 @@ export async function GET(request, { params }) {
               });
             });
           }
+          window.addEventListener('beforeprint', function () {
+            clampDocumentHeightToContent();
+          });
           window.onload = function () {
             var start = function () {
               whenImagesReady(function () {
