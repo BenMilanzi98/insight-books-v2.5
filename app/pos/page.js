@@ -42,7 +42,9 @@ import {
   Shield,
   Globe,
   Lock,
-  Building2
+  Building2,
+  LayoutGrid,
+  List
 
 } from 'lucide-react';
 import { 
@@ -115,6 +117,8 @@ const POSPage = () => {
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showProductSearch, setShowProductSearch] = useState(false);
+  /** When true, show a scrollable grid of products (filtered by search) for click-to-add */
+  const [productPickerGrid, setProductPickerGrid] = useState(false);
   
   // Clients
   const [clients, setClients] = useState([]);
@@ -2711,6 +2715,11 @@ const POSPage = () => {
 
             <div className="mb-6 relative">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Add Products</label>
+              <p className="text-xs text-gray-500 mb-2">
+                {productPickerGrid
+                  ? 'Grid view: scroll and click products to add. Search narrows the grid.'
+                  : 'Search by name, SKU, or barcode — or open grid view to browse all products.'}
+              </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <div className="relative flex-grow" ref={productSearchRef}>
                   <input
@@ -2719,12 +2728,14 @@ const POSPage = () => {
                     className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none"
                     value={productSearchQuery}
                     onChange={(e) => setProductSearchQuery(e.target.value)}
-                    onFocus={() => setShowProductSearch(true)}
+                    onFocus={() => {
+                      if (!productPickerGrid) setShowProductSearch(true);
+                    }}
                     onKeyDown={(e) => {
                       // Add first matching product on Enter
                       if (e.key === 'Enter' && filteredProducts.length > 0) {
                         const product = filteredProducts[0];
-                        if (product.stockLevel > 0) {
+                        if (!(product.stockLevel !== null && product.stockLevel <= 0)) {
                           handleQuickAdd(product);
                         }
                       }
@@ -2734,8 +2745,8 @@ const POSPage = () => {
                     <Search className="w-5 h-5 text-gray-400" />
                   </div>
                   
-                  {/* Product search results dropdown */}
-                  {showProductSearch && (
+                  {/* Product search results dropdown (hidden in grid mode — grid shows the same filtered list) */}
+                  {showProductSearch && !productPickerGrid && (
                     <div className="absolute z-10 mt-2 w-full bg-white border-2 border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                       {isLoadingProducts ? (
                         <div className="p-6 text-center">
@@ -2785,20 +2796,128 @@ const POSPage = () => {
                   )}
                 </div>
                 
-                <div className="w-full sm:w-24">
-                  <input 
-                    type="number" 
-                    className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
-                    min="1" 
-                    value={quantity} 
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setQuantity(val > 0 ? val : 1);
+                <div className="flex gap-2 w-full sm:w-auto items-stretch sm:items-center">
+                  <div className="w-full sm:w-24 shrink-0">
+                    <input 
+                      type="number" 
+                      className="w-full p-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all outline-none text-center font-semibold" 
+                      min="1" 
+                      value={quantity} 
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setQuantity(val > 0 ? val : 1);
+                      }}
+                      placeholder="Qty"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProductPickerGrid((prev) => {
+                        const next = !prev;
+                        if (next) setShowProductSearch(false);
+                        return next;
+                      });
                     }}
-                    placeholder="Qty"
-                  />
+                    className={`shrink-0 flex items-center justify-center w-12 h-[50px] rounded-xl border-2 transition-all ${
+                      productPickerGrid
+                        ? 'border-blue-600 bg-blue-600 text-white shadow-md'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-blue-400 hover:text-blue-600'
+                    }`}
+                    title={productPickerGrid ? 'Switch to list search dropdown' : 'Show product grid (browse & click)'}
+                    aria-pressed={productPickerGrid}
+                  >
+                    {productPickerGrid ? (
+                      <List className="w-5 h-5" aria-hidden />
+                    ) : (
+                      <LayoutGrid className="w-5 h-5" aria-hidden />
+                    )}
+                  </button>
                 </div>
               </div>
+
+              {/* Scrollable product grid — same filter as search */}
+              {productPickerGrid && (
+                <div className="mt-3 rounded-xl border-2 border-gray-200 bg-gradient-to-b from-white to-gray-50/80 shadow-inner max-h-[min(52vh,32rem)] overflow-y-auto overscroll-contain">
+                  {isLoadingProducts ? (
+                    <div className="p-10 flex flex-col items-center justify-center text-gray-500">
+                      <Loader className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+                      <span className="text-sm">Loading products…</span>
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="p-10 text-center text-gray-500 text-sm">
+                      {productSearchQuery.trim()
+                        ? 'No products match your search.'
+                        : 'No products available.'}
+                    </div>
+                  ) : (
+                    <div className="p-2 sm:p-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
+                      {filteredProducts.map((product) => {
+                        const out =
+                          product.stockLevel !== null && product.stockLevel <= 0;
+                        const imgSrc =
+                          product.image &&
+                          String(product.image).trim() !== '' &&
+                          !String(product.image).includes('placeholder')
+                            ? product.image
+                            : null;
+                        return (
+                          <button
+                            key={product.id}
+                            type="button"
+                            disabled={out}
+                            onClick={() => !out && handleQuickAdd(product)}
+                            className={`flex flex-col rounded-lg border text-left transition-all min-h-[112px] ${
+                              out
+                                ? 'border-gray-100 bg-gray-100/80 opacity-60 cursor-not-allowed'
+                                : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-md hover:bg-blue-50/50 active:scale-[0.98]'
+                            }`}
+                          >
+                            <div className="h-14 w-full rounded-t-md bg-gray-100 flex items-center justify-center overflow-hidden shrink-0">
+                              {imgSrc ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={imgSrc}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-7 h-7 text-gray-400" />
+                              )}
+                            </div>
+                            <div className="p-2 flex-1 flex flex-col min-w-0">
+                              <span className="text-xs font-semibold text-gray-900 line-clamp-2 leading-tight">
+                                {product.name}
+                              </span>
+                              {product.sku ? (
+                                <span className="text-[10px] text-gray-500 truncate mt-0.5">
+                                  {product.sku}
+                                </span>
+                              ) : null}
+                              <span className="text-sm font-bold text-gray-900 mt-auto pt-1">
+                                {formatCurrency(product.price)}
+                              </span>
+                              <span
+                                className={`text-[10px] font-medium mt-0.5 ${
+                                  out
+                                    ? 'text-red-600'
+                                    : product.stockLevel > 0
+                                      ? 'text-green-600'
+                                      : 'text-gray-500'
+                                }`}
+                              >
+                                {out
+                                  ? 'Out of stock'
+                                  : `Stock: ${product.stockLevel ?? '—'}`}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Custom Product Button */}
