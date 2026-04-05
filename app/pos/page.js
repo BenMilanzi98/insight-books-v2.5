@@ -131,6 +131,10 @@ const POSPage = () => {
   // Income accounts for Chart of Accounts
   const [incomeAccounts, setIncomeAccounts] = useState([]);
   const [defaultIncomeAccountId, setDefaultIncomeAccountId] = useState(null);
+  /** Latest resolved default income CoA id (updated when loadIncomeAccounts succeeds; avoids stale React state at checkout). */
+  const defaultIncomeAccountIdRef = useRef(null);
+  /** Deduplicate overlapping income-account fetches (mount + cart effect + checkout). */
+  const incomeAccountsInFlightRef = useRef(null);
   
   // Current sale state
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -462,43 +466,59 @@ const POSPage = () => {
 
   // Load income accounts from Chart of Accounts.
   // Returns resolved data so callers can use IDs immediately (setState is async — avoids race when checkout runs before this fetch completes).
-  const loadIncomeAccounts = async () => {
-    try {
-      // Use the lightweight income accounts endpoint (no Finance/Admin requirement)
-      const response = await fetch('/api/chart-of-accounts/income-accounts', { cache: 'no-store' });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const accounts = data.accounts || [];
-        setIncomeAccounts(accounts);
-        
-        const normCode = (c) => String(c ?? '').trim();
-        // Find default income account (prefer code 4000, otherwise 4100, otherwise first active)
-        const defaultAccount =
-          accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
-          accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
-          accounts.find((acc) => acc.isActive !== false) ||
-          accounts[0];
-          
-        let defaultIncomeAccountId = null;
-        if (defaultAccount) {
-          defaultIncomeAccountId = defaultAccount.id;
-          setDefaultIncomeAccountId(defaultIncomeAccountId);
-          console.log('✅ Income account loaded:', defaultAccount.accountName, defaultAccount.accountCode);
-        } else {
-          console.warn('No income accounts found. Sales will fail without accountId.');
+  const loadIncomeAccounts = useCallback(async () => {
+    if (incomeAccountsInFlightRef.current) {
+      return incomeAccountsInFlightRef.current;
+    }
+    const promise = (async () => {
+      try {
+        const response = await fetch('/api/chart-of-accounts/income-accounts', { cache: 'no-store' });
+
+        if (response.ok) {
+          const data = await response.json();
+          const accounts = data.accounts || [];
+          setIncomeAccounts(accounts);
+
+          const normCode = (c) => String(c ?? '').trim();
+          const defaultAccount =
+            accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
+            accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
+            accounts.find((acc) => acc.isActive !== false) ||
+            accounts[0];
+
+          let resolvedDefaultId = null;
+          if (defaultAccount) {
+            resolvedDefaultId = defaultAccount.id;
+            defaultIncomeAccountIdRef.current = resolvedDefaultId;
+            setDefaultIncomeAccountId(resolvedDefaultId);
+            console.log('✅ Income account loaded:', defaultAccount.accountName, defaultAccount.accountCode);
+          } else {
+            defaultIncomeAccountIdRef.current = null;
+            console.warn('No income accounts found. Sales will fail without accountId.');
+          }
+          return { accounts, defaultIncomeAccountId: resolvedDefaultId };
         }
-        return { accounts, defaultIncomeAccountId };
-      } else {
+
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to load income accounts:', response.status, errorData);
+        defaultIncomeAccountIdRef.current = null;
         return { accounts: [], defaultIncomeAccountId: null };
+      } catch (error) {
+        console.error('Failed to load income accounts:', error);
+        return { accounts: [], defaultIncomeAccountId: null };
+      } finally {
+        incomeAccountsInFlightRef.current = null;
       }
-    } catch (error) {
-      console.error('Failed to load income accounts:', error);
-      return { accounts: [], defaultIncomeAccountId: null };
-    }
-  };
+    })();
+    incomeAccountsInFlightRef.current = promise;
+    return promise;
+  }, []);
+
+  // Reload income accounts whenever a line is added or removed (length changes). Keeps default CoA ready before checkout without spamming on every keystroke.
+  useEffect(() => {
+    if (selectedProducts.length === 0) return;
+    loadIncomeAccounts();
+  }, [selectedProducts.length, loadIncomeAccounts]);
 
   // Load recent sales, products, and clients on initial render
   useEffect(() => {
@@ -1698,21 +1718,15 @@ const POSPage = () => {
       return;
     }
     
-    // Resolve income account: if state is still empty, await a fresh load (fixes race when user completes sale before the mount-time fetch finishes — common with large carts / fast checkout).
-    let resolvedIncomeAccountId = defaultIncomeAccountId;
-    let accountsSnapshot = incomeAccounts;
-    if (!resolvedIncomeAccountId) {
-      if (accountsSnapshot.length === 0) {
-        const loaded = await loadIncomeAccounts();
-        accountsSnapshot = loaded.accounts;
-        resolvedIncomeAccountId = loaded.defaultIncomeAccountId;
-      }
-      if (!resolvedIncomeAccountId && accountsSnapshot.length > 0) {
-        const firstAccount = accountsSnapshot.find(acc => acc.isActive) || accountsSnapshot[0];
-        resolvedIncomeAccountId = firstAccount?.id || null;
-        if (resolvedIncomeAccountId) {
-          setDefaultIncomeAccountId(resolvedIncomeAccountId);
-        }
+    // Always resolve from a fresh fetch at checkout (avoids stale React state; in-flight dedupe shares work with mount/cart effects).
+    const loaded = await loadIncomeAccounts();
+    let resolvedIncomeAccountId = loaded.defaultIncomeAccountId;
+    if (!resolvedIncomeAccountId && loaded.accounts.length > 0) {
+      const firstAccount = loaded.accounts.find((acc) => acc.isActive) || loaded.accounts[0];
+      resolvedIncomeAccountId = firstAccount?.id || null;
+      if (resolvedIncomeAccountId) {
+        setDefaultIncomeAccountId(resolvedIncomeAccountId);
+        defaultIncomeAccountIdRef.current = resolvedIncomeAccountId;
       }
     }
     if (!resolvedIncomeAccountId) {
@@ -2082,8 +2096,15 @@ const POSPage = () => {
       console.error("Error completing sale:", error);
       const errorMessage = error.message || "Failed to complete sale. Please try again.";
       
-      // Check if it's an accountId error
-      if (errorMessage.includes('account') || errorMessage.includes('accountId') || errorMessage.includes('Income account')) {
+      // Only map true Chart of Accounts / income-line errors (do not treat "payment account" etc. as missing income CoA)
+      const looksLikeIncomeCoaError =
+        /income account is required/i.test(errorMessage) ||
+        /active income account/i.test(errorMessage) ||
+        /missing.*accountId/i.test(errorMessage) ||
+        /Sale items must reference/i.test(errorMessage) ||
+        /Each sale item must reference/i.test(errorMessage) ||
+        /valid income account/i.test(errorMessage);
+      if (looksLikeIncomeCoaError) {
         setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.");
       } else {
         setSaleError(errorMessage);
