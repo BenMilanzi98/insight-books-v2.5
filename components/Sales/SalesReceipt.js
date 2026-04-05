@@ -84,7 +84,10 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
         margin: 2mm;
       }
       @media print {
-        body {
+        html, body {
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
         }

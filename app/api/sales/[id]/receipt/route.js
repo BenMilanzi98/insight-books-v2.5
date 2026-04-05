@@ -285,11 +285,19 @@ export async function GET(request, { params }) {
     // ENHANCED: Create the HTML receipt with thermal size and business address
     const receiptHtml = `
     <!DOCTYPE html>
-    <html>
+    <html class="thermal-receipt" lang="en">
     <head>
       <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
       <title>Receipt - ${sale.saleNumber}</title>
       <style>
+        *, *::before, *::after { box-sizing: border-box; }
+        html.thermal-receipt {
+          margin: 0;
+          padding: 0;
+          height: auto;
+          min-height: 0;
+        }
         body {
           font-family: "Courier New", monospace;
           margin: 0;
@@ -299,6 +307,8 @@ export async function GET(request, { params }) {
           color: #000;
           background: #fff;
           font-weight: bold;
+          height: auto;
+          min-height: 0;
         }
         .receipt {
           width: 72mm;
@@ -306,6 +316,7 @@ export async function GET(request, { params }) {
           margin: 0 auto;
           padding: 4mm;
           box-sizing: border-box;
+          overflow: visible;
         }
         .header {
           text-align: center;
@@ -477,20 +488,35 @@ export async function GET(request, { params }) {
           font-weight: bold;
         }
         
-        /* Thermal printer optimizations */
+        /* Thermal printer optimizations — avoid viewport/min-height forcing extra blank paper (roll waste) */
         @media print {
-          body {
+          html.thermal-receipt,
+          html.thermal-receipt body {
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
             font-size: 10px;
+            overflow: visible !important;
           }
           @page {
+            /* 80mm roll; height auto = shrink to content (Chrome/Edge/Firefox; avoids A4-sized blank tail) */
             size: 80mm auto;
             margin: 2mm;
           }
           .receipt {
             width: 76mm;
+            max-width: 76mm;
             padding: 2mm;
+            margin-bottom: 0;
+            page-break-after: auto;
+            break-after: auto;
+          }
+          .footer,
+          .copyright {
+            margin-bottom: 0;
+            padding-bottom: 0;
           }
         }
         
@@ -740,19 +766,74 @@ export async function GET(request, { params }) {
       </div>
       
       <script>
-        // Auto-print when page loads (for thermal printers)
-        window.onload = function() {
-          setTimeout(function() {
-            window.print();
-          }, 500);
-        }
-        
-        // Close window after printing (optional)
-        window.onafterprint = function() {
-          setTimeout(function() {
-            window.close();
-          }, 1000);
-        }
+        (function () {
+          function clampDocumentHeightToContent() {
+            var el = document.documentElement;
+            var b = document.body;
+            var h = Math.max(
+              b.scrollHeight,
+              b.offsetHeight,
+              el.scrollHeight,
+              el.offsetHeight
+            );
+            if (h > 0) {
+              el.style.height = h + 'px';
+              b.style.height = h + 'px';
+            }
+            el.style.overflow = 'visible';
+            b.style.overflow = 'visible';
+          }
+          function whenImagesReady(cb) {
+            var imgs = document.images;
+            var n = 0;
+            for (var i = 0; i < imgs.length; i++) {
+              if (!imgs[i].complete) n++;
+            }
+            if (n === 0) return cb();
+            var done = 0;
+            function one() {
+              done++;
+              if (done >= n) cb();
+            }
+            for (var j = 0; j < imgs.length; j++) {
+              if (!imgs[j].complete) {
+                imgs[j].onload = imgs[j].onerror = one;
+              }
+            }
+          }
+          function runPrint() {
+            clampDocumentHeightToContent();
+            requestAnimationFrame(function () {
+              clampDocumentHeightToContent();
+              requestAnimationFrame(function () {
+                clampDocumentHeightToContent();
+                try {
+                  window.print();
+                } catch (e) {}
+              });
+            });
+          }
+          window.onload = function () {
+            var start = function () {
+              whenImagesReady(function () {
+                clampDocumentHeightToContent();
+                setTimeout(function () {
+                  runPrint();
+                }, 150);
+              });
+            };
+            if (document.fonts && document.fonts.ready) {
+              document.fonts.ready.then(start).catch(start);
+            } else {
+              setTimeout(start, 0);
+            }
+          };
+          window.onafterprint = function () {
+            setTimeout(function () {
+              try { window.close(); } catch (e) {}
+            }, 800);
+          };
+        })();
       </script>
     </body>
     </html>

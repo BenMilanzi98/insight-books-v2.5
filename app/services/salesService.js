@@ -295,7 +295,8 @@ export const printReceipt = async (saleId) => {
     // Open the HTML receipt directly; the page contains window.print() on load
     // and @page { size: 80mm auto } CSS for thermal printers.
     const receiptUrl = `/api/sales/${saleId}/receipt`;
-    const receiptWindow = window.open(receiptUrl, '_blank', 'width=350,height=600');
+    // Short initial height: a tall popup viewport can make some browsers allocate extra blank print length on thermal rolls; content still scrolls.
+    const receiptWindow = window.open(receiptUrl, '_blank', 'width=380,height=120,scrollbars=yes,resizable=yes');
 
     if (!receiptWindow) {
       // Popup blocked — fall back to PDF download
