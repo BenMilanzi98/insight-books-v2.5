@@ -467,10 +467,12 @@ const POSPage = () => {
         const accounts = data.accounts || [];
         setIncomeAccounts(accounts);
         
-        // Find default income account (prefer code 4000, otherwise 4100, otherwise first available)
-        const defaultAccount = 
-          accounts.find(acc => acc.accountCode === '4000') || 
-          accounts.find(acc => acc.accountCode === '4100') ||
+        const normCode = (c) => String(c ?? '').trim();
+        // Find default income account (prefer code 4000, otherwise 4100, otherwise first active)
+        const defaultAccount =
+          accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
+          accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
+          accounts.find((acc) => acc.isActive !== false) ||
           accounts[0];
           
         if (defaultAccount) {

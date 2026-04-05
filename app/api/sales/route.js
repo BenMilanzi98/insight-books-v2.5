@@ -9,6 +9,7 @@ import { createSaleJournalEntries } from '@/lib/transactionJournalHelpers';
 import { autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
+import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
 
 // Helper function to format currency
 const formatCurrency = (amount) => {
@@ -681,16 +682,10 @@ export async function POST(request) {
       }
 
       const incomeAccounts = await prisma.account.findMany({
-        where: {
-          tenantId: user.tenantId,
+        where: prismaWhereCoaIncomeAccounts(user.tenantId, {
           id: { in: incomeAccountIds },
-          isActive: true,
-          OR: [
-            { accountType: 'Income' },
-            { accountType: 'Revenue' }
-          ]
-        },
-        select: { id: true, accountType: true, accountName: true }
+        }),
+        select: { id: true, accountType: true, type: true, accountName: true }
       });
 
       if (incomeAccounts.length !== new Set(incomeAccountIds).size) {
