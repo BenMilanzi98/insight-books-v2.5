@@ -450,7 +450,7 @@ class _ExpenseDetailsBody extends ConsumerWidget {
                     Text(
                       'Notes',
                       style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.outline,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -535,7 +535,7 @@ class _ExpenseDetailsBody extends ConsumerWidget {
               child: Text(
                 'No attachments',
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.outline,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
             )
@@ -712,16 +712,17 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.outline,
-                fontSize: 14,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 14,
+                  ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: valueStyle ?? const TextStyle(fontSize: 14),
+              style: valueStyle ??
+                  Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 14),
             ),
           ),
         ],

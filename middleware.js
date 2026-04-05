@@ -56,6 +56,7 @@ export async function middleware(request) {
     pathname === '/contact' ||
     pathname === '/terms' ||
     pathname === '/privacy' ||
+    pathname === '/download-app' ||
     pathname.startsWith('/auth/');
 
   if (isPublicPath) {

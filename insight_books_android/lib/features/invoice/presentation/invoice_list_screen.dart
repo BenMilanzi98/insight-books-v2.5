@@ -169,8 +169,13 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Tap + to create your first invoice',
-                        style: theme.textTheme.bodySmall,
+                        state.canCreateInvoices
+                            ? 'Tap + to create your first invoice'
+                            : 'You can view invoices but do not have permission to create new ones.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),

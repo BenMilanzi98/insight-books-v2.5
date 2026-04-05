@@ -263,7 +263,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                       children: [
                         Icon(
                           Icons.person_outline,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -272,7 +272,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                             style: TextStyle(
                               color: _selectedClient != null
                                   ? null
-                                  : theme.colorScheme.outline,
+                                  : theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -299,6 +299,62 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // ── Invoice number (server-assigned, same as web) ──
+                if (!_isEditMode) ...[
+                  Text(
+                    'Invoice number',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.65),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Auto-generate',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Your invoice number is assigned when you save (e.g. INV-DDMMYYYY-00001), matching the website.',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // ── Order number ──
                 Text(
@@ -365,7 +421,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                       children: [
                         Icon(
                           Icons.event_outlined,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Text(DateFormat('d MMM y').format(_issueDate)),
@@ -403,7 +459,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                       children: [
                         Icon(
                           Icons.calendar_month_outlined,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Text(DateFormat('d MMM y').format(_dueDate)),
@@ -497,12 +553,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         Icon(
                           Icons.inventory_2_outlined,
                           size: 40,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'No items added yet',
-                          style: TextStyle(color: theme.colorScheme.outline),
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),

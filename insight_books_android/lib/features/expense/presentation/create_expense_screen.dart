@@ -690,7 +690,9 @@ class _CreateExpenseScreenState extends ConsumerState<CreateExpenseScreen> {
                 ),
                 Text(
                   'Total (incl. tax): MK ${NumberFormat('#,##0.00').format(totalInclTax)}',
-                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const SizedBox(height: 16),
 

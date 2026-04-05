@@ -44,4 +44,6 @@ next-env.d.ts
 .next.zip
 .next/
 public/uploads/
+# Android APKs uploaded via admin (large binaries)
+public/releases/*.apk
 cookies.txt

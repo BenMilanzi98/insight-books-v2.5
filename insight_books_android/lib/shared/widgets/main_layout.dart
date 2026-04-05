@@ -7,6 +7,7 @@ import 'package:insightbooks_android/features/auth/presentation/auth_controller.
 import 'package:insightbooks_android/features/tenant/domain/tenant_models.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
+import 'package:insightbooks_android/core/branding/app_branding.dart';
 
 /// Bottom bar items (subset of drawer): filtered by [hasPermission].
 class _BottomNavSpec {
@@ -405,22 +406,19 @@ class AppDrawer extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 44,
+                    height: 44,
+                    padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: _activeBgColor,
-                      borderRadius: BorderRadius.circular(10),
+                      color: Colors.white.withValues(alpha: 0.95),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Icon(
-                      Icons.account_balance_rounded,
-                      color: _activeTextColor,
-                      size: 22,
-                    ),
+                    child: const InsightBooksLogo(size: 36),
                   ),
                   const SizedBox(width: 12),
                   Flexible(
                     child: Text(
-                      'InsightBooks',
+                      kAppDisplayName,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -504,7 +502,7 @@ class AppDrawer extends ConsumerWidget {
                   const SizedBox(height: 8),
                   const Divider(height: 1, color: Colors.white12),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
                     child: Row(
                       children: [
                         Icon(Icons.dark_mode_rounded, color: _defaultTextColor, size: 22),
@@ -515,6 +513,23 @@ class AppDrawer extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (ref.watch(authStateProvider).value == true) ...[
+                    const Divider(height: 1, color: Colors.white12),
+                    ListTile(
+                      leading: const Icon(Icons.logout_rounded, color: _defaultTextColor),
+                      title: const Text(
+                        'Log out',
+                        style: TextStyle(color: _defaultTextColor, fontSize: 15),
+                      ),
+                      onTap: () async {
+                        if (Scaffold.maybeOf(context)?.isDrawerOpen ?? false) {
+                          Scaffold.of(context).closeDrawer();
+                        }
+                        await ref.read(authStateProvider.notifier).logout();
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                 ],
               ),
             ),

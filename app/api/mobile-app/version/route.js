@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { publicBaseUrlFromRequest, releaseApkExists } from '@/lib/mobileAppRelease';
 
 function parseVersionCode(raw) {
   const n = parseInt(String(raw ?? ''), 10);
@@ -20,10 +21,14 @@ export async function GET(request) {
     });
 
     if (!row) {
+      const onDisk = releaseApkExists();
+      const base = publicBaseUrlFromRequest(request);
+      const hostedUrl =
+        onDisk && base ? `${base}/api/mobile-app/download` : '';
       return NextResponse.json({
         latestVersionCode: 1,
         latestVersionName: '1.0.0',
-        apkDownloadUrl: '',
+        apkDownloadUrl: hostedUrl,
         releaseNotes: null,
         publishedAt: null,
         gracePeriodHours: 24,
@@ -31,6 +36,7 @@ export async function GET(request) {
         broadcastMessage: null,
         updateAvailable: false,
         mustLock: false,
+        websiteDownloadAvailable: onDisk,
       });
     }
 
@@ -54,10 +60,21 @@ export async function GET(request) {
       }
     }
 
+    const onDisk = releaseApkExists();
+    const lockedSite = !!row.websiteDownloadLocked;
+    const websiteDownloadAvailable = onDisk && !lockedSite;
+    const base = publicBaseUrlFromRequest(request);
+    let apkDownloadUrl = '';
+    if (websiteDownloadAvailable && base) {
+      apkDownloadUrl = `${base}/api/mobile-app/download`;
+    } else if (!lockedSite) {
+      apkDownloadUrl = row.apkDownloadUrl ?? '';
+    }
+
     return NextResponse.json({
       latestVersionCode: latest,
       latestVersionName: row.latestVersionName ?? '1.0.0',
-      apkDownloadUrl: row.apkDownloadUrl ?? '',
+      apkDownloadUrl,
       releaseNotes: row.releaseNotes ?? null,
       publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
       gracePeriodHours: row.gracePeriodHours ?? 24,
@@ -65,6 +82,7 @@ export async function GET(request) {
       broadcastMessage: row.broadcastMessage ?? null,
       updateAvailable,
       mustLock,
+      websiteDownloadAvailable,
     });
   } catch (e) {
     console.error('mobile-app/version', e);

@@ -7,6 +7,7 @@ import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/login_screen.dart';
+import 'package:insightbooks_android/features/splash/presentation/splash_screen.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:insightbooks_android/features/pos/presentation/pos_screen.dart';
 import 'package:insightbooks_android/features/tenant/presentation/business_list_screen.dart';
@@ -28,7 +29,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ref.watch(goRouterRefreshNotifierProvider);
 
   final router = GoRouter(
-    initialLocation: '/dashboard',
+    initialLocation: '/splash',
     refreshListenable: refresh,
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
@@ -42,12 +43,13 @@ final routerProvider = Provider<GoRouter>((ref) {
           tenantState.isLoading ? null : tenantState.tenants.length;
 
       final isGoingToLogin = state.matchedLocation == '/login';
+      final onSplash = state.matchedLocation == '/splash';
 
       if (isLoading) {
         return null;
       }
 
-      if (!isAuthenticated && !isGoingToLogin) {
+      if (!isAuthenticated && !isGoingToLogin && !onSplash) {
         return '/login';
       }
 
@@ -59,6 +61,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (!isAuthenticated) return null;
+      if (onSplash) return null;
       if (permissionAsync.isLoading) return null;
 
       final location = state.matchedLocation;
@@ -90,6 +93,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/splash',
+        builder: (context, state) => const SplashScreen(),
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       ShellRoute(
         builder: (context, state, child) {

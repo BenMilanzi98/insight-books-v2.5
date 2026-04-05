@@ -5,6 +5,7 @@ import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
+import 'package:insightbooks_android/core/branding/app_branding.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -102,23 +103,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                      Icon(
-                        Icons.account_balance_wallet,
-                        size: 64,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(height: 24),
+                      const InsightBooksLogo(size: 72),
+                      const SizedBox(height: 20),
                       Text(
-                        'Welcome Back',
+                        kAppDisplayName,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: theme.colorScheme.primary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Welcome back',
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Sign in to InsightBooks Africa',
+                        'Sign in to continue',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         textAlign: TextAlign.center,
                       ),

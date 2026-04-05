@@ -353,7 +353,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                           Text(
                             state.error!,
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                             textAlign: TextAlign.center,
                             maxLines: 4,
@@ -380,7 +380,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                       Icon(
                         Icons.receipt_long_outlined,
                         size: 64,
-                        color: theme.colorScheme.outline,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -395,7 +395,7 @@ class _ExpenseListScreenState extends ConsumerState<ExpenseListScreen> {
                             ? 'Deleted items will appear here'
                             : 'Add your first expense',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1663,7 +1663,7 @@ class _ExpenseCard extends StatelessWidget {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(Icons.category_outlined, size: 14, color: theme.colorScheme.outline),
+                  Icon(Icons.category_outlined, size: 14, color: theme.colorScheme.onSurfaceVariant),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
@@ -1676,7 +1676,7 @@ class _ExpenseCard extends StatelessWidget {
                   Text(
                     expense.date,
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -1699,7 +1699,7 @@ class _ExpenseCard extends StatelessWidget {
                           Text(
                             'Base ${currencyFormat.format(expense.amount)} + tax ${currencyFormat.format(expense.taxAmount)}',
                             style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.outline,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,

@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
+
 import '../../data/expense_repository.dart';
 import '../../domain/expense_model.dart';
 
@@ -201,7 +203,7 @@ class ExpenseController extends Notifier<ExpensePageState> {
   }
 
   Future<void> loadPermissions() async {
-    final perms = await ref.read(expenseRepositoryProvider).fetchUserPermissions();
+    final perms = await ref.read(userPermissionsProvider.future);
     final hasPerms = perms.isNotEmpty;
     state = state.copyWith(
       canViewExpenses: !hasPerms || perms.contains('expenses.view'),

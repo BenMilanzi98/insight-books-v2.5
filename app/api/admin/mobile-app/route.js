@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminFromRequest } from '@/lib/adminAuth';
+import { getReleaseApkStats } from '@/lib/mobileAppRelease';
 
 async function ensureRow() {
   return prisma.mobileAppConfig.upsert({
@@ -12,6 +13,7 @@ async function ensureRow() {
       apkDownloadUrl: '',
       gracePeriodHours: 24,
       forceLock: false,
+      websiteDownloadLocked: false,
     },
     update: {},
   });
@@ -25,6 +27,7 @@ export async function GET(request) {
     }
 
     const row = await ensureRow();
+    const st = getReleaseApkStats();
     return NextResponse.json({
       success: true,
       config: {
@@ -35,9 +38,13 @@ export async function GET(request) {
         publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
         gracePeriodHours: row.gracePeriodHours,
         forceLock: row.forceLock,
+        websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,
         updatedAt: row.updatedAt.toISOString(),
       },
+      releaseFile: st
+        ? { exists: true, size: st.size, mtime: st.mtime.toISOString() }
+        : { exists: false },
     });
   } catch (e) {
     console.error('admin mobile-app GET', e);
@@ -49,6 +56,7 @@ export async function GET(request) {
  * Body:
  * - latestVersionCode, latestVersionName, apkDownloadUrl, releaseNotes?, gracePeriodHours?, broadcastMessage?
  * - forceLock?: boolean
+ * - websiteDownloadLocked?: boolean — instant lock: blocks public /api/mobile-app/download
  * - publish?: boolean — if true, sets publishedAt to now (starts 24h grace by default)
  * - clearPublish?: boolean — clears publishedAt (stops timed lock until republished)
  */
@@ -85,6 +93,9 @@ export async function POST(request) {
       data.broadcastMessage = body.broadcastMessage ? String(body.broadcastMessage) : null;
     }
     if (body.forceLock !== undefined) data.forceLock = !!body.forceLock;
+    if (body.websiteDownloadLocked !== undefined) {
+      data.websiteDownloadLocked = !!body.websiteDownloadLocked;
+    }
 
     if (body.clearPublish === true) {
       data.publishedAt = null;
@@ -98,6 +109,7 @@ export async function POST(request) {
       data,
     });
 
+    const st = getReleaseApkStats();
     return NextResponse.json({
       success: true,
       config: {
@@ -108,9 +120,13 @@ export async function POST(request) {
         publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
         gracePeriodHours: row.gracePeriodHours,
         forceLock: row.forceLock,
+        websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,
         updatedAt: row.updatedAt.toISOString(),
       },
+      releaseFile: st
+        ? { exists: true, size: st.size, mtime: st.mtime.toISOString() }
+        : { exists: false },
     });
   } catch (e) {
     console.error('admin mobile-app POST', e);

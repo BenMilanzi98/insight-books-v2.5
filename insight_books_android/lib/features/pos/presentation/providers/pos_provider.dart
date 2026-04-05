@@ -2,6 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:dio/dio.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import '../../domain/pos_models.dart';
 import '../../data/pos_repository.dart';
 import '../../data/offline_pos_queue.dart';
@@ -316,7 +317,7 @@ class Pos extends _$Pos {
       final taxAccounts = await repository.fetchTaxAccounts();
       final taxDefaults = await repository.fetchTaxDefaults();
       final threshold = await _offlineQueue.checkThresholds();
-      final perms = await repository.fetchUserPermissions();
+      final perms = await ref.read(userPermissionsProvider.future);
       final canView = perms.isEmpty || perms.contains('sales.view');
       final canCreate = perms.isEmpty || perms.contains('sales.create');
       final canVoid = perms.isEmpty || perms.contains('sales.void');

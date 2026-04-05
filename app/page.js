@@ -815,31 +815,40 @@ function VideoShowcaseSection() {
 }
 
 
-// Clients / social proof strip
+// Business categories — who InsightBooks is built for
 function TestimonialsSection() {
-  const clients = [
-    'TechInnovate',
-    'Retail Plus',
-    'Finance Corp',
-    'Business Solutions',
-    'Enterprise Ltd',
-    'Startup Hub',
-    'Global Trade',
-    'Local Services',
-    'Digital Solutions',
-    'Manufacturing Inc',
-    'Healthcare Plus',
-    'Education Hub',
+  const businessCategories = [
+    'Pharmacies',
+    'Liquor stores',
+    'Supermarkets & grocers',
+    'Restaurants & cafés',
+    'Hardware & building supplies',
+    'Fashion & apparel',
+    'Electronics & mobile shops',
+    'Auto parts & garages',
+    'Spaza shops & tuck shops',
+    'Wholesalers & distributors',
+    'Salons & barbers',
+    'Hotels & guest houses',
+    'Agricultural supplies',
+    'Bookstores & stationery',
+    'Butcheries & delis',
+    'Fuel stations & convenience',
+    'Medical & dental clinics',
+    'Schools & training centres',
   ];
 
   return (
     <section className="relative border-y border-blue-100/80 bg-gradient-to-r from-slate-50 via-white to-blue-50/40 py-14">
       <div className="mx-auto max-w-7xl px-6">
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-blue-600/80 mb-8">
-          Teams that ship with InsightBooks
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-blue-600/80 mb-2">
+          Business categories
         </p>
+        <h2 className="text-center text-lg font-semibold text-slate-800 mb-8 sm:text-xl">
+          Built for shops and teams like yours
+        </h2>
         <div className="flex flex-wrap justify-center gap-x-10 gap-y-4">
-          {clients.map((name) => (
+          {businessCategories.map((name) => (
             <span
               key={name}
               className="text-sm font-medium text-slate-600 transition-colors hover:text-blue-800"

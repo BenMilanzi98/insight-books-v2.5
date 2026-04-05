@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
+import 'package:insightbooks_android/shared/server_pdf_preview_screen.dart';
 import '../data/quotation_repository.dart';
 import '../domain/quotation_model.dart';
 import 'providers/quotation_details_provider.dart';
@@ -67,6 +69,9 @@ class QuotationDetailsScreen extends ConsumerWidget {
         data: (quotation) => _QuotationDetailsBody(
           quotation: quotation,
           quotationId: quotationId,
+          onViewPdf: quotationState.canViewQuotations
+              ? () => _viewQuotationPdfPreview(context, ref, quotation)
+              : null,
           onSharePdf: quotationState.canExportQuotations
               ? () => _downloadQuotationPdf(context, ref, quotation)
               : null,
@@ -97,13 +102,26 @@ class QuotationDetailsScreen extends ConsumerWidget {
       );
     }
 
+    if (permissions.canViewQuotations) {
+      items.add(
+        PopupMenuItem(
+          value: 'view_pdf',
+          child: ListTile(
+            leading: Icon(Icons.visibility_outlined, color: AppTheme.infoColor(context)),
+            title: const Text('View official PDF'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+    }
     if (permissions.canExportQuotations) {
       items.add(
         PopupMenuItem(
           value: 'download',
           child: ListTile(
             leading: Icon(Icons.picture_as_pdf_outlined, color: AppTheme.errorColor(context)),
-            title: const Text('Download PDF'),
+            title: const Text('Share PDF'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -180,6 +198,10 @@ class QuotationDetailsScreen extends ConsumerWidget {
       _showPermissionDenied(context);
       return;
     }
+    if (action == 'view_pdf' && !permissions.canViewQuotations) {
+      _showPermissionDenied(context);
+      return;
+    }
     if (action == 'download' && !permissions.canExportQuotations) {
       _showPermissionDenied(context);
       return;
@@ -206,6 +228,9 @@ class QuotationDetailsScreen extends ConsumerWidget {
         break;
       case 'convert':
         await _showConvertDialog(context, ref, quotation);
+        break;
+      case 'view_pdf':
+        await _viewQuotationPdfPreview(context, ref, quotation);
         break;
       case 'download':
         await _downloadQuotationPdf(context, ref, quotation);
@@ -349,6 +374,60 @@ class QuotationDetailsScreen extends ConsumerWidget {
     }
     emailsCtrl.dispose();
     messageCtrl.dispose();
+  }
+
+  Future<void> _viewQuotationPdfPreview(
+    BuildContext context,
+    WidgetRef ref,
+    Quotation quotation,
+  ) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Loading PDF…')),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final bytes = await ref
+          .read(quotationRepositoryProvider)
+          .downloadQuotationPdf(quotation.id);
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ServerPdfPreviewScreen(
+            title: 'Quotation ${quotation.quotationNumber}',
+            pdfBytes: Uint8List.fromList(bytes),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        final msg = e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg.contains('HTML')
+                  ? 'Server returned an error page instead of PDF. The quotation PDF may not be ready yet.'
+                  : msg.contains('JSON')
+                      ? 'Server could not generate quotation PDF.'
+                      : 'Failed to open quotation PDF: $e',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _downloadQuotationPdf(
@@ -524,11 +603,13 @@ class QuotationDetailsScreen extends ConsumerWidget {
 class _QuotationDetailsBody extends StatelessWidget {
   final Quotation quotation;
   final String quotationId;
+  final VoidCallback? onViewPdf;
   final VoidCallback? onSharePdf;
 
   const _QuotationDetailsBody({
     required this.quotation,
     required this.quotationId,
+    this.onViewPdf,
     this.onSharePdf,
   });
 
@@ -546,7 +627,7 @@ class _QuotationDetailsBody extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (onSharePdf != null) ...[
+          if (onViewPdf != null || onSharePdf != null) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -556,15 +637,21 @@ class _QuotationDetailsBody extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Quotation PDF',
+                        'Official quotation PDF',
                         style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: onSharePdf,
-                      icon: const Icon(Icons.share_outlined, size: 20),
-                      label: const Text('Share'),
-                    ),
+                    if (onViewPdf != null)
+                      TextButton(
+                        onPressed: onViewPdf,
+                        child: const Text('View'),
+                      ),
+                    if (onSharePdf != null)
+                      FilledButton.tonalIcon(
+                        onPressed: onSharePdf,
+                        icon: const Icon(Icons.share_outlined, size: 20),
+                        label: const Text('Share'),
+                      ),
                   ],
                 ),
               ),
@@ -697,7 +784,7 @@ class _QuotationDetailsBody extends StatelessWidget {
                               '${item.quantity} × ${currencyFormat.format(item.unitPrice)}'
                               '${item.taxRate > 0 ? ' + ${item.taxRate}% tax' : ''}',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.outline,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -800,7 +887,7 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: theme.colorScheme.outline),
+          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -809,7 +896,7 @@ class _DetailRow extends StatelessWidget {
                 Text(
                   label,
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.outline,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
                 Text(value, style: theme.textTheme.bodyMedium),

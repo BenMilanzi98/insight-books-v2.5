@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/network_error_mapper.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/invoice_repository.dart';
@@ -197,7 +198,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
   }
 
   Future<void> loadPermissions() async {
-    final perms = await _repo.fetchUserPermissions();
+    final perms = await ref.read(userPermissionsProvider.future);
     final hasPerms = perms.isNotEmpty;
     state = state.copyWith(
       canViewInvoices: !hasPerms || perms.contains('invoices.view'),

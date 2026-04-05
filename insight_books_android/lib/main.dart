@@ -18,7 +18,7 @@ class InsightBooksApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
-      title: 'InsightBooks Africa',
+      title: 'Insight Books',
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,

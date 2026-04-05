@@ -206,8 +206,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.4),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.4),
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -215,7 +214,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                       children: [
                         Icon(
                           Icons.person_outline,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -224,7 +223,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                             style: TextStyle(
                               color: _selectedClient != null
                                   ? null
-                                  : theme.colorScheme.outline,
+                                  : theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -266,8 +265,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.4),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.4),
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -275,7 +273,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                       children: [
                         Icon(
                           Icons.calendar_month_outlined,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Text(DateFormat('d MMM y').format(_issueDate)),
@@ -298,8 +296,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.4),
+                        color: theme.colorScheme.outline.withValues(alpha: 0.4),
                       ),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -307,7 +304,7 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                       children: [
                         Icon(
                           Icons.event_outlined,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(width: 10),
                         Text(DateFormat('d MMM y').format(_validUntil)),
@@ -359,12 +356,12 @@ class _CreateQuotationScreenState extends ConsumerState<CreateQuotationScreen> {
                         Icon(
                           Icons.inventory_2_outlined,
                           size: 40,
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'No items added yet',
-                          style: TextStyle(color: theme.colorScheme.outline),
+                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                         ),
                       ],
                     ),

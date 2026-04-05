@@ -263,7 +263,7 @@ class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
                       Icon(
                         Icons.description_outlined,
                         size: 64,
-                        color: theme.colorScheme.outline,
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -274,7 +274,7 @@ class _QuotationListScreenState extends ConsumerState<QuotationListScreen> {
                       Text(
                         'Create your first quotation',
                         style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.outline,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -936,7 +936,7 @@ class _QuotationCard extends StatelessWidget {
                   Icon(
                     Icons.person_outline,
                     size: 14,
-                    color: theme.colorScheme.outline,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 4),
                   Expanded(
@@ -950,13 +950,13 @@ class _QuotationCard extends StatelessWidget {
                   Icon(
                     Icons.calendar_today_outlined,
                     size: 12,
-                    color: theme.colorScheme.outline,
+                    color: theme.colorScheme.onSurfaceVariant,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Valid ${dateFormat.format(DateTime.tryParse(quotation.validUntil) ?? DateTime.now())}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.outline,
+                      color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -965,7 +965,7 @@ class _QuotationCard extends StatelessWidget {
               Text(
                 quotation.title,
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import '../../domain/user_model.dart';
 import '../../domain/business_settings.dart';
 import '../../data/account_repository.dart';
@@ -69,10 +70,16 @@ class Account extends _$Account {
     state = state.copyWith(isLoading: true, error: null);
     final repository = ref.read(accountRepositoryProvider);
     try {
-      final perms = await repository.fetchUserPermissions();
+      final perms = await ref.read(userPermissionsProvider.future);
       state = state.copyWith(
-        canViewSystem: perms.contains('*') || perms.contains('all') || perms.contains('system.view'),
-        canUpdateSystem: perms.contains('*') || perms.contains('all') || perms.contains('system.update'),
+        canViewSystem:
+            hasPermission(perms, '*') ||
+                hasPermission(perms, 'all') ||
+                hasPermission(perms, 'system.view'),
+        canUpdateSystem:
+            hasPermission(perms, '*') ||
+                hasPermission(perms, 'all') ||
+                hasPermission(perms, 'system.update'),
       );
     } catch (e) {
       debugPrint('[Account] Failed to load permissions: $e');

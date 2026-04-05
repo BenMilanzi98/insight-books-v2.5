@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../data/invoice_repository.dart';
@@ -12,6 +13,7 @@ import 'providers/invoice_details_provider.dart';
 import 'providers/invoice_provider.dart';
 import '../../../shared/widgets/main_layout.dart';
 import '../../../shared/pdf_share_sheet.dart';
+import '../../../shared/server_pdf_preview_screen.dart';
 
 class InvoiceDetailsScreen extends ConsumerStatefulWidget {
   final String invoiceId;
@@ -117,13 +119,24 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         ),
       );
     }
+    if (permissions.canViewInvoices) {
+      items.add(
+        const PopupMenuItem(
+          value: 'view_pdf',
+          child: ListTile(
+            leading: Icon(Icons.visibility_outlined),
+            title: Text('View official PDF'),
+          ),
+        ),
+      );
+    }
     if (permissions.canExportInvoices) {
       items.add(
         const PopupMenuItem(
           value: 'download',
           child: ListTile(
             leading: Icon(Icons.picture_as_pdf_outlined),
-            title: Text('Download PDF'),
+            title: Text('Share PDF'),
           ),
         ),
       );
@@ -221,6 +234,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       _showPermissionDenied();
       return;
     }
+    if (action == 'view_pdf' && !permissions.canViewInvoices) {
+      _showPermissionDenied();
+      return;
+    }
     if (action == 'download' && !permissions.canExportInvoices) {
       _showPermissionDenied();
       return;
@@ -238,6 +255,9 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         break;
       case 'send':
         await _showSendInvoiceDialog(invoice);
+        break;
+      case 'view_pdf':
+        await _viewInvoicePdf(invoice);
         break;
       case 'download':
         await _downloadInvoicePdf(invoice);
@@ -270,7 +290,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
           _buildStatusBanner(invoice, theme),
           const SizedBox(height: 16),
 
-          if (permissions.canExportInvoices) ...[
+          if (permissions.canViewInvoices) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -280,15 +300,20 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Invoice PDF',
+                        'Official invoice PDF',
                         style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                       ),
                     ),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _downloadInvoicePdf(invoice),
-                      icon: const Icon(Icons.share_outlined, size: 20),
-                      label: const Text('Share'),
+                    TextButton(
+                      onPressed: () => _viewInvoicePdf(invoice),
+                      child: const Text('View'),
                     ),
+                    if (permissions.canExportInvoices)
+                      FilledButton.tonalIcon(
+                        onPressed: () => _downloadInvoicePdf(invoice),
+                        icon: const Icon(Icons.share_outlined, size: 20),
+                        label: const Text('Share'),
+                      ),
                   ],
                 ),
               ),
@@ -1154,6 +1179,54 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       }
     }
     messageCtrl.dispose();
+  }
+
+  Future<void> _viewInvoicePdf(Invoice invoice) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Loading PDF…')),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final bytes = await ref.read(invoiceRepositoryProvider).downloadInvoicePdf(invoice.id);
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ServerPdfPreviewScreen(
+            title: 'Invoice ${invoice.invoiceNumber}',
+            pdfBytes: Uint8List.fromList(bytes),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        final msg = e.toString();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              msg.contains('HTML')
+                  ? 'Server returned an error page instead of PDF. The invoice PDF may not be ready yet.'
+                  : msg.contains('JSON')
+                      ? 'Server could not generate invoice PDF.'
+                      : 'Failed to open invoice PDF: $e',
+            ),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _downloadInvoicePdf(Invoice invoice) async {

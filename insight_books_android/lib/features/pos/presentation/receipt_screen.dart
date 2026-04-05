@@ -1,9 +1,15 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/storage/storage_service.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
-import 'package:insightbooks_android/core/theme/app_theme.dart';
+import 'package:insightbooks_android/shared/server_pdf_preview_screen.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class ReceiptScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> saleData;
@@ -19,9 +25,44 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
   Object? _loadError;
   var _loadingDetail = true;
 
+  WebViewController? _webController;
+  var _webLoading = true;
+  Object? _webError;
+
   @override
   void initState() {
     super.initState();
+    if (_showServerReceipt) {
+      final baseHost = Uri.parse(apiBaseUrl).host;
+      _webController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.white)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onNavigationRequest: (req) {
+              final uri = Uri.tryParse(req.url);
+              if (uri != null &&
+                  uri.host.isNotEmpty &&
+                  uri.host != baseHost) {
+                return NavigationDecision.prevent;
+              }
+              return NavigationDecision.navigate;
+            },
+            onPageFinished: (_) {
+              if (mounted) setState(() => _webLoading = false);
+            },
+            onWebResourceError: (err) {
+              if (mounted) {
+                setState(() {
+                  _webError = err.description;
+                  _webLoading = false;
+                });
+              }
+            },
+          ),
+        );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _loadWebReceipt());
+    }
     _loadDetail();
   }
 
@@ -29,6 +70,42 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     final sale = widget.saleData['sale'];
     if (sale is Map && sale['id'] != null) return sale['id'].toString();
     return widget.saleData['id']?.toString();
+  }
+
+  bool get _showServerReceipt {
+    final id = _saleId;
+    return id != null && id.isNotEmpty && !id.startsWith('OFFLINE-');
+  }
+
+  Future<void> _loadWebReceipt() async {
+    final id = _saleId;
+    final controller = _webController;
+    if (id == null || controller == null) return;
+    setState(() {
+      _webError = null;
+      _webLoading = true;
+    });
+    try {
+      final storage = ref.read(storageServiceProvider);
+      final token = await storage.getToken();
+      final cookie = await storage.getCookie();
+      final uri = Uri.parse('$apiBaseUrl/api/sales/$id/receipt');
+      final headers = <String, String>{};
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+      if (cookie != null && cookie.isNotEmpty) {
+        headers['Cookie'] = cookie;
+      }
+      await controller.loadRequest(uri, headers: headers);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _webError = e;
+          _webLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _loadDetail() async {
@@ -66,6 +143,133 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       symbol: 'MWK ',
       decimalDigits: 2,
     );
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      appBar: AppBar(
+        backgroundColor: colorScheme.surface,
+        foregroundColor: colorScheme.onSurface,
+        elevation: 0,
+        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            onPressed: () =>
+                Navigator.of(context).popUntil((route) => route.isFirst),
+            icon: Icon(Icons.close, color: colorScheme.onSurface),
+          ),
+        ],
+      ),
+      body: _showServerReceipt
+          ? _buildServerReceiptBody(context, colorScheme)
+          : _buildOfflineReceiptBody(context, colorScheme, currencyFormat),
+    );
+  }
+
+  Widget _buildServerReceiptBody(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
+    final controller = _webController;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+          child: Row(
+            children: [
+              Icon(Icons.check_circle, color: AppTheme.successColor(context), size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Sale successful',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    Text(
+                      'Receipt matches POS / web print view',
+                      style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (_webError != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Material(
+              color: colorScheme.errorContainer.withValues(alpha: 0.35),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Could not load receipt preview',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _webError.toString(),
+                      style: TextStyle(fontSize: 12, color: colorScheme.onSurface),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _loadWebReceipt,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        Expanded(
+          child: Stack(
+            children: [
+              if (controller != null && _webError == null)
+                WebViewWidget(controller: controller),
+              if (_webLoading && _webError == null)
+                Container(
+                  color: colorScheme.surface,
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(color: colorScheme.primary),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Loading receipt…',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+        _buildBottomActions(context, colorScheme),
+      ],
+    );
+  }
+
+  Widget _buildOfflineReceiptBody(
+    BuildContext context,
+    ColorScheme colorScheme,
+    NumberFormat currencyFormat,
+  ) {
     final sale = _detail ?? (widget.saleData['sale'] as Map<String, dynamic>? ?? {});
     final total = _num(sale['rawTotal'] ?? sale['total_amount'] ?? sale['total']);
     final subtotal = _num(sale['rawSubtotal'] ?? sale['subtotal']);
@@ -83,265 +287,283 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
     }
 
     final items = (sale['items'] is List) ? (sale['items'] as List) : const [];
-    final colorScheme = Theme.of(context).colorScheme;
     final saleNumber = (sale['saleNumber'] ?? '').toString();
     final receiptLabel = saleNumber.isNotEmpty ? saleNumber : (sale['id'] ?? 'N/A').toString();
 
-    return Scaffold(
-      backgroundColor: colorScheme.surface,
-      appBar: AppBar(
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurface,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          IconButton(
-            onPressed: () =>
-                Navigator.of(context).popUntil((route) => route.isFirst),
-            icon: Icon(Icons.close, color: colorScheme.onSurface),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(Icons.check_circle, color: AppTheme.successColor(context), size: 80),
+          const SizedBox(height: 16),
+          Text(
+            'Sale Successful',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Icon(Icons.check_circle, color: AppTheme.successColor(context), size: 80),
-            const SizedBox(height: 16),
-            Text(
-              'Sale Successful',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Receipt #$receiptLabel',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
-            ),
-            if (_loadingDetail)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Loading line items…',
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-            if (_loadError != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Could not load full receipt: $_loadError',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: colorScheme.error, fontSize: 13),
-                ),
-              ),
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colorScheme.outline.withValues(alpha: 0.4)),
-              ),
-              child: Column(
+          const SizedBox(height: 8),
+          Text(
+            'Receipt #$receiptLabel',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: colorScheme.onSurfaceVariant),
+          ),
+          if (_loadingDetail)
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildRow(context, 'Subtotal', currencyFormat.format(subtotal)),
-                  if (discount > 0.001)
-                    _buildRow(
-                      context,
-                      'Discount',
-                      '- ${currencyFormat.format(discount)}',
+                  SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: colorScheme.primary,
                     ),
-                  _buildRow(context, 'Tax', currencyFormat.format(taxTotal)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(color: colorScheme.outline),
                   ),
-                  _buildRow(
-                    context,
-                    'Total',
-                    currencyFormat.format(total),
-                    isBold: true,
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    child: Divider(color: colorScheme.outline),
-                  ),
-                  _buildRow(context, 'Customer', clientName),
-                  const SizedBox(height: 8),
-                  _buildRow(
-                    context,
-                    'Date',
-                    _formatSaleDate(sale),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildRow(
-                    context,
-                    'Status',
-                    (sale['status'] ?? 'completed').toString().toUpperCase(),
-                    color: AppTheme.successColor(context),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Loading line items…',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            Text(
-              'Items sold',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+          if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Could not load full receipt: $_loadError',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colorScheme.error, fontSize: 13),
               ),
             ),
-            const SizedBox(height: 12),
-            if (items.isEmpty)
-              Text(
-                _loadingDetail
-                    ? '…'
-                    : 'No line items returned. Use Share receipt to open the full receipt.',
-                style: TextStyle(color: colorScheme.onSurfaceVariant),
-              )
-            else
-              ...items.map((raw) {
-                final item = raw is Map<String, dynamic>
-                    ? raw
-                    : Map<String, dynamic>.from(raw as Map);
-                final desc = _lineDescription(item);
-                final qty = _num(item['quantity']);
-                final unit = _num(item['rawUnitPrice'] ?? item['unitPrice']);
-                var lineAmt = _num(item['rawAmount'] ?? item['amount']);
-                if (lineAmt <= 0) {
-                  lineAmt = _num(item['quantity']) * _num(item['unitPrice']);
-                }
-                final lineTax = _num(item['taxAmount']);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${qty.toStringAsFixed(qty == qty.roundToDouble() ? 0 : 2)}×',
-                            style: TextStyle(
-                              color: colorScheme.onSurfaceVariant,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              desc,
-                              style: TextStyle(
-                                color: colorScheme.onSurface,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            currencyFormat.format(lineAmt),
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 28, top: 4),
-                        child: Text(
-                          '${currencyFormat.format(unit)} each'
-                          '${lineTax > 0 ? ' · Tax ${currencyFormat.format(lineTax)}' : ''}',
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: colorScheme.outline.withValues(alpha: 0.4)),
+            ),
+            child: Column(
+              children: [
+                _buildRow(context, 'Subtotal', currencyFormat.format(subtotal)),
+                if (discount > 0.001)
+                  _buildRow(
+                    context,
+                    'Discount',
+                    '- ${currencyFormat.format(discount)}',
+                  ),
+                _buildRow(context, 'Tax', currencyFormat.format(taxTotal)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: colorScheme.outline),
+                ),
+                _buildRow(
+                  context,
+                  'Total',
+                  currencyFormat.format(total),
+                  isBold: true,
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Divider(color: colorScheme.outline),
+                ),
+                _buildRow(context, 'Customer', clientName),
+                const SizedBox(height: 8),
+                _buildRow(
+                  context,
+                  'Date',
+                  _formatSaleDate(sale),
+                ),
+                const SizedBox(height: 8),
+                _buildRow(
+                  context,
+                  'Status',
+                  (sale['status'] ?? 'completed').toString().toUpperCase(),
+                  color: AppTheme.successColor(context),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
+          Text(
+            'Items sold',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            Text(
+              _loadingDetail
+                  ? '…'
+                  : 'No line items returned. Sync when online for the full server receipt.',
+              style: TextStyle(color: colorScheme.onSurfaceVariant),
+            )
+          else
+            ...items.map((raw) {
+              final item = raw is Map<String, dynamic>
+                  ? raw
+                  : Map<String, dynamic>.from(raw as Map);
+              final desc = _lineDescription(item);
+              final qty = _num(item['quantity']);
+              final unit = _num(item['rawUnitPrice'] ?? item['unitPrice']);
+              var lineAmt = _num(item['rawAmount'] ?? item['amount']);
+              if (lineAmt <= 0) {
+                lineAmt = _num(item['quantity']) * _num(item['unitPrice']);
+              }
+              final lineTax = _num(item['taxAmount']);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${qty.toStringAsFixed(qty == qty.roundToDouble() ? 0 : 2)}×',
                           style: TextStyle(
-                            fontSize: 12,
                             color: colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            const SizedBox(height: 40),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: () => _shareReceipt(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: colorScheme.primary,
-                  foregroundColor: colorScheme.onPrimary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.share_outlined, color: colorScheme.onPrimary),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Share receipt',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onPrimary,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            desc,
+                            style: TextStyle(
+                              color: colorScheme.onSurface,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          currencyFormat.format(lineAmt),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 28, top: 4),
+                      child: Text(
+                        '${currencyFormat.format(unit)} each'
+                        '${lineTax > 0 ? ' · Tax ${currencyFormat.format(lineTax)}' : ''}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                   ],
                 ),
+              );
+            }),
+          const SizedBox(height: 24),
+          _buildBottomActions(context, colorScheme),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomActions(
+    BuildContext context,
+    ColorScheme colorScheme,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton.icon(
+              onPressed: () => _viewReceiptPdf(context),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colorScheme.primary),
+                foregroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              label: const Text(
+                'View receipt PDF',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Share downloads a PDF receipt from your server.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: OutlinedButton(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: colorScheme.primary),
-                  foregroundColor: colorScheme.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton(
+              onPressed: () => _shareReceipt(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.primary,
+                foregroundColor: colorScheme.onPrimary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.share_outlined, color: colorScheme.onPrimary),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Share receipt PDF',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onPrimary,
+                    ),
                   ),
-                ),
-                child: const Text(
-                  'Back to Dashboard',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'PDF is generated by the same server route as the web POS.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: colorScheme.primary),
+                foregroundColor: colorScheme.primary,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Back to Dashboard',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -366,6 +588,64 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
       }
     } catch (_) {}
     return raw.toString();
+  }
+
+  Future<void> _viewReceiptPdf(BuildContext context) async {
+    final saleId = _saleId;
+    if (saleId == null || saleId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Missing sale ID')),
+      );
+      return;
+    }
+    if (saleId.startsWith('OFFLINE-')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Receipt PDF is not available until the sale syncs online.'),
+        ),
+      );
+      return;
+    }
+    final sale = _detail ?? (widget.saleData['sale'] as Map<String, dynamic>? ?? {});
+    final saleNumber = (sale['saleNumber'] ?? '').toString();
+    final receiptLabel =
+        saleNumber.isNotEmpty ? saleNumber : (sale['id'] ?? 'N/A').toString();
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(child: Text('Loading PDF…')),
+            ],
+          ),
+        ),
+      ),
+    );
+    try {
+      final bytes = await ref.read(posRepositoryProvider).downloadReceiptPdf(saleId);
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ServerPdfPreviewScreen(
+            title: 'Receipt $receiptLabel',
+            pdfBytes: Uint8List.fromList(bytes),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context, rootNavigator: true).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load PDF: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _shareReceipt(BuildContext context) async {

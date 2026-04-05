@@ -118,7 +118,7 @@ const POSPage = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [showProductSearch, setShowProductSearch] = useState(false);
   /** When true, show a scrollable grid of products (filtered by search) for click-to-add */
-  const [productPickerGrid, setProductPickerGrid] = useState(false);
+  const [productPickerGrid, setProductPickerGrid] = useState(true);
   
   // Clients
   const [clients, setClients] = useState([]);
