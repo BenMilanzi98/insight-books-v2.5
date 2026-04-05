@@ -18,6 +18,22 @@ const formatCurrency = (amount) => {
     : amount}`;
 };
 
+/** Prefer 4000 / 4100 then first active income/revenue CoA row for the tenant (matches POS loader). */
+async function getDefaultIncomeAccountIdForTenant(tenantId) {
+  const normCode = (c) => String(c ?? '').trim();
+  const accounts = await prisma.account.findMany({
+    where: prismaWhereCoaIncomeAccounts(tenantId),
+    select: { id: true, accountCode: true, isActive: true },
+    orderBy: [{ accountCode: 'asc' }],
+  });
+  const defaultAccount =
+    accounts.find((acc) => normCode(acc.accountCode) === '4000') ||
+    accounts.find((acc) => normCode(acc.accountCode) === '4100') ||
+    accounts.find((acc) => acc.isActive !== false) ||
+    accounts[0];
+  return defaultAccount?.id ?? null;
+}
+
 // Helper function to normalize payment method for AccountBalance
 const normalizePaymentMethod = (method) => {
   if (!method) return 'cash';
@@ -393,6 +409,37 @@ export async function POST(request) {
         { error: 'Sale must include at least one item' },
         { status: 400 }
       );
+    }
+
+    if (!user.tenantId) {
+      return NextResponse.json(
+        { error: 'Tenant context required' },
+        { status: 400 }
+      );
+    }
+
+    // Apply default income account for any line missing accountId (client race, offline sync, or partial payloads)
+    const needsIncomeDefault = data.items.some((item) => {
+      const a = item.accountId;
+      return a == null || (typeof a === 'string' && a.trim() === '');
+    });
+    if (needsIncomeDefault) {
+      const defaultIncomeId = await getDefaultIncomeAccountIdForTenant(user.tenantId);
+      if (!defaultIncomeId) {
+        return NextResponse.json(
+          {
+            error:
+              'Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.',
+          },
+          { status: 400 }
+        );
+      }
+      for (const item of data.items) {
+        const a = item.accountId;
+        if (a == null || (typeof a === 'string' && a.trim() === '')) {
+          item.accountId = defaultIncomeId;
+        }
+      }
     }
     
     // Relief supply validation (TC-RS-015, TC-RS-016)

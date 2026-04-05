@@ -460,7 +460,8 @@ const POSPage = () => {
     }
   };
 
-  // Load income accounts from Chart of Accounts
+  // Load income accounts from Chart of Accounts.
+  // Returns resolved data so callers can use IDs immediately (setState is async — avoids race when checkout runs before this fetch completes).
   const loadIncomeAccounts = async () => {
     try {
       // Use the lightweight income accounts endpoint (no Finance/Admin requirement)
@@ -479,18 +480,23 @@ const POSPage = () => {
           accounts.find((acc) => acc.isActive !== false) ||
           accounts[0];
           
+        let defaultIncomeAccountId = null;
         if (defaultAccount) {
-          setDefaultIncomeAccountId(defaultAccount.id);
+          defaultIncomeAccountId = defaultAccount.id;
+          setDefaultIncomeAccountId(defaultIncomeAccountId);
           console.log('✅ Income account loaded:', defaultAccount.accountName, defaultAccount.accountCode);
         } else {
           console.warn('No income accounts found. Sales will fail without accountId.');
         }
+        return { accounts, defaultIncomeAccountId };
       } else {
         const errorData = await response.json().catch(() => ({}));
         console.error('Failed to load income accounts:', response.status, errorData);
+        return { accounts: [], defaultIncomeAccountId: null };
       }
     } catch (error) {
       console.error('Failed to load income accounts:', error);
+      return { accounts: [], defaultIncomeAccountId: null };
     }
   };
 
@@ -1692,28 +1698,25 @@ const POSPage = () => {
       return;
     }
     
-    // Check if income account is available
-    if (!defaultIncomeAccountId && incomeAccounts.length === 0) {
-      setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.");
-      return;
-    }
-    
-    // Ensure we have a default income account ID
-    let accountIdToUse = defaultIncomeAccountId;
-    if (!accountIdToUse && incomeAccounts.length > 0) {
-      // Try to use first available income account
-      const firstAccount = incomeAccounts.find(acc => acc.isActive);
-      if (firstAccount) {
-        accountIdToUse = firstAccount.id;
-        setDefaultIncomeAccountId(firstAccount.id);
-      } else {
-        setSaleError("No active income account found. Please go to Chart of Accounts and create an active Income account (e.g., account code 4000 - Revenue) before creating sales.");
-        return;
+    // Resolve income account: if state is still empty, await a fresh load (fixes race when user completes sale before the mount-time fetch finishes — common with large carts / fast checkout).
+    let resolvedIncomeAccountId = defaultIncomeAccountId;
+    let accountsSnapshot = incomeAccounts;
+    if (!resolvedIncomeAccountId) {
+      if (accountsSnapshot.length === 0) {
+        const loaded = await loadIncomeAccounts();
+        accountsSnapshot = loaded.accounts;
+        resolvedIncomeAccountId = loaded.defaultIncomeAccountId;
+      }
+      if (!resolvedIncomeAccountId && accountsSnapshot.length > 0) {
+        const firstAccount = accountsSnapshot.find(acc => acc.isActive) || accountsSnapshot[0];
+        resolvedIncomeAccountId = firstAccount?.id || null;
+        if (resolvedIncomeAccountId) {
+          setDefaultIncomeAccountId(resolvedIncomeAccountId);
+        }
       }
     }
-    
-    if (!accountIdToUse) {
-      setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue) before creating sales.");
+    if (!resolvedIncomeAccountId) {
+      setSaleError("Income account is required. Please go to Chart of Accounts and create an Income account (e.g., account code 4000 - Revenue or 4100 - Sales Revenue) before creating sales.");
       return;
     }
 
@@ -1958,7 +1961,7 @@ const POSPage = () => {
           discount: product.discount || 0,
           discountAmount: product.discountAmount || 0,
           isCustom: product.isCustom || false,
-          accountId: accountIdToUse || defaultIncomeAccountId // Always use default revenue account for POS transactions
+          accountId: resolvedIncomeAccountId // Always use default revenue account for POS transactions
           };
           
           // Validate accountId is present

@@ -122,8 +122,11 @@ export const createSale = async (saleData) => {
         } : null,
         // Include tax breakdown for detailed tax tracking per tax type
         taxBreakdown: item.taxBreakdown || [],
-        // Include accountId for Chart of Accounts requirement
-        accountId: item.accountId || null,
+        // Include accountId for Chart of Accounts requirement (preserve non-empty strings; '' is treated as missing upstream)
+        accountId:
+          item.accountId != null && String(item.accountId).trim() !== ''
+            ? item.accountId
+            : null,
         // Include unit quantities for unit-managed products
         unitQuantities: item.unitQuantities || null
       })),
