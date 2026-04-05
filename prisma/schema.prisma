@@ -887,6 +887,10 @@ model Sale {
   branchId                   String?
   footerPhoneOverride        String?   // Override default phone in receipt footer
   footerBankDetailsOverride  String?   // Override default bank details in receipt footer
+  /// Cash / POS: amount customer handed over (optional; for change calculation on receipt)
+  posAmountTendered          Float?
+  /// Cash / POS: change returned (optional)
+  posChangeGiven             Float?
   // Reversal fields
   isReversal                 Boolean                     @default(false)
   reversedTransactionId      String?

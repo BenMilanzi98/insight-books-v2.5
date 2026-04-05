@@ -5,7 +5,10 @@ import 'package:insightbooks_android/core/storage/app_preferences_clear.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
-const String apiBaseUrl = 'https://development.insightbooksafrica.com';
+const String apiBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://development.insightbooksafrica.com',
+);
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
@@ -25,8 +28,11 @@ final dioProvider = Provider<Dio>((ref) {
 
   if (kDebugMode) {
     dio.interceptors.add(LogInterceptor(
-      requestBody: true,
+      requestBody: false,
       responseBody: false,
+      requestHeader: false,
+      responseHeader: false,
+      logPrint: (o) => debugPrint('[DIO] $o'),
     ));
   }
 
@@ -54,7 +60,9 @@ class AuthInterceptor extends QueuedInterceptor {
       if (cookie != null) {
         options.headers['Cookie'] = cookie;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[AuthInterceptor] Failed to attach credentials: $e');
+    }
     handler.next(options);
   }
 
@@ -69,7 +77,8 @@ class AuthInterceptor extends QueuedInterceptor {
         await ref.read(storageServiceProvider).clearAuth();
         await clearSharedPreferencesExceptTheme();
         ref.read(authStateProvider.notifier).forceLogout();
-      } catch (_) {
+      } catch (e) {
+        debugPrint('[AuthInterceptor] Logout cleanup failed: $e');
       } finally {
         _loggingOut = false;
       }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../providers/tenant_provider.dart';
 
 class AddBusinessDialog extends ConsumerStatefulWidget {
@@ -37,6 +38,8 @@ class _AddBusinessDialogState extends ConsumerState<AddBusinessDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
@@ -45,18 +48,21 @@ class _AddBusinessDialogState extends ConsumerState<AddBusinessDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Add New Business',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF111827),
+                color: AppTheme.textPrimary(context),
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Enter the name of your new business entity.',
-              style: TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppTheme.textSecondary(context),
+              ),
             ),
             const SizedBox(height: 24),
             TextField(
@@ -86,26 +92,13 @@ class _AddBusinessDialogState extends ConsumerState<AddBusinessDialog> {
                 const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleSubmit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
                   child: _isLoading
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
-                            ),
+                            color: theme.colorScheme.onPrimary,
                           ),
                         )
                       : const Text('Create Business'),

@@ -153,7 +153,7 @@ class InvoiceRepository {
       final items = body['items'] as List<dynamic>? ?? [];
       final itemsWithAccount = items.map<Map<String, dynamic>>((e) {
         final map = Map<String, dynamic>.from(e as Map);
-        map['accountId'] = defaultAccountId;
+        map['accountId'] = map['accountId'] ?? defaultAccountId;
         return map;
       }).toList();
       body['items'] = itemsWithAccount;
@@ -212,7 +212,7 @@ class InvoiceRepository {
       final items = body['items'] as List<dynamic>? ?? [];
       final itemsWithAccount = items.map<Map<String, dynamic>>((e) {
         final map = Map<String, dynamic>.from(e as Map);
-        map['accountId'] = defaultAccountId;
+        map['accountId'] = map['accountId'] ?? defaultAccountId;
         return map;
       }).toList();
       body['items'] = itemsWithAccount;

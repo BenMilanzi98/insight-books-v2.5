@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class TodayPerformanceCards extends StatelessWidget {
@@ -11,6 +12,9 @@ class TodayPerformanceCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final revenueColor = AppTheme.successColor(context);
+    final expensesColor = AppTheme.errorColor(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -22,18 +26,17 @@ class TodayPerformanceCards extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.amber, Colors.orange],
+                  gradient: LinearGradient(
+                    colors: [
+                      AppTheme.warningColor(context),
+                      Color.lerp(AppTheme.warningColor(context), AppTheme.errorColor(context), 0.3)!,
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(
-                  Icons.access_time,
-                  color: Colors.white,
-                  size: 20,
-                ),
+                child: const Icon(Icons.access_time, color: Colors.white, size: 20),
               ),
               const SizedBox(width: 12),
               Column(
@@ -67,7 +70,7 @@ class TodayPerformanceCards extends StatelessWidget {
                     amount: today.revenue,
                     change: today.revenueChange,
                     trend: today.revenueTrend,
-                    color: Colors.green,
+                    color: revenueColor,
                     icon: Icons.trending_up,
                     width: cardWidth,
                   ),
@@ -78,7 +81,7 @@ class TodayPerformanceCards extends StatelessWidget {
                     amount: today.expenses,
                     change: today.expensesChange,
                     trend: today.expensesTrend,
-                    color: Colors.red,
+                    color: expensesColor,
                     icon: Icons.trending_down,
                     width: cardWidth,
                   ),
@@ -101,12 +104,10 @@ class TodayPerformanceCards extends StatelessWidget {
     required IconData icon,
     required double width,
   }) {
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MWK ',
-      decimalDigits: 0,
-    );
+    final currencyFormat = NumberFormat.currency(symbol: 'MWK ', decimalDigits: 0);
     final isIncrease = change >= 0;
     final colorScheme = Theme.of(context).colorScheme;
+    final changeColor = isIncrease ? AppTheme.successColor(context) : AppTheme.errorColor(context);
 
     return Container(
       width: width,
@@ -140,9 +141,7 @@ class TodayPerformanceCards extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (isIncrease ? Colors.green : Colors.red).withValues(
-                    alpha: 0.1,
-                  ),
+                  color: changeColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Row(
@@ -150,14 +149,14 @@ class TodayPerformanceCards extends StatelessWidget {
                     Icon(
                       isIncrease ? Icons.arrow_upward : Icons.arrow_downward,
                       size: 10,
-                      color: isIncrease ? Colors.green : Colors.red,
+                      color: changeColor,
                     ),
                     Text(
                       '${change.abs().toStringAsFixed(1)}%',
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
-                        color: isIncrease ? Colors.green : Colors.red,
+                        color: changeColor,
                       ),
                     ),
                   ],

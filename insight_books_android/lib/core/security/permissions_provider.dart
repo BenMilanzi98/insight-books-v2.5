@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/security/permission_parser.dart';
@@ -17,7 +18,8 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
     final data = response.data;
     if (data is! Map) return {};
     return parsePermissionsFromMeResponse(Map<String, dynamic>.from(data));
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[Permissions] Failed to load /api/auth/me: $e');
     return {};
   }
 });

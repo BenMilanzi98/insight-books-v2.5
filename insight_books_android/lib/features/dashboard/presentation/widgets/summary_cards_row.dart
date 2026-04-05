@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class SummaryCardsRow extends StatelessWidget {
@@ -13,6 +14,11 @@ class SummaryCardsRow extends StatelessWidget {
     final isMobile = MediaQuery.of(context).size.width < 600;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+
+    final revenueColor = AppTheme.successColor(context);
+    final expensesColor = AppTheme.warningColor(context);
+    final profitColor = AppTheme.infoColor(context);
+    final outstandingColor = colorScheme.secondary;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -32,41 +38,13 @@ class SummaryCardsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               children: [
-                _buildCard(
-                  context,
-                  'Total Revenue',
-                  summary.revenue.current,
-                  summary.revenue.change,
-                  Colors.green,
-                  Icons.trending_up,
-                ),
+                _buildCard(context, 'Total Revenue', summary.revenue.current, summary.revenue.change, revenueColor, Icons.trending_up),
                 const SizedBox(height: 12),
-                _buildCard(
-                  context,
-                  'Total Expenses',
-                  summary.expenses.current,
-                  summary.expenses.change,
-                  Colors.orange,
-                  Icons.show_chart,
-                ),
+                _buildCard(context, 'Total Expenses', summary.expenses.current, summary.expenses.change, expensesColor, Icons.show_chart),
                 const SizedBox(height: 12),
-                _buildCard(
-                  context,
-                  'Net Profit',
-                  summary.profit.current,
-                  summary.profit.change,
-                  Colors.blue,
-                  Icons.account_balance_wallet,
-                ),
+                _buildCard(context, 'Net Profit', summary.profit.current, summary.profit.change, profitColor, Icons.account_balance_wallet),
                 const SizedBox(height: 12),
-                _buildCard(
-                  context,
-                  'Outstanding',
-                  summary.outstandingInvoices.current,
-                  summary.outstandingInvoices.change,
-                  Colors.purple,
-                  Icons.description,
-                ),
+                _buildCard(context, 'Outstanding', summary.outstandingInvoices.current, summary.outstandingInvoices.change, outstandingColor, Icons.description),
               ],
             ),
           )
@@ -75,49 +53,13 @@ class SummaryCardsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               children: [
-                Expanded(
-                  child: _buildCard(
-                    context,
-                    'Total Revenue',
-                    summary.revenue.current,
-                    summary.revenue.change,
-                    Colors.green,
-                    Icons.trending_up,
-                  ),
-                ),
+                Expanded(child: _buildCard(context, 'Total Revenue', summary.revenue.current, summary.revenue.change, revenueColor, Icons.trending_up)),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _buildCard(
-                    context,
-                    'Total Expenses',
-                    summary.expenses.current,
-                    summary.expenses.change,
-                    Colors.orange,
-                    Icons.show_chart,
-                  ),
-                ),
+                Expanded(child: _buildCard(context, 'Total Expenses', summary.expenses.current, summary.expenses.change, expensesColor, Icons.show_chart)),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _buildCard(
-                    context,
-                    'Net Profit',
-                    summary.profit.current,
-                    summary.profit.change,
-                    Colors.blue,
-                    Icons.account_balance_wallet,
-                  ),
-                ),
+                Expanded(child: _buildCard(context, 'Net Profit', summary.profit.current, summary.profit.change, profitColor, Icons.account_balance_wallet)),
                 const SizedBox(width: 12),
-                Expanded(
-                  child: _buildCard(
-                    context,
-                    'Outstanding',
-                    summary.outstandingInvoices.current,
-                    summary.outstandingInvoices.change,
-                    Colors.purple,
-                    Icons.description,
-                  ),
-                ),
+                Expanded(child: _buildCard(context, 'Outstanding', summary.outstandingInvoices.current, summary.outstandingInvoices.change, outstandingColor, Icons.description)),
               ],
             ),
           ),
@@ -133,12 +75,10 @@ class SummaryCardsRow extends StatelessWidget {
     Color color,
     IconData icon,
   ) {
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MWK ',
-      decimalDigits: 2,
-    );
+    final currencyFormat = NumberFormat.currency(symbol: 'MWK ', decimalDigits: 2);
     final isPositive = change >= 0;
     final colorScheme = Theme.of(context).colorScheme;
+    final changeColor = isPositive ? AppTheme.successColor(context) : AppTheme.errorColor(context);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -170,14 +110,9 @@ class SummaryCardsRow extends StatelessWidget {
               ),
               if (change != 0)
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: (isPositive ? Colors.green : Colors.red).withValues(
-                      alpha: 0.1,
-                    ),
+                    color: changeColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
@@ -186,13 +121,13 @@ class SummaryCardsRow extends StatelessWidget {
                       Icon(
                         isPositive ? Icons.arrow_upward : Icons.arrow_downward,
                         size: 12,
-                        color: isPositive ? Colors.green : Colors.red,
+                        color: changeColor,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${change.abs().toStringAsFixed(1)}%',
                         style: TextStyle(
-                          color: isPositive ? Colors.green : Colors.red,
+                          color: changeColor,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -205,10 +140,7 @@ class SummaryCardsRow extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
-              color: colorScheme.onSurfaceVariant,
-              fontSize: 14,
-            ),
+            style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 14),
           ),
           const SizedBox(height: 4),
           FittedBox(

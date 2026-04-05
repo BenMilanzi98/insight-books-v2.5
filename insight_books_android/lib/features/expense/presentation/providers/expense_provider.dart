@@ -202,13 +202,14 @@ class ExpenseController extends Notifier<ExpensePageState> {
 
   Future<void> loadPermissions() async {
     final perms = await ref.read(expenseRepositoryProvider).fetchUserPermissions();
+    final hasPerms = perms.isNotEmpty;
     state = state.copyWith(
-      canViewExpenses: perms.isEmpty || perms.contains('expenses.view'),
-      canCreateExpenses: perms.isEmpty || perms.contains('expenses.create'),
-      canUpdateExpenses: perms.isEmpty || perms.contains('expenses.update'),
-      canDeleteExpenses: perms.isEmpty || perms.contains('expenses.delete'),
-      canExportExpenses: perms.isEmpty || perms.contains('expenses.export'),
-      canApproveExpenses: perms.isEmpty || perms.contains('expenses.approve'),
+      canViewExpenses: !hasPerms || perms.contains('expenses.view'),
+      canCreateExpenses: hasPerms && perms.contains('expenses.create'),
+      canUpdateExpenses: hasPerms && perms.contains('expenses.update'),
+      canDeleteExpenses: hasPerms && perms.contains('expenses.delete'),
+      canExportExpenses: hasPerms && perms.contains('expenses.export'),
+      canApproveExpenses: hasPerms && perms.contains('expenses.approve'),
     );
   }
 
@@ -296,7 +297,6 @@ class ExpenseController extends Notifier<ExpensePageState> {
           sortOrder: 'desc',
           status: state.statusFilter == 'all' ? null : state.statusFilter,
           category: state.categoryFilter == 'all' ? null : state.categoryFilter,
-          accountId: state.categoryFilter == 'all' ? null : state.categoryFilter,
           search: state.searchQuery.isEmpty ? null : state.searchQuery,
           dateFrom: state.dateFrom,
           dateTo: state.dateTo,
@@ -501,7 +501,6 @@ class ExpenseController extends Notifier<ExpensePageState> {
     return repo.exportExpensesCsv(
       status: state.statusFilter == 'all' ? null : state.statusFilter,
       category: state.categoryFilter == 'all' ? null : state.categoryFilter,
-      accountId: state.categoryFilter == 'all' ? null : state.categoryFilter,
       search: state.searchQuery.isEmpty ? null : state.searchQuery,
       dateFrom: state.dateFrom,
       dateTo: state.dateTo,

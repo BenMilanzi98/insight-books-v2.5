@@ -198,13 +198,14 @@ class InvoiceController extends Notifier<InvoicePageState> {
 
   Future<void> loadPermissions() async {
     final perms = await _repo.fetchUserPermissions();
+    final hasPerms = perms.isNotEmpty;
     state = state.copyWith(
-      canViewInvoices: perms.isEmpty || perms.contains('invoices.view'),
-      canCreateInvoices: perms.isEmpty || perms.contains('invoices.create'),
-      canUpdateInvoices: perms.isEmpty || perms.contains('invoices.update'),
-      canDeleteInvoices: perms.isEmpty || perms.contains('invoices.delete'),
-      canExportInvoices: perms.isEmpty || perms.contains('invoices.export'),
-      canSendInvoices: perms.isEmpty || perms.contains('invoices.send'),
+      canViewInvoices: !hasPerms || perms.contains('invoices.view'),
+      canCreateInvoices: hasPerms && perms.contains('invoices.create'),
+      canUpdateInvoices: hasPerms && perms.contains('invoices.update'),
+      canDeleteInvoices: hasPerms && perms.contains('invoices.delete'),
+      canExportInvoices: hasPerms && perms.contains('invoices.export'),
+      canSendInvoices: hasPerms && perms.contains('invoices.send'),
     );
   }
 

@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../../shared/legal/legal_document_screen.dart';
 import '../../../shared/pdf_share_sheet.dart';
 import '../data/expense_repository.dart';
@@ -36,6 +37,7 @@ class ExpenseDetailsScreen extends ConsumerWidget {
                   onSelected: (action) =>
                       _handleAction(context, ref, expense, action),
                   itemBuilder: (ctx) => _buildMenuItems(
+                    ctx,
                     expense,
                     canUpdate: pageState.canUpdateExpenses,
                     canDelete: pageState.canDeleteExpenses,
@@ -82,6 +84,7 @@ class ExpenseDetailsScreen extends ConsumerWidget {
   }
 
   List<PopupMenuEntry<String>> _buildMenuItems(
+    BuildContext context,
     Expense expense, {
     required bool canUpdate,
     required bool canDelete,
@@ -141,11 +144,11 @@ class ExpenseDetailsScreen extends ConsumerWidget {
       }
       if (canDelete) {
         items.add(
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'delete',
             child: ListTile(
-              leading: Icon(Icons.delete_outline, color: Colors.red),
-              title: Text('Delete', style: TextStyle(color: Colors.red)),
+              leading: Icon(Icons.delete_outline, color: AppTheme.errorColor(context)),
+              title: Text('Delete', style: TextStyle(color: AppTheme.errorColor(context))),
               dense: true,
               contentPadding: EdgeInsets.zero,
             ),

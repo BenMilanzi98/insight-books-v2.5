@@ -153,6 +153,8 @@ const POSPage = () => {
   const [saleSuccess, setSaleSuccess] = useState(false);
   const [saleError, setSaleError] = useState(null);
   const [saleNotes, setSaleNotes] = useState("");
+  /** Cash tendered at POS (optional); used with sale total to compute change on receipt */
+  const [posPaidAmount, setPosPaidAmount] = useState("");
   const [receiptNumber, setReceiptNumber] = useState("");
   const [globalDiscount, setGlobalDiscount] = useState(0);
   
@@ -1534,6 +1536,7 @@ const POSPage = () => {
     setActiveTab("walkIn");
     setSelectedCustomer("");
     setSaleNotes("");
+    setPosPaidAmount("");
         // Reset payment to first available account (prefer Cash if exists)
         const cashAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
         const defaultAccount = cashAccount || paymentAccounts.find(acc => acc.isActive) || paymentAccounts[0];
@@ -1869,6 +1872,26 @@ const POSPage = () => {
           });
         }
       }
+
+      const isSplitPay = finalPaymentAllocations.length > 1;
+      const paidInput = posPaidAmount.trim();
+      let posTenderPayload = null;
+      let posChangePayload = null;
+      if (!isSplitPay && paidInput !== '') {
+        const paidNum = parseFloat(paidInput);
+        if (Number.isNaN(paidNum) || paidNum < 0) {
+          setSaleError('Enter a valid amount paid (cash tendered).');
+          setIsSubmitting(false);
+          return;
+        }
+        if (paidNum + 0.005 < total) {
+          setSaleError(`Amount paid must be at least the sale total (${formatCurrency(total)}).`);
+          setIsSubmitting(false);
+          return;
+        }
+        posTenderPayload = Number(paidNum.toFixed(2));
+        posChangePayload = Number((paidNum - total).toFixed(2));
+      }
       
       // Prepare sale data
       const saleData = {
@@ -2043,6 +2066,9 @@ const POSPage = () => {
         vat5CertificateNumber: isReliefSupply ? vat5CertificateNumber.trim() : null,
         // Use MRA server time if available (TC-INV-003)
         ...(serverTime ? { saleDate: serverTime } : {}),
+        ...(posTenderPayload != null && posChangePayload != null
+          ? { posAmountTendered: posTenderPayload, posChangeGiven: posChangePayload }
+          : {}),
       };
       
       // ── Offline branch (TC-OFF-007/008/009) ──────────────────
@@ -3441,6 +3467,66 @@ const POSPage = () => {
                 <Save className="w-5 h-5 mr-2" />
                 Save Draft
               </button>
+              {(() => {
+                const checkoutTotal = calculateTotal();
+                const paidTrim = posPaidAmount.trim();
+                const paidNum = paidTrim === '' ? null : parseFloat(paidTrim);
+                const paidParsedOk = paidNum !== null && !Number.isNaN(paidNum) && paidNum >= 0;
+                const splitPay = paymentAllocations.length > 1;
+                const changeDue = paidParsedOk ? paidNum - checkoutTotal : null;
+                return (
+                  <div className="w-full rounded-xl border border-gray-200 bg-gray-50/80 p-4 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-semibold text-gray-700">Sale total</span>
+                      <span className="font-bold text-gray-900">{formatCurrency(checkoutTotal)}</span>
+                    </div>
+                    {splitPay ? (
+                      <p className="text-xs text-gray-500">
+                        Amount paid and change apply to single-payment sales only (not split payment).
+                      </p>
+                    ) : (
+                      <>
+                        <div>
+                          <label htmlFor="pos-paid-amount" className="block text-xs font-semibold text-gray-600 mb-1">
+                            Amount paid (optional)
+                          </label>
+                          <input
+                            id="pos-paid-amount"
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            step="any"
+                            placeholder="Cash tendered"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            value={posPaidAmount}
+                            onChange={(e) => setPosPaidAmount(e.target.value)}
+                            disabled={selectedProducts.length === 0}
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Leave blank if not needed. If set, must be at least the sale total; change is calculated automatically.
+                          </p>
+                        </div>
+                        {paidTrim !== '' && (
+                          <div className="text-sm space-y-1">
+                            {!paidParsedOk ? (
+                              <p className="text-red-600 font-medium">Enter a valid amount.</p>
+                            ) : changeDue < -0.005 ? (
+                              <p className="text-red-600 font-medium">
+                                Short by {formatCurrency(Math.abs(changeDue))}. Amount paid must cover the sale total.
+                              </p>
+                            ) : (
+                              <div className="flex justify-between items-center pt-1 border-t border-gray-200">
+                                <span className="font-semibold text-gray-700">Change due</span>
+                                <span className="font-bold text-emerald-700">{formatCurrency(Math.max(0, changeDue))}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
               <button 
                 className={`w-full px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl flex items-center justify-center font-bold transition-all shadow-lg hover:shadow-xl ${
                   isSubmitting || selectedProducts.length === 0 ? 'opacity-70 cursor-not-allowed' : 'hover:from-green-700 hover:to-green-800 transform hover:scale-105'
@@ -3674,7 +3760,36 @@ const POSPage = () => {
             
             <div className="bg-gray-50 rounded-md p-4 mb-6">
               <p className="text-sm text-gray-600 mb-2">Sale Details:</p>
-              <p className="text-lg font-bold mb-1">Total: {currentReceipt ? currentReceipt.total : formatCurrency(calculateTotal())}</p>
+              <p className="text-lg font-bold mb-1">
+                Total:{' '}
+                {currentReceipt
+                  ? formatCurrency(Number(currentReceipt.total))
+                  : formatCurrency(calculateTotal())}
+              </p>
+              {currentReceipt != null &&
+                currentReceipt.posAmountTendered != null &&
+                currentReceipt.posAmountTendered !== '' && (
+                  <div className="text-sm text-gray-700 space-y-0.5 mt-2 pt-2 border-t border-gray-200">
+                    <div className="flex justify-between">
+                      <span>Amount tendered</span>
+                      <span className="font-medium">
+                        {formatCurrency(Number(currentReceipt.posAmountTendered))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-emerald-800">
+                      <span>Change</span>
+                      <span>
+                        {formatCurrency(
+                          Number(
+                            currentReceipt.posChangeGiven != null
+                              ? currentReceipt.posChangeGiven
+                              : 0
+                          )
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                )}
               {/* Payment Method - Show split payments if available */}
               {currentReceipt?.payments && currentReceipt.payments.length > 0 && currentReceipt.payments[0].allocations && currentReceipt.payments[0].allocations.length > 1 ? (
                 <div className="text-sm text-gray-600">

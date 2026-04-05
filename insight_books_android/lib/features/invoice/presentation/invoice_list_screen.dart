@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../../shared/widgets/stat_card.dart';
 import '../../../shared/widgets/main_layout.dart';
 import '../../pos/data/pos_repository.dart';
@@ -219,7 +220,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Paid',
                   value: _currencyFormat.format(stats.paid.amount),
                   count: stats.paid.count,
-                  color: Colors.green,
+                  color: AppTheme.successColor(context),
+                  subtitle: '${stats.paid.count} invoice${stats.paid.count == 1 ? '' : 's'}',
                 ),
               ),
               const SizedBox(width: 8),
@@ -228,7 +230,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Pending',
                   value: _currencyFormat.format(stats.pending.amount),
                   count: stats.pending.count,
-                  color: Colors.orange,
+                  color: AppTheme.warningColor(context),
+                  subtitle: '${stats.pending.count} invoice${stats.pending.count == 1 ? '' : 's'}',
                 ),
               ),
             ],
@@ -241,7 +244,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Overdue',
                   value: _currencyFormat.format(stats.overdue.amount),
                   count: stats.overdue.count,
-                  color: Colors.red,
+                  color: AppTheme.errorColor(context),
+                  subtitle: '${stats.overdue.count} invoice${stats.overdue.count == 1 ? '' : 's'}',
                 ),
               ),
               const SizedBox(width: 8),
@@ -250,7 +254,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Partial',
                   value: _currencyFormat.format(stats.partial.amount),
                   count: stats.partial.count,
-                  color: Colors.blue,
+                  color: AppTheme.infoColor(context),
+                  subtitle: '${stats.partial.count} invoice${stats.partial.count == 1 ? '' : 's'}',
                 ),
               ),
             ],
@@ -476,7 +481,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                     'Due ${DateFormat('MMM d, y').format(invoice.dueDate)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: _isDueOrOverdue(invoice)
-                          ? Colors.red
+                          ? AppTheme.errorColor(context)
                           : theme.colorScheme.onSurface.withAlpha(150),
                     ),
                   ),
@@ -490,7 +495,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                 Text(
                   'Balance: ${_currencyFormat.format(invoice.remainingBalance)}',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.blue,
+                    color: AppTheme.infoColor(context),
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -826,20 +831,20 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'pending':
       case 'sent':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       case 'overdue':
-        return Colors.red;
+        return AppTheme.errorColor(context);
       case 'draft':
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
       case 'partial':
-        return Colors.blue;
+        return AppTheme.infoColor(context);
       case 'void':
-        return Colors.brown;
+        return AppTheme.textSecondary(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 }

@@ -722,7 +722,9 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
                             selected
                                 ? Icons.check_circle_rounded
                                 : Icons.circle_outlined,
-                            color: selected ? _activeTextColor : _defaultTextColor,
+                            color: selected
+                                ? Theme.of(ctx).colorScheme.primary
+                                : Theme.of(ctx).colorScheme.onSurface.withAlpha(150),
                           ),
                           title: Text(t.name),
                           onTap: () => Navigator.pop(ctx, t),

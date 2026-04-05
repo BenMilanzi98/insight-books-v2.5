@@ -9,6 +9,7 @@ import '../../pos/domain/pos_models.dart';
 import '../domain/quotation_model.dart';
 import '../data/quotation_repository.dart';
 import 'providers/quotation_provider.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 
 class QuotationListScreen extends ConsumerStatefulWidget {
   const QuotationListScreen({super.key});
@@ -729,7 +730,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Pending',
             count: statistics.pending.count,
             amount: formatter.format(statistics.pending.total),
-            color: Colors.orange,
+            color: AppTheme.warningColor(context),
             icon: Icons.schedule,
           ),
           const SizedBox(width: 10),
@@ -737,7 +738,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Approved',
             count: statistics.approved.count,
             amount: formatter.format(statistics.approved.total),
-            color: Colors.green,
+            color: AppTheme.successColor(context),
             icon: Icons.check_circle_outline,
           ),
           const SizedBox(width: 10),
@@ -745,7 +746,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Converted',
             count: statistics.converted.count,
             amount: formatter.format(statistics.converted.total),
-            color: Colors.blue,
+            color: AppTheme.infoColor(context),
             icon: Icons.call_made,
           ),
           const SizedBox(width: 10),
@@ -753,7 +754,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Expired',
             count: statistics.expired.count,
             amount: formatter.format(statistics.expired.total),
-            color: Colors.red,
+            color: AppTheme.errorColor(context),
             icon: Icons.warning_amber_outlined,
           ),
         ],
@@ -809,14 +810,15 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               amount,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary(context),
               ),
             ),
             Text(
               '$count quotation${count == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary(context)),
             ),
           ],
         ),
@@ -880,7 +882,7 @@ class _QuotationCard extends StatelessWidget {
       symbol: 'MK ',
       decimalDigits: 2,
     );
-    final statusColor = _statusColor(quotation.status);
+    final statusColor = _statusColor(context, quotation.status);
 
     Widget card = Card(
       elevation: 0,
@@ -1035,21 +1037,21 @@ class _QuotationCard extends StatelessWidget {
     return card;
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
     switch (status.toLowerCase()) {
       case 'approved':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'pending':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       case 'draft':
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
       case 'converted':
-        return Colors.blue;
+        return AppTheme.infoColor(context);
       case 'expired':
       case 'rejected':
-        return Colors.red;
+        return AppTheme.errorColor(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 }

@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/core/theme/theme_toggle_button.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
@@ -1410,7 +1411,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Total',
             count: statistics.total.count,
             amount: formatter.format(statistics.total.amount),
-            color: Colors.blue,
+            color: AppTheme.infoColor(context),
             icon: Icons.list_alt,
           ),
           const SizedBox(width: 10),
@@ -1418,7 +1419,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Approved',
             count: statistics.approved.count,
             amount: formatter.format(statistics.approved.amount),
-            color: Colors.green,
+            color: AppTheme.successColor(context),
             icon: Icons.check_circle_outline,
           ),
           const SizedBox(width: 10),
@@ -1426,7 +1427,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Pending',
             count: statistics.pending.count,
             amount: formatter.format(statistics.pending.amount),
-            color: Colors.orange,
+            color: AppTheme.warningColor(context),
             icon: Icons.schedule,
           ),
           const SizedBox(width: 10),
@@ -1434,7 +1435,7 @@ class _StatisticsRow extends StatelessWidget {
             label: 'Rejected',
             count: statistics.rejected.count,
             amount: formatter.format(statistics.rejected.amount),
-            color: Colors.red,
+            color: AppTheme.errorColor(context),
             icon: Icons.cancel_outlined,
           ),
         ],
@@ -1486,11 +1487,11 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               amount,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppTheme.textPrimary(context)),
             ),
             Text(
               '$count expense${count == 1 ? '' : 's'}',
-              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 11, color: AppTheme.textSecondary(context)),
             ),
           ],
         ),
@@ -1603,8 +1604,8 @@ class _ExpenseCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currencyFormat = NumberFormat.currency(symbol: 'MK ', decimalDigits: 2);
-    final statusColor = _expenseStatusColor(expense.status);
-    final paymentColor = _paymentStatusColor(expense.paymentStatus);
+    final statusColor = _expenseStatusColor(context, expense.status);
+    final paymentColor = _paymentStatusColor(context, expense.paymentStatus);
 
     return Card(
       elevation: 0,
@@ -1773,29 +1774,29 @@ class _ExpenseCard extends StatelessWidget {
     );
   }
 
-  Color _expenseStatusColor(String status) {
+  Color _expenseStatusColor(BuildContext context, String status) {
     switch (status) {
       case 'Approved':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'Pending':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       case 'Rejected':
-        return Colors.red;
+        return AppTheme.errorColor(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 
-  Color _paymentStatusColor(String status) {
+  Color _paymentStatusColor(BuildContext context, String status) {
     switch (status) {
       case 'Fully paid':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'Partially':
-        return Colors.blue;
+        return AppTheme.infoColor(context);
       case 'Pending':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 }

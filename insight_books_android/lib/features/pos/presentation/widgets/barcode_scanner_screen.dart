@@ -163,8 +163,8 @@ class _BarcodeScannerScreenState extends ConsumerState<BarcodeScannerScreen>
         onPressed: _openCart,
         icon: const Icon(Icons.shopping_cart_checkout_outlined),
         label: const Text('View cart'),
-        backgroundColor: Colors.deepOrange,
-        foregroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        foregroundColor: Theme.of(context).colorScheme.onPrimary,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       body: Stack(

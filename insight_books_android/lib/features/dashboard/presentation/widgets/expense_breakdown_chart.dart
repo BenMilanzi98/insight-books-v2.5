@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class ExpenseBreakdownChart extends StatelessWidget {
@@ -52,7 +53,7 @@ class ExpenseBreakdownChart extends StatelessWidget {
                     final index = entry.key;
                     final category = entry.value;
                     return PieChartSectionData(
-                      color: _getColor(index),
+                      color: _getColor(context, index),
                       value: category.amount,
                       title: '${category.percentage.toStringAsFixed(0)}%',
                       radius: 50,
@@ -79,7 +80,7 @@ class ExpenseBreakdownChart extends StatelessWidget {
                         width: 12,
                         height: 12,
                         decoration: BoxDecoration(
-                          color: _getColor(index),
+                          color: _getColor(context, index),
                           borderRadius: BorderRadius.circular(3),
                         ),
                       ),
@@ -115,15 +116,16 @@ class ExpenseBreakdownChart extends StatelessWidget {
     );
   }
 
-  Color _getColor(int index) {
-    const colors = [
-      Colors.blue,
-      Colors.purple,
-      Colors.green,
-      Colors.orange,
-      Colors.red,
-      Colors.indigo,
-      Colors.teal,
+  Color _getColor(BuildContext context, int index) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = [
+      AppTheme.infoColor(context),
+      Theme.of(context).colorScheme.secondary,
+      AppTheme.successColor(context),
+      AppTheme.warningColor(context),
+      AppTheme.errorColor(context),
+      Theme.of(context).colorScheme.primary,
+      isDark ? const Color(0xFF2DD4BF) : const Color(0xFF14B8A6),
     ];
     return colors[index % colors.length];
   }

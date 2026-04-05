@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:insightbooks_android/features/pos/presentation/providers/pos_provider.dart';
 import 'package:insightbooks_android/features/pos/domain/pos_models.dart';
 import 'package:insightbooks_android/features/pos/presentation/receipt_screen.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 
 class CheckoutView extends ConsumerStatefulWidget {
   const CheckoutView({super.key});
@@ -241,7 +242,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                       'Allocated: ${currencyFormat.format(_allocatedTotal)} / ${currencyFormat.format(posState.total)}',
                       style: TextStyle(
                         color: _isAllocationValid(posState.total)
-                            ? Colors.green
+                            ? AppTheme.successColor(context)
                             : colorScheme.error,
                         fontWeight: FontWeight.w600,
                       ),

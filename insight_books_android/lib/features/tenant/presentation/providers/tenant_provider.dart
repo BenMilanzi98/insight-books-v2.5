@@ -63,7 +63,7 @@ class TenantNotifier extends _$TenantNotifier {
       final repository = ref.read(tenantRepositoryProvider);
       final data = await repository.fetchTenants();
 
-      final List<Tenant> tenants = (data['tenants'] as List)
+      final List<Tenant> tenants = ((data['tenants'] as List?) ?? [])
           .map((t) => Tenant.fromJson(t))
           .toList();
 

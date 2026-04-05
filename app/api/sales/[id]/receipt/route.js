@@ -193,6 +193,20 @@ export async function GET(request, { params }) {
     sale.totalDiscountAmount = typeof sale.totalDiscountAmount === 'object' && sale.totalDiscountAmount?.toNumber 
       ? sale.totalDiscountAmount.toNumber() 
       : parseFloat(sale.totalDiscountAmount || 0);
+    sale.posAmountTendered =
+      sale.posAmountTendered != null && sale.posAmountTendered !== ''
+        ? typeof sale.posAmountTendered === 'object' && sale.posAmountTendered?.toNumber
+          ? sale.posAmountTendered.toNumber()
+          : parseFloat(sale.posAmountTendered)
+        : null;
+    sale.posChangeGiven =
+      sale.posChangeGiven != null && sale.posChangeGiven !== ''
+        ? typeof sale.posChangeGiven === 'object' && sale.posChangeGiven?.toNumber
+          ? sale.posChangeGiven.toNumber()
+          : parseFloat(sale.posChangeGiven)
+        : null;
+    if (sale.posAmountTendered != null && Number.isNaN(sale.posAmountTendered)) sale.posAmountTendered = null;
+    if (sale.posChangeGiven != null && Number.isNaN(sale.posChangeGiven)) sale.posChangeGiven = null;
     
     // Debug: Log the logo URL and tax summary
     console.log('Receipt API - Logo URL:', sale.tenant.logoUrl);
@@ -746,6 +760,18 @@ export async function GET(request, { params }) {
           ` : `
             <strong>Payment Method: ${sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</strong>
           `}
+          ${sale.posAmountTendered != null ? `
+            <div style="margin-top: 6px; font-size: 9px; border-top: 1px dashed #ccc; padding-top: 4px;">
+              <div style="display: flex; justify-content: space-between; margin-top: 2px;">
+                <span>Amount tendered:</span>
+                <span>${formatCurrency(sale.posAmountTendered, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 2px; font-weight: bold;">
+                <span>Change:</span>
+                <span>${formatCurrency(sale.posChangeGiven != null ? sale.posChangeGiven : 0, tenantSettings?.currencyCode || 'MWK')}</span>
+              </div>
+            </div>
+          ` : ''}
           ${sale.notes ? `<div style="margin-top: 4px; font-size: 8px;">Notes: ${sale.notes}</div>` : ''}
         </div>
         
@@ -907,6 +933,10 @@ export async function GET(request, { params }) {
         lines.push(`Tax: ${sale.totalTaxAmount}`);
         lines.push(`Discount: ${sale.totalDiscountAmount}`);
         lines.push(`TOTAL: ${sale.total}`);
+        if (sale.posAmountTendered != null) {
+          lines.push(`Amount tendered: ${sale.posAmountTendered}`);
+          lines.push(`Change: ${sale.posChangeGiven != null ? sale.posChangeGiven : 0}`);
+        }
         lines.push('');
         lines.push('This PDF is a fallback (reduced formatting).');
         lines.push(`PDF error: ${pdfMsg}`);

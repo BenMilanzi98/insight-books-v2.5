@@ -1120,12 +1120,13 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   }
 
   Widget _reportMetric(String label, String value) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 12)),
+        Text(label, style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
       ],
     );
   }

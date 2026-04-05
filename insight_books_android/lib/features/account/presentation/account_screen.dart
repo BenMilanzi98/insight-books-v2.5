@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
 import 'package:insightbooks_android/features/account/data/account_repository.dart';
 import 'package:insightbooks_android/features/account/domain/user_model.dart';
@@ -94,20 +95,23 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
           if (state.successMessage != null)
             Container(
               padding: const EdgeInsets.all(8.0),
-              color: Colors.green[50],
+              color: AppTheme.successBg(context),
               width: double.infinity,
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     LucideIcons.checkCircle2,
-                    color: Colors.green,
+                    color: AppTheme.successColor(context),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       state.successMessage!,
-                      style: const TextStyle(color: Colors.green, fontSize: 13),
+                      style: TextStyle(
+                        color: AppTheme.successColor(context),
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -120,20 +124,23 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
           if (state.error != null)
             Container(
               padding: const EdgeInsets.all(8.0),
-              color: Colors.red[50],
+              color: AppTheme.errorBg(context),
               width: double.infinity,
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     LucideIcons.alertTriangle,
-                    color: Colors.red,
+                    color: AppTheme.errorColor(context),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       state.error!,
-                      style: const TextStyle(color: Colors.red, fontSize: 13),
+                      style: TextStyle(
+                        color: AppTheme.errorColor(context),
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -146,11 +153,14 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
           if (!state.canUpdateSystem)
             Container(
               padding: const EdgeInsets.all(8.0),
-              color: Colors.orange[50],
+              color: AppTheme.warningBg(context),
               width: double.infinity,
-              child: const Text(
+              child: Text(
                 'Read-only mode: you do not have permission to update system settings.',
-                style: TextStyle(color: Colors.orange, fontSize: 13),
+                style: TextStyle(
+                  color: AppTheme.warningColor(context),
+                  fontSize: 13,
+                ),
               ),
             ),
           Expanded(
@@ -186,12 +196,12 @@ class _AccountScreenState extends ConsumerState<AccountScreen>
         ],
       ),
       floatingActionButton: state.isSaving
-          ? const FloatingActionButton(
+          ? FloatingActionButton(
               onPressed: null,
               child: Padding(
-                padding: EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16.0),
                 child: CircularProgressIndicator(
-                  color: Colors.white,
+                  color: theme.colorScheme.onPrimary,
                   strokeWidth: 2,
                 ),
               ),
@@ -411,14 +421,16 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     if (widget.settings == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.building, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No business settings available'),
+            Icon(LucideIcons.building, size: 48, color: AppTheme.textSecondary(context)),
+            const SizedBox(height: 16),
+            const Text('No business settings available'),
           ],
         ),
       );
@@ -434,11 +446,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(LucideIcons.building, size: 20, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text(
+                      Icon(LucideIcons.building, size: 20, color: AppTheme.infoColor(context)),
+                      const SizedBox(width: 8),
+                      const Text(
                         'Business Details',
                         style: TextStyle(
                           fontSize: 18,
@@ -507,8 +519,8 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                     height: 100,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      border: Border.all(color: Colors.grey[300]!),
+                      color: theme.colorScheme.surfaceContainerHigh,
+                      border: Border.all(color: AppTheme.borderColor(context)),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: resolveAppAssetUrl(widget.settings?.logoUrl) != null
@@ -516,11 +528,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                             resolveAppAssetUrl(widget.settings!.logoUrl)!,
                             fit: BoxFit.contain,
                           )
-                        : const Center(
+                        : Center(
                             child: Icon(
                               LucideIcons.image,
                               size: 40,
-                              color: Colors.grey,
+                              color: AppTheme.textSecondary(context),
                             ),
                           ),
                   ),
@@ -540,8 +552,8 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                     height: 64,
                     width: 64,
                     decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      border: Border.all(color: Colors.grey[300]!),
+                      color: theme.colorScheme.surfaceContainerHigh,
+                      border: Border.all(color: AppTheme.borderColor(context)),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: resolveAppAssetUrl(widget.settings?.faviconUrl) != null
@@ -549,11 +561,11 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                             resolveAppAssetUrl(widget.settings!.faviconUrl)!,
                             fit: BoxFit.contain,
                           )
-                        : const Center(
+                        : Center(
                             child: Icon(
                               LucideIcons.image,
                               size: 24,
-                              color: Colors.grey,
+                              color: AppTheme.textSecondary(context),
                             ),
                           ),
                   ),
@@ -619,7 +631,10 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   const SizedBox(height: 6),
                   Text(
                     'Default bank details and default tax accounts (inflow & outflow). Shown in invoice, quotation and receipt footers where applicable.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary(context),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -639,7 +654,10 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   const SizedBox(height: 4),
                   Text(
                     'Tax is always recorded to these system accounts. They cannot be changed by tenants.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary(context),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   _TaxAccountInfoTile(
@@ -656,7 +674,10 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
                   const SizedBox(height: 12),
                   Text(
                     'Optional: link a chart account for tax outflow overrides (tenant default).',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textSecondary(context),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
@@ -809,7 +830,10 @@ class _ReceiptTabState extends State<_ReceiptTab> {
                 const SizedBox(height: 8),
                 Text(
                   'Customize the footer message that appears on your receipts.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary(context),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -940,13 +964,13 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.settings == null) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(LucideIcons.settings, size: 48, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('No system settings available'),
+            Icon(LucideIcons.settings, size: 48, color: AppTheme.textSecondary(context)),
+            const SizedBox(height: 16),
+            const Text('No system settings available'),
           ],
         ),
       );
@@ -962,11 +986,11 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(LucideIcons.user, size: 20, color: Colors.blue),
-                      SizedBox(width: 8),
-                      Text(
+                      Icon(LucideIcons.user, size: 20, color: AppTheme.infoColor(context)),
+                      const SizedBox(width: 8),
+                      const Text(
                         'Account Information',
                         style: TextStyle(
                           fontSize: 18,
@@ -999,11 +1023,15 @@ class _SettingsTabState extends ConsumerState<_SettingsTab> {
                     maxLines: 3,
                   ),
                   const SizedBox(height: 24),
-                  const Row(
+                  Row(
                     children: [
-                      Icon(LucideIcons.shield, size: 20, color: Colors.grey),
-                      SizedBox(width: 8),
-                      Text(
+                      Icon(
+                        LucideIcons.shield,
+                        size: 20,
+                        color: AppTheme.textSecondary(context),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
                         'Security',
                         style: TextStyle(
                           fontSize: 18,
@@ -1109,16 +1137,20 @@ class _NotificationsTabState extends State<_NotificationsTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16.0),
+              Padding(
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(LucideIcons.bell, size: 20, color: Colors.orange),
-                        SizedBox(width: 8),
-                        Text(
+                        Icon(
+                          LucideIcons.bell,
+                          size: 20,
+                          color: AppTheme.warningColor(context),
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
                           'Notification Preferences',
                           style: TextStyle(
                             fontSize: 18,
@@ -1127,10 +1159,13 @@ class _NotificationsTabState extends State<_NotificationsTab> {
                         ),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'Choose how you want to receive notifications about your business.',
-                      style: TextStyle(fontSize: 13, color: Colors.black54),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary(context),
+                      ),
                     ),
                   ],
                 ),
@@ -1236,11 +1271,14 @@ class _NotificationsTabState extends State<_NotificationsTab> {
           ],
         ),
         const SizedBox(height: 8),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Text(
             'Individual notification preferences can be tuned on the web dashboard.',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: TextStyle(
+              color: AppTheme.textSecondary(context),
+              fontSize: 12,
+            ),
           ),
         ),
       ],
@@ -1248,7 +1286,7 @@ class _NotificationsTabState extends State<_NotificationsTab> {
   }
 }
 
-/// Read-only info matching web account “Default tax accounts (fixed)”.
+/// Read-only info matching web account "Default tax accounts (fixed)".
 class _TaxAccountInfoTile extends StatelessWidget {
   final String label;
   final String accountLine;
@@ -1262,13 +1300,14 @@ class _TaxAccountInfoTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: theme.colorScheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: AppTheme.borderColor(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1279,7 +1318,7 @@ class _TaxAccountInfoTile extends StatelessWidget {
               fontSize: 10,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4,
-              color: Colors.grey.shade600,
+              color: AppTheme.textSecondary(context),
             ),
           ),
           const SizedBox(height: 4),
@@ -1293,7 +1332,10 @@ class _TaxAccountInfoTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             hint,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textSecondary(context),
+            ),
           ),
         ],
       ),
@@ -1327,11 +1369,15 @@ class _LegalTab extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(LucideIcons.shield, size: 22, color: Colors.black54),
-                    SizedBox(width: 8),
-                    Text(
+                    Icon(
+                      LucideIcons.shield,
+                      size: 22,
+                      color: AppTheme.textSecondary(context),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
                       'Legal Information',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                     ),
@@ -1340,7 +1386,10 @@ class _LegalTab extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Important legal documents and policies for your business.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary(context),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -1348,7 +1397,7 @@ class _LegalTab extends StatelessWidget {
                     final wide = constraints.maxWidth >= 520;
                     final termsCard = _LegalLinkCard(
                       icon: LucideIcons.fileText,
-                      iconColor: Colors.blue.shade700,
+                      iconColor: AppTheme.infoColor(context),
                       title: 'Terms of Service',
                       subtitle: 'Read our terms and conditions',
                       onTap: () => _openInApp(
@@ -1359,7 +1408,7 @@ class _LegalTab extends StatelessWidget {
                     );
                     final privacyCard = _LegalLinkCard(
                       icon: LucideIcons.shield,
-                      iconColor: Colors.green.shade700,
+                      iconColor: AppTheme.successColor(context),
                       title: 'Privacy Policy',
                       subtitle: 'Learn about data protection',
                       onTap: () => _openInApp(
@@ -1390,7 +1439,10 @@ class _LegalTab extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Same content as the website; shown inside the app.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppTheme.textSecondary(context),
+                  ),
                 ),
               ],
             ),
@@ -1426,7 +1478,7 @@ class _LegalLinkCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: AppTheme.borderColor(context)),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -1447,12 +1499,19 @@ class _LegalLinkCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSecondary(context),
+                      ),
                     ),
                   ],
                 ),
               ),
-              Icon(Icons.open_in_new, size: 18, color: Colors.grey[600]),
+              Icon(
+                Icons.open_in_new,
+                size: 18,
+                color: AppTheme.textSecondary(context),
+              ),
             ],
           ),
         ),

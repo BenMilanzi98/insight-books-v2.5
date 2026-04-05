@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:insightbooks_android/core/router/go_router_refresh.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
@@ -21,20 +22,24 @@ import 'package:insightbooks_android/features/expense/presentation/expense_detai
 import 'package:insightbooks_android/features/expense/presentation/create_expense_screen.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 
+/// Single [GoRouter] instance; auth/permission changes only re-run [redirect] via
+/// [refreshListenable] (see [goRouterRefreshNotifierProvider]).
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final permissionAsync = ref.watch(userPermissionsProvider);
-  final tenantState = ref.watch(tenantProvider);
+  final refresh = ref.watch(goRouterRefreshNotifierProvider);
 
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/dashboard',
+    refreshListenable: refresh,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
+      final permissionAsync = ref.read(userPermissionsProvider);
+      final tenantState = ref.read(tenantProvider);
+
       final isLoading = authState.isLoading;
       final isAuthenticated = authState.value ?? false;
       final permissions = permissionAsync.asData?.value ?? <String>{};
-      final tenantCountForRoute = tenantState.isLoading
-          ? null
-          : tenantState.tenants.length;
+      final tenantCountForRoute =
+          tenantState.isLoading ? null : tenantState.tenants.length;
 
       final isGoingToLogin = state.matchedLocation == '/login';
 
@@ -189,4 +194,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
+
+  ref.onDispose(router.dispose);
+  return router;
 });

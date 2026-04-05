@@ -72,14 +72,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: SafeArea(
-        child: GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-          child: Center(
-            child: SingleChildScrollView(
+        child: Stack(
+          children: [
+            // Tap outside the card to dismiss keyboard (opaque layer behind form only).
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+                child: const SizedBox.expand(),
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.all(24.0),
               child: ConstrainedBox(
@@ -94,26 +102,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                      // Logo placeholder or Image.asset('assets/images/logo.png')
-                      const Icon(
+                      Icon(
                         Icons.account_balance_wallet,
                         size: 64,
-                        color: Color(0xFF3B82F6),
+                        color: theme.colorScheme.primary,
                       ),
                       const SizedBox(height: 24),
                       Text(
                         'Welcome Back',
-                        style: Theme.of(context).textTheme.headlineSmall
+                        style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Sign in to InsightBooks Africa',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         ),
                         textAlign: TextAlign.center,
                       ),
@@ -129,7 +134,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
                         autofillHints: const [AutofillHints.username, AutofillHints.email],
-                        onTap: () => _emailFocus.requestFocus(),
                         onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                         validator: (value) {
                           if (value == null ||
@@ -152,7 +156,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         obscureText: true,
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.password],
-                        onTap: () => _passwordFocus.requestFocus(),
                         onFieldSubmitted: (_) => _submit(),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -165,12 +168,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       ElevatedButton(
                         onPressed: authState.isLoading ? null : _submit,
                         child: authState.isLoading
-                            ? const SizedBox(
+                            ? SizedBox(
                                 height: 20,
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.white,
+                                  color: theme.colorScheme.onPrimary,
                                 ),
                               )
                             : const Text('Sign In'),
@@ -183,7 +186,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ),
             ),
-          ),
+            ),
+          ],
         ),
       ),
     );

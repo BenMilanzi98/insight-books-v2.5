@@ -896,6 +896,18 @@ export async function POST(request) {
             status: saleStatus,
             paymentMethod: paymentMethodInput,
             notes: data.notes,
+            posAmountTendered:
+              data.posAmountTendered != null &&
+              data.posAmountTendered !== '' &&
+              !Number.isNaN(Number(data.posAmountTendered))
+                ? Number(data.posAmountTendered)
+                : null,
+            posChangeGiven:
+              data.posChangeGiven != null &&
+              data.posChangeGiven !== '' &&
+              !Number.isNaN(Number(data.posChangeGiven))
+                ? Number(data.posChangeGiven)
+                : null,
             // Backward compatibility: keep legacy taxRate and taxAmount
             taxRate: legacyTaxRate,
             taxAmount: legacyTaxAmount,
@@ -1593,7 +1605,9 @@ export async function POST(request) {
           payments: saleWithPayments?.payments || [], // Include payments with allocations
           itemCount: result.items.length,
           customItemCount: data.items.filter(item => item.isCustom).length,
-          eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null
+          eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null,
+          posAmountTendered: result.sale.posAmountTendered ?? null,
+          posChangeGiven: result.sale.posChangeGiven ?? null
         }
       }, { status: 201 });
     } catch (error) {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 
 class ReceiptScreen extends ConsumerStatefulWidget {
   final Map<String, dynamic> saleData;
@@ -106,7 +107,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 80),
+            Icon(Icons.check_circle, color: AppTheme.successColor(context), size: 80),
             const SizedBox(height: 16),
             Text(
               'Sale Successful',
@@ -198,7 +199,7 @@ class _ReceiptScreenState extends ConsumerState<ReceiptScreen> {
                     context,
                     'Status',
                     (sale['status'] ?? 'completed').toString().toUpperCase(),
-                    color: Colors.green,
+                    color: AppTheme.successColor(context),
                   ),
                 ],
               ),

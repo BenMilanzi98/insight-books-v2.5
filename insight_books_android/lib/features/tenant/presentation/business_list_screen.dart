@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../../core/security/permissions_provider.dart';
 import '../../../shared/widgets/main_layout.dart';
 import './providers/tenant_provider.dart';
@@ -18,17 +19,17 @@ class BusinessListScreen extends ConsumerWidget {
     final permissions = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
     final canCreateBusiness = hasPermission(permissions, 'system.create');
     final canDeleteBusiness = hasPermission(permissions, 'system.delete');
+    final theme = Theme.of(context);
 
-    // Show error if any
     if (state.error != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(state.error!),
-            backgroundColor: Colors.red,
+            backgroundColor: AppTheme.errorColor(context),
             action: SnackBarAction(
               label: 'Clear',
-              textColor: Colors.white,
+              textColor: theme.colorScheme.onError,
               onPressed: notifier.clearError,
             ),
           ),
@@ -61,13 +62,12 @@ class BusinessListScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const SizedBox(height: 8),
-                          // Search and Add
                           Row(
                             children: [
                               Expanded(
                                 child: Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: theme.colorScheme.surface,
                                     borderRadius: BorderRadius.circular(12),
                                     boxShadow: [
                                       BoxShadow(
@@ -107,17 +107,6 @@ class BusinessListScreen extends ConsumerWidget {
                                     : null,
                                 icon: const Icon(LucideIcons.plus, size: 18),
                                 label: const Text('Add New'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2563EB),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 14,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
                               ),
                             ],
                           ),
@@ -175,6 +164,7 @@ class BusinessListScreen extends ConsumerWidget {
     String search,
     bool canCreateBusiness,
   ) {
+    final theme = Theme.of(context);
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -182,22 +172,22 @@ class BusinessListScreen extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: const Color(0xFFF3F4F6),
+              color: theme.colorScheme.surfaceContainerHigh,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               LucideIcons.building,
               size: 48,
-              color: Color(0xFF9CA3AF),
+              color: AppTheme.textSecondary(context),
             ),
           ),
           const SizedBox(height: 24),
           Text(
             search.isNotEmpty ? 'No businesses found' : 'No businesses yet',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF111827),
+              color: AppTheme.textPrimary(context),
             ),
           ),
           const SizedBox(height: 8),
@@ -206,7 +196,10 @@ class BusinessListScreen extends ConsumerWidget {
                 ? 'Try adjusting your search terms'
                 : 'Get started by creating your first business',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
+            style: TextStyle(
+              fontSize: 14,
+              color: AppTheme.textSecondary(context),
+            ),
           ),
           if (search.isEmpty) ...[
             const SizedBox(height: 32),
@@ -216,17 +209,6 @@ class BusinessListScreen extends ConsumerWidget {
                   : null,
               icon: const Icon(LucideIcons.plus),
               label: const Text('Create Your First Business'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
           ],
         ],
@@ -270,7 +252,9 @@ class BusinessListScreen extends ConsumerWidget {
                 );
               }
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+              foregroundColor: AppTheme.errorColor(context),
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -298,6 +282,7 @@ class _BusinessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final sub = tenant.subscription;
     final isExpired = sub.isExpired;
     final daysLeft = sub.daysRemaining;
@@ -306,10 +291,12 @@ class _BusinessCard extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppTheme.cardColor(context),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isActive ? const Color(0xFF2563EB) : const Color(0xFFE5E7EB),
+          color: isActive
+              ? theme.colorScheme.primary
+              : AppTheme.borderColor(context),
           width: isActive ? 2 : 1,
         ),
         boxShadow: [
@@ -330,15 +317,15 @@ class _BusinessCard extends StatelessWidget {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isActive
-                        ? const Color(0xFFEFF6FF)
-                        : const Color(0xFFF3F4F6),
+                        ? AppTheme.infoBg(context)
+                        : theme.colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     LucideIcons.building,
                     color: isActive
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFF6B7280),
+                        ? theme.colorScheme.primary
+                        : AppTheme.textSecondary(context),
                     size: 24,
                   ),
                 ),
@@ -349,17 +336,17 @@ class _BusinessCard extends StatelessWidget {
                     children: [
                       Text(
                         tenant.name,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF111827),
+                          color: AppTheme.textPrimary(context),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Business',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Color(0xFF6B7280),
+                          color: AppTheme.textSecondary(context),
                         ),
                       ),
                     ],
@@ -372,24 +359,24 @@ class _BusinessCard extends StatelessWidget {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFDBEAFE),
+                      color: AppTheme.infoBg(context),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           LucideIcons.check,
                           size: 12,
-                          color: Color(0xFF1D4ED8),
+                          color: theme.colorScheme.primary,
                         ),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
                           'Active',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1D4ED8),
+                            color: theme.colorScheme.primary,
                           ),
                         ),
                       ],
@@ -402,17 +389,17 @@ class _BusinessCard extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: isExpired
-                    ? const Color(0xFFFEF2F2)
+                    ? AppTheme.errorBg(context)
                     : daysLeft <= 7
-                    ? const Color(0xFFFFF7ED)
-                    : const Color(0xFFF0FDF4),
+                    ? AppTheme.warningBg(context)
+                    : AppTheme.successBg(context),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isExpired
-                      ? const Color(0xFFFECACA)
+                      ? AppTheme.errorColor(context).withValues(alpha: 0.4)
                       : daysLeft <= 7
-                      ? const Color(0xFFFED7AA)
-                      : const Color(0xFFBBF7D0),
+                      ? AppTheme.warningColor(context).withValues(alpha: 0.4)
+                      : AppTheme.successColor(context).withValues(alpha: 0.4),
                 ),
               ),
               child: Row(
@@ -428,10 +415,10 @@ class _BusinessCard extends StatelessWidget {
                             : LucideIcons.zap,
                         size: 16,
                         color: isExpired
-                            ? const Color(0xFFDC2626)
+                            ? AppTheme.errorColor(context)
                             : isTrial
-                            ? const Color(0xFF9333EA)
-                            : const Color(0xFF16A34A),
+                            ? theme.colorScheme.secondary
+                            : AppTheme.successColor(context),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -442,10 +429,10 @@ class _BusinessCard extends StatelessWidget {
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                           color: isExpired
-                              ? const Color(0xFFB91C1C)
+                              ? AppTheme.errorColor(context)
                               : daysLeft <= 7
-                              ? const Color(0xFFC2410C)
-                              : const Color(0xFF15803D),
+                              ? AppTheme.warningColor(context)
+                              : AppTheme.successColor(context),
                         ),
                       ),
                     ],
@@ -457,15 +444,15 @@ class _BusinessCard extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF3E8FF),
+                        color: theme.colorScheme.secondary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
+                      child: Text(
                         'Trial',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF7E22CE),
+                          color: theme.colorScheme.secondary,
                         ),
                       ),
                     ),
@@ -478,26 +465,13 @@ class _BusinessCard extends StatelessWidget {
                 Expanded(
                   child: ElevatedButton(
                     onPressed: (isActive || isSwitching) ? null : onSelect,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2563EB),
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: const Color(0xFFDBEAFE),
-                      disabledForegroundColor: const Color(0xFF3B82F6),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
                     child: isSwitching && !isActive
-                        ? const SizedBox(
+                        ? SizedBox(
                             height: 16,
                             width: 16,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
-                              ),
+                              color: theme.colorScheme.onPrimary,
                             ),
                           )
                         : Text(
@@ -512,11 +486,11 @@ class _BusinessCard extends StatelessWidget {
                 IconButton(
                   onPressed: canDeleteBusiness ? onDelete : null,
                   icon: const Icon(LucideIcons.trash2, size: 20),
-                  color: const Color(0xFF9CA3AF),
+                  color: AppTheme.textSecondary(context),
                   tooltip: 'Delete Business',
                   style: IconButton.styleFrom(
-                    hoverColor: const Color(0xFFFEF2F2),
-                    highlightColor: const Color(0xFFFEF2F2),
+                    hoverColor: AppTheme.errorBg(context),
+                    highlightColor: AppTheme.errorBg(context),
                   ),
                 ),
               ],

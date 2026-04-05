@@ -11,6 +11,7 @@ import '../data/quotation_repository.dart';
 import '../domain/quotation_model.dart';
 import 'providers/quotation_details_provider.dart';
 import 'providers/quotation_provider.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 
 class QuotationDetailsScreen extends ConsumerWidget {
   final String quotationId;
@@ -31,7 +32,7 @@ class QuotationDetailsScreen extends ConsumerWidget {
             data: (quotation) => PopupMenuButton<String>(
               onSelected: (action) =>
                   _handleAction(context, ref, quotation, action, quotationState),
-              itemBuilder: (ctx) => _buildMenuItems(quotation, quotationState),
+              itemBuilder: (ctx) => _buildMenuItems(ctx, quotation, quotationState),
               icon: const Icon(Icons.more_vert),
             ),
           ) ?? const SizedBox.shrink(),
@@ -75,6 +76,7 @@ class QuotationDetailsScreen extends ConsumerWidget {
   }
 
   List<PopupMenuEntry<String>> _buildMenuItems(
+    BuildContext context,
     Quotation quotation,
     QuotationPageState permissions,
   ) {
@@ -83,11 +85,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
 
     if (status != 'Converted' && permissions.canSendQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'send',
           child: ListTile(
-            leading: Icon(Icons.send_outlined, color: Colors.blue),
-            title: Text('Send to Client'),
+            leading: Icon(Icons.send_outlined, color: AppTheme.infoColor(context)),
+            title: const Text('Send to Client'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -97,11 +99,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
 
     if (permissions.canExportQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'download',
           child: ListTile(
-            leading: Icon(Icons.picture_as_pdf_outlined, color: Colors.redAccent),
-            title: Text('Download PDF'),
+            leading: Icon(Icons.picture_as_pdf_outlined, color: AppTheme.errorColor(context)),
+            title: const Text('Download PDF'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -111,11 +113,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
 
     if (status == 'Approved' && permissions.canConvertQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'convert',
           child: ListTile(
-            leading: Icon(Icons.call_made, color: Colors.green),
-            title: Text('Convert to Invoice'),
+            leading: Icon(Icons.call_made, color: AppTheme.successColor(context)),
+            title: const Text('Convert to Invoice'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -125,11 +127,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
 
     if (status != 'Converted' && permissions.canCreateQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'duplicate',
           child: ListTile(
-            leading: Icon(Icons.copy, color: Colors.purple),
-            title: Text('Duplicate'),
+            leading: Icon(Icons.copy, color: Theme.of(context).colorScheme.secondary),
+            title: const Text('Duplicate'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -138,11 +140,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
     }
     if (status != 'Converted' && permissions.canUpdateQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'edit',
           child: ListTile(
-            leading: Icon(Icons.edit_outlined, color: Colors.orange),
-            title: Text('Edit'),
+            leading: Icon(Icons.edit_outlined, color: AppTheme.warningColor(context)),
+            title: const Text('Edit'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -152,11 +154,11 @@ class QuotationDetailsScreen extends ConsumerWidget {
 
     if (status == 'Draft' && permissions.canDeleteQuotations) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'delete',
           child: ListTile(
-            leading: Icon(Icons.delete_outline, color: Colors.red),
-            title: Text('Delete'),
+            leading: Icon(Icons.delete_outline, color: AppTheme.errorColor(context)),
+            title: const Text('Delete'),
             dense: true,
             contentPadding: EdgeInsets.zero,
           ),
@@ -537,7 +539,7 @@ class _QuotationDetailsBody extends StatelessWidget {
       symbol: 'MK ',
       decimalDigits: 2,
     );
-    final statusColor = _statusColor(quotation.status);
+    final statusColor = _statusColor(context, quotation.status);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -760,21 +762,21 @@ class _QuotationDetailsBody extends StatelessWidget {
     );
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(BuildContext context, String status) {
     switch (status.toLowerCase()) {
       case 'approved':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'pending':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       case 'draft':
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
       case 'converted':
-        return Colors.blue;
+        return AppTheme.infoColor(context);
       case 'expired':
       case 'rejected':
-        return Colors.red;
+        return AppTheme.errorColor(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 }

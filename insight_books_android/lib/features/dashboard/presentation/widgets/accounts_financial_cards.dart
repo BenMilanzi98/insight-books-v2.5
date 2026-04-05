@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class AccountsFinancialCards extends StatelessWidget {
@@ -22,7 +23,7 @@ class AccountsFinancialCards extends StatelessWidget {
             context,
             'Accounts Receivable',
             receivables,
-            Colors.green,
+            AppTheme.successColor(context),
             Icons.call_received,
           ),
           const SizedBox(height: 16),
@@ -30,7 +31,7 @@ class AccountsFinancialCards extends StatelessWidget {
             context,
             'Accounts Payable',
             payables,
-            Colors.red,
+            AppTheme.errorColor(context),
             Icons.call_made,
           ),
         ],
@@ -45,10 +46,7 @@ class AccountsFinancialCards extends StatelessWidget {
     Color color,
     IconData icon,
   ) {
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MWK ',
-      decimalDigits: 0,
-    );
+    final currencyFormat = NumberFormat.currency(symbol: 'MWK ', decimalDigits: 0);
     final colorScheme = Theme.of(context).colorScheme;
 
     return Container(
@@ -100,8 +98,8 @@ class AccountsFinancialCards extends StatelessWidget {
           Row(
             children: [
               _buildMetricItem(context, 'Total', report.current, colorScheme.onSurface),
-              _buildMetricItem(context, 'Not Due', report.notDue, Colors.green),
-              _buildMetricItem(context, 'Overdue', report.overdue, Colors.red),
+              _buildMetricItem(context, 'Not Due', report.notDue, AppTheme.successColor(context)),
+              _buildMetricItem(context, 'Overdue', report.overdue, AppTheme.errorColor(context)),
             ],
           ),
           const SizedBox(height: 24),
@@ -121,10 +119,10 @@ class AccountsFinancialCards extends StatelessWidget {
                 ? (period.amount / report.current)
                 : 0.0;
             final agingColors = [
-              Colors.green,
-              Colors.yellow[700]!,
-              Colors.orange,
-              Colors.red,
+              AppTheme.successColor(context),
+              AppTheme.warningColor(context),
+              Color.lerp(AppTheme.warningColor(context), AppTheme.errorColor(context), 0.5)!,
+              AppTheme.errorColor(context),
             ];
             final barColor = index < agingColors.length
                 ? agingColors[index]
@@ -174,10 +172,7 @@ class AccountsFinancialCards extends StatelessWidget {
   }
 
   Widget _buildMetricItem(BuildContext context, String label, double amount, Color color) {
-    final currencyFormat = NumberFormat.currency(
-      symbol: 'MWK ',
-      decimalDigits: 0,
-    );
+    final currencyFormat = NumberFormat.currency(symbol: 'MWK ', decimalDigits: 0);
     final cs = Theme.of(context).colorScheme;
     return Expanded(
       child: Column(

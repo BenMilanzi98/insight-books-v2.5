@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/core/update/app_update_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -61,6 +62,8 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(appUpdateProvider);
+    final warningFg = AppTheme.warningColor(context);
+    final warningBg = AppTheme.warningBg(context);
 
     return Stack(
       clipBehavior: Clip.none,
@@ -74,7 +77,7 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
             child: SafeArea(
               bottom: false,
               child: Material(
-                color: Colors.amber.shade800,
+                color: warningBg,
                 elevation: 6,
                 child: Padding(
                   padding:
@@ -82,20 +85,23 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.info_outline, color: Colors.white, size: 20),
+                      Icon(Icons.info_outline, color: warningFg, size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           _bannerText(s),
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          style: TextStyle(color: warningFg, fontSize: 13),
                         ),
                       ),
                       if (s.apkUrl != null)
                         TextButton(
                           onPressed: () => _openApk(s.apkUrl!),
-                          child: const Text(
+                          child: Text(
                             'Update',
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(
+                              color: warningFg,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
                     ],

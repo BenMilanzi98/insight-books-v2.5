@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class CashFlowChart extends StatelessWidget {
@@ -16,11 +17,41 @@ class CashFlowChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (incomeData.isEmpty && expenseData.isEmpty) {
-      return const SizedBox.shrink();
+    final colorScheme = Theme.of(context).colorScheme;
+
+    if (labels.isEmpty || (incomeData.isEmpty && expenseData.isEmpty)) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppTheme.borderColor(context)),
+        ),
+        child: Column(
+          children: [
+            Icon(Icons.show_chart_rounded, size: 48, color: AppTheme.textSecondary(context)),
+            const SizedBox(height: 12),
+            Text(
+              'No cash flow data available',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppTheme.textPrimary(context),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Data will appear once transactions are recorded',
+              style: TextStyle(fontSize: 13, color: AppTheme.textSecondary(context)),
+            ),
+          ],
+        ),
+      );
     }
 
-    final colorScheme = Theme.of(context).colorScheme;
+    final incomeColor = AppTheme.successColor(context);
+    final expenseColor = AppTheme.errorColor(context);
+
     final maxIncome = incomeData.isEmpty
         ? 0.0
         : incomeData.map((e) => e.amount).reduce((a, b) => a > b ? a : b);
@@ -57,9 +88,9 @@ class CashFlowChart extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              _buildLegend(context, 'Income', Colors.green),
+              _buildLegend(context, 'Income', incomeColor),
               const SizedBox(width: 16),
-              _buildLegend(context, 'Expenses', Colors.red),
+              _buildLegend(context, 'Expenses', expenseColor),
             ],
           ),
           const SizedBox(height: 24),
@@ -128,8 +159,8 @@ class CashFlowChart extends StatelessWidget {
                 minY: 0,
                 maxY: maxY,
                 lineBarsData: [
-                  _lineBarData(incomeData, Colors.green),
-                  _lineBarData(expenseData, Colors.red),
+                  _lineBarData(incomeData, incomeColor),
+                  _lineBarData(expenseData, expenseColor),
                 ],
               ),
             ),

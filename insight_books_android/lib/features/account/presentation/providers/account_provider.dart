@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../domain/user_model.dart';
 import '../../domain/business_settings.dart';
@@ -70,10 +71,12 @@ class Account extends _$Account {
     try {
       final perms = await repository.fetchUserPermissions();
       state = state.copyWith(
-        canViewSystem: perms.isEmpty || perms.contains('system.view'),
-        canUpdateSystem: perms.isEmpty || perms.contains('system.update'),
+        canViewSystem: perms.contains('*') || perms.contains('all') || perms.contains('system.view'),
+        canUpdateSystem: perms.contains('*') || perms.contains('all') || perms.contains('system.update'),
       );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Account] Failed to load permissions: $e');
+    }
 
     // Load Profile
     try {
@@ -98,7 +101,9 @@ class Account extends _$Account {
     try {
       final templates = await repository.fetchInvoiceTemplates();
       state = state.copyWith(invoiceTemplates: templates);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[Account] Failed to load invoice templates: $e');
+    }
 
     state = state.copyWith(isLoading: false);
   }

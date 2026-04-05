@@ -3,7 +3,7 @@ const Map<String, List<String>> _kPermissionModules = {
   'dashboard': ['view'],
   'users': ['create', 'view', 'update', 'delete', 'export'],
   'roles': ['create', 'view', 'update', 'delete', 'assign'],
-  'system': ['view', 'update'],
+  'system': ['view', 'update', 'switchTenant'],
   'clients': ['create', 'view', 'update', 'delete', 'export'],
   'sales': ['create', 'view', 'update', 'delete', 'void', 'refund', 'export'],
   'quotations': ['create', 'view', 'update', 'delete', 'convert', 'approve', 'export'],

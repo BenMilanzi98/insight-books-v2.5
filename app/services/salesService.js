@@ -144,6 +144,12 @@ export const createSale = async (saleData) => {
         ? { paymentAllocations: saleData.paymentAllocations }
         : {}),
       notes: String(saleData.notes || ''),
+      ...(saleData.posAmountTendered != null && saleData.posAmountTendered !== ''
+        ? { posAmountTendered: Number(saleData.posAmountTendered) }
+        : {}),
+      ...(saleData.posChangeGiven != null && saleData.posChangeGiven !== ''
+        ? { posChangeGiven: Number(saleData.posChangeGiven) }
+        : {}),
       status: String(saleData.status || 'completed'),
       // Historical transaction fields
       isHistorical: Boolean(saleData.isHistorical || false),

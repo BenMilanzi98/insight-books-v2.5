@@ -887,6 +887,7 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -894,13 +895,15 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontWeight: bold ? FontWeight.bold : null),
+            style: bold
+                ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                : theme.textTheme.bodyMedium,
           ),
           Text(
             value,
-            style: TextStyle(
-              fontWeight: bold ? FontWeight.bold : FontWeight.w500,
-            ),
+            style: bold
+                ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+                : theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
           ),
         ],
       ),

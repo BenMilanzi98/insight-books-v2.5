@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Sale" ADD COLUMN "posAmountTendered" DOUBLE PRECISION;
+ALTER TABLE "Sale" ADD COLUMN "posChangeGiven" DOUBLE PRECISION;

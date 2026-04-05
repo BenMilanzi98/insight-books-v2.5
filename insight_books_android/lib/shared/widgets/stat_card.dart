@@ -5,6 +5,7 @@ class StatCard extends StatelessWidget {
   final String value;
   final int count;
   final Color color;
+  final String? subtitle;
 
   const StatCard({
     super.key,
@@ -12,6 +13,7 @@ class StatCard extends StatelessWidget {
     required this.value,
     required this.count,
     required this.color,
+    this.subtitle,
   });
 
   @override
@@ -59,7 +61,7 @@ class StatCard extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            '$count invoice${count == 1 ? '' : 's'}',
+            subtitle ?? '$count item${count == 1 ? '' : 's'}',
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurface.withAlpha(120),
               fontSize: 11,

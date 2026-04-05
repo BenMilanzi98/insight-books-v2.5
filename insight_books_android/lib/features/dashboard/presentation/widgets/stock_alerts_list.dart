@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
 class StockAlertsList extends StatelessWidget {
@@ -9,30 +10,31 @@ class StockAlertsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (alerts.isEmpty) {
+      final successColor = AppTheme.successColor(context);
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.05),
+            color: AppTheme.successBg(context),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.green.withValues(alpha: 0.1)),
+            border: Border.all(color: successColor.withValues(alpha: 0.2)),
           ),
           child: Column(
             children: [
-              Icon(Icons.check_circle, color: Colors.green[400], size: 48),
+              Icon(Icons.check_circle, color: successColor, size: 48),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'No stock alerts',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: AppTheme.textPrimary(context),
                 ),
               ),
-              const Text(
+              Text(
                 'All inventory levels are healthy',
-                style: TextStyle(fontSize: 14, color: Colors.grey),
+                style: TextStyle(fontSize: 14, color: AppTheme.textSecondary(context)),
               ),
             ],
           ),
@@ -51,8 +53,8 @@ class StockAlertsList extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Colors.orange, Colors.red],
+                  gradient: LinearGradient(
+                    colors: [AppTheme.warningColor(context), AppTheme.errorColor(context)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -65,22 +67,26 @@ class StockAlertsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Text(
+              Text(
                 'Stock Alerts',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary(context),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          ...alerts.map((alert) => _buildAlertItem(alert)),
+          ...alerts.map((alert) => _buildAlertItem(context, alert)),
         ],
       ),
     );
   }
 
-  Widget _buildAlertItem(StockAlert alert) {
+  Widget _buildAlertItem(BuildContext context, StockAlert alert) {
     final isCritical = alert.type == 'out_of_stock' || alert.currentStock == 0;
-    final color = isCritical ? Colors.red : Colors.orange;
+    final color = isCritical ? AppTheme.errorColor(context) : AppTheme.warningColor(context);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -88,7 +94,7 @@ class StockAlertsList extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.1)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,15 +111,16 @@ class StockAlertsList extends StatelessWidget {
               children: [
                 Text(
                   alert.product,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
+                    color: AppTheme.textPrimary(context),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   alert.message,
-                  style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                  style: TextStyle(color: AppTheme.textSecondary(context), fontSize: 13),
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -123,7 +130,7 @@ class StockAlertsList extends StatelessWidget {
                       const SizedBox(width: 8),
                       _buildSmallBadge(
                         'Point: ${alert.reorderPoint}',
-                        Colors.grey,
+                        AppTheme.textSecondary(context),
                       ),
                     ],
                   ],
@@ -132,9 +139,13 @@ class StockAlertsList extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Coming soon')),
+              );
+            },
             style: TextButton.styleFrom(
-              foregroundColor: Colors.blue,
+              foregroundColor: Theme.of(context).colorScheme.primary,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,

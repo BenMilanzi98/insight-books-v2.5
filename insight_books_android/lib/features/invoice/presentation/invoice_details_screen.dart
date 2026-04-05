@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../data/invoice_repository.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
@@ -132,11 +133,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     if (['pending', 'sent', 'overdue', 'partial'].contains(status) &&
         permissions.canUpdateInvoices) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'mark_paid',
           child: ListTile(
-            leading: Icon(Icons.check_circle, color: Colors.green),
-            title: Text('Mark as Paid'),
+            leading: Icon(Icons.check_circle, color: AppTheme.successColor(context)),
+            title: const Text('Mark as Paid'),
           ),
         ),
       );
@@ -146,11 +147,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     if (['pending', 'sent', 'overdue', 'partial'].contains(status) &&
         permissions.canUpdateInvoices) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'partial_payment',
           child: ListTile(
-            leading: Icon(Icons.pie_chart, color: Colors.blue),
-            title: Text('Record Partial Payment'),
+            leading: Icon(Icons.pie_chart, color: AppTheme.infoColor(context)),
+            title: const Text('Record Partial Payment'),
           ),
         ),
       );
@@ -159,11 +160,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     // Void — not void/paid
     if (!['void', 'paid'].contains(status) && permissions.canUpdateInvoices) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'void',
           child: ListTile(
-            leading: Icon(Icons.block, color: Colors.brown),
-            title: Text('Void Invoice'),
+            leading: Icon(Icons.block, color: AppTheme.textSecondary(context)),
+            title: const Text('Void Invoice'),
           ),
         ),
       );
@@ -174,11 +175,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         invoice.totalPaid > 0 &&
         permissions.canUpdateInvoices) {
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'refund',
           child: ListTile(
-            leading: Icon(Icons.undo, color: Colors.orange),
-            title: Text('Refund'),
+            leading: Icon(Icons.undo, color: AppTheme.warningColor(context)),
+            title: const Text('Refund'),
           ),
         ),
       );
@@ -188,11 +189,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     if (permissions.canDeleteInvoices) {
       items.add(const PopupMenuDivider());
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'delete',
           child: ListTile(
-            leading: Icon(Icons.delete, color: Colors.red),
-            title: Text('Delete', style: TextStyle(color: Colors.red)),
+            leading: Icon(Icons.delete, color: AppTheme.errorColor(context)),
+            title: Text('Delete', style: TextStyle(color: AppTheme.errorColor(context))),
           ),
         ),
       );
@@ -537,13 +538,13 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               _SummaryRow(
                 label: 'Paid',
                 value: _currencyFormat.format(invoice.totalPaid),
-                color: Colors.green,
+                color: AppTheme.successColor(context),
               ),
             if (invoice.remainingBalance > 0)
               _SummaryRow(
                 label: 'Balance Due',
                 value: _currencyFormat.format(invoice.remainingBalance),
-                color: Colors.red,
+                color: AppTheme.errorColor(context),
                 isBold: true,
               ),
           ],
@@ -581,10 +582,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
                   radius: 18,
-                  backgroundColor: Colors.green.withAlpha(25),
-                  child: const Icon(
+                  backgroundColor: AppTheme.successBg(context),
+                  child: Icon(
                     Icons.payment,
-                    color: Colors.green,
+                    color: AppTheme.successColor(context),
                     size: 20,
                   ),
                 ),
@@ -876,7 +877,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.brown),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Void'),
             ),
@@ -1011,7 +1012,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
+                          backgroundColor: AppTheme.warningColor(ctx),
+                          foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
                         ),
                         onPressed: () {
                           if (formKey.currentState!.validate()) {
@@ -1079,7 +1081,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               child: const Text('Cancel'),
             ),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Delete'),
             ),
@@ -1202,20 +1204,20 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return Colors.green;
+        return AppTheme.successColor(context);
       case 'pending':
       case 'sent':
-        return Colors.orange;
+        return AppTheme.warningColor(context);
       case 'overdue':
-        return Colors.red;
+        return AppTheme.errorColor(context);
       case 'draft':
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
       case 'partial':
-        return Colors.blue;
+        return AppTheme.infoColor(context);
       case 'void':
-        return Colors.brown;
+        return AppTheme.textSecondary(context);
       default:
-        return Colors.grey;
+        return AppTheme.textSecondary(context);
     }
   }
 

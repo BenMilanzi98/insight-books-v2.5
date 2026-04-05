@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:insightbooks_android/core/theme/app_theme.dart';
 import 'package:insightbooks_android/features/dashboard/domain/dashboard_data.dart';
 import 'package:intl/intl.dart';
 
@@ -39,6 +40,9 @@ class RecentTransactionsTable extends StatelessWidget {
                   DataColumn(label: Text('Amount'), numeric: true),
                 ],
                 rows: transactions.map((tx) {
+                  final amountColor = tx.type == TransactionType.income
+                      ? AppTheme.successColor(context)
+                      : AppTheme.errorColor(context);
                   return DataRow(
                     cells: [
                       DataCell(Text(dateFormat.format(tx.date))),
@@ -48,9 +52,7 @@ class RecentTransactionsTable extends StatelessWidget {
                         Text(
                           currencyFormat.format(tx.amount.abs()),
                           style: TextStyle(
-                            color: tx.type == TransactionType.income
-                                ? Colors.green
-                                : Colors.red,
+                            color: amountColor,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -73,18 +75,18 @@ class RecentTransactionsTable extends StatelessWidget {
 
     switch (status) {
       case TransactionStatus.completed:
-        bgColor = Colors.green.withValues(alpha: 0.1);
-        textColor = Colors.green;
+        bgColor = AppTheme.successBg(context);
+        textColor = AppTheme.successColor(context);
         text = 'Completed';
         break;
       case TransactionStatus.pending:
-        bgColor = Colors.orange.withValues(alpha: 0.1);
-        textColor = Colors.orange;
+        bgColor = AppTheme.warningBg(context);
+        textColor = AppTheme.warningColor(context);
         text = 'Pending';
         break;
       case TransactionStatus.failed:
-        bgColor = Colors.red.withValues(alpha: 0.1);
-        textColor = Colors.red;
+        bgColor = AppTheme.errorBg(context);
+        textColor = AppTheme.errorColor(context);
         text = 'Failed';
         break;
     }
