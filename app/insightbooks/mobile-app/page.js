@@ -303,9 +303,10 @@ export default function MobileAppManagementPage() {
           <h3 className="text-sm font-semibold text-amber-900">Instant lock — website download</h3>
           <p className="text-xs text-amber-900/90">
             When enabled, <code>/api/mobile-app/download</code> and the public{' '}
-            <code>/download-app</code> page stop offering the APK immediately. In-app version JSON also
-            omits the URL. This does not change the separate &quot;Force lock&quot; behavior for outdated
-            app installs.
+            <code>/download-app</code> page stop offering the site-hosted APK. The Android app still
+            receives an <strong>external</strong> URL from &quot;APK download URL&quot; below if you set
+            one (not the same as this site&apos;s <code>/api/mobile-app/download</code>). This does not
+            change &quot;Force lock&quot; for outdated installs.
           </p>
           <label className="flex items-center gap-2">
             <input

@@ -49,6 +49,11 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
     if (s.broadcastMessage != null && s.broadcastMessage!.isNotEmpty) {
       buf.write(' ${s.broadcastMessage}');
     }
+    if (s.apkUrl == null && !s.websiteDownloadAvailable) {
+      buf.write(
+        ' The public download page is disabled — contact your administrator for an update link.',
+      );
+    }
     return buf.toString();
   }
 
@@ -136,7 +141,9 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                         Text(
                           s.apkUrl != null
                               ? 'This version is no longer supported. Download and install the latest APK to continue.'
-                              : 'This version is no longer supported. Contact your administrator — no download URL is configured.',
+                              : !s.websiteDownloadAvailable
+                                  ? 'This version is no longer supported. The public app download is disabled on the server. Ask your administrator for an update link or to enable download.'
+                                  : 'This version is no longer supported. Contact your administrator — no download URL is configured.',
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white70),
                         ),

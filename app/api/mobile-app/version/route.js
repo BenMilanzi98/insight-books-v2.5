@@ -64,11 +64,23 @@ export async function GET(request) {
     const lockedSite = !!row.websiteDownloadLocked;
     const websiteDownloadAvailable = onDisk && !lockedSite;
     const base = publicBaseUrlFromRequest(request);
+    const siteApkUrl = base ? `${base}/api/mobile-app/download` : '';
+    const storedUrl = (row.apkDownloadUrl ?? '').trim();
+    /** True when stored URL is the same endpoint as public site download (blocked when locked). */
+    const storedIsSiteDownload =
+      !!storedUrl &&
+      (!!siteApkUrl
+        ? storedUrl === siteApkUrl
+        : storedUrl.endsWith('/api/mobile-app/download'));
+
     let apkDownloadUrl = '';
     if (websiteDownloadAvailable && base) {
-      apkDownloadUrl = `${base}/api/mobile-app/download`;
+      apkDownloadUrl = siteApkUrl;
     } else if (!lockedSite) {
-      apkDownloadUrl = row.apkDownloadUrl ?? '';
+      apkDownloadUrl = storedUrl;
+    } else if (storedUrl && !storedIsSiteDownload) {
+      // Website APK is locked, but admins can still point the app at Play Store / CDN / direct APK URL.
+      apkDownloadUrl = storedUrl;
     }
 
     return NextResponse.json({

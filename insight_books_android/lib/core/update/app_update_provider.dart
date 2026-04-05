@@ -8,6 +8,8 @@ class AppUpdateState {
   final bool mustLock;
   final bool updateAvailable;
   final bool showGraceBanner;
+  /// Matches server: site-hosted `/api/mobile-app/download` is allowed (not admin-locked).
+  final bool websiteDownloadAvailable;
   final String? apkUrl;
   final String? graceEndsAt;
   final String? releaseNotes;
@@ -17,6 +19,7 @@ class AppUpdateState {
     this.mustLock = false,
     this.updateAvailable = false,
     this.showGraceBanner = false,
+    this.websiteDownloadAvailable = true,
     this.apkUrl,
     this.graceEndsAt,
     this.releaseNotes,
@@ -27,6 +30,7 @@ class AppUpdateState {
     bool? mustLock,
     bool? updateAvailable,
     bool? showGraceBanner,
+    bool? websiteDownloadAvailable,
     String? apkUrl,
     String? graceEndsAt,
     String? releaseNotes,
@@ -36,6 +40,8 @@ class AppUpdateState {
       mustLock: mustLock ?? this.mustLock,
       updateAvailable: updateAvailable ?? this.updateAvailable,
       showGraceBanner: showGraceBanner ?? this.showGraceBanner,
+      websiteDownloadAvailable:
+          websiteDownloadAvailable ?? this.websiteDownloadAvailable,
       apkUrl: apkUrl ?? this.apkUrl,
       graceEndsAt: graceEndsAt ?? this.graceEndsAt,
       releaseNotes: releaseNotes ?? this.releaseNotes,
@@ -72,6 +78,8 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
       final d = res.data ?? {};
       final mustLock = d['mustLock'] == true;
       final updateAvailable = d['updateAvailable'] == true;
+      final websiteDl =
+          d['websiteDownloadAvailable'] == true || d['websiteDownloadAvailable'] == null;
       final apkRaw = (d['apkDownloadUrl'] as String?)?.trim();
       final apkUrl = apkRaw != null && apkRaw.isNotEmpty ? apkRaw : null;
       final graceEnds = d['graceEndsAt'] as String?;
@@ -83,6 +91,7 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         mustLock: mustLock,
         updateAvailable: updateAvailable,
         showGraceBanner: updateAvailable && !mustLock,
+        websiteDownloadAvailable: websiteDl,
         apkUrl: apkUrl,
         graceEndsAt: graceEnds,
         releaseNotes: d['releaseNotes'] as String?,
