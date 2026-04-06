@@ -881,6 +881,28 @@ export async function POST(request) {
           ? new Date(data.historicalDate)
           : (data.saleDate ? new Date(data.saleDate) : new Date());
 
+        const posTenderedNum =
+          data.posAmountTendered != null &&
+          data.posAmountTendered !== '' &&
+          !Number.isNaN(Number(data.posAmountTendered))
+            ? Number(data.posAmountTendered)
+            : null;
+        const posChangeNum =
+          data.posChangeGiven != null &&
+          data.posChangeGiven !== '' &&
+          !Number.isNaN(Number(data.posChangeGiven))
+            ? Number(data.posChangeGiven)
+            : null;
+        // Only pass POS tender fields when set — omitting avoids "Unknown argument"
+        // if deploy has not run migration `20260405140000_sale_pos_tender_change` + prisma generate.
+        const posTenderPayload =
+          posTenderedNum != null || posChangeNum != null
+            ? {
+                ...(posTenderedNum != null ? { posAmountTendered: posTenderedNum } : {}),
+                ...(posChangeNum != null ? { posChangeGiven: posChangeNum } : {}),
+              }
+            : {};
+
         // Create the sale with enhanced fields
         const sale = await tx.sale.create({
           data: {
@@ -896,18 +918,7 @@ export async function POST(request) {
             status: saleStatus,
             paymentMethod: paymentMethodInput,
             notes: data.notes,
-            posAmountTendered:
-              data.posAmountTendered != null &&
-              data.posAmountTendered !== '' &&
-              !Number.isNaN(Number(data.posAmountTendered))
-                ? Number(data.posAmountTendered)
-                : null,
-            posChangeGiven:
-              data.posChangeGiven != null &&
-              data.posChangeGiven !== '' &&
-              !Number.isNaN(Number(data.posChangeGiven))
-                ? Number(data.posChangeGiven)
-                : null,
+            ...posTenderPayload,
             // Backward compatibility: keep legacy taxRate and taxAmount
             taxRate: legacyTaxRate,
             taxAmount: legacyTaxAmount,
