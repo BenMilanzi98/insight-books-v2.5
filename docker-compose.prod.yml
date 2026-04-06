@@ -28,6 +28,8 @@ services:
     volumes:
       # Mount uploads directory for file persistence
       - ./public/uploads:/app/public/uploads
+      # Persist release APK from /insightbooks/mobile-app upload
+      - ./public/releases:/app/public/releases
     depends_on:
       db:
         condition: service_healthy

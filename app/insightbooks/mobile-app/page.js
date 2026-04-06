@@ -185,7 +185,9 @@ export default function MobileAppManagementPage() {
         <h2 className="text-lg font-semibold text-gray-900">Upload APK to website</h2>
         <p className="text-sm text-gray-600">
           Saves to <code className="text-xs bg-gray-100 px-1">public/releases/insight-books-android.apk</code>.
-          Max ~250 MB. Self‑hosted / Node may need reverse proxy limits adjusted for large uploads.
+          Max ~250 MB. If uploads fail with <strong>413</strong>, raise limits in front of Node (e.g. nginx{' '}
+          <code className="text-xs bg-gray-100 px-1">client_max_body_size 300m;</code> for this location) and
+          check Cloudflare / load balancer body limits.
         </p>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
