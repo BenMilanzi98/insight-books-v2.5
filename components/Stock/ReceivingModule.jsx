@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -66,6 +66,37 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
   const pendingCount = data.postedInventoryPending.length;
   const receivedCount = data.goodsReceivedPosted.length;
 
+  const unitsStillToReceive = useMemo(
+    () =>
+      data.orderedGoodsOutstanding.reduce(
+        (sum, po) =>
+          sum +
+          (po.lines || []).reduce(
+            (s, line) => s + (Number(line.quantityRemaining) || 0),
+            0
+          ),
+        0
+      ),
+    [data.orderedGoodsOutstanding]
+  );
+
+  /** Middle column badge: outstanding units (normal case) + rare deferred stock postings. */
+  const goodsToReceiveBadge = useMemo(() => {
+    const parts = [];
+    if (unitsStillToReceive > 0) {
+      parts.push(
+        `${unitsStillToReceive} unit${unitsStillToReceive !== 1 ? "s" : ""}`
+      );
+    }
+    if (pendingCount > 0) {
+      parts.push(
+        `${pendingCount} stock-pending receipt${pendingCount !== 1 ? "s" : ""}`
+      );
+    }
+    if (parts.length === 0) return "All caught up";
+    return parts.join(" · ");
+  }, [unitsStillToReceive, pendingCount]);
+
   return (
     <div className="mb-6 lg:mb-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-stretch border-b border-gray-100 bg-gradient-to-r from-slate-50 to-white">
@@ -83,7 +114,7 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                 Receiving & purchase orders
               </h2>
               <p className="text-xs text-gray-500 truncate">
-                Outstanding PO lines · Stock not yet applied · Recently received (in stock)
+                Ordered lines · Quantities still to receive · Recently received (in stock)
               </p>
             </div>
           </div>
@@ -214,45 +245,96 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
                   <h3 className="text-sm font-semibold text-gray-900">
                     Goods to be received
                   </h3>
-                  <span className="text-xs font-medium text-teal-900 bg-teal-100 px-2 py-0.5 rounded-full">
-                    {pendingCount} receipt{pendingCount !== 1 ? "s" : ""}
+                  <span className="text-xs font-medium text-teal-900 bg-teal-100 px-2 py-0.5 rounded-full max-w-[min(100%,14rem)] truncate" title={goodsToReceiveBadge}>
+                    {goodsToReceiveBadge}
                   </span>
                 </div>
                 <p className="px-4 pt-2 text-xs text-gray-600">
-                  Posted goods receipts where stock has not been applied yet (e.g. future
-                  receipt date or background posting). Goods receipts are always posted,
-                  not draft.
+                  Quantities on purchase orders that still need a goods receipt, plus any
+                  posted receipts whose stock is scheduled (e.g. future receipt date).
                 </p>
-                <div className="p-3 max-h-[min(380px,48vh)] overflow-y-auto space-y-2">
-                  {data.postedInventoryPending.length === 0 ? (
-                    <p className="text-sm text-gray-500 px-1 py-4 text-center">
-                      Nothing waiting for stock posting.
-                    </p>
-                  ) : (
-                    data.postedInventoryPending.map((r) => (
-                      <div
-                        key={r.id}
-                        className="rounded-lg border border-white bg-white p-3 text-sm shadow-sm"
-                      >
-                        <div className="flex justify-between gap-2">
-                          <span className="font-medium text-gray-900">
-                            {r.receiptNumber}
-                          </span>
-                          <Link
-                            href="/purchases/receipts"
-                            className="text-xs text-teal-700 hover:underline shrink-0"
+                <div className="p-3 max-h-[min(380px,48vh)] overflow-y-auto space-y-4">
+                  {data.postedInventoryPending.length > 0 && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
+                        Stock posting pending
+                      </h4>
+                      <ul className="space-y-2">
+                        {data.postedInventoryPending.map((r) => (
+                          <li
+                            key={r.id}
+                            className="rounded-lg border border-white bg-white p-3 text-sm shadow-sm"
                           >
-                            View
-                          </Link>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {r.supplierName}
-                          {r.poNumber ? ` · PO ${r.poNumber}` : ""} ·{" "}
-                          {formatShortDate(r.receiptDate)} · stock pending
-                        </div>
-                      </div>
-                    ))
+                            <div className="flex justify-between gap-2">
+                              <span className="font-medium text-gray-900">
+                                {r.receiptNumber}
+                              </span>
+                              <Link
+                                href="/purchases/receipts"
+                                className="text-xs text-teal-700 hover:underline shrink-0"
+                              >
+                                View
+                              </Link>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {r.supplierName}
+                              {r.poNumber ? ` · PO ${r.poNumber}` : ""} ·{" "}
+                              {formatShortDate(r.receiptDate)} · applies on receipt date
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   )}
+
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 px-1">
+                      Awaiting goods receipt
+                    </h4>
+                    {data.orderedGoodsOutstanding.length === 0 ? (
+                      <p className="text-sm text-gray-500 px-1 py-2 text-center">
+                        No open quantities on purchase orders.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {data.orderedGoodsOutstanding.map((po) => {
+                          const units = (po.lines || []).reduce(
+                            (s, line) =>
+                              s + (Number(line.quantityRemaining) || 0),
+                            0
+                          );
+                          const lineCount = (po.lines || []).length;
+                          return (
+                            <li
+                              key={po.id}
+                              className="rounded-lg border border-white bg-white p-3 text-sm shadow-sm"
+                            >
+                              <div className="flex justify-between gap-2 items-start">
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {po.poNumber}
+                                  </div>
+                                  <div className="text-xs text-gray-500 mt-0.5">
+                                    {po.supplierName} · {lineCount} line
+                                    {lineCount !== 1 ? "s" : ""} ·{" "}
+                                    <span className="font-mono text-teal-900">
+                                      {units} unit{units !== 1 ? "s" : ""} to receive
+                                    </span>
+                                  </div>
+                                </div>
+                                <Link
+                                  href="/purchases/receipts"
+                                  className="text-xs font-medium text-teal-700 hover:underline shrink-0"
+                                >
+                                  Receive
+                                </Link>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
                 </div>
               </section>
 
