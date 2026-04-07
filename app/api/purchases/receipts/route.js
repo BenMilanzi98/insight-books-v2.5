@@ -23,8 +23,9 @@ function validateItems(items) {
     if (item.quantityReceived === undefined || Number(item.quantityReceived) <= 0) {
       throw new Error(`Item ${index + 1}: quantityReceived must be greater than zero`);
     }
-    if (item.unitCost === undefined || Number(item.unitCost) < 0) {
-      throw new Error(`Item ${index + 1}: unitCost cannot be negative`);
+    const uc = Number(item.unitCost);
+    if (item.unitCost === undefined || !Number.isFinite(uc) || uc < 0) {
+      throw new Error(`Item ${index + 1}: unitCost must be a valid non-negative number`);
     }
   });
 }
@@ -79,8 +80,13 @@ function enrichInventoryItemsAgainstPo(purchaseOrder, items) {
         `Item ${i + 1}: cannot receive ${qty} — only ${remaining} remaining on this PO line.`
       );
     }
-    const pricesIncludeTax = Boolean(purchaseOrder.pricesIncludeTax);
+    const pricesIncludeTax = purchaseOrder.pricesIncludeTax === true;
     const unitCost = receiptUnitCostFromPurchaseOrderLine(poLine, pricesIncludeTax);
+    if (!Number.isFinite(unitCost) || unitCost < 0) {
+      throw new Error(
+        `Item ${i + 1}: could not determine a valid unit cost from the purchase order line (check unit cost and tax fields).`
+      );
+    }
     return { ...item, _poItemId: poItemId, unitCost };
   });
 }
@@ -187,6 +193,12 @@ export async function POST(request) {
       if (!purchaseOrder) {
         return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
       }
+      if (String(purchaseOrder.supplierId) !== String(body.supplierId)) {
+        return NextResponse.json(
+          { error: 'Purchase order belongs to a different supplier than the one selected.' },
+          { status: 400 }
+        );
+      }
     }
 
     const receiptType = (body.receiptType || 'inventory').toLowerCase();
@@ -229,6 +241,16 @@ export async function POST(request) {
           0
         );
 
+    if (
+      !isServiceReceipt &&
+      (!Number.isFinite(totalAmount) || totalAmount < 0)
+    ) {
+      return NextResponse.json(
+        { error: 'Invalid receipt total; check line quantities and unit costs.' },
+        { status: 400 }
+      );
+    }
+
     const parsedReceiptDate = new Date(body.receiptDate);
     if (Number.isNaN(parsedReceiptDate.getTime())) {
       return NextResponse.json({ error: 'Invalid receiptDate' }, { status: 400 });
@@ -270,8 +292,10 @@ export async function POST(request) {
                   lineNumber: index + 1,
                   productId: item.productId,
                   purchaseOrderItemId: item._poItemId || item.poItemId || item.purchaseOrderItemId || null,
-                  quantityReceived: new Prisma.Decimal(item.quantityReceived),
-                  unitCost: new Prisma.Decimal(item.unitCost),
+                  quantityReceived: new Prisma.Decimal(
+                    String(Math.max(0, Number(item.quantityReceived)))
+                  ),
+                  unitCost: new Prisma.Decimal(String(Math.max(0, Number(item.unitCost)))),
                   batchNumber: item.batchNumber || null,
                   expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
                   notes: item.notes || null,
@@ -342,24 +366,33 @@ export async function POST(request) {
         poItems.forEach(item => {
           totalReceivedMap.set(item.id, Number(item.quantityReceived || 0));
         });
-        goodsReceipt.items.forEach(item => {
-          if (item.purchaseOrderItemId) {
-            totalReceivedMap.set(
-              item.purchaseOrderItemId,
-              totalReceivedMap.get(item.purchaseOrderItemId) + Number(item.quantityReceived)
+        goodsReceipt.items.forEach((item) => {
+          if (!item.purchaseOrderItemId) return;
+          const prev = totalReceivedMap.get(item.purchaseOrderItemId);
+          if (prev === undefined) {
+            console.warn(
+              '[goods receipt] Receipt line references PO line not on order; skipping qty update for',
+              item.purchaseOrderItemId
             );
+            return;
           }
+          const add = Number(item.quantityReceived);
+          if (!Number.isFinite(add)) return;
+          totalReceivedMap.set(item.purchaseOrderItemId, prev + add);
         });
 
         await Promise.all(
-          goodsReceipt.items.map(item => {
+          goodsReceipt.items.map((item) => {
             if (!item.purchaseOrderItemId) return null;
             const qtyReceived = totalReceivedMap.get(item.purchaseOrderItemId);
+            if (qtyReceived === undefined || !Number.isFinite(qtyReceived) || qtyReceived < 0) {
+              return null;
+            }
             return trx.purchaseOrderItem.update({
               where: { id: item.purchaseOrderItemId },
               data: {
-                quantityReceived: new Prisma.Decimal(qtyReceived)
-              }
+                quantityReceived: new Prisma.Decimal(String(qtyReceived)),
+              },
             });
           })
         );

@@ -72,6 +72,25 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     [purchaseOrders, form.purchaseOrderId]
   );
 
+  /** When a supplier is chosen, only list their purchase orders. */
+  const purchaseOrdersForSupplier = useMemo(() => {
+    if (!form.supplierId) return purchaseOrders;
+    return purchaseOrders.filter((po) => po.supplierId === form.supplierId);
+  }, [purchaseOrders, form.supplierId]);
+
+  useEffect(() => {
+    if (!form.purchaseOrderId || !form.supplierId) return;
+    const po = purchaseOrders.find((p) => p.id === form.purchaseOrderId);
+    if (po && po.supplierId !== form.supplierId) {
+      setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
+      if (!isServiceMode) {
+        setItems([
+          { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+        ]);
+      }
+    }
+  }, [form.supplierId, form.purchaseOrderId, purchaseOrders, isServiceMode]);
+
   const receiptDateMin =
     getPurchaseOrderMinReceiptDateStr(selectedPo) ?? undefined;
 
@@ -84,6 +103,23 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
 
   const handleChange = (event) => {
     const { name, value } = event.target;
+    if (name === "supplierId") {
+      const filtered = value
+        ? purchaseOrders.filter((po) => po.supplierId === value)
+        : purchaseOrders;
+      const keepPo = filtered.some((p) => p.id === form.purchaseOrderId);
+      setForm((prev) => ({
+        ...prev,
+        supplierId: value,
+        purchaseOrderId: keepPo ? prev.purchaseOrderId : "",
+      }));
+      if (!keepPo && !isServiceMode) {
+        setItems([
+          { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+        ]);
+      }
+      return;
+    }
     if (name === "purchaseOrderId") {
       if (!value) {
         setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
@@ -94,7 +130,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         }
         return;
       }
-      const selectedPO = purchaseOrders.find((po) => po.id === value);
+      const selectedPO = purchaseOrdersForSupplier.find((po) => po.id === value);
       const poMin = getPurchaseOrderMinReceiptDateStr(selectedPO);
       setForm((prev) => ({
         ...prev,
@@ -113,7 +149,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           return rem > 0;
         });
         if (openLines.length > 0) {
-          const pit = Boolean(selectedPO.pricesIncludeTax);
+          const pit = selectedPO.pricesIncludeTax === true;
           setItems(
             openLines.map((line) => {
               const ordered = Number(line.quantityOrdered ?? 0);
@@ -254,17 +290,25 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
               required={isServiceMode}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             >
-              <option value="">{isServiceMode ? "Select service PO" : "(Optional)"}</option>
-              {purchaseOrders.map((po) => (
+              <option value="">
+                {isServiceMode
+                  ? form.supplierId
+                    ? "Select service PO"
+                    : "Select supplier first"
+                  : form.supplierId
+                    ? "(Optional)"
+                    : "Select supplier to filter orders (optional)"}
+              </option>
+              {purchaseOrdersForSupplier.map((po) => (
                 <option key={po.id} value={po.id}>
                   {po.poNumber} — {po.supplier?.supplierName}
                 </option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Status</label>
-            {isServiceMode ? (
+          {isServiceMode && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Status</label>
               <select
                 name="status"
                 value={form.status}
@@ -277,13 +321,8 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                   </option>
                 ))}
               </select>
-            ) : (
-              <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-                Posted (required) — goods receipts always post so stock and purchase order
-                quantities update.
-              </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </FormSection>
 
@@ -297,16 +336,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           </div>
         </FormSection>
       ) : (
-        <FormSection
-          title="Items Received"
-          description="Quantities update product stock levels using weighted cost. With a PO selected, lines match open PO rows (remaining quantity). Unit cost follows the PO: when the order excludes tax from unit prices, line tax is included in the receipt cost per unit."
-        >
-          {poLinesLocked && (
-            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
-              Lines are tied to this purchase order. Clear the PO to receive ad hoc products
-              without a PO link.
-            </p>
-          )}
+        <FormSection title="Items Received">
           <div className="space-y-3">
             {items.map((item, idx) => (
               <div
