@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 
 // Enhanced helper function to calculate quotation totals with discounts
 function calculateQuotationTotals(items, globalDiscount = 0) {
@@ -305,113 +306,58 @@ export async function POST(request) {
     // Enhanced calculation using the new function
     const calculations = calculateQuotationTotals(body.items, body.discount || 0);
 
-    // Generate quotation number with continuous sequential numbering
-    // Format: QUO-DDMMYYYY-00010 (date changes, but number never resets)
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    const dateStr = `${day}${month}${year}`; // DDMMYYYY format
-    
-    // Get tenant settings for quotation prefix (optional; avoid 500 if TenantSettings has issues)
-    let tenantSettings = null;
-    try {
-      tenantSettings = await prisma.tenantSettings.findFirst({
-        where: { tenantId: user.tenantId }
-      });
-    } catch (_) {
-      // use defaults below
-    }
-    
-    // Use 'QUO' as default prefix (quotationPrefix not in settings, but could be added later)
     const quotationPrefix = 'QUO';
-    
-    // Get the last quotation for this tenant to extract the sequential number
-    // The sequential number should NEVER reset, it continues infinitely
-    const lastQuotation = await prisma.quotation.findFirst({
-      where: {
-        tenantId: user.tenantId
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      select: {
-        quotationNumber: true
-      }
-    });
-    
-    let sequentialNumber = 1; // Default to 1 if no quotations exist
-    
-    if (lastQuotation && lastQuotation.quotationNumber) {
-      // Extract the sequential number from the last quotation
-      // Format: QUO-DDMMYYYY-00010 or QT-001 (old format)
-      const parts = lastQuotation.quotationNumber.split('-');
-      if (parts.length >= 3) {
-        // Get the last part which should be the sequential number
-        const lastPart = parts[parts.length - 1];
-        const parsedNumber = parseInt(lastPart, 10);
-        if (!isNaN(parsedNumber) && parsedNumber > 0) {
-          sequentialNumber = parsedNumber + 1; // Increment by 1
-        }
-      } else if (parts.length === 2) {
-        // Handle old format: QT-001
-        const lastPart = parts[1];
-        const parsedNumber = parseInt(lastPart, 10);
-        if (!isNaN(parsedNumber) && parsedNumber > 0) {
-          sequentialNumber = parsedNumber + 1; // Increment by 1
-        }
-      }
-    }
-    
-    // Format sequential number with 5 digits (00010, 00011, etc.)
-    const sequentialNumberStr = String(sequentialNumber).padStart(5, '0');
-    const quotationNumber = `${quotationPrefix}-${dateStr}-${sequentialNumberStr}`;
-    
-    // Create the quotation
-    const newQuotation = await prisma.quotation.create({
-      data: {
-        quotationNumber,
-        title: body.title || 'Quotation',
-        orderNumber: body.orderNumber || null,
-        clientId: body.clientId,
-        createdById: user.id,
-        issueDate: body.issueDate ? new Date(body.issueDate) : new Date(),
-        validUntil: body.validUntil ? new Date(body.validUntil) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
-        discount: body.discount || 0, // Legacy global discount
-        subtotal: calculations.subtotal,
-        taxAmount: calculations.taxAmount,
-        totalDiscountAmount: calculations.totalDiscountAmount, // Enhanced: Total of all line item discounts
-        total: calculations.total,
-        status: body.status || 'Draft',
-        notes: body.notes,
-        tenantId: user.tenantId,
-        footerPhoneOverride: body.footerPhoneOverride || null,
-        footerBankDetailsOverride: body.footerBankDetailsOverride || null,
-        items: {
-          create: calculations.processedItems.map(item => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            taxRate: Number(item.taxRate || 0), // Convert to number
-            discountRate: 0, // Legacy field, keep for backward compatibility
-            discountAmount: item.discountAmount || 0,
-            netAmount: item.netAmount || 0,
-            amount: item.amount,
-            productId: item.productId || null
-          }))
-        }
-      },
-      include: {
-        client: true,
-        createdBy: { // Include user info for "Prepared By"
-          select: {
-            id: true,
-            name: true,
-            email: true
+    const issueDate = body.issueDate ? new Date(body.issueDate) : new Date();
+
+    const newQuotation = await prisma.$transaction(async (tx) => {
+      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'QUO');
+      const quotationNumber = formatDatedDocumentNumber(quotationPrefix, issueDate, seq);
+
+      return tx.quotation.create({
+        data: {
+          quotationNumber,
+          title: body.title || 'Quotation',
+          orderNumber: body.orderNumber || null,
+          clientId: body.clientId,
+          createdById: user.id,
+          issueDate,
+          validUntil: body.validUntil ? new Date(body.validUntil) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          discount: body.discount || 0,
+          subtotal: calculations.subtotal,
+          taxAmount: calculations.taxAmount,
+          totalDiscountAmount: calculations.totalDiscountAmount,
+          total: calculations.total,
+          status: body.status || 'Draft',
+          notes: body.notes,
+          tenantId: user.tenantId,
+          footerPhoneOverride: body.footerPhoneOverride || null,
+          footerBankDetailsOverride: body.footerBankDetailsOverride || null,
+          items: {
+            create: calculations.processedItems.map(item => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: Number(item.taxRate || 0),
+              discountRate: 0,
+              discountAmount: item.discountAmount || 0,
+              netAmount: item.netAmount || 0,
+              amount: item.amount,
+              productId: item.productId || null
+            }))
           }
         },
-        items: true
-      }
+        include: {
+          client: true,
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          },
+          items: true
+        }
+      });
     });
     
     // Create audit log (non-blocking; do not fail the request if audit fails)
@@ -424,7 +370,7 @@ export async function POST(request) {
           userId: user.id,
           tenantId: user.tenantId,
           details: JSON.stringify({
-            quotationNumber,
+            quotationNumber: newQuotation.quotationNumber,
             clientId: body.clientId,
             total: newQuotation.total
           })
@@ -473,6 +419,12 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error('Error creating quotation:', error);
+    if (error.code === 'P2002' && String(error.meta?.target || '').includes('quotationNumber')) {
+      return NextResponse.json(
+        { error: 'Quotation number already exists for this business.' },
+        { status: 409 }
+      );
+    }
     const message = error?.message || String(error);
     const isDev = process.env.NODE_ENV === 'development';
     return NextResponse.json(

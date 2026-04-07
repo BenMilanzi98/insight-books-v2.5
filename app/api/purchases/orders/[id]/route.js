@@ -8,6 +8,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createExpenseReversal } from '@/lib/transactionReversalService';
 import { createTransactionReversal } from '@/lib/transactionReversalService';
+import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -124,6 +125,18 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
+
+    const nextExpected =
+      body.expectedDeliveryDate !== undefined
+        ? body.expectedDeliveryDate
+          ? new Date(body.expectedDeliveryDate)
+          : null
+        : purchaseOrder.expectedDeliveryDate;
+    try {
+      assertExpectedDeliveryOnOrAfterPoDate(purchaseOrder.poDate, nextExpected);
+    } catch (dateErr) {
+      return NextResponse.json({ error: dateErr.message }, { status: 400 });
+    }
 
     const orderType = ORDER_TYPES.includes(body.orderType) ? body.orderType : (purchaseOrder.orderType || 'goods');
     if (body.items) validateItems(body.items, orderType);

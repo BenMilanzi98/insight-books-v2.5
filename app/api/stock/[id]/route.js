@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
 // Helper function to get product by ID with validation
 async function getProductWithValidation(id, tenantId) {
@@ -138,8 +139,7 @@ async function getProductWithValidation(id, tenantId) {
       };
     });
   
-  // Cost precedence: lastPurchaseCost, then cost, then averageCost (same as list/statistics)
-  const costPrice = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+  const costPrice = resolveProductCostPriceForDisplay(product);
   const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
   const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
     ? totalStockValueStored
@@ -674,8 +674,7 @@ export async function PUT(request, { params }) {
         };
       });
 
-    // Compute cost using same priority as GET routes
-    const resolvedCostPrice = Number(updated.lastPurchaseCost) || updated.cost || Number(updated.averageCost) || 0;
+    const resolvedCostPrice = resolveProductCostPriceForDisplay(updated);
     const resolvedTotalStockValue = (updated.totalStockValue != null && Number(updated.totalStockValue) > 0)
       ? Number(updated.totalStockValue)
       : (Number(effectiveStockLevel) * resolvedCostPrice);

@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
+import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 
 // POST - Convert a quotation to an invoice
 export async function POST(request, { params }) {
@@ -63,112 +64,73 @@ export async function POST(request, { params }) {
       // No additional data provided, continue with default values
     }
     
-    // Generate invoice number with continuous sequential numbering
-    // Format: INV-DDMMYYYY-00010 (date changes, but number never resets)
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    const dateStr = `${day}${month}${year}`; // DDMMYYYY format
-    
-    // Get tenant settings for invoice prefix
     const tenantSettings = await prisma.tenantSettings.findFirst({
       where: { tenantId: user.tenantId }
     });
-    
     const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
-    
-    // Get the last invoice for this tenant to extract the sequential number
-    // The sequential number should NEVER reset, it continues infinitely
-    const lastInvoice = await prisma.invoice.findFirst({
-      where: {
-        tenantId: user.tenantId
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      select: {
-        invoiceNumber: true
-      }
-    });
-    
-    let sequentialNumber = 1; // Default to 1 if no invoices exist
-    
-    if (lastInvoice && lastInvoice.invoiceNumber) {
-      // Extract the sequential number from the last invoice
-      // Format: INV-DDMMYYYY-00010 or INV-YYYYMM-001 (old format)
-      const parts = lastInvoice.invoiceNumber.split('-');
-      if (parts.length >= 3) {
-        // Get the last part which should be the sequential number
-        const lastPart = parts[parts.length - 1];
-        const parsedNumber = parseInt(lastPart, 10);
-        if (!isNaN(parsedNumber) && parsedNumber > 0) {
-          sequentialNumber = parsedNumber + 1; // Increment by 1
-        }
-      }
-    }
-    
-    // Format sequential number with 5 digits (00010, 00011, etc.)
-    const sequentialNumberStr = String(sequentialNumber).padStart(5, '0');
-    const invoiceNumber = `${invoicePrefix}-${dateStr}-${sequentialNumberStr}`;
-    
-    // Create the invoice based on the quotation data
-    const newInvoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        clientId: quotation.clientId,
-        createdById: user.id,
-        issueDate: new Date(),
-        dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days
-        discount: quotation.discount,
-        subtotal: quotation.subtotal,
-        taxAmount: quotation.taxAmount,
-        total: quotation.total,
-        status: 'Pending', // Default status for new invoices
-        notes: `${quotation.notes ? quotation.notes + '\n\n' : ''}Generated from quotation ${quotation.quotationNumber}.`,
-        tenantId: user.tenantId,
-        items: {
-          create: quotation.items.map(item => ({
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            taxRate: item.taxRate,
-            amount: item.amount,
-            productId: item.productId
-          }))
-        }
-      },
-      include: {
-        client: true,
-        items: true
-      }
-    });
-    
-    // Update the quotation status to 'Converted' and link to the new invoice
-    await prisma.quotation.update({
-      where: { id: quotationId },
-      data: {
-        status: 'Converted',
-        invoiceId: newInvoice.id,
-        notes: `${quotation.notes ? quotation.notes + ' ' : ''}Converted to invoice ${invoiceNumber}.`
-      }
-    });
-    
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'QUOTATION_CONVERTED',
-        entityType: 'QUOTATION',
-        entityId: quotationId,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          quotationNumber: quotation.quotationNumber,
+    const issueDate = new Date();
+
+    const newInvoice = await prisma.$transaction(async (tx) => {
+      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'INV');
+      const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
+
+      const inv = await tx.invoice.create({
+        data: {
           invoiceNumber,
           clientId: quotation.clientId,
-          total: quotation.total
-        })
-      }
+          createdById: user.id,
+          issueDate,
+          dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          discount: quotation.discount,
+          subtotal: quotation.subtotal,
+          taxAmount: quotation.taxAmount,
+          total: quotation.total,
+          status: 'Pending',
+          notes: `${quotation.notes ? quotation.notes + '\n\n' : ''}Generated from quotation ${quotation.quotationNumber}.`,
+          tenantId: user.tenantId,
+          items: {
+            create: quotation.items.map(item => ({
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              taxRate: item.taxRate,
+              amount: item.amount,
+              productId: item.productId
+            }))
+          }
+        },
+        include: {
+          client: true,
+          items: true
+        }
+      });
+
+      await tx.quotation.update({
+        where: { id: quotationId },
+        data: {
+          status: 'Converted',
+          invoiceId: inv.id,
+          notes: `${quotation.notes ? quotation.notes + ' ' : ''}Converted to invoice ${invoiceNumber}.`
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          action: 'QUOTATION_CONVERTED',
+          entityType: 'QUOTATION',
+          entityId: quotationId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            quotationNumber: quotation.quotationNumber,
+            invoiceNumber,
+            clientId: quotation.clientId,
+            total: quotation.total
+          })
+        }
+      });
+
+      return inv;
     });
     
     // Format the response
@@ -235,6 +197,12 @@ export async function POST(request, { params }) {
     });
   } catch (error) {
     console.error(`Error converting quotation to invoice:`, error);
+    if (error.code === 'P2002' && String(error.meta?.target || '').includes('invoiceNumber')) {
+      return NextResponse.json(
+        { error: 'Invoice number already exists for this business.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { error: 'Failed to convert quotation to invoice. Please try again.' },
       { status: 500 }

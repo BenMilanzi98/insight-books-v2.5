@@ -318,18 +318,31 @@ const StockManagement = () => {
   
   // Disable body scroll when modal is open
   useEffect(() => {
-    const modalsOpen = isFormOpen || isDetailOpen || isTransactionFormOpen || confirmDialog.isOpen || isUploadModalOpen;
-    
+    const modalsOpen =
+      isFormOpen ||
+      isDetailOpen ||
+      isTransactionFormOpen ||
+      confirmDialog.isOpen ||
+      isUploadModalOpen ||
+      showPurchaseOrderModal;
+
     if (modalsOpen) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'auto';
     }
-    
+
     return () => {
       document.body.style.overflow = 'auto';
     };
-  }, [isFormOpen, isDetailOpen, isTransactionFormOpen, confirmDialog.isOpen, isUploadModalOpen]);
+  }, [
+    isFormOpen,
+    isDetailOpen,
+    isTransactionFormOpen,
+    confirmDialog.isOpen,
+    isUploadModalOpen,
+    showPurchaseOrderModal,
+  ]);
   
   // Reload product transactions when selectedItem changes and detail modal is open
   useEffect(() => {
@@ -352,12 +365,23 @@ const StockManagement = () => {
         else if (isTransactionFormOpen) setIsTransactionFormOpen(false);
         else if (confirmDialog.isOpen) setConfirmDialog(prev => ({ ...prev, isOpen: false }));
         else if (isUploadModalOpen) setIsUploadModalOpen(false);
+        else if (showPurchaseOrderModal) {
+          setShowPurchaseOrderModal(false);
+          setPurchaseOrderProduct(null);
+        }
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isFormOpen, isDetailOpen, isTransactionFormOpen, confirmDialog.isOpen, isUploadModalOpen]);
+  }, [
+    isFormOpen,
+    isDetailOpen,
+    isTransactionFormOpen,
+    confirmDialog.isOpen,
+    isUploadModalOpen,
+    showPurchaseOrderModal,
+  ]);
   
   // Stock / products API service
   const inventoryService = {
@@ -1297,9 +1321,7 @@ const StockManagement = () => {
     setIsTransactionFormOpen(true);
   };
 
-  // Handle restock - open purchase order modal
-  const handleRestock = async (product) => {
-    setPurchaseOrderProduct(product);
+  const loadSuppliersForPurchaseOrder = async () => {
     setSuppliersLoading(true);
     try {
       const response = await fetch("/api/purchases/suppliers");
@@ -1313,6 +1335,19 @@ const StockManagement = () => {
     } finally {
       setSuppliersLoading(false);
     }
+  };
+
+  // Open purchase order modal without a pre-filled product (add lines in the modal)
+  const handleOpenCreatePurchaseOrder = async () => {
+    setPurchaseOrderProduct(null);
+    await loadSuppliersForPurchaseOrder();
+    setShowPurchaseOrderModal(true);
+  };
+
+  // Handle restock - open purchase order modal for one product
+  const handleRestock = async (product) => {
+    setPurchaseOrderProduct(product);
+    await loadSuppliersForPurchaseOrder();
     setShowPurchaseOrderModal(true);
   };
 
@@ -2319,6 +2354,16 @@ const StockManagement = () => {
               >
                 <Plus size={16} />
                 <span>Add Product</span>
+              </button>
+
+              <button
+                type="button"
+                className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-indigo-200 hover:from-indigo-700 hover:to-indigo-800 transition-all duration-200"
+                onClick={handleOpenCreatePurchaseOrder}
+                title="Create a purchase order from stock"
+              >
+                <ShoppingCart size={16} />
+                <span>New purchase order</span>
               </button>
             </>
           ) : (
@@ -4214,16 +4259,34 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   });
   const [items, setItems] = useState([
     {
-      productId: product?.id || "",
-      quantityOrdered: String(product?.reorderPoint || 10),
-      unitCost: String(getDefaultProductCost(product)),
-      description: product?.description || product?.name || "",
+      productId: "",
+      quantityOrdered: "",
+      unitCost: "",
+      description: "",
     },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const wasOpenRef = useRef(false);
 
+  // Fresh order header each time the modal opens
   useEffect(() => {
+    if (isOpen && !wasOpenRef.current) {
+      setForm({
+        supplierId: "",
+        poDate: format(new Date(), "yyyy-MM-dd"),
+        expectedDeliveryDate: "",
+        status: "Approved",
+        notes: "",
+      });
+      setError(null);
+    }
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  // Line items: one pre-filled row when restocking a product; blank row for general "new order"
+  useEffect(() => {
+    if (!isOpen) return;
     if (product) {
       setItems([
         {
@@ -4233,8 +4296,12 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
           description: product.description || product.name || "",
         },
       ]);
+    } else {
+      setItems([
+        { productId: "", quantityOrdered: "", unitCost: "", description: "" },
+      ]);
     }
-  }, [product]);
+  }, [isOpen, product]);
 
   const subtotal = useMemo(
     () =>

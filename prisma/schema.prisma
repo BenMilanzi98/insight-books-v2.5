@@ -77,6 +77,7 @@ model Tenant {
   productBarcodes            ProductBarcode[]
   products                   Product[]
   purchaseOrders             PurchaseOrder[]
+  documentSequences          DocumentSequence[]
   quotations                 Quotation[]
   recurringExpenses          RecurringExpense[]
   roles                      Role[]
@@ -144,6 +145,20 @@ model UserBranch {
   @@unique([userId, branchId])
   @@index([userId])
   @@index([branchId])
+}
+
+/// Per-tenant monotonic counters for PO, goods receipt, invoice, and quotation numeric suffixes.
+model DocumentSequence {
+  id           String   @id @default(cuid())
+  tenantId     String
+  documentType String
+  lastIssued   Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, documentType])
+  @@index([tenantId])
 }
 
 model TenantSettings {
@@ -496,6 +511,7 @@ model Invoice {
   creditNotes           CreditNote[]
   debitNotes            DebitNote[]
 
+  @@unique([tenantId, invoiceNumber])
   @@index([branchId])
   @@index([isReversal])
   @@index([reversedTransactionId])
@@ -1079,7 +1095,7 @@ model Supplier {
 
 model PurchaseOrder {
   id                   String              @id @default(cuid())
-  poNumber             String              @unique
+  poNumber             String
   tenantId             String
   supplierId           String
   orderType            String?             @default("goods") // "goods" | "services" | "mixed"
@@ -1112,6 +1128,7 @@ model PurchaseOrder {
   items                PurchaseOrderItem[]
   supplierBills        SupplierBill[]
 
+  @@unique([tenantId, poNumber])
   @@index([tenantId, supplierId])
   @@index([tenantId, status])
 }
@@ -1146,7 +1163,7 @@ model PurchaseOrderItem {
 
 model GoodsReceipt {
   id                String             @id @default(cuid())
-  receiptNumber     String             @unique
+  receiptNumber     String
   tenantId          String
   supplierId        String
   purchaseOrderId   String?
@@ -1170,6 +1187,7 @@ model GoodsReceipt {
   items             GoodsReceiptItem[]
   supplierBills     SupplierBill[]
 
+  @@unique([tenantId, receiptNumber])
   @@index([tenantId, supplierId])
   @@index([tenantId, status])
   @@index([status, inventoryAppliedAt, receiptDate])
@@ -2033,6 +2051,7 @@ model Quotation {
   tenant              Tenant          @relation(fields: [tenantId], references: [id])
   items               QuotationItem[]
 
+  @@unique([tenantId, quotationNumber])
   @@index([clientId])
   @@index([tenantId])
   @@index([createdById])

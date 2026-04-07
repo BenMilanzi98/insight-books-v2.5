@@ -5,6 +5,7 @@ import { resolveProductListBranchId, clampResolvedBranchToUserAccess } from '@/l
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
+import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -231,8 +232,7 @@ export async function GET(request) {
           };
         });
       
-      // Cost precedence: lastPurchaseCost, then cost, then averageCost (same as statistics)
-      const costPrice = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+      const costPrice = resolveProductCostPriceForDisplay(product);
       // Use stored totalStockValue only when it is set and positive; otherwise compute from cost × stock so
       // inventory value is correct when cost was added later or totalStockValue was never synced
       const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;

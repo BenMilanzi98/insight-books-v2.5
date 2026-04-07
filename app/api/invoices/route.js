@@ -8,6 +8,7 @@ import { calculateCOGS } from '@/lib/inventoryCosting';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
+import { allocateNextDocumentNumber, formatDatedDocumentNumber } from '@/lib/documentSequences';
 
 // Enhanced helper function to calculate invoice totals with discounts
 function calculateInvoiceTotals(items, globalDiscount = 0) {
@@ -443,14 +444,6 @@ export async function POST(request) {
     // Enhanced calculation using the new function
     const calculations = calculateInvoiceTotals(body.items, body.discount || 0);
     
-    // Generate invoice number with continuous sequential numbering
-    // Format: INV-DDMMYYYY-00010 (date changes, but number never resets)
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    const dateStr = `${day}${month}${year}`; // DDMMYYYY format
-    
     // Get tenant settings for invoice prefix (optional; avoid 500 if TenantSettings has missing columns e.g. after restore)
     let tenantSettings = null;
     try {
@@ -461,42 +454,17 @@ export async function POST(request) {
       // use default prefix below
     }
     const invoicePrefix = tenantSettings?.invoicePrefix || 'INV';
-    
-    // Get the last invoice for this tenant to extract the sequential number
-    // The sequential number should NEVER reset, it continues infinitely
-    const lastInvoice = await prisma.invoice.findFirst({
-      where: {
-        tenantId: user.tenantId
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      select: {
-        invoiceNumber: true
-      }
-    });
-    
-    let sequentialNumber = 1; // Default to 1 if no invoices exist
-    
-    if (lastInvoice && lastInvoice.invoiceNumber) {
-      // Extract the sequential number from the last invoice
-      // Format: INV-DDMMYYYY-00010 or INV-YYYYMM-001 (old format)
-      const parts = lastInvoice.invoiceNumber.split('-');
-      if (parts.length >= 3) {
-        // Get the last part which should be the sequential number
-        const lastPart = parts[parts.length - 1];
-        const parsedNumber = parseInt(lastPart, 10);
-        if (!isNaN(parsedNumber) && parsedNumber > 0) {
-          sequentialNumber = parsedNumber + 1; // Increment by 1
-        }
-      }
-    }
-    
-    // Format sequential number with 5 digits (00010, 00011, etc.)
-    const sequentialNumberStr = String(sequentialNumber).padStart(5, '0');
-    const invoiceNumber = `${invoicePrefix}-${dateStr}-${sequentialNumberStr}`;
+
     const invoiceStatus = body.status || 'Draft';
-    const issueDate = new Date(body.issueDate || today);
+    const issueDate = new Date(body.issueDate || new Date());
+    const dueDate =
+      body.dueDate != null && body.dueDate !== ''
+        ? new Date(body.dueDate)
+        : (() => {
+            const d = new Date(issueDate);
+            d.setDate(d.getDate() + 30);
+            return d;
+          })();
     
     let branchId;
     try {
@@ -517,6 +485,9 @@ export async function POST(request) {
     
     // Create the invoice with items in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      const seq = await allocateNextDocumentNumber(tx, user.tenantId, 'INV');
+      const invoiceNumber = formatDatedDocumentNumber(invoicePrefix, issueDate, seq);
+
       // Check products to determine if invoice has services
       let invoiceHasServices = false;
       let productNameById = {};
@@ -550,7 +521,7 @@ export async function POST(request) {
           clientId: body.clientId,
           createdById: user.id,
           issueDate,
-          dueDate: new Date(body.dueDate || new Date(today.setDate(today.getDate() + 30))),
+          dueDate,
           discount: body.discount || 0, // Legacy global discount
           subtotal: calculations.subtotal,
           taxAmount: calculations.taxAmount,
@@ -862,6 +833,13 @@ export async function POST(request) {
       code: error.code,
       meta: error.meta
     });
+
+    if (error.code === 'P2002' && String(error.meta?.target || '').includes('invoiceNumber')) {
+      return NextResponse.json(
+        { error: 'Invoice number already exists for this business.' },
+        { status: 409 }
+      );
+    }
 
     // Period lock: return 403 with a clear message so the UI can show it
     if (error.code === 'PERIOD_LOCKED') {

@@ -6,6 +6,10 @@ import Image from "next/image";
 import { Eye, Search, Download, Calendar, X, FileText, Receipt, DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 import SupplierForm from "@/components/purchases/SupplierForm";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
+import {
+  assertReceiptDateOnOrAfterPurchaseOrder,
+  getPurchaseOrderMinReceiptDateStr,
+} from "@/lib/goodsReceiptDateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 async function updateSupplier(id, payload) {
@@ -1346,6 +1350,7 @@ function OrderForm({ suppliers, products, initialData = null, onSave, onCancel }
             <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
             <input
               type="date"
+              min={form.poDate || undefined}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
               value={form.expectedDeliveryDate}
               onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}
@@ -1496,6 +1501,13 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
   const [error, setError] = useState(null);
   const [filteredPurchaseOrders, setFilteredPurchaseOrders] = useState([]);
 
+  const selectedPoForReceipt = useMemo(
+    () => purchaseOrders.find((p) => p.id === form.purchaseOrderId) || null,
+    [purchaseOrders, form.purchaseOrderId]
+  );
+  const receiptDateMinStr =
+    getPurchaseOrderMinReceiptDateStr(selectedPoForReceipt) ?? undefined;
+
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
@@ -1508,11 +1520,16 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
   };
 
   const handlePurchaseOrderChange = (poId) => {
-    setForm(prev => ({ ...prev, purchaseOrderId: poId }));
+    const po = poId ? purchaseOrders.find((p) => p.id === poId) : null;
+    const poMin = getPurchaseOrderMinReceiptDateStr(po);
+    setForm((prev) => ({
+      ...prev,
+      purchaseOrderId: poId,
+      ...(poMin ? { receiptDate: poMin } : {}),
+    }));
     if (poId) {
-      const po = purchaseOrders.find(p => p.id === poId);
       if (po && po.items) {
-        const receiptItems = po.items.map(item => ({
+        const receiptItems = po.items.map((item) => ({
           productId: item.productId,
           quantityReceived: item.quantityOrdered,
           unitCost: item.unitCost,
@@ -1553,6 +1570,9 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
     setSaving(true);
     setError(null);
     try {
+      if (selectedPoForReceipt && receiptDateMinStr && form.receiptDate) {
+        assertReceiptDateOnOrAfterPurchaseOrder(form.receiptDate, selectedPoForReceipt);
+      }
       await onSave({ ...form, items });
     } catch (err) {
       setError(err.message);
@@ -1597,9 +1617,20 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
               name="receiptDate"
               value={form.receiptDate}
               onChange={handleChange}
+              min={receiptDateMinStr}
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
+            {receiptDateMinStr && selectedPoForReceipt && (
+              <p className="mt-1 text-xs text-gray-500">
+                Earliest date is the PO order date (
+                {format(
+                  new Date(selectedPoForReceipt.poDate || selectedPoForReceipt.createdAt),
+                  "dd MMM yyyy"
+                )}
+                ).
+              </p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Purchase Order</label>

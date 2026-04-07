@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { formatDate as formatDateDDMMYYYY } from "@/lib/dateUtils";
 import {
   assertReceiptDateOnOrAfterPurchaseOrder,
+  getPurchaseOrderMinReceiptDateStr,
   isReceiptDateStrictlyAfterTodayUTC,
 } from "@/lib/goodsReceiptDateUtils";
 
@@ -70,9 +71,8 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     [purchaseOrders, form.purchaseOrderId]
   );
 
-  const receiptDateMin = selectedPo?.createdAt
-    ? format(new Date(selectedPo.createdAt), "yyyy-MM-dd")
-    : undefined;
+  const receiptDateMin =
+    getPurchaseOrderMinReceiptDateStr(selectedPo) ?? undefined;
 
   const showFutureStockNotice =
     !isServiceMode &&
@@ -82,23 +82,20 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
 
   const handleChange = (event) => {
     const { name, value } = event.target;
-    if (name === "purchaseOrderId" && value) {
+    if (name === "purchaseOrderId") {
+      if (!value) {
+        setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
+        return;
+      }
       const selectedPO = purchaseOrders.find((po) => po.id === value);
-      const poMin = selectedPO?.createdAt
-        ? format(new Date(selectedPO.createdAt), "yyyy-MM-dd")
-        : null;
-      setForm((prev) => {
-        let nextReceiptDate = prev.receiptDate;
-        if (poMin && prev.receiptDate && prev.receiptDate < poMin) {
-          nextReceiptDate = poMin;
-        }
-        return {
-          ...prev,
-          purchaseOrderId: value,
-          receiptDate: nextReceiptDate,
-          ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
-        };
-      });
+      const poMin = getPurchaseOrderMinReceiptDateStr(selectedPO);
+      setForm((prev) => ({
+        ...prev,
+        purchaseOrderId: value,
+        // Default receipt to PO order date so backdated orders can be received on historical dates.
+        receiptDate: poMin || prev.receiptDate,
+        ...(selectedPO?.supplierId ? { supplierId: selectedPO.supplierId } : {}),
+      }));
       if (!isServiceMode && selectedPO?.items?.length) {
         const goodsItems = selectedPO.items.filter(
           (line) => line.productId && (line.lineType || "goods") === "goods"
@@ -137,7 +134,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     setSaving(true);
     setError(null);
     try {
-      if (selectedPo?.createdAt && form.receiptDate) {
+      if (selectedPo && receiptDateMin && form.receiptDate) {
         try {
           assertReceiptDateOnOrAfterPurchaseOrder(form.receiptDate, selectedPo);
         } catch (validationErr) {
@@ -195,9 +192,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
               required
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
             />
-            {receiptDateMin && (
+            {receiptDateMin && selectedPo && (
               <p className="mt-1 text-xs text-gray-500">
-                Cannot be before the linked purchase order date ({format(new Date(selectedPo.createdAt), "dd MMM yyyy")}).
+                Cannot be before the purchase order date (
+                {format(
+                  new Date(selectedPo.poDate || selectedPo.createdAt),
+                  "dd MMM yyyy"
+                )}
+                ). You can choose that day or any later date (including today).
               </p>
             )}
             {showFutureStockNotice && (

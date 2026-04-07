@@ -812,6 +812,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             <label className="block text-sm font-medium text-gray-700">Expected Delivery</label>
             <input
               type="date"
+              min={form.poDate || undefined}
               className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
               value={form.expectedDeliveryDate}
               onChange={(e) => handleChange("expectedDeliveryDate", e.target.value)}

@@ -9,34 +9,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
+import {
+  allocateNextDocumentNumber,
+  formatPoNumber,
+} from '@/lib/documentSequences';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
-
-async function generatePurchaseOrderNumber() {
-  const parseSeq = (poNumber) => {
-    const m = String(poNumber || '').match(/(\d+)\s*$/);
-    return m ? parseInt(m[1], 10) : 0;
-  };
-  // Use max numeric suffix from recent POs (not count()), so deletes/manual numbers don't skip as badly.
-  const recent = await prisma.purchaseOrder.findMany({
-    select: { poNumber: true },
-    orderBy: { createdAt: 'desc' },
-    take: 5000,
-  });
-  let maxSeq = 0;
-  for (const r of recent) {
-    const n = parseSeq(r.poNumber);
-    if (n > maxSeq) maxSeq = n;
-  }
-  let seq = maxSeq + 1;
-  let number = `PO-${String(seq).padStart(5, '0')}`;
-  while (await prisma.purchaseOrder.findUnique({ where: { poNumber: number } })) {
-    seq += 1;
-    number = `PO-${String(seq).padStart(5, '0')}`;
-  }
-  return number;
-}
 
 function getLineType(item) {
   const t = (item.lineType || '').toLowerCase();
@@ -203,6 +183,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'poDate is required' }, { status: 400 });
     }
 
+    try {
+      assertExpectedDeliveryOnOrAfterPoDate(body.poDate, body.expectedDeliveryDate);
+    } catch (dateErr) {
+      return NextResponse.json({ error: dateErr.message }, { status: 400 });
+    }
+
     const orderType = ORDER_TYPES.includes(body.orderType) ? body.orderType : 'goods';
     validateItems(body.items, orderType);
 
@@ -288,7 +274,6 @@ export async function POST(request) {
       }
     }
 
-    const poNumber = body.poNumber?.trim() || await generatePurchaseOrderNumber();
     const pricesIncludeTax = Boolean(body.pricesIncludeTax);
     const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
@@ -336,67 +321,90 @@ export async function POST(request) {
     const headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
 
     // PO rows only; no stockLevel / inventoryBatch / inventoryTransaction updates here.
-    const purchaseOrder = await prisma.purchaseOrder.create({
-      data: {
-        tenantId: user.tenantId,
-        supplierId: supplier.id,
-        orderType,
-        poNumber,
-        poDate: new Date(body.poDate),
-        expectedDeliveryDate: body.expectedDeliveryDate ? new Date(body.expectedDeliveryDate) : null,
-        deliveryAddress: body.deliveryAddress || null,
-        paymentTerms: body.paymentTerms ?? supplier.paymentTerms ?? 30,
-        currency: body.currency || supplier.currency || 'MWK',
-        subtotal,
-        taxRate: headerTaxRate,
-        taxAmount,
-        totalAmount,
-        status: 'Approved',
-        approvedById: user.id,
-        approvedDate: new Date(),
-        notes: body.notes || null,
-        termsAndConditions: body.termsAndConditions || null,
-        pricesIncludeTax,
-        supplierInvoiceUrl: body.supplierInvoiceUrl || null,
-        createdById: user.id,
-        items: {
-          create: itemRows.map((row) => ({
-            lineNumber: row.lineNumber,
-            lineType: row.lineType,
-            productId: row.productId,
-            expenseCategoryId: row.expenseCategoryId,
-            description: row.description,
-            quantityOrdered: row.quantityOrdered,
-            unitCost: row.unitCost,
-            taxTypeId: row.taxTypeId,
-            taxRate: row.taxRate,
-            taxAmount: row.taxAmount
-          }))
+    const purchaseOrder = await prisma.$transaction(async (tx) => {
+      let poNumber;
+      const manual = body.poNumber?.trim();
+      if (manual) {
+        poNumber = manual;
+        const dup = await tx.purchaseOrder.findFirst({
+          where: { tenantId: user.tenantId, poNumber },
+        });
+        if (dup) {
+          const err = new Error('Purchase order number already exists');
+          err.code = 'DUPLICATE_PO_NUMBER';
+          throw err;
         }
-      },
-      include: {
-        supplier: { select: { supplierName: true } },
-        items: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, barcode: true } },
-            expenseCategory: {
-              select: {
-                id: true,
-                name: true,
-                accountCode: true,
-                account: { select: { accountCode: true, accountName: true } }
+      } else {
+        const n = await allocateNextDocumentNumber(tx, user.tenantId, 'PO');
+        poNumber = formatPoNumber(n);
+      }
+
+      return tx.purchaseOrder.create({
+        data: {
+          tenantId: user.tenantId,
+          supplierId: supplier.id,
+          orderType,
+          poNumber,
+          poDate: new Date(body.poDate),
+          expectedDeliveryDate: body.expectedDeliveryDate ? new Date(body.expectedDeliveryDate) : null,
+          deliveryAddress: body.deliveryAddress || null,
+          paymentTerms: body.paymentTerms ?? supplier.paymentTerms ?? 30,
+          currency: body.currency || supplier.currency || 'MWK',
+          subtotal,
+          taxRate: headerTaxRate,
+          taxAmount,
+          totalAmount,
+          status: 'Approved',
+          approvedById: user.id,
+          approvedDate: new Date(),
+          notes: body.notes || null,
+          termsAndConditions: body.termsAndConditions || null,
+          pricesIncludeTax,
+          supplierInvoiceUrl: body.supplierInvoiceUrl || null,
+          createdById: user.id,
+          items: {
+            create: itemRows.map((row) => ({
+              lineNumber: row.lineNumber,
+              lineType: row.lineType,
+              productId: row.productId,
+              expenseCategoryId: row.expenseCategoryId,
+              description: row.description,
+              quantityOrdered: row.quantityOrdered,
+              unitCost: row.unitCost,
+              taxTypeId: row.taxTypeId,
+              taxRate: row.taxRate,
+              taxAmount: row.taxAmount
+            }))
+          }
+        },
+        include: {
+          supplier: { select: { supplierName: true } },
+          items: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, barcode: true } },
+              expenseCategory: {
+                select: {
+                  id: true,
+                  name: true,
+                  accountCode: true,
+                  account: { select: { accountCode: true, accountName: true } }
+                }
               }
             }
           }
         }
-      }
+      });
     });
 
     return NextResponse.json({ purchaseOrder }, { status: 201 });
   } catch (error) {
     console.error('Error creating purchase order:', error?.message || error);
 
-    // Prisma unique constraint (poNumber) -> 409
+    if (error && error.code === 'DUPLICATE_PO_NUMBER') {
+      return NextResponse.json({ error: 'Purchase order number already exists' }, { status: 409 });
+    }
+
+    // Prisma unique constraint (tenantId + poNumber) -> 409
     if (error && error.code === 'P2002') {
       return NextResponse.json({ error: 'Purchase order number already exists' }, { status: 409 });
     }

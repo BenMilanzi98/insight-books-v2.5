@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
 // GET - Fetch inventory statistics with fallbacks
 export async function GET(request) {
@@ -64,7 +65,7 @@ export async function GET(request) {
       // Calculate inventory value: use totalStockValue only when set and > 0, else cost × stock
       // so that adding cost later or never-synced totalStockValue still shows correct value
       const stockLevel = Number(product.stockLevel) || 0;
-      const cost = Number(product.lastPurchaseCost) || product.cost || Number(product.averageCost) || 0;
+      const cost = resolveProductCostPriceForDisplay(product);
       const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
       const productValue = (stored != null && stored > 0) ? stored : (stockLevel * cost);
       totalValue += productValue;

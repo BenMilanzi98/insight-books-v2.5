@@ -12,8 +12,17 @@ import {
   CheckCircle,
   AlertCircle,
   Loader2,
-  Download
+  Download,
+  Hash
 } from 'lucide-react';
+
+const DOC_SEQ_TYPES = ['PO', 'GR', 'INV', 'QUO'];
+const DOC_SEQ_LABELS = {
+  PO: 'Purchase orders',
+  GR: 'Goods receipts',
+  INV: 'Invoices',
+  QUO: 'Quotations',
+};
 
 const SettingsPage = () => {
   const [settings, setSettings] = useState({
@@ -46,10 +55,33 @@ const SettingsPage = () => {
   const [errors, setErrors] = useState({});
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatus, setExportStatus] = useState(null);
+  const [docSeqRows, setDocSeqRows] = useState([]);
+  const [docSeqLoadErr, setDocSeqLoadErr] = useState(null);
+  const [docSeqSelected, setDocSeqSelected] = useState({
+    PO: true,
+    GR: true,
+    INV: true,
+    QUO: true,
+  });
+  const [docSeqResetting, setDocSeqResetting] = useState(false);
+  const [docSeqMsg, setDocSeqMsg] = useState(null);
+
+  const loadDocSequences = async () => {
+    try {
+      const res = await fetch('/api/tenant/document-sequences');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Failed to load (${res.status})`);
+      setDocSeqRows(data.sequences || []);
+      setDocSeqLoadErr(null);
+    } catch (e) {
+      setDocSeqLoadErr(e.message || 'Could not load document counters.');
+    }
+  };
 
   // Load settings on component mount
   useEffect(() => {
     loadSettings();
+    loadDocSequences();
   }, []);
 
   const loadSettings = async () => {
@@ -164,6 +196,41 @@ const SettingsPage = () => {
       setSaveStatus({ type: 'error', message });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleResetDocSequences = async () => {
+    const types = DOC_SEQ_TYPES.filter((t) => docSeqSelected[t]);
+    if (types.length === 0) {
+      setDocSeqMsg({ type: 'error', text: 'Select at least one document type.' });
+      return;
+    }
+    const labelList = types.map((t) => DOC_SEQ_LABELS[t]).join(', ');
+    if (
+      !window.confirm(
+        `Reset document number counters for: ${labelList}?\n\nThe next new document of each selected type will use sequence 00001. If those numbers already exist, you may get conflicts until you adjust or delete old records.`
+      )
+    ) {
+      return;
+    }
+    try {
+      setDocSeqResetting(true);
+      setDocSeqMsg(null);
+      const res = await fetch('/api/tenant/document-sequences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ types, lastIssued: 0 }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || `Reset failed (${res.status})`);
+      }
+      setDocSeqMsg({ type: 'success', text: data.message || 'Counters updated.' });
+      await loadDocSequences();
+    } catch (e) {
+      setDocSeqMsg({ type: 'error', text: e.message || 'Reset failed.' });
+    } finally {
+      setDocSeqResetting(false);
     }
   };
 
@@ -513,6 +580,75 @@ const SettingsPage = () => {
                   <Download className="w-4 h-4 mr-2" />
                   Export Data (ZIP)
                 </>
+              )}
+            </button>
+          </div>
+
+          {/* Document number counters */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center mb-4">
+              <Hash className="w-6 h-6 text-amber-600 mr-3" />
+              <h2 className="text-xl font-semibold text-gray-900">Document numbers</h2>
+            </div>
+            <p className="text-sm text-gray-600 mb-4">
+              Purchase orders, goods receipts, invoices, and quotations each use a sequential number for this business only. Use reset only if you understand duplicate risks with existing documents.
+            </p>
+            {docSeqLoadErr && (
+              <p className="text-sm text-red-600 mb-3">{docSeqLoadErr}</p>
+            )}
+            {docSeqMsg && (
+              <p
+                className={`text-sm mb-3 ${docSeqMsg.type === 'success' ? 'text-green-700' : 'text-red-600'}`}
+              >
+                {docSeqMsg.text}
+              </p>
+            )}
+            <ul className="text-sm text-gray-700 space-y-1 mb-4">
+              {DOC_SEQ_TYPES.map((t) => {
+                const row = docSeqRows.find((r) => r.documentType === t);
+                return (
+                  <li key={t}>
+                    <span className="font-medium">{DOC_SEQ_LABELS[t]}:</span>{' '}
+                    {row != null
+                      ? `last issued suffix ${row.lastIssued}`
+                      : 'no counter row yet (next follows highest existing document or starts at 1)'}
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+              Reset sets the internal counter so the next document uses 00001. Existing PDFs and records keep their old numbers; avoid reset if you already have PO-00001-style numbers you must keep unique.
+            </p>
+            <div className="flex flex-wrap gap-4 mb-4">
+              {DOC_SEQ_TYPES.map((t) => (
+                <label key={t} className="inline-flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={docSeqSelected[t]}
+                    onChange={(e) =>
+                      setDocSeqSelected((prev) => ({ ...prev, [t]: e.target.checked }))
+                    }
+                  />
+                  {DOC_SEQ_LABELS[t]}
+                </label>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDocSequences}
+              disabled={docSeqResetting}
+              className={`inline-flex items-center px-4 py-2 rounded-lg font-medium text-white ${
+                docSeqResetting ? 'bg-gray-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700'
+              }`}
+            >
+              {docSeqResetting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                  Resetting…
+                </>
+              ) : (
+                'Reset selected counters (next = 00001)'
               )}
             </button>
           </div>
