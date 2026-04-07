@@ -28,7 +28,7 @@ function formatShortDate(iso) {
 }
 
 export default function ReceivingModule({ refreshTrigger = 0 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState({
@@ -102,6 +102,9 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
       <div className="flex items-stretch border-b border-gray-100 bg-gradient-to-r from-slate-50 to-white">
         <button
           type="button"
+          id="receiving-module-toggle"
+          aria-expanded={open}
+          aria-controls="receiving-module-panel"
           onClick={() => setOpen((v) => !v)}
           className="flex-1 flex items-center justify-between gap-3 px-4 py-3.5 hover:bg-slate-50/80 transition-colors text-left min-w-0"
         >
@@ -110,11 +113,31 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
               <Truck className="w-5 h-5" />
             </div>
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2
+                id="receiving-module-title"
+                className="text-lg font-semibold text-gray-900"
+              >
                 Receiving & purchase orders
               </h2>
-              <p className="text-xs text-gray-500 truncate">
-                Ordered lines · Quantities still to receive · Recently received (in stock)
+              <p className="text-xs text-gray-500">
+                {open ? (
+                  <span className="block truncate">
+                    Ordered lines · Quantities still to receive · Recently received (in
+                    stock)
+                  </span>
+                ) : (
+                  <span className="block text-teal-800/90">
+                    Click or tap here, or press{" "}
+                    <kbd className="rounded border border-gray-300 bg-gray-100 px-1 py-0.5 text-[10px] font-sans text-gray-700">
+                      Enter
+                    </kbd>{" "}
+                    or{" "}
+                    <kbd className="rounded border border-gray-300 bg-gray-100 px-1 py-0.5 text-[10px] font-sans text-gray-700">
+                      Space
+                    </kbd>
+                    , to view receiving status and purchase order details.
+                  </span>
+                )}
               </p>
             </div>
           </div>
@@ -138,7 +161,12 @@ export default function ReceivingModule({ refreshTrigger = 0 }) {
       </div>
 
       {open && (
-        <div className="p-4 lg:p-6 space-y-6">
+        <div
+          id="receiving-module-panel"
+          role="region"
+          aria-labelledby="receiving-module-title"
+          className="p-4 lg:p-6 space-y-6"
+        >
           <div className="flex flex-wrap gap-2">
             <Link
               href="/purchases/receipts"
