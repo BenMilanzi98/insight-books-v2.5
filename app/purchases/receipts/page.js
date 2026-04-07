@@ -8,6 +8,7 @@ import {
   getPurchaseOrderMinReceiptDateStr,
   isReceiptDateStrictlyAfterTodayUTC,
 } from "@/lib/goodsReceiptDateUtils";
+import { receiptUnitCostFromPurchaseOrderLine } from "@/lib/receiptUnitCostFromPoLine";
 
 const statusOptions = ["Draft", "Posted"];
 
@@ -112,6 +113,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           return rem > 0;
         });
         if (openLines.length > 0) {
+          const pit = Boolean(selectedPO.pricesIncludeTax);
           setItems(
             openLines.map((line) => {
               const ordered = Number(line.quantityOrdered ?? 0);
@@ -121,7 +123,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                 productId: line.productId,
                 poItemId: line.id,
                 quantityReceived: remaining > 0 ? remaining : 1,
-                unitCost: Number(line.unitCost ?? 0) || 0,
+                unitCost: receiptUnitCostFromPurchaseOrderLine(line, pit),
               };
             })
           );
@@ -297,7 +299,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
       ) : (
         <FormSection
           title="Items Received"
-          description="Quantities update product stock levels using weighted cost. With a PO selected, lines match open PO rows (remaining quantity)."
+          description="Quantities update product stock levels using weighted cost. With a PO selected, lines match open PO rows (remaining quantity). Unit cost follows the PO: when the order excludes tax from unit prices, line tax is included in the receipt cost per unit."
         >
           {poLinesLocked && (
             <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">

@@ -10,6 +10,7 @@ import {
   assertReceiptDateOnOrAfterPurchaseOrder,
   getPurchaseOrderMinReceiptDateStr,
 } from "@/lib/goodsReceiptDateUtils";
+import { receiptUnitCostFromPurchaseOrderLine } from "@/lib/receiptUnitCostFromPoLine";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 async function updateSupplier(id, payload) {
@@ -1495,7 +1496,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
     notes: "",
   });
   const [items, setItems] = useState([
-    { productId: "", quantityReceived: 1, unitCost: 0 },
+    { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -1516,7 +1517,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
   const handleSupplierChange = (supplierId) => {
     setForm(prev => ({ ...prev, supplierId, purchaseOrderId: "" }));
     setFilteredPurchaseOrders(purchaseOrders.filter(po => po.supplierId === supplierId));
-    setItems([{ productId: "", quantityReceived: 1, unitCost: 0 }]);
+    setItems([{ productId: "", quantityReceived: 1, unitCost: 0, poItemId: null }]);
   };
 
   const handlePurchaseOrderChange = (poId) => {
@@ -1529,15 +1530,39 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
     }));
     if (poId) {
       if (po && po.items) {
-        const receiptItems = po.items.map((item) => ({
-          productId: item.productId,
-          quantityReceived: item.quantityOrdered,
-          unitCost: item.unitCost,
-        }));
-        setItems(receiptItems);
+        const pit = Boolean(po.pricesIncludeTax);
+        const goodsItems = po.items.filter(
+          (line) => line.productId && (line.lineType || "goods") === "goods"
+        );
+        const openLines = goodsItems.filter((line) => {
+          const rem =
+            Number(line.quantityOrdered ?? 0) - Number(line.quantityReceived ?? 0);
+          return rem > 0;
+        });
+        if (openLines.length > 0) {
+          setItems(
+            openLines.map((line) => {
+              const ordered = Number(line.quantityOrdered ?? 0);
+              const already = Number(line.quantityReceived ?? 0);
+              const remaining = Math.max(0, ordered - already);
+              return {
+                productId: line.productId,
+                poItemId: line.id,
+                quantityReceived: remaining > 0 ? remaining : 1,
+                unitCost: receiptUnitCostFromPurchaseOrderLine(line, pit),
+              };
+            })
+          );
+        } else {
+          setItems([
+            { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+          ]);
+        }
       }
     } else {
-      setItems([{ productId: "", quantityReceived: 1, unitCost: 0 }]);
+      setItems([
+        { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+      ]);
     }
   };
 
@@ -1558,7 +1583,10 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { productId: "", quantityReceived: 1, unitCost: 0 }]);
+    setItems((prev) => [
+      ...prev,
+      { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+    ]);
   };
 
   const removeItem = (index) => {
@@ -1573,7 +1601,15 @@ function ReceiptForm({ suppliers, products, purchaseOrders, onSave, onCancel }) 
       if (selectedPoForReceipt && receiptDateMinStr && form.receiptDate) {
         assertReceiptDateOnOrAfterPurchaseOrder(form.receiptDate, selectedPoForReceipt);
       }
-      await onSave({ ...form, items });
+      await onSave({
+        ...form,
+        receiptType: "inventory",
+        status: "Posted",
+        items: items.map((row) => ({
+          ...row,
+          poItemId: row.poItemId || undefined,
+        })),
+      });
     } catch (err) {
       setError(err.message);
     } finally {

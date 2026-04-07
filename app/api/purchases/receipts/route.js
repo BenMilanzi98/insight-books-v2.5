@@ -12,6 +12,7 @@ import {
   isReceiptDateStrictlyAfterTodayUTC,
 } from '@/lib/goodsReceiptDateUtils';
 import { allocateNextGRNumberReliable, formatGrNumber } from '@/lib/documentSequences';
+import { receiptUnitCostFromPurchaseOrderLine } from '@/lib/receiptUnitCostFromPoLine';
 
 function validateItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -78,7 +79,9 @@ function enrichInventoryItemsAgainstPo(purchaseOrder, items) {
         `Item ${i + 1}: cannot receive ${qty} — only ${remaining} remaining on this PO line.`
       );
     }
-    return { ...item, _poItemId: poItemId };
+    const pricesIncludeTax = Boolean(purchaseOrder.pricesIncludeTax);
+    const unitCost = receiptUnitCostFromPurchaseOrderLine(poLine, pricesIncludeTax);
+    return { ...item, _poItemId: poItemId, unitCost };
   });
 }
 
@@ -221,7 +224,7 @@ export async function POST(request) {
             const tax = Number(line.taxAmount || 0);
             return sum + subtotal + tax;
           }, 0)
-      : body.items.reduce(
+      : inventoryItemsForCreate.reduce(
           (sum, item) => sum + Number(item.quantityReceived) * Number(item.unitCost),
           0
         );
