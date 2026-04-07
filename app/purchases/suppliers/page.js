@@ -2031,8 +2031,9 @@ function PaymentForm({ suppliers, bills, onSave, onCancel, initialSupplierId = "
 export default function SuppliersPage() {
   const [activeTab, setActiveTab] = useState("suppliers");
 
+  /** POs eligible for new receipts — exclude Received to avoid duplicate goods receipts. */
   const receiptPoStatusFilter = useMemo(
-    () => new Set(["Approved", "Sent", "Partially Received", "Received"]),
+    () => new Set(["Approved", "Sent", "Partially Received"]),
     []
   );
   

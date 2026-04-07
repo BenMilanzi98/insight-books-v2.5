@@ -594,13 +594,17 @@ export default function GoodsReceiptsPage() {
           ? allPos.filter(
               (po) =>
                 po &&
+                po.status !== "Received" &&
                 (po.orderType === "services" || po.orderType === "mixed") &&
                 (po.status === "Approved" || po.status === "Partially Received")
             )
           : allPos.filter(
               (po) =>
                 po &&
-                (po.orderType === "goods" || po.orderType === "mixed" || po.orderType === "assets") &&
+                po.status !== "Received" &&
+                (po.orderType === "goods" ||
+                  po.orderType === "mixed" ||
+                  po.orderType === "assets") &&
                 (po.status === "Approved" || po.status === "Partially Received")
             );
       setPurchaseOrders(filteredPos);
