@@ -144,8 +144,10 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           (line) => line.productId && (line.lineType || "goods") === "goods"
         );
         const openLines = goodsItems.filter((line) => {
-          const rem =
-            Number(line.quantityOrdered ?? 0) - Number(line.quantityReceived ?? 0);
+          const already = Number(
+            line.quantityReceivedEffective ?? line.quantityReceived ?? 0
+          );
+          const rem = Number(line.quantityOrdered ?? 0) - already;
           return rem > 0;
         });
         if (openLines.length > 0) {
@@ -153,7 +155,9 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           setItems(
             openLines.map((line) => {
               const ordered = Number(line.quantityOrdered ?? 0);
-              const already = Number(line.quantityReceived ?? 0);
+              const already = Number(
+                line.quantityReceivedEffective ?? line.quantityReceived ?? 0
+              );
               const remaining = Math.max(0, ordered - already);
               return {
                 productId: line.productId,

@@ -9,16 +9,28 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { createExpenseReversal } from '@/lib/transactionReversalService';
 import { createTransactionReversal } from '@/lib/transactionReversalService';
 import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
+import {
+  sumPostedGoodsReceiptQtyByPoLineIds,
+  effectiveQuantityReceived,
+  attachQuantityReceivedEffective,
+} from '@/lib/poLineReceivedFromReceipts';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
 
-/** Any goods line with received qty > 0 — PO must not be edited or cancelled from the UI. */
-function poHasGoodsReceiptActivity(purchaseOrder) {
+/** Goods lines with posted receipt qty (or stale PO qty) — PO must not be edited or cancelled from the UI. */
+async function poHasGoodsReceiptActivity(client, tenantId, purchaseOrder) {
+  const goodsLineIds = (purchaseOrder.items || [])
+    .filter((it) => {
+      const lt = (it.lineType || 'goods').toLowerCase();
+      return lt === 'goods' && it.productId;
+    })
+    .map((it) => it.id);
+  const sums = await sumPostedGoodsReceiptQtyByPoLineIds(client, tenantId, goodsLineIds);
   return (purchaseOrder.items || []).some((it) => {
     const lt = (it.lineType || 'goods').toLowerCase();
     if (lt !== 'goods' || !it.productId) return false;
-    return Number(it.quantityReceived || 0) > 0;
+    return effectiveQuantityReceived(it, sums) > 0;
   });
 }
 
@@ -100,6 +112,8 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
+    await attachQuantityReceivedEffective(prisma, user.tenantId, [purchaseOrder]);
+
     return NextResponse.json({ purchaseOrder });
   } catch (error) {
     console.error('Error fetching purchase order:', error);
@@ -125,7 +139,7 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
-    if (poHasGoodsReceiptActivity(purchaseOrder)) {
+    if (await poHasGoodsReceiptActivity(prisma, user.tenantId, purchaseOrder)) {
       return NextResponse.json(
         {
           error:
@@ -306,7 +320,7 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    if (poHasGoodsReceiptActivity(purchaseOrder)) {
+    if (await poHasGoodsReceiptActivity(prisma, user.tenantId, purchaseOrder)) {
       return NextResponse.json(
         {
           error: `Cannot cancel PO ${purchaseOrder.poNumber} because goods have already been received on this order.`,

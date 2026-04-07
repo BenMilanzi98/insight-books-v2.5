@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import {
+  sumPostedGoodsReceiptQtyByPoLineIds,
+  effectiveQuantityReceived,
+} from '@/lib/poLineReceivedFromReceipts';
 
 function num(d) {
   if (d == null) return 0;
@@ -44,6 +48,21 @@ export async function GET(request) {
       },
     });
 
+    const allGoodsPoLineIds = [];
+    for (const po of purchaseOrders) {
+      for (const item of po.items || []) {
+        const lineType = (item.lineType || 'goods').toLowerCase();
+        if (lineType === 'goods' && item.productId && item.id) {
+          allGoodsPoLineIds.push(item.id);
+        }
+      }
+    }
+    const receiptSumsByPoLine = await sumPostedGoodsReceiptQtyByPoLineIds(
+      prisma,
+      tenantId,
+      allGoodsPoLineIds
+    );
+
     const orderedGoodsOutstanding = [];
     for (const po of purchaseOrders) {
       const lines = [];
@@ -51,7 +70,7 @@ export async function GET(request) {
         const lineType = (item.lineType || 'goods').toLowerCase();
         if (lineType !== 'goods' || !item.productId) continue;
         const ordered = num(item.quantityOrdered);
-        const received = num(item.quantityReceived);
+        const received = effectiveQuantityReceived(item, receiptSumsByPoLine);
         const remaining = Math.max(0, ordered - received);
         if (remaining <= 0) continue;
         lines.push({

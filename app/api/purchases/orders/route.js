@@ -11,6 +11,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
 import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequences';
+import { attachQuantityReceivedEffective } from '@/lib/poLineReceivedFromReceipts';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -147,6 +148,8 @@ export async function GET(request) {
         return NextResponse.json({ error: message }, { status: 500 });
       }
     }
+
+    await attachQuantityReceivedEffective(prisma, user.tenantId, purchaseOrders);
 
     return NextResponse.json({
       purchaseOrders,

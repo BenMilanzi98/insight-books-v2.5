@@ -13,6 +13,10 @@ import {
 } from '@/lib/goodsReceiptDateUtils';
 import { allocateNextGRNumberReliable, formatGrNumber } from '@/lib/documentSequences';
 import { receiptUnitCostFromPurchaseOrderLine } from '@/lib/receiptUnitCostFromPoLine';
+import {
+  sumPostedGoodsReceiptQtyByPoLineIds,
+  goodsLineRemainingQty,
+} from '@/lib/poLineReceivedFromReceipts';
 
 function validateItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -33,15 +37,15 @@ function validateItems(items) {
 /**
  * When receiving against a PO, resolve PO line id (explicit or single remaining match by product).
  */
-function resolvePoLineIdForItem(purchaseOrder, item) {
+function resolvePoLineIdForItem(purchaseOrder, item, receiptSumByPoLineId) {
+  const sumMap = receiptSumByPoLineId || new Map();
   let poItemId = item.poItemId || item.purchaseOrderItemId;
   if (poItemId) return poItemId;
   if (!purchaseOrder?.items || !item.productId) return null;
   const candidates = purchaseOrder.items.filter((l) => {
     const lt = (l.lineType || 'goods').toLowerCase();
     if (lt !== 'goods' || l.productId !== item.productId) return false;
-    const remaining = Number(l.quantityOrdered) - Number(l.quantityReceived || 0);
-    return remaining > 0;
+    return goodsLineRemainingQty(l, sumMap) > 0;
   });
   if (candidates.length === 1) return candidates[0].id;
   return null;
@@ -50,12 +54,13 @@ function resolvePoLineIdForItem(purchaseOrder, item) {
 /**
  * Validates quantities vs PO remaining; returns items with _poItemId for create().
  */
-function enrichInventoryItemsAgainstPo(purchaseOrder, items) {
+function enrichInventoryItemsAgainstPo(purchaseOrder, items, receiptSumByPoLineId) {
+  const sumMap = receiptSumByPoLineId || new Map();
   if (!purchaseOrder) {
     return items.map((item) => ({ ...item, _poItemId: item.poItemId || item.purchaseOrderItemId || null }));
   }
   return items.map((item, i) => {
-    const poItemId = resolvePoLineIdForItem(purchaseOrder, item);
+    const poItemId = resolvePoLineIdForItem(purchaseOrder, item, sumMap);
     if (!poItemId) {
       throw new Error(
         `Item ${i + 1}: when receiving against a purchase order, each line must map to a PO goods line. ` +
@@ -73,7 +78,7 @@ function enrichInventoryItemsAgainstPo(purchaseOrder, items) {
     if (poLine.productId !== item.productId) {
       throw new Error(`Item ${i + 1}: product does not match the purchase order line.`);
     }
-    const remaining = Number(poLine.quantityOrdered) - Number(poLine.quantityReceived || 0);
+    const remaining = goodsLineRemainingQty(poLine, sumMap);
     const qty = Number(item.quantityReceived);
     if (qty > remaining) {
       throw new Error(
@@ -204,6 +209,21 @@ export async function POST(request) {
     const receiptType = (body.receiptType || 'inventory').toLowerCase();
     const isServiceReceipt = receiptType === 'service';
 
+    let receiptSumByPoLineId = new Map();
+    if (purchaseOrder && !isServiceReceipt) {
+      const goodsIds = (purchaseOrder.items || [])
+        .filter(
+          (l) =>
+            (l.lineType || 'goods').toLowerCase() === 'goods' && l.productId && l.id
+        )
+        .map((l) => l.id);
+      receiptSumByPoLineId = await sumPostedGoodsReceiptQtyByPoLineIds(
+        prisma,
+        user.tenantId,
+        goodsIds
+      );
+    }
+
     if (isServiceReceipt) {
       validateServiceReceipt(body, purchaseOrder);
     } else {
@@ -222,7 +242,11 @@ export async function POST(request) {
     let inventoryItemsForCreate = null;
     if (!isServiceReceipt) {
       try {
-        inventoryItemsForCreate = enrichInventoryItemsAgainstPo(purchaseOrder, body.items);
+        inventoryItemsForCreate = enrichInventoryItemsAgainstPo(
+          purchaseOrder,
+          body.items,
+          receiptSumByPoLineId
+        );
       } catch (e) {
         return NextResponse.json({ error: e.message }, { status: 400 });
       }
@@ -359,39 +383,29 @@ export async function POST(request) {
           return goodsReceipt;
         }
 
-        const totalReceivedMap = new Map();
         const poItems = await trx.purchaseOrderItem.findMany({
-          where: { purchaseOrderId: purchaseOrder.id }
+          where: { purchaseOrderId: purchaseOrder.id },
         });
-        poItems.forEach(item => {
-          totalReceivedMap.set(item.id, Number(item.quantityReceived || 0));
-        });
-        goodsReceipt.items.forEach((item) => {
-          if (!item.purchaseOrderItemId) return;
-          const prev = totalReceivedMap.get(item.purchaseOrderItemId);
-          if (prev === undefined) {
-            console.warn(
-              '[goods receipt] Receipt line references PO line not on order; skipping qty update for',
-              item.purchaseOrderItemId
-            );
-            return;
-          }
-          const add = Number(item.quantityReceived);
-          if (!Number.isFinite(add)) return;
-          totalReceivedMap.set(item.purchaseOrderItemId, prev + add);
-        });
-
+        const goodsLineIds = poItems
+          .filter(
+            (row) =>
+              (row.lineType || 'goods').toLowerCase() === 'goods' && row.productId
+          )
+          .map((row) => row.id);
+        const sumsAfterReceipt = await sumPostedGoodsReceiptQtyByPoLineIds(
+          trx,
+          user.tenantId,
+          goodsLineIds
+        );
         await Promise.all(
-          goodsReceipt.items.map((item) => {
-            if (!item.purchaseOrderItemId) return null;
-            const qtyReceived = totalReceivedMap.get(item.purchaseOrderItemId);
-            if (qtyReceived === undefined || !Number.isFinite(qtyReceived) || qtyReceived < 0) {
-              return null;
-            }
+          poItems.map((row) => {
+            const lt = (row.lineType || 'goods').toLowerCase();
+            if (lt !== 'goods' || !row.productId) return Promise.resolve();
+            const sum = sumsAfterReceipt.get(row.id) || 0;
             return trx.purchaseOrderItem.update({
-              where: { id: item.purchaseOrderItemId },
+              where: { id: row.id },
               data: {
-                quantityReceived: new Prisma.Decimal(String(qtyReceived)),
+                quantityReceived: new Prisma.Decimal(String(sum)),
               },
             });
           })

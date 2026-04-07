@@ -72,7 +72,9 @@ function orderHasGoodsReceiptActivity(order) {
   return (order.items || []).some((it) => {
     const lt = (it.lineType || "goods").toLowerCase();
     if (lt !== "goods" || !it.productId) return false;
-    return Number(it.quantityReceived || 0) > 0;
+    return (
+      Number(it.quantityReceivedEffective ?? it.quantityReceived ?? 0) > 0
+    );
   });
 }
 
