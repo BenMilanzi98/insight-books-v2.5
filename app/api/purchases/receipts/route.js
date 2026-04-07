@@ -11,7 +11,7 @@ import {
   assertReceiptDateOnOrAfterPurchaseOrder,
   isReceiptDateStrictlyAfterTodayUTC,
 } from '@/lib/goodsReceiptDateUtils';
-import { allocateNextDocumentNumber, formatGrNumber } from '@/lib/documentSequences';
+import { allocateNextGRNumberReliable, formatGrNumber } from '@/lib/documentSequences';
 
 function validateItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -218,7 +218,7 @@ export async function POST(request) {
 
     const result = await prisma.$transaction(async (trx) => {
       if (!receiptNumber) {
-        const n = await allocateNextDocumentNumber(trx, user.tenantId, 'GR');
+        const n = await allocateNextGRNumberReliable(trx, user.tenantId);
         receiptNumber = formatGrNumber(n);
       }
 

@@ -10,10 +10,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
-import {
-  allocateNextDocumentNumber,
-  formatPoNumber,
-} from '@/lib/documentSequences';
+import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequences';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -335,7 +332,7 @@ export async function POST(request) {
           throw err;
         }
       } else {
-        const n = await allocateNextDocumentNumber(tx, user.tenantId, 'PO');
+        const n = await allocateNextPONumberReliable(tx, user.tenantId);
         poNumber = formatPoNumber(n);
       }
 
@@ -414,8 +411,10 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid reference: missing related record (product/supplier)' }, { status: 400 });
     }
 
+    const devDetail =
+      process.env.NODE_ENV === 'development' ? { details: error?.message || String(error) } : {};
     return NextResponse.json(
-      { error: 'Failed to create purchase order.' },
+      { error: 'Failed to create purchase order.', ...devDetail },
       { status: 500 }
     );
   }
