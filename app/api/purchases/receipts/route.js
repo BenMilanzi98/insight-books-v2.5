@@ -28,6 +28,60 @@ function validateItems(items) {
   });
 }
 
+/**
+ * When receiving against a PO, resolve PO line id (explicit or single remaining match by product).
+ */
+function resolvePoLineIdForItem(purchaseOrder, item) {
+  let poItemId = item.poItemId || item.purchaseOrderItemId;
+  if (poItemId) return poItemId;
+  if (!purchaseOrder?.items || !item.productId) return null;
+  const candidates = purchaseOrder.items.filter((l) => {
+    const lt = (l.lineType || 'goods').toLowerCase();
+    if (lt !== 'goods' || l.productId !== item.productId) return false;
+    const remaining = Number(l.quantityOrdered) - Number(l.quantityReceived || 0);
+    return remaining > 0;
+  });
+  if (candidates.length === 1) return candidates[0].id;
+  return null;
+}
+
+/**
+ * Validates quantities vs PO remaining; returns items with _poItemId for create().
+ */
+function enrichInventoryItemsAgainstPo(purchaseOrder, items) {
+  if (!purchaseOrder) {
+    return items.map((item) => ({ ...item, _poItemId: item.poItemId || item.purchaseOrderItemId || null }));
+  }
+  return items.map((item, i) => {
+    const poItemId = resolvePoLineIdForItem(purchaseOrder, item);
+    if (!poItemId) {
+      throw new Error(
+        `Item ${i + 1}: when receiving against a purchase order, each line must map to a PO goods line. ` +
+          'Use the lines suggested from the PO, or ensure only one open line exists per product.'
+      );
+    }
+    const poLine = purchaseOrder.items.find((l) => l.id === poItemId);
+    if (!poLine) {
+      throw new Error(`Item ${i + 1}: purchase order line not found.`);
+    }
+    const lt = (poLine.lineType || 'goods').toLowerCase();
+    if (lt !== 'goods' || !poLine.productId) {
+      throw new Error(`Item ${i + 1}: selected PO line is not a goods line.`);
+    }
+    if (poLine.productId !== item.productId) {
+      throw new Error(`Item ${i + 1}: product does not match the purchase order line.`);
+    }
+    const remaining = Number(poLine.quantityOrdered) - Number(poLine.quantityReceived || 0);
+    const qty = Number(item.quantityReceived);
+    if (qty > remaining) {
+      throw new Error(
+        `Item ${i + 1}: cannot receive ${qty} — only ${remaining} remaining on this PO line.`
+      );
+    }
+    return { ...item, _poItemId: poItemId };
+  });
+}
+
 function validateServiceReceipt(body, purchaseOrder) {
   if (!purchaseOrder) {
     throw new Error('purchaseOrderId is required for service receipts');
@@ -138,7 +192,25 @@ export async function POST(request) {
     if (isServiceReceipt) {
       validateServiceReceipt(body, purchaseOrder);
     } else {
+      if (body.status === 'Draft') {
+        return NextResponse.json(
+          {
+            error:
+              'Goods receipts must be posted. Inventory is updated only when the receipt is posted (not draft).',
+          },
+          { status: 400 }
+        );
+      }
       validateItems(body.items);
+    }
+
+    let inventoryItemsForCreate = null;
+    if (!isServiceReceipt) {
+      try {
+        inventoryItemsForCreate = enrichInventoryItemsAgainstPo(purchaseOrder, body.items);
+      } catch (e) {
+        return NextResponse.json({ error: e.message }, { status: 400 });
+      }
     }
 
     const totalAmount = isServiceReceipt
@@ -164,8 +236,10 @@ export async function POST(request) {
       return NextResponse.json({ error: e.message }, { status: 400 });
     }
 
+    const receiptIsPosted = isServiceReceipt ? body.status === 'Posted' : true;
+
     const deferInventoryPosting =
-      body.status === 'Posted' &&
+      receiptIsPosted &&
       !isServiceReceipt &&
       isReceiptDateStrictlyAfterTodayUTC(parsedReceiptDate);
 
@@ -180,26 +254,28 @@ export async function POST(request) {
           receiptDate: parsedReceiptDate,
           supplierReference: body.supplierReference || null,
           totalAmount,
-          status: body.status === 'Posted' ? 'Posted' : 'Draft',
-          postedDate: body.status === 'Posted' ? new Date() : null,
+          status: receiptIsPosted ? 'Posted' : 'Draft',
+          postedDate: receiptIsPosted ? new Date() : null,
           receivedById: user.id,
           notes: isServiceReceipt
             ? (body.notes || `Service receipt for PO ${purchaseOrder?.poNumber || ''}`.trim())
             : (body.notes || null),
           items: {
-            create: isServiceReceipt ? [] : body.items.map((item, index) => ({
-              lineNumber: index + 1,
-              productId: item.productId,
-              purchaseOrderItemId: item.poItemId || null,
-              quantityReceived: new Prisma.Decimal(item.quantityReceived),
-              unitCost: new Prisma.Decimal(item.unitCost),
-              batchNumber: item.batchNumber || null,
-              expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
-              notes: item.notes || null
-            }))
-          }
+            create: isServiceReceipt
+              ? []
+              : inventoryItemsForCreate.map((item, index) => ({
+                  lineNumber: index + 1,
+                  productId: item.productId,
+                  purchaseOrderItemId: item._poItemId || item.poItemId || item.purchaseOrderItemId || null,
+                  quantityReceived: new Prisma.Decimal(item.quantityReceived),
+                  unitCost: new Prisma.Decimal(item.unitCost),
+                  batchNumber: item.batchNumber || null,
+                  expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
+                  notes: item.notes || null,
+                })),
+          },
         },
-        include: { items: true }
+        include: { items: true },
       });
     };
 
@@ -225,7 +301,7 @@ export async function POST(request) {
       const goodsReceipt = await createGoodsReceipt(trx, receiptNumber);
 
       // Posted inventory receipts: apply stock/GL/bill immediately unless receipt date is in the future (UTC calendar day).
-      if (!isServiceReceipt && goodsReceipt.status === 'Posted' && !deferInventoryPosting) {
+      if (!isServiceReceipt && receiptIsPosted && !deferInventoryPosting) {
         await applyGoodsReceiptInventoryPosting(trx, {
           goodsReceipt,
           tenantId: user.tenantId,

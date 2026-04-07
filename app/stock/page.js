@@ -48,6 +48,7 @@ import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
 import DynamicCategorySelect from "@/components/DynamicCategorySelect";
 import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
 import SkuConflictModal from "@/components/Stock/SkuConflictModal";
+import ReceivingModule from "@/components/Stock/ReceivingModule";
 import UnitManagement from "@/components/UnitManagement/UnitManagement";
 import BulkTaxApplicationModal from "@/components/BulkTaxApplicationModal";
 import {
@@ -108,6 +109,7 @@ const StockManagement = () => {
   const [purchaseOrderProduct, setPurchaseOrderProduct] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [suppliersLoading, setSuppliersLoading] = useState(false);
+  const [receivingRefresh, setReceivingRefresh] = useState(0);
   
   // Modal states
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -1366,6 +1368,7 @@ const StockManagement = () => {
       showToast("success", "Purchase order created successfully", "");
       setShowPurchaseOrderModal(false);
       setPurchaseOrderProduct(null);
+      setReceivingRefresh((n) => n + 1);
       // Optionally reload stock list to reflect any changes
       loadInventory();
     } catch (error) {
@@ -2493,6 +2496,10 @@ const StockManagement = () => {
           </div>
         </div>
       </div>
+
+      {!showDeletedItems && (
+        <ReceivingModule refreshTrigger={receivingRefresh} />
+      )}
 
       {/* Filter Bar */}
       <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6 bg-white rounded-xl shadow-sm border border-gray-100 p-4">

@@ -31,19 +31,6 @@ async function createBill(payload) {
   return res.json();
 }
 
-async function updateBill(id, payload) {
-  const res = await fetch(`/api/purchases/bills/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error || "Failed to update bill");
-  }
-  return res.json();
-}
-
 async function reverseBill(id, reversalReason) {
   const res = await fetch(`/api/purchases/bills/${id}`, {
     method: "DELETE",
@@ -422,8 +409,6 @@ export default function SupplierBillsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [formMode, setFormMode] = useState("create");
-  const [activeBill, setActiveBill] = useState(null);
   const [deletingBill, setDeletingBill] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -460,28 +445,15 @@ export default function SupplierBillsPage() {
   }, [bills]);
 
   const openCreateForm = () => {
-    setFormMode("create");
-    setActiveBill(null);
-    setShowForm(true);
-  };
-
-  const openEditForm = (bill) => {
-    setFormMode("edit");
-    setActiveBill(bill);
     setShowForm(true);
   };
 
   const closeForm = () => {
     setShowForm(false);
-    setActiveBill(null);
   };
 
   const handleSaveBill = async (payload) => {
-    if (formMode === "edit" && activeBill) {
-      await updateBill(activeBill.id, payload);
-    } else {
-      await createBill(payload);
-    }
+    await createBill(payload);
     closeForm();
     await loadData();
   };
@@ -635,12 +607,6 @@ export default function SupplierBillsPage() {
                     <td className="px-4 py-2 text-right">
                       <div className="flex justify-end gap-2">
                         <button
-                          className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-                          onClick={() => openEditForm(bill)}
-                        >
-                          Edit
-                        </button>
-                        <button
                           className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-40"
                           onClick={() => setDeletingBill(bill)}
                           disabled={bill.status === "Cancelled"}
@@ -670,11 +636,11 @@ export default function SupplierBillsPage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">
-                  {formMode === "edit" ? "Edit Supplier Bill" : "New Supplier Bill"}
+                  New Supplier Bill
                 </h2>
-                {formMode === "edit" && (
-                  <p className="text-xs text-gray-500">{activeBill?.billNumber}</p>
-                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Existing bills cannot be edited; reverse a bill if you need to undo it.
+                </p>
               </div>
               <button
                 onClick={closeForm}
@@ -685,7 +651,7 @@ export default function SupplierBillsPage() {
             </div>
             <BillForm
               suppliers={suppliers}
-              initialData={formMode === "edit" ? activeBill : null}
+              initialData={null}
               onSave={handleSaveBill}
               onCancel={closeForm}
             />

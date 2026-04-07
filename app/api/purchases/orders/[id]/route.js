@@ -13,6 +13,15 @@ import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateVa
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
 
+/** Any goods line with received qty > 0 — PO must not be edited or cancelled from the UI. */
+function poHasGoodsReceiptActivity(purchaseOrder) {
+  return (purchaseOrder.items || []).some((it) => {
+    const lt = (it.lineType || 'goods').toLowerCase();
+    if (lt !== 'goods' || !it.productId) return false;
+    return Number(it.quantityReceived || 0) > 0;
+  });
+}
+
 function getLineType(item) {
   const t = (item.lineType || '').toLowerCase();
   if (t === 'service' || t === 'goods') return t;
@@ -116,10 +125,20 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
+    if (poHasGoodsReceiptActivity(purchaseOrder)) {
+      return NextResponse.json(
+        {
+          error:
+            'Cannot edit this purchase order because goods have already been received against it.',
+        },
+        { status: 400 }
+      );
+    }
+
     const lockedStatuses = ['Received', 'Cancelled'];
     if (lockedStatuses.includes(purchaseOrder.status)) {
       return NextResponse.json(
-        { error: 'Cannot modify a purchase order that is already approved or beyond.' },
+        { error: 'Cannot modify a purchase order that is already fully received or cancelled.' },
         { status: 400 }
       );
     }
@@ -283,6 +302,15 @@ export async function DELETE(request, { params }) {
     if (purchaseOrder.status === 'Cancelled') {
       return NextResponse.json(
         { error: 'This purchase order is already cancelled.' },
+        { status: 400 }
+      );
+    }
+
+    if (poHasGoodsReceiptActivity(purchaseOrder)) {
+      return NextResponse.json(
+        {
+          error: `Cannot cancel PO ${purchaseOrder.poNumber} because goods have already been received on this order.`,
+        },
         { status: 400 }
       );
     }

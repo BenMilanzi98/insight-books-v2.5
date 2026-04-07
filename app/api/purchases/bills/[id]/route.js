@@ -8,8 +8,6 @@ import { createTransactionReversal, validateReversalReason } from '@/lib/transac
 import { reverseBillLinkedPaymentsInTx } from '@/lib/supplierBillCancelPayments';
 import { reverseSupplierBillInventoryInTx } from '@/lib/supplierBillInventoryReversal';
 
-const BILL_STATUSES = ['Draft', 'Approved', 'Unpaid', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled'];
-
 async function findBill(id, tenantId) {
   const bill = await prisma.supplierBill.findFirst({
     where: { id, tenantId },
@@ -69,58 +67,13 @@ export async function PUT(request, { params }) {
     const bill = await findBill(params.id, user.tenantId);
     if (!bill) return NextResponse.json({ error: 'Supplier bill not found' }, { status: 404 });
 
-    const body = await request.json();
-    const data = {
-      billDate: body.billDate ? new Date(body.billDate) : bill.billDate,
-      dueDate: body.dueDate ? new Date(body.dueDate) : bill.dueDate,
-      notes: body.notes ?? bill.notes,
-      paymentTerms: body.paymentTerms ?? bill.paymentTerms,
-      currency: body.currency ?? bill.currency
-    };
-
-    if (body.taxAmount !== undefined) data.taxAmount = body.taxAmount;
-    if (body.subtotal !== undefined) data.subtotal = body.subtotal;
-    if (body.totalAmount !== undefined) {
-      data.totalAmount = body.totalAmount;
-      if (body.totalAmount < bill.amountPaid) {
-        return NextResponse.json(
-          { error: 'Total amount cannot be less than amount already paid.' },
-          { status: 400 }
-        );
-      }
-    }
-    if (body.status && BILL_STATUSES.includes(body.status)) {
-      data.status = body.status;
-    }
-
-    const updated = await prisma.supplierBill.update({
-      where: { id: bill.id },
-      data,
-      include: {
-        supplier: { select: { supplierName: true, supplierCode: true } },
-        allocations: {
-          include: {
-            payment: { select: { paymentNumber: true, paymentDate: true } }
-          }
-        }
-      }
-    });
-
-    // Fetch items separately
-    const items = await prisma.supplierBillItem.findMany({
-      where: { billId: updated.id },
-        include: {
-          product: { select: { id: true, name: true, sku: true } }
-        },
-      orderBy: { lineNumber: 'asc' }
-    });
-
-    return NextResponse.json({ 
-      bill: {
-        ...updated,
-        items
-      }
-    });
+    return NextResponse.json(
+      {
+        error:
+          'Supplier bills cannot be edited. Use supplier payments for balance changes, or reverse the bill if you need to undo it.',
+      },
+      { status: 403 }
+    );
   } catch (error) {
     console.error('Error updating supplier bill:', error);
     return NextResponse.json(

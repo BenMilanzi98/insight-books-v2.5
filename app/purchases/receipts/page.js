@@ -57,11 +57,11 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     supplierId: "",
     receiptDate: format(new Date(), "yyyy-MM-dd"),
     purchaseOrderId: "",
-    status: "Draft",
+    status: receiptMode === "service" ? "Draft" : "Posted",
     notes: "",
   });
   const [items, setItems] = useState([
-    { productId: "", quantityReceived: 1, unitCost: 0 },
+    { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -76,15 +76,21 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
 
   const showFutureStockNotice =
     !isServiceMode &&
-    form.status === "Posted" &&
     form.receiptDate &&
     isReceiptDateStrictlyAfterTodayUTC(form.receiptDate);
+
+  const poLinesLocked = !isServiceMode && Boolean(form.purchaseOrderId);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     if (name === "purchaseOrderId") {
       if (!value) {
         setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
+        if (!isServiceMode) {
+          setItems([
+            { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+          ]);
+        }
         return;
       }
       const selectedPO = purchaseOrders.find((po) => po.id === value);
@@ -100,14 +106,29 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         const goodsItems = selectedPO.items.filter(
           (line) => line.productId && (line.lineType || "goods") === "goods"
         );
-        if (goodsItems.length > 0) {
+        const openLines = goodsItems.filter((line) => {
+          const rem =
+            Number(line.quantityOrdered ?? 0) - Number(line.quantityReceived ?? 0);
+          return rem > 0;
+        });
+        if (openLines.length > 0) {
           setItems(
-            goodsItems.map((line) => ({
-              productId: line.productId,
-              quantityReceived: Number(line.quantityOrdered ?? 0) || 1,
-              unitCost: Number(line.unitCost ?? 0) || 0,
-            }))
+            openLines.map((line) => {
+              const ordered = Number(line.quantityOrdered ?? 0);
+              const already = Number(line.quantityReceived ?? 0);
+              const remaining = Math.max(0, ordered - already);
+              return {
+                productId: line.productId,
+                poItemId: line.id,
+                quantityReceived: remaining > 0 ? remaining : 1,
+                unitCost: Number(line.unitCost ?? 0) || 0,
+              };
+            })
           );
+        } else {
+          setItems([
+            { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+          ]);
         }
       }
     } else {
@@ -122,10 +143,15 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { productId: "", quantityReceived: 1, unitCost: 0 }]);
+    if (poLinesLocked) return;
+    setItems((prev) => [
+      ...prev,
+      { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+    ]);
   };
 
   const removeItem = (index) => {
+    if (poLinesLocked) return;
     setItems((prev) => prev.filter((_, idx) => idx !== index));
   };
 
@@ -143,7 +169,15 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
       }
       const payload = isServiceMode
         ? { ...form, receiptType: "service", items: [] }
-        : { ...form, receiptType: "inventory", items };
+        : {
+            ...form,
+            receiptType: "inventory",
+            status: "Posted",
+            items: items.map((row) => ({
+              ...row,
+              poItemId: row.poItemId || undefined,
+            })),
+          };
       await onSave(payload);
     } catch (err) {
       setError(err.message);
@@ -228,18 +262,25 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Status</label>
-            <select
-              name="status"
-              value={form.status}
-              onChange={handleChange}
-              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-            >
-              {statusOptions.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
+            {isServiceMode ? (
+              <select
+                name="status"
+                value={form.status}
+                onChange={handleChange}
+                className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+              >
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="mt-1 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                Posted (required) — goods receipts always post so stock and purchase order
+                quantities update.
+              </p>
+            )}
           </div>
         </div>
       </FormSection>
@@ -256,8 +297,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
       ) : (
         <FormSection
           title="Items Received"
-          description="Quantities update product stock levels using weighted cost."
+          description="Quantities update product stock levels using weighted cost. With a PO selected, lines match open PO rows (remaining quantity)."
         >
+          {poLinesLocked && (
+            <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-2">
+              Lines are tied to this purchase order. Clear the PO to receive ad hoc products
+              without a PO link.
+            </p>
+          )}
           <div className="space-y-3">
             {items.map((item, idx) => (
               <div
@@ -302,7 +349,7 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                       Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
                     ).toLocaleString()}
                   </span>
-                  {items.length > 1 && (
+                  {items.length > 1 && !poLinesLocked && (
                     <button
                       type="button"
                       onClick={() => removeItem(idx)}
@@ -317,7 +364,8 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
             <button
               type="button"
               onClick={addItem}
-              className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              disabled={poLinesLocked}
+              className="w-full rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               + Add Item
             </button>
@@ -536,10 +584,11 @@ export default function GoodsReceiptsPage() {
     const total = receipts.length;
     const draft = receipts.filter((receipt) => receipt.status === "Draft").length;
     const posted = receipts.filter((receipt) => receipt.status === "Posted").length;
+    const pendingStock = receipts.filter((r) => r.stockPostingPending).length;
     const inventoryValue = receipts
       .filter((receipt) => receipt.status === "Posted")
       .reduce((sum, receipt) => sum + Number(receipt.totalAmount || 0), 0);
-    return { total, draft, posted, inventoryValue };
+    return { total, draft, posted, pendingStock, inventoryValue };
   }, [receipts]);
 
   const handleCreate = async (payload) => {
@@ -596,7 +645,15 @@ export default function GoodsReceiptsPage() {
 
       <div className="grid gap-4 md:grid-cols-4">
         <SummaryCard label="Receipts" value={stats.total} helper="All statuses" />
-        <SummaryCard label="Draft" value={stats.draft} />
+        {activeReceiptTab === "inventory" ? (
+          <SummaryCard
+            label="Stock pending"
+            value={stats.pendingStock}
+            helper="Posted, not in stock yet"
+          />
+        ) : (
+          <SummaryCard label="Draft" value={stats.draft} />
+        )}
         <SummaryCard label="Posted" value={stats.posted} />
         <SummaryCard
           label="Posted Inventory"
@@ -737,6 +794,7 @@ export default function GoodsReceiptsPage() {
               </button>
             </div>
             <ReceiptForm
+              key={activeReceiptTab}
               suppliers={suppliers}
               products={products}
               purchaseOrders={purchaseOrders}

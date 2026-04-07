@@ -171,8 +171,17 @@ export async function POST(request) {
 
     const user = await getUserFromSession(request);
     if (!user) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    if (user.tenantId == null || user.tenantId === '') {
+      return NextResponse.json({ error: 'Tenant context required' }, { status: 400 });
+    }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
     if (!body.supplierId) {
       return NextResponse.json({ error: 'supplierId is required' }, { status: 400 });
     }
@@ -187,7 +196,14 @@ export async function POST(request) {
     }
 
     const orderType = ORDER_TYPES.includes(body.orderType) ? body.orderType : 'goods';
-    validateItems(body.items, orderType);
+    try {
+      validateItems(body.items, orderType);
+    } catch (validationErr) {
+      return NextResponse.json(
+        { error: validationErr.message || 'Invalid purchase order lines' },
+        { status: 400 }
+      );
+    }
 
     const supplier = await prisma.supplier.findFirst({
       where: { id: body.supplierId, tenantId: user.tenantId }
@@ -411,10 +427,15 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Invalid reference: missing related record (product/supplier)' }, { status: 400 });
     }
 
-    const devDetail =
-      process.env.NODE_ENV === 'development' ? { details: error?.message || String(error) } : {};
+    const exposeDetails =
+      process.env.NODE_ENV === 'development' ||
+      process.env.EXPOSE_API_ERROR_DETAILS === '1' ||
+      process.env.EXPOSE_API_ERROR_DETAILS === 'true';
+    const details = exposeDetails
+      ? { details: error?.message || String(error), code: error?.code }
+      : {};
     return NextResponse.json(
-      { error: 'Failed to create purchase order.', ...devDetail },
+      { error: 'Failed to create purchase order.', ...details },
       { status: 500 }
     );
   }

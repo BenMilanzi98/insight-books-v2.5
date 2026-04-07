@@ -67,6 +67,15 @@ async function deleteOrder(id) {
   return res.json();
 }
 
+/** True if any goods line has quantity received — PO is locked for edit/cancel. */
+function orderHasGoodsReceiptActivity(order) {
+  return (order.items || []).some((it) => {
+    const lt = (it.lineType || "goods").toLowerCase();
+    if (lt !== "goods" || !it.productId) return false;
+    return Number(it.quantityReceived || 0) > 0;
+  });
+}
+
 function SummaryCard({ label, value, helper }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 ">
@@ -1377,7 +1386,9 @@ export default function PurchaseOrdersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white text-sm">
-                {orders.map((order) => (
+                {orders.map((order) => {
+                  const goodsReceivedLocked = orderHasGoodsReceiptActivity(order);
+                  return (
                   <tr key={order.id}>
                     <td className="px-4 py-2 font-semibold text-gray-900">{order.poNumber}</td>
                     <td className="px-4 py-2">
@@ -1422,21 +1433,36 @@ export default function PurchaseOrdersPage() {
                           View
                         </button>
                         <button
-                          className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                          type="button"
+                          className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45"
                           onClick={() => openEditForm(order)}
+                          disabled={goodsReceivedLocked}
+                          title={
+                            goodsReceivedLocked
+                              ? "Cannot edit: goods have already been received on this order."
+                              : undefined
+                          }
                         >
                           Edit
                         </button>
                         <button
-                          className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          type="button"
+                          className="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-45"
                           onClick={() => setDeletingOrder(order)}
+                          disabled={goodsReceivedLocked}
+                          title={
+                            goodsReceivedLocked
+                              ? "Cannot cancel: goods have already been received."
+                              : undefined
+                          }
                         >
                           Delete
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
