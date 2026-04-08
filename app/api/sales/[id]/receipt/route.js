@@ -312,27 +312,32 @@ export async function GET(request, { params }) {
     <html class="thermal-receipt" lang="en">
     <head>
       <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <!-- ~80mm at 96dpi — avoids stretching layout to full desktop width (which looks like a tiny strip on an A4 canvas in print preview) -->
+      <meta name="viewport" content="width=302, initial-scale=1, maximum-scale=1">
       <title>Receipt - ${sale.saleNumber}</title>
       <style>
         *, *::before, *::after { box-sizing: border-box; }
+        /* Screen: gray around the slip so this is clearly a narrow receipt, not a full blank page */
         html.thermal-receipt {
           margin: 0;
           padding: 0;
           height: auto;
           min-height: 0;
+          background: #94a3b8;
         }
         body {
           font-family: "Courier New", monospace;
-          margin: 0;
-          padding: 0;
+          margin: 0 auto;
+          padding: 10px 0 16px;
           font-size: 11px;
           line-height: 1.3;
           color: #000;
-          background: #fff;
+          background: transparent;
           font-weight: bold;
           height: auto;
           min-height: 0;
+          width: 100%;
+          max-width: 80mm;
         }
         .receipt {
           width: 72mm;
@@ -341,6 +346,8 @@ export async function GET(request, { params }) {
           padding: 3mm 2.5mm;
           box-sizing: border-box;
           overflow: visible;
+          background: #fff;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
         }
         .header {
           text-align: center;
@@ -510,8 +517,15 @@ export async function GET(request, { params }) {
           font-weight: bold;
         }
         
-        /* 80mm thermal: height follows content; minimal trailing space */
+        /*
+         * Print: we request 80mm roll width + automatic height. Many browsers still show A4/Letter
+         * in the *preview* when the system default printer uses that paper — the CSS page size is
+         * ignored. Choose an 80mm thermal printer (or custom paper size) in the print dialog for a true roll preview.
+         */
         @media print {
+          html.thermal-receipt {
+            background: #fff !important;
+          }
           html.thermal-receipt,
           html.thermal-receipt body {
             width: 80mm;
@@ -525,9 +539,10 @@ export async function GET(request, { params }) {
             print-color-adjust: economy;
             font-size: 10px;
           }
+          /* ~80mm roll; auto height — many print dialogs still preview A4 until a thermal printer is selected */
           @page {
-            size: 80mm auto;
             margin: 0;
+            size: 80mm auto;
           }
           .receipt {
             width: 72mm;
@@ -538,6 +553,8 @@ export async function GET(request, { params }) {
             page-break-after: avoid;
             break-after: avoid;
             overflow: visible;
+            background: #fff !important;
+            box-shadow: none !important;
           }
           .footer,
           .copyright {
