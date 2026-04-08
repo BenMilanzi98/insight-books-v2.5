@@ -295,17 +295,29 @@ export const refundSale = async (saleId, reason, refundMethod = null) => {
   }
 };
 
-// Print receipt — opens the thermal-sized HTML receipt which auto-triggers window.print()
+/**
+ * Print receipt: opens a new browser tab (not a sized popup) with the 80mm thermal HTML receipt.
+ * The receipt page runs print() after load and closes the tab on afterprint / end of print preview.
+ * Optional Electron: expose window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId) that uses
+ * @madrimov/electron-pos-printer with GET .../receipt?format=print-data (see lib/buildPosReceiptEscPosContents.js).
+ */
 export const printReceipt = async (saleId) => {
   try {
-    // Open the HTML receipt directly; the page contains window.print() on load
-    // and @page { size: 80mm auto } CSS for thermal printers.
     const receiptUrl = `/api/sales/${saleId}/receipt`;
-    // Short initial height: a tall popup viewport can make some browsers allocate extra blank print length on thermal rolls; content still scrolls.
-    const receiptWindow = window.open(receiptUrl, '_blank', 'width=380,height=120,scrollbars=yes,resizable=yes');
 
-    if (!receiptWindow) {
-      // Popup blocked — fall back to PDF download
+    if (typeof window !== 'undefined' && typeof window.__INSIGHT_PRINT_RECEIPT_ESC_POS__ === 'function') {
+      try {
+        await window.__INSIGHT_PRINT_RECEIPT_ESC_POS__(saleId);
+        return true;
+      } catch (escErr) {
+        console.warn('ESC/POS print bridge failed, using browser tab:', escErr);
+      }
+    }
+
+    // New tab only — do not pass window features (those force a popup in many browsers)
+    const receiptTab = window.open(receiptUrl, '_blank');
+
+    if (!receiptTab) {
       const response = await fetch(`${receiptUrl}?format=pdf`);
       if (!response.ok) throw new Error(`Error generating receipt: ${response.statusText}`);
       const blob = await response.blob();

@@ -295,7 +295,17 @@ export async function GET(request, { params }) {
     
     const taxData = processTaxesForReceipt(sale.items, sale.totalTaxAmount);
     console.log('Receipt API - Processed tax data:', JSON.stringify(taxData, null, 2));
-    
+
+    const format = new URL(request.url).searchParams.get('format');
+    if (format === 'print-data') {
+      const { buildPosReceiptEscPosContents } = await import(
+        '@/lib/buildPosReceiptEscPosContents'
+      );
+      return NextResponse.json(
+        buildPosReceiptEscPosContents({ sale, tenantSettings, taxData })
+      );
+    }
+
     // ENHANCED: Create the HTML receipt with thermal size and business address
     const receiptHtml = `
     <!DOCTYPE html>
@@ -328,7 +338,7 @@ export async function GET(request, { params }) {
           width: 72mm;
           max-width: 72mm;
           margin: 0 auto;
-          padding: 4mm;
+          padding: 3mm 2.5mm;
           box-sizing: border-box;
           overflow: visible;
         }
@@ -472,11 +482,9 @@ export async function GET(request, { params }) {
           font-weight: bold;
         }
         .historical-notice {
-          background-color: #fff3cd;
-          border: 1px solid #ffc107;
-          border-radius: 4px;
-          padding: 6px;
-          margin: 6px 0;
+          border: 1px dashed #000;
+          padding: 4px 2px;
+          margin: 4px 0;
           font-size: 9px;
         }
         .historical-label {
@@ -502,34 +510,33 @@ export async function GET(request, { params }) {
           font-weight: bold;
         }
         
-        /* Thermal printer optimizations — end print right after content + fixed 10px feed (no extra roll) */
+        /* 80mm thermal: height follows content; minimal trailing space */
         @media print {
           html.thermal-receipt,
           html.thermal-receipt body {
+            width: 80mm;
+            max-width: 80mm;
             height: auto !important;
             min-height: 0 !important;
             max-height: none !important;
             margin: 0 !important;
             padding: 0 !important;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            -webkit-print-color-adjust: economy;
+            print-color-adjust: economy;
             font-size: 10px;
           }
           @page {
             size: 80mm auto;
-            /* Outer margin adds blank beyond content on many thermal drivers — keep 0 */
             margin: 0;
           }
           .receipt {
-            width: 80mm;
-            max-width: 80mm;
-            /* Sides/top in mm; exactly 10px white after last line (matches JS TAIL_PX) */
-            /* 10px = only trailing feed after last printed line */
-            padding: 2mm 2mm 10px 2mm;
+            width: 72mm;
+            max-width: 72mm;
+            padding: 2mm 2mm 6px 2mm;
             margin: 0 auto;
             margin-bottom: 0 !important;
-            page-break-after: auto;
-            break-after: auto;
+            page-break-after: avoid;
+            break-after: avoid;
             overflow: visible;
           }
           .footer,
@@ -577,7 +584,7 @@ export async function GET(request, { params }) {
           ${sale.isHistorical && sale.historicalDate ? `
           <!-- Historical Sale Notice -->
           <div class="historical-notice">
-            <div style="color: #856404; font-weight: bold; margin-bottom: 4px;">📅 HISTORICAL TRANSACTION</div>
+            <div style="font-weight: bold; margin-bottom: 4px; text-align: center;">HISTORICAL TRANSACTION</div>
             <div class="info-row" style="margin-top: 4px;">
               <span class="historical-label">Sale Date:</span>
               <span class="historical-value">${formatDateDDMMYYYY(sale.historicalDate)} ${formatTime(sale.historicalDate)}</span>
@@ -872,11 +879,26 @@ export async function GET(request, { params }) {
               setTimeout(start, 0);
             }
           };
-          window.onafterprint = function () {
+          var closed = false;
+          function tryClose() {
+            if (closed) return;
+            closed = true;
             setTimeout(function () {
               try { window.close(); } catch (e) {}
-            }, 800);
-          };
+            }, 120);
+          }
+          window.addEventListener('afterprint', tryClose);
+          try {
+            window.matchMedia('print').addEventListener('change', function (e) {
+              if (!e.matches) tryClose();
+            });
+          } catch (e1) {
+            try {
+              window.matchMedia('print').addListener(function (mql) {
+                if (!mql.matches) tryClose();
+              });
+            } catch (e2) {}
+          }
         })();
       </script>
     </body>
@@ -903,7 +925,6 @@ export async function GET(request, { params }) {
       console.warn('Receipt audit log failed (receipt still returned):', auditErr?.message || auditErr);
     }
 
-    const format = new URL(request.url).searchParams.get('format');
     if (format === 'pdf') {
       let buffer;
       try {

@@ -11,12 +11,38 @@ import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
 
-// Helper function to format currency
+// Helper function to format currency (display strings)
 const formatCurrency = (amount) => {
   return `MK ${typeof amount === 'number' 
     ? amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     : amount}`;
 };
+
+/** Coerce Prisma Decimal / string / number for JSON API responses */
+function toSaleNumber(value) {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'object' && typeof value.toNumber === 'function') {
+    const n = value.toNumber();
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = parseFloat(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function serializePaymentsForClient(payments) {
+  if (!Array.isArray(payments)) return [];
+  return payments.map((p) => ({
+    ...p,
+    amount: toSaleNumber(p.amount),
+    allocations: Array.isArray(p.allocations)
+      ? p.allocations.map((a) => ({
+          ...a,
+          amount: toSaleNumber(a.amount),
+        }))
+      : [],
+  }));
+}
 
 /** Prefer 4000 / 4100 then first active income/revenue CoA row for the tenant (matches POS loader). */
 async function getDefaultIncomeAccountIdForTenant(tenantId) {
@@ -1606,20 +1632,27 @@ export async function POST(request) {
           id: result.sale.id,
           saleNumber: result.sale.saleNumber,
           date: result.sale.saleDate.toISOString().split('T')[0],
-          subtotal: formatCurrency(result.sale.subtotal),
-          totalTaxAmount: formatCurrency(result.sale.totalTaxAmount || 0),
-          totalDiscountAmount: formatCurrency(result.sale.totalDiscountAmount || 0),
-          tax: formatCurrency(result.sale.totalTaxAmount || result.sale.taxAmount), // Backward compatibility
-          total: formatCurrency(result.sale.total),
+          // Numeric amounts for clients (POS modal, print, etc.); avoid formatted "MK …" here — Number() would be NaN
+          subtotal: toSaleNumber(result.sale.subtotal),
+          totalTaxAmount: toSaleNumber(result.sale.totalTaxAmount || 0),
+          totalDiscountAmount: toSaleNumber(result.sale.totalDiscountAmount || 0),
+          tax: toSaleNumber(result.sale.totalTaxAmount || result.sale.taxAmount),
+          total: toSaleNumber(result.sale.total),
           status: result.sale.status,
           paymentMethod: paymentMethodInput, // Use paymentMethodInput set before transaction
-          payments: saleWithPayments?.payments || [], // Include payments with allocations
+          payments: serializePaymentsForClient(saleWithPayments?.payments || []),
           itemCount: result.items.length,
           customItemCount: data.items.filter(item => item.isCustom).length,
           eis: eisResult ? { submissionId: eisResult.submissionId, status: eisResult.status } : null,
-          posAmountTendered: result.sale.posAmountTendered ?? null,
-          posChangeGiven: result.sale.posChangeGiven ?? null
-        }
+          posAmountTendered:
+            result.sale.posAmountTendered != null && result.sale.posAmountTendered !== ''
+              ? toSaleNumber(result.sale.posAmountTendered)
+              : null,
+          posChangeGiven:
+            result.sale.posChangeGiven != null && result.sale.posChangeGiven !== ''
+              ? toSaleNumber(result.sale.posChangeGiven)
+              : null,
+        },
       }, { status: 201 });
     } catch (error) {
       // Handle inventory or database errors

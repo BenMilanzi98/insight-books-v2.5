@@ -2184,11 +2184,32 @@ const POSPage = () => {
     router.push(`/pos/list/${saleId}`);
   };
   
-  // Format currency
+  // Format currency (handles API numbers, Prisma-serialized strings, and legacy "MK …" strings)
   const formatCurrency = (amount) => {
-    return `MK ${typeof amount === 'number' 
-      ? amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      : amount}`;
+    let n = 0;
+    if (amount == null || amount === "") {
+      n = 0;
+    } else if (typeof amount === "number" && Number.isFinite(amount)) {
+      n = amount;
+    } else if (
+      typeof amount === "object" &&
+      amount !== null &&
+      typeof amount.toNumber === "function"
+    ) {
+      const t = amount.toNumber();
+      n = Number.isFinite(t) ? t : 0;
+    } else if (typeof amount === "string") {
+      const stripped = amount.replace(/^MK\s*/i, "").replace(/,/g, "").trim();
+      const p = parseFloat(stripped);
+      n = Number.isFinite(p) ? p : 0;
+    } else {
+      const p = parseFloat(amount);
+      n = Number.isFinite(p) ? p : 0;
+    }
+    return `MK ${n.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   };
 
   // Find a client by ID
@@ -3763,7 +3784,7 @@ const POSPage = () => {
               <p className="text-lg font-bold mb-1">
                 Total:{' '}
                 {currentReceipt
-                  ? formatCurrency(Number(currentReceipt.total))
+                  ? formatCurrency(currentReceipt.total)
                   : formatCurrency(calculateTotal())}
               </p>
               {currentReceipt != null &&
@@ -3773,18 +3794,16 @@ const POSPage = () => {
                     <div className="flex justify-between">
                       <span>Amount tendered</span>
                       <span className="font-medium">
-                        {formatCurrency(Number(currentReceipt.posAmountTendered))}
+                        {formatCurrency(currentReceipt.posAmountTendered)}
                       </span>
                     </div>
                     <div className="flex justify-between font-semibold text-emerald-800">
                       <span>Change</span>
                       <span>
                         {formatCurrency(
-                          Number(
-                            currentReceipt.posChangeGiven != null
-                              ? currentReceipt.posChangeGiven
-                              : 0
-                          )
+                          currentReceipt.posChangeGiven != null
+                            ? currentReceipt.posChangeGiven
+                            : 0
                         )}
                       </span>
                     </div>
