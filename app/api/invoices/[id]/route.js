@@ -11,7 +11,10 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
   return payments.reduce((sum, p) => {
-    if (!p || p.status !== 'Completed' || p.isReversal) return sum;
+    if (!p || p.isReversal) return sum;
+    // Treat missing status as Completed (older queries omitted status; default in DB is Completed)
+    const st = p.status;
+    if (st != null && String(st) !== 'Completed') return sum;
     return sum + (parseFloat(p.amount) || 0);
   }, 0);
 }
@@ -114,7 +117,9 @@ export async function GET(request, { params }) {
             paymentDate: true,
             paymentMethod: true,
             reference: true,
-            notes: true
+            notes: true,
+            status: true,
+            isReversal: true,
           },
           orderBy: {
             paymentDate: 'desc'
@@ -160,7 +165,9 @@ export async function GET(request, { params }) {
         outstandingAmount,
         isFullyPaid,
         isPartiallyPaid,
-        paymentCount: invoice.payments.length
+        paymentCount: invoice.payments.filter(
+          (p) => p && !p.isReversal && (p.status == null || String(p.status) === 'Completed')
+        ).length,
       }
     };
     

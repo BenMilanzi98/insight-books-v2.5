@@ -4,7 +4,8 @@ import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForE
 
 // Generate payment breakdown for Partial status invoices (currencyFmt: formatCurrency or formatCurrencyForExport for print)
 const renderPaymentBreakdown = (displayData, currencyFmt = formatCurrency) => {
-  if (displayData.status !== 'Partial' || !displayData.paymentInfo || displayData.paymentInfo.paymentCount === 0) {
+  const hasPayments = (displayData.payments?.length ?? 0) > 0;
+  if (displayData.status !== 'Partial' || !hasPayments) {
     return null;
   }
 
@@ -314,7 +315,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
               <span className="font-bold">Total</span>
               <span className="font-bold">{formatCurrencyDisplay(displayData.total)}</span>
             </div>
-            {displayData.paymentInfo && displayData.paymentInfo.paymentCount > 0 && (
+            {displayData.paymentInfo &&
+              (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
               <div className="mt-3 pt-3 border-t border-gray-200 space-y-1.5">
                 <div className="flex justify-between text-gray-600"><span>Paid</span><span className="font-medium text-green-600">{formatCurrencyDisplay(displayData.paymentInfo.totalPaid)}</span></div>
                 {displayData.paymentInfo.outstandingAmount > 0 && (
@@ -489,7 +491,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           </div>
           
           {/* Payment Information */}
-          {displayData.paymentInfo && displayData.paymentInfo.paymentCount > 0 && (
+          {displayData.paymentInfo &&
+            (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Information</h4>
               
@@ -688,7 +691,8 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
           </div>
           
           {/* Payment Information */}
-          {displayData.paymentInfo && displayData.paymentInfo.paymentCount > 0 && (
+          {displayData.paymentInfo &&
+            (displayData.paymentInfo.totalPaid > 0 || (displayData.payments?.length ?? 0) > 0) && (
             <div className="mt-4 pt-4 border-t border-gray-200">
               <h4 className="text-sm font-medium text-gray-700 mb-3">Payment Information</h4>
               

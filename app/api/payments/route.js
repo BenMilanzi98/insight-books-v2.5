@@ -18,7 +18,9 @@ import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 function sumEligibleInvoicePayments(payments) {
   if (!payments?.length) return 0;
   return payments.reduce((sum, p) => {
-    if (!p || p.status !== 'Completed' || p.isReversal) return sum;
+    if (!p || p.isReversal) return sum;
+    const st = p.status;
+    if (st != null && String(st) !== 'Completed') return sum;
     return sum + (parseFloat(p.amount) || 0);
   }, 0);
 }

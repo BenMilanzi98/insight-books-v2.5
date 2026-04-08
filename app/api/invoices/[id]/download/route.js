@@ -132,7 +132,10 @@ export async function GET(request, { params }) {
     
     // Calculate payment information (completed payments only; exclude reversals)
     const eligiblePayments = (invoice.payments || []).filter(
-      (p) => p && p.status === 'Completed' && !p.isReversal
+      (p) =>
+        p &&
+        !p.isReversal &&
+        (p.status == null || String(p.status) === 'Completed')
     );
     const totalPaid = eligiblePayments.reduce(
       (sum, payment) => sum + (parseFloat(payment.amount) || 0),
