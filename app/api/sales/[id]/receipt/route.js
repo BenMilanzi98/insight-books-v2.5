@@ -306,621 +306,205 @@ export async function GET(request, { params }) {
       );
     }
 
-    // ENHANCED: Create the HTML receipt with thermal size and business address
-    const receiptHtml = `
-    <!DOCTYPE html>
-    <html class="thermal-receipt" lang="en">
-    <head>
-      <meta charset="utf-8">
-      <!-- ~80mm at 96dpi — avoids stretching layout to full desktop width (which looks like a tiny strip on an A4 canvas in print preview) -->
-      <meta name="viewport" content="width=302, initial-scale=1, maximum-scale=1">
-      <title>Receipt - ${sale.saleNumber}</title>
-      <style>
-        *, *::before, *::after { box-sizing: border-box; }
-        /* Screen: gray around the slip so this is clearly a narrow receipt, not a full blank page */
-        html.thermal-receipt {
-          margin: 0;
-          padding: 0;
-          height: auto;
-          min-height: 0;
-          background: #94a3b8;
-        }
-        body {
-          font-family: "Courier New", monospace;
-          margin: 0 auto;
-          padding: 10px 0 16px;
-          font-size: 11px;
-          line-height: 1.3;
-          color: #000;
-          background: transparent;
-          font-weight: bold;
-          height: auto;
-          min-height: 0;
-          width: 100%;
-          max-width: 80mm;
-        }
-        .receipt {
-          width: 72mm;
-          max-width: 72mm;
-          margin: 0 auto;
-          padding: 3mm 2.5mm;
-          box-sizing: border-box;
-          overflow: visible;
-          background: #fff;
-          box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 8px;
-          border-bottom: 1px dashed #000;
-          padding-bottom: 8px;
-        }
-        .logo {
-          max-width: 40px;
-          max-height: 40px;
-          margin-bottom: 4px;
-          display: block;
-          margin-left: auto;
-          margin-right: auto;
-        }
-        .company-name {
-          font-size: 14px;
-          font-weight: bold;
-          margin: 2px 0;
-          text-transform: uppercase;
-        }
-        .business-info {
-          font-size: 9px;
-          line-height: 1.2;
-          margin: 1px 0;
-          font-weight: bold;
-        }
-        .receipt-title {
-          font-size: 12px;
-          font-weight: bold;
-          margin: 8px 0;
-          text-align: center;
-          border-top: 1px dashed #000;
-          border-bottom: 1px dashed #000;
-          padding: 4px 0;
-          text-transform: uppercase;
-        }
-        .info-section {
-          margin: 6px 0;
-          font-size: 10px;
-        }
-        .info-row {
-          display: flex;
-          justify-content: space-between;
-          margin: 2px 0;
-          word-wrap: break-word;
-        }
-        .info-label {
-          font-weight: bold;
-          min-width: 30%;
-        }
-        .info-value {
-          text-align: right;
-          max-width: 65%;
-          word-wrap: break-word;
-          font-weight: bold;
-        }
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 6px 0;
-          font-size: 9px;
-        }
-        .items-header {
-          border-bottom: 1px solid #000;
-          padding-bottom: 2px;
-          margin-bottom: 2px;
-        }
-        .item-row {
-          margin: 2px 0;
-          border-bottom: 1px dotted #ccc;
-          padding-bottom: 2px;
-        }
-        .item-name {
-          font-weight: bold;
-          margin-bottom: 1px;
-        }
-        .item-details {
-          display: flex;
-          justify-content: space-between;
-          font-size: 8px;
-          font-weight: bold;
-        }
-        .item-qty-price {
-          flex: 1;
-        }
-        .item-amount {
-          text-align: right;
-          font-weight: bold;
-        }
-        .totals {
-          margin-top: 8px;
-          border-top: 1px dashed #000;
-          padding-top: 4px;
-          font-size: 10px;
-        }
-        .total-row {
-          display: flex;
-          justify-content: space-between;
-          margin: 2px 0;
-        }
-        .total-label {
-          font-weight: bold;
-        }
-        .total-amount {
-          text-align: right;
-          font-weight: bold;
-        }
-        .grand-total {
-          font-size: 12px;
-          font-weight: bold;
-          border-top: 1px solid #000;
-          border-bottom: 1px solid #000;
-          padding: 2px 0;
-          margin: 4px 0;
-        }
-        .payment-info {
-          margin: 6px 0;
-          font-size: 10px;
-          text-align: center;
-          font-weight: bold;
-        }
-        .footer {
-          margin-top: 10px;
-          text-align: center;
-          font-size: 9px;
-          border-top: 1px dashed #000;
-          padding-top: 6px;
-          font-weight: bold;
-        }
-        .custom-footer {
-          font-style: italic;
-          margin: 4px 0;
-          font-weight: bold;
-        }
-        .copyright {
-          font-size: 8px;
-          margin-top: 4px;
-          font-weight: bold;
-        }
-        .historical-notice {
-          border: 1px dashed #000;
-          padding: 4px 2px;
-          margin: 4px 0;
-          font-size: 9px;
-        }
-        .historical-label {
-          color: #856404;
-          font-weight: bold;
-          min-width: 30%;
-        }
-        .historical-value {
-          color: #856404;
-          text-align: right;
-          max-width: 65%;
-          font-weight: bold;
-        }
-        .receipt-date-label {
-          color: #6c757d;
-          font-weight: bold;
-          min-width: 30%;
-        }
-        .receipt-date-value {
-          color: #6c757d;
-          text-align: right;
-          max-width: 65%;
-          font-weight: bold;
-        }
-        
-        /*
-         * Print: we request 80mm roll width + automatic height. Many browsers still show A4/Letter
-         * in the *preview* when the system default printer uses that paper — the CSS page size is
-         * ignored. Choose an 80mm thermal printer (or custom paper size) in the print dialog for a true roll preview.
-         */
-        @media print {
-          html.thermal-receipt {
-            background: #fff !important;
-          }
-          html.thermal-receipt,
-          html.thermal-receipt body {
-            width: 80mm;
-            max-width: 80mm;
-            height: auto !important;
-            min-height: 0 !important;
-            max-height: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            -webkit-print-color-adjust: economy;
-            print-color-adjust: economy;
-            font-size: 10px;
-          }
-          /* ~80mm roll; auto height — many print dialogs still preview A4 until a thermal printer is selected */
-          @page {
-            margin: 0;
-            size: 80mm auto;
-          }
-          .receipt {
-            width: 72mm;
-            max-width: 72mm;
-            padding: 2mm 2mm 6px 2mm;
-            margin: 0 auto;
-            margin-bottom: 0 !important;
-            page-break-after: avoid;
-            break-after: avoid;
-            overflow: visible;
-            background: #fff !important;
-            box-shadow: none !important;
-          }
-          .footer,
-          .copyright {
-            margin-bottom: 0 !important;
-            padding-bottom: 0 !important;
-          }
-        }
-        
-        /* Responsive adjustments for very small screens */
-        @media (max-width: 80mm) {
-          .receipt {
-            width: 100%;
-            padding: 2mm;
-          }
-          .info-row {
-            flex-direction: column;
-          }
-          .info-value {
-            text-align: left;
-            max-width: 100%;
-          }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="receipt">
-        <!-- ENHANCED: Header with full business information -->
-        <div class="header">
-          ${sale.tenant.logoUrl ? `<img src="${sale.tenant.logoUrl.startsWith('http') ? sale.tenant.logoUrl : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${sale.tenant.logoUrl}`}" alt="Logo" class="logo">` : ''}
-          <div class="company-name">${sale.tenant.name}</div>
-          ${tenantSettings?.buildingName ? `<div class="business-info">${tenantSettings.buildingName}</div>` : ''}
-          ${tenantSettings?.businessAddress ? `<div class="business-info">${tenantSettings.businessAddress}</div>` : ''}
-          ${tenantSettings?.businessCity ? `<div class="business-info">${tenantSettings.businessCity}</div>` : ''}
-          ${tenantSettings?.businessPhone ? `<div class="business-info">Tel: ${tenantSettings.businessPhone}</div>` : ''}
-          ${tenantSettings?.businessEmail ? `<div class="business-info">Email: ${tenantSettings.businessEmail}</div>` : ''}
-        </div>
-        
-        <div class="receipt-title">
-          RECEIPT #${sale.saleNumber}
-        </div>
-        
-        <!-- ENHANCED: Info section with DD/MM/YYYY date format -->
-        <div class="info-section">
-          ${sale.isHistorical && sale.historicalDate ? `
-          <!-- Historical Sale Notice -->
-          <div class="historical-notice">
-            <div style="font-weight: bold; margin-bottom: 4px; text-align: center;">HISTORICAL TRANSACTION</div>
-            <div class="info-row" style="margin-top: 4px;">
-              <span class="historical-label">Sale Date:</span>
-              <span class="historical-value">${formatDateDDMMYYYY(sale.historicalDate)} ${formatTime(sale.historicalDate)}</span>
-            </div>
-            <div class="info-row">
-              <span class="receipt-date-label">Receipt Generated:</span>
-              <span class="receipt-date-value">${formatDateDDMMYYYY(sale.saleDate)} ${formatTime(sale.saleDate)}</span>
-            </div>
-          </div>
-          ` : `
-          <!-- Regular Sale Date -->
-          <div class="info-row">
-            <span class="info-label">Date:</span>
-            <span class="info-value">${formatDateDDMMYYYY(sale.saleDate)}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Time:</span>
-            <span class="info-value">${formatTime(sale.saleDate)}</span>
-          </div>
-          `}
-          <div class="info-row">
-            <span class="info-label">Customer:</span>
-            <span class="info-value">${sale.client ? sale.client.name : 'Walk-in Customer'}</span>
-          </div>
-          <div class="info-row">
-            <span class="info-label">Cashier:</span>
-            <span class="info-value">${sale.createdBy.name}</span>
-          </div>
-        </div>
-        
-        <!-- ENHANCED: Items section optimized for thermal receipt -->
-        <div class="items-header">
-          <strong>ITEMS PURCHASED</strong>
-        </div>
-        
-        ${sale.items.map(item => {
-          // Calculate item subtotal (before tax) = quantity × unitPrice - discount
-          const itemQuantity = parseFloat(item.quantity || 1);
-          const itemUnitPrice = parseFloat(item.unitPrice || 0);
-          const itemDiscountAmount = parseFloat(item.discountAmount || 0);
-          const itemSubtotal = (itemQuantity * itemUnitPrice) - itemDiscountAmount;
-          
-          const itemTaxes = item.itemTaxes || [];
-          
-          // Group taxes for this item
-          const itemTaxGroups = {};
-          let itemTaxTotal = 0;
-          
-          itemTaxes.forEach(tax => {
-            const taxKey = (tax.taxName || tax.taxId || 'Tax').trim();
-            const taxAmount = parseFloat(tax.taxAmount || 0);
-            
-            if (!itemTaxGroups[taxKey]) {
-              itemTaxGroups[taxKey] = {
-                taxName: tax.taxName || tax.taxId || 'Tax',
-                taxCode: tax.taxCode || null,
-                totalAmount: 0
-              };
-            }
-            itemTaxGroups[taxKey].totalAmount += taxAmount;
-            itemTaxTotal += taxAmount;
-          });
-          
-          // Fallback: use item.taxAmount if no itemTaxes
-          if (itemTaxTotal === 0 && item.taxAmount) {
-            itemTaxTotal = parseFloat(item.taxAmount || 0);
-          }
-          
-          // Item total = subtotal + taxes
-          const itemTotal = itemSubtotal + itemTaxTotal;
-          
-          return `
-          <div class="item-row">
-            <div class="item-name">${item.description}</div>
-            <div class="item-details">
-              <span class="item-qty-price">${itemQuantity} x ${formatCurrency(itemUnitPrice, tenantSettings?.currencyCode || 'MWK')}</span>
-              <span class="item-amount">${formatCurrency(itemSubtotal, tenantSettings?.currencyCode || 'MWK')}</span>
-            </div>
-            ${itemDiscountAmount > 0 ? `
-            <div style="font-size: 7px; margin-top: 1px; padding-left: 4px; color: #999;">
-              <div style="display: flex; justify-content: space-between;">
-                <span>Discount:</span>
-                <span>-${formatCurrency(itemDiscountAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
-            </div>
-            ` : ''}
-            ${Object.keys(itemTaxGroups).length > 0 ? `
-            <div style="font-size: 7px; margin-top: 2px; padding-left: 4px; color: #666;">
-              ${Object.values(itemTaxGroups).map(tax => `
-                <div style="display: flex; justify-content: space-between;">
-                  <span>${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
-                  <span>${formatCurrency(tax.totalAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-                </div>
-              `).join('')}
-            </div>
-            ` : itemTaxTotal > 0 ? `
-            <div style="font-size: 7px; margin-top: 2px; padding-left: 4px; color: #666;">
-              <div style="display: flex; justify-content: space-between;">
-                <span>Tax:</span>
-                <span>${formatCurrency(itemTaxTotal, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
-            </div>
-            ` : ''}
-            <div class="item-details" style="margin-top: 2px; border-top: 1px dotted #ddd; padding-top: 2px;">
-              <span class="item-qty-price" style="font-weight: bold;">Item Total:</span>
-              <span class="item-amount" style="font-weight: bold;">${formatCurrency(itemTotal, tenantSettings?.currencyCode || 'MWK')}</span>
-            </div>
-          </div>
-        `;
-        }).join('')}
-        
-        <!-- ENHANCED: Totals section -->
-        <div class="totals">
-          <div class="total-row">
-            <span class="total-label">Subtotal (Before Tax):</span>
-            <span class="total-amount">${formatCurrency(sale.subtotal, tenantSettings?.currencyCode || 'MWK')}</span>
-          </div>
-          ${sale.totalDiscountAmount > 0 ? `
-          <div class="total-row">
-            <span class="total-label">Total Discount:</span>
-            <span class="total-amount">-${formatCurrency(sale.totalDiscountAmount, tenantSettings?.currencyCode || 'MWK')}</span>
-          </div>
-          ` : ''}
-          ${(() => {
-            // Use pre-processed tax data
-            const { taxGroups, hasAnyTaxes, totalTaxAmount } = taxData;
-            
-            // If we have individual taxes, show them
-            if (hasAnyTaxes && taxGroups.length > 0) {
-              const taxRows = taxGroups.map(tax => {
-                const amount = parseFloat(tax.totalAmount || 0);
-                return `
-                  <div class="total-row">
-                    <span class="total-label">${tax.taxName}${tax.taxCode ? ` (${tax.taxCode})` : ''}:</span>
-                    <span class="total-amount">${formatCurrency(amount, tenantSettings?.currencyCode || 'MWK')}</span>
-                  </div>
-                `;
-              }).join('');
-              
-              return taxRows + `
-                <div class="total-row" style="border-top: 1px solid #ddd; padding-top: 4px; margin-top: 4px;">
-                  <span class="total-label"><strong>Total Tax:</strong></span>
-                  <span class="total-amount"><strong>${formatCurrency(totalTaxAmount, tenantSettings?.currencyCode || 'MWK')}</strong></span>
-                </div>
-              `;
-            }
-            
-            // If no individual taxes but totalTaxAmount exists, show it
-            const totalTax = parseFloat(totalTaxAmount || 0);
-            if (totalTax > 0) {
-              return `
-                <div class="total-row">
-                  <span class="total-label">Total Tax:</span>
-                  <span class="total-amount">${formatCurrency(totalTax, tenantSettings?.currencyCode || 'MWK')}</span>
-                </div>
-              `;
-            }
-            
-            // No taxes
-            return '';
-          })()}
-          <div class="total-row grand-total">
-            <span class="total-label">TOTAL:</span>
-            <span class="total-amount">${formatCurrency(sale.total, tenantSettings?.currencyCode || 'MWK')}</span>
-          </div>
-        </div>
-        
-        <!-- Payment information -->
-        <div class="payment-info">
-          ${sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 0 ? `
-            <strong>Payment Breakdown:</strong>
-            ${sale.payments[0].allocations.map(alloc => `
-              <div style="margin-top: 2px; font-size: 9px;">
-                ${alloc.paymentAccount.name}: ${formatCurrency(alloc.amount, tenantSettings?.currencyCode || 'MWK')}
-              </div>
-            `).join('')}
-            <div style="margin-top: 4px; font-size: 8px; border-top: 1px dashed #ccc; padding-top: 4px;">
-              <strong>Total Paid: ${formatCurrency(sale.payments[0].amount, tenantSettings?.currencyCode || 'MWK')}</strong>
-            </div>
-          ` : `
-            <strong>Payment Method: ${sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</strong>
-          `}
-          ${sale.posAmountTendered != null ? `
-            <div style="margin-top: 6px; font-size: 9px; border-top: 1px dashed #ccc; padding-top: 4px;">
-              <div style="display: flex; justify-content: space-between; margin-top: 2px;">
-                <span>Amount tendered:</span>
-                <span>${formatCurrency(sale.posAmountTendered, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-top: 2px; font-weight: bold;">
-                <span>Change:</span>
-                <span>${formatCurrency(sale.posChangeGiven != null ? sale.posChangeGiven : 0, tenantSettings?.currencyCode || 'MWK')}</span>
-              </div>
-            </div>
-          ` : ''}
-          ${sale.notes ? `<div style="margin-top: 4px; font-size: 8px;">Notes: ${sale.notes}</div>` : ''}
-        </div>
-        
-        <!-- ENHANCED: Footer with customizable business message, phone and bank details -->
-        <div class="footer">
-          ${tenantSettings?.receiptFooter ? `
-          <div class="custom-footer">${tenantSettings.receiptFooter}</div>
-          ` : `
-          <div class="custom-footer">Thank you for your business!</div>
-          `}
-          ${(sale.footerPhoneOverride != null && sale.footerPhoneOverride !== '') ? `
-          <div class="business-info" style="margin-top: 4px;">Tel: ${sale.footerPhoneOverride}</div>
-          ` : tenantSettings?.businessPhone ? `
-          <div class="business-info" style="margin-top: 4px;">Tel: ${tenantSettings.businessPhone}</div>
-          ` : ''}
-          ${(sale.footerBankDetailsOverride != null && sale.footerBankDetailsOverride !== '') ? `
-          <div class="business-info" style="margin-top: 4px; white-space: pre-wrap;">${sale.footerBankDetailsOverride}</div>
-          ` : tenantSettings?.defaultBankDetails ? `
-          <div class="business-info" style="margin-top: 4px; white-space: pre-wrap;">${tenantSettings.defaultBankDetails}</div>
-          ` : ''}
-          <div class="copyright">${new Date().getFullYear()} © ${sale.tenant.name} | insightbooksafrica.com</div>
-        </div>
-      </div>
-      
-      <script>
-        (function () {
-          function clampDocumentHeightToContent() {
-            var el = document.documentElement;
-            var b = document.body;
-            var receipt = document.querySelector('.receipt');
-            var h;
-            if (receipt) {
-              // Use receipt box only — body scrollHeight often includes collapsed margins / extra slack
-              h = receipt.offsetTop + receipt.offsetHeight;
-            } else {
-              h = Math.max(
-                b.scrollHeight,
-                b.offsetHeight,
-                el.scrollHeight,
-                el.offsetHeight
-              );
-            }
-            h = Math.ceil(h);
-            if (h > 0) {
-              el.style.height = h + 'px';
-              b.style.height = h + 'px';
-              el.style.minHeight = '0';
-              b.style.minHeight = '0';
-            }
-            el.style.overflow = 'hidden';
-            b.style.overflow = 'hidden';
-          }
-          function whenImagesReady(cb) {
-            var imgs = document.images;
-            var n = 0;
-            for (var i = 0; i < imgs.length; i++) {
-              if (!imgs[i].complete) n++;
-            }
-            if (n === 0) return cb();
-            var done = 0;
-            function one() {
-              done++;
-              if (done >= n) cb();
-            }
-            for (var j = 0; j < imgs.length; j++) {
-              if (!imgs[j].complete) {
-                imgs[j].onload = imgs[j].onerror = one;
-              }
-            }
-          }
-          function runPrint() {
-            clampDocumentHeightToContent();
-            requestAnimationFrame(function () {
-              clampDocumentHeightToContent();
-              requestAnimationFrame(function () {
-                clampDocumentHeightToContent();
-                try {
-                  window.print();
-                } catch (e) {}
-              });
-            });
-          }
-          window.addEventListener('beforeprint', function () {
-            clampDocumentHeightToContent();
-          });
-          window.onload = function () {
-            var start = function () {
-              whenImagesReady(function () {
-                clampDocumentHeightToContent();
-                setTimeout(function () {
-                  runPrint();
-                }, 150);
-              });
-            };
-            if (document.fonts && document.fonts.ready) {
-              document.fonts.ready.then(start).catch(start);
-            } else {
-              setTimeout(start, 0);
-            }
-          };
-          var closed = false;
-          function tryClose() {
-            if (closed) return;
-            closed = true;
-            setTimeout(function () {
-              try { window.close(); } catch (e) {}
-            }, 120);
-          }
-          window.addEventListener('afterprint', tryClose);
-          try {
-            window.matchMedia('print').addEventListener('change', function (e) {
-              if (!e.matches) tryClose();
-            });
-          } catch (e1) {
-            try {
-              window.matchMedia('print').addListener(function (mql) {
-                if (!mql.matches) tryClose();
-              });
-            } catch (e2) {}
-          }
-        })();
-      </script>
-    </body>
-    </html>
-    `;
+    // Create the HTML receipt — 80 mm thermal roll, styled to match branded receipt template
+    const cur = tenantSettings?.currencyCode || 'MWK';
+    const receiptHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=302,initial-scale=1,maximum-scale=1">
+<title>Receipt - ${sale.saleNumber}</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{background:#94a3b8;height:auto}
+/*
+ * 80 mm roll → ~72 mm printable → ~272 px at 96 dpi
+ * Font A (normal body) ≈ 12 pt = 11 px; Font B (compact) ≈ 9 pt = 8 px
+ * Header (store name) ≈ double-height = 16 px; Total line ≈ 14 px bold
+ */
+body{
+  font-family:Arial,Helvetica,sans-serif;
+  margin:0 auto;
+  font-size:11px;       /* Font A — normal body */
+  line-height:1.5;
+  color:#1a1a1a;
+  background:transparent;
+  width:100%;
+  max-width:80mm;
+}
+.paper{background:#fff;width:100%}
+/* 3 mm side margins each side leaves ~66 mm usable */
+.body{padding:6px 6px 10px}
+/* ── Company header (double-size branding) ─────────────── */
+.co-header{text-align:center;margin-bottom:4px}
+.co-logo{max-width:56px;max-height:56px;display:block;margin:0 auto 4px;object-fit:contain}
+.co-name{font-size:16px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;line-height:1.2}
+/* ── RECEIPT title (largest element) ──────────────────── */
+.rtitle{text-align:center;font-size:18px;font-weight:bold;letter-spacing:4px;margin:7px 0 6px;line-height:1}
+/* ── Dashed section separator ──────────────────────────── */
+.sep{border:none;border-top:1px dashed #555;margin:6px 0}
+/* ── Info field rows: LABEL   value  (Font A, 11 px) ───── */
+.frow{display:flex;align-items:baseline;gap:4px;margin:2px 0}
+.flabel{font-weight:bold;font-size:11px;white-space:nowrap;flex-shrink:0;min-width:80px}
+.fval{flex:1;font-size:11px;text-align:right;word-break:break-word}
+/* ── Items table (Font B — compact, ~9 px) ─────────────── */
+.itbl{width:100%;border-collapse:collapse;font-size:9px;margin:3px 0}
+.itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:9px}
+.itbl th.r{text-align:right}
+.itbl td{padding:3px 2px;vertical-align:top;font-size:9px}
+.itbl td.c{text-align:center;width:10%}
+.itbl td.d{width:58%}
+.itbl td.r{text-align:right;width:32%}
+.itbl tr.ir td{border-bottom:1px dotted #ccc}
+/* Sub-lines (unit price, tax, discount) — smallest readable size */
+.isub{font-size:8px;color:#555;margin-top:1px;line-height:1.3}
+/* ── Totals (Font A, 11 px; grand total 14 px bold) ────── */
+.trow{display:flex;align-items:baseline;gap:4px;margin:3px 0}
+.tlabel{font-weight:bold;font-size:11px;white-space:nowrap;flex-shrink:0;min-width:95px}
+.tval{flex:1;font-size:11px;text-align:right}
+/* Grand total — double-height equivalent (14 px bold) */
+.trow.grand .tlabel{font-size:14px;font-weight:bold}
+.trow.grand .tval{font-size:14px;font-weight:bold}
+/* ── Footer ─────────────────────────────────────────────── */
+.ty{text-align:center;font-weight:bold;font-size:12px;letter-spacing:1px;margin:8px 0 4px;line-height:1.3}
+.credit{text-align:center;font-size:9px;color:#555;margin-bottom:1px}
+@media print{
+  html{background:#fff!important}
+  body{width:80mm;max-width:80mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{margin:0;size:80mm auto}
+}
+</style>
+</head>
+<body>
+<div class="paper">
+<div class="body">
+
+  <!-- Company header: logo takes priority; fall back to business name text -->
+  <div class="co-header">
+    ${sale.tenant.logoUrl
+      ? `<img src="${sale.tenant.logoUrl.startsWith('http') ? sale.tenant.logoUrl : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${sale.tenant.logoUrl}`}" alt="${sale.tenant.name}" class="co-logo">`
+      : `<div class="co-name">${sale.tenant.name}</div>`}
+  </div>
+
+  <div class="rtitle">RECEIPT</div>
+
+  <!-- Meta fields -->
+  ${(tenantSettings?.buildingName || tenantSettings?.businessAddress) ? `<div class="frow"><span class="flabel">ADDRESS:</span><span class="fval">${[tenantSettings?.buildingName, tenantSettings?.businessAddress, tenantSettings?.businessCity].filter(Boolean).join(', ')}</span></div>` : ''}
+  ${tenantSettings?.businessPhone ? `<div class="frow"><span class="flabel">Tel.</span><span class="fval">${tenantSettings.businessPhone}</span></div>` : ''}
+  <div class="frow"><span class="flabel">DATE</span><span class="fval">${sale.isHistorical && sale.historicalDate ? formatDateDDMMYYYY(sale.historicalDate) + ' ' + formatTime(sale.historicalDate) + ' (historical)' : formatDateDDMMYYYY(sale.saleDate) + ' ' + formatTime(sale.saleDate)}</span></div>
+  <div class="frow"><span class="flabel">TAX INVOICE:</span><span class="fval">${sale.saleNumber}</span></div>
+  <div class="frow"><span class="flabel">CUSTOMER:</span><span class="fval">${sale.client ? sale.client.name : 'Walk-in Customer'}</span></div>
+  ${sale.client?.phone ? `<div class="frow"><span class="flabel">CUST. TEL:</span><span class="fval">${sale.client.phone}</span></div>` : ''}
+  <div class="frow"><span class="flabel">CASHIER:</span><span class="fval">${sale.createdBy.name}</span></div>
+
+  <hr class="sep">
+
+  <!-- Items table -->
+  <table class="itbl">
+    <thead><tr><th>QTY</th><th>DESC</th><th class="r">PRICE</th></tr></thead>
+    <tbody>
+      ${sale.items.map(item => {
+        const qty = parseFloat(item.quantity || 1);
+        const unitPrice = parseFloat(item.unitPrice || 0);
+        const discAmt = parseFloat(item.discountAmount || 0);
+        const subtotal = (qty * unitPrice) - discAmt;
+        const itemTaxes = item.itemTaxes || [];
+        let itemTaxTotal = 0;
+        itemTaxes.forEach(t => { itemTaxTotal += parseFloat(t.taxAmount || 0); });
+        if (itemTaxTotal === 0 && item.taxAmount) itemTaxTotal = parseFloat(item.taxAmount || 0);
+        const itemTotal = subtotal + itemTaxTotal;
+        const qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
+        const taxSubLines = itemTaxes.length > 0
+          ? itemTaxes.map(t => `<div class="isub">${t.taxName || 'Tax'}${t.taxCode ? ' (' + t.taxCode + ')' : ''}: ${formatCurrency(parseFloat(t.taxAmount || 0), cur)}</div>`).join('')
+          : (itemTaxTotal > 0 ? `<div class="isub">Tax: ${formatCurrency(itemTaxTotal, cur)}</div>` : '');
+        return `<tr class="ir">
+          <td class="c">${qtyStr}</td>
+          <td class="d">${item.description}
+            <div class="isub">${qtyStr} x ${formatCurrency(unitPrice, cur)}</div>
+            ${discAmt > 0 ? `<div class="isub">Disc: -${formatCurrency(discAmt, cur)}</div>` : ''}
+            ${taxSubLines}
+          </td>
+          <td class="r">${formatCurrency(itemTotal, cur)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
+
+  <hr class="sep">
+
+  <!-- Totals -->
+  ${(sale.totalDiscountAmount > 0 || taxData.hasAnyTaxes || parseFloat(taxData.totalTaxAmount || 0) > 0) ? `
+  <div class="trow"><span class="tlabel">SUBTOTAL:</span><span class="tval">${formatCurrency(sale.subtotal, cur)}</span></div>` : ''}
+  ${sale.totalDiscountAmount > 0 ? `
+  <div class="trow"><span class="tlabel">DISCOUNT:</span><span class="tval">-${formatCurrency(sale.totalDiscountAmount, cur)}</span></div>` : ''}
+  ${taxData.hasAnyTaxes && taxData.taxGroups.length > 0
+    ? taxData.taxGroups.map(tax => `<div class="trow"><span class="tlabel">${tax.taxName}${tax.taxCode ? ' (' + tax.taxCode + ')' : ''}:</span><span class="tval">${formatCurrency(parseFloat(tax.totalAmount || 0), cur)}</span></div>`).join('')
+    : (parseFloat(taxData.totalTaxAmount || 0) > 0 ? `<div class="trow"><span class="tlabel">TAX:</span><span class="tval">${formatCurrency(parseFloat(taxData.totalTaxAmount || 0), cur)}</span></div>` : '')}
+
+  <div class="trow grand"><span class="tlabel">TOTAL AMOUNT</span><span class="tval">${formatCurrency(sale.total, cur)}</span></div>
+
+  ${sale.posAmountTendered != null ? `
+  <div class="trow"><span class="tlabel">CASH</span><span class="tval">${formatCurrency(sale.posAmountTendered, cur)}</span></div>
+  <div class="trow"><span class="tlabel">CHANGE</span><span class="tval">${formatCurrency(sale.posChangeGiven != null ? sale.posChangeGiven : 0, cur)}</span></div>` : ''}
+
+  <hr class="sep">
+
+  <!-- Payment breakdown -->
+  ${sale.payments && sale.payments.length > 0 && sale.payments[0].allocations && sale.payments[0].allocations.length > 0
+    ? sale.payments[0].allocations.map(alloc => `<div class="frow"><span class="flabel">${alloc.paymentAccount?.name || 'Payment'}:</span><span class="fval">${formatCurrency(parseFloat(alloc.amount || 0), cur)}</span></div>`).join('')
+    : `<div class="frow"><span class="flabel">${sale.posAmountTendered != null ? 'Cash' : (sale.paymentMethod || 'Payment')}:</span><span class="fval">${formatCurrency(sale.total, cur)}</span></div>`}
+  ${sale.payments && sale.payments.length > 0 && sale.payments[0].reference
+    ? `<div class="frow"><span class="flabel">Approval Code:</span><span class="fval">${sale.payments[0].reference}</span></div>`
+    : ''}
+  ${(sale.footerBankDetailsOverride || tenantSettings?.defaultBankDetails)
+    ? `<div class="frow" style="margin-top:3px"><span class="flabel">Bank Details:</span><span class="fval" style="font-size:8px;white-space:pre-wrap">${sale.footerBankDetailsOverride || tenantSettings.defaultBankDetails}</span></div>`
+    : ''}
+  ${sale.notes ? `<div class="frow"><span class="flabel">Notes:</span><span class="fval" style="font-size:8px">${sale.notes}</span></div>` : ''}
+
+  <hr class="sep">
+
+  <!-- Footer -->
+  <div class="ty">${tenantSettings?.receiptFooter || 'THANK YOU FOR YOUR BUSINESS!'}</div>
+  <div class="credit">${sale.tenant.name} | insightbooksafrica.com</div>
+
+</div><!-- /body -->
+</div><!-- /paper -->
+
+<script>
+(function(){
+  function clamp(){
+    var el=document.documentElement,b=document.body;
+    var paper=document.querySelector('.paper');
+    var h=paper?(paper.offsetTop+paper.offsetHeight):Math.max(b.scrollHeight,b.offsetHeight,el.scrollHeight,el.offsetHeight);
+    h=Math.ceil(h);
+    if(h>0){el.style.height=h+'px';b.style.height=h+'px';el.style.minHeight='0';b.style.minHeight='0';}
+    el.style.overflow='hidden';b.style.overflow='hidden';
+  }
+  function whenImgsReady(cb){
+    var imgs=document.images,n=0,done=0;
+    for(var i=0;i<imgs.length;i++)if(!imgs[i].complete)n++;
+    if(n===0)return cb();
+    function one(){done++;if(done>=n)cb();}
+    for(var j=0;j<imgs.length;j++)if(!imgs[j].complete){imgs[j].onload=imgs[j].onerror=one;}
+  }
+  function runPrint(){
+    clamp();
+    requestAnimationFrame(function(){clamp();requestAnimationFrame(function(){clamp();try{window.print();}catch(e){}});});
+  }
+  window.addEventListener('beforeprint',clamp);
+  window.onload=function(){
+    var go=function(){whenImgsReady(function(){clamp();setTimeout(runPrint,150);});};
+    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go).catch(go);}else{setTimeout(go,0);}
+  };
+  var closed=false;
+  function tryClose(){if(closed)return;closed=true;setTimeout(function(){try{window.close();}catch(e){}},120);}
+  window.addEventListener('afterprint',tryClose);
+  try{window.matchMedia('print').addEventListener('change',function(e){if(!e.matches)tryClose();});}
+  catch(e1){try{window.matchMedia('print').addListener(function(mql){if(!mql.matches)tryClose();});}catch(e2){}}
+})();
+</script>
+</body>
+</html>`;
     
     // Log the receipt generation in the audit log (non-blocking; don't fail receipt on audit error)
     try {
