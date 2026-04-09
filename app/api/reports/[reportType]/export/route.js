@@ -830,7 +830,7 @@ async function generateIncomeStatementExcelResponse(statement, startDate, endDat
 
   rowNum++;
   const rRev = ws.getRow(rowNum++);
-  rRev.getCell(1).value = 'Revenue';
+  rRev.getCell(1).value = 'Sales Revenue';
   rRev.getCell(1).font = { bold: true };
   setAmount(rRev, 2, totalRevenue);
 

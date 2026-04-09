@@ -1,7 +1,7 @@
 ================================================================================
                     DEVELOPER TASK CHECKLIST — INSIGHT BOOKS v2.0
 ================================================================================
-Last updated: 2026-04-08
+Last updated: 2026-04-09
 
 STATUS KEY:  [ ] = Pending   [~] = In Progress   [x] = Done   [!] = Blocked
 
@@ -68,10 +68,11 @@ TASK 6: REPORTS — BALANCE SHEET
          name matches cash/bank/airtel/mpamba/paychangu).
 [x] 6.2  ASSETS — Accounts Receivable from invoices module (unpaid/partial,
          adjusted for credit/debit notes).
-[x] 6.3  ASSETS — Inventory from GL account balances (updated by FIFO transactions).
+[x] 6.3  ASSETS — Inventory from FIFO module (product.totalStockValue), GL fallback.
 [x] 6.4  ASSETS — Prepaid Expenses line REMOVED (already excluded per spec).
 [x] 6.5  ASSETS — Total Current Assets = Cash + AR + Inventory. ✓
-[x] 6.6  NON-CURRENT — PPE from asset accounts (fixed subtype).
+[x] 6.6  NON-CURRENT — PPE from Asset Management module (originalCost +
+         accumulatedDepreciation from DepreciationSchedule), GL fallback.
 [x] 6.7  NON-CURRENT — Less: Accumulated Depreciation (net, floored at 0).
 [x] 6.8  NON-CURRENT — Intangible Assets from intangible subtype/name.
 [x] 6.9  TOTAL ASSETS = Current + Non-Current. ✓
@@ -114,18 +115,52 @@ TASK 7: REPORTS — CASH FLOW STATEMENT
 [x] 7.14 Validation: Closing reconciled against Balance Sheet cash balances. ✓
 
 ================================================================================
-VERIFICATION
+VERIFICATION (Round 1)
 ================================================================================
 [x] V.1  Lint check on all modified files — NO ERRORS
 [x] V.2  No broken imports or undefined references — verified via sub-agent
          against Prisma schema (all 5 items PASS)
-[x] V.3  All report endpoints return consistent data shapes — verified service
-         layer outputs match UI component expectations
-[x] V.4  Export logic aligns with report data — Excel/CSV/PDF exports use
-         same service functions as report API
+[x] V.3  All report endpoints return consistent data shapes
+[x] V.4  Export logic aligns with report data
 
 ================================================================================
-FILES MODIFIED
+VERIFICATION (Round 2 — Cross-Check by Independent Agents)
+================================================================================
+[x] V.5  Task 1 Journal Duplication: 4/4 PASS — all checks confirmed
+[x] V.6  Task 2 Owner Assets: 3/3 PASS — pattern correct, labels correct
+[x] V.7  Task 3 CTA Button: 3/3 PASS — all "Get started" replaced
+[x] V.8  Task 4 Expense Codes: 3/3 PASS — API + UI + Schema verified
+[x] V.9  Task 5 Income Statement: issues found and FIXED
+         - Net Profit now = Gross Profit − Operating Expenses (no tax deduction)
+         - Excel label already "Sales Revenue" (agent misread)
+[x] V.10 Task 6 Balance Sheet: issues found and FIXED
+         - Removed operatingIncome fallback, uses netIncome only
+         - Fixed legacy cash ReferenceError (ordering bug)
+         - otherEquity folded into retainedEarnings (already done)
+[x] V.11 Task 7 Cash Flow: issues found and FIXED
+         - Other receipts now filter by allowed types (no stray payments)
+         - Asset purchases deduplicated (module vs Payment record)
+
+================================================================================
+VERIFICATION (Round 3 — Remaining Spec Gaps)
+================================================================================
+[x] V.12 Cash Flow: Enforce expense paymentStatus "Paid" on supplier/rent/other
+         outflow categories — added paidStatuses check on expense.paymentStatus
+[x] V.13 Cash Flow: Exclude owner capital injections from customer payments —
+         added capitalPaymentTypes filter on customer payment loop
+[x] V.14 Cash Flow: Payroll status filter aligned with spec — removed "Posted",
+         only "Processed" / "Paid" allowed
+[x] V.15 Balance Sheet: Inventory now from FIFO module (product.totalStockValue)
+         instead of GL — authoritative FIFO closing stock valuation
+[x] V.16 Balance Sheet: PPE now from Asset Management module (Asset +
+         DepreciationSchedule) instead of GL — with GL fallback
+[x] V.17 Income Statement: Orphan cat: expense buckets filtered — only includes
+         buckets matching user-created ExpenseCategory names; merges into
+         existing rows when possible
+[x] V.18 Final lint check — NO ERRORS on all 3 modified files
+
+================================================================================
+FILES MODIFIED (COMPLETE LIST)
 ================================================================================
   app/page.js                          — CTA text change
   lib/trialBalanceReport.js            — De-duplication fix
@@ -134,13 +169,13 @@ FILES MODIFIED
   app/api/assets/route.js              — Owner contribution journal labels
   app/api/reports/expenses/route.js    — Account code inclusion
   components/ExpenseReport.js          — Account code display
-  lib/balanceSheetService.js           — Equity total fix, netIncome priority
+  lib/balanceSheetService.js           — Equity, netIncome, legacy cash, FIFO inv, PPE module
+  lib/incomeStatementService.js        — Net Profit = Gross − OpEx, orphan bucket filter
+  lib/cashFlowService.js               — Receipt filter, asset dedup, paymentStatus, payroll
 
 ================================================================================
 NO CHANGES REQUIRED (ALREADY CORRECT)
 ================================================================================
-  lib/incomeStatementService.js        — Already matches Income Statement spec
-  lib/cashFlowService.js               — Already matches Cash Flow spec
   lib/exportUtils.js                   — Export logic already correct
   app/api/reports/[reportType]/export/route.js — Excel export already correct
   components/FinancialReportComponents.js      — UI already renders correctly
