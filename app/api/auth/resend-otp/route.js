@@ -18,9 +18,10 @@ export async function POST(request) {
       );
     }
     
-    // Find the user by email
-    const user = await prisma.user.findUnique({
-      where: { email: body.email }
+    const email = String(body.email).trim();
+    // Case-insensitive match (same as verify-otp); avoids misses when the client normalizes casing.
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } }
     });
     
     // Check if user exists

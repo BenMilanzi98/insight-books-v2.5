@@ -19,9 +19,11 @@ export async function POST(request) {
       );
     }
     
-    // Find the user by email
-    const user = await prisma.user.findUnique({
-      where: { email: { equals: String(body.email).trim(), mode: 'insensitive' } },
+    const email = String(body.email).trim();
+    // findUnique does not accept `mode: 'insensitive'` on unique fields unless extendedWhereUnique
+    // is enabled; that throws PrismaClientValidationError and surfaces as HTTP 500.
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
       include: {
         role: true,
         tenant: {
