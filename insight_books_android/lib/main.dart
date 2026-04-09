@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/router/app_router.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
@@ -6,7 +8,23 @@ import 'package:insightbooks_android/core/theme/theme_mode_provider.dart';
 import 'package:insightbooks_android/core/update/app_update_gate.dart';
 
 void main() {
-  runApp(const ProviderScope(child: InsightBooksApp()));
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
+
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      debugPrint('[FlutterError] ${details.exceptionAsString()}');
+    };
+
+    runApp(const ProviderScope(child: InsightBooksApp()));
+  }, (error, stack) {
+    debugPrint('[Unhandled] $error\n$stack');
+  });
 }
 
 class InsightBooksApp extends ConsumerWidget {

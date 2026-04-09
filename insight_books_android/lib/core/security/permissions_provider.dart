@@ -2,10 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/security/permission_parser.dart';
+import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 
 /// Effective permissions from `/api/auth/me` (flattened `role.permissions`).
 /// Refreshes when [authStateProvider] becomes authenticated.
+/// Reuses the cached /api/auth/me response from session validation to avoid
+/// a duplicate network call on startup.
 final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
   final auth = ref.watch(authStateProvider);
   if (auth.value != true) {
@@ -13,6 +16,13 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
   }
 
   try {
+    final storage = ref.read(storageServiceProvider);
+    final cached = storage.cachedMeData;
+    if (cached != null) {
+      storage.clearMeData();
+      return parsePermissionsFromMeResponse(cached);
+    }
+
     final dio = ref.watch(dioProvider);
     final response = await dio.get('/api/auth/me');
     final data = response.data;

@@ -7,7 +7,6 @@ import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 
-/// First route after cold start: brand moment, then login or main shell.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -18,6 +17,9 @@ class SplashScreen extends ConsumerStatefulWidget {
 class _SplashScreenState extends ConsumerState<SplashScreen> {
   var _navigated = false;
 
+  /// Minimum splash display so branding is visible.
+  static const _minSplash = Duration(milliseconds: 600);
+
   @override
   void initState() {
     super.initState();
@@ -25,16 +27,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
   }
 
   Future<void> _runSequence() async {
-    await Future<void>.delayed(const Duration(milliseconds: 1400));
-    if (!mounted || _navigated) return;
+    final stopwatch = Stopwatch()..start();
 
-    // Wait for session probe (secure storage / validateSession).
-    const step = Duration(milliseconds: 120);
+    // Wait for auth state to settle (max ~8s safety net).
     for (var i = 0; i < 40 && mounted; i++) {
       final auth = ref.read(authStateProvider);
       if (!auth.isLoading) break;
-      await Future<void>.delayed(step);
+      await Future<void>.delayed(const Duration(milliseconds: 200));
     }
+
+    // Ensure minimum splash visibility for brand moment.
+    final elapsed = stopwatch.elapsed;
+    if (elapsed < _minSplash) {
+      await Future<void>.delayed(_minSplash - elapsed);
+    }
+
     if (!mounted || _navigated) return;
 
     final auth = ref.read(authStateProvider);
@@ -46,20 +53,25 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
+    // Load permissions and tenant data in parallel.
     try {
-      final perms = await ref.read(userPermissionsProvider.future);
-      await ref.read(tenantProvider.notifier).loadData();
-      if (!mounted) return;
-      final tenantState = ref.read(tenantProvider);
-      final tenantCount =
-          tenantState.isLoading ? null : tenantState.tenants.length;
-      _navigated = true;
-      context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
+      await Future.wait([
+        ref.read(userPermissionsProvider.future),
+        ref.read(tenantProvider.notifier).loadData(),
+      ]);
     } catch (_) {
-      if (!mounted) return;
-      _navigated = true;
-      context.go('/login');
+      // Even if one fails, try to navigate.
     }
+
+    if (!mounted) return;
+
+    final perms = ref.read(userPermissionsProvider).asData?.value ?? {};
+    final tenantState = ref.read(tenantProvider);
+    final tenantCount =
+        tenantState.isLoading ? null : tenantState.tenants.length;
+
+    _navigated = true;
+    context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
   }
 
   @override

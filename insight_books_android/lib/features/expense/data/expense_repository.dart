@@ -636,7 +636,7 @@ class ExpenseRepository {
   Future<List<int>> fetchPaymentReceiptPdf(String paymentId) async {
     final response = await _dio.get(
       '/api/payments/receipt',
-      queryParameters: {'paymentId': paymentId},
+      queryParameters: {'paymentId': paymentId, 'format': 'pdf'},
       options: Options(
         responseType: ResponseType.bytes,
         validateStatus: (_) => true,

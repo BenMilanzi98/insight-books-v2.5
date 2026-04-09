@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,9 +15,9 @@ final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(
     BaseOptions(
       baseUrl: apiBaseUrl,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 60),
-      sendTimeout: const Duration(seconds: 60),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 30),
       headers: {
         'Accept': 'application/json',
         'Content-Type': 'application/json',
@@ -25,6 +26,7 @@ final dioProvider = Provider<Dio>((ref) {
   );
 
   dio.interceptors.add(AuthInterceptor(ref));
+  dio.interceptors.add(RetryInterceptor(dio));
 
   if (kDebugMode) {
     dio.interceptors.add(LogInterceptor(
@@ -52,8 +54,9 @@ class AuthInterceptor extends QueuedInterceptor {
   ) async {
     try {
       final storageService = ref.read(storageServiceProvider);
-      final token = await storageService.getToken();
-      final cookie = await storageService.getCookie();
+      final token = storageService.tokenSync ?? await storageService.getToken();
+      final cookie =
+          storageService.cookieSync ?? await storageService.getCookie();
       if (token != null) {
         options.headers['Authorization'] = 'Bearer $token';
       }
@@ -81,6 +84,54 @@ class AuthInterceptor extends QueuedInterceptor {
         debugPrint('[AuthInterceptor] Logout cleanup failed: $e');
       } finally {
         _loggingOut = false;
+      }
+    }
+    handler.next(err);
+  }
+}
+
+/// Retries idempotent requests on transient network failures.
+class RetryInterceptor extends Interceptor {
+  final Dio _dio;
+  static const _maxRetries = 2;
+  static const _retryableStatuses = {502, 503, 504};
+
+  RetryInterceptor(this._dio);
+
+  bool _shouldRetry(DioException err) {
+    if (err.requestOptions.method.toUpperCase() == 'POST') return false;
+    if (err.type == DioExceptionType.connectionTimeout ||
+        err.type == DioExceptionType.receiveTimeout ||
+        err.type == DioExceptionType.connectionError) {
+      return true;
+    }
+    if (err.error is SocketException) return true;
+    if (err.response != null &&
+        _retryableStatuses.contains(err.response!.statusCode)) {
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  Future<void> onError(
+    DioException err,
+    ErrorInterceptorHandler handler,
+  ) async {
+    final extra = err.requestOptions.extra;
+    final attempt = (extra['_retryCount'] as int?) ?? 0;
+
+    if (attempt < _maxRetries && _shouldRetry(err)) {
+      final delay = Duration(milliseconds: 500 * (attempt + 1));
+      await Future<void>.delayed(delay);
+      err.requestOptions.extra['_retryCount'] = attempt + 1;
+      try {
+        final response = await _dio.fetch(err.requestOptions);
+        handler.resolve(response);
+        return;
+      } on DioException catch (e) {
+        handler.next(e);
+        return;
       }
     }
     handler.next(err);

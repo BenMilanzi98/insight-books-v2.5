@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/storage/app_preferences_clear.dart';
@@ -32,7 +33,6 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(dio, storageService);
 });
 
-/// Result of a login attempt — success only when credentials are valid and a session was stored.
 class LoginResult {
   final bool success;
   final String? message;
@@ -107,16 +107,10 @@ class AuthRepository {
       return const LoginResult(success: true);
     } on DioException catch (e) {
       await _storageService.clearAuth();
-      return LoginResult(
-        success: false,
-        message: _messageFromDio(e),
-      );
+      return LoginResult(success: false, message: _messageFromDio(e));
     } catch (e) {
       await _storageService.clearAuth();
-      return LoginResult(
-        success: false,
-        message: e.toString(),
-      );
+      return LoginResult(success: false, message: e.toString());
     }
   }
 
@@ -134,6 +128,13 @@ class AuthRepository {
   }
 
   static String _messageFromDio(DioException e) {
+    if (e.type == DioExceptionType.connectionTimeout ||
+        e.type == DioExceptionType.connectionError) {
+      return 'Cannot reach the server. Please check your internet connection.';
+    }
+    if (e.type == DioExceptionType.receiveTimeout) {
+      return 'Server is taking too long to respond. Please try again.';
+    }
     final data = e.response?.data;
     if (data is Map && data['error'] != null) {
       return data['error'].toString();
@@ -147,29 +148,33 @@ class AuthRepository {
   Future<void> logout() async {
     try {
       await _dio.post('/api/auth/logout');
-    } catch (_) {
-      // Still wipe local session if the server call fails.
-    } finally {
-      await _storageService.clearAuth();
-      await clearSharedPreferencesExceptTheme();
-    }
+    } catch (_) {}
+    await _storageService.clearAuth();
+    await clearSharedPreferencesExceptTheme();
   }
 
+  /// Fast local check using in-memory cached credentials.
   Future<bool> isAuthenticated() async {
-    final token = await _storageService.getToken();
-    final cookie = await _storageService.getCookie();
-    return token != null || cookie != null;
+    return _storageService.hasCredentials;
   }
 
   /// Confirms stored credentials with the server. Clears storage on 401.
-  /// On network failure, returns true if credentials exist (offline-friendly).
+  /// On network failure returns true if credentials exist (offline-friendly).
+  /// Caches the /api/auth/me response so the permissions provider can reuse it
+  /// without making a second network call.
   Future<bool> validateSession() async {
-    final token = await _storageService.getToken();
-    final cookie = await _storageService.getCookie();
-    if (token == null && cookie == null) return false;
+    if (!_storageService.hasCredentials) {
+      final token = await _storageService.getToken();
+      final cookie = await _storageService.getCookie();
+      if (token == null && cookie == null) return false;
+    }
 
     try {
       final response = await _dio.get('/api/auth/me');
+      if (response.statusCode == 200 && response.data is Map) {
+        _storageService
+            .cacheMeData(Map<String, dynamic>.from(response.data as Map));
+      }
       return response.statusCode == 200;
     } on DioException catch (e) {
       if (e.response?.statusCode == 401) {
@@ -177,9 +182,7 @@ class AuthRepository {
         await clearSharedPreferencesExceptTheme();
         return false;
       }
-      if (e.response == null) {
-        return true;
-      }
+      debugPrint('[AuthRepo] validateSession network error, trusting cache');
       return true;
     } catch (_) {
       return true;

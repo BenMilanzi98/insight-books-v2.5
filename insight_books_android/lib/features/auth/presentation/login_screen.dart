@@ -20,6 +20,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
+  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -31,43 +32,46 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _submit() async {
-    if (_formKey.currentState!.validate()) {
-      final result = await ref
-          .read(authStateProvider.notifier)
-          .login(_emailController.text, _passwordController.text);
+    if (!_formKey.currentState!.validate()) return;
 
-      if (result.success && mounted) {
-        try {
-          final perms = await ref.read(userPermissionsProvider.future);
-          await ref.read(tenantProvider.notifier).loadData();
-          if (!mounted) return;
-          final tenantState = ref.read(tenantProvider);
-          final tenantCount =
-              tenantState.isLoading ? null : tenantState.tenants.length;
-          context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
-        } catch (_) {
-          if (!mounted) return;
-          try {
-            await ref.read(tenantProvider.notifier).loadData();
-          } catch (_) {}
-          if (!mounted) return;
-          final tenantState = ref.read(tenantProvider);
-          final tenantCount =
-              tenantState.isLoading ? null : tenantState.tenants.length;
-          context.go(firstAccessibleRoute({}, tenantCount: tenantCount));
-        }
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              result.message ??
-                  'Login failed. Please check your credentials.',
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
+    final result = await ref
+        .read(authStateProvider.notifier)
+        .login(_emailController.text.trim(), _passwordController.text);
+
+    if (!result.success) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.message ?? 'Login failed. Please check your credentials.',
           ),
-        );
-      }
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
     }
+
+    if (!mounted) return;
+
+    // Load permissions and tenant in parallel for faster navigation.
+    Set<String> perms = {};
+    try {
+      final permsFuture = ref.read(userPermissionsProvider.future);
+      final tenantFuture = ref.read(tenantProvider.notifier).loadData();
+      final loadedPerms = await permsFuture;
+      await tenantFuture;
+      perms = loadedPerms;
+    } catch (_) {
+      try {
+        await ref.read(tenantProvider.notifier).loadData();
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
+    final tenantState = ref.read(tenantProvider);
+    final tenantCount =
+        tenantState.isLoading ? null : tenantState.tenants.length;
+    context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
   }
 
   @override
@@ -79,7 +83,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            // Tap outside the card to dismiss keyboard (opaque layer behind form only).
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -143,7 +146,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                         validator: (value) {
                           if (value == null ||
-                              value.isEmpty ||
+                              value.trim().isEmpty ||
                               !value.contains('@')) {
                             return 'Please enter a valid email';
                           }
@@ -154,12 +157,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       TextFormField(
                         controller: _passwordController,
                         focusNode: _passwordFocus,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Password',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.lock_outline),
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                            onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword),
+                          ),
                         ),
-                        obscureText: true,
+                        obscureText: _obscurePassword,
                         textInputAction: TextInputAction.done,
                         autofillHints: const [AutofillHints.password],
                         onFieldSubmitted: (_) => _submit(),
@@ -171,18 +183,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: authState.isLoading ? null : _submit,
-                        child: authState.isLoading
-                            ? SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: theme.colorScheme.onPrimary,
-                                ),
-                              )
-                            : const Text('Sign In'),
+                      SizedBox(
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: authState.isLoading ? null : _submit,
+                          child: authState.isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Sign In'),
+                        ),
                       ),
                           ],
                         ),

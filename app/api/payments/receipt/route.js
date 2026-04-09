@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateSimplePaymentReceiptPDF } from '@/lib/simple-pdf-generator';
+import { generatePaymentReceiptPdfBuffer } from '@/lib/server-pdf-jspdf';
+import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
 // GET - Download receipt data (for client-side PDF generation)
 export async function GET(request) {
@@ -245,7 +246,37 @@ export async function GET(request) {
       };
     }
 
-    // Return receipt data for client-side PDF generation (like quotations)
+    // If format=pdf requested, generate server-side PDF
+    const format = searchParams.get('format');
+    if (format === 'pdf') {
+      let buffer;
+      try {
+        buffer = generatePaymentReceiptPdfBuffer(receiptData);
+      } catch (pdfErr) {
+        console.error('Payment receipt PDF (jsPDF) failed, falling back to text PDF:', pdfErr?.message || pdfErr);
+        const lines = [];
+        lines.push('PAYMENT RECEIPT');
+        lines.push(`${receiptData.type === 'individual' ? 'Payment' : 'Summary'} - ${receiptData.expense ? 'Expense' : 'Invoice'} #${receiptData.invoice?.invoiceNumber || receiptData.expense?.id || ''}`);
+        lines.push(`Client: ${receiptData.client?.name || 'N/A'}`);
+        if (receiptData.type === 'individual' && receiptData.payment) {
+          lines.push(`Amount: ${receiptData.payment.amount}`);
+          lines.push(`Method: ${receiptData.payment.paymentMethod}`);
+          lines.push(`Date: ${receiptData.payment.paymentDate}`);
+        }
+        lines.push('');
+        lines.push('This PDF is a fallback (reduced formatting).');
+        buffer = textToMinimalPdf(lines.join('\n'));
+      }
+      const safeName = (receiptData.invoice?.invoiceNumber || receiptData.expense?.id || 'receipt')
+        .toString().replace(/[^\w.-]+/g, '_');
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="payment-receipt-${safeName}.pdf"`,
+        },
+      });
+    }
+
     return NextResponse.json({
       receipt: receiptData
     });
@@ -435,7 +466,31 @@ export async function POST(request) {
       };
     }
 
-    // Return receipt data for client-side PDF generation (like quotations)
+    // If format=pdf requested, generate server-side PDF
+    if (body.format === 'pdf') {
+      let buffer;
+      try {
+        buffer = generatePaymentReceiptPdfBuffer(receiptData);
+      } catch (pdfErr) {
+        console.error('Payment receipt PDF (jsPDF) failed, falling back to text PDF:', pdfErr?.message || pdfErr);
+        const lines = [];
+        lines.push('PAYMENT RECEIPT');
+        lines.push(`${receiptData.invoice?.invoiceNumber || ''}`);
+        lines.push(`Client: ${receiptData.client?.name || 'N/A'}`);
+        lines.push('');
+        lines.push('This PDF is a fallback (reduced formatting).');
+        buffer = textToMinimalPdf(lines.join('\n'));
+      }
+      const safeName = (receiptData.invoice?.invoiceNumber || 'receipt')
+        .toString().replace(/[^\w.-]+/g, '_');
+      return new NextResponse(buffer, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="payment-receipt-${safeName}.pdf"`,
+        },
+      });
+    }
+
     return NextResponse.json({
       receipt: receiptData
     });

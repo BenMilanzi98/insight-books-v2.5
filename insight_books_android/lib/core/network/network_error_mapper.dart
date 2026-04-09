@@ -3,7 +3,13 @@ import 'package:dio/dio.dart';
 
 class NetworkErrorMapper {
   static const String internetConnectionMessage =
-      'Failed to connect to the internet, please check your internet connection.';
+      'No internet connection. Please check your network and try again.';
+
+  static const String serverErrorMessage =
+      'Server is temporarily unavailable. Please try again shortly.';
+
+  static const String timeoutMessage =
+      'Request timed out. Please check your connection and try again.';
 
   static bool isConnectionError(Object error) {
     if (error is SocketException) return true;
@@ -24,7 +30,26 @@ class NetworkErrorMapper {
         msg.contains('host lookup');
   }
 
+  static bool isTimeout(Object error) {
+    if (error is DioException) {
+      return error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.receiveTimeout ||
+          error.type == DioExceptionType.sendTimeout;
+    }
+    return false;
+  }
+
+  static bool isServerError(Object error) {
+    if (error is DioException && error.response != null) {
+      final code = error.response!.statusCode ?? 0;
+      return code >= 500 && code < 600;
+    }
+    return false;
+  }
+
   static String toUserMessage(Object error, {String? fallback}) {
+    if (isTimeout(error)) return timeoutMessage;
+    if (isServerError(error)) return serverErrorMessage;
     if (isConnectionError(error)) return internetConnectionMessage;
     if (error is DioException) {
       final data = error.response?.data;
@@ -39,4 +64,3 @@ class NetworkErrorMapper {
     return 'Something went wrong. Please try again.';
   }
 }
-

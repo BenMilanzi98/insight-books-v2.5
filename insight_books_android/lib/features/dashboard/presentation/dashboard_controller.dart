@@ -11,6 +11,7 @@ final dashboardControllerProvider =
 class DashboardController extends AsyncNotifier<DashboardData> {
   late final DashboardRepository _repository;
   String _dateRange = 'today';
+  DashboardData? _lastGoodData;
 
   @override
   Future<DashboardData> build() async {
@@ -19,7 +20,14 @@ class DashboardController extends AsyncNotifier<DashboardData> {
   }
 
   Future<DashboardData> _fetchData() async {
-    return _repository.fetchDashboardData(dateRange: _dateRange);
+    try {
+      final data = await _repository.fetchDashboardData(dateRange: _dateRange);
+      _lastGoodData = data;
+      return data;
+    } catch (e) {
+      if (_lastGoodData != null) rethrow;
+      throw Exception(NetworkErrorMapper.toUserMessage(e));
+    }
   }
 
   String get dateRange => _dateRange;
@@ -27,23 +35,25 @@ class DashboardController extends AsyncNotifier<DashboardData> {
   Future<void> setDateRange(String range) async {
     _dateRange = range;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      try {
-        return await _fetchData();
-      } catch (e) {
-        throw Exception(NetworkErrorMapper.toUserMessage(e));
-      }
-    });
+    state = await AsyncValue.guard(() => _fetchData());
   }
 
+  /// Refresh data; if network fails, keep showing stale data with a warning.
   Future<void> refresh() async {
+    final previous = _lastGoodData;
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      try {
-        return await _fetchData();
-      } catch (e) {
-        throw Exception(NetworkErrorMapper.toUserMessage(e));
+    try {
+      final data = await _fetchData();
+      state = AsyncValue.data(data);
+    } catch (e) {
+      if (previous != null) {
+        state = AsyncValue.data(previous);
+      } else {
+        state = AsyncValue.error(
+          Exception(NetworkErrorMapper.toUserMessage(e)),
+          StackTrace.current,
+        );
       }
-    });
+    }
   }
 }

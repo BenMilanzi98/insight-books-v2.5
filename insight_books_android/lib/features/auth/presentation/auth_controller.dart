@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/account/presentation/providers/account_provider.dart';
 import 'package:insightbooks_android/features/auth/data/auth_repository.dart';
 import 'package:insightbooks_android/features/branch/presentation/branch_context_provider.dart';
@@ -41,14 +43,18 @@ class AuthController extends Notifier<AsyncValue<bool>> {
 
   Future<void> _checkInitialAuth() async {
     try {
-      final hasCredentials = await _repository.isAuthenticated();
-      if (!hasCredentials) {
+      final storage = ref.read(storageServiceProvider);
+      await storage.hydrate();
+
+      if (!storage.hasCredentials) {
         state = const AsyncValue.data(false);
         return;
       }
+
       final valid = await _repository.validateSession();
       state = AsyncValue.data(valid);
     } catch (e, st) {
+      debugPrint('[AuthController] Initial auth check failed: $e');
       state = AsyncValue.error(e, st);
     }
   }
@@ -72,7 +78,6 @@ class AuthController extends Notifier<AsyncValue<bool>> {
     state = const AsyncValue.data(false);
   }
 
-  /// Called after secure storage is cleared (e.g. 401) so UI state matches logged-out session.
   void forceLogout() {
     _invalidateFeatureCaches();
     state = const AsyncValue.data(false);

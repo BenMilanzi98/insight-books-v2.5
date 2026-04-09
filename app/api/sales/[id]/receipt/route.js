@@ -945,11 +945,11 @@ export async function GET(request, { params }) {
     if (format === 'pdf') {
       let buffer;
       try {
-        const { receiptHtmlToPdf } = await import('@/lib/receiptPdf');
-        buffer = await receiptHtmlToPdf(receiptHtml);
+        const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
+        buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
       } catch (pdfErr) {
         const pdfMsg = pdfErr?.message || String(pdfErr);
-        console.error('Receipt PDF (puppeteer) failed, falling back to text PDF:', pdfMsg);
+        console.error('Receipt PDF (jsPDF) failed, falling back to text PDF:', pdfMsg);
         if (pdfErr?.stack) console.error(pdfErr.stack);
 
         const lines = [];
