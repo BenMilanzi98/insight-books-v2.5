@@ -207,34 +207,28 @@ class AccountRepository {
   }
 
   Future<List<Map<String, dynamic>>> fetchChartAccounts() async {
-    final response = await _dio.get(
-      '/api/chart-of-accounts',
-      queryParameters: {'limit': 500},
-    );
-    final raw = response.data;
-    final list = raw is Map ? (raw['accounts'] ?? []) : [];
-    return (list as List)
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+    final all = <Map<String, dynamic>>[];
+    int page = 1;
+    const pageSize = 200;
+
+    while (true) {
+      final response = await _dio.get(
+        '/api/chart-of-accounts',
+        queryParameters: {'limit': pageSize, 'page': page},
+      );
+      final raw = response.data;
+      final List batch = raw is Map ? (raw['accounts'] ?? []) : [];
+      all.addAll(
+        batch.whereType<Map>().map((e) => Map<String, dynamic>.from(e)),
+      );
+      if (batch.length < pageSize) break;
+      page++;
+    }
+
+    return all;
   }
 
-  Future<Set<String>> fetchUserPermissions() async {
-    try {
-      final response = await _dio.get('/api/auth/me');
-      final data = response.data;
-      final user = data is Map ? (data['user'] ?? data) : data;
-      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-      final permissions = <String>{};
-      if (raw is List) {
-        for (final p in raw) {
-          if (p != null) permissions.add(p.toString());
-        }
-      }
-      return permissions;
-    } catch (_) {
-      return <String>{};
-    }
-  }
+
 
   Future<List<Map<String, dynamic>>> fetchInvoiceTemplates() async {
     final response = await _dio.get('/api/invoice/templates');

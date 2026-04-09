@@ -27,22 +27,26 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       drawer: const AppDrawer(),
-      body: CustomScrollView(
-        slivers: [
-          _buildAppBar(context, ref),
-          _buildDateFilter(context, ref, controller),
-          SliverToBoxAdapter(
-            child: dashboardState.when(
-              data: (data) => _buildContent(context, ref, data),
-              loading: () => const SizedBox(
-                height: 400,
-                child: Center(child: CircularProgressIndicator()),
+      body: RefreshIndicator(
+        onRefresh: () => controller.refresh(),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            _buildAppBar(context, ref),
+            _buildDateFilter(context, ref, controller),
+            SliverToBoxAdapter(
+              child: dashboardState.when(
+                data: (data) => _buildContent(context, ref, data),
+                loading: () => const SizedBox(
+                  height: 400,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+                error: (err, stack) => _buildErrorState(context, err, ref),
               ),
-              error: (err, stack) => _buildErrorState(context, err, ref),
             ),
-          ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
-        ],
+            const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
+          ],
+        ),
       ),
     );
   }

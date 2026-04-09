@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
-import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
-import { getSessionCookieOptions } from '@/lib/sessionCookie';
+import { sendOTPEmail } from '@/lib/email';
 
-// Ensure environment variables are loaded
 import 'dotenv/config';
+
+function generateOTP() {
+  return crypto.randomInt(100000, 999999).toString();
+}
 
 export async function POST(request) {
   try {
@@ -150,6 +152,10 @@ export async function POST(request) {
       
    
      
+      // Generate OTP for email verification (10-minute expiry, single-use)
+      const otp = generateOTP();
+      const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
+
       // Create user with owner-level role (main tenant / owner)
       const user = await tx.user.create({
         data: {
@@ -160,7 +166,7 @@ export async function POST(request) {
           roleId: ownerRole?.id || adminRole.id,
           tenantId: tenant.id,
           isActive: true,
-          isEmailVerified: false, // Set to false until OTP is verified
+          isEmailVerified: false,
           otpCode: otp,
           otpExpiry: otpExpiry,
           tenants: {
@@ -234,101 +240,38 @@ export async function POST(request) {
         }
       });
      
-      return { tenant, user };
+      return { tenant, user, otp };
     });
-    
+
     // Initialize trial subscription for the new tenant
-    // Note: While a trial is created, subscription payment is required for full business functionality
     const trialSubscription = await initializeTenantTrial(result.tenant.id);
 
-    // Log the user in immediately (same session shape as POST /api/auth/login)
-    const userWithRole = await prisma.user.findUnique({
-      where: { id: result.user.id },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        tenantId: true,
-        role: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            subdomain: true,
-            status: true,
-          },
-        },
-      },
-    });
-
-    if (!userWithRole) {
-      console.error('Signup: user missing after transaction');
-      return NextResponse.json(
-        { error: 'Account created but session could not be started. Please log in.' },
-        { status: 500 }
+    // Send OTP verification email (do NOT log the user in yet)
+    let emailSent = false;
+    try {
+      const emailResult = await sendOTPEmail(
+        result.user.email,
+        result.otp,
+        body.fullName,
       );
-    }
-
-    let initialBranchId = null;
-    try {
-      const ctx = await fetchUserBranchAccessContext(userWithRole.id, userWithRole.tenantId);
-      const { allowedBranchIds } = computeAllowedBranchIds({
-        userId: userWithRole.id,
-        tenantId: userWithRole.tenantId,
-        roleName: userWithRole.role ? userWithRole.role.name : null,
-        contextLoadFailed: ctx.contextLoadFailed,
-        tenantBranchCount: ctx.tenantBranchCount,
-        userBranches: ctx.userBranches,
-        tenant: ctx.tenant,
-      });
-      const preferredDefault =
-        ctx.defaultBranchId ?? ctx.tenant?.defaultBranchId ?? null;
-      if (allowedBranchIds == null) {
-        initialBranchId = preferredDefault ?? null;
-      } else if (allowedBranchIds.length > 0) {
-        initialBranchId =
-          preferredDefault && allowedBranchIds.includes(preferredDefault)
-            ? preferredDefault
-            : allowedBranchIds[0];
-      } else {
-        initialBranchId = null;
+      emailSent = emailResult.success;
+      if (!emailSent) {
+        console.error('Signup OTP email failed:', emailResult.error);
       }
-    } catch (branchError) {
-      console.error('Signup branch selection failed (non-fatal):', branchError?.message || branchError);
-      initialBranchId = null;
-    }
-
-    const sessionData = {
-      userId: userWithRole.id,
-      tenantId: userWithRole.tenantId,
-      branchId: initialBranchId,
-      role: userWithRole.role ? userWithRole.role.name : null,
-    };
-    const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-    const cookieStore = await cookies();
-    cookieStore.set({
-      name: 'session',
-      value: session,
-      ...getSessionCookieOptions(),
-    });
-
-    try {
-      await prisma.user.update({
-        where: { id: userWithRole.id },
-        data: { lastLogin: new Date() },
-      });
-    } catch (_) {
-      /* non-fatal */
+    } catch (emailErr) {
+      console.error('Signup OTP email error:', emailErr);
     }
 
     return NextResponse.json(
       {
         success: true,
-        message: 'Account created successfully.',
-        requiresVerification: false,
-        token: session,
-        userId: result.user.id,
+        message: emailSent
+          ? 'Account created. Please check your email for a verification code.'
+          : 'Account created. We could not send the verification email — please use "Resend Code" on the next screen.',
+        requiresVerification: true,
+        emailSent,
         email: result.user.email,
+        userId: result.user.id,
         referralProcessed: !!affiliate,
         referralCode: affiliate ? referralCode : null,
         trial: {
@@ -340,20 +283,6 @@ export async function POST(request) {
           id: result.tenant.id,
           name: result.tenant.name,
           subdomain: result.tenant.subdomain,
-        },
-        user: {
-          id: userWithRole.id,
-          name: userWithRole.name,
-          email: userWithRole.email,
-          isEmailVerified: true,
-          role: userWithRole.role,
-          tenant: userWithRole.tenant
-            ? {
-                id: userWithRole.tenant.id,
-                name: userWithRole.tenant.name,
-                subdomain: userWithRole.tenant.subdomain,
-              }
-            : null,
         },
       },
       { status: 201 }

@@ -10,6 +10,20 @@ import '../../../core/network/api_client.dart';
 import '../../../core/utils/pdf_bytes.dart';
 import '../domain/pos_models.dart';
 
+class SalesListResult {
+  final List<Map<String, dynamic>> sales;
+  final int totalPages;
+  final int totalCount;
+  final int page;
+
+  const SalesListResult({
+    required this.sales,
+    this.totalPages = 1,
+    this.totalCount = 0,
+    this.page = 1,
+  });
+}
+
 final posRepositoryProvider = Provider<PosRepository>((ref) {
   final dio = ref.watch(dioProvider);
   return PosRepository(dio);
@@ -27,7 +41,7 @@ class PosRepository {
   static const _taxTypesCacheKey = 'pos_tax_types_cache_v1';
   static const _taxAccountsCacheKey = 'pos_tax_accounts_cache_v1';
   static const _taxDefaultsCacheKey = 'pos_tax_defaults_cache_v1';
-  static const _permissionsCacheKey = 'pos_permissions_cache_v1';
+  
 
   PosRepository(this._dio);
 
@@ -36,23 +50,33 @@ class PosRepository {
     String? category,
   }) async {
     try {
-      final response = await _dio.get(
-        '/api/stock',
-        queryParameters: {
-          if (search != null && search.isNotEmpty) 'search': search,
-          if (category != null && category != 'all' && category.isNotEmpty)
-            'category': category,
-          'limit': 100,
-        },
-      );
-      final List productsJson = response.data['products'] ?? [];
-      final products = productsJson
+      final allProductsJson = <dynamic>[];
+      int page = 1;
+      const pageSize = 200;
+
+      while (true) {
+        final response = await _dio.get(
+          '/api/stock',
+          queryParameters: {
+            if (search != null && search.isNotEmpty) 'search': search,
+            if (category != null && category != 'all' && category.isNotEmpty)
+              'category': category,
+            'limit': pageSize,
+            'page': page,
+          },
+        );
+        final List batch = response.data['products'] ?? [];
+        allProductsJson.addAll(batch);
+        if (batch.length < pageSize) break;
+        page++;
+      }
+
+      final products = allProductsJson
           .map((json) => _productFromRaw(Map<String, dynamic>.from(json as Map)))
           .toList();
-      // Prefetch and keep an offline copy for POS continuity.
       if (search == null &&
           (category == null || category == 'all' || category.isEmpty)) {
-        await _saveProductsCache(productsJson);
+        await _saveProductsCache(allProductsJson);
       }
       return products;
     } catch (e) {
@@ -66,19 +90,30 @@ class PosRepository {
 
   Future<List<PosClient>> fetchClients({String? search}) async {
     try {
-      final response = await _dio.get(
-        '/api/clients',
-        queryParameters: {
-          if (search != null && search.isNotEmpty) 'search': search,
-          'limit': 100,
-        },
-      );
-      final List clientsJson = response.data['clients'] ?? [];
-      final clients = clientsJson
+      final allClientsJson = <dynamic>[];
+      int page = 1;
+      const pageSize = 200;
+
+      while (true) {
+        final response = await _dio.get(
+          '/api/clients',
+          queryParameters: {
+            if (search != null && search.isNotEmpty) 'search': search,
+            'limit': pageSize,
+            'page': page,
+          },
+        );
+        final List batch = response.data['clients'] ?? [];
+        allClientsJson.addAll(batch);
+        if (batch.length < pageSize) break;
+        page++;
+      }
+
+      final clients = allClientsJson
           .map((json) => PosClient.fromJson(Map<String, dynamic>.from(json as Map)))
           .toList();
       if (search == null || search.isEmpty) {
-        await _saveMapListCache(_clientsCacheKey, clientsJson);
+        await _saveMapListCache(_clientsCacheKey, allClientsJson);
       }
       return clients;
     } catch (e) {
@@ -158,7 +193,7 @@ class PosRepository {
     }
   }
 
-  Future<List<Map<String, dynamic>>> fetchSales({
+  Future<SalesListResult> fetchSales({
     int page = 1,
     int limit = 20,
     String? search,
@@ -183,8 +218,15 @@ class PosRepository {
           if (dateTo != null && dateTo.isNotEmpty) 'dateTo': dateTo,
         },
       );
-      final List sales = response.data['sales'] ?? [];
-      return sales.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final data = response.data;
+      final List sales = data is Map ? (data['sales'] ?? []) : [];
+      final pagination = data is Map ? data['pagination'] : null;
+      return SalesListResult(
+        sales: sales.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList(),
+        totalPages: pagination is Map ? (pagination['totalPages'] as num?)?.toInt() ?? 1 : 1,
+        totalCount: pagination is Map ? (pagination['totalCount'] as num?)?.toInt() ?? sales.length : sales.length,
+        page: page,
+      );
     } catch (e) {
       rethrow;
     }
@@ -346,25 +388,7 @@ class PosRepository {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  Future<Set<String>> fetchUserPermissions() async {
-    try {
-      final response = await _dio.get('/api/auth/me');
-      final data = response.data;
-      final user = data is Map ? (data['user'] ?? data) : data;
-      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-      final permissions = <String>{};
-      if (raw is List) {
-        for (final p in raw) {
-          if (p != null) permissions.add(p.toString());
-        }
-      }
-      await _saveStringListCache(_permissionsCacheKey, permissions.toList());
-      return permissions;
-    } catch (_) {
-      final cached = await _readStringListCache(_permissionsCacheKey);
-      return cached.isEmpty ? <String>{} : cached.toSet();
-    }
-  }
+  
 
   Future<Map<String, dynamic>> fetchEisServerTime() async {
     final response = await _dio.get('/api/eis/server-time');
@@ -448,26 +472,6 @@ class PosRepository {
       final decoded = jsonDecode(raw);
       if (decoded is! List) return const [];
       return decoded;
-    } catch (_) {
-      return const [];
-    }
-  }
-
-  Future<void> _saveStringListCache(String key, List<String> data) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(key, jsonEncode(data));
-    } catch (_) {}
-  }
-
-  Future<List<String>> _readStringListCache(String key) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(key);
-      if (raw == null || raw.isEmpty) return const [];
-      final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
-      return decoded.map((e) => e.toString()).toList();
     } catch (_) {
       return const [];
     }

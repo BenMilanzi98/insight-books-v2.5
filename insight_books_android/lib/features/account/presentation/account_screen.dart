@@ -367,24 +367,30 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
     _loadAccounts();
   }
 
+  String? _loadError;
+
   Future<void> _loadBranches() async {
     try {
       final rows = await ref.read(accountRepositoryProvider).fetchBranches();
       if (!mounted) return;
-      setState(() {
-        _branches = rows;
-      });
-    } catch (_) {}
+      setState(() => _branches = rows);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Could not load branches');
+      debugPrint('[AccountScreen] branches load failed: $e');
+    }
   }
 
   Future<void> _loadAccounts() async {
     try {
       final rows = await ref.read(accountRepositoryProvider).fetchChartAccounts();
       if (!mounted) return;
-      setState(() {
-        _accounts = rows;
-      });
-    } catch (_) {}
+      setState(() => _accounts = rows);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = 'Could not load accounts');
+      debugPrint('[AccountScreen] accounts load failed: $e');
+    }
   }
 
   @override
@@ -440,6 +446,39 @@ class _BusinessTabState extends ConsumerState<_BusinessTab> {
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          if (_loadError != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Card(
+                color: theme.colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded,
+                          color: theme.colorScheme.onErrorContainer, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _loadError!,
+                          style: TextStyle(
+                              color: theme.colorScheme.onErrorContainer,
+                              fontSize: 13),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _loadError = null);
+                          _loadBranches();
+                          _loadAccounts();
+                        },
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16.0),

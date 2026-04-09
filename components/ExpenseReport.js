@@ -120,7 +120,10 @@ export const ExpenseReport = ({
                     onClick={() => toggleCategory(category.category)}
                   >
                     <div>
-                      <h4 className="font-medium text-slate-800">{category.category}</h4>
+                      <h4 className="font-medium text-slate-800">
+                        {category.accountCode && <span className="text-indigo-600 mr-2">{category.accountCode}</span>}
+                        {category.category}
+                      </h4>
                       <p className="text-sm text-slate-500">{category.items.length} expense{category.items.length !== 1 ? 's' : ''}</p>
                     </div>
                     <div className="flex items-center">
@@ -202,6 +205,7 @@ export const ExpenseReport = ({
                     <table className="min-w-full">
                       <thead>
                         <tr className="bg-slate-50">
+                          <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Code</th>
                           <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Category</th>
                           <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Amount</th>
                           <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">% of total</th>
@@ -210,6 +214,7 @@ export const ExpenseReport = ({
                       <tbody className="divide-y divide-slate-200">
                         {[...data.expensesByCategory].sort((a, b) => b.total - a.total).map(category => (
                           <tr key={category.category} className="hover:bg-slate-50/70">
+                            <td className="px-4 py-2.5 text-sm font-mono text-indigo-600">{category.accountCode || '—'}</td>
                             <td className="px-4 py-2.5 text-sm text-slate-800">{category.category}</td>
                             <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{formatCurrency(category.total)}</td>
                             <td className="px-4 py-2.5 text-sm text-slate-800 text-right">

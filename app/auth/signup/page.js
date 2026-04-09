@@ -149,9 +149,13 @@ const Signup = () => {
       if (!response.ok) throw new Error(data.error || "Failed to create account");
 
       clearUserCache();
-      if (data.referralProcessed && data.referralCode) {
-        setSuccess(`Referral code ${data.referralCode} applied.`);
+
+      // Redirect to OTP verification page
+      if (data.requiresVerification) {
+        router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+        return;
       }
+
       router.push("/dashboard");
     } catch (err) {
       setError(err.message || "Failed to create account. Please try again.");

@@ -295,7 +295,7 @@ export async function POST(request) {
         }
       });
     } else {
-      // For existing assets, create opening balance entry
+      // Owner-contributed / pre-existing asset: Dr Asset, Cr Owner's Equity
       await createAssetJournalEntry(asset, 'purchase', tenantId, user.id, null, null);
     }
     
@@ -464,15 +464,15 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
             accountId: assetAccount.id,
             debitAmount: asset.originalCost,
             creditAmount: 0,
-            description: `Opening balance - ${asset.name}`
+            description: `Owner contribution — ${asset.name}`
           },
           {
             accountId: openingBalancesAccount.id,
             debitAmount: 0,
             creditAmount: asset.originalCost,
-            description: `Opening balance - ${asset.name}`
+            description: `Owner equity — ${asset.name}`
           }
-        ], `Opening Balance - ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber);
+        ], `Owner Contribution — ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber);
         
         // If there's accumulated depreciation, create that entry too
         if (asset.accumulatedDepreciation > 0) {

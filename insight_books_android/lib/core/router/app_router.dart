@@ -22,6 +22,7 @@ import 'package:insightbooks_android/features/expense/presentation/expense_list_
 import 'package:insightbooks_android/features/expense/presentation/expense_details_screen.dart';
 import 'package:insightbooks_android/features/expense/presentation/create_expense_screen.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
+import 'package:insightbooks_android/shared/widgets/coming_soon_screen.dart';
 
 /// Single [GoRouter] instance; auth/permission changes only re-run [redirect] via
 /// [refreshListenable] (see [goRouterRefreshNotifierProvider]).
@@ -176,18 +177,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/payments',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('Payments Screen'))),
+            builder: (context, state) => const ComingSoonScreen(
+              title: 'Payments',
+              icon: Icons.payments_rounded,
+            ),
           ),
           GoRoute(
             path: '/reports',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('Reports Screen'))),
+            builder: (context, state) => const ComingSoonScreen(
+              title: 'Reports',
+              icon: Icons.bar_chart_rounded,
+            ),
           ),
           GoRoute(
             path: '/stock',
-            builder: (context, state) =>
-                const Scaffold(body: Center(child: Text('Stock Screen'))),
+            builder: (context, state) => const ComingSoonScreen(
+              title: 'Stock & Inventory',
+              icon: Icons.inventory_2_rounded,
+            ),
           ),
           GoRoute(
             path: '/account',

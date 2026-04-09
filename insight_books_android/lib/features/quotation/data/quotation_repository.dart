@@ -41,11 +41,19 @@ class QuotationRepository {
           ...? clientId != null ? {'clientId': clientId} : null,
         },
       );
-      final data = response.data as Map<String, dynamic>;
+      final rawData = response.data;
+      if (rawData is! Map) {
+        return QuotationListResponse(
+            quotations: const [], totalPages: 1, totalCount: 0);
+      }
+      final data = Map<String, dynamic>.from(rawData);
       final list = data['quotations'] as List<dynamic>? ?? [];
-      final pagination = data['pagination'] as Map<String, dynamic>?;
+      final pagination = data['pagination'] is Map
+          ? Map<String, dynamic>.from(data['pagination'] as Map)
+          : null;
       final quotations = list
-          .map((e) => Quotation.fromJson(Map<String, dynamic>.from(e as Map)))
+          .whereType<Map>()
+          .map((e) => Quotation.fromJson(Map<String, dynamic>.from(e)))
           .toList();
       return QuotationListResponse(
         quotations: quotations,
@@ -232,9 +240,22 @@ class QuotationRepository {
           ...? (dateTo != null && dateTo.isNotEmpty) ? {'dateTo': dateTo} : null,
           ...? (clientId != null && clientId.isNotEmpty) ? {'clientId': clientId} : null,
         },
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (_) => true,
+        ),
       );
-      return response.data as List<int>;
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          message: 'Export failed (HTTP ${response.statusCode})',
+        );
+      }
+      final bytes = response.data;
+      if (bytes is List<int>) return bytes;
+      if (bytes is String) return bytes.codeUnits;
+      return [];
     } catch (e) {
       rethrow;
     }
@@ -280,23 +301,6 @@ class QuotationRepository {
     }
   }
 
-  Future<Set<String>> fetchUserPermissions() async {
-    try {
-      final response = await _dio.get('/api/auth/me');
-      final data = response.data;
-      final user = data is Map ? (data['user'] ?? data) : data;
-      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-      final permissions = <String>{};
-      if (raw is List) {
-        for (final p in raw) {
-          if (p != null) permissions.add(p.toString());
-        }
-      }
-      return permissions;
-    } catch (_) {
-      return <String>{};
-    }
-  }
 }
 
 class QuotationListResponse {

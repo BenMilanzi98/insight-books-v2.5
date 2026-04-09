@@ -276,9 +276,16 @@ export async function GET(request) {
           include: ENTRY_INCLUDE,
         }),
       ]);
+      // De-duplicate: if a JournalEntry mirrors a Transaction (has transactionId),
+      // keep the JournalEntry version and skip the Transaction duplicate.
+      const mirroredTxIds = new Set(
+        journalEntries.filter((e) => e.transactionId).map((e) => e.transactionId)
+      );
       const merged = [
         ...journalEntries.map((e) => ({ ...e, _sortDate: e.entryDate || e.createdAt })),
-        ...legacyTransactions.map((t) => ({ ...t, _sortDate: t.date || t.createdAt })),
+        ...legacyTransactions
+          .filter((t) => !mirroredTxIds.has(t.id))
+          .map((t) => ({ ...t, _sortDate: t.date || t.createdAt })),
       ];
       merged.sort((a, b) => {
         const da = new Date(a._sortDate || 0).getTime();

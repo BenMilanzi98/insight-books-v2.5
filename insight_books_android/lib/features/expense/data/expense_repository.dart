@@ -538,23 +538,7 @@ class ExpenseRepository {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  Future<Set<String>> fetchUserPermissions() async {
-    try {
-      final response = await _dio.get('/api/auth/me');
-      final data = response.data;
-      final user = data is Map ? (data['user'] ?? data) : data;
-      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-      final perms = <String>{};
-      if (raw is List) {
-        for (final p in raw) {
-          if (p != null) perms.add(p.toString());
-        }
-      }
-      return perms;
-    } catch (_) {
-      return <String>{};
-    }
-  }
+  
 
   Future<List<Map<String, dynamic>>> fetchTaxTypes() async {
     final response = await _dio.get(

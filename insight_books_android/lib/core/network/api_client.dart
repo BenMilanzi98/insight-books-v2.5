@@ -8,8 +8,11 @@ import 'package:insightbooks_android/features/auth/presentation/auth_controller.
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://development.insightbooksafrica.com',
+  defaultValue: 'https://insightbooksafrica.com',
 );
+
+/// True when the app is pointed at the development server (default or explicit).
+bool get isDevEnvironment => apiBaseUrl.contains('development.');
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(

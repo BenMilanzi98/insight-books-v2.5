@@ -298,7 +298,7 @@ function HeroSection() {
                 href="/auth/signup"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-blue-950 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold shadow-lg shadow-blue-950/50 hover:bg-sky-50 transition-colors w-full sm:w-auto"
               >
-                Get started
+                Try for Free
                 <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
               <Link
@@ -970,7 +970,7 @@ function PricingSection() {
                       : 'border border-blue-200 bg-blue-50/80 text-blue-900 hover:bg-blue-100'
                   }`}
                 >
-                  Get started
+                  Try for Free
                 </Link>
                 <Link
                   href="/contact"
@@ -1081,7 +1081,7 @@ function Footer() {
                 href="/auth/signup"
                 className="rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-blue-900/30 transition-opacity hover:opacity-95"
               >
-                Get started
+                Try for Free
               </Link>
               <Link
                 href="/contact"

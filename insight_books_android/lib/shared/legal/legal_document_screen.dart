@@ -65,10 +65,32 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
             Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  _loadError!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline,
+                        size: 48,
+                        color: Theme.of(context).colorScheme.error),
+                    const SizedBox(height: 16),
+                    Text(
+                      _loadError!,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _loadError = null;
+                          _loading = true;
+                        });
+                        _controller.loadRequest(widget.uri);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                  ],
                 ),
               ),
             ),

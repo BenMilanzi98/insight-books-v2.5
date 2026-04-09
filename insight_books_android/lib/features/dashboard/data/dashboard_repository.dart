@@ -20,7 +20,7 @@ class DashboardRepository {
     try {
       final results = await Future.wait([
         _dio.get('/api/dashboard/metrics?dateRange=$dateRange'),
-        _dio.get('/api/dashboard/daily-performance?dateRange=today'),
+        _dio.get('/api/dashboard/daily-performance?dateRange=$dateRange'),
         _dio.get('/api/dashboard/receivables?dateRange=$dateRange'),
         _dio.get('/api/dashboard/payables?dateRange=$dateRange'),
         _dio.get('/api/dashboard/income-expenses?dateRange=$dateRange'),

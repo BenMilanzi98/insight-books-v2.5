@@ -5,11 +5,13 @@ import java.util.Properties
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keystorePropertiesFile = file("G:/Android Keys/key.properties")
+// Look for key.properties in project-relative path first, then fallback to absolute.
+val localKeystoreFile = rootProject.file("key.properties")
+val externalKeystoreFile = file("G:/Android Keys/key.properties")
+val keystorePropertiesFile = if (localKeystoreFile.exists()) localKeystoreFile else externalKeystoreFile
 val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
@@ -32,8 +34,6 @@ android {
 
     defaultConfig {
         applicationId = "com.insightbooksafrica.insightbooks_android"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -54,6 +54,12 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {

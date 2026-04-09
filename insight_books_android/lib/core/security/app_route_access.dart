@@ -38,20 +38,22 @@ String firstAccessibleRoute(
   Set<String> permissions, {
   int? tenantCount,
 }) {
+  // Fully implemented screens first.
   if (hasPermission(permissions, 'dashboard.view')) return '/dashboard';
   if (hasPermission(permissions, 'sales.view')) return '/pos';
   if (hasPermission(permissions, 'invoices.view')) return '/invoice';
   if (hasPermission(permissions, 'quotations.view')) return '/quotation';
   if (hasPermission(permissions, 'expenses.view')) return '/expenses';
-  if (satisfiesPermission(permissions, 'stock.view')) return '/stock';
-  if (hasPermission(permissions, 'reports.view')) return '/reports';
-  if (hasPermission(permissions, 'payments.view')) return '/payments';
   if (hasPermission(permissions, 'system.view')) return '/account';
   if (tenantCount != null &&
       tenantCount > 1 &&
       canAccessSwitchTenant(permissions: permissions, tenantCount: tenantCount)) {
     return '/switch-tenant';
   }
+  // Partially implemented ("Coming Soon") screens as last resort.
+  if (satisfiesPermission(permissions, 'stock.view')) return '/stock';
+  if (hasPermission(permissions, 'reports.view')) return '/reports';
+  if (hasPermission(permissions, 'payments.view')) return '/payments';
   return '/pos';
 }
 

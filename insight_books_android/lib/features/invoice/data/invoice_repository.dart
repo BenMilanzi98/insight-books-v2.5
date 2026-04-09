@@ -391,34 +391,19 @@ class InvoiceRepository {
         '/api/invoices/partial-payment',
         queryParameters: {'invoiceId': invoiceId},
       );
-      final List paymentsJson = response.data['payments'] ?? [];
+      final data = response.data;
+      if (data is! Map) return [];
+      final List paymentsJson = data['payments'] ?? [];
       return paymentsJson
-          .map(
-            (json) => InvoicePayment.fromJson(Map<String, dynamic>.from(json)),
-          )
+          .whereType<Map>()
+          .map((json) =>
+              InvoicePayment.fromJson(Map<String, dynamic>.from(json)))
           .toList();
     } catch (e) {
       rethrow;
     }
   }
 
-  Future<Set<String>> fetchUserPermissions() async {
-    try {
-      final response = await _dio.get('/api/auth/me');
-      final data = response.data;
-      final user = data is Map ? (data['user'] ?? data) : data;
-      final raw = user is Map ? (user['permissions'] ?? const []) : const [];
-      final permissions = <String>{};
-      if (raw is List) {
-        for (final p in raw) {
-          if (p != null) permissions.add(p.toString());
-        }
-      }
-      return permissions;
-    } catch (_) {
-      return <String>{};
-    }
-  }
 
   Future<List<int>> exportInvoices({
     String? status,
@@ -445,9 +430,22 @@ class InvoiceRepository {
               ? {'client': clientId}
               : null,
         },
-        options: Options(responseType: ResponseType.bytes),
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (_) => true,
+        ),
       );
-      return response.data as List<int>;
+      if (response.statusCode != null && response.statusCode! >= 400) {
+        throw DioException(
+          requestOptions: response.requestOptions,
+          response: response,
+          message: 'Export failed (HTTP ${response.statusCode})',
+        );
+      }
+      final bytes = response.data;
+      if (bytes is List<int>) return bytes;
+      if (bytes is String) return bytes.codeUnits;
+      return [];
     } catch (e) {
       rethrow;
     }

@@ -149,25 +149,16 @@ export async function POST(request) {
       );
     }
 
-    // Successful password proves mailbox access: mark email verified (no separate OTP required)
+    // Block login for unverified email — user must complete OTP verification first
     if (!user.isEmailVerified) {
-      try {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isEmailVerified: true,
-            otpCode: null,
-            otpExpiry: null,
-          },
-        });
-        user.isEmailVerified = true;
-      } catch (verifyErr) {
-        console.error('Login: failed to mark email verified:', verifyErr?.message || verifyErr);
-        return NextResponse.json(
-          { error: 'Could not complete login. Please try again.' },
-          { status: 500 }
-        );
-      }
+      return NextResponse.json(
+        {
+          error: 'Please verify your email before logging in. Check your inbox for the verification code.',
+          requiresVerification: true,
+          email: user.email,
+        },
+        { status: 403 }
+      );
     }
 
     // Session branch: owners / single-location tenants may use tenant or user default; assigned users only their allowed set.

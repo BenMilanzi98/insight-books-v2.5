@@ -43,7 +43,7 @@ export async function GET(request) {
       filter.category = category;
     }
     
-    // Get expenses
+    // Get expenses with account code via ExpenseCategory
     const expenses = await prisma.expense.findMany({
       where: filter,
       select: {
@@ -52,8 +52,15 @@ export async function GET(request) {
         amount: true,
         date: true,
         category: true,
+        categoryId: true,
         status: true,
         merchant: true,
+        expenseCategory: {
+          select: {
+            accountCode: true,
+            name: true,
+          }
+        },
         submittedBy: {
           select: {
             name: true
@@ -63,6 +70,26 @@ export async function GET(request) {
       orderBy: {
         date: 'desc'
       }
+    });
+
+    // Build a lookup of category name → account code from ExpenseCategory table
+    const categoryCodeMap = {};
+    try {
+      const expenseCategories = await prisma.expenseCategory.findMany({
+        where: { tenantId: user.tenantId },
+        select: { name: true, accountCode: true },
+      });
+      expenseCategories.forEach((ec) => {
+        if (ec.name) categoryCodeMap[ec.name] = ec.accountCode || '';
+      });
+    } catch (_) { /* non-fatal */ }
+
+    // Attach accountCode to each expense
+    expenses.forEach((exp) => {
+      exp.accountCode =
+        exp.expenseCategory?.accountCode ||
+        categoryCodeMap[exp.category] ||
+        '';
     });
     
     // Get expense categories - filter by branch
@@ -81,19 +108,21 @@ export async function GET(request) {
       _count: true
     });
     
-    // Group expenses by category
+    // Group expenses by category, include account code
     const expensesByCategory = {};
     expenses.forEach(expense => {
-      if (!expensesByCategory[expense.category]) {
-        expensesByCategory[expense.category] = {
+      const key = expense.category;
+      if (!expensesByCategory[key]) {
+        expensesByCategory[key] = {
           category: expense.category,
+          accountCode: expense.accountCode || categoryCodeMap[key] || '',
           total: 0,
           items: []
         };
       }
       
-      expensesByCategory[expense.category].total += expense.amount;
-      expensesByCategory[expense.category].items.push(expense);
+      expensesByCategory[key].total += expense.amount;
+      expensesByCategory[key].items.push(expense);
     });
     
     // Group expenses by month
@@ -127,6 +156,7 @@ export async function GET(request) {
         expenseCount: expenses.length,
         availableCategories: categories.map(c => ({
           name: c.category,
+          accountCode: categoryCodeMap[c.category] || '',
           count: c._count,
           amount: c._sum.amount
         }))

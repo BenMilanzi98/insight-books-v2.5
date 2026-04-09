@@ -18,9 +18,20 @@ class OfflineThresholdResult {
 
 class OfflinePosQueue {
   static const _queueKey = 'pos_offline_queue_v1';
-  // Keep offline sales queue valid for up to 5 hours.
   static const int defaultTimeThresholdMs = 5 * 60 * 60 * 1000;
   static const double defaultAmountThreshold = 5000000;
+  static const int defaultMaxRetries = 3;
+
+  /// Configurable thresholds — can be set from tenant/server settings.
+  final int timeThresholdMs;
+  final double amountThreshold;
+  final int maxRetries;
+
+  OfflinePosQueue({
+    this.timeThresholdMs = defaultTimeThresholdMs,
+    this.amountThreshold = defaultAmountThreshold,
+    this.maxRetries = defaultMaxRetries,
+  });
 
   Future<List<Map<String, dynamic>>> _readQueue() async {
     final prefs = await SharedPreferences.getInstance();
@@ -42,6 +53,8 @@ class OfflinePosQueue {
     final payload = {
       'items': saleData['items'],
       'total': saleData['total'],
+      'clientId': saleData['clientId'],
+      'paymentMethod': saleData['paymentMethod'],
       'timestamp': offlineTimestamp,
       'seq': offlineSequence,
     };
@@ -72,10 +85,53 @@ class OfflinePosQueue {
     return queue.where((e) => e['status'] == 'pending').length;
   }
 
-  Future<OfflineThresholdResult> checkThresholds({
-    int timeThresholdMs = defaultTimeThresholdMs,
-    double amountThreshold = defaultAmountThreshold,
-  }) async {
+  /// Returns items that are expired but not yet synced — for user review.
+  Future<List<Map<String, dynamic>>> expiredItems() async {
+    final queue = await _readQueue();
+    return queue.where((e) => e['status'] == 'expired').toList();
+  }
+
+  /// Returns items that permanently failed (3+ attempts).
+  Future<List<Map<String, dynamic>>> failedItems() async {
+    final queue = await _readQueue();
+    return queue.where((e) => e['status'] == 'failed').toList();
+  }
+
+  /// Reset an expired or failed item back to pending so it can be retried.
+  Future<void> retryItem(String id) async {
+    final queue = await _readQueue();
+    for (final item in queue) {
+      if (item['id'] == id &&
+          (item['status'] == 'expired' || item['status'] == 'failed')) {
+        item['status'] = 'pending';
+        item['attempts'] = 0;
+        item['createdAt'] = DateTime.now().toIso8601String();
+      }
+    }
+    await _writeQueue(queue);
+  }
+
+  /// Permanently dismiss an expired/failed item after user acknowledgment.
+  Future<void> dismissItem(String id) async {
+    final queue = await _readQueue();
+    queue.removeWhere(
+        (e) => e['id'] == id && (e['status'] == 'expired' || e['status'] == 'failed'));
+    await _writeQueue(queue);
+  }
+
+  /// Remove all synced items older than 24 hours to keep storage lean.
+  Future<void> pruneOldSynced() async {
+    final queue = await _readQueue();
+    final cutoff = DateTime.now().subtract(const Duration(hours: 24));
+    queue.removeWhere((e) {
+      if (e['status'] != 'synced') return false;
+      final syncedAt = DateTime.tryParse((e['syncedAt'] ?? '').toString());
+      return syncedAt != null && syncedAt.isBefore(cutoff);
+    });
+    await _writeQueue(queue);
+  }
+
+  Future<OfflineThresholdResult> checkThresholds() async {
     final queue = await _readQueue();
     final pending = queue.where((e) => e['status'] == 'pending').toList();
     if (pending.isNotEmpty) {
@@ -83,7 +139,7 @@ class OfflinePosQueue {
       final oldest = DateTime.tryParse((pending.first['createdAt'] ?? '').toString());
       if (oldest != null) {
         final offlineMs = DateTime.now().difference(oldest).inMilliseconds;
-        if (offlineMs > timeThresholdMs) {
+        if (offlineMs >= timeThresholdMs) {
           return OfflineThresholdResult(
             blocked: true,
             message:
@@ -119,19 +175,20 @@ class OfflinePosQueue {
     final queue = await _readQueue();
     final now = DateTime.now();
     int expired = 0;
-    // Do not sync entries older than the offline storage policy.
-    queue.removeWhere((e) {
-      if (e['status'] != 'pending') return false;
+
+    // Mark (not delete) entries older than the offline storage policy as expired.
+    for (final e in queue) {
+      if (e['status'] != 'pending') continue;
       final createdAtStr = (e['createdAt'] ?? '').toString();
       final createdAt = DateTime.tryParse(createdAtStr);
-      if (createdAt == null) return false;
+      if (createdAt == null) continue;
       final ageMs = now.difference(createdAt).inMilliseconds;
-      if (ageMs > defaultTimeThresholdMs) {
+      if (ageMs >= timeThresholdMs) {
+        e['status'] = 'expired';
+        e['expiredAt'] = now.toIso8601String();
         expired++;
-        return true;
       }
-      return false;
-    });
+    }
 
     int synced = 0;
     int failed = 0;
@@ -143,14 +200,15 @@ class OfflinePosQueue {
         synced++;
       } catch (_) {
         item['attempts'] = ((item['attempts'] as int?) ?? 0) + 1;
-        if ((item['attempts'] as int) >= 3) {
+        if ((item['attempts'] as int) >= maxRetries) {
           item['status'] = 'failed';
         }
         failed++;
       }
     }
+
+    await pruneOldSynced();
     await _writeQueue(queue);
     return {'synced': synced, 'failed': failed, 'expired': expired};
   }
 }
-

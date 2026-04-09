@@ -1,0 +1,147 @@
+================================================================================
+                    DEVELOPER TASK CHECKLIST — INSIGHT BOOKS v2.0
+================================================================================
+Last updated: 2026-04-08
+
+STATUS KEY:  [ ] = Pending   [~] = In Progress   [x] = Done   [!] = Blocked
+
+================================================================================
+TASK 1: JOURNAL ENTRY — INVENTORY DUPLICATION FIX
+================================================================================
+[x] 1.1  Identified root cause: purchaseAccounting.js creates BOTH a Transaction
+         AND a JournalEntry with identical line amounts. trialBalanceReport.js
+         aggregates both tables, causing double-counting.
+[x] 1.2  Fixed trialBalanceReport.js — added `transactionId: null` filter to
+         exclude JournalEntry rows that mirror a Transaction.
+[x] 1.3  Fixed journal-entries list API — added `mirroredTxIds` Set to
+         de-duplicate when merging JournalEntry + Transaction sources.
+[x] 1.4  Verified: JournalEntry.transactionId is optional in Prisma schema;
+         filter is safe and correct.
+
+================================================================================
+TASK 2: ASSET POSTING LOGIC — OWNER-CONTRIBUTED ASSETS
+================================================================================
+[x] 2.1  Existing code already uses Dr Asset / Cr Opening Balances Equity for
+         isExistingAsset — correct owner contribution pattern.
+[x] 2.2  Updated journal descriptions from "Opening balance" to
+         "Owner contribution" / "Owner equity" for clarity.
+[x] 2.3  Added reusable `createOwnerContributedAssetEntry()` function in
+         purchaseAccounting.js for programmatic owner contributions:
+         Dr Asset account, Cr Owner's Capital/Equity.
+
+================================================================================
+TASK 3: LANDING PAGE — CTA BUTTON TEXT
+================================================================================
+[x] 3.1  Changed "Get started" → "Try for Free" in hero section (line ~301)
+[x] 3.2  Changed "Get started" → "Try for Free" in pricing cards (line ~973)
+[x] 3.3  Changed "Get started" → "Try for Free" in footer CTA (line ~1084)
+
+================================================================================
+TASK 4: EXPENSE REPORT — ACCOUNT CODE ALIGNMENT
+================================================================================
+[x] 4.1  Updated /api/reports/expenses to include account codes from
+         ExpenseCategory via `expenseCategory` relation and `categoryCodeMap`.
+[x] 4.2  Updated ExpenseReport.js — category headers now show account code
+         prefix; distribution table has dedicated "Code" column.
+[x] 4.3  Updated summary `availableCategories` to include `accountCode` field
+         for export and filter consistency.
+
+================================================================================
+TASK 5: REPORTS — INCOME STATEMENT
+================================================================================
+[x] 5.1  Revenue: single "Sales Revenue" line from POS sales + completed
+         invoices. Service already correct (getSalesRevenueForPeriod).
+[x] 5.2  COGS: single "Cost of Goods Sold" line, FIFO, system-generated.
+         Service already correct (getFifoCogsForPeriod + getCOGSTransactionStats).
+[x] 5.3  Gross Profit: auto-calculated = Revenue - COGS. ✓
+[x] 5.4  Operating Expenses: listed by user-created expense category account
+         codes; only categories with transactions shown. ✓
+[x] 5.5  Net Profit: Gross Profit - Total Operating Expenses. ✓
+[x] 5.6  Excel export: single worksheet, clean layout, bold headings/totals,
+         currency format with brackets for negatives, values only. ✓
+         (generateIncomeStatementExcelResponse using ExcelJS)
+
+================================================================================
+TASK 6: REPORTS — BALANCE SHEET
+================================================================================
+[x] 6.1  ASSETS — Cash & Cash Equivalents from payment accounts (codes 1000-1050,
+         name matches cash/bank/airtel/mpamba/paychangu).
+[x] 6.2  ASSETS — Accounts Receivable from invoices module (unpaid/partial,
+         adjusted for credit/debit notes).
+[x] 6.3  ASSETS — Inventory from GL account balances (updated by FIFO transactions).
+[x] 6.4  ASSETS — Prepaid Expenses line REMOVED (already excluded per spec).
+[x] 6.5  ASSETS — Total Current Assets = Cash + AR + Inventory. ✓
+[x] 6.6  NON-CURRENT — PPE from asset accounts (fixed subtype).
+[x] 6.7  NON-CURRENT — Less: Accumulated Depreciation (net, floored at 0).
+[x] 6.8  NON-CURRENT — Intangible Assets from intangible subtype/name.
+[x] 6.9  TOTAL ASSETS = Current + Non-Current. ✓
+[x] 6.10 LIABILITIES — Accounts Payable (unpaid expenses + supplier bills).
+[x] 6.11 LIABILITIES — Short-Term Loans (current liability loan accounts).
+[x] 6.12 LIABILITIES — Accrued Expenses line REMOVED (already excluded per spec).
+[x] 6.13 LIABILITIES — Total Current = AP + Short-Term Loans. ✓
+[x] 6.14 NON-CURRENT — Long-Term Loans only.
+[x] 6.15 NON-CURRENT — "Other Non-Current Liabilities" REMOVED (per spec).
+[x] 6.16 EQUITY — Owner's Capital / Share Capital from capital/stock/share accounts.
+[x] 6.17 EQUITY — Retained Earnings (includes opening + miscellaneous equity).
+[x] 6.18 EQUITY — Current Year Profit/Loss from Income Statement (now uses
+         netIncome instead of operatingIncome).
+[x] 6.19 TOTAL EQUITY = Capital + Retained + Current Year P/L. ✓
+         (Fixed: otherEquity folded into retainedEarnings.)
+
+================================================================================
+TASK 7: REPORTS — CASH FLOW STATEMENT
+================================================================================
+[x] 7.1  Cash Inflows — Cash from Customer Payments (POS + Invoice, paid,
+         cash/bank/mobile methods).
+[x] 7.2  Cash Inflows — Other Cash Receipts (capital injections, refunds,
+         asset sales, misc income).
+[x] 7.3  Total Cash Inflows = Customer + Other. ✓
+[x] 7.4  Cash Outflows — Payments to Suppliers (supplier payments + COGS/
+         supplier expense categories, paid).
+[x] 7.5  Cash Outflows — Salary Payments (payroll module + salary expense
+         categories).
+[x] 7.6  Cash Outflows — Rent Payments (rent category expenses, paid).
+[x] 7.7  Cash Outflows — Other Expense Payments (all other paid operating
+         expenses excluding supplier/salary/rent/asset).
+[x] 7.8  Cash Outflows — Asset Purchases (Payment type Asset Purchase +
+         Asset module purchases in period).
+[x] 7.9  Cash Outflows — Loan Payments (loan-type payments with principal/
+         interest breakdown).
+[x] 7.10 Total Cash Outflows = sum of all outflow categories. ✓
+[x] 7.11 Net Cash Flow = Inflows - Outflows. ✓
+[x] 7.12 Opening Cash Balance from prior period (via Balance Sheet cash).
+[x] 7.13 Closing Cash Balance = Opening + Net Cash Flow. ✓
+[x] 7.14 Validation: Closing reconciled against Balance Sheet cash balances. ✓
+
+================================================================================
+VERIFICATION
+================================================================================
+[x] V.1  Lint check on all modified files — NO ERRORS
+[x] V.2  No broken imports or undefined references — verified via sub-agent
+         against Prisma schema (all 5 items PASS)
+[x] V.3  All report endpoints return consistent data shapes — verified service
+         layer outputs match UI component expectations
+[x] V.4  Export logic aligns with report data — Excel/CSV/PDF exports use
+         same service functions as report API
+
+================================================================================
+FILES MODIFIED
+================================================================================
+  app/page.js                          — CTA text change
+  lib/trialBalanceReport.js            — De-duplication fix
+  app/api/journal-entries/route.js     — De-duplication in merged list
+  lib/purchaseAccounting.js            — Owner contribution function
+  app/api/assets/route.js              — Owner contribution journal labels
+  app/api/reports/expenses/route.js    — Account code inclusion
+  components/ExpenseReport.js          — Account code display
+  lib/balanceSheetService.js           — Equity total fix, netIncome priority
+
+================================================================================
+NO CHANGES REQUIRED (ALREADY CORRECT)
+================================================================================
+  lib/incomeStatementService.js        — Already matches Income Statement spec
+  lib/cashFlowService.js               — Already matches Cash Flow spec
+  lib/exportUtils.js                   — Export logic already correct
+  app/api/reports/[reportType]/export/route.js — Excel export already correct
+  components/FinancialReportComponents.js      — UI already renders correctly
+================================================================================

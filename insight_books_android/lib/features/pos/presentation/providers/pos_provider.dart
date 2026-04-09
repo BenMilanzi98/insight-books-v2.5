@@ -679,7 +679,7 @@ class Pos extends _$Pos {
   Future<void> loadSalesHistory() async {
     try {
       final repository = ref.read(posRepositoryProvider);
-      final sales = await repository.fetchSales(
+      final result = await repository.fetchSales(
         limit: 20,
         search: state.historySearchQuery.isEmpty ? null : state.historySearchQuery,
         status: state.historyStatusFilter == 'all' ? null : state.historyStatusFilter,
@@ -693,7 +693,7 @@ class Pos extends _$Pos {
         dateTo: state.historyDateTo,
       );
       if (!ref.mounted) return;
-      state = state.copyWith(recentSales: sales, salesStatistics: stats);
+      state = state.copyWith(recentSales: result.sales, salesStatistics: stats);
     } catch (_) {}
   }
 

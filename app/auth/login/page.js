@@ -54,13 +54,13 @@ function LoginForm() {
       const data = await response.json();
       
       if (!response.ok) {
+        if (data.requiresVerification && data.email) {
+          router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+          return;
+        }
         throw new Error(data.error || "Authentication failed");
       }
       
-      // If remember me is checked, we could set a longer cookie expiry
-      // But we're handling this on the server side
-      
-      // Redirect to the dashboard or the original requested URL
       router.push(redirectUrl);
     } catch (err) {
       setError(err.message || "Authentication failed. Please try again.");
