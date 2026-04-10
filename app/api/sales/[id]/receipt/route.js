@@ -325,7 +325,7 @@ html{background:#94a3b8;height:auto}
 body{
   font-family:Arial,Helvetica,sans-serif;
   margin:0 auto;
-  font-size:11px;       /* Font A — normal body */
+  font-size:12px;       /* Font A — normal body */
   line-height:1.5;
   color:#1a1a1a;
   background:transparent;
@@ -345,29 +345,29 @@ body{
 .sep{border:none;border-top:1px dashed #555;margin:6px 0}
 /* ── Info field rows: LABEL   value  (Font A, 11 px) ───── */
 .frow{display:flex;align-items:baseline;gap:4px;margin:2px 0}
-.flabel{font-weight:bold;font-size:11px;white-space:nowrap;flex-shrink:0;min-width:80px}
-.fval{flex:1;font-size:11px;text-align:right;word-break:break-word}
+.flabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:80px}
+.fval{flex:1;font-size:12px;text-align:right;word-break:break-word}
 /* ── Items table (Font B — compact, ~9 px) ─────────────── */
-.itbl{width:100%;border-collapse:collapse;font-size:9px;margin:3px 0}
-.itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:9px}
+.itbl{width:100%;border-collapse:collapse;font-size:12px;margin:3px 0}
+.itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:12px}
 .itbl th.r{text-align:right}
-.itbl td{padding:3px 2px;vertical-align:top;font-size:9px}
+.itbl td{padding:3px 2px;vertical-align:top;font-size:12px}
 .itbl td.c{text-align:center;width:10%}
 .itbl td.d{width:58%}
 .itbl td.r{text-align:right;width:32%}
 .itbl tr.ir td{border-bottom:1px dotted #ccc}
 /* Sub-lines (unit price, tax, discount) — smallest readable size */
-.isub{font-size:8px;color:#555;margin-top:1px;line-height:1.3}
+.isub{font-size:12px;color:#555;margin-top:1px;line-height:1.3}
 /* ── Totals (Font A, 11 px; grand total 14 px bold) ────── */
 .trow{display:flex;align-items:baseline;gap:4px;margin:3px 0}
-.tlabel{font-weight:bold;font-size:11px;white-space:nowrap;flex-shrink:0;min-width:95px}
-.tval{flex:1;font-size:11px;text-align:right}
+.tlabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:95px}
+.tval{flex:1;font-size:12px;text-align:right}
 /* Grand total — double-height equivalent (14 px bold) */
 .trow.grand .tlabel{font-size:14px;font-weight:bold}
 .trow.grand .tval{font-size:14px;font-weight:bold}
 /* ── Footer ─────────────────────────────────────────────── */
 .ty{text-align:center;font-weight:bold;font-size:12px;letter-spacing:1px;margin:8px 0 4px;line-height:1.3}
-.credit{text-align:center;font-size:9px;color:#555;margin-bottom:1px}
+.credit{text-align:center;font-size:12px;color:#555;margin-bottom:1px}
 @media print{
   html{background:#fff!important}
   body{width:80mm;max-width:80mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -457,9 +457,9 @@ body{
     ? `<div class="frow"><span class="flabel">Approval Code:</span><span class="fval">${sale.payments[0].reference}</span></div>`
     : ''}
   ${(sale.footerBankDetailsOverride || tenantSettings?.defaultBankDetails)
-    ? `<div class="frow" style="margin-top:3px"><span class="flabel">Bank Details:</span><span class="fval" style="font-size:8px;white-space:pre-wrap">${sale.footerBankDetailsOverride || tenantSettings.defaultBankDetails}</span></div>`
+    ? `<div class="frow" style="margin-top:3px"><span class="flabel">Bank Details:</span><span class="fval" style="font-size:12px;white-space:pre-wrap">${sale.footerBankDetailsOverride || tenantSettings.defaultBankDetails}</span></div>`
     : ''}
-  ${sale.notes ? `<div class="frow"><span class="flabel">Notes:</span><span class="fval" style="font-size:8px">${sale.notes}</span></div>` : ''}
+  ${sale.notes ? `<div class="frow"><span class="flabel">Notes:</span><span class="fval" style="font-size:12px">${sale.notes}</span></div>` : ''}
 
   <hr class="sep">
 

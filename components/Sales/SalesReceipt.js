@@ -201,7 +201,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             </div>
 
             {/* Sale Information */}
-            <div style={{ margin: '6px 0', fontSize: '10px' }}>
+            <div style={{ margin: '6px 0', fontSize: '9px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                 <span style={{ fontWeight: 'bold', minWidth: '30%' }}>Receipt #:</span>
                 <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>{sale.saleNumber || sale.id}</span>
@@ -294,7 +294,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                   <div style={{ fontWeight: 'bold', marginBottom: '1px' }}>
                     {item.description}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '9px' }}>
                     <span style={{ fontWeight: 'bold' }}>{item.quantity} x MK {Number(item.unitPrice).toFixed(2)}</span>
                     <span style={{ textAlign: 'right', fontWeight: 'bold' }}>
                       MK {(item.quantity * item.unitPrice).toFixed(2)}
@@ -305,7 +305,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             </div>
 
             {/* Totals */}
-            <div style={{ marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '4px', fontSize: '10px' }}>
+            <div style={{ marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '4px', fontSize: '9px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', margin: '2px 0' }}>
                 <span style={{ fontWeight: 'bold' }}>Subtotal:</span>
                 <span style={{ textAlign: 'right', fontWeight: 'bold' }}>MK {Number(sale.subtotal || 0).toFixed(2)}</span>
@@ -406,7 +406,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
             </div>
 
             {/* Payment Information */}
-            <div style={{ margin: '6px 0', fontSize: '10px', textAlign: 'center' }}>
+            <div style={{ margin: '6px 0', fontSize: '9px', textAlign: 'center' }}>
               <div style={{ fontWeight: 'bold' }}>Payment Method: {sale.paymentMethod || sale.payments?.[0]?.allocations?.[0]?.paymentAccount?.name || 'N/A'}</div>
               <div style={{ fontWeight: 'bold' }}>Amount Paid: MK {Number(sale.total || 0).toFixed(2)}</div>
               <div style={{ fontWeight: 'bold' }}>Change: MK 0.00</div>
@@ -422,10 +422,10 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
               )}
               
               {/* Standard Footer */}
-              <div style={{ fontSize: '8px', marginTop: '4px', fontWeight: 'bold' }}>
+              <div style={{ fontSize: '9px', marginTop: '4px', fontWeight: 'bold' }}>
                 Receipt generated on {formatDate(new Date())} at {formatTime(new Date())}
               </div>
-              <div style={{ fontSize: '8px', marginTop: '2px', fontWeight: 'bold' }}>
+              <div style={{ fontSize: '9px', marginTop: '2px', fontWeight: 'bold' }}>
                 insightbooksafrica.com
               </div>
             </div>
