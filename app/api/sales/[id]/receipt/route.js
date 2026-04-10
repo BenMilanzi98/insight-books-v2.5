@@ -326,6 +326,7 @@ body{
   font-family:Arial,Helvetica,sans-serif;
   margin:0 auto;
   font-size:12px;       /* Font A — normal body */
+  font-weight:bold;
   line-height:1.5;
   color:#1a1a1a;
   background:transparent;
@@ -346,7 +347,7 @@ body{
 /* ── Info field rows: LABEL   value  (Font A, 11 px) ───── */
 .frow{display:flex;align-items:baseline;gap:4px;margin:2px 0}
 .flabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:80px}
-.fval{flex:1;font-size:12px;text-align:right;word-break:break-word}
+.fval{flex:1;font-size:12px;text-align:right;word-break:break-word;font-weight:bold}
 /* ── Items table (Font B — compact, ~9 px) ─────────────── */
 .itbl{width:100%;border-collapse:collapse;font-size:12px;margin:3px 0}
 .itbl th{font-weight:bold;padding:2px 2px;text-align:left;border-bottom:1px solid #222;font-size:12px}
@@ -357,17 +358,17 @@ body{
 .itbl td.r{text-align:right;width:32%}
 .itbl tr.ir td{border-bottom:1px dotted #ccc}
 /* Sub-lines (unit price, tax, discount) — smallest readable size */
-.isub{font-size:12px;color:#555;margin-top:1px;line-height:1.3}
+.isub{font-size:12px;margin-top:1px;line-height:1.3;display:flex;justify-content:space-between;gap:4px}
 /* ── Totals (Font A, 11 px; grand total 14 px bold) ────── */
 .trow{display:flex;align-items:baseline;gap:4px;margin:3px 0}
 .tlabel{font-weight:bold;font-size:12px;white-space:nowrap;flex-shrink:0;min-width:95px}
-.tval{flex:1;font-size:12px;text-align:right}
+.tval{flex:1;font-size:12px;text-align:right;font-weight:bold}
 /* Grand total — double-height equivalent (14 px bold) */
 .trow.grand .tlabel{font-size:14px;font-weight:bold}
 .trow.grand .tval{font-size:14px;font-weight:bold}
 /* ── Footer ─────────────────────────────────────────────── */
 .ty{text-align:center;font-weight:bold;font-size:12px;letter-spacing:1px;margin:8px 0 4px;line-height:1.3}
-.credit{text-align:center;font-size:12px;color:#555;margin-bottom:1px}
+.credit{text-align:center;font-size:12px;font-weight:bold;margin-bottom:1px}
 @media print{
   html{background:#fff!important}
   body{width:80mm;max-width:80mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -415,13 +416,13 @@ body{
         const itemTotal = subtotal + itemTaxTotal;
         const qtyStr = qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
         const taxSubLines = itemTaxes.length > 0
-          ? itemTaxes.map(t => `<div class="isub">${t.taxName || 'Tax'}${t.taxCode ? ' (' + t.taxCode + ')' : ''}: ${formatCurrency(parseFloat(t.taxAmount || 0), cur)}</div>`).join('')
-          : (itemTaxTotal > 0 ? `<div class="isub">Tax: ${formatCurrency(itemTaxTotal, cur)}</div>` : '');
+          ? itemTaxes.map(t => `<div class="isub"><span>${t.taxName || 'Tax'}${t.taxCode ? ' (' + t.taxCode + ')' : ''}:</span><span>${formatCurrency(parseFloat(t.taxAmount || 0), cur)}</span></div>`).join('')
+          : (itemTaxTotal > 0 ? `<div class="isub"><span>Tax:</span><span>${formatCurrency(itemTaxTotal, cur)}</span></div>` : '');
         return `<tr class="ir">
           <td class="c">${qtyStr}</td>
           <td class="d">${item.description}
-            <div class="isub">${qtyStr} x ${formatCurrency(unitPrice, cur)}</div>
-            ${discAmt > 0 ? `<div class="isub">Disc: -${formatCurrency(discAmt, cur)}</div>` : ''}
+            <div class="isub"><span>${qtyStr} x ${formatCurrency(unitPrice, cur)}</span><span>${formatCurrency(subtotal, cur)}</span></div>
+            ${discAmt > 0 ? `<div class="isub"><span>Disc:</span><span>-${formatCurrency(discAmt, cur)}</span></div>` : ''}
             ${taxSubLines}
           </td>
           <td class="r">${formatCurrency(itemTotal, cur)}</td>

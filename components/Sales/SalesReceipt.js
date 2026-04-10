@@ -261,7 +261,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
                   <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>Payment (Split):</div>
                   {sale.payments[0].allocations.map((alloc, idx) => (
                     <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', margin: '1px 0', fontSize: '9px' }}>
-                      <span style={{ minWidth: '30%' }}>{alloc.paymentAccount?.name || 'N/A'}:</span>
+                      <span style={{ minWidth: '30%', fontWeight: 'bold' }}>{alloc.paymentAccount?.name || 'N/A'}:</span>
                       <span style={{ textAlign: 'right', maxWidth: '65%', fontWeight: 'bold' }}>
                         MK {Number(alloc.amount || 0).toFixed(2)}
                       </span>
