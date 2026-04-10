@@ -340,7 +340,7 @@ body{
 .co-logo{max-width:56px;max-height:56px;display:block;margin:0 auto 4px;object-fit:contain}
 .co-name{font-size:16px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;line-height:1.2}
 /* ── RECEIPT title (largest element) ──────────────────── */
-.rtitle{text-align:center;font-size:18px;font-weight:bold;letter-spacing:4px;margin:7px 0 6px;line-height:1}
+.rtitle{text-align:center;font-size:12px;font-weight:bold;letter-spacing:4px;margin:7px 0 6px;line-height:1}
 /* ── Dashed section separator ──────────────────────────── */
 .sep{border:none;border-top:1px dashed #555;margin:6px 0}
 /* ── Info field rows: LABEL   value  (Font A, 11 px) ───── */

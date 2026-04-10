@@ -207,7 +207,7 @@ const OTPVerification = ({ email, userId, onBackToSignIn }) => {
       }
 
       // Success - show success message
-      setSuccess("New verification code sent successfully! Check your email.");
+      setSuccess("New verification code sent! Check your inbox and spam folder.");
       setError(""); // Clear any previous errors
       
       // Reset countdown

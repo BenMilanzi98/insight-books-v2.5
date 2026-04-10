@@ -24,6 +24,51 @@ import 'package:insightbooks_android/features/expense/presentation/create_expens
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/shared/widgets/coming_soon_screen.dart';
 
+// ---------------------------------------------------------------------------
+// Page transition helpers
+// ---------------------------------------------------------------------------
+
+class _FadePage<T> extends CustomTransitionPage<T> {
+  _FadePage({required super.child, super.key})
+      : super(
+          transitionDuration: const Duration(milliseconds: 250),
+          reverseTransitionDuration: const Duration(milliseconds: 200),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity:
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              child: child,
+            );
+          },
+        );
+}
+
+class _SlideUpFadePage<T> extends CustomTransitionPage<T> {
+  _SlideUpFadePage({required super.child, super.key})
+      : super(
+          transitionDuration: const Duration(milliseconds: 300),
+          reverseTransitionDuration: const Duration(milliseconds: 250),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final curved = CurvedAnimation(
+                parent: animation, curve: Curves.easeOutCubic);
+            return FadeTransition(
+              opacity: curved,
+              child: SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0.04, 0),
+                  end: Offset.zero,
+                ).animate(curved),
+                child: child,
+              ),
+            );
+          },
+        );
+}
+
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
 /// Single [GoRouter] instance; auth/permission changes only re-run [redirect] via
 /// [refreshListenable] (see [goRouterRefreshNotifierProvider]).
 final routerProvider = Provider<GoRouter>((ref) {
@@ -96,9 +141,14 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (context, state) => const SplashScreen(),
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: SplashScreen()),
       ),
-      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) =>
+            _FadePage(child: const LoginScreen(), key: state.pageKey),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           return MainLayout(child: child);
@@ -106,103 +156,137 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: '/dashboard',
-            builder: (context, state) => const DashboardScreen(),
+            pageBuilder: (context, state) =>
+                _FadePage(child: const DashboardScreen(), key: state.pageKey),
           ),
-          GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
+          GoRoute(
+            path: '/pos',
+            pageBuilder: (context, state) =>
+                _FadePage(child: const PosScreen(), key: state.pageKey),
+          ),
           GoRoute(
             path: '/invoice',
-            builder: (context, state) => const InvoiceListScreen(),
+            pageBuilder: (context, state) => _FadePage(
+                child: const InvoiceListScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/invoice/create',
-            builder: (context, state) => const CreateInvoiceScreen(),
+            pageBuilder: (context, state) => _SlideUpFadePage(
+                child: const CreateInvoiceScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/invoice/:id',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return InvoiceDetailsScreen(invoiceId: id);
+              return _SlideUpFadePage(
+                  child: InvoiceDetailsScreen(invoiceId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/invoice/:id/edit',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return CreateInvoiceScreen(invoiceId: id);
+              return _SlideUpFadePage(
+                  child: CreateInvoiceScreen(invoiceId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/quotation',
-            builder: (context, state) => const QuotationListScreen(),
+            pageBuilder: (context, state) => _FadePage(
+                child: const QuotationListScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/quotation/create',
-            builder: (context, state) => const CreateQuotationScreen(),
+            pageBuilder: (context, state) => _SlideUpFadePage(
+                child: const CreateQuotationScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/quotation/:id',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return QuotationDetailsScreen(quotationId: id);
+              return _SlideUpFadePage(
+                  child: QuotationDetailsScreen(quotationId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/quotation/:id/edit',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return CreateQuotationScreen(quotationId: id);
+              return _SlideUpFadePage(
+                  child: CreateQuotationScreen(quotationId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/expenses',
-            builder: (context, state) => const ExpenseListScreen(),
+            pageBuilder: (context, state) => _FadePage(
+                child: const ExpenseListScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/expenses/create',
-            builder: (context, state) => const CreateExpenseScreen(),
+            pageBuilder: (context, state) => _SlideUpFadePage(
+                child: const CreateExpenseScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/expenses/:id',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return ExpenseDetailsScreen(expenseId: id);
+              return _SlideUpFadePage(
+                  child: ExpenseDetailsScreen(expenseId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/expenses/:id/edit',
-            builder: (context, state) {
+            pageBuilder: (context, state) {
               final id = state.pathParameters['id']!;
-              return CreateExpenseScreen(expenseId: id);
+              return _SlideUpFadePage(
+                  child: CreateExpenseScreen(expenseId: id),
+                  key: state.pageKey);
             },
           ),
           GoRoute(
             path: '/payments',
-            builder: (context, state) => const ComingSoonScreen(
-              title: 'Payments',
-              icon: Icons.payments_rounded,
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ComingSoonScreen(
+                title: 'Payments',
+                icon: Icons.payments_rounded,
+              ),
             ),
           ),
           GoRoute(
             path: '/reports',
-            builder: (context, state) => const ComingSoonScreen(
-              title: 'Reports',
-              icon: Icons.bar_chart_rounded,
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ComingSoonScreen(
+                title: 'Reports',
+                icon: Icons.bar_chart_rounded,
+              ),
             ),
           ),
           GoRoute(
             path: '/stock',
-            builder: (context, state) => const ComingSoonScreen(
-              title: 'Stock & Inventory',
-              icon: Icons.inventory_2_rounded,
+            pageBuilder: (context, state) => _FadePage(
+              key: state.pageKey,
+              child: const ComingSoonScreen(
+                title: 'Stock & Inventory',
+                icon: Icons.inventory_2_rounded,
+              ),
             ),
           ),
           GoRoute(
             path: '/account',
-            builder: (context, state) => const AccountScreen(),
+            pageBuilder: (context, state) =>
+                _FadePage(child: const AccountScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/switch-tenant',
-            builder: (context, state) => const BusinessListScreen(),
+            pageBuilder: (context, state) => _FadePage(
+                child: const BusinessListScreen(), key: state.pageKey),
           ),
         ],
       ),

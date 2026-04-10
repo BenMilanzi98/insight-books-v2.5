@@ -3,14 +3,69 @@ import 'package:intl/intl.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
-class SummaryCardsRow extends StatelessWidget {
+class SummaryCardsRow extends StatefulWidget {
   final DashboardData data;
 
   const SummaryCardsRow({super.key, required this.data});
 
   @override
+  State<SummaryCardsRow> createState() => _SummaryCardsRowState();
+}
+
+class _SummaryCardsRowState extends State<SummaryCardsRow>
+    with TickerProviderStateMixin {
+  late final List<AnimationController> _controllers;
+  late final List<Animation<double>> _fades;
+  late final List<Animation<Offset>> _slides;
+
+  static const _cardCount = 4;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(_cardCount, (i) {
+      return AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 450),
+      );
+    });
+    _fades = _controllers
+        .map((c) => Tween<double>(begin: 0, end: 1)
+            .animate(CurvedAnimation(parent: c, curve: Curves.easeOut)))
+        .toList();
+    _slides = _controllers
+        .map((c) => Tween<Offset>(begin: const Offset(0, 20), end: Offset.zero)
+            .animate(CurvedAnimation(parent: c, curve: Curves.easeOutCubic)))
+        .toList();
+
+    for (var i = 0; i < _cardCount; i++) {
+      Future.delayed(Duration(milliseconds: 80 * i), () {
+        if (mounted) _controllers[i].forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Widget _animated(int index, Widget child) {
+    return AnimatedBuilder(
+      animation: _controllers[index],
+      builder: (context, _) => Opacity(
+        opacity: _fades[index].value,
+        child: Transform.translate(offset: _slides[index].value, child: child),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final summary = data.summary;
+    final summary = widget.data.summary;
     final isMobile = MediaQuery.of(context).size.width < 600;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
@@ -19,6 +74,13 @@ class SummaryCardsRow extends StatelessWidget {
     final expensesColor = AppTheme.warningColor(context);
     final profitColor = AppTheme.infoColor(context);
     final outstandingColor = colorScheme.secondary;
+
+    final cards = [
+      _buildCard(context, 'Total Revenue', summary.revenue.current, summary.revenue.change, revenueColor, Icons.trending_up),
+      _buildCard(context, 'Total Expenses', summary.expenses.current, summary.expenses.change, expensesColor, Icons.show_chart),
+      _buildCard(context, 'Net Profit', summary.profit.current, summary.profit.change, profitColor, Icons.account_balance_wallet),
+      _buildCard(context, 'Outstanding', summary.outstandingInvoices.current, summary.outstandingInvoices.change, outstandingColor, Icons.description),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,13 +100,10 @@ class SummaryCardsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               children: [
-                _buildCard(context, 'Total Revenue', summary.revenue.current, summary.revenue.change, revenueColor, Icons.trending_up),
-                const SizedBox(height: 12),
-                _buildCard(context, 'Total Expenses', summary.expenses.current, summary.expenses.change, expensesColor, Icons.show_chart),
-                const SizedBox(height: 12),
-                _buildCard(context, 'Net Profit', summary.profit.current, summary.profit.change, profitColor, Icons.account_balance_wallet),
-                const SizedBox(height: 12),
-                _buildCard(context, 'Outstanding', summary.outstandingInvoices.current, summary.outstandingInvoices.change, outstandingColor, Icons.description),
+                for (var i = 0; i < cards.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 12),
+                  _animated(i, cards[i]),
+                ],
               ],
             ),
           )
@@ -53,13 +112,10 @@ class SummaryCardsRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               children: [
-                Expanded(child: _buildCard(context, 'Total Revenue', summary.revenue.current, summary.revenue.change, revenueColor, Icons.trending_up)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildCard(context, 'Total Expenses', summary.expenses.current, summary.expenses.change, expensesColor, Icons.show_chart)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildCard(context, 'Net Profit', summary.profit.current, summary.profit.change, profitColor, Icons.account_balance_wallet)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildCard(context, 'Outstanding', summary.outstandingInvoices.current, summary.outstandingInvoices.change, outstandingColor, Icons.description)),
+                for (var i = 0; i < cards.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  Expanded(child: _animated(i, cards[i])),
+                ],
               ],
             ),
           ),

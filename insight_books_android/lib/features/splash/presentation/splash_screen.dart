@@ -14,29 +14,123 @@ class SplashScreen extends ConsumerStatefulWidget {
   ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen>
+    with TickerProviderStateMixin {
   var _navigated = false;
 
-  /// Minimum splash display so branding is visible.
-  static const _minSplash = Duration(milliseconds: 600);
+  static const _minSplash = Duration(milliseconds: 1800);
+
+  // ── Animation controllers ──────────────────────────────────────────────
+  late final AnimationController _logoCtrl;
+  late final AnimationController _nameCtrl;
+  late final AnimationController _taglineCtrl;
+  late final AnimationController _glowCtrl;
+  late final AnimationController _progressCtrl;
+
+  // ── Derived animations ─────────────────────────────────────────────────
+  late final Animation<double> _logoScale;
+  late final Animation<double> _logoFade;
+  late final Animation<double> _nameFade;
+  late final Animation<Offset> _nameSlide;
+  late final Animation<double> _taglineFade;
+  late final Animation<double> _glowPulse;
+  late final Animation<double> _progress;
 
   @override
   void initState() {
     super.initState();
+    _initAnimations();
+    _startAnimations();
     WidgetsBinding.instance.addPostFrameCallback((_) => _runSequence());
   }
+
+  void _initAnimations() {
+    _logoCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _logoScale = Tween<double>(begin: 0.6, end: 1.0).animate(
+      CurvedAnimation(parent: _logoCtrl, curve: Curves.elasticOut),
+    );
+    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _logoCtrl, curve: Curves.easeOut),
+    );
+
+    _nameCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _nameFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _nameCtrl, curve: Curves.easeOutCubic),
+    );
+    _nameSlide = Tween<Offset>(
+      begin: const Offset(0, 20),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _nameCtrl, curve: Curves.easeOutCubic),
+    );
+
+    _taglineCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _taglineFade = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _taglineCtrl, curve: Curves.easeIn),
+    );
+
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    );
+    _glowPulse = Tween<double>(begin: 0.35, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
+    );
+
+    _progressCtrl = AnimationController(
+      vsync: this,
+      duration: _minSplash,
+    );
+    _progress = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _progressCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  void _startAnimations() {
+    _logoCtrl.forward();
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _nameCtrl.forward();
+    });
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _taglineCtrl.forward();
+    });
+
+    _glowCtrl.repeat(reverse: true);
+    _progressCtrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _logoCtrl.dispose();
+    _nameCtrl.dispose();
+    _taglineCtrl.dispose();
+    _glowCtrl.dispose();
+    _progressCtrl.dispose();
+    super.dispose();
+  }
+
+  // ── Auth / navigation sequence (unchanged) ─────────────────────────────
 
   Future<void> _runSequence() async {
     final stopwatch = Stopwatch()..start();
 
-    // Wait for auth state to settle (max ~8s safety net).
     for (var i = 0; i < 40 && mounted; i++) {
       final auth = ref.read(authStateProvider);
       if (!auth.isLoading) break;
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
 
-    // Ensure minimum splash visibility for brand moment.
     final elapsed = stopwatch.elapsed;
     if (elapsed < _minSplash) {
       await Future<void>.delayed(_minSplash - elapsed);
@@ -53,15 +147,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
       return;
     }
 
-    // Load permissions and tenant data in parallel.
     try {
       await Future.wait([
         ref.read(userPermissionsProvider.future),
         ref.read(tenantProvider.notifier).loadData(),
       ]);
-    } catch (_) {
-      // Even if one fails, try to navigate.
-    }
+    } catch (_) {}
 
     if (!mounted) return;
 
@@ -74,78 +165,238 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
     context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
   }
 
+  // ── UI ──────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+
+    final accentColor =
+        isDark ? const Color(0xFF009dd7) : const Color(0xFF0075be);
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? const [
-                    Color(0xFF0c1929),
-                    Color(0xFF132f4c),
-                    Color(0xFF0d2137),
-                  ]
-                : const [
-                    Color(0xFFe8f4fc),
-                    Color(0xFFf5f9ff),
-                    Color(0xFFdff0fa),
-                  ],
+      body: Stack(
+        children: [
+          // Layer 1 — rich gradient background
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  stops: const [0.0, 0.35, 0.7, 1.0],
+                  colors: isDark
+                      ? const [
+                          Color(0xFF040b16),
+                          Color(0xFF081b33),
+                          Color(0xFF0d2a4a),
+                          Color(0xFF06111f),
+                        ]
+                      : const [
+                          Color(0xFFeaf2fb),
+                          Color(0xFFF2F7FF),
+                          Color(0xFFF8FBFF),
+                          Color(0xFFe0edfa),
+                        ],
+                ),
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+
+          // Layer 2 — ambient radial glow (pulsing)
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _glowCtrl,
+              builder: (context, _) => Center(
+                child: Container(
+                  width: 340,
+                  height: 340,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        accentColor.withValues(
+                          alpha: (isDark ? 0.12 : 0.10) * _glowPulse.value,
+                        ),
+                        accentColor.withValues(alpha: 0),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          // Layer 3 — main content
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildLogo(isDark, accentColor),
+                    const SizedBox(height: 28),
+                    _buildAppName(theme, isDark),
+                    const SizedBox(height: 16),
+                    _buildTagline(theme, isDark),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Layer 4 — thin horizontal progress line
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 48, vertical: 28),
+                child: AnimatedBuilder(
+                  animation: _progressCtrl,
+                  builder: (context, _) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(1.5),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          height: 3,
+                          width:
+                              (screenWidth - 96) * _progress.value,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(1.5),
+                            gradient: LinearGradient(
+                              colors: isDark
+                                  ? [
+                                      const Color(0xFF0075be),
+                                      const Color(0xFF009dd7),
+                                    ]
+                                  : [
+                                      const Color(0xFF009dd7),
+                                      const Color(0xFF0075be),
+                                    ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Widget helpers ─────────────────────────────────────────────────────
+
+  Widget _buildLogo(bool isDark, Color accent) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_logoCtrl, _glowCtrl]),
+      builder: (context, _) {
+        return Opacity(
+          opacity: _logoFade.value,
+          child: Transform.scale(
+            scale: _logoScale.value,
+            child: SizedBox(
+              width: 190,
+              height: 190,
+              child: Stack(
+                alignment: Alignment.center,
                 children: [
-                  const InsightBooksLogo(size: 140),
-                  const SizedBox(height: 28),
-                  Text(
-                    kAppDisplayName,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                      color: isDark
-                          ? Colors.white
-                          : const Color(0xFF005ba1),
+                  // Pulsing glow ring
+                  Container(
+                    width: 180,
+                    height: 180,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          accent.withValues(
+                            alpha: 0.22 * _glowPulse.value,
+                          ),
+                          accent.withValues(alpha: 0.06 * _glowPulse.value),
+                          accent.withValues(alpha: 0),
+                        ],
+                        stops: const [0.45, 0.75, 1.0],
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    kAppTagline,
-                    textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyLarge?.copyWith(
-                      height: 1.45,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.88)
-                          : const Color(0xFF334155),
+                  // Outer subtle ring
+                  Container(
+                    width: 160,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: accent.withValues(
+                          alpha: 0.08 + 0.08 * _glowPulse.value,
+                        ),
+                        width: 1.5,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 40),
-                  SizedBox(
-                    width: 28,
-                    height: 28,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: isDark
-                          ? const Color(0xFF009dd7)
-                          : const Color(0xFF0075be),
-                    ),
-                  ),
+                  const InsightBooksLogo(size: 120),
                 ],
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAppName(ThemeData theme, bool isDark) {
+    return AnimatedBuilder(
+      animation: _nameCtrl,
+      builder: (context, _) {
+        return Opacity(
+          opacity: _nameFade.value,
+          child: Transform.translate(
+            offset: _nameSlide.value,
+            child: Text(
+              kAppDisplayName,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.5,
+                color:
+                    isDark ? Colors.white : const Color(0xFF005ba1),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildTagline(ThemeData theme, bool isDark) {
+    return AnimatedBuilder(
+      animation: _taglineCtrl,
+      builder: (context, _) {
+        return Opacity(
+          opacity: _taglineFade.value,
+          child: Text(
+            kAppTagline,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyLarge?.copyWith(
+              height: 1.45,
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.88)
+                  : const Color(0xFF334155),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -188,7 +188,7 @@ const SaleReceipt = ({ sale, onPrint, onClose, companyInfo = null, businessSetti
 
             {/* Receipt Title */}
             <div style={{
-              fontSize: '12px',
+              fontSize: '9px',
               fontWeight: 'bold',
               margin: '8px 0',
               textAlign: 'center',

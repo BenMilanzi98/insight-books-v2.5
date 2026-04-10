@@ -123,7 +123,7 @@ export default function VerifyEmailClient() {
         setError(data.error || "Could not resend code");
         return;
       }
-      setSuccess("A new verification code has been sent to your email.");
+      setSuccess("A new verification code has been sent. Check your inbox and spam folder.");
       setResendCooldown(60);
       setOtp(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
@@ -158,8 +158,8 @@ export default function VerifyEmailClient() {
           <div className="mt-10 max-w-sm">
             <h2 className="text-3xl font-bold mb-4">Almost there!</h2>
             <p className="text-indigo-200 mb-10">
-              We sent a 6-digit verification code to your email. Enter it to activate your
-              2-day free trial.
+              We sent a 6-digit verification code to your email. Check your inbox and spam
+              folder, then enter the code to activate your 2-day free trial.
             </p>
             <div className="space-y-6">
               <div className="flex items-start gap-4">
@@ -207,7 +207,8 @@ export default function VerifyEmailClient() {
               </div>
               <h1 className="text-2xl font-bold text-gray-900">Check your email</h1>
               <p className="text-gray-500 mt-2">
-                We sent a code to <span className="font-medium text-gray-700">{email}</span>
+                We sent a code to <span className="font-medium text-gray-700">{email}</span>.
+                Check your inbox and spam folder.
               </p>
             </div>
 

@@ -103,7 +103,20 @@ class MainLayout extends ConsumerWidget {
       body: Row(
         children: [
           if (isDesktop) const AppDrawer(isPermanent: true),
-          Expanded(child: child),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: KeyedSubtree(
+                key: ValueKey(location),
+                child: child,
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: isDesktop || visibleBottom.isEmpty

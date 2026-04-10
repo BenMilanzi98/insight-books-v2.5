@@ -88,6 +88,13 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.light,
     visualDensity: VisualDensity.adaptivePlatformDensity,
+    splashFactory: InkSparkle.splashFactory,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
     colorScheme: ColorScheme.fromSeed(
       seedColor: primary,
       brightness: Brightness.light,
@@ -105,7 +112,6 @@ class AppTheme {
       surfaceContainer: const Color(0xFFF8FAFC),
     ),
     scaffoldBackgroundColor: backgroundLight,
-    canvasColor: backgroundLight,
     appBarTheme: const AppBarTheme(
       backgroundColor: surfaceLight,
       foregroundColor: textPrimaryLight,
@@ -230,6 +236,29 @@ class AppTheme {
       backgroundColor: surfaceLight,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: surfaceLight,
+      indicatorColor: primary.withValues(alpha: 0.12),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: primary);
+        }
+        return const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondaryLight);
+      }),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: primary,
+      foregroundColor: Colors.white,
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: primary,
+      linearTrackColor: Color(0xFFE5E7EB),
     ),
     textSelectionTheme: const TextSelectionThemeData(
       cursorColor: primaryDark,
@@ -258,6 +287,13 @@ class AppTheme {
     useMaterial3: true,
     brightness: Brightness.dark,
     visualDensity: VisualDensity.adaptivePlatformDensity,
+    splashFactory: InkSparkle.splashFactory,
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      },
+    ),
     colorScheme: ColorScheme.dark(
       primary: accent,
       secondary: secondary,
@@ -273,7 +309,6 @@ class AppTheme {
       surfaceContainer: surfaceDark,
     ),
     scaffoldBackgroundColor: backgroundDark,
-    canvasColor: backgroundDark,
     appBarTheme: const AppBarTheme(
       backgroundColor: surfaceDark,
       foregroundColor: textPrimaryDark,
@@ -398,6 +433,29 @@ class AppTheme {
       backgroundColor: surfaceDark,
       surfaceTintColor: Colors.transparent,
       showDragHandle: true,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: surfaceDark,
+      indicatorColor: accent.withValues(alpha: 0.12),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) {
+          return const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent);
+        }
+        return const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: textSecondaryDark);
+      }),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: accent,
+      foregroundColor: const Color(0xFF0F172A),
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    progressIndicatorTheme: const ProgressIndicatorThemeData(
+      color: accent,
+      linearTrackColor: borderDark,
     ),
     textSelectionTheme: const TextSelectionThemeData(
       cursorColor: accent,
