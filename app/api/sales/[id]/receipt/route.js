@@ -315,8 +315,35 @@ export async function GET(request, { params }) {
 
     // Create the HTML receipt — 80 mm thermal roll, styled to match branded receipt template
     const cur = tenantSettings?.currencyCode || 'MWK';
+    /** Same height clamp as auto-print path, without window.print() (Android WebView / in-app preview). */
+    const receiptLayoutClampScript = `<script>
+(function(){
+  function clamp(){
+    var el=document.documentElement,b=document.body;
+    var paper=document.querySelector('.paper');
+    var h=paper?(paper.offsetTop+paper.offsetHeight):Math.max(b.scrollHeight,b.offsetHeight,el.scrollHeight,el.offsetHeight);
+    h=Math.ceil(h);
+    if(h>0){el.style.height=h+'px';b.style.height=h+'px';el.style.minHeight='0';b.style.minHeight='0';}
+    el.style.overflow='hidden';b.style.overflow='hidden';
+  }
+  function whenImgsReady(cb){
+    var imgs=document.images,n=0,done=0;
+    for(var i=0;i<imgs.length;i++)if(!imgs[i].complete)n++;
+    if(n===0)return cb();
+    function one(){done++;if(done>=n)cb();}
+    for(var j=0;j<imgs.length;j++)if(!imgs[j].complete){imgs[j].onload=imgs[j].onerror=one;}
+  }
+  window.addEventListener('beforeprint',clamp);
+  window.onload=function(){
+    var go=function(){whenImgsReady(function(){
+      clamp();setTimeout(clamp,150);setTimeout(clamp,400);
+    });};
+    if(document.fonts&&document.fonts.ready){document.fonts.ready.then(go).catch(go);}else{setTimeout(go,0);}
+  };
+})();
+</script>`;
     const receiptHtml = `<!DOCTYPE html>
-<html lang="en">
+<html lang="en"${suppressAutoPrint ? ' class="receipt-embed"' : ''}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=302,initial-scale=1,maximum-scale=1">
@@ -324,6 +351,7 @@ export async function GET(request, { params }) {
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{background:#94a3b8;height:auto}
+html.receipt-embed,html.receipt-embed body{min-height:0!important;max-height:none}
 /*
  * 80 mm roll → ~72 mm printable → ~272 px at 96 dpi
  * Font A (normal body) ≈ 12 pt = 11 px; Font B (compact) ≈ 9 pt = 8 px
@@ -478,7 +506,7 @@ body{
 </div><!-- /body -->
 </div><!-- /paper -->
 
-${suppressAutoPrint ? '' : `<script>
+${suppressAutoPrint ? receiptLayoutClampScript : `<script>
 (function(){
   function clamp(){
     var el=document.documentElement,b=document.body;

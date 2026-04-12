@@ -8,6 +8,8 @@ import android.print.PrintAttributes
 import android.print.PrintDocumentAdapter
 import android.print.PrintJob
 import android.print.PrintManager
+import android.util.TypedValue
+import android.view.View
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -18,6 +20,15 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
 
+    companion object {
+        /**
+         * Matches server receipt clamp: shrink html/body to `.paper` height so
+         * WebView print does not include a full-screen blank tail.
+         */
+        private const val RECEIPT_CLAMP_JS =
+            "(function(){function c(){var e=document.documentElement,t=document.body,n=document.querySelector('.paper'),i=n?n.offsetTop+n.offsetHeight:Math.max(t.scrollHeight,t.offsetHeight,e.scrollHeight,e.offsetHeight);i=Math.ceil(i);if(i>0){e.style.height=i+'px';t.style.height=i+'px';e.style.minHeight='0';t.style.minHeight='0'}e.style.overflow='hidden';t.style.overflow='hidden'}c();return'1'})();"
+    }
+
     private val channelName =
         "com.insightbooksafrica.insightbooks_android/thermal_receipt_print"
 
@@ -27,15 +38,15 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
-            .setMethodCallHandler { call, result ->
+            .setMethodCallHandler thermalPrint@{ call, result ->
                 if (call.method != "printThermalReceipt") {
                     result.notImplemented()
-                    return@MethodChannel
+                    return@thermalPrint
                 }
                 val url = call.argument<String>("url") ?: ""
                 if (url.isEmpty()) {
                     result.error("BAD_ARGUMENTS", "url is required", null)
-                    return@MethodChannel
+                    return@thermalPrint
                 }
                 val authorization = call.argument<String>("authorization")
                 val cookie = call.argument<String>("cookie")
@@ -126,44 +137,86 @@ class MainActivity : FlutterActivity() {
                 debounced?.let { handler.removeCallbacks(it) }
                 debounced = Runnable {
                     if (started || resultSent) return@Runnable
-                    started = true
-                    try {
-                        val printMgr =
-                            getSystemService(Context.PRINT_SERVICE) as PrintManager
-                        val jobName = "Receipt"
-                        @Suppress("DEPRECATION")
-                        val adapter: PrintDocumentAdapter =
-                            view.createPrintDocumentAdapter(jobName)
-                        val widthMils = (80.0 / 25.4 * 1000.0).toInt()
-                        val heightMils = 11 * 1000
-                        val mediaSize = PrintAttributes.MediaSize(
-                            "ROLL_80MM",
-                            "80mm thermal",
-                            widthMils,
-                            heightMils,
-                        )
-                        val attrs = PrintAttributes.Builder()
-                            .setMediaSize(mediaSize)
-                            .setResolution(
-                                PrintAttributes.Resolution(
-                                    "thermal",
-                                    "thermal",
-                                    203,
-                                    203,
-                                ),
-                            )
-                            .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-                            .build()
-                        val printJob: PrintJob =
-                            printMgr.print(jobName, adapter, attrs)
-                        sendSuccess()
-                        scheduleWebViewCleanupAfterPrint(printJob, view, handler)
-                    } catch (e: Exception) {
-                        sendError("PRINT_FAILED", e.message)
-                        cleanupWebViewDelayed(view, delayMs = 500L)
+                    view.evaluateJavascript(RECEIPT_CLAMP_JS) { _ ->
+                        handler.post {
+                            if (started || resultSent) return@post
+                            try {
+                                val metrics = view.resources.displayMetrics
+                                val widthPx = TypedValue.applyDimension(
+                                    TypedValue.COMPLEX_UNIT_MM,
+                                    80f,
+                                    metrics,
+                                ).toInt().coerceAtLeast(200)
+
+                                fun measureContentHeight(): Int {
+                                    view.measure(
+                                        View.MeasureSpec.makeMeasureSpec(
+                                            widthPx,
+                                            View.MeasureSpec.EXACTLY,
+                                        ),
+                                        View.MeasureSpec.makeMeasureSpec(
+                                            0,
+                                            View.MeasureSpec.UNSPECIFIED,
+                                        ),
+                                    )
+                                    return view.measuredHeight
+                                        .coerceAtLeast(view.contentHeight)
+                                        .coerceAtLeast(1)
+                                }
+
+                                var contentH = measureContentHeight()
+                                view.layout(0, 0, widthPx, contentH)
+                                contentH = measureContentHeight()
+                                view.layout(0, 0, widthPx, contentH)
+
+                                started = true
+
+                                val printMgr =
+                                    getSystemService(Context.PRINT_SERVICE) as PrintManager
+                                val jobName = "Receipt"
+                                @Suppress("DEPRECATION")
+                                val adapter: PrintDocumentAdapter =
+                                    view.createPrintDocumentAdapter(jobName)
+                                val widthMils = (80.0 / 25.4 * 1000.0).toInt()
+                                // Match printed length to laid-out content vs 80mm width (avoids dpi/CSS px mismatch).
+                                val heightMils = (contentH.toDouble() / widthPx * widthMils)
+                                    .toInt()
+                                    .coerceIn(1200, 200_000)
+                                val mediaSize = PrintAttributes.MediaSize(
+                                    "ROLL_80MM",
+                                    "80mm thermal",
+                                    widthMils,
+                                    heightMils,
+                                )
+                                val attrs = PrintAttributes.Builder()
+                                    .setMediaSize(mediaSize)
+                                    .setResolution(
+                                        PrintAttributes.Resolution(
+                                            "thermal",
+                                            "thermal",
+                                            203,
+                                            203,
+                                        ),
+                                    )
+                                    .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                                    .build()
+                                val printJob: PrintJob =
+                                    printMgr.print(jobName, adapter, attrs)
+                                sendSuccess()
+                                scheduleWebViewCleanupAfterPrint(
+                                    printJob,
+                                    view,
+                                    handler,
+                                )
+                            } catch (e: Exception) {
+                                started = false
+                                sendError("PRINT_FAILED", e.message)
+                                cleanupWebViewDelayed(view, delayMs = 500L)
+                            }
+                        }
                     }
                 }
-                handler.postDelayed(debounced!!, 500L)
+                handler.postDelayed(debounced!!, 400L)
             }
         }
 
