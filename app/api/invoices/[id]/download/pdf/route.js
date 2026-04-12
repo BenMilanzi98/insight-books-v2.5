@@ -100,7 +100,7 @@ export async function GET(request, { params }) {
       });
     }
 
-    // No pre-rendered PDF found — fall back to server-side jsPDF generation
+    // No pre-rendered PDF — build data for server-side generation
     let template = null;
     if (templateId) {
       template = await prisma.invoiceTemplate.findUnique({
@@ -165,35 +165,56 @@ export async function GET(request, { params }) {
     };
 
     let buffer;
-    try {
-      buffer = await generatePdf(inv, template, branding);
-    } catch (pdfErr) {
-      const pdfMsg = pdfErr?.message || String(pdfErr);
-      console.error('Invoice PDF (jsPDF) failed, falling back to text PDF:', pdfMsg);
-      if (pdfErr?.stack) console.error(pdfErr.stack);
 
-      const lines = [];
-      lines.push(`${branding?.companyName || 'Invoice'}`);
-      lines.push(`Invoice #${invoice.invoiceNumber || invoiceId}`);
-      lines.push(`Client: ${invoice.client?.name || 'N/A'}`);
-      lines.push(`Issue: ${invoice.issueDate ? invoice.issueDate.toISOString?.() || invoice.issueDate : ''}`);
-      lines.push(`Due: ${invoice.dueDate ? invoice.dueDate.toISOString?.() || invoice.dueDate : ''}`);
-      lines.push('');
-      lines.push('Items:');
-      for (const item of inv.items || []) {
-        const qty = Number(item.quantity || 0);
-        const unit = Number(item.unitPrice || 0);
-        const desc = (item.description || '').toString();
-        lines.push(`- ${desc}  (${qty} x ${unit})`);
+    // Strategy 1: Puppeteer HTML rendering (matches website look)
+    try {
+      const { generateInvoiceHtml } = await import('@/lib/server-pdf-html');
+      const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+      const html = generateInvoiceHtml(inv, template, branding);
+      const browser = await launchPuppeteer();
+      const page = await browser.newPage();
+      await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
+      await page.evaluate(() => {
+        const imgs = Array.from(document.images);
+        return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
+      });
+      buffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' } });
+      await browser.close();
+      console.log(`Invoice PDF rendered via Puppeteer (${buffer.length} bytes)`);
+    } catch (puppeteerErr) {
+      console.warn('Invoice PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
+
+      // Strategy 2: jsPDF programmatic generation
+      try {
+        buffer = await generatePdf(inv, template, branding);
+      } catch (pdfErr) {
+        const pdfMsg = pdfErr?.message || String(pdfErr);
+        console.error('Invoice PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+
+        // Strategy 3: plain-text fallback
+        const lines = [];
+        lines.push(`${branding?.companyName || 'Invoice'}`);
+        lines.push(`Invoice #${invoice.invoiceNumber || invoiceId}`);
+        lines.push(`Client: ${invoice.client?.name || 'N/A'}`);
+        lines.push(`Issue: ${invoice.issueDate ? invoice.issueDate.toISOString?.() || invoice.issueDate : ''}`);
+        lines.push(`Due: ${invoice.dueDate ? invoice.dueDate.toISOString?.() || invoice.dueDate : ''}`);
+        lines.push('');
+        lines.push('Items:');
+        for (const item of inv.items || []) {
+          const qty = Number(item.quantity || 0);
+          const unit = Number(item.unitPrice || 0);
+          const desc = (item.description || '').toString();
+          lines.push(`- ${desc}  (${qty} x ${unit})`);
+        }
+        lines.push('');
+        lines.push(`Subtotal: ${inv.subtotal}`);
+        lines.push(`Tax: ${inv.taxAmount}`);
+        lines.push(`TOTAL: ${inv.total}`);
+        lines.push('');
+        lines.push('This PDF is a fallback (reduced formatting).');
+        lines.push(`PDF error: ${pdfMsg}`);
+        buffer = textToMinimalPdf(lines.join('\n'));
       }
-      lines.push('');
-      lines.push(`Subtotal: ${inv.subtotal}`);
-      lines.push(`Tax: ${inv.taxAmount}`);
-      lines.push(`TOTAL: ${inv.total}`);
-      lines.push('');
-      lines.push('This PDF is a fallback (reduced formatting).');
-      lines.push(`PDF error: ${pdfMsg}`);
-      buffer = textToMinimalPdf(lines.join('\n'));
     }
 
     return new NextResponse(buffer, {

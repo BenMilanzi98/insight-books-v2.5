@@ -77,7 +77,7 @@ export async function GET(request, { params }) {
       });
     }
 
-    // No pre-rendered PDF found — fall back to server-side jsPDF generation
+    // No pre-rendered PDF — build data for server-side generation
     let template = null;
     if (templateId) {
       template = await prisma.invoiceTemplate.findUnique({
@@ -160,35 +160,56 @@ export async function GET(request, { params }) {
     };
 
     let buffer;
-    try {
-      buffer = await generateQuotationPdf(preparedQuotation, template, branding);
-    } catch (pdfErr) {
-      const pdfMsg = pdfErr?.message || String(pdfErr);
-      console.error('Quotation PDF (jsPDF) failed, falling back to text PDF:', pdfMsg);
-      if (pdfErr?.stack) console.error(pdfErr.stack);
 
-      const lines = [];
-      lines.push(`${branding?.companyName || 'Quotation'}`);
-      lines.push(`Quotation #${preparedQuotation.quotationNumber || quotationId}`);
-      lines.push(`Client: ${preparedQuotation.client?.name || 'N/A'}`);
-      lines.push(`Issue: ${preparedQuotation.issueDate || ''}`);
-      lines.push(`Valid until: ${preparedQuotation.validUntil || ''}`);
-      lines.push('');
-      lines.push('Items:');
-      for (const item of preparedQuotation.items || []) {
-        const qty = Number(item.quantity || 0);
-        const unit = Number(item.unitPrice || 0);
-        const desc = (item.description || '').toString();
-        lines.push(`- ${desc}  (${qty} x ${unit})`);
+    // Strategy 1: Puppeteer HTML rendering (matches website look)
+    try {
+      const { generateQuotationHtml } = await import('@/lib/server-pdf-html');
+      const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+      const html = generateQuotationHtml(preparedQuotation, template, branding);
+      const browser = await launchPuppeteer();
+      const page = await browser.newPage();
+      await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
+      await page.evaluate(() => {
+        const imgs = Array.from(document.images);
+        return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
+      });
+      buffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' } });
+      await browser.close();
+      console.log(`Quotation PDF rendered via Puppeteer (${buffer.length} bytes)`);
+    } catch (puppeteerErr) {
+      console.warn('Quotation PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
+
+      // Strategy 2: jsPDF programmatic generation
+      try {
+        buffer = await generateQuotationPdf(preparedQuotation, template, branding);
+      } catch (pdfErr) {
+        const pdfMsg = pdfErr?.message || String(pdfErr);
+        console.error('Quotation PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+
+        // Strategy 3: plain-text fallback
+        const lines = [];
+        lines.push(`${branding?.companyName || 'Quotation'}`);
+        lines.push(`Quotation #${preparedQuotation.quotationNumber || quotationId}`);
+        lines.push(`Client: ${preparedQuotation.client?.name || 'N/A'}`);
+        lines.push(`Issue: ${preparedQuotation.issueDate || ''}`);
+        lines.push(`Valid until: ${preparedQuotation.validUntil || ''}`);
+        lines.push('');
+        lines.push('Items:');
+        for (const item of preparedQuotation.items || []) {
+          const qty = Number(item.quantity || 0);
+          const unit = Number(item.unitPrice || 0);
+          const desc = (item.description || '').toString();
+          lines.push(`- ${desc}  (${qty} x ${unit})`);
+        }
+        lines.push('');
+        lines.push(`Subtotal: ${preparedQuotation.subtotal}`);
+        lines.push(`Tax: ${preparedQuotation.taxAmount}`);
+        lines.push(`TOTAL: ${preparedQuotation.total}`);
+        lines.push('');
+        lines.push('This PDF is a fallback (reduced formatting).');
+        lines.push(`PDF error: ${pdfMsg}`);
+        buffer = textToMinimalPdf(lines.join('\n'));
       }
-      lines.push('');
-      lines.push(`Subtotal: ${preparedQuotation.subtotal}`);
-      lines.push(`Tax: ${preparedQuotation.taxAmount}`);
-      lines.push(`TOTAL: ${preparedQuotation.total}`);
-      lines.push('');
-      lines.push('This PDF is a fallback (reduced formatting).');
-      lines.push(`PDF error: ${pdfMsg}`);
-      buffer = textToMinimalPdf(lines.join('\n'));
     }
 
     return new NextResponse(buffer, {
