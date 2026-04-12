@@ -43,15 +43,27 @@ class InsightBooksApp extends ConsumerWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: router,
-      builder: (context, child) =>
-          AppUpdateGate(child: child ?? const SizedBox.shrink()),
+      builder: (context, child) {
+        // GoRouter can pass null briefly; an empty [SizedBox] yields a blank screen.
+        final content = child ??
+            const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+        return AppUpdateGate(child: content);
+      },
     );
 
+    // [Banner] calls [Directionality.of]; it must sit *under* a [Directionality].
+    // [MaterialApp] only inserts directionality inside itself, so wrapping the app
+    // in [Banner] above [MaterialApp] crashed release builds on startup.
     if (isDevEnvironment) {
-      app = Banner(
-        message: 'DEV',
-        location: BannerLocation.topEnd,
-        child: app,
+      app = Directionality(
+        textDirection: TextDirection.ltr,
+        child: Banner(
+          message: 'DEV',
+          location: BannerLocation.topEnd,
+          child: app,
+        ),
       );
     }
 

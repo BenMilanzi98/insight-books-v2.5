@@ -54,7 +54,9 @@ String firstAccessibleRoute(
   if (satisfiesPermission(permissions, 'stock.view')) return '/stock';
   if (hasPermission(permissions, 'reports.view')) return '/reports';
   if (hasPermission(permissions, 'payments.view')) return '/payments';
-  return '/pos';
+  // Do not send users to `/pos` (or any guarded shell route) without the matching
+  // permission — that causes an infinite GoRouter redirect and a blank screen.
+  return '/access-denied';
 }
 
 /// Returns the permission key for the current path, or null if no rule / open.

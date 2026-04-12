@@ -7,6 +7,7 @@ import 'package:insightbooks_android/core/security/permissions_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
 import 'package:insightbooks_android/features/auth/presentation/login_screen.dart';
+import 'package:insightbooks_android/features/auth/presentation/access_denied_screen.dart';
 import 'package:insightbooks_android/features/splash/presentation/splash_screen.dart';
 import 'package:insightbooks_android/features/dashboard/presentation/dashboard_screen.dart';
 import 'package:insightbooks_android/features/pos/presentation/pos_screen.dart';
@@ -90,6 +91,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final isGoingToLogin = state.matchedLocation == '/login';
       final onSplash = state.matchedLocation == '/splash';
+      final onAccessDenied = state.matchedLocation == '/access-denied';
 
       if (isLoading) {
         return null;
@@ -108,6 +110,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       if (!isAuthenticated) return null;
       if (onSplash) return null;
+      // Full-screen route outside ShellRoute: never block on permissions loading
+      // (avoids a blank frame when /api/auth/me is slow or fails).
+      if (onAccessDenied) return null;
       if (permissionAsync.isLoading) return null;
 
       final location = state.matchedLocation;
@@ -148,6 +153,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/login',
         pageBuilder: (context, state) =>
             _FadePage(child: const LoginScreen(), key: state.pageKey),
+      ),
+      GoRoute(
+        path: '/access-denied',
+        pageBuilder: (context, state) => _FadePage(
+          child: const AccessDeniedScreen(),
+          key: state.pageKey,
+        ),
       ),
       ShellRoute(
         builder: (context, state, child) {

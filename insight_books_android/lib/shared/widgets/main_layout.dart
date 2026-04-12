@@ -410,7 +410,9 @@ class AppDrawer extends ConsumerWidget {
       ),
       child: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          // Must be max when using [Expanded] below; [min] + [Expanded] breaks
+          // layout in release and can yield a blank drawer / blank shell.
+          mainAxisSize: MainAxisSize.max,
           children: [
             // Header
             Padding(
