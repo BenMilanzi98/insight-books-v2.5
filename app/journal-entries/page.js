@@ -107,37 +107,35 @@ const JournalEntries = () => {
         startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().split('T')[0];
         endDate = now.toISOString().split('T')[0];
         break;
-      case "This Week":
-        // Start of week (Sunday)
-        const firstDay = new Date(now.setDate(now.getDate() - now.getDay())).toISOString().split('T')[0];
-        startDate = firstDay;
-        endDate = new Date().toISOString().split('T')[0]; // Today
+      case "This Week": {
+        const weekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        startDate = weekStart.toISOString().split('T')[0];
+        endDate = weekEnd.toISOString().split('T')[0];
         break;
+      }
       case "This Month":
         startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const todayMonth = new Date();
-        todayMonth.setHours(23, 59, 59, 999);
-        endDate = todayMonth.toISOString().split('T')[0];
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
         break;
       case "Last Month":
         startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
         endDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
         break;
-      case "This Quarter":
+      case "This Quarter": {
         const quarter = Math.floor(now.getMonth() / 3);
         startDate = new Date(now.getFullYear(), quarter * 3, 1).toISOString().split('T')[0];
-        endDate = new Date().toISOString().split('T')[0];
+        endDate = new Date(now.getFullYear(), (quarter + 1) * 3, 0).toISOString().split('T')[0];
         break;
+      }
       case "This Year":
         startDate = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
-        // Set end date to end of today to include all records
-        const today = new Date();
-        today.setHours(23, 59, 59, 999);
-        endDate = today.toISOString().split('T')[0];
+        endDate = new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
         break;
       default:
         startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        endDate = new Date().toISOString().split('T')[0];
+        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
     }
     
     return { startDate, endDate };

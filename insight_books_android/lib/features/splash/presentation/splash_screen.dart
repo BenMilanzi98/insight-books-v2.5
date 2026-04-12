@@ -22,7 +22,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   // ── Animation controllers ──────────────────────────────────────────────
   late final AnimationController _logoCtrl;
-  late final AnimationController _nameCtrl;
   late final AnimationController _taglineCtrl;
   late final AnimationController _glowCtrl;
   late final AnimationController _progressCtrl;
@@ -30,8 +29,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   // ── Derived animations ─────────────────────────────────────────────────
   late final Animation<double> _logoScale;
   late final Animation<double> _logoFade;
-  late final Animation<double> _nameFade;
-  late final Animation<Offset> _nameSlide;
   late final Animation<double> _taglineFade;
   late final Animation<double> _glowPulse;
   late final Animation<double> _progress;
@@ -54,20 +51,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _logoCtrl, curve: Curves.easeOut),
-    );
-
-    _nameCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _nameFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _nameCtrl, curve: Curves.easeOutCubic),
-    );
-    _nameSlide = Tween<Offset>(
-      begin: const Offset(0, 20),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _nameCtrl, curve: Curves.easeOutCubic),
     );
 
     _taglineCtrl = AnimationController(
@@ -98,11 +81,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void _startAnimations() {
     _logoCtrl.forward();
 
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) _nameCtrl.forward();
-    });
-
-    Future.delayed(const Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 400), () {
       if (mounted) _taglineCtrl.forward();
     });
 
@@ -113,7 +92,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void dispose() {
     _logoCtrl.dispose();
-    _nameCtrl.dispose();
     _taglineCtrl.dispose();
     _glowCtrl.dispose();
     _progressCtrl.dispose();
@@ -239,9 +217,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     _buildLogo(isDark, accentColor),
-                    const SizedBox(height: 28),
-                    _buildAppName(theme, isDark),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 24),
                     _buildTagline(theme, isDark),
                   ],
                 ),
@@ -307,71 +283,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
           opacity: _logoFade.value,
           child: Transform.scale(
             scale: _logoScale.value,
-            child: SizedBox(
-              width: 190,
-              height: 190,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // Pulsing glow ring
-                  Container(
-                    width: 180,
-                    height: 180,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          accent.withValues(
-                            alpha: 0.22 * _glowPulse.value,
-                          ),
-                          accent.withValues(alpha: 0.06 * _glowPulse.value),
-                          accent.withValues(alpha: 0),
-                        ],
-                        stops: const [0.45, 0.75, 1.0],
-                      ),
-                    ),
-                  ),
-                  // Outer subtle ring
-                  Container(
-                    width: 160,
-                    height: 160,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: accent.withValues(
-                          alpha: 0.08 + 0.08 * _glowPulse.value,
-                        ),
-                        width: 1.5,
-                      ),
-                    ),
-                  ),
+            child: Image.asset(
+              'assets/branding/splash_logo.png',
+              width: 280,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+              errorBuilder: (_, __, ___) =>
                   const InsightBooksLogo(size: 120),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildAppName(ThemeData theme, bool isDark) {
-    return AnimatedBuilder(
-      animation: _nameCtrl,
-      builder: (context, _) {
-        return Opacity(
-          opacity: _nameFade.value,
-          child: Transform.translate(
-            offset: _nameSlide.value,
-            child: Text(
-              kAppDisplayName,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.5,
-                color:
-                    isDark ? Colors.white : const Color(0xFF005ba1),
-              ),
             ),
           ),
         );

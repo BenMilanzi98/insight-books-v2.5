@@ -28,16 +28,10 @@ import {
   fetchBalanceSheet, 
   fetchCashFlowStatement,
   fetchTaxSummary,
-  fetchAccountsReceivableAging,
-  fetchAccountsPayableAging,
   fetchExpenseReport,
   fetchSalesReport,
-  fetchInventoryValuation,
   fetchStockMovement,
   fetchPosDailyReport,
-  fetchSalesAnalysis,
-  fetchExpenseAnalysis,
-  fetchProfitabilityAnalysis,
   fetchFinancialRatios,
   fetchAvailableReports,
   exportReport,
@@ -45,24 +39,18 @@ import {
 } from "../services/financialReportingService";
 
 import {
-  FinancialReport,
   ProfitLossReport,
   BalanceSheetReport,
   CashFlowReport,
-  AgingReportTable,
-  PercentageChange,
   TaxSummaryReport,
   StockMovementReport,
   PosDailyReport,
-  SalesAnalysisReport,
-  ExpenseAnalysisReport,
-  ProfitabilityAnalysisReport
 } from "@/components/FinancialReportComponents";
 
 import {ExpenseReport} from "@/components/ExpenseReport";
 import { SalesReport } from "@/components/SalesReport";
 import { formatCurrency } from "@/lib/currencyUtils";
-import {InventoryValuationReport} from "@/components/InventoryValuationReport";
+
 import { FinancialRatiosReport } from "@/components/FinancialRatiosReport";
 import { getTimeframeLabel, formatDate } from "@/lib/dateUtils";
 import PermissionGuard from "@/components/PermissionGuard";
@@ -142,16 +130,10 @@ const FinancialReportingPage = () => {
   const [taxSummary, setTaxSummary] = useState(null);
   const [expenseReport, setExpenseReport] = useState(null);
   const [salesReport, setSalesReport] = useState(null);
-  const [accountsReceivable, setAccountsReceivable] = useState(null);
-  const [accountsPayable, setAccountsPayable] = useState(null);
-  const [inventoryValuation, setInventoryValuation] = useState(null);
   const [stockMovement, setStockMovement] = useState(null);
   const [stockMovementProductId, setStockMovementProductId] = useState(null);
   const [posDailyReport, setPosDailyReport] = useState(null);
   const [posDailyDate, setPosDailyDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [salesAnalysis, setSalesAnalysis] = useState(null);
-  const [expenseAnalysis, setExpenseAnalysis] = useState(null);
-  const [profitabilityAnalysis, setProfitabilityAnalysis] = useState(null);
   const [financialRatios, setFinancialRatios] = useState(null);
   const analyticsLineColors = {
     revenue: '#2563eb',
@@ -420,21 +402,6 @@ const FinancialReportingPage = () => {
             setSalesReport(salesData);
             break;
             
-          case 'accounts-receivable':
-            const arData = await fetchAccountsReceivableAging();
-            setAccountsReceivable(arData);
-            break;
-            
-          case 'accounts-payable':
-            const apData = await fetchAccountsPayableAging();
-            setAccountsPayable(apData);
-            break;
-            
-          case 'inventory-valuation':
-            const inventoryData = await fetchInventoryValuation();
-            setInventoryValuation(inventoryData);
-            break;
-            
           case 'stock-movement':
             const stockMovementData = await fetchStockMovement({ 
               timeframe,
@@ -447,33 +414,6 @@ const FinancialReportingPage = () => {
           case 'pos-daily':
             const posDailyData = await fetchPosDailyReport(posDailyDate);
             setPosDailyReport(posDailyData);
-            break;
-            
-          case 'sales-analysis':
-            const salesAnalysisData = await fetchSalesAnalysis({ 
-              timeframe,
-              groupBy: 'time',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setSalesAnalysis(salesAnalysisData);
-            break;
-            
-          case 'expense-analysis':
-            const expenseAnalysisData = await fetchExpenseAnalysis({ 
-              timeframe,
-              groupBy: 'category',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setExpenseAnalysis(expenseAnalysisData);
-            break;
-            
-          case 'profitability-analysis':
-            const profitabilityData = await fetchProfitabilityAnalysis({ 
-              timeframe,
-              groupBy: 'product',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setProfitabilityAnalysis(profitabilityData);
             break;
             
           case 'financial-ratios':
@@ -593,21 +533,6 @@ const FinancialReportingPage = () => {
             setSalesReport(salesData);
             break;
             
-          case 'accounts-receivable':
-            const arData = await fetchAccountsReceivableAging();
-            setAccountsReceivable(arData);
-            break;
-            
-          case 'accounts-payable':
-            const apData = await fetchAccountsPayableAging();
-            setAccountsPayable(apData);
-            break;
-            
-          case 'inventory-valuation':
-            const inventoryData = await fetchInventoryValuation();
-            setInventoryValuation(inventoryData);
-            break;
-            
           case 'stock-movement':
             const stockMovementData = await fetchStockMovement({ 
               timeframe,
@@ -620,33 +545,6 @@ const FinancialReportingPage = () => {
           case 'pos-daily':
             const posDailyData = await fetchPosDailyReport(posDailyDate);
             setPosDailyReport(posDailyData);
-            break;
-            
-          case 'sales-analysis':
-            const salesAnalysisData = await fetchSalesAnalysis({ 
-              timeframe,
-              groupBy: 'time',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setSalesAnalysis(salesAnalysisData);
-            break;
-            
-          case 'expense-analysis':
-            const expenseAnalysisData = await fetchExpenseAnalysis({ 
-              timeframe,
-              groupBy: 'category',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setExpenseAnalysis(expenseAnalysisData);
-            break;
-            
-          case 'profitability-analysis':
-            const profitabilityData = await fetchProfitabilityAnalysis({ 
-              timeframe,
-              groupBy: 'product',
-              customDateRange: timeframe === 'custom' ? customDateRange : null
-            });
-            setProfitabilityAnalysis(profitabilityData);
             break;
             
           case 'financial-ratios':
@@ -747,43 +645,6 @@ const FinancialReportingPage = () => {
           />
         );
         
-      case 'accounts-receivable':
-        return (
-          <AgingReportTable
-            data={accountsReceivable}
-            title="Accounts Receivable Aging"
-            type="receivable"
-            loading={loading}
-            error={error}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'accounts-receivable-aging')}
-          />
-        );
-        
-      case 'accounts-payable':
-        return (
-          <AgingReportTable
-            data={accountsPayable}
-            title="Accounts Payable Aging"
-            type="payable"
-            loading={loading}
-            error={error}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'accounts-payable-aging')}
-          />
-        );
-
-      case 'inventory-valuation':
-        return (
-          <InventoryValuationReport
-            data={inventoryValuation}
-            loading={loading}
-            error={error}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'inventory-valuation')}
-          />
-        );
-
       case 'stock-movement':
         return (
           <StockMovementReport
@@ -809,45 +670,6 @@ const FinancialReportingPage = () => {
             onDateChange={setPosDailyDate}
             onRefresh={handleRefresh}
             onExport={(format) => handleExportReport(format, 'pos-daily')}
-          />
-        );
-
-      case 'sales-analysis':
-        return (
-          <SalesAnalysisReport
-            data={salesAnalysis}
-            loading={loading}
-            error={error}
-            timeframe={timeframe}
-            onTimeframeChange={handleTimeframeChange}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'sales-analysis')}
-          />
-        );
-
-      case 'expense-analysis':
-        return (
-          <ExpenseAnalysisReport
-            data={expenseAnalysis}
-            loading={loading}
-            error={error}
-            timeframe={timeframe}
-            onTimeframeChange={handleTimeframeChange}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'expense-analysis')}
-          />
-        );
-
-      case 'profitability-analysis':
-        return (
-          <ProfitabilityAnalysisReport
-            data={profitabilityAnalysis}
-            loading={loading}
-            error={error}
-            timeframe={timeframe}
-            onTimeframeChange={handleTimeframeChange}
-            onRefresh={handleRefresh}
-            onExport={(format) => handleExportReport(format, 'profitability-analysis')}
           />
         );
 
@@ -1307,8 +1129,6 @@ const FinancialReportingPage = () => {
           </div>
         </div>
 
-        {renderAnalyticsPanel()}
-
         {/* Quick reports */}
         <div>
           <h3 className="text-base font-semibold text-slate-800 mb-4">Quick reports</h3>
@@ -1365,7 +1185,7 @@ const FinancialReportingPage = () => {
               <div>
                 <h3 className="text-lg font-semibold mb-1">All reports</h3>
                 <p className="text-slate-300 text-sm">
-                  Generate balance sheet, cash flow, tax summary, aging, and more.
+                  Generate balance sheet, cash flow, tax summary, and more.
                 </p>
               </div>
             </div>

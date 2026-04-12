@@ -418,39 +418,38 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
       console.log('Created accumulated depreciation account:', accumulatedDepreciationAccount.id);
     }
     
-    // Get or create opening balances equity account
-    let openingBalancesAccount = await prisma.account.findFirst({
+    // Get or create Owner's Capital equity account
+    let ownersCapitalAccount = await prisma.account.findFirst({
       where: {
         tenantId: tenantId,
-        accountName: { contains: 'Opening Balances Equity', mode: 'insensitive' },
+        accountName: { contains: "Owner's Capital", mode: 'insensitive' },
         accountType: 'Equity',
         isActive: true
       }
     });
     
-    if (!openingBalancesAccount) {
-      openingBalancesAccount = await prisma.account.findFirst({
+    if (!ownersCapitalAccount) {
+      ownersCapitalAccount = await prisma.account.findFirst({
         where: {
           tenantId: tenantId,
-          name: { contains: 'Opening Balances Equity', mode: 'insensitive' },
+          name: { contains: "Owner's Capital", mode: 'insensitive' },
           type: 'EQUITY',
           isActive: true
         }
       });
     }
     
-    if (!openingBalancesAccount) {
-      openingBalancesAccount = await prisma.account.create({
+    if (!ownersCapitalAccount) {
+      ownersCapitalAccount = await prisma.account.create({
         data: {
-          accountCode: '3000',
-          accountName: 'Opening Balances Equity',
+          accountCode: '3100',
+          accountName: "Owner's Capital",
           accountType: 'Equity',
           normalBalance: 'Credit',
           isActive: true,
           tenantId: tenantId
         }
       });
-      console.log('Created opening balances account:', openingBalancesAccount.id);
     }
     
     if (entryType === 'purchase') {
@@ -467,10 +466,10 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
             description: `Owner contribution — ${asset.name}`
           },
           {
-            accountId: openingBalancesAccount.id,
+            accountId: ownersCapitalAccount.id,
             debitAmount: 0,
             creditAmount: asset.originalCost,
-            description: `Owner equity — ${asset.name}`
+            description: `Owner's Capital — ${asset.name}`
           }
         ], `Owner Contribution — ${asset.name}`, tenantId, userId, purchaseDate, referenceNumber);
         
@@ -479,7 +478,7 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
           const depReferenceNumber = await generateReferenceNumber(prisma, tenantId, purchaseDate);
           await createTransactionWithEntries([
             {
-              accountId: openingBalancesAccount.id,
+              accountId: ownersCapitalAccount.id,
               debitAmount: asset.accumulatedDepreciation,
               creditAmount: 0,
               description: `Opening balance - Accumulated Depreciation for ${asset.name}`

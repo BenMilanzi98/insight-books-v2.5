@@ -182,7 +182,7 @@ export const FinancialSummaryPanel = ({
       icon: <CreditCard size={16} />,
       iconColor: 'text-orange-500',
       subtitle: `${data.outstandingInvoices?.count || 0} unpaid invoice(s)`,
-      onClick: () => onViewReport?.('accounts-receivable')
+      onClick: () => onViewReport?.('sales-report')
     }
   ];
   
@@ -219,7 +219,7 @@ export const FinancialSummaryPanel = ({
       icon: <AlertCircle size={16} />,
       iconColor: 'text-amber-500',
       subtitle: 'Below reorder point',
-      onClick: () => onViewReport?.('inventory-valuation')
+      onClick: () => onViewReport?.('stock-movement')
     });
   }
   

@@ -415,33 +415,12 @@ class AppDrawer extends ConsumerWidget {
             // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.95),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const InsightBooksLogo(size: 36),
-                  ),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      kAppDisplayName,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.3,
-                          ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
+              child: Image.asset(
+                'assets/branding/splash_logo.png',
+                height: 44,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                errorBuilder: (_, __, ___) => const InsightBooksLogo(size: 36),
               ),
             ),
             const Divider(height: 1, color: Colors.white12),

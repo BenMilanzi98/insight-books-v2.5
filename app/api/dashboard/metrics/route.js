@@ -73,11 +73,10 @@ export async function GET(request) {
       }
       
       case 'thisWeek': {
-        const dayOfWeek = now.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         currentPeriodStart = new Date(now);
-        currentPeriodStart.setDate(now.getDate() - daysToMonday);
-        // Previous week
+        currentPeriodStart.setDate(now.getDate() - now.getDay());
+        currentPeriodEnd = new Date(currentPeriodStart);
+        currentPeriodEnd.setDate(currentPeriodStart.getDate() + 6);
         previousPeriodStart = new Date(currentPeriodStart);
         previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
         previousPeriodEnd = new Date(currentPeriodStart);
@@ -86,16 +85,12 @@ export async function GET(request) {
       }
       
       case 'lastWeek': {
-        const dayOfWeek = now.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const thisWeekStart = new Date(now);
-        thisWeekStart.setDate(now.getDate() - daysToMonday);
-        // Last week's data
-        currentPeriodStart = new Date(thisWeekStart);
-        currentPeriodStart.setDate(thisWeekStart.getDate() - 7);
-        currentPeriodEnd = new Date(thisWeekStart);
-        currentPeriodEnd.setDate(thisWeekStart.getDate() - 1);
-        // Week before last week
+        const thisWeekSun = new Date(now);
+        thisWeekSun.setDate(now.getDate() - now.getDay());
+        currentPeriodStart = new Date(thisWeekSun);
+        currentPeriodStart.setDate(thisWeekSun.getDate() - 7);
+        currentPeriodEnd = new Date(thisWeekSun);
+        currentPeriodEnd.setDate(thisWeekSun.getDate() - 1);
         previousPeriodStart = new Date(currentPeriodStart);
         previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
         previousPeriodEnd = new Date(currentPeriodStart);
@@ -105,6 +100,7 @@ export async function GET(request) {
       
       case 'thisMonth': {
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
         // Previous month
         previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         previousPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth(), 0));
@@ -124,6 +120,7 @@ export async function GET(request) {
       case 'thisQuarter': {
         const currentQuarter = Math.floor(now.getMonth() / 3);
         currentPeriodStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
+        currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), (currentQuarter + 1) * 3, 0));
         // Previous quarter
         const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
         const prevQuarterYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();

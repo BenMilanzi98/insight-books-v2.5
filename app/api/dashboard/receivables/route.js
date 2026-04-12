@@ -68,10 +68,8 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'thisWeek': {
-        const dayOfWeek = today.getDay(); // Sunday=0..Saturday=6
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         startDate = new Date(today);
-        startDate.setDate(today.getDate() - daysToMonday);
+        startDate.setDate(today.getDate() - today.getDay());
         startDate.setHours(0, 0, 0, 0);
         endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
@@ -101,6 +99,7 @@ export async function GET(request) {
         endDate = new Date(today.getFullYear(), today.getMonth(), 0);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisQuarter':
       case 'quarter':
         const currentQuarter = Math.floor(today.getMonth() / 3);
         startDate = new Date(today.getFullYear(), currentQuarter * 3, 1);

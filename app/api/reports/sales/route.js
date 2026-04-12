@@ -29,14 +29,19 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
     
     // Get sales data - filter by branch
     const sales = await prisma.sale.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
         saleDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
+          gte: start,
+          lte: end
         }
       }),
       include: {
@@ -60,8 +65,8 @@ export async function GET(request) {
           in: ['Paid', 'Pending']
         },
         issueDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
+          gte: start,
+          lte: end
         }
       }),
       include: {

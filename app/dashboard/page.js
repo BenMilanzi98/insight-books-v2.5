@@ -886,9 +886,12 @@ const BusinessOwnerDashboard = () => {
       case 'thisWeek': return 'thisWeek';
       case 'thisMonth': return 'thisMonth';
       case 'lastMonth': return 'lastMonth';
+      case 'thisQuarter': return 'thisQuarter';
+      case 'lastQuarter': return 'lastQuarter';
       case 'thisYear': return 'thisYear';
+      case 'lastYear': return 'lastYear';
       case 'custom': return 'custom';
-      default: return 'thisMonth';
+      default: return range;
     }
   };
 
@@ -900,7 +903,10 @@ const BusinessOwnerDashboard = () => {
       case 'thisWeek': return 'week';
       case 'thisMonth': return 'month';
       case 'lastMonth': return 'month';
+      case 'thisQuarter': return 'quarter';
+      case 'lastQuarter': return 'quarter';
       case 'thisYear': return 'year';
+      case 'lastYear': return 'year';
       case 'custom': return 'custom range';
       default: return 'month';
     }

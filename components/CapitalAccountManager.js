@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { AlertCircle, Check, DollarSign, ArrowRightLeft, TrendingUp, Wallet, Clock, ArrowUpRight, ArrowDownRight, Edit, Trash2, Save, X } from "lucide-react";
+import { AlertCircle, Check, DollarSign, ArrowRightLeft, TrendingUp, Wallet, Clock, ArrowUpRight, ArrowDownRight, Edit, Trash2, Save, X, PlusCircle, Building2, Banknote } from "lucide-react";
 import { paymentMethods } from "@/lib/paymentMethods";
 
 const CapitalAccountManager = () => {
@@ -30,6 +30,22 @@ const CapitalAccountManager = () => {
     description: "",
     date: new Date().toISOString().split('T')[0]
   });
+
+  const [showContributionModal, setShowContributionModal] = useState(false);
+  const [isSubmittingContribution, setIsSubmittingContribution] = useState(false);
+  const [contributionData, setContributionData] = useState({
+    type: "cash",
+    amount: "",
+    date: new Date().toISOString().split('T')[0],
+    description: "",
+    cashAccountId: "",
+    assetName: "",
+    assetType: "",
+    assetAccountId: ""
+  });
+  const [contributions, setContributions] = useState([]);
+  const [contributionSummary, setContributionSummary] = useState({ totalCashContributions: 0, totalAssetContributions: 0, totalCapital: 0 });
+  const [assetAccounts, setAssetAccounts] = useState([]);
 
   // Fetch capital account and payment method balances
   useEffect(() => {
@@ -86,6 +102,83 @@ const CapitalAccountManager = () => {
       setError('Failed to load account data');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchContributions = async () => {
+    try {
+      const res = await fetch('/api/capital-account/contributions');
+      if (res.ok) {
+        const data = await res.json();
+        setContributions(data.contributions || []);
+        setContributionSummary(data.summary || { totalCashContributions: 0, totalAssetContributions: 0, totalCapital: 0 });
+      }
+    } catch (e) {
+      console.error('Error fetching contributions:', e);
+    }
+  };
+
+  const fetchAssetAccounts = async () => {
+    try {
+      const res = await fetch('/api/chart-of-accounts');
+      if (res.ok) {
+        const data = await res.json();
+        const accounts = data.accounts || data || [];
+        setAssetAccounts(accounts.filter(a => (a.type || a.accountType || '').toUpperCase() === 'ASSET'));
+      }
+    } catch (e) {
+      console.error('Error fetching asset accounts:', e);
+    }
+  };
+
+  useEffect(() => { fetchContributions(); fetchAssetAccounts(); }, []);
+
+  const handleSubmitContribution = async () => {
+    const amount = parseFloat(contributionData.amount);
+    if (!amount || amount <= 0) {
+      setError('Contribution amount must be greater than zero');
+      return;
+    }
+    setIsSubmittingContribution(true);
+    setError(null);
+    try {
+      const payload = {
+        type: contributionData.type,
+        amount,
+        date: contributionData.date,
+        description: contributionData.description || (contributionData.type === 'cash' ? 'Cash capital contribution' : `Asset contribution — ${contributionData.assetName || contributionData.assetType}`),
+      };
+      if (contributionData.type === 'cash' && contributionData.cashAccountId) {
+        payload.cashAccountId = contributionData.cashAccountId;
+      }
+      if (contributionData.type === 'asset') {
+        if (!contributionData.assetType && !contributionData.assetAccountId) {
+          setError('Please select an asset type or asset account');
+          setIsSubmittingContribution(false);
+          return;
+        }
+        payload.assetName = contributionData.assetName;
+        payload.assetType = contributionData.assetType;
+        if (contributionData.assetAccountId) payload.assetAccountId = contributionData.assetAccountId;
+      }
+      const res = await fetch('/api/capital-account/contributions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setShowContributionModal(false);
+        setContributionData({ type: 'cash', amount: '', date: new Date().toISOString().split('T')[0], description: '', cashAccountId: '', assetName: '', assetType: '', assetAccountId: '' });
+        fetchData();
+        fetchContributions();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to record contribution');
+      }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setIsSubmittingContribution(false);
     }
   };
 
@@ -329,8 +422,16 @@ const CapitalAccountManager = () => {
             </button>
             <button
               type="button"
-              onClick={() => setShowInitialBalanceModal(true)}
+              onClick={() => setShowContributionModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition-colors"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add Contribution
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowInitialBalanceModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-600 text-white font-medium hover:bg-slate-700 transition-colors"
             >
               <DollarSign className="h-4 w-4" />
               Set Initial Balance
@@ -857,6 +958,176 @@ const CapitalAccountManager = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Capital Summary View */}
+      <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
+        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-emerald-600" />
+          Capital Summary
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100">
+            <p className="text-sm font-medium text-emerald-600 uppercase tracking-wider">Cash Contributions</p>
+            <p className="text-xl font-bold text-emerald-900 mt-1">{formatCurrency(contributionSummary.totalCashContributions)}</p>
+          </div>
+          <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+            <p className="text-sm font-medium text-blue-600 uppercase tracking-wider">Asset Contributions</p>
+            <p className="text-xl font-bold text-blue-900 mt-1">{formatCurrency(contributionSummary.totalAssetContributions)}</p>
+          </div>
+          <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100">
+            <p className="text-sm font-medium text-indigo-600 uppercase tracking-wider">Total Capital</p>
+            <p className="text-xl font-bold text-indigo-900 mt-1">{formatCurrency(contributionSummary.totalCapital)}</p>
+          </div>
+        </div>
+        {contributions.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Date</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Type</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Description</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">Account Debited</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Amount</th>
+                  <th className="text-right py-2 px-3 font-semibold text-slate-600">Running Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {contributions.reduce((acc, c) => {
+                  const runningTotal = (acc.length > 0 ? acc[acc.length - 1].runningTotal : 0) + (c.amount || 0);
+                  acc.push({ ...c, runningTotal });
+                  return acc;
+                }, []).map((c) => (
+                  <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                    <td className="py-2 px-3 text-slate-700">{formatDate(c.date)}</td>
+                    <td className="py-2 px-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${c.type === 'cash' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {c.type === 'cash' ? <Banknote className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                        {c.type === 'cash' ? 'Cash' : 'Asset'}
+                      </span>
+                    </td>
+                    <td className="py-2 px-3 text-slate-700">{c.description}</td>
+                    <td className="py-2 px-3 text-slate-500">{c.debitAccountName}</td>
+                    <td className="py-2 px-3 text-right font-medium text-slate-800">{formatCurrency(c.amount)}</td>
+                    <td className="py-2 px-3 text-right font-bold text-indigo-700">{formatCurrency(c.runningTotal)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-slate-400 text-sm text-center py-6">No capital contributions recorded yet.</p>
+        )}
+      </div>
+
+      {/* Contribution Modal */}
+      {showContributionModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowContributionModal(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-200">
+              <h3 className="text-lg font-semibold text-slate-800">Record Capital Contribution</h3>
+              <button type="button" onClick={() => setShowContributionModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="p-5 space-y-4">
+              {error && (
+                <div className="rounded-lg bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 text-sm flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 shrink-0" /> {error}
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Contribution Type</label>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setContributionData(d => ({ ...d, type: 'cash' }))}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-medium transition-colors ${contributionData.type === 'cash' ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                    <Banknote className="h-5 w-5" /> Cash
+                  </button>
+                  <button type="button" onClick={() => setContributionData(d => ({ ...d, type: 'asset' }))}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 font-medium transition-colors ${contributionData.type === 'asset' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'}`}>
+                    <Building2 className="h-5 w-5" /> Asset
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Amount (MWK)</label>
+                <input type="number" min="0" step="0.01" value={contributionData.amount}
+                  onChange={(e) => setContributionData(d => ({ ...d, amount: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                <input type="date" value={contributionData.date}
+                  onChange={(e) => setContributionData(d => ({ ...d, date: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" />
+              </div>
+              {contributionData.type === 'cash' && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Cash / Bank Account (optional)</label>
+                  <select value={contributionData.cashAccountId}
+                    onChange={(e) => setContributionData(d => ({ ...d, cashAccountId: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    <option value="">Auto-detect</option>
+                    {paymentAccounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {contributionData.type === 'asset' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Asset Name</label>
+                    <input type="text" value={contributionData.assetName}
+                      onChange={(e) => setContributionData(d => ({ ...d, assetName: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Office Computer" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Asset Type</label>
+                    <select value={contributionData.assetType}
+                      onChange={(e) => setContributionData(d => ({ ...d, assetType: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <option value="">Select type...</option>
+                      <option value="Equipment">Equipment</option>
+                      <option value="Motor Vehicle">Motor Vehicle</option>
+                      <option value="Furniture">Furniture &amp; Fixtures</option>
+                      <option value="Computer">Computer &amp; Electronics</option>
+                      <option value="Machinery">Machinery</option>
+                      <option value="Software">Software / Intangible</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Asset Account (optional override)</label>
+                    <select value={contributionData.assetAccountId}
+                      onChange={(e) => setContributionData(d => ({ ...d, assetAccountId: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <option value="">Auto-detect from type</option>
+                      {assetAccounts.map(a => (
+                        <option key={a.id} value={a.id}>{a.code ? `${a.code} — ` : ''}{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description (optional)</label>
+                <input type="text" value={contributionData.description}
+                  onChange={(e) => setContributionData(d => ({ ...d, description: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500" placeholder="e.g. Owner invested cash into business" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 p-5 border-t border-slate-200">
+              <button type="button" onClick={() => setShowContributionModal(false)} className="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium">Cancel</button>
+              <button type="button" onClick={handleSubmitContribution} disabled={isSubmittingContribution}
+                className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
+                {isSubmittingContribution ? (
+                  <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> Recording...</>
+                ) : (
+                  <><PlusCircle className="h-4 w-4" /> Record Contribution</>
+                )}
+              </button>
             </div>
           </div>
         </div>

@@ -66,16 +66,15 @@ export async function GET(request) {
         break;
       }
       case 'thisWeek': {
-        const dayOfWeek = now.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         startDate = new Date(now);
-        startDate.setDate(now.getDate() - daysToMonday);
-        endDate = new Date(now);
+        startDate.setDate(now.getDate() - now.getDay());
+        endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + 6);
         break;
       }
       case 'thisMonth': {
         startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
         break;
       }
       case 'lastMonth': {
@@ -83,26 +82,46 @@ export async function GET(request) {
         endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
         break;
       }
+      case 'thisQuarter': {
+        const quarter = Math.floor(now.getMonth() / 3);
+        const qStartMonth = quarter * 3;
+        const qEndMonth = qStartMonth + 2;
+        startDate = new Date(Date.UTC(now.getFullYear(), qStartMonth, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear(), qEndMonth + 1, 0, 23, 59, 59, 999));
+        break;
+      }
+      case 'lastQuarter': {
+        const currentQuarter = Math.floor(now.getMonth() / 3);
+        const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
+        const prevYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
+        const pqStartMonth = prevQuarter * 3;
+        startDate = new Date(Date.UTC(prevYear, pqStartMonth, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(prevYear, pqStartMonth + 3, 0, 23, 59, 59, 999));
+        break;
+      }
       case 'thisYear': {
         startDate = new Date(Date.UTC(now.getFullYear(), 0, 1, 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        endDate = new Date(Date.UTC(now.getFullYear(), 12, 0, 23, 59, 59, 999));
+        break;
+      }
+      case 'lastYear': {
+        startDate = new Date(Date.UTC(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(now.getFullYear() - 1, 12, 0, 23, 59, 59, 999));
         break;
       }
       case 'custom': {
-        // For custom range, use the provided dates
         if (customStartDate && customEndDate) {
           startDate = new Date(customStartDate);
           endDate = new Date(customEndDate);
         } else {
-          // Fallback to this year if no custom dates provided
-          startDate = new Date(now.getFullYear(), 0, 1);
-          endDate = new Date(now);
+          startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
+          endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
         }
         break;
       }
       default: {
         startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
       }
     }
     
@@ -124,7 +143,7 @@ export async function GET(request) {
       });
       months = hourDivisions;
     } else if (dateRange === 'thisWeek') {
-      // For weeks, show daily breakdown (Mon-Sun)
+      // For weeks, show daily breakdown (Sun-Sat)
       const days = Array.from({ length: 7 }, (_, i) => {
         const day = new Date(startDate);
         day.setDate(startDate.getDate() + i);

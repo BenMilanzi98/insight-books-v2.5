@@ -78,11 +78,16 @@ class AuthInterceptor extends QueuedInterceptor {
     ErrorInterceptorHandler handler,
   ) async {
     if (err.response?.statusCode == 401 && !_loggingOut) {
+      final authNotifier = ref.read(authStateProvider.notifier);
+      if (authNotifier.loginInProgress) {
+        handler.next(err);
+        return;
+      }
       _loggingOut = true;
       try {
         await ref.read(storageServiceProvider).clearAuth();
         await clearSharedPreferencesExceptTheme();
-        ref.read(authStateProvider.notifier).forceLogout();
+        authNotifier.forceLogout();
       } catch (e) {
         debugPrint('[AuthInterceptor] Logout cleanup failed: $e');
       } finally {

@@ -528,46 +528,88 @@ body{
     }
 
     if (format === 'pdf') {
-      let buffer;
-      try {
-        const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
-        buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
-      } catch (pdfErr) {
-        const pdfMsg = pdfErr?.message || String(pdfErr);
-        console.error('Receipt PDF (jsPDF) failed, falling back to text PDF:', pdfMsg);
-        if (pdfErr?.stack) console.error(pdfErr.stack);
-
-        const lines = [];
-        lines.push(`${sale.tenant?.name || 'Receipt'}`);
-        lines.push(`Receipt #${sale.saleNumber || saleId}`);
-        lines.push(`Date: ${formatDateDDMMYYYY(sale.saleDate)} ${formatTime(sale.saleDate)}`);
-        lines.push(`Customer: ${sale.client ? sale.client.name : 'Walk-in Customer'}`);
-        lines.push(`Cashier: ${sale.createdBy?.name || ''}`);
-        lines.push('');
-        lines.push('Items:');
-        for (const item of sale.items || []) {
-          const qty = Number(item.quantity || 1);
-          const unit = Number(item.unitPrice || 0);
-          const desc = (item.description || '').toString();
-          lines.push(`- ${desc}  (${qty} x ${unit})`);
-        }
-        lines.push('');
-        lines.push(`Subtotal: ${sale.subtotal}`);
-        lines.push(`Tax: ${sale.totalTaxAmount}`);
-        lines.push(`Discount: ${sale.totalDiscountAmount}`);
-        lines.push(`TOTAL: ${sale.total}`);
-        if (sale.posAmountTendered != null) {
-          lines.push(`Amount tendered: ${sale.posAmountTendered}`);
-          lines.push(`Change: ${sale.posChangeGiven != null ? sale.posChangeGiven : 0}`);
-        }
-        lines.push('');
-        lines.push('This PDF is a fallback (reduced formatting).');
-        lines.push(`PDF error: ${pdfMsg}`);
-        buffer = textToMinimalPdf(lines.join('\n'));
-      }
       const safeSale = (sale.saleNumber || saleId || 'receipt')
         .toString()
         .replace(/[^\w.-]+/g, '_');
+
+      let buffer;
+      try {
+        // Render the same HTML receipt via Puppeteer for pixel-perfect output
+        const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+
+        // Strip the auto-print <script> block so Puppeteer doesn't trigger window.print()
+        const pdfHtml = receiptHtml.replace(/<script[\s\S]*?<\/script>/gi, '');
+
+        const browser = await launchPuppeteer();
+        const page = await browser.newPage();
+        await page.setContent(pdfHtml, PDF_SET_CONTENT_OPTIONS);
+
+        // Wait for any logo images to load
+        await page.evaluate(() => {
+          const imgs = Array.from(document.images);
+          return Promise.all(
+            imgs.filter(i => !i.complete).map(
+              i => new Promise(r => { i.onload = i.onerror = r; })
+            )
+          );
+        });
+
+        // Measure actual content height so the PDF page fits snugly
+        const contentHeight = await page.evaluate(() => {
+          const paper = document.querySelector('.paper');
+          return paper ? paper.scrollHeight : document.body.scrollHeight;
+        });
+
+        buffer = await page.pdf({
+          width: '80mm',
+          height: `${Math.ceil(contentHeight * 0.2646) + 10}mm`,
+          printBackground: true,
+          margin: { top: '2mm', right: '0mm', bottom: '2mm', left: '0mm' },
+        });
+        await browser.close();
+        console.log(`Receipt PDF rendered via Puppeteer (${buffer.length} bytes)`);
+      } catch (puppeteerErr) {
+        console.warn('Receipt PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
+
+        // Fallback 1: jsPDF programmatic receipt
+        try {
+          const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
+          buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
+        } catch (pdfErr) {
+          const pdfMsg = pdfErr?.message || String(pdfErr);
+          console.error('Receipt PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+
+          // Fallback 2: plain-text PDF
+          const lines = [];
+          lines.push(`${sale.tenant?.name || 'Receipt'}`);
+          lines.push(`Receipt #${sale.saleNumber || saleId}`);
+          lines.push(`Date: ${formatDateDDMMYYYY(sale.saleDate)} ${formatTime(sale.saleDate)}`);
+          lines.push(`Customer: ${sale.client ? sale.client.name : 'Walk-in Customer'}`);
+          lines.push(`Cashier: ${sale.createdBy?.name || ''}`);
+          lines.push('');
+          lines.push('Items:');
+          for (const item of sale.items || []) {
+            const qty = Number(item.quantity || 1);
+            const unit = Number(item.unitPrice || 0);
+            const desc = (item.description || '').toString();
+            lines.push(`- ${desc}  (${qty} x ${unit})`);
+          }
+          lines.push('');
+          lines.push(`Subtotal: ${sale.subtotal}`);
+          lines.push(`Tax: ${sale.totalTaxAmount}`);
+          lines.push(`Discount: ${sale.totalDiscountAmount}`);
+          lines.push(`TOTAL: ${sale.total}`);
+          if (sale.posAmountTendered != null) {
+            lines.push(`Amount tendered: ${sale.posAmountTendered}`);
+            lines.push(`Change: ${sale.posChangeGiven != null ? sale.posChangeGiven : 0}`);
+          }
+          lines.push('');
+          lines.push('This PDF is a fallback (reduced formatting).');
+          lines.push(`PDF error: ${pdfMsg}`);
+          buffer = textToMinimalPdf(lines.join('\n'));
+        }
+      }
+
       return new NextResponse(buffer, {
         headers: {
           'Content-Type': 'application/pdf',

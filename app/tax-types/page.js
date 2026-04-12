@@ -91,7 +91,8 @@ export default function TaxTypesPage() {
       case 'thisWeek':
         start = new Date(now);
         start.setDate(now.getDate() - now.getDay());
-        end = new Date(now);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
         break;
       case 'thisMonth':
         start = new Date(now.getFullYear(), now.getMonth(), 1);

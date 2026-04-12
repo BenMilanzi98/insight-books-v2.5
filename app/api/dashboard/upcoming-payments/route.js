@@ -39,7 +39,8 @@ export async function GET(request) {
 
     const now = new Date();
     const dateRangeParam = searchParams.get('dateRange') || 'month';
-    const dateRange = dateRangeParam === 'thisMonth' ? 'month' : dateRangeParam;
+    const normalizeMap = { thisMonth: 'month', thisQuarter: 'quarter', thisYear: 'year' };
+    const dateRange = normalizeMap[dateRangeParam] || dateRangeParam;
     
     // Calculate date range based on the parameter
     let startDate, endDate;

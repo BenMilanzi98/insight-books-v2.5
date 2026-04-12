@@ -53,6 +53,7 @@ export async function GET(request) {
         endDate.setDate(endDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisMonth':
       case 'month':
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -63,6 +64,7 @@ export async function GET(request) {
         endDate = new Date(today.getFullYear(), today.getMonth(), 0);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisQuarter':
       case 'quarter':
         const currentQuarter = Math.floor(today.getMonth() / 3);
         startDate = new Date(today.getFullYear(), currentQuarter * 3, 1);
@@ -77,6 +79,7 @@ export async function GET(request) {
         endDate = new Date(lastQuarterYear, lastQuarterMonth + 3, 0);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisYear':
       case 'year':
         startDate = new Date(today.getFullYear(), 0, 1);
         endDate = new Date(today.getFullYear(), 11, 31);

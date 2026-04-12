@@ -75,14 +75,13 @@ dev_dependencies:
   json_serializable: ^6.13.0
   flutter_launcher_icons: ^0.14.3
 
-# App icon: use 1024x1024 source for sharp scaling. Regenerate with: dart run flutter_launcher_icons
+# App icon: Regenerate with: dart run flutter_launcher_icons
 flutter_launcher_icons:
   android: true
   ios: false
-  image_path: "assets/branding/app_logo.png"
-  # Adaptive icon keeps the graphic clearly visible on modern launchers
-  adaptive_icon_background: "#0c1929"
-  adaptive_icon_foreground: "assets/branding/app_logo.png"
+  image_path: "assets/branding/app_icon.png"
+  adaptive_icon_background: "#3366CC"
+  adaptive_icon_foreground: "assets/branding/app_icon.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -97,6 +96,9 @@ flutter:
 
   assets:
     - assets/branding/app_logo.png
+    - assets/branding/app_icon.png
+    - assets/branding/website_logo.png
+    - assets/branding/splash_logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

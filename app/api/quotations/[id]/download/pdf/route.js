@@ -1,8 +1,38 @@
 import { NextResponse } from 'next/server';
+import fs from 'fs';
+import path from 'path';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateQuotationPdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
+
+/**
+ * Look for a pre-rendered PDF in tmp/ that was uploaded by the website's
+ * html2canvas capture flow. Returns the Buffer if found, otherwise null.
+ */
+function findPreRenderedQuotationPdf(quotationId, quotationNumber) {
+  const tmpDir = path.join(process.cwd(), 'tmp');
+  const candidates = [
+    `quotation-${quotationId}.pdf`,
+    quotationNumber && `quotation-${quotationNumber}.pdf`,
+  ].filter(Boolean);
+
+  for (const name of candidates) {
+    const filePath = path.join(tmpDir, name);
+    if (fs.existsSync(filePath)) {
+      try {
+        const buf = fs.readFileSync(filePath);
+        if (buf.length > 0) {
+          console.log(`Serving pre-rendered quotation PDF: ${name} (${buf.length} bytes)`);
+          return buf;
+        }
+      } catch (readErr) {
+        console.warn(`Could not read pre-rendered PDF ${name}:`, readErr?.message);
+      }
+    }
+  }
+  return null;
+}
 
 export async function GET(request, { params }) {
   try {
@@ -34,6 +64,20 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'Quotation not found' }, { status: 404 });
     }
 
+    const safeName = (quotation.quotationNumber || quotationId).toString().replace(/[^\w.-]+/g, '_');
+
+    // Prefer pre-rendered PDF from tmp/ (uploaded by the website's capture flow)
+    const preRendered = findPreRenderedQuotationPdf(quotationId, quotation.quotationNumber);
+    if (preRendered) {
+      return new NextResponse(preRendered, {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="quotation-${safeName}.pdf"`,
+        },
+      });
+    }
+
+    // No pre-rendered PDF found — fall back to server-side jsPDF generation
     let template = null;
     if (templateId) {
       template = await prisma.invoiceTemplate.findUnique({
@@ -120,7 +164,7 @@ export async function GET(request, { params }) {
       buffer = await generateQuotationPdf(preparedQuotation, template, branding);
     } catch (pdfErr) {
       const pdfMsg = pdfErr?.message || String(pdfErr);
-      console.error('Quotation PDF (puppeteer) failed, falling back to text PDF:', pdfMsg);
+      console.error('Quotation PDF (jsPDF) failed, falling back to text PDF:', pdfMsg);
       if (pdfErr?.stack) console.error(pdfErr.stack);
 
       const lines = [];
@@ -146,7 +190,6 @@ export async function GET(request, { params }) {
       lines.push(`PDF error: ${pdfMsg}`);
       buffer = textToMinimalPdf(lines.join('\n'));
     }
-    const safeName = (quotation.quotationNumber || quotationId).toString().replace(/[^\w.-]+/g, '_');
 
     return new NextResponse(buffer, {
       headers: {

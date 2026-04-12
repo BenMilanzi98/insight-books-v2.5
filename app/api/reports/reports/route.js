@@ -60,20 +60,6 @@ export async function GET(request) {
         lastGenerated: formatDate(yesterday)
       },
       { 
-        id: "accounts-receivable", 
-        name: "Accounts Receivable Aging", 
-        icon: "TrendingUp", 
-        description: "See outstanding customer invoices and how long they've been unpaid",
-        lastGenerated: formatDate(twoDaysAgo)
-      },
-      { 
-        id: "accounts-payable", 
-        name: "Accounts Payable Aging", 
-        icon: "TrendingDown", 
-        description: "Track your unpaid bills and when they're due",
-        lastGenerated: formatDate(twoDaysAgo)
-      },
-      { 
         id: "expense-report", 
         name: "Expense Report", 
         icon: "FileMinus", 
@@ -86,13 +72,6 @@ export async function GET(request) {
         icon: "BarChart", 
         description: "Analysis of your sales performance by product, customer, or time period",
         lastGenerated: formatDate(threeDaysAgo)
-      },
-      { 
-        id: "inventory-valuation", 
-        name: "Inventory Valuation", 
-        icon: "Package", 
-        description: "Calculate the current value of your inventory",
-        lastGenerated: formatDate(fourDaysAgo)
       },
       { 
         id: "financial-ratios", 

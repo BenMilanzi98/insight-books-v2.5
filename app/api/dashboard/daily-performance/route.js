@@ -78,11 +78,11 @@ export async function GET(request) {
         break;
       }
       case 'thisWeek': {
-        const dayOfWeek = now.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         currentPeriodStart = new Date(now);
-        currentPeriodStart.setDate(now.getDate() - daysToMonday);
-        currentPeriodEnd = new Date(now);
+        currentPeriodStart.setDate(now.getDate() - now.getDay());
+        currentPeriodEnd = new Date(currentPeriodStart);
+        currentPeriodEnd.setDate(currentPeriodStart.getDate() + 6);
+        currentPeriodEnd.setHours(23, 59, 59, 999);
         previousPeriodStart = new Date(currentPeriodStart);
         previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
         previousPeriodEnd = new Date(currentPeriodStart);
@@ -90,14 +90,12 @@ export async function GET(request) {
         break;
       }
       case 'lastWeek': {
-        const dayOfWeek = now.getDay();
-        const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const thisWeekStart = new Date(now);
-        thisWeekStart.setDate(now.getDate() - daysToMonday);
-        currentPeriodStart = new Date(thisWeekStart);
-        currentPeriodStart.setDate(thisWeekStart.getDate() - 7);
-        currentPeriodEnd = new Date(thisWeekStart);
-        currentPeriodEnd.setDate(thisWeekStart.getDate() - 1);
+        const thisWeekSun = new Date(now);
+        thisWeekSun.setDate(now.getDate() - now.getDay());
+        currentPeriodStart = new Date(thisWeekSun);
+        currentPeriodStart.setDate(thisWeekSun.getDate() - 7);
+        currentPeriodEnd = new Date(thisWeekSun);
+        currentPeriodEnd.setDate(thisWeekSun.getDate() - 1);
         previousPeriodStart = new Date(currentPeriodStart);
         previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
         previousPeriodEnd = new Date(currentPeriodStart);
@@ -106,7 +104,8 @@ export async function GET(request) {
       }
       case 'thisMonth': {
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        currentPeriodEnd = new Date(now);
+        currentPeriodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        currentPeriodEnd.setHours(23, 59, 59, 999);
         previousPeriodStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         previousPeriodEnd = new Date(now.getFullYear(), now.getMonth(), 0);
         break;
@@ -121,7 +120,8 @@ export async function GET(request) {
       case 'thisQuarter': {
         const currentQuarter = Math.floor(now.getMonth() / 3);
         currentPeriodStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
-        currentPeriodEnd = new Date(now);
+        currentPeriodEnd = new Date(now.getFullYear(), currentQuarter * 3 + 3, 0);
+        currentPeriodEnd.setHours(23, 59, 59, 999);
         const prevQuarter = currentQuarter === 0 ? 3 : currentQuarter - 1;
         const prevQuarterYear = currentQuarter === 0 ? now.getFullYear() - 1 : now.getFullYear();
         previousPeriodStart = new Date(prevQuarterYear, prevQuarter * 3, 1);
@@ -142,7 +142,8 @@ export async function GET(request) {
       }
       case 'thisYear': {
         currentPeriodStart = new Date(now.getFullYear(), 0, 1);
-        currentPeriodEnd = new Date(now);
+        currentPeriodEnd = new Date(now.getFullYear(), 11, 31);
+        currentPeriodEnd.setHours(23, 59, 59, 999);
         previousPeriodStart = new Date(now.getFullYear() - 1, 0, 1);
         previousPeriodEnd = new Date(now.getFullYear() - 1, 11, 31);
         break;
@@ -210,9 +211,9 @@ export async function GET(request) {
           previousPeriodStart = currentPeriodStart;
           previousPeriodEnd = currentPeriodEnd;
         } else {
-          // Default to this month if custom dates not provided
+          // Default to full current month if custom dates not provided
           currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-          currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+          currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
           previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
           previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
         }
@@ -221,7 +222,7 @@ export async function GET(request) {
       
       default: {
         currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0));
-        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999));
         previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0));
         previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999));
       }

@@ -61,7 +61,8 @@ export default function TaxAccountsPage() {
       case 'thisWeek':
         start = new Date(now);
         start.setDate(now.getDate() - now.getDay());
-        end = new Date(now);
+        end = new Date(start);
+        end.setDate(start.getDate() + 6);
         break;
       case 'thisMonth':
         start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -71,6 +72,20 @@ export default function TaxAccountsPage() {
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         end = new Date(now.getFullYear(), now.getMonth(), 0);
         break;
+      case 'thisQuarter': {
+        const q = Math.floor(now.getMonth() / 3);
+        start = new Date(now.getFullYear(), q * 3, 1);
+        end = new Date(now.getFullYear(), (q + 1) * 3, 0);
+        break;
+      }
+      case 'lastQuarter': {
+        const cq = Math.floor(now.getMonth() / 3);
+        const lq = cq === 0 ? 3 : cq - 1;
+        const lqy = cq === 0 ? now.getFullYear() - 1 : now.getFullYear();
+        start = new Date(lqy, lq * 3, 1);
+        end = new Date(lqy, (lq + 1) * 3, 0);
+        break;
+      }
       case 'thisYear':
         start = new Date(now.getFullYear(), 0, 1);
         end = new Date(now.getFullYear(), 11, 31);
@@ -268,6 +283,8 @@ export default function TaxAccountsPage() {
               <option value="thisWeek">This Week</option>
               <option value="thisMonth">This Month</option>
               <option value="lastMonth">Last Month</option>
+              <option value="thisQuarter">This Quarter</option>
+              <option value="lastQuarter">Last Quarter</option>
               <option value="thisYear">This Year</option>
               <option value="custom">Custom Range</option>
             </select>

@@ -75,14 +75,43 @@ export async function GET(request) {
         endDate.setDate(endDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisMonth':
       case 'month':
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         endDate.setHours(23, 59, 59, 999);
         break;
+      case 'thisQuarter':
+      case 'quarter': {
+        const currentQuarter = Math.floor(today.getMonth() / 3);
+        startDate = new Date(today.getFullYear(), currentQuarter * 3, 1);
+        endDate = new Date(today.getFullYear(), (currentQuarter + 1) * 3, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      }
+      case 'thisYear':
+      case 'year':
+        startDate = new Date(today.getFullYear(), 0, 1);
+        endDate = new Date(today.getFullYear(), 11, 31);
+        endDate.setHours(23, 59, 59, 999);
+        break;
       case 'lastMonth':
         startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
         endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      case 'lastQuarter': {
+        const cq = Math.floor(today.getMonth() / 3);
+        const lq = cq === 0 ? 3 : cq - 1;
+        const lqy = cq === 0 ? today.getFullYear() - 1 : today.getFullYear();
+        startDate = new Date(lqy, lq * 3, 1);
+        endDate = new Date(lqy, (lq + 1) * 3, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      }
+      case 'lastYear':
+        startDate = new Date(today.getFullYear() - 1, 0, 1);
+        endDate = new Date(today.getFullYear() - 1, 11, 31);
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'last30Days':

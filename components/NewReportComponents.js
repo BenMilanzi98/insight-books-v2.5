@@ -11,7 +11,7 @@ function groupMovements(movements, groupBy) {
   for (const m of movements) {
     const d = new Date(m.date);
     const key = groupBy === 'week'
-      ? (() => { const mon = new Date(d); mon.setDate(d.getDate() - d.getDay() + 1); return mon.toISOString().slice(0, 10); })()
+      ? (() => { const sun = new Date(d); sun.setDate(d.getDate() - d.getDay()); return sun.toISOString().slice(0, 10); })()
       : d.toISOString().slice(0, 10);
     if (!groups.has(key)) {
       groups.set(key, { date: key, qtyIn: 0, qtyOut: 0, balance: 0, transactionType: groupBy === 'week' ? 'Weekly total' : 'Daily total', reference: '' });

@@ -5,7 +5,7 @@ const kAppDisplayName = 'Insight Books';
 const kAppTagline =
     'Financial management for growing businesses — invoicing, stock, payroll, accounting, and reporting in one secure platform.';
 
-/// High-res raster logo (`assets/branding/app_logo.png` — export of the master artwork).
+/// App icon shown in login, settings, and fallback contexts.
 class InsightBooksLogo extends StatelessWidget {
   const InsightBooksLogo({
     super.key,
@@ -19,7 +19,7 @@ class InsightBooksLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Image.asset(
-      'assets/branding/app_logo.png',
+      'assets/branding/app_icon.png',
       width: size,
       height: size,
       fit: fit,

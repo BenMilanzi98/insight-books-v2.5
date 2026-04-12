@@ -106,6 +106,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       try {
         await ref.read(tenantProvider.notifier).loadData();
       } catch (_) {}
+    } finally {
+      ref.read(authStateProvider.notifier).markLoginComplete();
     }
 
     if (!mounted) return;
@@ -159,20 +161,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             opacity: _logoFade.value,
                             child: Transform.scale(
                               scale: _logoScale.value,
-                              child: Column(
-                                children: [
-                                  const InsightBooksLogo(size: 72),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    kAppDisplayName,
-                                    style:
-                                        theme.textTheme.titleLarge?.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: theme.colorScheme.primary,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
+                              child: Image.asset(
+                                'assets/branding/splash_logo.png',
+                                width: 260,
+                                fit: BoxFit.contain,
+                                filterQuality: FilterQuality.high,
+                                errorBuilder: (_, __, ___) =>
+                                    const InsightBooksLogo(size: 72),
                               ),
                             ),
                           ),

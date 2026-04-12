@@ -26,6 +26,11 @@ export async function GET(request) {
         { status: 400 }
       );
     }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
     
     // Get invoice items with tax data - filter by branch
     const invoiceItems = await prisma.invoiceItem.findMany({
@@ -33,8 +38,8 @@ export async function GET(request) {
         invoice: addBranchFilter(user, {
           tenantId: user.tenantId,
           issueDate: {
-            gte: new Date(startDate),
-            lte: new Date(endDate)
+            gte: start,
+            lte: end
           }
         })
       },
@@ -60,8 +65,8 @@ export async function GET(request) {
         sale: addBranchFilter(user, {
           tenantId: user.tenantId,
           saleDate: {
-            gte: new Date(startDate),
-            lte: new Date(endDate)
+            gte: start,
+            lte: end
           }
         })
       },
@@ -119,8 +124,8 @@ export async function GET(request) {
           contains: 'Tax' // This assumes tax expenses are categorized with "Tax" in the name
         },
         date: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
+          gte: start,
+          lte: end
         },
         isDeleted: false // Exclude deleted expenses
       }),
@@ -389,8 +394,8 @@ export async function GET(request) {
       where: {
         tenantId: user.tenantId,
         billDate: {
-          gte: new Date(startDate),
-          lte: new Date(endDate)
+          gte: start,
+          lte: end
         }
       },
       select: { taxAmount: true }
@@ -402,8 +407,8 @@ export async function GET(request) {
         purchaseOrder: {
           tenantId: user.tenantId,
           poDate: {
-            gte: new Date(startDate),
-            lte: new Date(endDate)
+            gte: start,
+            lte: end
           }
         }
       },
