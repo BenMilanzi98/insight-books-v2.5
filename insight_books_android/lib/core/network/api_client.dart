@@ -8,7 +8,7 @@ import 'package:insightbooks_android/features/auth/presentation/auth_controller.
 
 const String apiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
-  defaultValue: 'https://insightbooksafrica.com',
+  defaultValue: 'https://development.insightbooksafrica.com',
 );
 
 /// True when the app is pointed at the development server (default or explicit).

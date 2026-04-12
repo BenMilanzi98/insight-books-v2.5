@@ -28,7 +28,7 @@ const nextConfig = {
   },
   // Force dynamic rendering for auth-related pages to prevent build-time auth failures
   // Use the supported `serverExternalPackages` key to mark packages that should remain external on the server
-  serverExternalPackages: ["pg", "bcryptjs", "prisma"],
+  serverExternalPackages: ["pg", "bcryptjs", "prisma", "puppeteer", "jspdf", "jspdf-autotable"],
   // Ensure auth pages are not statically generated
   generateBuildId: () => 'build',
 };

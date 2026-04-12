@@ -6,30 +6,26 @@ import { getUserFromSession } from '@/lib/auth';
 import { generateQuotationPdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
-/**
- * Look for a pre-rendered PDF in tmp/ that was uploaded by the website's
- * html2canvas capture flow. Returns the Buffer if found, otherwise null.
- */
-function findPreRenderedQuotationPdf(quotationId, quotationNumber) {
-  const tmpDir = path.join(process.cwd(), 'tmp');
-  const candidates = [
-    `quotation-${quotationId}.pdf`,
-    quotationNumber && `quotation-${quotationNumber}.pdf`,
-  ].filter(Boolean);
-
-  for (const name of candidates) {
-    const filePath = path.join(tmpDir, name);
-    if (fs.existsSync(filePath)) {
-      try {
-        const buf = fs.readFileSync(filePath);
+function findPreRenderedPdf(quotationId, quotationNumber) {
+  try {
+    const tmpDir = path.join(process.cwd(), 'tmp');
+    if (!fs.existsSync(tmpDir)) return null;
+    const candidates = [
+      `quotation-${quotationId}.pdf`,
+      quotationNumber && `quotation-${quotationNumber}.pdf`,
+    ].filter(Boolean);
+    for (const name of candidates) {
+      const fp = path.join(tmpDir, name);
+      if (fs.existsSync(fp)) {
+        const buf = fs.readFileSync(fp);
         if (buf.length > 0) {
-          console.log(`Serving pre-rendered quotation PDF: ${name} (${buf.length} bytes)`);
+          console.log(`[QuotationPDF] Serving pre-rendered: ${name} (${buf.length} bytes)`);
           return buf;
         }
-      } catch (readErr) {
-        console.warn(`Could not read pre-rendered PDF ${name}:`, readErr?.message);
       }
     }
+  } catch (e) {
+    console.warn('[QuotationPDF] Pre-rendered check error:', e?.message);
   }
   return null;
 }
@@ -47,16 +43,11 @@ export async function GET(request, { params }) {
     const templateId = searchParams.get('templateId');
 
     const quotation = await prisma.quotation.findFirst({
-      where: {
-        id: quotationId,
-        tenantId: user.tenantId,
-      },
+      where: { id: quotationId, tenantId: user.tenantId },
       include: {
         items: { include: { product: true } },
         client: true,
-        createdBy: {
-          select: { id: true, name: true, email: true },
-        },
+        createdBy: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -66,8 +57,8 @@ export async function GET(request, { params }) {
 
     const safeName = (quotation.quotationNumber || quotationId).toString().replace(/[^\w.-]+/g, '_');
 
-    // Prefer pre-rendered PDF from tmp/ (uploaded by the website's capture flow)
-    const preRendered = findPreRenderedQuotationPdf(quotationId, quotation.quotationNumber);
+    // --- Strategy 0: Pre-rendered PDF from tmp/ ---
+    const preRendered = findPreRenderedPdf(quotationId, quotation.quotationNumber);
     if (preRendered) {
       return new NextResponse(preRendered, {
         headers: {
@@ -77,12 +68,10 @@ export async function GET(request, { params }) {
       });
     }
 
-    // No pre-rendered PDF — build data for server-side generation
+    // Build data objects
     let template = null;
     if (templateId) {
-      template = await prisma.invoiceTemplate.findUnique({
-        where: { id: templateId },
-      });
+      template = await prisma.invoiceTemplate.findUnique({ where: { id: templateId } });
     }
     if (!template) {
       template = await prisma.invoiceTemplate.findFirst({
@@ -97,10 +86,7 @@ export async function GET(request, { params }) {
         id: 'default',
         name: 'Default Template',
         content: JSON.stringify({
-          style: 'standard',
-          showLogo: true,
-          showFooter: true,
-          primaryColor: '#4f46e5',
+          style: 'standard', showLogo: true, showFooter: true, primaryColor: '#4f46e5',
         }),
       };
     }
@@ -160,35 +146,42 @@ export async function GET(request, { params }) {
     };
 
     let buffer;
+    let strategy = 'none';
 
-    // Strategy 1: Puppeteer HTML rendering (matches website look)
+    // --- Strategy 1 (primary): jsPDF programmatic generation ---
     try {
-      const { generateQuotationHtml } = await import('@/lib/server-pdf-html');
-      const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
-      const html = generateQuotationHtml(preparedQuotation, template, branding);
-      const browser = await launchPuppeteer();
-      const page = await browser.newPage();
-      await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
-      await page.evaluate(() => {
-        const imgs = Array.from(document.images);
-        return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
-      });
-      buffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' } });
-      await browser.close();
-      console.log(`Quotation PDF rendered via Puppeteer (${buffer.length} bytes)`);
-    } catch (puppeteerErr) {
-      console.warn('Quotation PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
+      buffer = await generateQuotationPdf(preparedQuotation, template, branding);
+      strategy = 'jspdf';
+      console.log(`[QuotationPDF] Generated via jsPDF (${buffer.length} bytes)`);
+    } catch (jspdfErr) {
+      console.error('[QuotationPDF] jsPDF failed:', jspdfErr?.message);
+      console.error('[QuotationPDF] jsPDF stack:', jspdfErr?.stack);
 
-      // Strategy 2: jsPDF programmatic generation
+      // --- Strategy 2 (fallback): Puppeteer HTML rendering ---
       try {
-        buffer = await generateQuotationPdf(preparedQuotation, template, branding);
-      } catch (pdfErr) {
-        const pdfMsg = pdfErr?.message || String(pdfErr);
-        console.error('Quotation PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+        const { generateQuotationHtml } = await import('@/lib/server-pdf-html');
+        const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+        const html = generateQuotationHtml(preparedQuotation, template, branding);
+        const browser = await launchPuppeteer();
+        const page = await browser.newPage();
+        await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
+        await page.evaluate(() => {
+          const imgs = Array.from(document.images);
+          return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
+        });
+        buffer = await page.pdf({
+          format: 'A4', printBackground: true,
+          margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        });
+        await browser.close();
+        strategy = 'puppeteer';
+        console.log(`[QuotationPDF] Generated via Puppeteer (${buffer.length} bytes)`);
+      } catch (puppeteerErr) {
+        console.error('[QuotationPDF] Puppeteer also failed:', puppeteerErr?.message);
 
-        // Strategy 3: plain-text fallback
+        // --- Strategy 3 (last resort): Plain text PDF ---
         const lines = [];
-        lines.push(`${branding?.companyName || 'Quotation'}`);
+        lines.push(branding?.companyName || 'Quotation');
         lines.push(`Quotation #${preparedQuotation.quotationNumber || quotationId}`);
         lines.push(`Client: ${preparedQuotation.client?.name || 'N/A'}`);
         lines.push(`Issue: ${preparedQuotation.issueDate || ''}`);
@@ -196,19 +189,17 @@ export async function GET(request, { params }) {
         lines.push('');
         lines.push('Items:');
         for (const item of preparedQuotation.items || []) {
-          const qty = Number(item.quantity || 0);
-          const unit = Number(item.unitPrice || 0);
-          const desc = (item.description || '').toString();
-          lines.push(`- ${desc}  (${qty} x ${unit})`);
+          lines.push(`- ${item.description || ''}  (${item.quantity} x ${item.unitPrice})`);
         }
         lines.push('');
         lines.push(`Subtotal: ${preparedQuotation.subtotal}`);
         lines.push(`Tax: ${preparedQuotation.taxAmount}`);
         lines.push(`TOTAL: ${preparedQuotation.total}`);
         lines.push('');
-        lines.push('This PDF is a fallback (reduced formatting).');
-        lines.push(`PDF error: ${pdfMsg}`);
+        lines.push(`[Fallback PDF — jsPDF error: ${jspdfErr?.message}]`);
         buffer = textToMinimalPdf(lines.join('\n'));
+        strategy = 'text-fallback';
+        console.error(`[QuotationPDF] Using text fallback. jsPDF: ${jspdfErr?.message}. Puppeteer: ${puppeteerErr?.message}`);
       }
     }
 
@@ -216,10 +207,11 @@ export async function GET(request, { params }) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="quotation-${safeName}.pdf"`,
+        'X-PDF-Strategy': strategy,
       },
     });
   } catch (error) {
-    console.error('Quotation PDF error:', error);
+    console.error('[QuotationPDF] Fatal error:', error);
     return NextResponse.json(
       { error: 'Failed to generate quotation PDF. Please try again.' },
       { status: 500 }

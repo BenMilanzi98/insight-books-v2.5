@@ -6,37 +6,30 @@ import { getUserFromSession } from '@/lib/auth';
 import { generatePdf } from '@/lib/server-pdf';
 import { textToMinimalPdf } from '@/lib/fallback-text-pdf';
 
-/**
- * Look for a pre-rendered PDF in tmp/ that was uploaded by the website's
- * html2canvas capture flow. Returns the Buffer if found, otherwise null.
- */
-function findPreRenderedInvoicePdf(invoiceId, invoiceNumber) {
-  const tmpDir = path.join(process.cwd(), 'tmp');
-  const candidates = [
-    invoiceNumber && `invoice-${invoiceNumber}.pdf`,
-    `invoice-${invoiceId}.pdf`,
-  ].filter(Boolean);
-
-  for (const name of candidates) {
-    const filePath = path.join(tmpDir, name);
-    if (fs.existsSync(filePath)) {
-      try {
-        const buf = fs.readFileSync(filePath);
+function findPreRenderedPdf(invoiceId, invoiceNumber) {
+  try {
+    const tmpDir = path.join(process.cwd(), 'tmp');
+    if (!fs.existsSync(tmpDir)) return null;
+    const candidates = [
+      invoiceNumber && `invoice-${invoiceNumber}.pdf`,
+      `invoice-${invoiceId}.pdf`,
+    ].filter(Boolean);
+    for (const name of candidates) {
+      const fp = path.join(tmpDir, name);
+      if (fs.existsSync(fp)) {
+        const buf = fs.readFileSync(fp);
         if (buf.length > 0) {
-          console.log(`Serving pre-rendered invoice PDF: ${name} (${buf.length} bytes)`);
+          console.log(`[InvoicePDF] Serving pre-rendered: ${name} (${buf.length} bytes)`);
           return buf;
         }
-      } catch (readErr) {
-        console.warn(`Could not read pre-rendered PDF ${name}:`, readErr?.message);
       }
     }
+  } catch (e) {
+    console.warn('[InvoicePDF] Pre-rendered check error:', e?.message);
   }
   return null;
 }
 
-/**
- * GET binary PDF for invoice (mobile app / download).
- */
 export async function GET(request, { params }) {
   try {
     const user = await getUserFromSession(request);
@@ -49,37 +42,19 @@ export async function GET(request, { params }) {
     const templateId = searchParams.get('templateId');
 
     const invoice = await prisma.invoice.findUnique({
-      where: {
-        id: invoiceId,
-        tenantId: user.tenantId,
-      },
+      where: { id: invoiceId, tenantId: user.tenantId },
       include: {
         client: true,
-        items: {
-          include: {
-            product: true,
-          },
-        },
+        items: { include: { product: true } },
         payments: {
           select: {
-            id: true,
-            amount: true,
-            paymentDate: true,
-            paymentMethod: true,
-            reference: true,
-            notes: true,
-            status: true,
-            isReversal: true,
+            id: true, amount: true, paymentDate: true,
+            paymentMethod: true, reference: true, notes: true,
+            status: true, isReversal: true,
           },
           orderBy: { paymentDate: 'desc' },
         },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
+        createdBy: { select: { id: true, name: true, email: true } },
       },
     });
 
@@ -89,8 +64,8 @@ export async function GET(request, { params }) {
 
     const safeName = (invoice.invoiceNumber || invoiceId).toString().replace(/[^\w.-]+/g, '_');
 
-    // Prefer pre-rendered PDF from tmp/ (uploaded by the website's capture flow)
-    const preRendered = findPreRenderedInvoicePdf(invoiceId, invoice.invoiceNumber);
+    // --- Strategy 0: Pre-rendered PDF from tmp/ (best quality, if available) ---
+    const preRendered = findPreRenderedPdf(invoiceId, invoice.invoiceNumber);
     if (preRendered) {
       return new NextResponse(preRendered, {
         headers: {
@@ -100,12 +75,10 @@ export async function GET(request, { params }) {
       });
     }
 
-    // No pre-rendered PDF — build data for server-side generation
+    // Build data objects for server-side generation
     let template = null;
     if (templateId) {
-      template = await prisma.invoiceTemplate.findUnique({
-        where: { id: templateId },
-      });
+      template = await prisma.invoiceTemplate.findUnique({ where: { id: templateId } });
     }
     if (!template) {
       template = await prisma.invoiceTemplate.findFirst({
@@ -120,10 +93,7 @@ export async function GET(request, { params }) {
         id: 'default',
         name: 'Default Template',
         content: JSON.stringify({
-          style: 'standard',
-          showLogo: true,
-          showFooter: true,
-          primaryColor: '#4f46e5',
+          style: 'standard', showLogo: true, showFooter: true, primaryColor: '#4f46e5',
         }),
       };
     }
@@ -165,55 +135,62 @@ export async function GET(request, { params }) {
     };
 
     let buffer;
+    let strategy = 'none';
 
-    // Strategy 1: Puppeteer HTML rendering (matches website look)
+    // --- Strategy 1 (primary): jsPDF programmatic generation ---
+    // Works on all platforms (Vercel, VPS, local) with no system dependencies.
     try {
-      const { generateInvoiceHtml } = await import('@/lib/server-pdf-html');
-      const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
-      const html = generateInvoiceHtml(inv, template, branding);
-      const browser = await launchPuppeteer();
-      const page = await browser.newPage();
-      await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
-      await page.evaluate(() => {
-        const imgs = Array.from(document.images);
-        return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
-      });
-      buffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' } });
-      await browser.close();
-      console.log(`Invoice PDF rendered via Puppeteer (${buffer.length} bytes)`);
-    } catch (puppeteerErr) {
-      console.warn('Invoice PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
+      buffer = await generatePdf(inv, template, branding);
+      strategy = 'jspdf';
+      console.log(`[InvoicePDF] Generated via jsPDF (${buffer.length} bytes)`);
+    } catch (jspdfErr) {
+      console.error('[InvoicePDF] jsPDF failed:', jspdfErr?.message);
+      console.error('[InvoicePDF] jsPDF stack:', jspdfErr?.stack);
 
-      // Strategy 2: jsPDF programmatic generation
+      // --- Strategy 2 (fallback): Puppeteer HTML rendering ---
+      // Requires Chromium on the system; works on VPS/local, may not work on serverless.
       try {
-        buffer = await generatePdf(inv, template, branding);
-      } catch (pdfErr) {
-        const pdfMsg = pdfErr?.message || String(pdfErr);
-        console.error('Invoice PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+        const { generateInvoiceHtml } = await import('@/lib/server-pdf-html');
+        const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+        const html = generateInvoiceHtml(inv, template, branding);
+        const browser = await launchPuppeteer();
+        const page = await browser.newPage();
+        await page.setContent(html, PDF_SET_CONTENT_OPTIONS);
+        await page.evaluate(() => {
+          const imgs = Array.from(document.images);
+          return Promise.all(imgs.filter(i => !i.complete).map(i => new Promise(r => { i.onload = i.onerror = r; })));
+        });
+        buffer = await page.pdf({
+          format: 'A4', printBackground: true,
+          margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' },
+        });
+        await browser.close();
+        strategy = 'puppeteer';
+        console.log(`[InvoicePDF] Generated via Puppeteer (${buffer.length} bytes)`);
+      } catch (puppeteerErr) {
+        console.error('[InvoicePDF] Puppeteer also failed:', puppeteerErr?.message);
 
-        // Strategy 3: plain-text fallback
+        // --- Strategy 3 (last resort): Plain text PDF ---
         const lines = [];
-        lines.push(`${branding?.companyName || 'Invoice'}`);
+        lines.push(branding?.companyName || 'Invoice');
         lines.push(`Invoice #${invoice.invoiceNumber || invoiceId}`);
         lines.push(`Client: ${invoice.client?.name || 'N/A'}`);
-        lines.push(`Issue: ${invoice.issueDate ? invoice.issueDate.toISOString?.() || invoice.issueDate : ''}`);
-        lines.push(`Due: ${invoice.dueDate ? invoice.dueDate.toISOString?.() || invoice.dueDate : ''}`);
+        lines.push(`Issue: ${invoice.issueDate ? new Date(invoice.issueDate).toLocaleDateString() : ''}`);
+        lines.push(`Due: ${invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : ''}`);
         lines.push('');
         lines.push('Items:');
         for (const item of inv.items || []) {
-          const qty = Number(item.quantity || 0);
-          const unit = Number(item.unitPrice || 0);
-          const desc = (item.description || '').toString();
-          lines.push(`- ${desc}  (${qty} x ${unit})`);
+          lines.push(`- ${item.description || ''}  (${item.quantity} x ${item.unitPrice})`);
         }
         lines.push('');
         lines.push(`Subtotal: ${inv.subtotal}`);
         lines.push(`Tax: ${inv.taxAmount}`);
         lines.push(`TOTAL: ${inv.total}`);
         lines.push('');
-        lines.push('This PDF is a fallback (reduced formatting).');
-        lines.push(`PDF error: ${pdfMsg}`);
+        lines.push(`[Fallback PDF — jsPDF error: ${jspdfErr?.message}]`);
         buffer = textToMinimalPdf(lines.join('\n'));
+        strategy = 'text-fallback';
+        console.error(`[InvoicePDF] Using text fallback. jsPDF: ${jspdfErr?.message}. Puppeteer: ${puppeteerErr?.message}`);
       }
     }
 
@@ -221,10 +198,11 @@ export async function GET(request, { params }) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="invoice-${safeName}.pdf"`,
+        'X-PDF-Strategy': strategy,
       },
     });
   } catch (error) {
-    console.error('Invoice PDF error:', error);
+    console.error('[InvoicePDF] Fatal error:', error);
     return NextResponse.json(
       { error: 'Failed to generate invoice PDF. Please try again.' },
       { status: 500 }

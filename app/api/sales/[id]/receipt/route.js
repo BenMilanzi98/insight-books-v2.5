@@ -533,55 +533,53 @@ body{
         .replace(/[^\w.-]+/g, '_');
 
       let buffer;
+      let strategy = 'none';
+
+      // --- Strategy 1 (primary): jsPDF programmatic receipt ---
+      // Works on all platforms with no system dependencies.
       try {
-        // Render the same HTML receipt via Puppeteer for pixel-perfect output
-        const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+        const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
+        buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
+        strategy = 'jspdf';
+        console.log(`[ReceiptPDF] Generated via jsPDF (${buffer.length} bytes)`);
+      } catch (jspdfErr) {
+        console.error('[ReceiptPDF] jsPDF failed:', jspdfErr?.message);
+        console.error('[ReceiptPDF] jsPDF stack:', jspdfErr?.stack);
 
-        // Strip the auto-print <script> block so Puppeteer doesn't trigger window.print()
-        const pdfHtml = receiptHtml.replace(/<script[\s\S]*?<\/script>/gi, '');
-
-        const browser = await launchPuppeteer();
-        const page = await browser.newPage();
-        await page.setContent(pdfHtml, PDF_SET_CONTENT_OPTIONS);
-
-        // Wait for any logo images to load
-        await page.evaluate(() => {
-          const imgs = Array.from(document.images);
-          return Promise.all(
-            imgs.filter(i => !i.complete).map(
-              i => new Promise(r => { i.onload = i.onerror = r; })
-            )
-          );
-        });
-
-        // Measure actual content height so the PDF page fits snugly
-        const contentHeight = await page.evaluate(() => {
-          const paper = document.querySelector('.paper');
-          return paper ? paper.scrollHeight : document.body.scrollHeight;
-        });
-
-        buffer = await page.pdf({
-          width: '80mm',
-          height: `${Math.ceil(contentHeight * 0.2646) + 10}mm`,
-          printBackground: true,
-          margin: { top: '2mm', right: '0mm', bottom: '2mm', left: '0mm' },
-        });
-        await browser.close();
-        console.log(`Receipt PDF rendered via Puppeteer (${buffer.length} bytes)`);
-      } catch (puppeteerErr) {
-        console.warn('Receipt PDF (Puppeteer) failed, trying jsPDF:', puppeteerErr?.message);
-
-        // Fallback 1: jsPDF programmatic receipt
+        // --- Strategy 2 (fallback): Puppeteer HTML rendering ---
         try {
-          const { generateSaleReceiptPdfBuffer } = await import('@/lib/server-pdf-jspdf');
-          buffer = generateSaleReceiptPdfBuffer(sale, tenantSettings, taxData);
-        } catch (pdfErr) {
-          const pdfMsg = pdfErr?.message || String(pdfErr);
-          console.error('Receipt PDF (jsPDF) also failed, falling back to text PDF:', pdfMsg);
+          const { launchPuppeteer, PDF_SET_CONTENT_OPTIONS } = await import('@/lib/puppeteer-launch');
+          const pdfHtml = receiptHtml.replace(/<script[\s\S]*?<\/script>/gi, '');
+          const browser = await launchPuppeteer();
+          const page = await browser.newPage();
+          await page.setContent(pdfHtml, PDF_SET_CONTENT_OPTIONS);
+          await page.evaluate(() => {
+            const imgs = Array.from(document.images);
+            return Promise.all(
+              imgs.filter(i => !i.complete).map(
+                i => new Promise(r => { i.onload = i.onerror = r; })
+              )
+            );
+          });
+          const contentHeight = await page.evaluate(() => {
+            const paper = document.querySelector('.paper');
+            return paper ? paper.scrollHeight : document.body.scrollHeight;
+          });
+          buffer = await page.pdf({
+            width: '80mm',
+            height: `${Math.ceil(contentHeight * 0.2646) + 10}mm`,
+            printBackground: true,
+            margin: { top: '2mm', right: '0mm', bottom: '2mm', left: '0mm' },
+          });
+          await browser.close();
+          strategy = 'puppeteer';
+          console.log(`[ReceiptPDF] Generated via Puppeteer (${buffer.length} bytes)`);
+        } catch (puppeteerErr) {
+          console.error('[ReceiptPDF] Puppeteer also failed:', puppeteerErr?.message);
 
-          // Fallback 2: plain-text PDF
+          // --- Strategy 3 (last resort): Plain text PDF ---
           const lines = [];
-          lines.push(`${sale.tenant?.name || 'Receipt'}`);
+          lines.push(sale.tenant?.name || 'Receipt');
           lines.push(`Receipt #${sale.saleNumber || saleId}`);
           lines.push(`Date: ${formatDateDDMMYYYY(sale.saleDate)} ${formatTime(sale.saleDate)}`);
           lines.push(`Customer: ${sale.client ? sale.client.name : 'Walk-in Customer'}`);
@@ -589,10 +587,7 @@ body{
           lines.push('');
           lines.push('Items:');
           for (const item of sale.items || []) {
-            const qty = Number(item.quantity || 1);
-            const unit = Number(item.unitPrice || 0);
-            const desc = (item.description || '').toString();
-            lines.push(`- ${desc}  (${qty} x ${unit})`);
+            lines.push(`- ${item.description || ''}  (${Number(item.quantity || 1)} x ${Number(item.unitPrice || 0)})`);
           }
           lines.push('');
           lines.push(`Subtotal: ${sale.subtotal}`);
@@ -604,9 +599,10 @@ body{
             lines.push(`Change: ${sale.posChangeGiven != null ? sale.posChangeGiven : 0}`);
           }
           lines.push('');
-          lines.push('This PDF is a fallback (reduced formatting).');
-          lines.push(`PDF error: ${pdfMsg}`);
+          lines.push(`[Fallback PDF — jsPDF error: ${jspdfErr?.message}]`);
           buffer = textToMinimalPdf(lines.join('\n'));
+          strategy = 'text-fallback';
+          console.error(`[ReceiptPDF] Using text fallback. jsPDF: ${jspdfErr?.message}. Puppeteer: ${puppeteerErr?.message}`);
         }
       }
 
@@ -614,6 +610,7 @@ body{
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="receipt-${safeSale}.pdf"`,
+          'X-PDF-Strategy': strategy,
         },
       });
     }
