@@ -296,7 +296,14 @@ export async function GET(request, { params }) {
     const taxData = processTaxesForReceipt(sale.items, sale.totalTaxAmount);
     console.log('Receipt API - Processed tax data:', JSON.stringify(taxData, null, 2));
 
-    const format = new URL(request.url).searchParams.get('format');
+    const receiptReqUrl = new URL(request.url);
+    const format = receiptReqUrl.searchParams.get('format');
+    const autoPrintParam = receiptReqUrl.searchParams.get('autoPrint');
+    /** When true, omit window.print() script (Android WebView uses PrintDocumentAdapter; embedded previews). */
+    const suppressAutoPrint =
+      autoPrintParam === '0' ||
+      autoPrintParam === 'false' ||
+      autoPrintParam === 'off';
     if (format === 'print-data') {
       const { buildPosReceiptEscPosContents } = await import(
         '@/lib/buildPosReceiptEscPosContents'
@@ -471,7 +478,7 @@ body{
 </div><!-- /body -->
 </div><!-- /paper -->
 
-<script>
+${suppressAutoPrint ? '' : `<script>
 (function(){
   function clamp(){
     var el=document.documentElement,b=document.body;
@@ -503,7 +510,7 @@ body{
   try{window.matchMedia('print').addEventListener('change',function(e){if(!e.matches)tryClose();});}
   catch(e1){try{window.matchMedia('print').addListener(function(mql){if(!mql.matches)tryClose();});}catch(e2){}}
 })();
-</script>
+</script>`}
 </body>
 </html>`;
     

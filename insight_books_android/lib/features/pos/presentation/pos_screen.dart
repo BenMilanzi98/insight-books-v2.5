@@ -13,6 +13,7 @@ import 'package:insightbooks_android/features/pos/presentation/widgets/barcode_s
 import 'package:insightbooks_android/features/pos/data/pos_repository.dart';
 import 'package:insightbooks_android/shared/widgets/main_layout.dart';
 import 'package:insightbooks_android/shared/pdf_share_sheet.dart';
+import 'package:insightbooks_android/features/pos/presentation/sale_receipt_print.dart';
 
 double _saleTotalAmount(Map<String, dynamic> sale) {
   final raw = sale['rawTotal'];
@@ -1275,7 +1276,20 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
     }
   }
 
-  Future<void> _shareReceipt({required bool forPrint}) async {
+  /// Same as web POS thermal path: system print dialog, 80mm roll, server PDF.
+  Future<void> _printThermalReceipt() async {
+    final sale = _full ?? widget.preview;
+    final saleId = (sale['id'] ?? '').toString();
+    final saleNo = (sale['saleNumber'] ?? '').toString().trim();
+    await openSaleReceiptThermalPrint(
+      context,
+      ref,
+      saleId,
+      saleNumberForFilename: saleNo.isNotEmpty ? saleNo : null,
+    );
+  }
+
+  Future<void> _shareReceiptPdf() async {
     final sale = _full ?? widget.preview;
     final saleId = (sale['id'] ?? '').toString();
     if (saleId.isEmpty || saleId.startsWith('OFFLINE-')) {
@@ -1298,9 +1312,7 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
         context,
         file: x,
         title: label,
-        body: forPrint
-            ? 'Receipt — open in your app to print or forward.'
-            : 'Sale receipt PDF',
+        body: 'Sale receipt PDF',
       );
     } catch (e) {
       if (mounted) {
@@ -1366,14 +1378,14 @@ class _SaleDetailSheetState extends ConsumerState<_SaleDetailSheet> {
                 OutlinedButton.icon(
                   onPressed: _actionBusy || isOffline
                       ? null
-                      : () => _shareReceipt(forPrint: true),
+                      : _printThermalReceipt,
                   icon: const Icon(Icons.print_outlined, size: 18),
                   label: const Text('Print receipt'),
                 ),
                 OutlinedButton.icon(
                   onPressed: _actionBusy || isOffline
                       ? null
-                      : () => _shareReceipt(forPrint: false),
+                      : _shareReceiptPdf,
                   icon: const Icon(Icons.download_outlined, size: 18),
                   label: const Text('Download'),
                 ),

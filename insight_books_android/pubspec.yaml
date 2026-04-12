@@ -58,6 +58,7 @@ dependencies:
   webview_flutter: ^4.13.1
   package_info_plus: ^9.0.0
   pdfx: ^2.9.2
+  printing: ^5.14.3
 
 dev_dependencies:
   flutter_test:
