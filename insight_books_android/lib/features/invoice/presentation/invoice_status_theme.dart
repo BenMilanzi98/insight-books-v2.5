@@ -55,7 +55,6 @@ class InvoiceStatusTheme {
   }
 
   static Color chipBorder(BuildContext context, String status) {
-    final cs = Theme.of(context).colorScheme;
     return chipForeground(context, status).withValues(alpha: 0.35);
   }
 

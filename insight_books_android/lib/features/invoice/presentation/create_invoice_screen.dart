@@ -9,6 +9,7 @@ import '../../pos/data/pos_repository.dart';
 import '../../../core/network/api_client.dart';
 import '../data/invoice_repository.dart';
 import 'providers/invoice_provider.dart';
+import 'providers/invoice_details_provider.dart';
 import '../../../shared/widgets/main_layout.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
@@ -45,7 +46,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   void initState() {
     super.initState();
     _isEditMode = widget.invoiceId != null;
-    _loadData();
+    // Avoid using [ref] synchronously in [initState]; first frame is fine for providers.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -104,12 +108,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       final inv = await ref.read(invoiceRepositoryProvider).fetchInvoiceById(id);
       if (!mounted) return;
       final st = inv.status.toLowerCase();
-      if (st != 'draft' && st != 'pending') {
+      // Match web `/invoice`: edit is only offered for Draft.
+      if (st != 'draft') {
         if (mounted) {
           setState(() => _isLoadingData = false);
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Only Draft or Pending invoices can be edited.'),
+              content: Text('Only draft invoices can be edited.'),
             ),
           );
           context.pop();
@@ -142,7 +147,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _titleCtrl.text = inv.title ?? '';
       _orderNumberCtrl.text = inv.orderNumber ?? '';
       _orderNumberAutogenerate = false;
-      _status = st == 'draft' ? 'Draft' : 'Pending';
+      _status = 'Draft';
+      final tid = inv.templateId?.trim();
+      if (tid != null &&
+          tid.isNotEmpty &&
+          _templates.any((t) => t.id == tid)) {
+        _selectedTemplateId = tid;
+      }
       for (final it in inv.items) {
         _items.add(
           _InvoiceLineItem(
@@ -1016,6 +1027,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           widget.invoiceId != null &&
           widget.invoiceId!.isNotEmpty) {
         await repo.updateInvoiceFromPayload(widget.invoiceId!, payload);
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId!));
       } else {
         await repo.createInvoiceFromPayload(payload);
       }
@@ -1032,7 +1044,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to create: $e')));
+        ).showSnackBar(
+          SnackBar(
+            content: Text(
+              _isEditMode ? 'Failed to save invoice: $e' : 'Failed to create: $e',
+            ),
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

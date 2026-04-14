@@ -155,7 +155,7 @@ function RegisterForm() {
                     <h3 className="text-sm font-medium text-green-800">Referral Link Detected!</h3>
                     <div className="mt-2 text-sm text-green-700">
                       Your referral code <strong>{formData.referralCode}</strong> has been automatically added. 
-                      You'll get special benefits when you complete your registration!
+                      You will get special benefits when you complete your registration!
                     </div>
                   </div>
                 </div>

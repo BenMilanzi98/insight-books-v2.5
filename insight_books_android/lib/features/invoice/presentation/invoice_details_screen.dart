@@ -75,7 +75,9 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               ),
               const SizedBox(height: 8),
               ElevatedButton(
-                onPressed: () => ref.invalidate(invoiceDetailsProvider),
+                onPressed: () => ref.invalidate(
+                  invoiceDetailsProvider(widget.invoiceId),
+                ),
                 child: const Text('Retry'),
               ),
             ],
@@ -198,8 +200,9 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       );
     }
 
-    // Delete
-    if (permissions.canDeleteInvoices) {
+    // Delete — same as web: Draft or Pending only
+    if (permissions.canDeleteInvoices &&
+        (status == 'draft' || status == 'pending')) {
       items.add(const PopupMenuDivider());
       items.add(
         PopupMenuItem(
@@ -248,7 +251,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
     switch (action) {
       case 'edit':
-        ctx.push('/invoice/${invoice.id}/edit');
+        await ctx.push('/invoice/${invoice.id}/edit');
+        if (context.mounted) {
+          ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        }
         break;
       case 'mark_paid':
         await _showMarkAsPaidDialog(invoice);
@@ -714,7 +720,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         await ref
             .read(invoiceControllerProvider.notifier)
             .markAsPaid(invoice.id, selectedMethod);
-        ref.invalidate(invoiceDetailsProvider);
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Invoice marked as paid')),
@@ -851,7 +858,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               paymentMethod: method,
               notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
             );
-        ref.invalidate(invoiceDetailsProvider);
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -916,7 +924,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         await ref
             .read(invoiceControllerProvider.notifier)
             .voidInvoice(invoice.id, reasonCtrl.text);
-        ref.invalidate(invoiceDetailsProvider);
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -1068,7 +1077,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               refundMethod: method,
               notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
             );
-        ref.invalidate(invoiceDetailsProvider);
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -1120,6 +1130,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         await ref
             .read(invoiceControllerProvider.notifier)
             .deleteInvoice(invoice.id);
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) context.pop();
       } catch (e) {
         if (mounted) {
@@ -1165,6 +1176,8 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   ? null
                   : messageCtrl.text.trim(),
             );
+        ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
+        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Invoice sent successfully')),
