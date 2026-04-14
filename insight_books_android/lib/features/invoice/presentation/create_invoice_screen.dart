@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../pos/domain/pos_models.dart';
 import '../../pos/data/pos_repository.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/network_error_mapper.dart';
 import '../data/invoice_repository.dart';
 import 'providers/invoice_provider.dart';
 import 'providers/invoice_details_provider.dart';
@@ -1031,7 +1032,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       } else {
         await repo.createInvoiceFromPayload(payload);
       }
-      await ref.read(invoiceControllerProvider.notifier).refresh();
+      if (_isEditMode) {
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .reloadPreservingPagination();
+      } else {
+        await ref.read(invoiceControllerProvider.notifier).refresh();
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1047,7 +1054,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         ).showSnackBar(
           SnackBar(
             content: Text(
-              _isEditMode ? 'Failed to save invoice: $e' : 'Failed to create: $e',
+              NetworkErrorMapper.toUserMessage(
+                e,
+                fallback: _isEditMode
+                    ? 'Failed to save invoice'
+                    : 'Failed to create invoice',
+              ),
             ),
           ),
         );

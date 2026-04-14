@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../../shared/widgets/stat_card.dart';
 import '../../../shared/widgets/main_layout.dart';
 import '../../pos/data/pos_repository.dart';
@@ -33,6 +32,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
       ref.read(invoiceControllerProvider.notifier).refresh();
     });
   }
+
   Future<void> _loadClients() async {
     try {
       final clients = await ref.read(posRepositoryProvider).fetchClients();
@@ -42,7 +42,6 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
       });
     } catch (_) {}
   }
-
 
   @override
   void dispose() {
@@ -90,16 +89,20 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
             tooltip: 'Export CSV',
-            onPressed: state.canExportInvoices ? () => controller.exportCsv() : null,
+            onPressed: state.canExportInvoices
+                ? () => controller.exportCsv()
+                : null,
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: state.canCreateInvoices ? () => context.push('/invoice/create') : null,
+        onPressed: state.canCreateInvoices
+            ? () => context.push('/invoice/create')
+            : null,
         child: const Icon(Icons.add),
       ),
       body: RefreshIndicator(
-        onRefresh: () => controller.refresh(),
+        onRefresh: () => controller.reloadPreservingPagination(),
         child: CustomScrollView(
           slivers: [
             // ── Statistics ──
@@ -225,8 +228,9 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Paid',
                   value: _currencyFormat.format(stats.paid.amount),
                   count: stats.paid.count,
-                  color: AppTheme.successColor(context),
-                  subtitle: '${stats.paid.count} invoice${stats.paid.count == 1 ? '' : 's'}',
+                  color: theme.colorScheme.tertiary,
+                  subtitle:
+                      '${stats.paid.count} invoice${stats.paid.count == 1 ? '' : 's'}',
                 ),
               ),
               const SizedBox(width: 8),
@@ -235,8 +239,9 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Pending',
                   value: _currencyFormat.format(stats.pending.amount),
                   count: stats.pending.count,
-                  color: AppTheme.warningColor(context),
-                  subtitle: '${stats.pending.count} invoice${stats.pending.count == 1 ? '' : 's'}',
+                  color: theme.colorScheme.primary,
+                  subtitle:
+                      '${stats.pending.count} invoice${stats.pending.count == 1 ? '' : 's'}',
                 ),
               ),
             ],
@@ -249,8 +254,9 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Overdue',
                   value: _currencyFormat.format(stats.overdue.amount),
                   count: stats.overdue.count,
-                  color: AppTheme.errorColor(context),
-                  subtitle: '${stats.overdue.count} invoice${stats.overdue.count == 1 ? '' : 's'}',
+                  color: theme.colorScheme.error,
+                  subtitle:
+                      '${stats.overdue.count} invoice${stats.overdue.count == 1 ? '' : 's'}',
                 ),
               ),
               const SizedBox(width: 8),
@@ -259,8 +265,9 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                   label: 'Partial',
                   value: _currencyFormat.format(stats.partial.amount),
                   count: stats.partial.count,
-                  color: AppTheme.infoColor(context),
-                  subtitle: '${stats.partial.count} invoice${stats.partial.count == 1 ? '' : 's'}',
+                  color: theme.colorScheme.secondary,
+                  subtitle:
+                      '${stats.partial.count} invoice${stats.partial.count == 1 ? '' : 's'}',
                 ),
               ),
             ],
@@ -280,7 +287,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
       child: TextField(
         controller: _searchController,
         decoration: InputDecoration(
-          hintText: 'Search invoices...',
+          hintText: 'Search by invoice number or client...',
           prefixIcon: const Icon(Icons.search),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
@@ -395,7 +402,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
   // ═══════════════════════════════════════════════════
 
   Widget _buildInvoiceCard(Invoice invoice, ThemeData theme) {
-    final statusColor = _statusColor(invoice.status);
+    final statusColor = _statusColor(invoice.status, theme);
     final raw = invoice.status.trim();
     final statusLabel = raw.isEmpty
         ? '—'
@@ -486,7 +493,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                     'Due ${DateFormat('MMM d, y').format(invoice.dueDate)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: _isDueOrOverdue(invoice)
-                          ? AppTheme.errorColor(context)
+                          ? theme.colorScheme.error
                           : theme.colorScheme.onSurface.withAlpha(150),
                     ),
                   ),
@@ -500,7 +507,7 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
                 Text(
                   'Balance: ${_currencyFormat.format(invoice.remainingBalance)}',
                   style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppTheme.infoColor(context),
+                    color: theme.colorScheme.secondary,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -548,10 +555,8 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
             value: state.limit,
             items: const [10, 20, 50, 100]
                 .map(
-                  (e) => DropdownMenuItem<int>(
-                    value: e,
-                    child: Text('$e / page'),
-                  ),
+                  (e) =>
+                      DropdownMenuItem<int>(value: e, child: Text('$e / page')),
                 )
                 .toList(),
             onChanged: (value) {
@@ -671,6 +676,12 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
         ? DateTime.tryParse(state.dateTo!)
         : null;
     String? selectedClientId = state.clientFilter;
+    // Web filter modal: same status options as chips (all + four statuses).
+    const sheetStatusKeys = {'all', 'draft', 'pending', 'paid', 'overdue'};
+    var sheetStatus = state.statusFilter;
+    if (!sheetStatusKeys.contains(sheetStatus)) {
+      sheetStatus = 'all';
+    }
 
     showModalBottomSheet(
       context: context,
@@ -684,136 +695,176 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
             return SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          'Filters',
-                          style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Filters',
+                            style: Theme.of(ctx).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                        const Spacer(),
-                        TextButton(
-                          onPressed: () {
-                            controller.resetFilters();
-                            Navigator.pop(ctx);
-                          },
-                          child: const Text('Reset All'),
-                        ),
-                      ],
-                    ),
-                    const Divider(),
-                    const SizedBox(height: 8),
-
-                    // Date Range
-                    Text(
-                      'Date Range',
-                      style: Theme.of(ctx).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.calendar_today, size: 16),
-                            label: Text(
-                              fromDate != null
-                                  ? DateFormat('MMM d, y').format(fromDate!)
-                                  : 'From',
-                            ),
-                            onPressed: () async {
-                              final picked = await showDatePicker(
-                                context: ctx,
-                                initialDate: fromDate ?? DateTime.now(),
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime.now(),
-                              );
-                              if (picked != null) {
-                                setSheetState(() => fromDate = picked);
-                              }
+                          const Spacer(),
+                          TextButton(
+                            onPressed: () {
+                              controller.resetFilters();
+                              Navigator.pop(ctx);
                             },
+                            child: const Text('Reset All'),
                           ),
-                        ),
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 8),
-                          child: Text('→'),
-                        ),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.calendar_today, size: 16),
-                            label: Text(
-                              toDate != null
-                                  ? DateFormat('MMM d, y').format(toDate!)
-                                  : 'To',
-                            ),
-                            onPressed: () async {
-                              final picked = await showDatePicker(
-                                context: ctx,
-                                initialDate: toDate ?? DateTime.now(),
-                                firstDate: DateTime(2020),
-                                lastDate: DateTime.now().add(
-                                  const Duration(days: 365),
-                                ),
-                              );
-                              if (picked != null) {
-                                setSheetState(() => toDate = picked);
-                              }
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      'Client',
-                      style: Theme.of(ctx).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String?>(
-                      key: ValueKey<String?>('inv_client_$selectedClientId'),
-                      initialValue: selectedClientId,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        isDense: true,
+                        ],
                       ),
-                      items: [
-                        const DropdownMenuItem<String?>(
-                          value: null,
-                          child: Text('All Clients'),
-                        ),
-                        ..._clients.map(
-                          (client) => DropdownMenuItem<String?>(
-                            value: client.id,
-                            child: Text(client.name),
-                          ),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        setSheetState(() => selectedClientId = value);
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                      const Divider(),
+                      const SizedBox(height: 8),
 
-                    // Apply Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          controller.setDateRange(
-                            fromDate?.toIso8601String().split('T').first,
-                            toDate?.toIso8601String().split('T').first,
-                          );
-                          controller.setClientFilter(selectedClientId);
-                          Navigator.pop(ctx);
+                      Text('Status', style: Theme.of(ctx).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        key: ValueKey<String>('inv_fs_status_$sheetStatus'),
+                        initialValue: sheetStatus,
+                        decoration: const InputDecoration(
+                          labelText: 'Status',
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: const [
+                          DropdownMenuItem(
+                            value: 'all',
+                            child: Text('All statuses'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'draft',
+                            child: Text('Draft'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'pending',
+                            child: Text('Pending'),
+                          ),
+                          DropdownMenuItem(value: 'paid', child: Text('Paid')),
+                          DropdownMenuItem(
+                            value: 'overdue',
+                            child: Text('Overdue'),
+                          ),
+                        ],
+                        onChanged: (v) {
+                          if (v != null) setSheetState(() => sheetStatus = v);
                         },
-                        child: const Text('Apply Filters'),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+
+                      // Date Range
+                      Text(
+                        'Date Range',
+                        style: Theme.of(ctx).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: Text(
+                                fromDate != null
+                                    ? DateFormat('MMM d, y').format(fromDate!)
+                                    : 'From',
+                              ),
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: fromDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (picked != null) {
+                                  setSheetState(() => fromDate = picked);
+                                }
+                              },
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Text('→'),
+                          ),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.calendar_today, size: 16),
+                              label: Text(
+                                toDate != null
+                                    ? DateFormat('MMM d, y').format(toDate!)
+                                    : 'To',
+                              ),
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: ctx,
+                                  initialDate: toDate ?? DateTime.now(),
+                                  firstDate: DateTime(2020),
+                                  lastDate: DateTime.now().add(
+                                    const Duration(days: 365),
+                                  ),
+                                );
+                                if (picked != null) {
+                                  setSheetState(() => toDate = picked);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      Text('Client', style: Theme.of(ctx).textTheme.titleSmall),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        key: ValueKey<String?>('inv_client_$selectedClientId'),
+                        initialValue: selectedClientId,
+                        decoration: const InputDecoration(
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('All Clients'),
+                          ),
+                          ..._clients.map(
+                            (client) => DropdownMenuItem<String?>(
+                              value: client.id,
+                              child: Text(client.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (value) {
+                          setSheetState(() => selectedClientId = value);
+                        },
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Apply Button
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            await controller.applySheetFilters(
+                              statusFilter: sheetStatus,
+                              dateFrom: fromDate
+                                  ?.toIso8601String()
+                                  .split('T')
+                                  .first,
+                              dateTo: toDate
+                                  ?.toIso8601String()
+                                  .split('T')
+                                  .first,
+                              clientId: selectedClientId,
+                            );
+                            if (ctx.mounted) Navigator.pop(ctx);
+                          },
+                          child: const Text('Apply Filters'),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -833,23 +884,23 @@ class _InvoiceListScreenState extends ConsumerState<InvoiceListScreen> {
     return invoice.dueDate.isBefore(DateTime.now());
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(String status, ThemeData theme) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return AppTheme.successColor(context);
+        return theme.colorScheme.tertiary;
       case 'pending':
       case 'sent':
-        return AppTheme.warningColor(context);
+        return theme.colorScheme.primary;
       case 'overdue':
-        return AppTheme.errorColor(context);
+        return theme.colorScheme.error;
       case 'draft':
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
       case 'partial':
-        return AppTheme.infoColor(context);
+        return theme.colorScheme.secondary;
       case 'void':
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
       default:
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
     }
   }
 }

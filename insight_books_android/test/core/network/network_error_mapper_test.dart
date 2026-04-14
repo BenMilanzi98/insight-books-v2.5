@@ -122,6 +122,25 @@ void main() {
         expect(NetworkErrorMapper.toUserMessage(err), 'Invalid email');
       });
 
+      test('returns server error message for PERIOD_LOCKED payload on 403', () {
+        final err = DioException(
+          type: DioExceptionType.badResponse,
+          requestOptions: RequestOptions(path: '/api/invoices'),
+          response: Response(
+            statusCode: 403,
+            data: {
+              'error': 'Accounting period is closed.',
+              'details': {'code': 'PERIOD_LOCKED'},
+            },
+            requestOptions: RequestOptions(path: '/api/invoices'),
+          ),
+        );
+        expect(
+          NetworkErrorMapper.toUserMessage(err),
+          'Accounting period is closed.',
+        );
+      });
+
       test('uses fallback when no useful info', () {
         expect(
           NetworkErrorMapper.toUserMessage(

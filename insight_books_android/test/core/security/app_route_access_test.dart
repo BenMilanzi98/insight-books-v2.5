@@ -31,8 +31,8 @@ void main() {
       expect(firstAccessibleRoute({'stock.view'}), '/stock');
     });
 
-    test('falls back to /pos with empty permissions', () {
-      expect(firstAccessibleRoute({}), '/pos');
+    test('falls back to access denied with empty permissions', () {
+      expect(firstAccessibleRoute({}), '/access-denied');
     });
 
     test('offers switch-tenant when multiple tenants', () {
@@ -48,7 +48,7 @@ void main() {
         {'tenants.switch'},
         tenantCount: 1,
       );
-      expect(route, '/pos');
+      expect(route, '/access-denied');
     });
   });
 

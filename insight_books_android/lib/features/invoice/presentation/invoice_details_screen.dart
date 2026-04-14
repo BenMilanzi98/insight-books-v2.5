@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
-import 'package:insightbooks_android/core/theme/app_theme.dart';
+import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import '../data/invoice_repository.dart';
 import '../domain/invoice_model.dart';
 import 'providers/invoice_details_provider.dart';
@@ -111,12 +111,15 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     }
 
     if (permissions.canSendInvoices) {
+      final sendLabel = status == 'paid'
+          ? 'Send payment confirmation'
+          : 'Send invoice';
       items.add(
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'send',
           child: ListTile(
-            leading: Icon(Icons.send_outlined),
-            title: Text('Send Invoice'),
+            leading: const Icon(Icons.send_outlined),
+            title: Text(sendLabel),
           ),
         ),
       );
@@ -151,21 +154,27 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         PopupMenuItem(
           value: 'mark_paid',
           child: ListTile(
-            leading: Icon(Icons.check_circle, color: AppTheme.successColor(context)),
+            leading: Icon(
+              Icons.check_circle,
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
             title: const Text('Mark as Paid'),
           ),
         ),
       );
     }
 
-    // Partial Payment — pending/sent/overdue/partial
-    if (['pending', 'sent', 'overdue', 'partial'].contains(status) &&
+    // Partial Payment — matches web isEligibleForPartialPayment: pending or partial only
+    if (['pending', 'partial'].contains(status) &&
         permissions.canUpdateInvoices) {
       items.add(
         PopupMenuItem(
           value: 'partial_payment',
           child: ListTile(
-            leading: Icon(Icons.pie_chart, color: AppTheme.infoColor(context)),
+            leading: Icon(
+              Icons.pie_chart,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
             title: const Text('Record Partial Payment'),
           ),
         ),
@@ -178,7 +187,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         PopupMenuItem(
           value: 'void',
           child: ListTile(
-            leading: Icon(Icons.block, color: AppTheme.textSecondary(context)),
+            leading: Icon(
+              Icons.block,
+              color: Theme.of(context).colorScheme.outline,
+            ),
             title: const Text('Void Invoice'),
           ),
         ),
@@ -193,7 +205,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         PopupMenuItem(
           value: 'refund',
           child: ListTile(
-            leading: Icon(Icons.undo, color: AppTheme.warningColor(context)),
+            leading: Icon(
+              Icons.undo,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
             title: const Text('Refund'),
           ),
         ),
@@ -208,8 +223,14 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         PopupMenuItem(
           value: 'delete',
           child: ListTile(
-            leading: Icon(Icons.delete, color: AppTheme.errorColor(context)),
-            title: Text('Delete', style: TextStyle(color: AppTheme.errorColor(context))),
+            leading: Icon(
+              Icons.delete,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'Delete',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         ),
       );
@@ -362,7 +383,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   // ═══════════════════════════════════════════════════
 
   Widget _buildStatusBanner(Invoice invoice, ThemeData theme) {
-    final color = _statusColor(invoice.status);
+    final color = _statusColor(invoice.status, theme);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -569,13 +590,13 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               _SummaryRow(
                 label: 'Paid',
                 value: _currencyFormat.format(invoice.totalPaid),
-                color: AppTheme.successColor(context),
+                color: theme.colorScheme.tertiary,
               ),
             if (invoice.remainingBalance > 0)
               _SummaryRow(
                 label: 'Balance Due',
                 value: _currencyFormat.format(invoice.remainingBalance),
-                color: AppTheme.errorColor(context),
+                color: theme.colorScheme.error,
                 isBold: true,
               ),
           ],
@@ -613,10 +634,10 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: CircleAvatar(
                   radius: 18,
-                  backgroundColor: AppTheme.successBg(context),
+                  backgroundColor: theme.colorScheme.primaryContainer,
                   child: Icon(
                     Icons.payment,
-                    color: AppTheme.successColor(context),
+                    color: theme.colorScheme.onPrimaryContainer,
                     size: 20,
                   ),
                 ),
@@ -721,7 +742,6 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
             .read(invoiceControllerProvider.notifier)
             .markAsPaid(invoice.id, selectedMethod);
         ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
-        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Invoice marked as paid')),
@@ -731,7 +751,16 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Something went wrong',
+                ),
+              ),
+            ),
+          );
         }
       }
     }
@@ -859,7 +888,6 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
             );
         ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
-        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -869,7 +897,16 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Something went wrong',
+                ),
+              ),
+            ),
+          );
         }
       }
     }
@@ -920,12 +957,25 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     );
 
     if (confirmed == true && mounted) {
+      final reason = reasonCtrl.text.trim();
+      if (reason.length < 3) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Please provide a reason for voiding (at least 3 characters).',
+              ),
+            ),
+          );
+        }
+        reasonCtrl.dispose();
+        return;
+      }
       try {
         await ref
             .read(invoiceControllerProvider.notifier)
-            .voidInvoice(invoice.id, reasonCtrl.text);
+            .voidInvoice(invoice.id, reason);
         ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
-        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -935,7 +985,16 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Something went wrong',
+                ),
+              ),
+            ),
+          );
         }
       }
     }
@@ -1013,8 +1072,14 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Reason for Refund',
                       ),
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Required' : null,
+                      validator: (v) {
+                        final t = v?.trim() ?? '';
+                        if (t.isEmpty) return 'Required';
+                        if (t.length < 3) {
+                          return 'At least 3 characters';
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
@@ -1046,8 +1111,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                       width: double.infinity,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.warningColor(ctx),
-                          foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
+                          backgroundColor:
+                              Theme.of(ctx).colorScheme.secondaryContainer,
+                          foregroundColor: Theme.of(ctx)
+                              .colorScheme
+                              .onSecondaryContainer,
                         ),
                         onPressed: () {
                           if (formKey.currentState!.validate()) {
@@ -1078,7 +1146,6 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               notes: notesCtrl.text.isNotEmpty ? notesCtrl.text : null,
             );
         ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
-        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -1088,7 +1155,16 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Something went wrong',
+                ),
+              ),
+            ),
+          );
         }
       }
     }
@@ -1130,13 +1206,21 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
         await ref
             .read(invoiceControllerProvider.notifier)
             .deleteInvoice(invoice.id);
-        await ref.read(invoiceControllerProvider.notifier).refresh();
         if (mounted) context.pop();
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+          ).showSnackBar(
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Something went wrong',
+                ),
+              ),
+            ),
+          );
         }
       }
     }
@@ -1147,7 +1231,11 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Send Invoice'),
+        title: Text(
+          invoice.status.toLowerCase() == 'paid'
+              ? 'Send payment confirmation'
+              : 'Send invoice',
+        ),
         content: TextField(
           controller: messageCtrl,
           maxLines: 3,
@@ -1177,7 +1265,9 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   : messageCtrl.text.trim(),
             );
         ref.invalidate(invoiceDetailsProvider(widget.invoiceId));
-        await ref.read(invoiceControllerProvider.notifier).refresh();
+        await ref
+            .read(invoiceControllerProvider.notifier)
+            .reloadPreservingPagination();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Invoice sent successfully')),
@@ -1186,7 +1276,14 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to send invoice: $e')),
+            SnackBar(
+              content: Text(
+                NetworkErrorMapper.toUserMessage(
+                  e,
+                  fallback: 'Failed to send invoice',
+                ),
+              ),
+            ),
           );
         }
       }
@@ -1287,23 +1384,23 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   //  Helpers
   // ═══════════════════════════════════════════════════
 
-  Color _statusColor(String status) {
+  Color _statusColor(String status, ThemeData theme) {
     switch (status.toLowerCase()) {
       case 'paid':
-        return AppTheme.successColor(context);
+        return theme.colorScheme.tertiary;
       case 'pending':
       case 'sent':
-        return AppTheme.warningColor(context);
+        return theme.colorScheme.primary;
       case 'overdue':
-        return AppTheme.errorColor(context);
+        return theme.colorScheme.error;
       case 'draft':
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
       case 'partial':
-        return AppTheme.infoColor(context);
+        return theme.colorScheme.secondary;
       case 'void':
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
       default:
-        return AppTheme.textSecondary(context);
+        return theme.colorScheme.outline;
     }
   }
 

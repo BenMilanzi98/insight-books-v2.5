@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/network_error_mapper.dart';
@@ -52,7 +53,7 @@ class InvoicePageState {
     this.page = 1,
     this.totalPages = 1,
     this.totalCount = 0,
-    this.limit = 20,
+    this.limit = 10,
     this.dateFrom,
     this.dateTo,
     this.clientFilter,
@@ -125,9 +126,11 @@ class InvoicePageState {
 
 class InvoiceController extends Notifier<InvoicePageState> {
   InvoiceRepository get _repo => ref.read(invoiceRepositoryProvider);
+  Timer? _searchDebounce;
 
   @override
   InvoicePageState build() {
+    ref.onDispose(() => _searchDebounce?.cancel());
     Future.microtask(() => refresh());
     return const InvoicePageState();
   }
@@ -135,7 +138,16 @@ class InvoiceController extends Notifier<InvoicePageState> {
   // —— Loading ——
 
   Future<void> loadInvoices() async {
-    const allowedFilters = {'all', 'draft', 'pending', 'paid', 'overdue'};
+    const allowedFilters = {
+      'all',
+      'draft',
+      'pending',
+      'paid',
+      'overdue',
+      'sent',
+      'partial',
+      'void',
+    };
     if (!allowedFilters.contains(state.statusFilter)) {
       state = state.copyWith(statusFilter: 'all', page: 1);
     }
@@ -197,6 +209,21 @@ class InvoiceController extends Notifier<InvoicePageState> {
     await Future.wait([loadInvoices(), loadStatistics()]);
   }
 
+  /// Reload list + stats without forcing page 1 (matches web after row actions).
+  Future<void> reloadPreservingPagination() async {
+    await loadPermissions();
+    if (!state.canViewInvoices) {
+      state = state.copyWith(
+        invoices: const [],
+        statistics: null,
+        isLoading: false,
+        error: null,
+      );
+      return;
+    }
+    await Future.wait([loadInvoices(), loadStatistics()]);
+  }
+
   Future<void> loadPermissions() async {
     final perms = await ref.read(userPermissionsProvider.future);
     final hasPerms = perms.isNotEmpty;
@@ -213,8 +240,15 @@ class InvoiceController extends Notifier<InvoicePageState> {
   // —— Filtering ——
 
   void setSearch(String search) {
-    state = state.copyWith(searchQuery: search, page: 1);
-    loadInvoices();
+    state = state.copyWith(searchQuery: search, page: 1, clearError: true);
+    _searchDebounce?.cancel();
+    if (search.isEmpty) {
+      loadInvoices();
+      return;
+    }
+    _searchDebounce = Timer(const Duration(milliseconds: 500), () {
+      loadInvoices();
+    });
   }
 
   void setStatusFilter(String status) {
@@ -271,6 +305,41 @@ class InvoiceController extends Notifier<InvoicePageState> {
     loadInvoices();
   }
 
+  /// Apply status + date range + client in one load (matches web filter panel “Apply”).
+  Future<void> applySheetFilters({
+    required String statusFilter,
+    String? dateFrom,
+    String? dateTo,
+    String? clientId,
+  }) async {
+    _searchDebounce?.cancel();
+    const allowedFilters = {
+      'all',
+      'draft',
+      'pending',
+      'paid',
+      'overdue',
+      'sent',
+      'partial',
+      'void',
+    };
+    var st = statusFilter.toLowerCase();
+    if (!allowedFilters.contains(st)) st = 'all';
+
+    state = state.copyWith(
+      statusFilter: st,
+      dateFrom: dateFrom,
+      dateTo: dateTo,
+      clearDateFrom: dateFrom == null,
+      clearDateTo: dateTo == null,
+      clientFilter: clientId,
+      clearClientFilter: clientId == null,
+      page: 1,
+      clearError: true,
+    );
+    await Future.wait([loadInvoices(), loadStatistics()]);
+  }
+
   void setLimit(int limit) {
     if (limit <= 0) return;
     state = state.copyWith(limit: limit, page: 1);
@@ -278,6 +347,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
   }
 
   void resetFilters() {
+    _searchDebounce?.cancel();
     state = state.copyWith(
       searchQuery: '',
       statusFilter: 'all',
@@ -288,7 +358,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
       clearDateTo: true,
       clearClientFilter: true,
     );
-    loadInvoices();
+    Future.wait([loadInvoices(), loadStatistics()]);
   }
 
   bool get hasActiveFilters {
@@ -308,7 +378,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
 
   Future<Invoice> updateInvoice(String id, CreateInvoiceRequest request) async {
     final invoice = await _repo.updateInvoice(id, request);
-    await refresh();
+    await reloadPreservingPagination();
     return invoice;
   }
 
@@ -316,12 +386,12 @@ class InvoiceController extends Notifier<InvoicePageState> {
 
   Future<void> markAsPaid(String id, String paymentMethod) async {
     await _repo.markAsPaid(id, paymentMethod);
-    await refresh();
+    await reloadPreservingPagination();
   }
 
   Future<void> voidInvoice(String id, String reason) async {
     await _repo.voidInvoice(id, reason);
-    await refresh();
+    await reloadPreservingPagination();
   }
 
   Future<void> refundInvoice({
@@ -338,7 +408,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
       refundMethod: refundMethod,
       notes: notes,
     );
-    await refresh();
+    await reloadPreservingPagination();
   }
 
   Future<void> addPartialPayment({
@@ -357,7 +427,7 @@ class InvoiceController extends Notifier<InvoicePageState> {
       reference: reference,
       notes: notes,
     );
-    await refresh();
+    await reloadPreservingPagination();
   }
 
   // —— Export ——
@@ -376,7 +446,12 @@ class InvoiceController extends Notifier<InvoicePageState> {
       await file.writeAsBytes(bytes);
       await SharePlus.instance.share(ShareParams(files: [XFile(file.path)]));
     } catch (e) {
-      state = state.copyWith(error: 'Export failed: $e');
+      state = state.copyWith(
+        error: NetworkErrorMapper.toUserMessage(
+          e,
+          fallback: 'Failed to export invoices',
+        ),
+      );
     }
   }
 }

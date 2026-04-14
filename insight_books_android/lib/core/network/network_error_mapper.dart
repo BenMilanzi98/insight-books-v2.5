@@ -53,8 +53,17 @@ class NetworkErrorMapper {
     if (isConnectionError(error)) return internetConnectionMessage;
     if (error is DioException) {
       final data = error.response?.data;
-      if (data is Map && data['error'] != null) {
-        return data['error'].toString();
+      if (data is Map) {
+        final details = data['details'];
+        if (details is Map && details['code'] == 'PERIOD_LOCKED') {
+          final msg = data['error'];
+          if (msg != null && msg.toString().trim().isNotEmpty) {
+            return msg.toString();
+          }
+        }
+        if (data['error'] != null) {
+          return data['error'].toString();
+        }
       }
       if (error.message != null && error.message!.trim().isNotEmpty) {
         return error.message!.trim();

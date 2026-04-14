@@ -13,6 +13,8 @@ void main() {
       ),
     );
     await tester.pump();
+    // [LoginScreen] defers form animation start; flush the timer before dispose.
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.byType(LoginScreen), findsOneWidget);
   });
 }
