@@ -24,6 +24,7 @@ abstract class Invoice with _$Invoice {
     String? orderNumber,
     String? terms,
     String? notes,
+    String? templateId,
     @Default(0) double totalPaid,
     @Default(0) double remainingBalance,
     @Default(0) double amountDue,

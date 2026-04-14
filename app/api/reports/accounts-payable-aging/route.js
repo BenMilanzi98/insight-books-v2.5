@@ -1,8 +1,7 @@
 // app/api/reports/accounts-payable-aging/route.js
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateAPAgingFromTransactions } from '@/lib/apAgingService';
+import { retiredReportResponse } from '@/lib/retiredReports';
 
 export async function GET(request) {
   try {
@@ -13,39 +12,9 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const { searchParams } = new URL(request.url);
-    const asOfDateParam = searchParams.get('asOfDate');
-    const asOfDate = asOfDateParam || new Date().toISOString().split('T')[0];
-    
-    // Get tenant name
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true }
-    });
-    
-    // Generate AP Aging using Phase 2 enhanced service - filter by branch
-    const apAging = await generateAPAgingFromTransactions(user.tenantId, asOfDate, user.currentBranchId || null);
-    
-    return NextResponse.json({
-      companyName: tenant?.name || 'Company',
-      ...apAging
-    });
+    return retiredReportResponse('accounts-payable-aging');
   } catch (error) {
-    console.error('Error generating accounts payable aging report:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code,
-      meta: error.meta
-    });
-    return NextResponse.json(
-      { 
-        error: 'Failed to generate accounts payable aging report',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
-      },
-      { status: 500 }
-    );
+    console.error('accounts-payable-aging:', error);
+    return NextResponse.json({ error: 'Failed to process request' }, { status: 500 });
   }
 }

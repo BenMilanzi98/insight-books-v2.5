@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,7 @@ export async function GET(request) {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(token, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },
@@ -128,7 +129,7 @@ export async function POST(request) {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(token, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },

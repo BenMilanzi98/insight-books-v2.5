@@ -6,6 +6,7 @@ import {
   createDraftEntry,
 } from '@/lib/journalService';
 import { formatJournalEntries } from '@/lib/journalEntryFormatter';
+import { validateNoDuplicateInventoryLines } from '@/lib/journalManualLineValidation';
 
 /**
  * Manual journal entries are restricted to adjustments only.
@@ -389,6 +390,28 @@ export async function POST(request) {
     if (lines.length < 2) {
       return NextResponse.json(
         { error: 'At least two lines are required for a journal entry.' },
+        { status: 400 }
+      );
+    }
+
+    const lineAccountIds = [...new Set(lines.map((l) => l.accountId))];
+    const lineAccounts = await prisma.account.findMany({
+      where: { tenantId: user.tenantId, id: { in: lineAccountIds } },
+      select: {
+        id: true,
+        accountCode: true,
+        code: true,
+        accountName: true,
+        name: true,
+        accountType: true,
+        type: true,
+        accountSubtype: true,
+      },
+    });
+    const invDup = validateNoDuplicateInventoryLines(lines, lineAccounts);
+    if (!invDup.ok) {
+      return NextResponse.json(
+        { error: invDup.error, details: invDup.details },
         { status: 400 }
       );
     }

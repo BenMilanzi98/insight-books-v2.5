@@ -159,12 +159,17 @@ export async function GET(request) {
       summary: {
         totalExpenses,
         expenseCount: expenses.length,
-        availableCategories: categories.map(c => ({
-          name: c.category,
-          accountCode: categoryCodeMap[c.category] || '',
-          count: c._count,
-          amount: c._sum.amount
-        }))
+        availableCategories: categories.map((c) => {
+          const codeFromMap = categoryCodeMap[c.category] || '';
+          const codeFromLine =
+            expenses.find((e) => e.category === c.category)?.accountCode || '';
+          return {
+            name: c.category,
+            accountCode: codeFromMap || codeFromLine,
+            count: c._count,
+            amount: c._sum.amount,
+          };
+        }),
       },
       expensesByCategory: Object.values(expensesByCategory),
       expensesByMonth: Object.values(expensesByMonth).sort((a, b) => 

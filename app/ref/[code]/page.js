@@ -117,7 +117,7 @@ const ReferralPage = ({ params }) => {
         <div className="text-center">
           <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg p-8 text-white">
             <h2 className="text-2xl font-bold mb-4">
-              Ready to Get Started?
+              Ready to try Insight Books for free?
             </h2>
             <p className="text-indigo-100 mb-6 max-w-2xl mx-auto">
               Join thousands of users who are already managing their business with Insight Books. 

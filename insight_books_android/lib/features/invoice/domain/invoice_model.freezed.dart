@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Invoice {
 
- String get id; String get invoiceNumber; PosClient get client; List<InvoiceItem> get items; double get subtotal; double get totalTax; double get totalDiscount; double get total; String get status; DateTime get dueDate; DateTime get createdAt; DateTime? get issueDate; String get currency; String? get title; String? get orderNumber; String? get terms; String? get notes; double get totalPaid; double get remainingBalance; double get amountDue; List<InvoicePayment> get payments;
+ String get id; String get invoiceNumber; PosClient get client; List<InvoiceItem> get items; double get subtotal; double get totalTax; double get totalDiscount; double get total; String get status; DateTime get dueDate; DateTime get createdAt; DateTime? get issueDate; String get currency; String? get title; String? get orderNumber; String? get terms; String? get notes; String? get templateId; double get totalPaid; double get remainingBalance; double get amountDue; List<InvoicePayment> get payments;
 /// Create a copy of Invoice
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $InvoiceCopyWith<Invoice> get copyWith => _$InvoiceCopyWithImpl<Invoice>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Invoice&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceNumber, invoiceNumber) || other.invoiceNumber == invoiceNumber)&&(identical(other.client, client) || other.client == client)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalDiscount, totalDiscount) || other.totalDiscount == totalDiscount)&&(identical(other.total, total) || other.total == total)&&(identical(other.status, status) || other.status == status)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.issueDate, issueDate) || other.issueDate == issueDate)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.title, title) || other.title == title)&&(identical(other.orderNumber, orderNumber) || other.orderNumber == orderNumber)&&(identical(other.terms, terms) || other.terms == terms)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.totalPaid, totalPaid) || other.totalPaid == totalPaid)&&(identical(other.remainingBalance, remainingBalance) || other.remainingBalance == remainingBalance)&&(identical(other.amountDue, amountDue) || other.amountDue == amountDue)&&const DeepCollectionEquality().equals(other.payments, payments));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Invoice&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceNumber, invoiceNumber) || other.invoiceNumber == invoiceNumber)&&(identical(other.client, client) || other.client == client)&&const DeepCollectionEquality().equals(other.items, items)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalDiscount, totalDiscount) || other.totalDiscount == totalDiscount)&&(identical(other.total, total) || other.total == total)&&(identical(other.status, status) || other.status == status)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.issueDate, issueDate) || other.issueDate == issueDate)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.title, title) || other.title == title)&&(identical(other.orderNumber, orderNumber) || other.orderNumber == orderNumber)&&(identical(other.terms, terms) || other.terms == terms)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.templateId, templateId) || other.templateId == templateId)&&(identical(other.totalPaid, totalPaid) || other.totalPaid == totalPaid)&&(identical(other.remainingBalance, remainingBalance) || other.remainingBalance == remainingBalance)&&(identical(other.amountDue, amountDue) || other.amountDue == amountDue)&&const DeepCollectionEquality().equals(other.payments, payments));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,invoiceNumber,client,const DeepCollectionEquality().hash(items),subtotal,totalTax,totalDiscount,total,status,dueDate,createdAt,issueDate,currency,title,orderNumber,terms,notes,totalPaid,remainingBalance,amountDue,const DeepCollectionEquality().hash(payments)]);
+int get hashCode => Object.hashAll([runtimeType,id,invoiceNumber,client,const DeepCollectionEquality().hash(items),subtotal,totalTax,totalDiscount,total,status,dueDate,createdAt,issueDate,currency,title,orderNumber,terms,notes,templateId,totalPaid,remainingBalance,amountDue,const DeepCollectionEquality().hash(payments)]);
 
 @override
 String toString() {
-  return 'Invoice(id: $id, invoiceNumber: $invoiceNumber, client: $client, items: $items, subtotal: $subtotal, totalTax: $totalTax, totalDiscount: $totalDiscount, total: $total, status: $status, dueDate: $dueDate, createdAt: $createdAt, issueDate: $issueDate, currency: $currency, title: $title, orderNumber: $orderNumber, terms: $terms, notes: $notes, totalPaid: $totalPaid, remainingBalance: $remainingBalance, amountDue: $amountDue, payments: $payments)';
+  return 'Invoice(id: $id, invoiceNumber: $invoiceNumber, client: $client, items: $items, subtotal: $subtotal, totalTax: $totalTax, totalDiscount: $totalDiscount, total: $total, status: $status, dueDate: $dueDate, createdAt: $createdAt, issueDate: $issueDate, currency: $currency, title: $title, orderNumber: $orderNumber, terms: $terms, notes: $notes, templateId: $templateId, totalPaid: $totalPaid, remainingBalance: $remainingBalance, amountDue: $amountDue, payments: $payments)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $InvoiceCopyWith<$Res>  {
   factory $InvoiceCopyWith(Invoice value, $Res Function(Invoice) _then) = _$InvoiceCopyWithImpl;
 @useResult
 $Res call({
- String id, String invoiceNumber, PosClient client, List<InvoiceItem> items, double subtotal, double totalTax, double totalDiscount, double total, String status, DateTime dueDate, DateTime createdAt, DateTime? issueDate, String currency, String? title, String? orderNumber, String? terms, String? notes, double totalPaid, double remainingBalance, double amountDue, List<InvoicePayment> payments
+ String id, String invoiceNumber, PosClient client, List<InvoiceItem> items, double subtotal, double totalTax, double totalDiscount, double total, String status, DateTime dueDate, DateTime createdAt, DateTime? issueDate, String currency, String? title, String? orderNumber, String? terms, String? notes, String? templateId, double totalPaid, double remainingBalance, double amountDue, List<InvoicePayment> payments
 });
 
 
@@ -65,7 +65,7 @@ class _$InvoiceCopyWithImpl<$Res>
 
 /// Create a copy of Invoice
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? invoiceNumber = null,Object? client = null,Object? items = null,Object? subtotal = null,Object? totalTax = null,Object? totalDiscount = null,Object? total = null,Object? status = null,Object? dueDate = null,Object? createdAt = null,Object? issueDate = freezed,Object? currency = null,Object? title = freezed,Object? orderNumber = freezed,Object? terms = freezed,Object? notes = freezed,Object? totalPaid = null,Object? remainingBalance = null,Object? amountDue = null,Object? payments = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? invoiceNumber = null,Object? client = null,Object? items = null,Object? subtotal = null,Object? totalTax = null,Object? totalDiscount = null,Object? total = null,Object? status = null,Object? dueDate = null,Object? createdAt = null,Object? issueDate = freezed,Object? currency = null,Object? title = freezed,Object? orderNumber = freezed,Object? terms = freezed,Object? notes = freezed,Object? templateId = freezed,Object? totalPaid = null,Object? remainingBalance = null,Object? amountDue = null,Object? payments = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,invoiceNumber: null == invoiceNumber ? _self.invoiceNumber : invoiceNumber // ignore: cast_nullable_to_non_nullable
@@ -84,6 +84,7 @@ as String,title: freezed == title ? _self.title : title // ignore: cast_nullable
 as String?,orderNumber: freezed == orderNumber ? _self.orderNumber : orderNumber // ignore: cast_nullable_to_non_nullable
 as String?,terms: freezed == terms ? _self.terms : terms // ignore: cast_nullable_to_non_nullable
 as String?,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
+as String?,templateId: freezed == templateId ? _self.templateId : templateId // ignore: cast_nullable_to_non_nullable
 as String?,totalPaid: null == totalPaid ? _self.totalPaid : totalPaid // ignore: cast_nullable_to_non_nullable
 as double,remainingBalance: null == remainingBalance ? _self.remainingBalance : remainingBalance // ignore: cast_nullable_to_non_nullable
 as double,amountDue: null == amountDue ? _self.amountDue : amountDue // ignore: cast_nullable_to_non_nullable
@@ -182,10 +183,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  String? templateId,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Invoice() when $default != null:
-return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
+return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.templateId,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
   return orElse();
 
 }
@@ -203,10 +204,10 @@ return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  String? templateId,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)  $default,) {final _that = this;
 switch (_that) {
 case _Invoice():
-return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
+return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.templateId,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -223,10 +224,10 @@ return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String invoiceNumber,  PosClient client,  List<InvoiceItem> items,  double subtotal,  double totalTax,  double totalDiscount,  double total,  String status,  DateTime dueDate,  DateTime createdAt,  DateTime? issueDate,  String currency,  String? title,  String? orderNumber,  String? terms,  String? notes,  String? templateId,  double totalPaid,  double remainingBalance,  double amountDue,  List<InvoicePayment> payments)?  $default,) {final _that = this;
 switch (_that) {
 case _Invoice() when $default != null:
-return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
+return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subtotal,_that.totalTax,_that.totalDiscount,_that.total,_that.status,_that.dueDate,_that.createdAt,_that.issueDate,_that.currency,_that.title,_that.orderNumber,_that.terms,_that.notes,_that.templateId,_that.totalPaid,_that.remainingBalance,_that.amountDue,_that.payments);case _:
   return null;
 
 }
@@ -238,7 +239,7 @@ return $default(_that.id,_that.invoiceNumber,_that.client,_that.items,_that.subt
 @JsonSerializable()
 
 class _Invoice implements Invoice {
-  const _Invoice({required this.id, required this.invoiceNumber, required this.client, required final  List<InvoiceItem> items, required this.subtotal, required this.totalTax, required this.totalDiscount, required this.total, required this.status, required this.dueDate, required this.createdAt, this.issueDate, this.currency = 'MWK', this.title, this.orderNumber, this.terms, this.notes, this.totalPaid = 0, this.remainingBalance = 0, this.amountDue = 0, final  List<InvoicePayment> payments = const []}): _items = items,_payments = payments;
+  const _Invoice({required this.id, required this.invoiceNumber, required this.client, required final  List<InvoiceItem> items, required this.subtotal, required this.totalTax, required this.totalDiscount, required this.total, required this.status, required this.dueDate, required this.createdAt, this.issueDate, this.currency = 'MWK', this.title, this.orderNumber, this.terms, this.notes, this.templateId, this.totalPaid = 0, this.remainingBalance = 0, this.amountDue = 0, final  List<InvoicePayment> payments = const []}): _items = items,_payments = payments;
   factory _Invoice.fromJson(Map<String, dynamic> json) => _$InvoiceFromJson(json);
 
 @override final  String id;
@@ -264,6 +265,7 @@ class _Invoice implements Invoice {
 @override final  String? orderNumber;
 @override final  String? terms;
 @override final  String? notes;
+@override final  String? templateId;
 @override@JsonKey() final  double totalPaid;
 @override@JsonKey() final  double remainingBalance;
 @override@JsonKey() final  double amountDue;
@@ -288,16 +290,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Invoice&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceNumber, invoiceNumber) || other.invoiceNumber == invoiceNumber)&&(identical(other.client, client) || other.client == client)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalDiscount, totalDiscount) || other.totalDiscount == totalDiscount)&&(identical(other.total, total) || other.total == total)&&(identical(other.status, status) || other.status == status)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.issueDate, issueDate) || other.issueDate == issueDate)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.title, title) || other.title == title)&&(identical(other.orderNumber, orderNumber) || other.orderNumber == orderNumber)&&(identical(other.terms, terms) || other.terms == terms)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.totalPaid, totalPaid) || other.totalPaid == totalPaid)&&(identical(other.remainingBalance, remainingBalance) || other.remainingBalance == remainingBalance)&&(identical(other.amountDue, amountDue) || other.amountDue == amountDue)&&const DeepCollectionEquality().equals(other._payments, _payments));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Invoice&&(identical(other.id, id) || other.id == id)&&(identical(other.invoiceNumber, invoiceNumber) || other.invoiceNumber == invoiceNumber)&&(identical(other.client, client) || other.client == client)&&const DeepCollectionEquality().equals(other._items, _items)&&(identical(other.subtotal, subtotal) || other.subtotal == subtotal)&&(identical(other.totalTax, totalTax) || other.totalTax == totalTax)&&(identical(other.totalDiscount, totalDiscount) || other.totalDiscount == totalDiscount)&&(identical(other.total, total) || other.total == total)&&(identical(other.status, status) || other.status == status)&&(identical(other.dueDate, dueDate) || other.dueDate == dueDate)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.issueDate, issueDate) || other.issueDate == issueDate)&&(identical(other.currency, currency) || other.currency == currency)&&(identical(other.title, title) || other.title == title)&&(identical(other.orderNumber, orderNumber) || other.orderNumber == orderNumber)&&(identical(other.terms, terms) || other.terms == terms)&&(identical(other.notes, notes) || other.notes == notes)&&(identical(other.templateId, templateId) || other.templateId == templateId)&&(identical(other.totalPaid, totalPaid) || other.totalPaid == totalPaid)&&(identical(other.remainingBalance, remainingBalance) || other.remainingBalance == remainingBalance)&&(identical(other.amountDue, amountDue) || other.amountDue == amountDue)&&const DeepCollectionEquality().equals(other._payments, _payments));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,id,invoiceNumber,client,const DeepCollectionEquality().hash(_items),subtotal,totalTax,totalDiscount,total,status,dueDate,createdAt,issueDate,currency,title,orderNumber,terms,notes,totalPaid,remainingBalance,amountDue,const DeepCollectionEquality().hash(_payments)]);
+int get hashCode => Object.hashAll([runtimeType,id,invoiceNumber,client,const DeepCollectionEquality().hash(_items),subtotal,totalTax,totalDiscount,total,status,dueDate,createdAt,issueDate,currency,title,orderNumber,terms,notes,templateId,totalPaid,remainingBalance,amountDue,const DeepCollectionEquality().hash(_payments)]);
 
 @override
 String toString() {
-  return 'Invoice(id: $id, invoiceNumber: $invoiceNumber, client: $client, items: $items, subtotal: $subtotal, totalTax: $totalTax, totalDiscount: $totalDiscount, total: $total, status: $status, dueDate: $dueDate, createdAt: $createdAt, issueDate: $issueDate, currency: $currency, title: $title, orderNumber: $orderNumber, terms: $terms, notes: $notes, totalPaid: $totalPaid, remainingBalance: $remainingBalance, amountDue: $amountDue, payments: $payments)';
+  return 'Invoice(id: $id, invoiceNumber: $invoiceNumber, client: $client, items: $items, subtotal: $subtotal, totalTax: $totalTax, totalDiscount: $totalDiscount, total: $total, status: $status, dueDate: $dueDate, createdAt: $createdAt, issueDate: $issueDate, currency: $currency, title: $title, orderNumber: $orderNumber, terms: $terms, notes: $notes, templateId: $templateId, totalPaid: $totalPaid, remainingBalance: $remainingBalance, amountDue: $amountDue, payments: $payments)';
 }
 
 
@@ -308,7 +310,7 @@ abstract mixin class _$InvoiceCopyWith<$Res> implements $InvoiceCopyWith<$Res> {
   factory _$InvoiceCopyWith(_Invoice value, $Res Function(_Invoice) _then) = __$InvoiceCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String invoiceNumber, PosClient client, List<InvoiceItem> items, double subtotal, double totalTax, double totalDiscount, double total, String status, DateTime dueDate, DateTime createdAt, DateTime? issueDate, String currency, String? title, String? orderNumber, String? terms, String? notes, double totalPaid, double remainingBalance, double amountDue, List<InvoicePayment> payments
+ String id, String invoiceNumber, PosClient client, List<InvoiceItem> items, double subtotal, double totalTax, double totalDiscount, double total, String status, DateTime dueDate, DateTime createdAt, DateTime? issueDate, String currency, String? title, String? orderNumber, String? terms, String? notes, String? templateId, double totalPaid, double remainingBalance, double amountDue, List<InvoicePayment> payments
 });
 
 
@@ -325,7 +327,7 @@ class __$InvoiceCopyWithImpl<$Res>
 
 /// Create a copy of Invoice
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? invoiceNumber = null,Object? client = null,Object? items = null,Object? subtotal = null,Object? totalTax = null,Object? totalDiscount = null,Object? total = null,Object? status = null,Object? dueDate = null,Object? createdAt = null,Object? issueDate = freezed,Object? currency = null,Object? title = freezed,Object? orderNumber = freezed,Object? terms = freezed,Object? notes = freezed,Object? totalPaid = null,Object? remainingBalance = null,Object? amountDue = null,Object? payments = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? invoiceNumber = null,Object? client = null,Object? items = null,Object? subtotal = null,Object? totalTax = null,Object? totalDiscount = null,Object? total = null,Object? status = null,Object? dueDate = null,Object? createdAt = null,Object? issueDate = freezed,Object? currency = null,Object? title = freezed,Object? orderNumber = freezed,Object? terms = freezed,Object? notes = freezed,Object? templateId = freezed,Object? totalPaid = null,Object? remainingBalance = null,Object? amountDue = null,Object? payments = null,}) {
   return _then(_Invoice(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,invoiceNumber: null == invoiceNumber ? _self.invoiceNumber : invoiceNumber // ignore: cast_nullable_to_non_nullable
@@ -344,6 +346,7 @@ as String,title: freezed == title ? _self.title : title // ignore: cast_nullable
 as String?,orderNumber: freezed == orderNumber ? _self.orderNumber : orderNumber // ignore: cast_nullable_to_non_nullable
 as String?,terms: freezed == terms ? _self.terms : terms // ignore: cast_nullable_to_non_nullable
 as String?,notes: freezed == notes ? _self.notes : notes // ignore: cast_nullable_to_non_nullable
+as String?,templateId: freezed == templateId ? _self.templateId : templateId // ignore: cast_nullable_to_non_nullable
 as String?,totalPaid: null == totalPaid ? _self.totalPaid : totalPaid // ignore: cast_nullable_to_non_nullable
 as double,remainingBalance: null == remainingBalance ? _self.remainingBalance : remainingBalance // ignore: cast_nullable_to_non_nullable
 as double,amountDue: null == amountDue ? _self.amountDue : amountDue // ignore: cast_nullable_to_non_nullable

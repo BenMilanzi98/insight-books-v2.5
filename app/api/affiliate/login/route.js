@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 const prisma = new PrismaClient();
 
@@ -46,28 +47,30 @@ export async function POST(request) {
       );
     }
 
-    // Generate JWT token (exact same pattern as admin login)
-    console.log('🔑 Login API: JWT_SECRET set:', !!process.env.JWT_SECRET);
-    console.log('🔑 Login API: JWT_SECRET length:', process.env.JWT_SECRET ? process.env.JWT_SECRET.length : 0);
-    
-    const token = jwt.sign(
-      {
-        affiliateId: affiliate.id,
-        email: affiliate.email,
-        type: 'affiliate',
-        isAffiliate: true
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
-    
-    console.log('🔑 Login API: Token generated:', token.substring(0, 20) + '...');
-    console.log('🔑 Login API: Token payload:', {
-      affiliateId: affiliate.id,
-      email: affiliate.email,
-      type: 'affiliate',
-      isAffiliate: true
-    });
+    let token;
+    try {
+      token = jwt.sign(
+        {
+          affiliateId: affiliate.id,
+          email: affiliate.email,
+          type: 'affiliate',
+          isAffiliate: true
+        },
+        getJwtSecret(),
+        { expiresIn: '24h' }
+      );
+    } catch (signErr) {
+      if (
+        signErr?.message?.includes('JWT_SECRET') ||
+        signErr?.message?.includes('production')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Server configuration error' },
+          { status: 503 }
+        );
+      }
+      throw signErr;
+    }
 
     // Set cookie
     const response = NextResponse.json({

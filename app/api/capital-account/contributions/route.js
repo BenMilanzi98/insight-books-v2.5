@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { isInventoryLedgerAccount } from '@/lib/journalManualLineValidation';
 
 function findCapitalAccountWhere(tenantId) {
   return {
@@ -22,8 +23,25 @@ function findCapitalAccountWhere(tenantId) {
           { name: { contains: 'Capital', mode: 'insensitive' } },
         ],
       },
+      { NOT: { accountCode: '3000' } },
     ],
   };
+}
+
+async function resolveOwnersCapitalAccount(tenantId) {
+  const byCode = await prisma.account.findFirst({
+    where: { tenantId, isActive: true, accountCode: '3100' },
+  });
+  if (byCode) return byCode;
+  return prisma.account.findFirst({
+    where: findCapitalAccountWhere(tenantId),
+  });
+}
+
+function isCoaAssetAccount(account) {
+  if (!account) return false;
+  const t = (account.accountType || account.type || '').toUpperCase();
+  return t === 'ASSET' || t === 'ASSETS';
 }
 
 function generateReference(date) {
@@ -46,9 +64,7 @@ export async function GET(request) {
       );
     }
 
-    const capitalAccount = await prisma.account.findFirst({
-      where: findCapitalAccountWhere(user.tenantId),
-    });
+    const capitalAccount = await resolveOwnersCapitalAccount(user.tenantId);
 
     if (!capitalAccount) {
       return NextResponse.json({
@@ -213,16 +229,18 @@ export async function POST(request) {
       );
     }
 
-    let capitalAccount = await prisma.account.findFirst({
-      where: findCapitalAccountWhere(user.tenantId),
-    });
+    let capitalAccount = await resolveOwnersCapitalAccount(user.tenantId);
 
     if (!capitalAccount) {
       capitalAccount = await prisma.account.create({
         data: {
-          code: '3000',
+          code: '3100',
+          accountCode: '3100',
           name: "Owner's Capital",
+          accountName: "Owner's Capital",
           type: 'EQUITY',
+          accountType: 'Equity',
+          normalBalance: 'Credit',
           balance: 0,
           isActive: true,
           tenantId: user.tenantId,
@@ -371,6 +389,25 @@ export async function POST(request) {
           { status: 404 }
         );
       }
+    }
+
+    if (!isCoaAssetAccount(debitAccount)) {
+      return NextResponse.json(
+        {
+          error:
+            'Capital contributions must debit an asset account (e.g. cash, bank, or equipment) from your chart of accounts.',
+        },
+        { status: 400 }
+      );
+    }
+    if (isInventoryLedgerAccount(debitAccount)) {
+      return NextResponse.json(
+        {
+          error:
+            'Contributions cannot be posted to inventory accounts. Choose cash, bank, mobile money, or a fixed asset account.',
+        },
+        { status: 400 }
+      );
     }
 
     const entryDate = new Date(date);

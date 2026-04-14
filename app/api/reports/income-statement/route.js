@@ -87,9 +87,9 @@ export async function GET(request) {
         throw new Error('Income statement generation returned null');
       }
       
-      // Validate totals
+      // Validate totals (COGS excludes shipping per incomeStatementService spec)
       const totalRevenue = currentPeriod.totalRevenue || 0;
-      const totalCOGS = (currentPeriod.cogs?.costOfProductsSold || 0) + (currentPeriod.cogs?.freightShippingCosts || 0);
+      const totalCOGS = Number(currentPeriod.cogs?.costOfProductsSold || 0);
       const totalExpenses = currentPeriod.totalOperatingExpenses || 0;
       
       console.log('✅ Income Statement Generated:', {
@@ -142,6 +142,10 @@ export async function GET(request) {
       
       return {
         ...data,
+        period:
+          data.period?.startDate && data.period?.endDate
+            ? data.period
+            : { startDate, endDate },
         totalRevenue,
         revenue: {
           ...data.revenue,

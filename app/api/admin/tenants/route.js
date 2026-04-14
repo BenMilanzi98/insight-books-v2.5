@@ -3,6 +3,7 @@ import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 import { getSubscriptionStatusFromSubscriptions } from '@/lib/subscriptionService';
 
 export async function GET(request) {
@@ -83,7 +84,7 @@ export async function POST(request) {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(token, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },

@@ -3,12 +3,13 @@ import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import * as XLSX from 'xlsx';
+import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 
 /**
  * GET handler for exporting various reports
  * Supports CSV, XLSX, and PDF formats
  */
-export async function GET(request, { params }) {
+export async function GET(request, context) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
@@ -18,9 +19,12 @@ export async function GET(request, { params }) {
         { status: 401 }
       );
     }
-    
-    // Get the report type from the URL params
-    const reportType = params.reportType;
+
+    const params = await context.params;
+    const reportType = params?.reportType;
+    if (reportType && RETIRED_REPORT_IDS.has(reportType)) {
+      return retiredReportResponse(reportType);
+    }
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -120,21 +124,6 @@ export async function GET(request, { params }) {
         title = 'Sales Report';
         break;
         
-      case 'inventory-valuation':
-        reportData = await generateInventoryReportData(user.tenantId);
-        headers = [
-          { key: 'name', label: 'Product' },
-          { key: 'sku', label: 'SKU' },
-          { key: 'category', label: 'Category' },
-          { key: 'stockLevel', label: 'Stock Level' },
-          { key: 'cost', label: 'Unit Cost' },
-          { key: 'stockValue', label: 'Stock Value' },
-          { key: 'reorderPoint', label: 'Reorder Point' },
-          { key: 'status', label: 'Status' }
-        ];
-        title = 'Inventory Valuation Report';
-        break;
-
       case 'cash-flow':
         if (!startDate || !endDate) {
           return NextResponse.json(
@@ -269,7 +258,7 @@ export async function GET(request, { params }) {
         );
     }
   } catch (error) {
-    console.error(`Error exporting ${params.reportType} report:`, error);
+    console.error('Error exporting report:', error);
     return NextResponse.json(
       { error: 'Failed to generate report export. Please try again.' },
       { status: 500 }

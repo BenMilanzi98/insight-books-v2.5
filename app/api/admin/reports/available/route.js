@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 const prisma = new PrismaClient();
 
@@ -17,7 +18,7 @@ export async function GET(request) {
 
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(token, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },
@@ -88,17 +89,6 @@ export async function GET(request) {
         formats: ['pdf', 'excel'],
         parameters: ['location', 'category', 'stockLevel'],
         lastGenerated: new Date(Date.now() - 48 * 60 * 60 * 1000) // 2 days ago
-      },
-      {
-        id: 'sales-analysis',
-        name: 'Sales Analysis Report',
-        description: 'Sales performance, trends, and customer analysis',
-        type: 'sales',
-        category: 'Business',
-        estimatedTime: '2-3 minutes',
-        formats: ['pdf', 'excel'],
-        parameters: ['dateRange', 'salesRep', 'productCategory'],
-        lastGenerated: new Date(Date.now() - 36 * 60 * 60 * 1000) // 1.5 days ago
       },
       {
         id: 'audit-trail',

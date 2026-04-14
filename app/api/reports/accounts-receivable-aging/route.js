@@ -1,8 +1,7 @@
 // app/api/reports/accounts-receivable-aging/route.js
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { generateARAgingFromTransactions } from '@/lib/arAgingService';
+import { retiredReportResponse } from '@/lib/retiredReports';
 
 export async function GET(request) {
   try {
@@ -13,28 +12,11 @@ export async function GET(request) {
         { status: 401 }
       );
     }
-    
-    const { searchParams } = new URL(request.url);
-    const asOfDateParam = searchParams.get('asOfDate');
-    const asOfDate = asOfDateParam || new Date().toISOString().split('T')[0];
-    
-    // Get tenant name
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { name: true }
-    });
-    
-    // Generate AR Aging using Phase 2 enhanced service - filter by branch
-    const arAging = await generateARAgingFromTransactions(user.tenantId, asOfDate, user.currentBranchId || null);
-    
-    return NextResponse.json({
-      companyName: tenant?.name || 'Company',
-      ...arAging
-    });
+    return retiredReportResponse('accounts-receivable-aging');
   } catch (error) {
-    console.error('Error generating accounts receivable aging report:', error);
+    console.error('accounts-receivable-aging:', error);
     return NextResponse.json(
-      { error: 'Failed to generate accounts receivable aging report', details: error.message },
+      { error: 'Failed to process request' },
       { status: 500 }
     );
   }

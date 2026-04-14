@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 const prisma = new PrismaClient();
 
 export async function POST(request) {
@@ -165,17 +166,30 @@ export async function POST(request) {
       };
     });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      { 
-        userId: result.user.id, 
-        email: result.user.email, 
-        tenantId: result.tenant.id,
-        role: result.user.role 
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
-    );
+    let token;
+    try {
+      token = jwt.sign(
+        {
+          userId: result.user.id,
+          email: result.user.email,
+          tenantId: result.tenant.id,
+          role: result.user.role
+        },
+        getJwtSecret(),
+        { expiresIn: '7d' }
+      );
+    } catch (signErr) {
+      if (
+        signErr?.message?.includes('JWT_SECRET') ||
+        signErr?.message?.includes('production')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Server configuration error' },
+          { status: 503 }
+        );
+      }
+      throw signErr;
+    }
 
     // Set cookie
     const response = NextResponse.json({

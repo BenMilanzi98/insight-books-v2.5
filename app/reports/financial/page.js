@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -101,9 +102,6 @@ const FinancialReportsPage = () => {
           <div className="flex flex-wrap gap-2">
             {[
               { id: "overview", name: "Overview", icon: Activity },
-              { id: "income", name: "Income Analysis", icon: TrendingUp },
-              { id: "expenses", name: "Expense Analysis", icon: TrendingDown },
-              { id: "profitability", name: "Profitability", icon: BarChart3 },
               { id: "cashflow", name: "Cash Flow", icon: DollarSign }
             ].map((report) => {
               const IconComponent = report.icon;
@@ -235,112 +233,19 @@ const FinancialReportsPage = () => {
               </div>
             )}
 
-            {selectedReport === "income" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">Income Analysis</h3>
-                  <p className="text-gray-600">
-                    Detailed breakdown of income sources and revenue streams.
-                  </p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-800 mb-2">Income Sources</h4>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Product Sales:</span>
-                      <span className="font-medium">{formatCurrency(750000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Service Revenue:</span>
-                      <span className="font-medium">{formatCurrency(250000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Other Income:</span>
-                      <span className="font-medium">{formatCurrency(50000)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedReport === "expenses" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">Expense Analysis</h3>
-                  <p className="text-gray-600">
-                    Detailed breakdown of expenses by category and department.
-                  </p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-800 mb-2">Expense Categories</h4>
-                  <div className="space-y-2 text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Operating Expenses:</span>
-                      <span className="font-medium">{formatCurrency(400000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Cost of Goods Sold:</span>
-                      <span className="font-medium">{formatCurrency(300000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Administrative:</span>
-                      <span className="font-medium">{formatCurrency(200000)}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {selectedReport === "profitability" && (
-              <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-800 mb-4">Profitability Analysis</h3>
-                  <p className="text-gray-600">
-                    Analysis of profit margins, return on investment, and financial ratios.
-                  </p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-800 mb-2">Profitability Ratios</h4>
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <div className="flex justify-between">
-                        <span>Gross Margin:</span>
-                        <span className="font-medium">45.2%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Net Margin:</span>
-                        <span className="font-medium">24.3%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>ROI:</span>
-                        <span className="font-medium">18.7%</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-gray-800 mb-2">Trends</h4>
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <div className="flex justify-between">
-                        <span>Margin Trend:</span>
-                        <span className="text-green-600 font-medium">↗ Improving</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Efficiency:</span>
-                        <span className="text-green-600 font-medium">↗ Improving</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {selectedReport === "cashflow" && (
               <div className="space-y-6">
                 <div>
                   <h3 className="text-lg font-medium text-gray-800 mb-4">Cash Flow Analysis</h3>
                   <p className="text-gray-600">
-                    Analysis of cash inflows, outflows, and cash position.
+                    High-level cash view for this dashboard. For the full direct-method Cash Flow Statement (and exports), use the main Reports hub.
                   </p>
+                  <Link
+                    href="/reports"
+                    className="inline-flex mt-3 text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                  >
+                    Open Reports →
+                  </Link>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-gray-50 p-4 rounded-lg">

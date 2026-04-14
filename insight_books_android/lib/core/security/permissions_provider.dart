@@ -10,8 +10,19 @@ import 'package:insightbooks_android/features/auth/presentation/auth_controller.
 /// Reuses the cached /api/auth/me response from session validation to avoid
 /// a duplicate network call on startup.
 final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
-  final auth = ref.watch(authStateProvider);
-  if (auth.value != true) {
+  // While auth is [loading] (e.g. mid-login), [auth.value] is null — do not treat
+  // that as "logged out" or we emit {} and the router sends users to /access-denied
+  // before /api/auth/me runs with the new token.
+  var auth = ref.watch(authStateProvider);
+  for (var i = 0; i < 500 && auth.isLoading; i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    auth = ref.read(authStateProvider);
+  }
+  final authed = auth.maybeWhen(
+    data: (v) => v == true,
+    orElse: () => false,
+  );
+  if (!authed) {
     return {};
   }
 
@@ -24,10 +35,25 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
     }
 
     final dio = ref.watch(dioProvider);
-    final response = await dio.get('/api/auth/me');
-    final data = response.data;
-    if (data is! Map) return {};
-    return parsePermissionsFromMeResponse(Map<String, dynamic>.from(data));
+    Object? lastError;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        await Future<void>.delayed(Duration(milliseconds: 120 * attempt));
+      }
+      try {
+        final response = await dio.get('/api/auth/me');
+        final data = response.data;
+        if (data is! Map) return {};
+        return parsePermissionsFromMeResponse(
+          Map<String, dynamic>.from(data),
+        );
+      } catch (e) {
+        lastError = e;
+        debugPrint('[Permissions] /api/auth/me attempt ${attempt + 1}: $e');
+      }
+    }
+    debugPrint('[Permissions] Failed after retries: $lastError');
+    return {};
   } catch (e) {
     debugPrint('[Permissions] Failed to load /api/auth/me: $e');
     return {};

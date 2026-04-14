@@ -11,8 +11,11 @@ const String apiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://development.insightbooksafrica.com',
 );
 
-/// True when the app is pointed at the development server (default or explicit).
-bool get isDevEnvironment => apiBaseUrl.contains('development.');
+/// True when running a **debug** build against the development API host.
+/// Release/profile builds never show the DEV banner, even if the base URL
+/// still contains `development.` (use `--dart-define=API_BASE_URL=...` for prod).
+bool get isDevEnvironment =>
+    kDebugMode && apiBaseUrl.contains('development.');
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(

@@ -77,10 +77,15 @@ class AuthController extends Notifier<AsyncValue<bool>> {
   Future<LoginResult> login(String email, String password) async {
     _epoch++;
     _loginInProgress = true;
-    state = const AsyncValue.loading();
+    // Do **not** set [state] to loading here: [userPermissionsProvider] treats
+    // [auth.value != true] as logged out and emits {}, which sends users to
+    // /access-denied. LoginScreen shows progress via local [_submitting] instead.
     try {
       final result = await _repository.login(email, password);
       state = AsyncValue.data(result.success);
+      if (result.success) {
+        ref.invalidate(userPermissionsProvider);
+      }
       if (!result.success) _loginInProgress = false;
       return result;
     } catch (e, st) {

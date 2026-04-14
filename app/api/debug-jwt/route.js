@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 import { requirePermission } from '@/lib/auth';
 
 export async function GET(request) {
@@ -23,7 +24,7 @@ export async function GET(request) {
 
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+        const decoded = jwt.verify(token, getJwtSecret());
         debugInfo.tokenDecoded = true;
         debugInfo.tokenData = decoded;
       } catch (error) {

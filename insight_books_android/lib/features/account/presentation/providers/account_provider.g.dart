@@ -40,7 +40,7 @@ final class AccountProvider extends $NotifierProvider<Account, AccountState> {
   }
 }
 
-String _$accountHash() => r'57cb8202af69906dd40b02798ac2669b3fe2ee01';
+String _$accountHash() => r'3136d95fafa1966a93968028a89bbc0bcdb14360';
 
 abstract class _$Account extends $Notifier<AccountState> {
   AccountState build();

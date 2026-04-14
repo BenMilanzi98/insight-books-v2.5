@@ -22,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   final _emailFocus = FocusNode();
   final _passwordFocus = FocusNode();
   bool _obscurePassword = true;
+  bool _submitting = false;
 
   late final AnimationController _logoCtrl;
   late final AnimationController _formCtrl;
@@ -76,50 +77,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final result = await ref
-        .read(authStateProvider.notifier)
-        .login(_emailController.text.trim(), _passwordController.text);
-
-    if (!result.success) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            result.message ?? 'Login failed. Please check your credentials.',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
-
-    if (!mounted) return;
-
-    Set<String> perms = {};
+    setState(() => _submitting = true);
     try {
-      final permsFuture = ref.read(userPermissionsProvider.future);
-      final tenantFuture = ref.read(tenantProvider.notifier).loadData();
-      final loadedPerms = await permsFuture;
-      await tenantFuture;
-      perms = loadedPerms;
-    } catch (_) {
-      try {
-        await ref.read(tenantProvider.notifier).loadData();
-      } catch (_) {}
-    } finally {
-      ref.read(authStateProvider.notifier).markLoginComplete();
-    }
+      final result = await ref
+          .read(authStateProvider.notifier)
+          .login(_emailController.text.trim(), _passwordController.text);
 
-    if (!mounted) return;
-    final tenantState = ref.read(tenantProvider);
-    final tenantCount =
-        tenantState.isLoading ? null : tenantState.tenants.length;
-    context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
+      if (!result.success) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result.message ?? 'Login failed. Please check your credentials.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+        return;
+      }
+
+      if (!mounted) return;
+
+      ref.invalidate(userPermissionsProvider);
+
+      Set<String> perms = {};
+      try {
+        final permsFuture = ref.read(userPermissionsProvider.future);
+        final tenantFuture = ref.read(tenantProvider.notifier).loadData();
+        final loadedPerms = await permsFuture;
+        await tenantFuture;
+        perms = loadedPerms;
+      } catch (_) {
+        try {
+          await ref.read(tenantProvider.notifier).loadData();
+        } catch (_) {}
+      } finally {
+        ref.read(authStateProvider.notifier).markLoginComplete();
+      }
+
+      if (!mounted) return;
+      final tenantState = ref.read(tenantProvider);
+      final tenantCount =
+          tenantState.isLoading ? null : tenantState.tenants.length;
+      context.go(firstAccessibleRoute(perms, tenantCount: tenantCount));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
@@ -180,7 +187,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                             opacity: _formFade.value,
                             child: Transform.translate(
                               offset: _formSlide.value,
-                              child: _buildFormCard(theme, authState),
+                              child: _buildFormCard(theme),
                             ),
                           ),
                         ),
@@ -196,7 +203,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  Widget _buildFormCard(ThemeData theme, AsyncValue<bool> authState) {
+  Widget _buildFormCard(ThemeData theme) {
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -286,13 +293,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: authState.isLoading ? null : _submit,
+                    onPressed: _submitting ? null : _submit,
                     style: ElevatedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: authState.isLoading
+                    child: _submitting
                         ? const SizedBox(
                             height: 20,
                             width: 20,

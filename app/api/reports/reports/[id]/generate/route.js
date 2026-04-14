@@ -3,12 +3,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateDateRange } from '@/lib/dateUtils';
+import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 
 // POST - Generate a specific report
-export async function POST(request, { params }) {
+export async function POST(request, context) {
   try {
-    const reportId = params.id;
-    
+    const params = await context.params;
+    const reportId = params?.id;
+
     // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
@@ -16,6 +18,10 @@ export async function POST(request, { params }) {
         { error: 'Authentication required' },
         { status: 401 }
       );
+    }
+
+    if (reportId && RETIRED_REPORT_IDS.has(reportId)) {
+      return retiredReportResponse(reportId);
     }
     
     // Parse the request body
@@ -68,9 +74,6 @@ export async function POST(request, { params }) {
       case 'sales-report':
         return generateSalesReport(user.tenantId, startDate, endDate, detailed);
         
-      case 'inventory-valuation':
-        return generateInventoryValuationReport(user.tenantId);
-        
       case 'financial-ratios':
         return generateFinancialRatiosReport(user.tenantId, timeframe);
         
@@ -81,7 +84,7 @@ export async function POST(request, { params }) {
         );
     }
   } catch (error) {
-    console.error(`Error generating report ${params.id}:`, error);
+    console.error('Error generating report:', error);
     return NextResponse.json(
       { error: 'Failed to generate report. Please try again.' },
       { status: 500 }
@@ -609,41 +612,6 @@ async function generateSalesReport(tenantId, startDate, endDate, detailed) {
         status: invoice.status
       }))
     } : null
-  });
-}
-
-async function generateInventoryValuationReport(tenantId) {
-  // Get inventory products
-  const products = await prisma.product.findMany({
-    where: {
-      tenantId,
-      isService: false
-    }
-  });
-  
-  // Calculate totals
-  const totalValue = products.reduce((sum, product) => {
-    return sum + ((product.stockLevel || 0) * (product.cost || 0));
-  }, 0);
-  
-  return NextResponse.json({
-    title: "Inventory Valuation",
-    reportDate: new Date().toISOString(),
-    summary: {
-      totalItems: products.length,
-      totalQuantity: products.reduce((sum, product) => sum + (product.stockLevel || 0), 0),
-      totalValue
-    },
-    items: products.map(product => ({
-      id: product.id,
-      name: product.name,
-      sku: product.sku,
-      stockLevel: product.stockLevel || 0,
-      unitCost: product.cost || 0,
-      totalValue: (product.stockLevel || 0) * (product.cost || 0),
-      reorderPoint: product.reorderPoint,
-      needsReorder: (product.stockLevel || 0) <= (product.reorderPoint || 0)
-    }))
   });
 }
 

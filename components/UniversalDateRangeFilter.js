@@ -39,18 +39,20 @@ export const UniversalDateRangeFilter = ({
 
   const timeframes = getAvailableTimeframes();
 
-  // Initialize custom dates if timeframe is custom
+  // Initialize custom dates when switching to custom (sync with parent timeframe)
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional one-time fill when parent sets timeframe to custom */
   useEffect(() => {
     if (timeframe === 'custom' && (!customStartDate || !customEndDate)) {
       const defaultRange = getDefaultCustomRange();
       setCustomStartDate(defaultRange.startDate);
       setCustomEndDate(defaultRange.endDate);
-      
+
       if (onCustomDateChange) {
         onCustomDateChange(defaultRange);
       }
     }
   }, [timeframe, customStartDate, customEndDate, onCustomDateChange]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Close dropdown when clicking outside
   useEffect(() => {

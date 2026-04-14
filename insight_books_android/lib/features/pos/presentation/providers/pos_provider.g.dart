@@ -40,7 +40,7 @@ final class PosProvider extends $NotifierProvider<Pos, PosPageState> {
   }
 }
 
-String _$posHash() => r'9687b2f80f568200a8046f11fccf272d79711478';
+String _$posHash() => r'560b9678405078aef1f1330761d0b668bc8e2044';
 
 abstract class _$Pos extends $Notifier<PosPageState> {
   PosPageState build();

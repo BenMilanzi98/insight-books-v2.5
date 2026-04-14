@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 const prisma = new PrismaClient();
 
@@ -11,11 +12,9 @@ export async function POST(request) {
     
     if (token) {
       try {
-        // Verify token to get admin ID for audit logging
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
-        
+        const secret = getJwtSecret();
+        const decoded = jwt.verify(token, secret);
         if (decoded.isAdmin && decoded.adminId) {
-          // Create admin audit log for logout
           await prisma.adminAuditLog.create({
             data: {
               adminId: decoded.adminId,
@@ -29,8 +28,8 @@ export async function POST(request) {
           });
         }
       } catch (error) {
-        // Token is invalid, but we still want to clear the cookie
-        console.log('Invalid token during logout:', error.message);
+        // Invalid token or JWT misconfiguration — still clear cookie
+        console.log('Logout token handling:', error.message);
       }
     }
 

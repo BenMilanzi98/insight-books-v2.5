@@ -59,6 +59,7 @@ dependencies:
   package_info_plus: ^9.0.0
   pdfx: ^2.9.2
   printing: ^5.14.3
+  pdf: ^3.11.3
 
 dev_dependencies:
   flutter_test:

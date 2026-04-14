@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 export async function POST(request) {
   try {
@@ -65,17 +66,31 @@ export async function POST(request) {
       }
     });
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        adminId: admin.id,
-        email: admin.email,
-        role: admin.role,
-        isAdmin: true
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
+    // Generate JWT token (requires JWT_SECRET in production)
+    let token;
+    try {
+      token = jwt.sign(
+        {
+          adminId: admin.id,
+          email: admin.email,
+          role: admin.role,
+          isAdmin: true
+        },
+        getJwtSecret(),
+        { expiresIn: '24h' }
+      );
+    } catch (signErr) {
+      if (
+        signErr?.message?.includes('JWT_SECRET') ||
+        signErr?.message?.includes('production')
+      ) {
+        return NextResponse.json(
+          { success: false, error: 'Server configuration error' },
+          { status: 503 }
+        );
+      }
+      throw signErr;
+    }
 
     // Create response with admin data
     const response = NextResponse.json({

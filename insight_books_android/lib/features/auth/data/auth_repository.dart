@@ -46,6 +46,35 @@ class AuthRepository {
 
   AuthRepository(this._dio, this._storageService);
 
+  /// Fills [StorageService.cacheMeData] after credentials are saved (retries for
+  /// transient 401 / network delays right after login).
+  Future<void> _cacheMeAfterLoginWithRetry() async {
+    const backoffMs = <int>[0, 120, 280, 520, 1000];
+    for (var i = 0; i < backoffMs.length; i++) {
+      if (backoffMs[i] > 0) {
+        await Future<void>.delayed(Duration(milliseconds: backoffMs[i]));
+      }
+      try {
+        final response = await _dio.get('/api/auth/me');
+        if (response.statusCode == 200 && response.data is Map) {
+          _storageService.cacheMeData(
+            Map<String, dynamic>.from(response.data as Map),
+          );
+          return;
+        }
+      } on DioException catch (e) {
+        debugPrint(
+          '[AuthRepository] POST-login /api/auth/me attempt ${i + 1}: '
+          '${e.response?.statusCode} ${e.message}',
+        );
+      } catch (e) {
+        debugPrint(
+          '[AuthRepository] POST-login /api/auth/me attempt ${i + 1}: $e',
+        );
+      }
+    }
+  }
+
   Future<LoginResult> login(String email, String password) async {
     try {
       final response = await _dio.post(
@@ -103,6 +132,10 @@ class AuthRepository {
           message: 'Login did not complete. Please try again.',
         );
       }
+
+      // Load session profile before we declare success so [userPermissionsProvider]
+      // can read [cachedMeData] and navigation never races an empty permission set.
+      await _cacheMeAfterLoginWithRetry();
 
       return const LoginResult(success: true);
     } on DioException catch (e) {

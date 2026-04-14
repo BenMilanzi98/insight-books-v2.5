@@ -143,44 +143,6 @@ export const fetchTaxSummary = async ({ timeframe, customDateRange = null }) => 
 };
 
 /**
- * Fetch accounts receivable aging data
- */
-export const fetchAccountsReceivableAging = async () => {
-  try {
-    const response = await fetch('/api/reports/accounts-receivable-aging');
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching accounts receivable aging: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching accounts receivable aging:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch accounts payable aging data
- */
-export const fetchAccountsPayableAging = async () => {
-  try {
-    const response = await fetch('/api/reports/accounts-payable-aging');
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching accounts payable aging: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching accounts payable aging:', error);
-    throw error;
-  }
-};
-
-/**
  * Fetch expense report data
  */
 export const fetchExpenseReport = async ({ timeframe, category, customDateRange = null }) => {
@@ -224,25 +186,6 @@ export const fetchSalesReport = async ({ timeframe, groupBy = 'day', customDateR
     return data;
   } catch (error) {
     console.error('Error fetching sales report:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch inventory valuation data
- */
-export const fetchInventoryValuation = async () => {
-  try {
-    const response = await fetch('/api/reports/inventory-valuation');
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching inventory valuation: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching inventory valuation:', error);
     throw error;
   }
 };
@@ -310,69 +253,6 @@ export const fetchPosDailyReport = async (date = null) => {
     return data;
   } catch (error) {
     console.error('Error fetching daily POS report:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch sales analysis report data
- */
-export const fetchSalesAnalysis = async ({ timeframe, groupBy = 'time', customDateRange = null }) => {
-  try {
-    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
-    
-    const response = await fetch(`/api/reports/sales-analysis?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching sales analysis report: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching sales analysis report:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch expense analysis report data
- */
-export const fetchExpenseAnalysis = async ({ timeframe, groupBy = 'category', customDateRange = null }) => {
-  try {
-    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
-    
-    const response = await fetch(`/api/reports/expense-analysis?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching expense analysis report: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching expense analysis report:', error);
-    throw error;
-  }
-};
-
-/**
- * Fetch profitability analysis report data
- */
-export const fetchProfitabilityAnalysis = async ({ timeframe, groupBy = 'product', customDateRange = null }) => {
-  try {
-    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
-    
-    const response = await fetch(`/api/reports/profitability-analysis?startDate=${startDate}&endDate=${endDate}&groupBy=${groupBy}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching profitability analysis report: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('Error fetching profitability analysis report:', error);
     throw error;
   }
 };

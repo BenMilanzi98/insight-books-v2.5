@@ -1,35 +1,9 @@
+import { getJwtSecret } from '@/lib/serverJwtSecret';
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
+import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
-
-// Custom JWT verification for Edge Runtime compatibility
-function verifyJWT(token, secret) {
-  try {
-    // Split the token
-    const parts = token.split('.');
-    if (parts.length !== 3) {
-      throw new Error('Invalid token format');
-    }
-
-    const [headerB64, payloadB64, signatureB64] = parts;
-    
-    // Decode header and payload
-    const header = JSON.parse(atob(headerB64));
-    const payload = JSON.parse(atob(payloadB64));
-    
-    // Check if token is expired
-    if (payload.exp && Date.now() >= payload.exp * 1000) {
-      throw new Error('Token expired');
-    }
-    
-    // For now, we'll just return the decoded payload
-    // In production, you should verify the signature using Web Crypto API
-    return payload;
-  } catch (error) {
-    throw new Error('Token verification failed: ' + error.message);
-  }
-}
 
 export async function GET(request) {
   try {
@@ -43,10 +17,9 @@ export async function GET(request) {
       );
     }
 
-    // Verify JWT token using Edge Runtime compatible function
     let decoded;
     try {
-      decoded = verifyJWT(affiliateToken, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(affiliateToken, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },
@@ -117,10 +90,9 @@ export async function PUT(request) {
       );
     }
 
-    // Verify JWT token
     let decoded;
     try {
-      decoded = verifyJWT(affiliateToken, process.env.JWT_SECRET || 'your-secret-key');
+      decoded = jwt.verify(affiliateToken, getJwtSecret());
     } catch (error) {
       return NextResponse.json(
         { success: false, error: 'Invalid token' },

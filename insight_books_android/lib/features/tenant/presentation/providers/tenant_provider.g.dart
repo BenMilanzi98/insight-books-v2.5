@@ -41,7 +41,7 @@ final class TenantNotifierProvider
   }
 }
 
-String _$tenantNotifierHash() => r'62872251557967fa85cc18cca84b326104a78e3b';
+String _$tenantNotifierHash() => r'0c731234d0dce747bcfb09bb2e65be148f6d205c';
 
 abstract class _$TenantNotifier extends $Notifier<TenantState> {
   TenantState build();

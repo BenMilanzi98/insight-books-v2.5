@@ -69,6 +69,7 @@ export async function GET(request) {
     
     return NextResponse.json({
       ...currentBalanceSheet,
+      asOfDate: currentBalanceSheet?.asOfDate || asOfDate,
       previousYear: previousYearBalanceSheet,
       comparisonType: compareYear ? 'previousYear' : null
     });

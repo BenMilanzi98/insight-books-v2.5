@@ -37,7 +37,7 @@ class InsightBooksApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     Widget app = MaterialApp.router(
-      title: 'Insight Books',
+      title: 'InsightBooks',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

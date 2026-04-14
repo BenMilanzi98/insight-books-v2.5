@@ -7,6 +7,7 @@ import {
 } from '@/lib/journalService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { formatJournalEntry } from '@/lib/journalEntryFormatter';
+import { validateNoDuplicateInventoryLines } from '@/lib/journalManualLineValidation';
 
 const ENTRY_INCLUDE = {
   lines: {
@@ -218,7 +219,17 @@ export async function PUT(request, { params }) {
         tenantId: user.tenantId,
         id: { in: accountIds },
       },
-      select: { id: true, isActive: true },
+      select: {
+        id: true,
+        isActive: true,
+        accountCode: true,
+        code: true,
+        accountName: true,
+        name: true,
+        accountType: true,
+        type: true,
+        accountSubtype: true,
+      },
     });
 
     if (accounts.length !== new Set(accountIds).size) {
@@ -232,6 +243,14 @@ export async function PUT(request, { params }) {
     if (inactiveAccount) {
       return NextResponse.json(
         { error: 'Inactive accounts cannot be used in journal entries.' },
+        { status: 400 }
+      );
+    }
+
+    const invDup = validateNoDuplicateInventoryLines(lines, accounts);
+    if (!invDup.ok) {
+      return NextResponse.json(
+        { error: invDup.error, details: invDup.details },
         { status: 400 }
       );
     }
@@ -283,6 +302,16 @@ export async function PUT(request, { params }) {
     if (existingEntry.status === 'Posted') {
       return NextResponse.json(
         { error: 'Posted journal entries are read-only. Use a reversal instead.' },
+        { status: 400 }
+      );
+    }
+
+    if (existingEntry.sourceType === 'capital_contribution') {
+      return NextResponse.json(
+        {
+          error:
+            'Capital contribution entries cannot be edited. Post a reversing journal entry if you need to correct the books.',
+        },
         { status: 400 }
       );
     }
@@ -449,6 +478,16 @@ export async function DELETE(request, { params }) {
     if (existingEntry.status === 'Posted') {
       return NextResponse.json(
         { error: 'Cannot delete posted journal entries. Please reverse instead.' },
+        { status: 400 }
+      );
+    }
+
+    if (existingEntry.sourceType === 'capital_contribution') {
+      return NextResponse.json(
+        {
+          error:
+            'Capital contribution entries cannot be deleted. Use a reversal entry if a correction is required.',
+        },
         { status: 400 }
       );
     }

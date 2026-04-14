@@ -15,8 +15,14 @@ async function updateProductionAdmin() {
   try {
     console.log('\n🔐 Setting up production admin user...\n');
     
-    const email = 'admin@insightbooks.com';
-    const password = '236810nb';
+    const email = process.env.ADMIN_BOOTSTRAP_EMAIL || 'admin@insightbooks.com';
+    const password = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+    if (!password || String(password).length < 12) {
+      console.error(
+        'Set ADMIN_BOOTSTRAP_PASSWORD (min 12 characters) and optionally ADMIN_BOOTSTRAP_EMAIL in the environment before running this script.'
+      );
+      process.exit(1);
+    }
     const hashedPassword = await bcrypt.hash(password, 12);
     
     // Check if admin exists in production

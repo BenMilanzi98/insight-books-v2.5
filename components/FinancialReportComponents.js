@@ -2108,6 +2108,14 @@ export const CashFlowReport = ({
             <h1 className="text-2xl font-bold text-slate-800">{companyName}</h1>
             <h2 className="text-xl font-semibold text-slate-600 mt-2">Cash Flow Statement (Direct Method)</h2>
             <p className="text-sm text-slate-600 mt-1">For the Period: {periodLabel}</p>
+            {data.reconciliationWarning ? (
+              <div
+                className="mt-4 mx-auto max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900"
+                role="status"
+              >
+                {data.reconciliationWarning}
+              </div>
+            ) : null}
           </div>
             
           {/* Cash Flow Statement Table */}
