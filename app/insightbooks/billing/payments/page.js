@@ -249,14 +249,14 @@ export default function AdminPayments() {
         </div>
       </div>
 
-      {/* Payment Processing Link */}
+      {/* Subscription payments CTA (InsightBooks billing) */}
       <div className="bg-indigo-50 border border-indigo-200 rounded-md p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-lg font-medium text-indigo-800 mb-2">Process New Payments</h3>
+            <h3 className="text-lg font-medium text-indigo-800 mb-2">Subscription payments</h3>
             <p className="text-indigo-700">
-              Need to process a subscription payment or manually record a payment? 
-              Use our payment processing system.
+              Process a tenant subscription payment or manually record billing activity using the subscription payments
+              workspace.
             </p>
           </div>
           <a

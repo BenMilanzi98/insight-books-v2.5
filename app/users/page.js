@@ -62,7 +62,7 @@ const permissionModules = {
   quotations: { label: 'Quotations', actions: ['create', 'view', 'update', 'delete', 'convert', 'approve', 'export'] },
   invoices: { label: 'Invoicing', actions: ['create', 'view', 'update', 'delete', 'send', 'markAsPaid', 'export'] },
   expenses: { label: 'Expense Tracking', actions: ['create', 'view', 'update', 'delete', 'approve', 'export'] },
-  payments: { label: 'Payment Processing', actions: ['create', 'view', 'update', 'delete', 'export'] },
+  payments: { label: 'Payment Accounts', actions: ['create', 'view', 'update', 'delete', 'export'] },
   reports: { label: 'Financial Reporting', actions: ['view', 'export'] },
   inventory: { label: 'Stock Management', actions: ['create', 'view', 'update', 'delete', 'adjust', 'export'] },
   hr: { label: 'HR Management', actions: ['create', 'view', 'update', 'delete', 'export'] },

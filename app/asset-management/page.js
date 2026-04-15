@@ -2112,7 +2112,7 @@ const AssetManagement = () => {
                           </option>
                         ))}
                       </select>
-                      <p className="text-xs text-gray-500 mt-1">Select the payment account from which the asset purchase will be deducted. Uses the same payment accounts configured under Payment Processing.</p>
+                      <p className="text-xs text-gray-500 mt-1">Select the payment account from which the asset purchase will be deducted. Uses the same payment accounts configured under Payment Accounts.</p>
                     </div>
                   )}
                   
@@ -3180,7 +3180,7 @@ const AssetManagement = () => {
                         ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        Uses the same payment accounts configured under Payment Processing.
+                        Uses the same payment accounts configured under Payment Accounts.
                       </p>
                     </div>
                     <div className="mb-4">

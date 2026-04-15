@@ -134,8 +134,8 @@ export default function SubscriptionPaymentPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Subscription Payment Processing</h1>
-          <p className="text-sm text-gray-500">Process subscription payments and calculate affiliate commissions</p>
+          <h1 className="text-2xl font-bold text-gray-900">Subscription payments</h1>
+          <p className="text-sm text-gray-500">Process InsightBooks subscription payments and calculate affiliate commissions</p>
         </div>
       </div>
 

@@ -213,7 +213,7 @@ const navigationByPermission = {
         { href: "/quotations", icon: "quotations", text: "Quotations" },
         { href: "/invoice", icon: "invoicing", text: "Invoicing", badge: "3" },
         { href: "/expenses", icon: "expenses", text: "Expense Tracking" },
-        { href: "/payments", icon: "payments", text: "Payment Processing" },
+        { href: "/payments", icon: "payments", text: "Payment Accounts" },
         { href: "/reports", icon: "reports", text: "Financial Reporting" },
         { href: "/clients", icon: "users", text: "Client Management" },
       ],
@@ -319,9 +319,9 @@ const navigationByPermission = {
     ]
   },
   payments: {
-    label: "Payments",
+    label: "Payment Accounts",
     items: [
-      { href: "/payments", icon: "payments", text: "Payment Processing", permission: "payments.view" },
+      { href: "/payments", icon: "payments", text: "Payment Accounts", permission: "payments.view" },
     ]
   },
   reports: {
@@ -599,7 +599,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       coreItems.push({
         href: "/payments",
         icon: "payments",
-        text: "Payment Processing"
+        text: "Payment Accounts"
       });
     }
 

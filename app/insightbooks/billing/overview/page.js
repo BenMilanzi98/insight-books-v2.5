@@ -133,16 +133,16 @@ export default function AdminBillingOverview() {
           </Link>
         </div>
 
-        {/* Payment Processing */}
+        {/* Subscription payments (InsightBooks billing) */}
         <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
           <div className="flex items-center mb-4">
             <div className="p-2 bg-green-100 rounded-lg">
               <CreditCard className="h-6 w-6 text-green-600" />
             </div>
-            <h3 className="ml-3 text-lg font-medium text-gray-900">Payment Processing</h3>
+            <h3 className="ml-3 text-lg font-medium text-gray-900">Subscription payments</h3>
           </div>
           <p className="text-gray-600 mb-4">
-            Process subscription payments, calculate affiliate commissions, and manage payment methods.
+            Process InsightBooks subscription payments, calculate affiliate commissions, and manage billing payment methods.
           </p>
           <Link
             href="/insightbooks/subscription-payment"

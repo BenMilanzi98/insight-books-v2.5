@@ -602,10 +602,10 @@ function FeaturesSection() {
     {
       icon: Banknote,
       tone: 'sky',
-      title: 'Payment Processing',
-      description: 'Record incoming and outgoing payments with clean allocation.',
+      title: 'Payment Accounts',
+      description: 'Cash, bank, and mobile wallets with live balances and controlled transfers.',
       detail:
-        'Apply payments to invoices and bills, reduce manual reconciliation, and keep cash movement aligned with your bank and your books.',
+        'Configure payment methods under Payment Accounts, move funds between them safely, and tie receipts to invoices and POS so balances stay aligned with your books.',
     },
     {
       icon: TrendingUp,

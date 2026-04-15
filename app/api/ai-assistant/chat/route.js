@@ -15,7 +15,7 @@ InsightBooks includes the following features:
 - Invoicing: Create, send, and manage invoices
 - Quotations: Create and convert quotations to invoices
 - Expense Tracking: Record and categorize expenses
-- Payment Processing: Track payments and receivables
+- Payment Accounts: Payment methods with balances, transfers between accounts, and invoice receipts
 - Financial Reports: Income statements, balance sheets, cash flow
 
 **Inventory & Stock:**

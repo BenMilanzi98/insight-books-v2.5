@@ -210,7 +210,7 @@ function PaymentManagementPageInner() {
             className="mb-4 flex items-center text-gray-600 hover:text-gray-900 transition-colors"
           >
             <ArrowLeft className="w-5 h-5 mr-2" />
-            Back to Payment Processing
+            Back to Payment Accounts
           </button>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Payment Accounts Management</h1>
           <p className="text-gray-600">Create and manage payment accounts for your business</p>
