@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Plus, Edit2, Trash2, DollarSign, CreditCard, Smartphone, Building2, X, Save, Loader, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
 
 const ACCOUNT_TYPES = [
@@ -11,8 +11,10 @@ const ACCOUNT_TYPES = [
   { value: 'POS Terminal', label: 'POS Terminal', icon: CreditCard }
 ];
 
-export default function PaymentManagementPage() {
+function PaymentManagementPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const onboarding = searchParams.get('onboarding') === '1';
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -168,9 +170,39 @@ export default function PaymentManagementPage() {
     }).format(Number(amount || 0));
   };
 
+  const completePaymentsOnboarding = async () => {
+    try {
+      setError(null);
+      const res = await fetch('/api/tenant/onboarding/complete-payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not complete this step');
+      window.location.href = '/dashboard';
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {onboarding && (
+          <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm">
+            <p className="font-medium">Required setup — payment accounts</p>
+            <p className="mt-1 text-amber-900/90">
+              Create the payment methods you will use (cash, bank, mobile money, etc.) and link them to your chart of accounts where prompted.
+            </p>
+            <button
+              type="button"
+              onClick={completePaymentsOnboarding}
+              className="mt-3 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-white text-sm font-medium hover:bg-amber-700"
+            >
+              I have configured payment accounts — go to dashboard
+            </button>
+          </div>
+        )}
         {/* Header */}
         <div className="mb-6">
           <button
@@ -423,3 +455,10 @@ export default function PaymentManagementPage() {
   );
 }
 
+export default function PaymentManagementPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-gray-500 text-sm">Loading…</div>}>
+      <PaymentManagementPageInner />
+    </Suspense>
+  );
+}

@@ -67,6 +67,13 @@ const ChartOfAccountsPage = () => {
     loadAccounts();
   }, [accountTypeFilter, activeFilter]);
 
+  useEffect(() => {
+    const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
+    if (cap?.id) {
+      setExpandedAccounts((prev) => new Set([...prev, cap.id]));
+    }
+  }, [accounts]);
+
   const loadAccounts = async () => {
     try {
       setLoading(true);

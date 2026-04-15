@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import {
+  resolvePrimaryCapitalAccount,
+  getCapitalLedgerBalanceForTransfers,
+} from '@/lib/resolveCapitalAccount';
 
 // GET - Get capital account information and balance
 export async function GET(request) {
@@ -16,29 +20,10 @@ export async function GET(request) {
       );
     }
 
-    // Find capital account - check both accountType and type fields for compatibility
-    const capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        AND: [
-          {
-            OR: [
-              { accountType: 'Equity' },
-              { accountType: 'EQUITY' },
-              { type: 'Equity' },
-              { type: 'EQUITY' }
-            ]
-          },
-          {
-            OR: [
-              { accountName: { contains: 'Capital', mode: 'insensitive' } },
-              { name: { contains: 'Capital', mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
-    });
+    const [capitalAccount, settings] = await Promise.all([
+      resolvePrimaryCapitalAccount(user.tenantId, prisma),
+      prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } }),
+    ]);
 
     if (!capitalAccount) {
       return NextResponse.json(
@@ -46,6 +31,9 @@ export async function GET(request) {
         { status: 404 }
       );
     }
+
+    const ledgerBalance = await getCapitalLedgerBalanceForTransfers(user.tenantId, prisma);
+    const ownerContributedCapital = Number(settings?.ownerContributedCapital) || 0;
 
     // Get recent transfers from capital account
     const recentTransfers = await prisma.payment.findMany({
@@ -83,13 +71,15 @@ export async function GET(request) {
     });
 
     return NextResponse.json({
+      ownerContributedCapital,
       capitalAccount: {
         id: capitalAccount.id,
-        code: capitalAccount.code,
-        name: capitalAccount.name,
+        code: capitalAccount.code || capitalAccount.accountCode,
+        accountCode: capitalAccount.accountCode || capitalAccount.code,
+        name: capitalAccount.name || capitalAccount.accountName,
         type: capitalAccount.type,
-        balance: capitalAccount.balance,
-        isActive: capitalAccount.isActive
+        balance: ledgerBalance,
+        isActive: capitalAccount.isActive,
       },
       recentTransfers: recentTransfers.map(transfer => ({
         id: transfer.id,
@@ -129,34 +119,19 @@ export async function PUT(request) {
     const body = await request.json();
     const { name, code, isActive } = body;
 
-    // Find capital account - check both accountType and type fields for compatibility
-    const capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        AND: [
-          {
-            OR: [
-              { accountType: 'Equity' },
-              { accountType: 'EQUITY' },
-              { type: 'Equity' },
-              { type: 'EQUITY' }
-            ]
-          },
-          {
-            OR: [
-              { accountName: { contains: 'Capital', mode: 'insensitive' } },
-              { name: { contains: 'Capital', mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
-    });
+    const capitalAccount = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
 
     if (!capitalAccount) {
       return NextResponse.json(
         { error: 'Capital account not found' },
         { status: 404 }
+      );
+    }
+
+    if (capitalAccount.isSystem) {
+      return NextResponse.json(
+        { error: 'System capital account (500000) cannot be renamed or deactivated from this screen.' },
+        { status: 400 }
       );
     }
 
@@ -236,29 +211,7 @@ export async function DELETE(request) {
       );
     }
 
-    // Find capital account - check both accountType and type fields for compatibility
-    const capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        AND: [
-          {
-            OR: [
-              { accountType: 'Equity' },
-              { accountType: 'EQUITY' },
-              { type: 'Equity' },
-              { type: 'EQUITY' }
-            ]
-          },
-          {
-            OR: [
-              { accountName: { contains: 'Capital', mode: 'insensitive' } },
-              { name: { contains: 'Capital', mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
-    });
+    const capitalAccount = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
 
     if (!capitalAccount) {
       return NextResponse.json(
@@ -267,8 +220,17 @@ export async function DELETE(request) {
       );
     }
 
+    if (capitalAccount.isSystem) {
+      return NextResponse.json(
+        { error: 'The primary Capital Account (500000) cannot be deleted.' },
+        { status: 400 }
+      );
+    }
+
+    const ledgerBal = await getCapitalLedgerBalanceForTransfers(user.tenantId, prisma);
+
     // Check if account has balance
-    if (capitalAccount.balance > 0) {
+    if (ledgerBal > 0) {
       return NextResponse.json(
         { error: 'Cannot delete capital account with positive balance. Please transfer or adjust the balance first.' },
         { status: 400 }

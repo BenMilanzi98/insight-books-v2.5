@@ -3,40 +3,12 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { isInventoryLedgerAccount } from '@/lib/journalManualLineValidation';
-
-function findCapitalAccountWhere(tenantId) {
-  return {
-    tenantId,
-    isActive: true,
-    AND: [
-      {
-        OR: [
-          { accountType: 'Equity' },
-          { accountType: 'EQUITY' },
-          { type: 'Equity' },
-          { type: 'EQUITY' },
-        ],
-      },
-      {
-        OR: [
-          { accountName: { contains: 'Capital', mode: 'insensitive' } },
-          { name: { contains: 'Capital', mode: 'insensitive' } },
-        ],
-      },
-      { NOT: { accountCode: '3000' } },
-    ],
-  };
-}
-
-async function resolveOwnersCapitalAccount(tenantId) {
-  const byCode = await prisma.account.findFirst({
-    where: { tenantId, isActive: true, accountCode: '3100' },
-  });
-  if (byCode) return byCode;
-  return prisma.account.findFirst({
-    where: findCapitalAccountWhere(tenantId),
-  });
-}
+import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
+import {
+  ensureCapitalParentAccount,
+  createContributionSubAccount,
+  listCapitalContributionAccountIds,
+} from '@/lib/capitalCoaHelpers';
 
 function isCoaAssetAccount(account) {
   if (!account) return false;
@@ -64,34 +36,58 @@ export async function GET(request) {
       );
     }
 
-    const capitalAccount = await resolveOwnersCapitalAccount(user.tenantId);
+    const [settings, creditAccountIdsRaw, primaryCapital] = await Promise.all([
+      prisma.tenantSettings.findUnique({ where: { tenantId: user.tenantId } }),
+      listCapitalContributionAccountIds(user.tenantId, prisma),
+      resolvePrimaryCapitalAccount(user.tenantId, prisma),
+    ]);
 
-    if (!capitalAccount) {
+    let creditAccountIds =
+      creditAccountIdsRaw?.length > 0
+        ? [...creditAccountIdsRaw]
+        : primaryCapital
+          ? [primaryCapital.id]
+          : [];
+
+    // Legacy Owner's Capital (3100): always include when present so historical credits still list
+    // after 500000 exists from chart bootstrap but before the new contribution model is used.
+    const legacy3100 = await prisma.account.findFirst({
+      where: { tenantId: user.tenantId, isActive: true, accountCode: '3100' },
+      select: { id: true },
+    });
+    if (legacy3100?.id && !creditAccountIds.includes(legacy3100.id)) {
+      creditAccountIds = [...creditAccountIds, legacy3100.id];
+    }
+
+    if (!creditAccountIds.length) {
       return NextResponse.json({
         contributions: [],
         summary: {
           totalCashContributions: 0,
           totalAssetContributions: 0,
-          totalCapital: 0,
+          totalCapital: Number(settings?.ownerContributedCapital) || 0,
+          ownerContributedCapital: Number(settings?.ownerContributedCapital) || 0,
         },
       });
     }
 
     const creditEntries = await prisma.journalEntry.findMany({
       where: {
-        accountId: capitalAccount.id,
+        accountId: { in: creditAccountIds },
         credit: { gt: 0 },
       },
       orderBy: { createdAt: 'desc' },
     });
 
     if (creditEntries.length === 0) {
+      const contributed = Number(settings?.ownerContributedCapital) || 0;
       return NextResponse.json({
         contributions: [],
         summary: {
           totalCashContributions: 0,
           totalAssetContributions: 0,
-          totalCapital: capitalAccount.balance || 0,
+          totalCapital: contributed || primaryCapital?.balance || 0,
+          ownerContributedCapital: contributed,
         },
       });
     }
@@ -128,6 +124,15 @@ export async function GET(request) {
     }
     const acctMap = Object.fromEntries(debitAccounts.map((a) => [a.id, a]));
 
+    const creditAccountIdsForLookup = [
+      ...new Set(creditEntries.map((e) => e.accountId).filter(Boolean)),
+    ];
+    const creditAccounts = await prisma.account.findMany({
+      where: { id: { in: creditAccountIdsForLookup } },
+      select: { id: true, accountCode: true, code: true, accountName: true, name: true },
+    });
+    const creditAcctMap = Object.fromEntries(creditAccounts.map((a) => [a.id, a]));
+
     let totalCash = 0;
     let totalAsset = 0;
 
@@ -156,6 +161,9 @@ export async function GET(request) {
         totalAsset += amount;
       }
 
+      const cr = creditAcctMap[entry.accountId];
+      const coaCode = cr?.accountCode || cr?.code || '';
+
       return {
         id: entry.id,
         date: tx.date || entry.entryDate || entry.createdAt,
@@ -164,16 +172,22 @@ export async function GET(request) {
         description: tx.description || entry.description || '',
         reference: tx.reference || entry.referenceNumber || '',
         debitAccountName,
+        coaAccountCode: coaCode,
         createdAt: entry.createdAt,
       };
     });
+
+    const contributed = Number(settings?.ownerContributedCapital) || 0;
+    const ledgerCapital = primaryCapital?.balance ?? 0;
 
     return NextResponse.json({
       contributions,
       summary: {
         totalCashContributions: totalCash,
         totalAssetContributions: totalAsset,
-        totalCapital: capitalAccount.balance || 0,
+        totalCapital: contributed > 0 ? contributed : ledgerCapital,
+        ownerContributedCapital: contributed,
+        ledgerCapitalBalance: ledgerCapital,
       },
     });
   } catch (error) {
@@ -229,28 +243,20 @@ export async function POST(request) {
       );
     }
 
-    let capitalAccount = await resolveOwnersCapitalAccount(user.tenantId);
-
-    if (!capitalAccount) {
-      capitalAccount = await prisma.account.create({
-        data: {
-          code: '3100',
-          accountCode: '3100',
-          name: "Owner's Capital",
-          accountName: "Owner's Capital",
-          type: 'EQUITY',
-          accountType: 'Equity',
-          normalBalance: 'Credit',
-          balance: 0,
-          isActive: true,
-          tenantId: user.tenantId,
-        },
-      });
-    }
+    const parentCapital = await ensureCapitalParentAccount(user.tenantId, prisma);
+    const contributionLabel =
+      (description && String(description).trim()) ||
+      (type === 'cash' ? 'Cash contribution' : 'Asset contribution');
+    const equityAccountForCredit = await createContributionSubAccount(
+      user.tenantId,
+      parentCapital,
+      prisma,
+      contributionLabel
+    );
 
     const capitalType = (
-      capitalAccount.type ||
-      capitalAccount.accountType ||
+      equityAccountForCredit.type ||
+      equityAccountForCredit.accountType ||
       ''
     ).toUpperCase();
     if (capitalType !== 'EQUITY') {
@@ -452,7 +458,7 @@ export async function POST(request) {
       prisma.journalEntry.create({
         data: {
           transactionId: transaction.id,
-          accountId: capitalAccount.id,
+          accountId: equityAccountForCredit.id,
           debit: 0,
           credit: parsedAmount,
           description: txDescription,
@@ -467,7 +473,8 @@ export async function POST(request) {
     ]);
 
     const newDebitBalance = (debitAccount.balance || 0) + parsedAmount;
-    const newCapitalBalance = (capitalAccount.balance || 0) + parsedAmount;
+    const newChildBalance = (equityAccountForCredit.balance || 0) + parsedAmount;
+    const newParentBalance = (parentCapital.balance || 0) + parsedAmount;
 
     await prisma.$transaction([
       prisma.account.update({
@@ -475,8 +482,12 @@ export async function POST(request) {
         data: { balance: newDebitBalance },
       }),
       prisma.account.update({
-        where: { id: capitalAccount.id },
-        data: { balance: newCapitalBalance },
+        where: { id: equityAccountForCredit.id },
+        data: { balance: newChildBalance },
+      }),
+      prisma.account.update({
+        where: { id: parentCapital.id },
+        data: { balance: newParentBalance },
       }),
       prisma.accountBalance.upsert({
         where: {
@@ -496,23 +507,49 @@ export async function POST(request) {
         where: {
           tenantId_account: {
             tenantId: user.tenantId,
-            account: capitalAccount.id,
+            account: equityAccountForCredit.id,
           },
         },
-        update: { balance: newCapitalBalance },
+        update: { balance: newChildBalance },
         create: {
           tenantId: user.tenantId,
-          account: capitalAccount.id,
-          balance: newCapitalBalance,
+          account: equityAccountForCredit.id,
+          balance: newChildBalance,
+        },
+      }),
+      prisma.accountBalance.upsert({
+        where: {
+          tenantId_account: {
+            tenantId: user.tenantId,
+            account: parentCapital.id,
+          },
+        },
+        update: { balance: newParentBalance },
+        create: {
+          tenantId: user.tenantId,
+          account: parentCapital.id,
+          balance: newParentBalance,
         },
       }),
     ]);
+
+    await prisma.tenantSettings.upsert({
+      where: { tenantId: user.tenantId },
+      create: {
+        tenantId: user.tenantId,
+        enabledModules: [],
+        ownerContributedCapital: parsedAmount,
+      },
+      update: {
+        ownerContributedCapital: { increment: parsedAmount },
+      },
+    });
 
     await prisma.auditLog.create({
       data: {
         action: 'CAPITAL_CONTRIBUTION',
         entityType: 'ACCOUNT',
-        entityId: capitalAccount.id,
+        entityId: parentCapital.id,
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
@@ -523,8 +560,9 @@ export async function POST(request) {
           description: txDescription,
           debitAccountId: debitAccount.id,
           debitAccountName: debitAccount.name || debitAccount.accountName,
-          capitalAccountId: capitalAccount.id,
-          capitalAccountName: capitalAccount.name || capitalAccount.accountName,
+          capitalParentAccountId: parentCapital.id,
+          contributionAccountId: equityAccountForCredit.id,
+          contributionAccountCode: equityAccountForCredit.accountCode,
           transactionId: transaction.id,
           debitEntryId: debitEntry.id,
           creditEntryId: creditEntry.id,
@@ -546,10 +584,17 @@ export async function POST(request) {
           reference,
           debitAccountName: debitAccount.name || debitAccount.accountName,
           transactionId: transaction.id,
+          coaAccountCode: equityAccountForCredit.accountCode,
           capitalAccount: {
-            id: capitalAccount.id,
-            name: capitalAccount.name || capitalAccount.accountName,
-            newBalance: newCapitalBalance,
+            id: parentCapital.id,
+            name: parentCapital.name || parentCapital.accountName,
+            newBalance: newParentBalance,
+          },
+          contributionAccount: {
+            id: equityAccountForCredit.id,
+            code: equityAccountForCredit.accountCode,
+            name: equityAccountForCredit.accountName || equityAccountForCredit.name,
+            newBalance: newChildBalance,
           },
           debitAccount: {
             id: debitAccount.id,

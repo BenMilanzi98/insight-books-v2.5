@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { AlertCircle, Check, DollarSign, ArrowRightLeft, TrendingUp, Wallet, Clock, ArrowUpRight, ArrowDownRight, Edit, Trash2, Save, X, PlusCircle, Building2, Banknote } from "lucide-react";
 import { paymentMethods } from "@/lib/paymentMethods";
 
-const CapitalAccountManager = () => {
+const CapitalAccountManager = ({ onboarding = false }) => {
   const [capitalAccount, setCapitalAccount] = useState(null);
   /** Actual payment accounts from /payments/management with real balances */
   const [paymentAccounts, setPaymentAccounts] = useState([]);
@@ -79,16 +79,24 @@ const CapitalAccountManager = () => {
       const capitalResponse = await fetch('/api/capital-account');
       if (capitalResponse.ok) {
         const capitalData = await capitalResponse.json();
-        setCapitalAccount(capitalData.capitalAccount);
+        const ca = capitalData.capitalAccount
+          ? {
+              ...capitalData.capitalAccount,
+              ownerContributedCapital: capitalData.ownerContributedCapital ?? 0,
+            }
+          : null;
+        setCapitalAccount(ca);
         setRecentTransfers(capitalData.recentTransfers || []);
         setBalanceHistory(capitalData.balanceHistory || []);
         
         // Initialize edit data
-        setEditData({
-          name: capitalData.capitalAccount.name,
-          code: capitalData.capitalAccount.code,
-          isActive: capitalData.capitalAccount.isActive
-        });
+        if (ca) {
+          setEditData({
+            name: ca.name,
+            code: ca.code || ca.accountCode || "",
+            isActive: ca.isActive
+          });
+        }
       }
 
       // Fetch actual payment accounts with balances (same as /payments and /payments/management)
@@ -402,8 +410,43 @@ const CapitalAccountManager = () => {
     );
   }
 
+  const isSystemCapital =
+    capitalAccount?.accountCode === "500000" || String(capitalAccount?.code || "") === "500000";
+
+  const completeCapitalOnboarding = async () => {
+    try {
+      setError(null);
+      const res = await fetch("/api/tenant/onboarding/complete-capital", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not continue");
+      window.location.href = "/payments/management?onboarding=1";
+    } catch (e) {
+      setError(e?.message || "Failed to continue setup");
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {onboarding && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 text-sm shadow-sm">
+          <p className="font-medium">Required setup — capital</p>
+          <p className="mt-1 text-amber-900/90">
+            Set your opening capital (initial balance or contributions) and review distributions. When finished, continue to{" "}
+            <strong>Payment accounts</strong> in the next step.
+          </p>
+          <button
+            type="button"
+            onClick={completeCapitalOnboarding}
+            className="mt-3 inline-flex items-center rounded-lg bg-amber-600 px-4 py-2 text-white text-sm font-medium hover:bg-amber-700"
+          >
+            I have configured capital — continue to payment accounts
+          </button>
+        </div>
+      )}
       {/* Capital Account Overview */}
       <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-6 sm:p-8">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
@@ -415,7 +458,8 @@ const CapitalAccountManager = () => {
             <button
               type="button"
               onClick={() => setShowEditModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition-colors"
+              disabled={isSystemCapital}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-medium hover:bg-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Edit className="h-4 w-4" />
               Edit Account
@@ -460,7 +504,8 @@ const CapitalAccountManager = () => {
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors"
+              disabled={isSystemCapital}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white font-medium hover:bg-rose-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Trash2 className="h-4 w-4" />
               Delete Account
@@ -478,8 +523,17 @@ const CapitalAccountManager = () => {
                 <p className={`text-2xl font-bold mt-1 ${(capitalAccount?.balance || 0) <= 0 ? 'text-amber-900' : 'text-indigo-900'}`}>
                   {formatCurrency(capitalAccount?.balance || 0)}
                 </p>
+                <p className="text-xs text-slate-600 mt-2">
+                  Cumulative contributed capital:{" "}
+                  <span className="font-semibold text-slate-800">
+                    {formatCurrency(capitalAccount?.ownerContributedCapital ?? 0)}
+                  </span>
+                  <span className="block text-slate-500 mt-0.5">
+                    (Transfers to payment accounts do not reduce this figure; it increases when you add contributions.)
+                  </span>
+                </p>
                 {(capitalAccount?.balance || 0) <= 0 && (
-                  <p className="text-xs text-amber-700 mt-2">Account is empty — ready for top-up</p>
+                  <p className="text-xs text-amber-700 mt-2">Available transfer balance is empty — add capital or contributions first</p>
                 )}
               </div>
               <div className={`p-3 rounded-xl ${(capitalAccount?.balance || 0) <= 0 ? 'bg-amber-100' : 'bg-indigo-100'}`}>
@@ -978,8 +1032,15 @@ const CapitalAccountManager = () => {
             <p className="text-xl font-bold text-blue-900 mt-1">{formatCurrency(contributionSummary.totalAssetContributions)}</p>
           </div>
           <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-100">
-            <p className="text-sm font-medium text-indigo-600 uppercase tracking-wider">Total Capital</p>
-            <p className="text-xl font-bold text-indigo-900 mt-1">{formatCurrency(contributionSummary.totalCapital)}</p>
+            <p className="text-sm font-medium text-indigo-600 uppercase tracking-wider">Contributed capital</p>
+            <p className="text-xl font-bold text-indigo-900 mt-1">
+              {formatCurrency(
+                contributionSummary.ownerContributedCapital != null
+                  ? contributionSummary.ownerContributedCapital
+                  : contributionSummary.totalCapital
+              )}
+            </p>
+            <p className="text-xs text-indigo-700/80 mt-1">Increases with new contributions; not reduced by transfers to payment accounts.</p>
           </div>
         </div>
         {contributions.length > 0 ? (
@@ -990,6 +1051,7 @@ const CapitalAccountManager = () => {
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Date</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Type</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Description</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">GL (under 500000)</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Account Debited</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">Amount</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">Running Total</th>
@@ -1010,6 +1072,7 @@ const CapitalAccountManager = () => {
                       </span>
                     </td>
                     <td className="py-2 px-3 text-slate-700">{c.description}</td>
+                    <td className="py-2 px-3 font-mono text-xs text-violet-700">{c.coaAccountCode || "—"}</td>
                     <td className="py-2 px-3 text-slate-500">{c.debitAccountName}</td>
                     <td className="py-2 px-3 text-right font-medium text-slate-800">{formatCurrency(c.amount)}</td>
                     <td className="py-2 px-3 text-right font-bold text-indigo-700">{formatCurrency(c.runningTotal)}</td>

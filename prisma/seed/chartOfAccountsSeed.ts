@@ -137,6 +137,14 @@ const ACCOUNT_BLUEPRINT: AccountBlueprint[] = [
     subtype: 'Group',
   },
   {
+    code: '500000',
+    name: 'Capital Account',
+    type: 'Equity',
+    parentCode: '3000',
+    subtype: 'Capital',
+    normalBalance: 'Credit',
+  },
+  {
     code: '3100',
     name: "Owner's Capital",
     type: 'Equity',

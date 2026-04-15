@@ -41,7 +41,9 @@ function applyCoaParentRollup(accounts) {
     const acc = byId.get(id);
     if (!acc) return 0;
     const childIds = childrenByParent.get(id) || [];
-    const direct = Number(acc.currentBalance) || 0;
+    const code = String(acc.accountCode || acc.code || '');
+    // Capital parent 500000: stored balance mirrors transferable pool; roll up from children only to avoid double-count.
+    const direct = code === '500000' ? 0 : Number(acc.currentBalance) || 0;
     if (childIds.length === 0) {
       memo.set(id, direct);
       return direct;
@@ -1127,9 +1129,25 @@ export async function GET(request) {
     const deduplicatedAccounts = Array.from(accountMap.values());
     const accountsWithParentRollup = applyCoaParentRollup(deduplicatedAccounts);
 
+    const codeOf = (a) => String(a.accountCode || a.code || '');
+    const parent500 = accountsWithParentRollup.find((a) => codeOf(a) === '500000');
+    const sortedAccounts = (() => {
+      if (!parent500) {
+        return [...accountsWithParentRollup].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
+      }
+      const children = accountsWithParentRollup
+        .filter((a) => a.parentAccountId === parent500.id)
+        .sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
+      const rest = accountsWithParentRollup.filter(
+        (a) => a.id !== parent500.id && a.parentAccountId !== parent500.id
+      );
+      const restSorted = rest.sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
+      return [parent500, ...children, ...restSorted];
+    })();
+
     return NextResponse.json({
-      accounts: accountsWithParentRollup,
-      total: accountsWithParentRollup.length
+      accounts: sortedAccounts,
+      total: sortedAccounts.length
     });
   } catch (error) {
     console.error('Error fetching chart of accounts:', error);

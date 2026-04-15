@@ -13,6 +13,7 @@ import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { clampResolvedBranchToUserAccess } from '@/lib/branchAccess';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
 
 /** Payments that count toward invoice balance (completed, not a reversal row). */
 function sumEligibleInvoicePayments(payments) {
@@ -626,30 +627,7 @@ export async function POST(request) {
       }
     }
 
-    // Find capital account for transfer validation
-    // Check both accountType and type fields for compatibility
-    const capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        AND: [
-          {
-            OR: [
-              { accountType: 'Equity' },
-              { accountType: 'EQUITY' },
-              { type: 'Equity' },
-              { type: 'EQUITY' }
-            ]
-          },
-          {
-            OR: [
-              { accountName: { contains: 'Capital', mode: 'insensitive' } },
-              { name: { contains: 'Capital', mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
-    });
+    const capitalAccount = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
 
     let branchId = null;
     try {

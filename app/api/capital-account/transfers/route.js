@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
 
 // GET - Get capital account transfer history
 export async function GET(request) {
@@ -23,29 +24,7 @@ export async function GET(request) {
     const dateTo = searchParams.get('dateTo');
     const search = searchParams.get('search');
 
-    // Find capital account - check both accountType and type fields for compatibility
-    const capitalAccount = await prisma.account.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        AND: [
-          {
-            OR: [
-              { accountType: 'Equity' },
-              { accountType: 'EQUITY' },
-              { type: 'Equity' },
-              { type: 'EQUITY' }
-            ]
-          },
-          {
-            OR: [
-              { accountName: { contains: 'Capital', mode: 'insensitive' } },
-              { name: { contains: 'Capital', mode: 'insensitive' } }
-            ]
-          }
-        ]
-      }
-    });
+    const capitalAccount = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
 
     if (!capitalAccount) {
       return NextResponse.json(

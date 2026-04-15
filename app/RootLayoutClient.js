@@ -6,6 +6,7 @@ import AppBar from "@/components/AppBar";
 import Footer from "@/components/Footer";
 import FloatingWhatsApp from "@/components/FloatingWhatsApp";
 import AIAssistant from "@/components/AIAssistant";
+import OnboardingGate from "@/components/OnboardingGate";
 
 export default function RootLayoutClient({ children }) {
   const pathname = usePathname();
@@ -98,7 +99,7 @@ export default function RootLayoutClient({ children }) {
             maxWidth: "100%",
           }}
         >
-          {children}
+          {shouldHideLayout ? children : <OnboardingGate>{children}</OnboardingGate>}
         </main>
         {!shouldHideLayout && <Footer />}
       </div>

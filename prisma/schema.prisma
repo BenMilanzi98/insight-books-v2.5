@@ -198,6 +198,12 @@ model TenantSettings {
   taxOutflowAccountId    String?  // Default account for tax paid (outflow from expenses/supplier bills)
   eisApiKey              String?  // Encrypted MRA EIS API key
   eisClientSecret        String?  // Encrypted MRA EIS client secret
+  /// Cumulative owner contributions (not reduced by transfers to payment accounts). New rows default 0; migration seeds existing tenants.
+  ownerContributedCapital Float    @default(0)
+  /// Null = owner must complete capital onboarding. Migration sets NOW() for all pre-existing TenantSettings rows.
+  capitalSetupCompletedAt DateTime?
+  /// Null = owner must confirm payment accounts. Migration sets NOW() for all pre-existing TenantSettings rows.
+  paymentAccountsSetupCompletedAt DateTime?
   tenant                 Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
