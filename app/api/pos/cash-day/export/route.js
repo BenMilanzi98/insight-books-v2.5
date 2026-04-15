@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
 import { getPosCashDayState } from '@/lib/posCashDayService';
+import { generatePosDailySalesPdfBuffer } from '@/lib/posDailySalesPdf';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,17 @@ export async function GET(request) {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="pos-daily-${date}.xlsx"`,
+        },
+      });
+    }
+
+    if (format === 'pdf') {
+      const pdfBuf = generatePosDailySalesPdfBuffer(report, cashState, { date });
+      return new NextResponse(pdfBuf, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="pos-daily-${date}.pdf"`,
         },
       });
     }

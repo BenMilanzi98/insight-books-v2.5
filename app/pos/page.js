@@ -3691,6 +3691,12 @@ const POSPage = () => {
             >
               Export Excel
             </a>
+            <a
+              href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=pdf`}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-800 hover:bg-indigo-100"
+            >
+              Export PDF
+            </a>
           </div>
         </div>
         {posCashMessage && (
