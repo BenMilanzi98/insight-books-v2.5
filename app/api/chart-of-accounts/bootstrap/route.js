@@ -3,11 +3,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { initializeNewTenantFinancialDefaults } from '@/lib/initializeNewTenantFinancialDefaults';
-
-const isFinanceAdmin = (user) => {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
-};
+import { canBootstrapChartOfAccounts } from '@/lib/chartOfAccountsAccess';
 
 /**
  * POST /api/chart-of-accounts/bootstrap
@@ -24,9 +20,12 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canBootstrapChartOfAccounts(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        {
+          error:
+            'Access denied. accounts.create or accounts.update permission required.',
+        },
         { status: 403 }
       );
     }

@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { canUpdateChartOfAccount } from '@/lib/chartOfAccountsAccess';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
-
-const isFinanceAdmin = (user) => {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
-};
 
 const normalizeAccountType = (value) => {
   if (!value) return value;
@@ -23,9 +19,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentication required or no tenant associated' }, { status: 401 });
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canUpdateChartOfAccount(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        { error: 'Access denied. accounts.update permission required.' },
         { status: 403 }
       );
     }

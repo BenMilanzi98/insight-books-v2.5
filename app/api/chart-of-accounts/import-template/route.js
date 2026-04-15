@@ -3,11 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { EXPENSE_ACCOUNTS_TEMPLATE } from '@/lib/expenseCategoriesTemplate';
-
-const isFinanceAdmin = (user) => {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
-};
+import { canCreateChartOfAccount } from '@/lib/chartOfAccountsAccess';
 
 // Standard Chart of Accounts Template (non-expense; expense accounts from lib/expenseCategoriesTemplate.js)
 const STANDARD_COA_TEMPLATE = [
@@ -84,9 +80,9 @@ export async function POST(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canCreateChartOfAccount(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        { error: 'Access denied. accounts.create permission required.' },
         { status: 403 }
       );
     }

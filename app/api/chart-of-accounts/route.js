@@ -2,13 +2,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  canViewChartOfAccounts,
+  canCreateChartOfAccount,
+} from '@/lib/chartOfAccountsAccess';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
-
-const isFinanceAdmin = (user) => {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
-};
 
 const normalizeAccountType = (value) => {
   if (!value) return value;
@@ -70,9 +69,9 @@ export async function GET(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canViewChartOfAccounts(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        { error: 'Access denied. accounts.view permission required.' },
         { status: 403 }
       );
     }
@@ -1175,9 +1174,9 @@ export async function POST(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canCreateChartOfAccount(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        { error: 'Access denied. accounts.create permission required.' },
         { status: 403 }
       );
     }

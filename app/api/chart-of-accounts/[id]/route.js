@@ -2,13 +2,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  canViewChartOfAccounts,
+  canUpdateChartOfAccount,
+} from '@/lib/chartOfAccountsAccess';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
-
-const isFinanceAdmin = (user) => {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return roleName.includes('finance') || roleName.includes('admin') || roleName === 'master_admin';
-};
 
 const normalizeAccountType = (value) => {
   if (!value) return value;
@@ -30,9 +29,9 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canViewChartOfAccounts(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required.' },
+        { error: 'Access denied. accounts.view permission required.' },
         { status: 403 }
       );
     }
@@ -204,6 +203,13 @@ export async function PUT(request, { params }) {
       return NextResponse.json(
         { error: 'Account not found' },
         { status: 404 }
+      );
+    }
+
+    if (!canUpdateChartOfAccount(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. accounts.update permission required.' },
+        { status: 403 }
       );
     }
 
@@ -388,6 +394,13 @@ export async function DELETE(request, { params }) {
       return NextResponse.json(
         { error: 'Account not found' },
         { status: 404 }
+      );
+    }
+
+    if (!canUpdateChartOfAccount(user)) {
+      return NextResponse.json(
+        { error: 'Access denied. accounts.update permission required.' },
+        { status: 403 }
       );
     }
 
