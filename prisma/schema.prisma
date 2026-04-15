@@ -96,6 +96,7 @@ model Tenant {
   accountingPeriods          AccountingPeriod[]
   stockTransfers             StockTransfer[]
   stockTransferReceiptNotices StockTransferReceiptNotice[]
+  posCashDays                PosCashDay[]
   tpin                       String?
   eisEnabled                 Boolean                     @default(false)
   eisInvoices                EISInvoice[]
@@ -334,6 +335,9 @@ model User {
   tenants                        Tenant[]               @relation("UserTenants")
   ownedTenants                   Tenant[]               @relation("TenantOwner")
   memberships                    TenantMembership[]
+  posCashDaysOpened              PosCashDay[]           @relation("PosCashDayOpenedBy")
+  posCashDaysClosed              PosCashDay[]           @relation("PosCashDayClosedBy")
+  posCashDayDepositsCreated      PosCashDayDeposit[]    @relation("PosCashDayDepositCreatedBy")
 
   @@index([email])
   @@index([tenantId])
@@ -715,12 +719,64 @@ model PaymentAccount {
   tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   coaAccount   Account?            @relation("PaymentAccountCoa", fields: [coaAccountId], references: [id], onDelete: SetNull)
   allocations  PaymentAllocation[]
+  posCashDaysAsSystemCash PosCashDay[]        @relation("PosCashDaySystemCash")
+  posCashDayDepositsTo    PosCashDayDeposit[] @relation("PosCashDayDepositTo")
 
   @@unique([tenantId, name])
   @@index([tenantId])
   @@index([isActive])
   @@index([isSystem])
   @@index([coaAccountId])
+}
+
+/// POS register: one row per tenant + branch scope + calendar business day (YYYY-MM-DD).
+model PosCashDay {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  /// Stable branch scope: real branchId, or "none" when POS aggregates all allowed branches.
+  branchKey             String   @default("none")
+  businessDate          String
+  status                String   @default("OPEN")
+  systemCashAccountId   String
+  openingBalance        Float
+  openedAt              DateTime @default(now())
+  openedById            String?
+  closedAt              DateTime?
+  closedById            String?
+  autoClosed            Boolean  @default(false)
+  totalSalesAtClose     Float?
+  closingBalanceAtClose Float?
+  totalCashSalesSnapshot Float?
+  notes                 String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant            Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  systemCashAccount PaymentAccount @relation("PosCashDaySystemCash", fields: [systemCashAccountId], references: [id], onDelete: Restrict)
+  openedBy          User?          @relation("PosCashDayOpenedBy", fields: [openedById], references: [id], onDelete: SetNull)
+  closedBy          User?          @relation("PosCashDayClosedBy", fields: [closedById], references: [id], onDelete: SetNull)
+  deposits          PosCashDayDeposit[]
+
+  @@unique([tenantId, branchKey, businessDate])
+  @@index([tenantId, businessDate])
+  @@index([status])
+}
+
+model PosCashDayDeposit {
+  id           String   @id @default(cuid())
+  posCashDayId String
+  toAccountId  String
+  amount       Float
+  notes        String?
+  isAutoSweep  Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  createdById  String?
+
+  posCashDay PosCashDay     @relation(fields: [posCashDayId], references: [id], onDelete: Cascade)
+  toAccount  PaymentAccount @relation("PosCashDayDepositTo", fields: [toAccountId], references: [id], onDelete: Restrict)
+  createdBy  User?          @relation("PosCashDayDepositCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([posCashDayId])
 }
 
 model PaymentAllocation {

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -173,29 +174,25 @@ export async function GET(request) {
         transactionDateFilter.lte = new Date(dateTo);
       }
       
-      const cogsFilter = {
-        accountId: { in: cogsAccountIds },
-        debitAmount: { gt: 0 },
-        transaction: {
-          tenantId: user.tenantId,
-          status: 'posted',
-          ...(Object.keys(transactionDateFilter).length > 0 ? { date: transactionDateFilter } : {})
-        }
+      const transactionWhere = {
+        tenantId: user.tenantId,
+        status: 'posted',
+        ...(Object.keys(transactionDateFilter).length > 0 ? { date: transactionDateFilter } : {}),
+        ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
       };
-      
-      // Add branch filter if user has a branch selected
-      if (user?.currentBranchId) {
-        cogsFilter.transaction.branchId = user.currentBranchId;
-      }
-      
-      const cogsData = await prisma.transactionLine.aggregate({
-        where: cogsFilter,
-        _sum: { debitAmount: true },
-        _count: true
+
+      cogsTotal = await sumNetCogsDebitMinusCredit(prisma, {
+        cogsAccountIds,
+        transactionWhere,
       });
-      
-      cogsTotal = Number(cogsData._sum.debitAmount || 0);
-      cogsTransactionCount = cogsData._count || 0;
+
+      cogsTransactionCount = await prisma.transactionLine.count({
+        where: {
+          accountId: { in: cogsAccountIds },
+          OR: [{ debitAmount: { gt: 0 } }, { creditAmount: { gt: 0 } }],
+          transaction: transactionWhere,
+        },
+      });
     }
     
     // Calculate total expenses including COGS
@@ -233,8 +230,8 @@ export async function GET(request) {
       });
     });
 
-    // Add COGS as a separate category if there are COGS transactions
-    if (cogsTotal > 0) {
+    // Add COGS as a separate category when net COGS is non-zero
+    if (cogsTotal !== 0) {
       const cogsPercentage = totalExpenseAmount > 0 ? Math.round((cogsTotal / totalExpenseAmount) * 100) : 0;
       formattedCategoryStats.push({
         category: 'Cost of Goods Sold',

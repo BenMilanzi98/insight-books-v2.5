@@ -11,6 +11,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -454,31 +455,27 @@ export async function GET(request) {
         }),
         _sum: { amount: true }
       }),
-      // Get COGS from transaction lines for today - filter by transaction branchId
-      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-        where: {
-          accountId: { in: cogsAccountIds },
-          debitAmount: { gt: 0 },
-          transaction: {
-            ...tw,
-            ...transactionBranchSlice,
-            date: {
-              gte: currentPeriodStart,
-              lte: currentPeriodEnd
+      // Net COGS on GL for today (debits − credits so void/refund reversals reduce expense)
+      cogsAccountIds.length > 0
+        ? sumNetCogsDebitMinusCredit(prisma, {
+            cogsAccountIds,
+            transactionWhere: {
+              ...tw,
+              ...transactionBranchSlice,
+              date: {
+                gte: currentPeriodStart,
+                lte: currentPeriodEnd,
+              },
+              status: 'posted',
             },
-            status: 'posted'
-          }
-        },
-        _sum: { debitAmount: true }
-      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
+          })
+        : Promise.resolve(0),
     ]);
 
     const todayExpenses = todayExpensesSettled.status === 'fulfilled'
       ? todayExpensesSettled.value
       : { _sum: { amount: 0 } };
-    const todayCOGS = todayCOGSSettled.status === 'fulfilled'
-      ? todayCOGSSettled.value
-      : { _sum: { debitAmount: 0 } };
+    const todayCOGSAmount = todayCOGSSettled.status === 'fulfilled' ? todayCOGSSettled.value : 0;
 
     const [yesterdayExpensesSettled, yesterdayCOGSSettled] = await Promise.allSettled([
       // Expenses created yesterday
@@ -496,31 +493,26 @@ export async function GET(request) {
         }),
         _sum: { amount: true }
       }),
-      // Get COGS from transaction lines for yesterday - filter by transaction branchId
-      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-        where: {
-          accountId: { in: cogsAccountIds },
-          debitAmount: { gt: 0 },
-          transaction: {
-            ...tw,
-            ...transactionBranchSlice,
-            date: {
-              gte: previousPeriodStart,
-              lte: previousPeriodEnd
+      cogsAccountIds.length > 0
+        ? sumNetCogsDebitMinusCredit(prisma, {
+            cogsAccountIds,
+            transactionWhere: {
+              ...tw,
+              ...transactionBranchSlice,
+              date: {
+                gte: previousPeriodStart,
+                lte: previousPeriodEnd,
+              },
+              status: 'posted',
             },
-            status: 'posted'
-          }
-        },
-        _sum: { debitAmount: true }
-      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
+          })
+        : Promise.resolve(0),
     ]);
 
     const yesterdayExpenses = yesterdayExpensesSettled.status === 'fulfilled'
       ? yesterdayExpensesSettled.value
       : { _sum: { amount: 0 } };
-    const yesterdayCOGS = yesterdayCOGSSettled.status === 'fulfilled'
-      ? yesterdayCOGSSettled.value
-      : { _sum: { debitAmount: 0 } };
+    const yesterdayCOGSAmount = yesterdayCOGSSettled.status === 'fulfilled' ? yesterdayCOGSSettled.value : 0;
 
     const weeklyExpenses = await Promise.all(
       pastWeek.map(async (date) => {
@@ -545,34 +537,28 @@ export async function GET(request) {
               }),
               _sum: { amount: true }
             }),
-            // Get COGS from transaction lines for this date - filter by transaction branchId
-            cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-              where: {
-                accountId: { in: cogsAccountIds },
-                debitAmount: { gt: 0 },
-                transaction: {
-                  ...tw,
-                  ...transactionBranchSlice,
-                  date: {
-                    gte: dayStart,
-                    lte: dayEnd
+            cogsAccountIds.length > 0
+              ? sumNetCogsDebitMinusCredit(prisma, {
+                  cogsAccountIds,
+                  transactionWhere: {
+                    ...tw,
+                    ...transactionBranchSlice,
+                    date: {
+                      gte: dayStart,
+                      lte: dayEnd,
+                    },
+                    status: 'posted',
                   },
-                  status: 'posted'
-                }
-              },
-              _sum: { debitAmount: true }
-            }) : Promise.resolve({ _sum: { debitAmount: 0 } })
+                })
+              : Promise.resolve(0),
           ]);
 
           const expenses = expensesSettled.status === 'fulfilled'
             ? expensesSettled.value
             : { _sum: { amount: 0 } };
-          const cogs = cogsSettled.status === 'fulfilled'
-            ? cogsSettled.value
-            : { _sum: { debitAmount: 0 } };
+          const cogsAmount = cogsSettled.status === 'fulfilled' ? cogsSettled.value : 0;
 
           const expenseAmount = expenses?._sum?.amount || 0;
-          const cogsAmount = Number(cogs?._sum?.debitAmount || 0);
           return expenseAmount + cogsAmount;
         } catch (e) {
           console.error('daily-performance weeklyExpenses day failed:', e?.message || e);
@@ -589,8 +575,8 @@ export async function GET(request) {
     
     const yesterdayRevenue = (yesterdayInvoices._sum.amount || 0);
 
-    const todayExpensesTotal = (todayExpenses._sum.amount || 0) + Number(todayCOGS._sum.debitAmount || 0);
-    const yesterdayExpensesTotal = (yesterdayExpenses._sum.amount || 0) + Number(yesterdayCOGS._sum.debitAmount || 0);
+    const todayExpensesTotal = (todayExpenses._sum.amount || 0) + Number(todayCOGSAmount || 0);
+    const yesterdayExpensesTotal = (yesterdayExpenses._sum.amount || 0) + Number(yesterdayCOGSAmount || 0);
 
     return NextResponse.json({
       dailyMetrics: {

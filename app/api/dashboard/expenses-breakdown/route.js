@@ -11,6 +11,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -210,15 +211,10 @@ export async function GET(request) {
         const txFilter = { ...tw, date: { gte: startDate, lte: endDate }, status: 'posted' };
         const branchFilter = addBranchFilter(userQ, {});
         if (Object.keys(branchFilter).length > 0) Object.assign(txFilter, branchFilter);
-        const cogsData = await prisma.transactionLine.aggregate({
-          where: {
-            accountId: { in: cogsAccountIds },
-            debitAmount: { gt: 0 },
-            transaction: txFilter
-          },
-          _sum: { debitAmount: true }
+        cogsTotal = await sumNetCogsDebitMinusCredit(prisma, {
+          cogsAccountIds,
+          transactionWhere: txFilter,
         });
-        cogsTotal = Number(cogsData._sum?.debitAmount ?? 0);
       } catch (cogsErr) {
         console.error('expenses-breakdown COGS aggregate failed:', cogsErr?.message || cogsErr);
         // Continue with cogsTotal 0
@@ -238,8 +234,8 @@ export async function GET(request) {
       };
     });
     
-    // Add COGS as a separate category if there are COGS transactions
-    if (cogsTotal > 0) {
+    // Add COGS as a separate category when net COGS is non-zero (void/refunds can make it negative)
+    if (cogsTotal !== 0) {
       expensesBreakdown.push({
         category: 'Cost of Goods Sold',
         amount: cogsTotal,

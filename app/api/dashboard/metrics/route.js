@@ -12,6 +12,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -278,7 +279,7 @@ export async function GET(request) {
           ? { branchId: txBranchEff }
           : {};
 
-    const [currentInvoices, currentSales, currentExpensesData, currentCOGSData] = await Promise.all([
+    const [currentInvoices, currentSales, currentExpensesData] = await Promise.all([
       // Revenue (cash): include invoice payments received in the period
       prisma.payment.aggregate({
         where: {
@@ -325,28 +326,26 @@ export async function GET(request) {
         }),
         _sum: { amount: true }
       }),
-      // Get COGS from transaction lines that debit COGS accounts
-      // Filter by transaction branchId
-      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-        where: {
-          accountId: { in: cogsAccountIds },
-          debitAmount: { gt: 0 },
-          transaction: {
-            ...tw,
-            ...transactionBranchSlice,
-            date: {
-              gte: currentPeriodStart,
-              lte: currentPeriodEndDate
-            },
-            status: 'posted'
-          }
-        },
-        _sum: { debitAmount: true }
-      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
 
+    const currentCOGS =
+      cogsAccountIds.length > 0
+        ? await sumNetCogsDebitMinusCredit(prisma, {
+            cogsAccountIds,
+            transactionWhere: {
+              ...tw,
+              ...transactionBranchSlice,
+              date: {
+                gte: currentPeriodStart,
+                lte: currentPeriodEndDate,
+              },
+              status: 'posted',
+            },
+          })
+        : 0;
+
     // Get previous period data with refund calculations
-    const [previousInvoices, previousSales, previousExpensesData, previousCOGSData] = await Promise.all([
+    const [previousInvoices, previousSales, previousExpensesData] = await Promise.all([
       // Revenue (cash): include invoice payments received in the previous period
       prisma.payment.aggregate({
         where: {
@@ -392,25 +391,23 @@ export async function GET(request) {
         }),
         _sum: { amount: true }
       }),
-      // Get COGS from transaction lines that debit COGS accounts for previous period
-      // Filter by transaction branchId
-      cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-        where: {
-          accountId: { in: cogsAccountIds },
-          debitAmount: { gt: 0 },
-          transaction: {
-            ...tw,
-            ...transactionBranchSlice,
-            date: {
-              gte: previousPeriodStart,
-              lte: previousPeriodEnd
-            },
-            status: 'posted'
-          }
-        },
-        _sum: { debitAmount: true }
-      }) : Promise.resolve({ _sum: { debitAmount: 0 } })
     ]);
+
+    const previousCOGS =
+      cogsAccountIds.length > 0
+        ? await sumNetCogsDebitMinusCredit(prisma, {
+            cogsAccountIds,
+            transactionWhere: {
+              ...tw,
+              ...transactionBranchSlice,
+              date: {
+                gte: previousPeriodStart,
+                lte: previousPeriodEnd,
+              },
+              status: 'posted',
+            },
+          })
+        : 0;
 
     // Get outstanding invoices (Accounts Receivable)
     const [outstandingInvoicesData, previousOutstandingInvoicesData] = await Promise.all([
@@ -438,11 +435,9 @@ export async function GET(request) {
     const currentRevenue = (currentInvoices._sum.amount || 0) + (currentSales._sum.total || 0);
     const previousRevenue = (previousInvoices._sum.amount || 0) + (previousSales._sum.total || 0);
     
-    // Include COGS in expenses
-    const currentCOGS = Number(currentCOGSData._sum.debitAmount || 0);
-    const previousCOGS = Number(previousCOGSData._sum.debitAmount || 0);
-    const currentExpenses = (currentExpensesData._sum.amount || 0) + currentCOGS;
-    const previousExpenses = (previousExpensesData._sum.amount || 0) + previousCOGS;
+    // Include net COGS in expenses (credits from void/refund reversals reduce the total)
+    const currentExpenses = (currentExpensesData._sum.amount || 0) + Number(currentCOGS || 0);
+    const previousExpenses = (previousExpensesData._sum.amount || 0) + Number(previousCOGS || 0);
     const currentProfit = currentRevenue - currentExpenses;
     const previousProfit = previousRevenue - previousExpenses;
     

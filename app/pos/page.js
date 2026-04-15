@@ -109,6 +109,12 @@ const POSPage = () => {
   });
   const [dailyReport, setDailyReport] = useState(null);
   const [isLoadingDailyReport, setIsLoadingDailyReport] = useState(false);
+  /** POS cash register (opening/closing/deposits) + daily report payload from /api/pos/cash-day */
+  const [posCashDayState, setPosCashDayState] = useState(null);
+  const [posCashActionLoading, setPosCashActionLoading] = useState(false);
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositLines, setDepositLines] = useState([{ toAccountId: '', amount: '', notes: '' }]);
+  const [posCashMessage, setPosCashMessage] = useState(null);
   
   // Products
   const [products, setProducts] = useState([]);
@@ -781,22 +787,104 @@ const POSPage = () => {
   const loadDailyReport = useCallback(async (date) => {
     try {
       setIsLoadingDailyReport(true);
-      const res = await fetch(
-        `/api/reports/pos-daily?date=${encodeURIComponent(date)}&allBranches=true`
-      );
+      setPosCashMessage(null);
+      const res = await fetch(`/api/pos/cash-day?date=${encodeURIComponent(date)}`, { cache: 'no-store' });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data?.error || 'Failed to load daily POS report');
+      if (res.ok && data?.report) {
+        setDailyReport(data.report);
+        setPosCashDayState(data);
+        return;
       }
-      setDailyReport(data);
+      const res2 = await fetch(
+        `/api/reports/pos-daily?date=${encodeURIComponent(date)}&allBranches=true`,
+        { cache: 'no-store' }
+      );
+      const data2 = await res2.json().catch(() => ({}));
+      if (!res2.ok) {
+        throw new Error(data2?.error || data?.error || 'Failed to load daily POS report');
+      }
+      setDailyReport(data2);
+      setPosCashDayState(null);
     } catch (err) {
       console.error('Error loading daily POS report:', err);
       setDailyReport(null);
+      setPosCashDayState(null);
     } finally {
       setIsLoadingDailyReport(false);
     }
   }, []);
-  
+
+  const openPosRegisterDay = async () => {
+    try {
+      setPosCashActionLoading(true);
+      const res = await fetch('/api/pos/cash-day/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessDate: dailyReportDate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Could not open day');
+      setPosCashMessage('Day opened. Opening balance matches the system Cash account balance from Payment Management.');
+      await loadDailyReport(dailyReportDate);
+    } catch (e) {
+      alert(e?.message || 'Open day failed');
+    } finally {
+      setPosCashActionLoading(false);
+    }
+  };
+
+  const closePosRegisterDay = async () => {
+    if (!window.confirm('Close this POS day? Closing balance will be recorded as opening + total sales.')) return;
+    try {
+      setPosCashActionLoading(true);
+      const res = await fetch('/api/pos/cash-day/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessDate: dailyReportDate }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Could not close day');
+      setPosCashMessage('Day closed.');
+      await loadDailyReport(dailyReportDate);
+    } catch (e) {
+      alert(e?.message || 'Close day failed');
+    } finally {
+      setPosCashActionLoading(false);
+    }
+  };
+
+  const submitPosDeposits = async () => {
+    const lines = depositLines
+      .map((row) => ({
+        toAccountId: (row.toAccountId || '').trim(),
+        amount: parseFloat(String(row.amount).replace(/,/g, '')) || 0,
+        notes: (row.notes || '').trim() || null,
+      }))
+      .filter((r) => r.toAccountId && r.amount > 0);
+    if (!lines.length) {
+      alert('Add at least one destination account and a positive amount.');
+      return;
+    }
+    try {
+      setPosCashActionLoading(true);
+      const res = await fetch('/api/pos/cash-day/deposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessDate: dailyReportDate, lines }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Deposit failed');
+      setShowDepositModal(false);
+      setDepositLines([{ toAccountId: '', amount: '', notes: '' }]);
+      setPosCashMessage('Deposit recorded.');
+      await loadDailyReport(dailyReportDate);
+    } catch (e) {
+      alert(e?.message || 'Deposit failed');
+    } finally {
+      setPosCashActionLoading(false);
+    }
+  };
+
   // Load products
   const loadProducts = async () => {
     try {
@@ -3572,14 +3660,14 @@ const POSPage = () => {
         </div>
       </div>
 
-      {/* Daily POS Sales Summary (one calendar day) */}
+      {/* Daily POS Sales Summary + cash register */}
       <div className="mt-6 lg:mt-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl p-5 lg:p-6 border border-gray-100">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Daily Sales (POS)</h2>
-            <p className="text-xs text-gray-500">Calendar day totals from POS only.</p>
+            <p className="text-xs text-gray-500">Opening/closing register, transactions, and exports.</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs text-gray-600">Date</label>
             <input
               type="date"
@@ -3591,41 +3679,245 @@ const POSPage = () => {
                 if (val) loadDailyReport(val);
               }}
             />
+            <a
+              href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=csv`}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Export CSV
+            </a>
+            <a
+              href={`/api/pos/cash-day/export?date=${encodeURIComponent(dailyReportDate)}&format=xlsx`}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 bg-white hover:bg-gray-50"
+            >
+              Export Excel
+            </a>
           </div>
         </div>
+        {posCashMessage && (
+          <div className="mb-3 text-xs text-emerald-800 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+            {posCashMessage}
+          </div>
+        )}
         {isLoadingDailyReport ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader className="h-4 w-4 animate-spin" /> Loading daily report...
           </div>
         ) : dailyReport ? (
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-sm">
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Total Sales</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">
-                {formatCurrency(dailyReport.totalSales || 0)}
-              </p>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mb-6">
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Total Sales</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">
+                  {formatCurrency(dailyReport.totalSales || 0)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Transactions</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">
+                  {dailyReport.transactionCount || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Items Sold</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">
+                  {dailyReport.itemsSold || 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase">Gross Profit</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">
+                  {formatCurrency(dailyReport.grossProfit || 0)}
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Transactions</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">
-                {dailyReport.transactionCount || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Items Sold</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">
-                {dailyReport.itemsSold || 0}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase">Gross Profit</p>
-              <p className="mt-1 text-lg font-semibold text-gray-900">
-                {formatCurrency(dailyReport.grossProfit || 0)}
-              </p>
-            </div>
-          </div>
+
+            {posCashDayState && (
+              <div className="border border-gray-100 rounded-xl p-4 mb-6 bg-gray-50/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900">POS cash register</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {!posCashDayState.register ? (
+                      <button
+                        type="button"
+                        onClick={openPosRegisterDay}
+                        disabled={posCashActionLoading}
+                        className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white disabled:opacity-50"
+                      >
+                        Open day (sync Cash balance)
+                      </button>
+                    ) : posCashDayState.register.status === 'OPEN' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setShowDepositModal(true)}
+                          disabled={posCashActionLoading}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-600 text-white disabled:opacity-50"
+                        >
+                          Deposit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={closePosRegisterDay}
+                          disabled={posCashActionLoading}
+                          className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-800 text-white disabled:opacity-50"
+                        >
+                          Close day
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs font-medium text-gray-600">Day closed</span>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <p className="text-gray-500">System Cash account (Payment Management)</p>
+                    <p className="font-medium text-gray-900">{posCashDayState.systemCashAccount?.name || 'Cash'}</p>
+                    <p className="text-gray-500 mt-1">Live ledger balance</p>
+                    <p className="font-semibold">{formatCurrency(posCashDayState.liveCashBalance ?? 0)}</p>
+                  </div>
+                  {posCashDayState.register ? (
+                    <>
+                      <div>
+                        <p className="text-gray-500">Opening balance (locked at open)</p>
+                        <p className="font-semibold text-lg text-gray-900">
+                          {formatCurrency(posCashDayState.metrics?.openingBalance ?? 0)}
+                        </p>
+                        <p className="text-gray-500 mt-1">Closing = opening + total sales</p>
+                        <p className="font-semibold">{formatCurrency(posCashDayState.metrics?.closingBalance ?? 0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Cash in hand (undeposited)</p>
+                        <p className="font-semibold text-lg text-emerald-800">
+                          {formatCurrency(posCashDayState.metrics?.cashInHandUndeposited ?? 0)}
+                        </p>
+                        <p className="text-gray-400 mt-1">
+                          Total cash sales − opening (check):{' '}
+                          {formatCurrency(posCashDayState.metrics?.cashInHandTotalCashMinusOpening ?? 0)}
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="sm:col-span-2 text-gray-500 text-xs">
+                      Open the day to lock an opening balance equal to the system Cash account balance, then track
+                      deposits and closing.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {Array.isArray(dailyReport.transactions) && dailyReport.transactions.length > 0 && (
+              <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2">Sale</th>
+                      <th className="px-3 py-2">Time</th>
+                      <th className="px-3 py-2 text-right">Amount</th>
+                      <th className="px-3 py-2">Payment</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dailyReport.transactions.map((tx) => (
+                      <tr key={tx.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 font-medium text-gray-900">{tx.saleNumber}</td>
+                        <td className="px-3 py-2 text-gray-600">
+                          {tx.saleDate ? new Date(tx.saleDate).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-semibold">{formatCurrency(tx.total || 0)}</td>
+                        <td className="px-3 py-2 text-gray-700">
+                          {(tx.paymentLines || []).map((l, i) => (
+                            <div key={i} className="text-xs">
+                              <span className="font-medium">{l.label}</span>: {formatCurrency(l.amount)}
+                            </div>
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         ) : (
           <p className="text-sm text-gray-500">No POS sales found for this date.</p>
+        )}
+
+        {showDepositModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-5">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Deposit to accounts</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Move cash from the system Cash account to bank or other payment accounts (same balances as{' '}
+                <a href="/payments/management" className="text-blue-600 underline">
+                  Payment Management
+                </a>
+                ).
+              </p>
+              <div className="space-y-3 max-h-72 overflow-y-auto">
+                {depositLines.map((row, idx) => (
+                  <div key={idx} className="flex flex-col gap-1 border border-gray-100 rounded-lg p-3">
+                    <label className="text-xs text-gray-500">Destination account</label>
+                    <select
+                      className="border rounded-lg px-2 py-1.5 text-sm"
+                      value={row.toAccountId}
+                      onChange={(e) => {
+                        const next = [...depositLines];
+                        next[idx] = { ...next[idx], toAccountId: e.target.value };
+                        setDepositLines(next);
+                      }}
+                    >
+                      <option value="">Select account</option>
+                      {paymentAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.name} ({acc.accountType})
+                        </option>
+                      ))}
+                    </select>
+                    <label className="text-xs text-gray-500">Amount</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="border rounded-lg px-2 py-1.5 text-sm"
+                      value={row.amount}
+                      onChange={(e) => {
+                        const next = [...depositLines];
+                        next[idx] = { ...next[idx], amount: e.target.value };
+                        setDepositLines(next);
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                <button
+                  type="button"
+                  className="text-sm text-blue-600"
+                  onClick={() => setDepositLines([...depositLines, { toAccountId: '', amount: '', notes: '' }])}
+                >
+                  + Add split
+                </button>
+                <div className="flex-1" />
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm rounded-lg border border-gray-200"
+                  onClick={() => setShowDepositModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={posCashActionLoading}
+                  className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white disabled:opacity-50"
+                  onClick={submitPosDeposits}
+                >
+                  {posCashActionLoading ? 'Saving…' : 'Save deposits'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 

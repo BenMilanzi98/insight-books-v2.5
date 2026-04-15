@@ -11,6 +11,7 @@ import {
   tenantWhereIn,
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
+import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -272,7 +273,7 @@ export async function GET(request) {
               ? { branchId: effTxBranch }
               : {};
 
-      const [invoiceRevenue, salesRevenue, expenses, loanPayments, cogsData] = await Promise.all([
+      const [invoiceRevenue, salesRevenue, expenses, loanPayments] = await Promise.all([
         // Revenue (cash): include invoice payments received in the period
         prisma.payment.aggregate({
           where: {
@@ -326,26 +327,23 @@ export async function GET(request) {
           },
           _sum: { amount: true }
         }),
-        // Get COGS from transaction lines that debit COGS accounts - filter by transaction branchId
-        cogsAccountIds.length > 0 ? prisma.transactionLine.aggregate({
-          where: {
-            accountId: { in: cogsAccountIds },
-            debitAmount: { gt: 0 },
-            transaction: {
-              ...tw,
-              ...transactionBranchClause,
-              date: {
-                gte: filterStartDate,
-                lte: filterEndDate
-              },
-              status: 'posted'
-            }
-          },
-          _sum: { debitAmount: true }
-        }) : Promise.resolve({ _sum: { debitAmount: 0 } })
       ]);
 
-      const cogsAmount = Number(cogsData._sum.debitAmount || 0);
+      const cogsAmount =
+        cogsAccountIds.length > 0
+          ? await sumNetCogsDebitMinusCredit(prisma, {
+              cogsAccountIds,
+              transactionWhere: {
+                ...tw,
+                ...transactionBranchClause,
+                date: {
+                  gte: filterStartDate,
+                  lte: filterEndDate,
+                },
+                status: 'posted',
+              },
+            })
+          : 0;
       const loanPaymentAmount = Number(loanPayments._sum.amount || 0);
       const totalExpenses = (expenses._sum.amount || 0) + loanPaymentAmount + cogsAmount;
 

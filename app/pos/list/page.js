@@ -52,6 +52,8 @@ const SalesListPage = () => {
     paymentMethod: "all",
     search: ""
   });
+  /** When set, mirrors into dateFrom/dateTo for that calendar day (local). */
+  const [salesDayFilter, setSalesDayFilter] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -280,10 +282,33 @@ const SalesListPage = () => {
       paymentMethod: "all",
       search: ""
     });
+    setSalesDayFilter("");
     setPagination({
       ...pagination,
       page: 1
     });
+  };
+
+  const applySalesDayFilter = (dayStr) => {
+    setSalesDayFilter(dayStr || "");
+    setPagination((p) => ({ ...p, page: 1 }));
+    if (!dayStr) {
+      setFilters((f) => ({ ...f, dateFrom: "", dateTo: "" }));
+      return;
+    }
+    const parts = dayStr.split("-");
+    if (parts.length !== 3) return;
+    const y = parseInt(parts[0], 10);
+    const mo = parseInt(parts[1], 10) - 1;
+    const d = parseInt(parts[2], 10);
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return;
+    const start = new Date(y, mo, d, 0, 0, 0, 0);
+    const end = new Date(y, mo, d, 23, 59, 59, 999);
+    setFilters((f) => ({
+      ...f,
+      dateFrom: start.toISOString(),
+      dateTo: end.toISOString(),
+    }));
   };
   
   // Get payment method icon
@@ -463,14 +488,35 @@ const SalesListPage = () => {
         {/* Expanded filters */}
         {showFilters && (
           <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="mb-4 pb-4 border-b border-gray-100">
+              <label className="block text-sm font-medium mb-1">Filter by single day</label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="date"
+                  className="p-2 border border-gray-200 rounded-md"
+                  value={salesDayFilter}
+                  onChange={(e) => applySalesDayFilter(e.target.value)}
+                />
+                <span className="text-xs text-gray-500">Sets From/To to that calendar day (local time).</span>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">From Date</label>
                 <input 
                   type="date" 
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  value={filters.dateFrom}
-                  onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+                  value={filters.dateFrom ? filters.dateFrom.slice(0, 10) : ''}
+                  onChange={(e) => {
+                    setSalesDayFilter('');
+                    const v = e.target.value;
+                    if (!v) {
+                      handleFilterChange('dateFrom', '');
+                      return;
+                    }
+                    const [y, m, d] = v.split('-').map((x) => parseInt(x, 10));
+                    handleFilterChange('dateFrom', new Date(y, m - 1, d, 0, 0, 0, 0).toISOString());
+                  }}
                 />
               </div>
               
@@ -479,8 +525,17 @@ const SalesListPage = () => {
                 <input 
                   type="date" 
                   className="w-full p-2 border border-gray-200 rounded-md"
-                  value={filters.dateTo}
-                  onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+                  value={filters.dateTo ? filters.dateTo.slice(0, 10) : ''}
+                  onChange={(e) => {
+                    setSalesDayFilter('');
+                    const v = e.target.value;
+                    if (!v) {
+                      handleFilterChange('dateTo', '');
+                      return;
+                    }
+                    const [y, m, d] = v.split('-').map((x) => parseInt(x, 10));
+                    handleFilterChange('dateTo', new Date(y, m - 1, d, 23, 59, 59, 999).toISOString());
+                  }}
                 />
               </div>
               
