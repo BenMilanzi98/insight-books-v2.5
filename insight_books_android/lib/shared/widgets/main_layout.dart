@@ -611,7 +611,8 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
       );
     }
 
-    if (tenantState.tenants.isEmpty) {
+    if (tenantState.tenants.isEmpty &&
+        tenantState.sessionTenant == null) {
       return Padding(
         padding: const EdgeInsets.fromLTRB(12, 6, 12, 8),
         child: Text(
@@ -628,7 +629,12 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
         break;
       }
     }
-    current ??= tenantState.tenants.first;
+    current ??= tenantState.sessionTenant;
+    current ??=
+        tenantState.tenants.isNotEmpty ? tenantState.tenants.first : null;
+    if (current == null) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
@@ -637,7 +643,8 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: tenantState.isSwitching
+          onTap: tenantState.isSwitching ||
+                  (tenantState.tenants.isEmpty && !showManageNav)
               ? null
               : () => _openBusinessSheet(context, ref, showManageNav),
           child: Padding(
@@ -661,7 +668,10 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        current.name,
+                        tenantState.tenants.isEmpty &&
+                                tenantState.sessionTenant != null
+                            ? '${current.name} (inactive)'
+                            : current.name,
                         style: const TextStyle(
                           color: _defaultTextColor,
                           fontSize: 14,
@@ -699,7 +709,7 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
   ) async {
     final notifier = ref.read(tenantProvider.notifier);
     final state = ref.read(tenantProvider);
-    if (state.tenants.isEmpty) return;
+    if (state.tenants.isEmpty && !showManageNav) return;
 
     final picked = await showModalBottomSheet<Tenant?>(
       context: context,
@@ -720,28 +730,44 @@ class _BusinessSwitcherSectionState extends ConsumerState<_BusinessSwitcherSecti
                   ),
                 ),
                 const Divider(height: 1),
-                Flexible(
-                  child: ListView(
-                    shrinkWrap: true,
-                    children: [
-                      ...state.tenants.map((t) {
-                        final selected = t.id == state.currentTenantId;
-                        return ListTile(
-                          leading: Icon(
-                            selected
-                                ? Icons.check_circle_rounded
-                                : Icons.circle_outlined,
-                            color: selected
-                                ? Theme.of(ctx).colorScheme.primary
-                                : Theme.of(ctx).colorScheme.onSurface.withAlpha(150),
+                if (state.tenants.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: Text(
+                      state.inactiveMembershipCount > 0
+                          ? 'Only businesses with an active subscription or trial appear here. Renew on the web if a business expired.'
+                          : 'No businesses with an active subscription.',
+                      style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                           ),
-                          title: Text(t.name),
-                          onTap: () => Navigator.pop(ctx, t),
-                        );
-                      }),
-                    ],
+                    ),
+                  )
+                else
+                  Flexible(
+                    child: ListView(
+                      shrinkWrap: true,
+                      children: [
+                        ...state.tenants.map((t) {
+                          final selected = t.id == state.currentTenantId;
+                          return ListTile(
+                            leading: Icon(
+                              selected
+                                  ? Icons.check_circle_rounded
+                                  : Icons.circle_outlined,
+                              color: selected
+                                  ? Theme.of(ctx).colorScheme.primary
+                                  : Theme.of(ctx)
+                                      .colorScheme
+                                      .onSurface
+                                      .withAlpha(150),
+                            ),
+                            title: Text(t.name),
+                            onTap: () => Navigator.pop(ctx, t),
+                          );
+                        }),
+                      ],
+                    ),
                   ),
-                ),
                 if (showManageNav)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),

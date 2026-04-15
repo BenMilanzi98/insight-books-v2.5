@@ -122,6 +122,7 @@ class BusinessListScreen extends ConsumerWidget {
                         notifier,
                         state.searchTerm,
                         canCreateBusiness,
+                        state.inactiveMembershipCount > 0,
                       ),
                     )
                   else
@@ -163,6 +164,7 @@ class BusinessListScreen extends ConsumerWidget {
     TenantNotifier notifier,
     String search,
     bool canCreateBusiness,
+    bool hasInactiveMemberships,
   ) {
     final theme = Theme.of(context);
     return Center(
@@ -183,7 +185,11 @@ class BusinessListScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           Text(
-            search.isNotEmpty ? 'No businesses found' : 'No businesses yet',
+            search.isNotEmpty
+                ? 'No businesses found'
+                : hasInactiveMemberships
+                ? 'No active businesses'
+                : 'No businesses yet',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -194,6 +200,8 @@ class BusinessListScreen extends ConsumerWidget {
           Text(
             search.isNotEmpty
                 ? 'Try adjusting your search terms'
+                : hasInactiveMemberships
+                ? 'Only businesses with an active subscription or trial are listed. Renew expired plans on the web, then pull to refresh.'
                 : 'Get started by creating your first business',
             textAlign: TextAlign.center,
             style: TextStyle(
@@ -201,7 +209,7 @@ class BusinessListScreen extends ConsumerWidget {
               color: AppTheme.textSecondary(context),
             ),
           ),
-          if (search.isEmpty) ...[
+          if (search.isEmpty && !hasInactiveMemberships) ...[
             const SizedBox(height: 32),
             ElevatedButton.icon(
               onPressed: canCreateBusiness

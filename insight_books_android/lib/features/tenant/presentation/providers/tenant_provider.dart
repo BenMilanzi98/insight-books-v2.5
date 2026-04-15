@@ -12,6 +12,10 @@ class TenantState {
   final List<Tenant> tenants;
   final List<Tenant> filteredTenants;
   final String? currentTenantId;
+  /// Row for [currentTenantId] from the API, even when subscription is expired (not in [tenants]).
+  final Tenant? sessionTenant;
+  /// Count of memberships returned by the API that are not in [tenants] (expired / inactive).
+  final int inactiveMembershipCount;
   final bool isLoading;
   final bool isSwitching;
   final String? error;
@@ -21,6 +25,8 @@ class TenantState {
     this.tenants = const [],
     this.filteredTenants = const [],
     this.currentTenantId,
+    this.sessionTenant,
+    this.inactiveMembershipCount = 0,
     this.isLoading = true,
     this.isSwitching = false,
     this.error,
@@ -31,6 +37,9 @@ class TenantState {
     List<Tenant>? tenants,
     List<Tenant>? filteredTenants,
     String? currentTenantId,
+    Tenant? sessionTenant,
+    bool setSessionTenant = false,
+    int? inactiveMembershipCount,
     bool? isLoading,
     bool? isSwitching,
     String? error,
@@ -41,6 +50,9 @@ class TenantState {
       tenants: tenants ?? this.tenants,
       filteredTenants: filteredTenants ?? this.filteredTenants,
       currentTenantId: currentTenantId ?? this.currentTenantId,
+      sessionTenant: setSessionTenant ? sessionTenant : this.sessionTenant,
+      inactiveMembershipCount:
+          inactiveMembershipCount ?? this.inactiveMembershipCount,
       isLoading: isLoading ?? this.isLoading,
       isSwitching: isSwitching ?? this.isSwitching,
       error: clearError ? null : (error ?? this.error),
@@ -63,20 +75,49 @@ class TenantNotifier extends _$TenantNotifier {
       final repository = ref.read(tenantRepositoryProvider);
       final data = await repository.fetchTenants();
 
-      final List<Tenant> tenants = ((data['tenants'] as List?) ?? [])
-          .map((t) => Tenant.fromJson(t))
+      final all = ((data['tenants'] as List?) ?? [])
+          .map((t) => Tenant.fromJson(t as Map<String, dynamic>))
           .toList();
+      final active =
+          all.where((t) => t.hasActiveSubscriptionOrTrial).toList();
+      final cid = data['currentTenantId'] as String?;
+      Tenant? sessionTenant;
+      if (cid != null) {
+        for (final t in all) {
+          if (t.id == cid) {
+            sessionTenant = t;
+            break;
+          }
+        }
+      }
+      final term = state.searchTerm;
+      final filtered = term.isEmpty
+          ? active
+          : active
+                .where(
+                  (t) =>
+                      t.name.toLowerCase().contains(term.toLowerCase()),
+                )
+                .toList();
 
       state = state.copyWith(
-        tenants: tenants,
-        filteredTenants: tenants,
-        currentTenantId: data['currentTenantId'],
+        tenants: active,
+        filteredTenants: filtered,
+        currentTenantId: cid,
+        sessionTenant: sessionTenant,
+        setSessionTenant: true,
+        inactiveMembershipCount: all.length - active.length,
         isLoading: false,
       );
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
         error: 'Failed to load businesses: ${e.toString()}',
+        tenants: const [],
+        filteredTenants: const [],
+        sessionTenant: null,
+        setSessionTenant: true,
+        inactiveMembershipCount: 0,
       );
     }
   }

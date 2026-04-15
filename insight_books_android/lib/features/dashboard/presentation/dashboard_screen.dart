@@ -57,7 +57,9 @@ class DashboardScreen extends ConsumerWidget {
         ? tenantState.tenants
             .where((t) => t.id == tenantState.currentTenantId)
         : <Tenant>[];
-    final currentTenant = matching.isEmpty ? null : matching.first;
+    final currentTenant = matching.isNotEmpty
+        ? matching.first
+        : tenantState.sessionTenant;
     final businessName = currentTenant?.name.trim();
     final title =
         (businessName != null && businessName.isNotEmpty)

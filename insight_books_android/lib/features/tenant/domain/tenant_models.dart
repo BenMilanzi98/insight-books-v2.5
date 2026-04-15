@@ -26,3 +26,8 @@ abstract class Subscription with _$Subscription {
   factory Subscription.fromJson(Map<String, dynamic> json) =>
       _$SubscriptionFromJson(json);
 }
+
+extension TenantSubscriptionAccess on Tenant {
+  /// True when paid plan or trial is still within its end date ([Subscription.isExpired] is false).
+  bool get hasActiveSubscriptionOrTrial => !subscription.isExpired;
+}
