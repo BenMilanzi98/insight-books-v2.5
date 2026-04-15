@@ -82,10 +82,15 @@ export async function POST(request) {
     } catch (signErr) {
       if (
         signErr?.message?.includes('JWT_SECRET') ||
+        signErr?.message?.includes('SESSION_SECRET') ||
         signErr?.message?.includes('production')
       ) {
         return NextResponse.json(
-          { success: false, error: 'Server configuration error' },
+          {
+            success: false,
+            error:
+              'Sign-in is temporarily unavailable: signing secret is not configured on this server. Set JWT_SECRET (recommended) or SESSION_SECRET (16+ characters) in the deployment environment.',
+          },
           { status: 503 }
         );
       }

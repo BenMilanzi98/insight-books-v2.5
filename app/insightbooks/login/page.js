@@ -26,7 +26,19 @@ export default function AdminLogin() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      const raw = await response.text();
+      let data = { success: false };
+      try {
+        if (raw) data = JSON.parse(raw);
+      } catch {
+        data = {
+          success: false,
+          error:
+            response.status >= 500
+              ? `Server error (${response.status}). Please try again or contact support.`
+              : `Request failed (${response.status}).`,
+        };
+      }
 
       if (data.success) {
         setSuccess('Login successful! Redirecting...');
@@ -34,7 +46,12 @@ export default function AdminLogin() {
           window.location.href = '/insightbooks/dashboard';
         }, 500);
       } else {
-        setError(data.error || 'Login failed');
+        setError(
+          data.error ||
+            (response.status === 503
+              ? 'Service unavailable. The server may be missing JWT configuration.'
+              : 'Login failed')
+        );
       }
     } catch (error) {
       setError('Network error. Please try again.');

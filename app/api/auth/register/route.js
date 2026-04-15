@@ -181,6 +181,7 @@ export async function POST(request) {
     } catch (signErr) {
       if (
         signErr?.message?.includes('JWT_SECRET') ||
+        signErr?.message?.includes('SESSION_SECRET') ||
         signErr?.message?.includes('production')
       ) {
         return NextResponse.json(
