@@ -1196,8 +1196,34 @@ const StockManagement = () => {
   const getMovementMeta = (transaction) => {
     const normalize = (value) => (value || '').toString().toLowerCase();
     const rawType = normalize(transaction.type);
+    const typeKey = rawType.replace(/\s+/g, '_');
     const notes = normalize(transaction.notes);
     const reference = normalize(transaction.reference);
+
+    // Restocks / returns: must run before note-based "outgoing" checks — notes often say "… for sale …"
+    const isRestockOrReturn =
+      typeKey === 'void_restoration' ||
+      typeKey === 'refund_restoration' ||
+      typeKey === 'reversal_restoration' ||
+      typeKey === 'sales_return' ||
+      typeKey === 'sale_refund' ||
+      notes.includes('void restoration') ||
+      notes.includes('refund restoration') ||
+      notes.includes('reversal restoration');
+
+    if (isRestockOrReturn) {
+      let label = 'Stock returned';
+      if (typeKey === 'void_restoration' || notes.includes('void restoration')) {
+        label = 'Sale void (stock returned)';
+      } else if (typeKey === 'refund_restoration' || notes.includes('refund restoration')) {
+        label = 'Sale refund (stock returned)';
+      } else if (typeKey === 'reversal_restoration' || notes.includes('reversal restoration')) {
+        label = 'Sale reversal (stock returned)';
+      } else if (typeKey === 'sales_return' || typeKey === 'sale_refund') {
+        label = 'Sales return';
+      }
+      return { type: 'incoming', label };
+    }
 
     const isIncoming = (value) => (
       value.includes('stock in') ||
@@ -1209,13 +1235,14 @@ const StockManagement = () => {
       value.includes('incoming')
     );
 
+    // Outgoing: avoid matching "sale" inside words like "sales_return" or phrases like "for sale" in restock notes
     const isOutgoing = (value) => (
       value.includes('stock out') ||
       value.includes('stock_out') ||
-      value.includes('sale') ||
-      value.includes('invoice') ||
       value.includes('shipment') ||
-      value.includes('delivery')
+      value.includes('delivery') ||
+      /\bsale\b/.test(value) ||
+      value.includes('invoice')
     );
 
     if (isIncoming(rawType) || isIncoming(notes) || isIncoming(reference)) {
@@ -1224,7 +1251,7 @@ const StockManagement = () => {
     }
 
     if (isOutgoing(rawType) || isOutgoing(notes) || isOutgoing(reference)) {
-      const label = notes.includes('sale') ? 'Sale' : 'Stock Out';
+      const label = /\bsale\b/.test(notes) || rawType === 'sale' ? 'Sale' : 'Stock Out';
       return { type: 'outgoing', label };
     }
 

@@ -10,7 +10,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
 // Normalize type for qty in/out (matches lib/stockMovementService.js)
-const QTY_IN_TYPES = ['goods_receipt', 'goods receipt', 'purchase', 'stock in', 'stock_in', 'refund_restoration', 'sale_refund', 'sales_return', 'sales return'];
+const QTY_IN_TYPES = ['goods_receipt', 'goods receipt', 'purchase', 'stock in', 'stock_in', 'refund_restoration', 'sale_refund', 'sales_return', 'sales return', 'void_restoration', 'reversal_restoration'];
 const QTY_OUT_TYPES = ['sale', 'stock out', 'stock_out', 'purchase_return', 'purchase return'];
 
 function normalizeType(type) {

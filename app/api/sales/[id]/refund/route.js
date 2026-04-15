@@ -7,7 +7,7 @@ import { reverseSaleGlForRefundInTx } from '@/lib/transactionReversalService';
 
 export async function POST(request, { params }) {
   try {
-    const { id: saleId } = params;
+    const { id: saleId } = await params;
     
     // Get user from session
     const user = await getUserFromSession(request);

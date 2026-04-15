@@ -1,10 +1,12 @@
 // app/api/liabilities/[id]/payments/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { generateReferenceNumber } from '@/lib/journalService';
+import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
+import { FLOAT_TOLERANCE } from '@/lib/journalEntryValidation';
 
 const PAYMENT_METHOD_ACCOUNT_MAP = {
   cash: {
@@ -281,15 +283,50 @@ export async function POST(request, { params }) {
       );
     }
 
-    const paymentAmount = parseFloat(body.amount) || 0;
-    const paymentType = body.paymentType || 'both';
+    const paymentAmount = parseFloat(String(body.amount).replace(/,/g, ''), 10);
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid payment amount. Enter a positive number.' },
+        { status: 400 }
+      );
+    }
+
+    const paymentType = String(body.paymentType || 'both').toLowerCase();
     const paymentMethod = (body.paymentMethod || 'cash').toLowerCase();
-    const principalPaid = paymentType === 'principal' || paymentType === 'both' 
-      ? (body.principalPaid ? parseFloat(body.principalPaid) : paymentAmount) 
-      : 0;
-    const interestPaid = paymentType === 'interest' || paymentType === 'both'
-      ? (body.interestPaid ? parseFloat(body.interestPaid) : (paymentAmount - principalPaid))
-      : 0;
+    const principalPaid =
+      paymentType === 'principal' || paymentType === 'both'
+        ? body.principalPaid !== undefined && body.principalPaid !== ''
+          ? parseFloat(String(body.principalPaid).replace(/,/g, ''), 10)
+          : paymentAmount
+        : 0;
+    const interestPaid =
+      paymentType === 'interest' || paymentType === 'both'
+        ? body.interestPaid !== undefined && body.interestPaid !== ''
+          ? parseFloat(String(body.interestPaid).replace(/,/g, ''), 10)
+          : paymentAmount - principalPaid
+        : 0;
+
+    if (!Number.isFinite(principalPaid) || principalPaid < 0) {
+      return NextResponse.json(
+        { error: 'Invalid principal amount.' },
+        { status: 400 }
+      );
+    }
+    if (!Number.isFinite(interestPaid) || interestPaid < 0) {
+      return NextResponse.json(
+        { error: 'Invalid interest amount.' },
+        { status: 400 }
+      );
+    }
+    if (Math.abs(principalPaid + interestPaid - paymentAmount) > FLOAT_TOLERANCE) {
+      return NextResponse.json(
+        {
+          error:
+            'Principal plus interest must equal the payment amount. Check the split or payment type.',
+        },
+        { status: 400 }
+      );
+    }
 
     // Support historical dates
     const paymentDate = body.historicalDate ? new Date(body.historicalDate) : new Date(body.paymentDate);
@@ -311,6 +348,7 @@ export async function POST(request, { params }) {
       });
 
       // Update liability balance and total paid
+      const balanceAfter = Number(liability.currentBalance) - principalPaid;
       const updatedLiability = await tx.liability.update({
         where: { id: id },
         data: {
@@ -320,8 +358,7 @@ export async function POST(request, { params }) {
           totalPaid: {
             increment: paymentAmount
           },
-          // Update status if fully paid
-          status: liability.currentBalance - principalPaid <= 0.01 ? 'paid_off' : liability.status
+          status: balanceAfter <= FLOAT_TOLERANCE ? 'paid_off' : liability.status
         }
       });
 
@@ -354,11 +391,9 @@ export async function POST(request, { params }) {
       // - Debit: Interest Expense Account (interest) - records expense
       // - Credit: Cash/Bank Account (total payment) - money going out
       const journalLines = [];
-      let lineNumber = 1;
 
       if (principalPaid > 0) {
         journalLines.push({
-          lineNumber: lineNumber++,
           accountId: liabilityAccount.id,
           debitAmount: principalPaid,
           creditAmount: 0,
@@ -368,7 +403,6 @@ export async function POST(request, { params }) {
 
       if (interestPaid > 0) {
         journalLines.push({
-          lineNumber: lineNumber++,
           accountId: interestExpenseAccount.id,
           debitAmount: interestPaid,
           creditAmount: 0,
@@ -378,30 +412,71 @@ export async function POST(request, { params }) {
 
       // Add cash account credit
       journalLines.push({
-        lineNumber: lineNumber,
         accountId: cashAccount.id,
         debitAmount: 0,
         creditAmount: paymentAmount,
-        description: `Payment via ${paymentMethod.replace('_', ' ')}`
+        description: `Payment via ${paymentMethod.replace(/_/g, ' ')}`
       });
 
+      const debitTotal = journalLines.reduce(
+        (s, l) => s + (Number(l.debitAmount) || 0),
+        0
+      );
+      const creditTotal = journalLines.reduce(
+        (s, l) => s + (Number(l.creditAmount) || 0),
+        0
+      );
+      if (Math.abs(debitTotal - creditTotal) > FLOAT_TOLERANCE) {
+        throw new Error(
+          `Journal entry is not balanced (debits ${debitTotal} vs credits ${creditTotal}).`
+        );
+      }
+
       await assertPeriodOpen(user.tenantId, paymentDate, tx);
+      const referenceNumber = await generateReferenceNumber(
+        tx,
+        user.tenantId,
+        paymentDate
+      );
+      const journalDescription = `Liability payment for ${liability.name}${
+        principalPaid > 0 && interestPaid > 0
+          ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})`
+          : ''
+      }`;
       const journalEntry = await tx.journalEntry.create({
         data: {
           tenantId: user.tenantId,
           entryDate: paymentDate,
-          description: `Liability payment for ${liability.name}${principalPaid > 0 && interestPaid > 0 ? ` (Principal: ${principalPaid}, Interest: ${interestPaid})` : ''}`,
+          referenceNumber,
+          description: journalDescription,
           entryType: 'Regular',
           status: 'Posted',
           sourceType: 'LiabilityPayment',
           sourceId: payment.id,
           createdById: user.id,
+          postedById: user.id,
+          postedDate: new Date(),
           lines: {
-            create: journalLines
+            create: journalLines.map((line, index) => ({
+              lineNumber: index + 1,
+              accountId: line.accountId,
+              debitAmount: line.debitAmount ?? 0,
+              creditAmount: line.creditAmount ?? 0,
+              description: line.description || null
+            }))
           }
         },
         include: { lines: true }
       });
+
+      for (const line of journalEntry.lines) {
+        await updateAccountBalanceOnTransaction(
+          line.accountId,
+          line.debitAmount || 0,
+          line.creditAmount || 0,
+          tx
+        );
+      }
 
       const trasactionRecord = await tx.transaction.create({
         data: {
@@ -411,7 +486,8 @@ export async function POST(request, { params }) {
           reference: body.reference || payment.id,
           status: 'posted',
           sourceType: 'LiabilityPayment',
-          sourceId: payment.id
+          sourceId: payment.id,
+          createdById: user.id
         }
       });
 
@@ -501,24 +577,28 @@ export async function POST(request, { params }) {
       };
     });
 
-    await prisma.accountBalance.upsert({
-      where: {
-        tenantId_account: {
+    try {
+      await prisma.accountBalance.upsert({
+        where: {
+          tenantId_account: {
+            tenantId: user.tenantId,
+            account: paymentMethod
+          }
+        },
+        update: {
+          balance: {
+            decrement: paymentAmount
+          }
+        },
+        create: {
           tenantId: user.tenantId,
-          account: paymentMethod
+          account: paymentMethod,
+          balance: -paymentAmount
         }
-      },
-      update: {
-        balance: {
-          decrement: paymentAmount
-        }
-      },
-      create: {
-        tenantId: user.tenantId,
-        account: paymentMethod,
-        balance: -paymentAmount
-      }
-    });
+      });
+    } catch (balanceErr) {
+      console.error('Liability payment: accountBalance upsert failed:', balanceErr);
+    }
 
     // Create audit log entry
     await prisma.auditLog.create({
@@ -553,9 +633,15 @@ export async function POST(request, { params }) {
 
   } catch (error) {
     console.error('Error creating liability payment:', error);
+    const message = error?.message || 'Failed to record payment';
+    const status = error?.code === 'PERIOD_LOCKED' ? 409 : 500;
     return NextResponse.json(
-      { error: 'Failed to record payment', details: error.message },
-      { status: 500 }
+      {
+        error: message,
+        details:
+          process.env.NODE_ENV === 'development' ? String(error?.stack || '') : undefined
+      },
+      { status }
     );
   }
 }
