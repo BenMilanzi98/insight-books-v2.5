@@ -48,7 +48,7 @@ export async function POST(request) {
 
     if (types.length === 0) {
       return NextResponse.json(
-        { error: 'Provide a non-empty types array (PO, GR, INV, QUO).' },
+        { error: 'Provide a non-empty types array (PO, GR, INV, QUO, SALE).' },
         { status: 400 }
       );
     }

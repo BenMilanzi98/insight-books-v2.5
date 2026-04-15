@@ -10,6 +10,16 @@ import { autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
+import { allocateNextSaleNumberReliable } from '@/lib/documentSequences';
+
+/** Local calendar YYYYMMDD for sale number prefix (matches business sale date). */
+function saleNumberDatePrefixFromDate(d) {
+  const x = d instanceof Date ? d : new Date(d);
+  const y = x.getFullYear();
+  const m = String(x.getMonth() + 1).padStart(2, '0');
+  const day = String(x.getDate()).padStart(2, '0');
+  return `${y}${m}${day}`;
+}
 
 // Helper function to format currency (display strings)
 const formatCurrency = (amount) => {
@@ -563,44 +573,6 @@ export async function POST(request) {
       ? total 
       : (subtotal + legacyTaxAmount - totalDiscountAmount - globalDiscount);
     
-    // Generate sale number (e.g., SALE-20250322-001).
-    // IMPORTANT: do NOT use "count + 1" (it creates gaps whenever earlier rows are hidden/deleted),
-    // and it is also race-prone. Instead, look up the highest existing sequence for today and increment.
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const prefix = `SALE-${dateStr}-`;
-
-    const latestForToday = await prisma.sale.findFirst({
-      where: {
-        tenantId: user.tenantId,
-        saleNumber: { startsWith: prefix },
-      },
-      orderBy: { saleNumber: 'desc' },
-      select: { saleNumber: true },
-    });
-
-    let nextSeq = 1;
-    if (latestForToday?.saleNumber) {
-      const m = latestForToday.saleNumber.match(/^SALE-\d{8}-(\d+)$/);
-      if (m?.[1]) {
-        const last = parseInt(m[1], 10);
-        if (!Number.isNaN(last)) nextSeq = last + 1;
-      }
-    }
-
-    // Ensure uniqueness (saleNumber is not DB-unique in schema), retry if collision occurs.
-    let saleNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-    // hard stop to avoid infinite loops in corrupted data
-    for (let attempt = 0; attempt < 50; attempt++) {
-      const exists = await prisma.sale.findFirst({
-        where: { tenantId: user.tenantId, saleNumber },
-        select: { id: true },
-      });
-      if (!exists) break;
-      nextSeq += 1;
-      saleNumber = `${prefix}${String(nextSeq).padStart(3, '0')}`;
-    }
-    
     try {
       // Log the incoming data
       console.log('🔥🔥🔥 SALES API POST - INCOMING DATA 🔥🔥🔥');
@@ -906,6 +878,25 @@ export async function POST(request) {
         const effectiveSaleDate = (data.isHistorical && data.historicalDate)
           ? new Date(data.historicalDate)
           : (data.saleDate ? new Date(data.saleDate) : new Date());
+
+        const dateStrForSaleNumber = saleNumberDatePrefixFromDate(effectiveSaleDate);
+        let saleNumber;
+        let saleNumberOk = false;
+        for (let snAttempt = 0; snAttempt < 50; snAttempt += 1) {
+          const seq = await allocateNextSaleNumberReliable(tx, user.tenantId);
+          saleNumber = `SALE-${dateStrForSaleNumber}-${String(seq).padStart(3, '0')}`;
+          const snDup = await tx.sale.findFirst({
+            where: { tenantId: user.tenantId, saleNumber },
+            select: { id: true },
+          });
+          if (!snDup) {
+            saleNumberOk = true;
+            break;
+          }
+        }
+        if (!saleNumberOk) {
+          throw new Error('Could not allocate a unique sale number');
+        }
 
         const posTenderedNum =
           data.posAmountTendered != null &&

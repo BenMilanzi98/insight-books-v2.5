@@ -4,7 +4,7 @@ import { generatePosDailyReport } from '@/lib/posDailyReportService';
 import { getPosCashDayState } from '@/lib/posCashDayService';
 import { generatePosDailySalesPdfBuffer } from '@/lib/posDailySalesPdf';
 import {
-  POS_DAILY_LINE_ITEM_HEADERS,
+  buildPosDailyLineItemHeadersWithCurrency,
   buildPosDailyLineItemDataRows,
 } from '@/lib/posDailySalesLineItemsExport';
 import * as XLSX from 'xlsx';
@@ -46,7 +46,7 @@ export async function GET(request) {
     rows.push(['Total sales', String(report.totalSales ?? 0)]);
     rows.push([]);
     rows.push(['Line items — one row per product / custom line']);
-    rows.push(POS_DAILY_LINE_ITEM_HEADERS);
+    rows.push(buildPosDailyLineItemHeadersWithCurrency(report.currencyCode || 'MWK'));
     const lineRows = buildPosDailyLineItemDataRows(report.transactions);
     if (lineRows.length === 0) {
       rows.push(['', '', 'No completed POS sales for this date.', '', '', '', '', '']);
