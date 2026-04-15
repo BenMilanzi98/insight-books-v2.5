@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { getPaymentMethodName } from '@/lib/paymentMethods';
+import { exportToNumber, exportSumField } from '@/lib/exportNumberUtils';
 
 // GET - Export sales data in CSV format
 export async function GET(request) {
@@ -25,12 +26,17 @@ export async function GET(request) {
     const search = searchParams.get('search');
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
+    const branchId = searchParams.get('branchId');
     const format = searchParams.get('format') || 'csv'; // Default to CSV
     
     // Build filter object for Prisma
     const where = {
       tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
     };
+
+    if (branchId) {
+      where.branchId = branchId;
+    }
     
     // Add status filter if provided
     if (status && status !== 'all') {
@@ -137,14 +143,22 @@ async function generateCsvResponse(sales) {
   
   // Transform sales data for CSV
   const records = sales.map(sale => {
-    // Calculate total quantity of items (sum of all quantities)
-    const totalItems = sale.items.reduce((sum, item) => sum + item.quantity, 0);
+    const totalItems = exportSumField(sale.items, 'quantity');
     const productNames = sale.items.map(item => {
       const label = item.product?.name || item.description || 'Item';
-      const qty = typeof item.quantity === 'number' ? item.quantity : Number(item.quantity) || 0;
+      const qty = exportToNumber(item.quantity);
       return `${label} (x${qty})`;
     }).join('; ');
-    
+
+    const subtotal = exportToNumber(sale.subtotal);
+    const total = exportToNumber(sale.total);
+    const lineTaxSum = exportSumField(sale.items, 'taxAmount');
+    const totalTax = exportToNumber(sale.totalTaxAmount);
+    const legacyTax = exportToNumber(sale.taxAmount);
+    let taxForExport = totalTax;
+    if (taxForExport === 0) taxForExport = legacyTax;
+    if (taxForExport === 0) taxForExport = lineTaxSum;
+
     return {
       saleNumber: sale.saleNumber,
       date: sale.saleDate.toISOString().split('T')[0],
@@ -153,12 +167,12 @@ async function generateCsvResponse(sales) {
       clientPhone: sale.client ? (sale.client.phone || '') : '',
       productNames,
       items: totalItems,
-      subtotal: sale.subtotal.toFixed(2),
-      tax: sale.taxAmount.toFixed(2),
-      total: sale.total.toFixed(2),
+      subtotal: subtotal.toFixed(2),
+      tax: taxForExport.toFixed(2),
+      total: total.toFixed(2),
       paymentMethod: getPaymentMethodName(sale.paymentMethod),
       status: formatStatus(sale.status),
-      createdBy: sale.createdBy.name,
+      createdBy: sale.createdBy?.name || '',
       notes: sale.notes || ''
     };
   });

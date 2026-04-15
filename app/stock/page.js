@@ -617,9 +617,17 @@ const StockManagement = () => {
     },
     
     // Export stock data to CSV
-    exportInventory: async (format = 'csv') => {
+    exportInventory: async (format = 'csv', params = {}) => {
       try {
-        const response = await fetch(`/api/stock/export?format=${format}`);
+        const queryParams = new URLSearchParams();
+        queryParams.append('format', format);
+        const { search, category, status, location } = params;
+        if (search) queryParams.append('search', search);
+        if (category && category !== 'All') queryParams.append('category', category);
+        if (status && status !== 'All') queryParams.append('status', status);
+        if (location && location !== 'All') queryParams.append('location', location);
+        queryParams.append('allBranches', 'true');
+        const response = await fetch(`/api/stock/export?${queryParams.toString()}`);
         
         if (!response.ok) {
           throw new Error(`Error exporting stock: ${response.statusText}`);
@@ -864,7 +872,12 @@ const StockManagement = () => {
   
   const handleBulkExport = async (format = 'csv') => {
     try {
-      const blob = await inventoryService.exportInventory(format);
+      const blob = await inventoryService.exportInventory(format, {
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        location: locationFilter,
+      });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1736,7 +1749,12 @@ const StockManagement = () => {
     showToast("info", `Preparing ${format.toUpperCase()} export...`, null, Infinity);
     
     try {
-      const blob = await inventoryService.exportInventory(format).catch(() => {
+      const blob = await inventoryService.exportInventory(format, {
+        search: searchTerm,
+        category: categoryFilter,
+        status: statusFilter,
+        location: locationFilter,
+      }).catch(() => {
         // Create CSV content as fallback
         const headers = ['ID', 'Name', 'SKU', 'Category', 'Quantity', 'Unit Price', 'Cost Price', 'Status', 'Location'];
         const rows = inventory.map(p => [

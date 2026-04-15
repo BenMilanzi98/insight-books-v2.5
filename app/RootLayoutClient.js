@@ -12,15 +12,7 @@ export default function RootLayoutClient({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
 
-  const hiddenPaths = [
-    "/",
-    "/auth/login",
-    "/auth/signup",
-    "/auth/business-setup",
-    "/contact",
-    "/terms",
-    "/privacy",
-  ];
+  const hiddenPaths = ["/", "/auth/login", "/auth/signup", "/auth/business-setup", "/contact", "/terms", "/privacy"];
   const shouldHideLayout =
     hiddenPaths.includes(pathname) ||
     pathname.startsWith("/auth/") ||
@@ -33,7 +25,6 @@ export default function RootLayoutClient({ children }) {
       setIsMobile(window.innerWidth < 768);
       setSidebarOpen(window.innerWidth >= 768);
     };
-
     checkIfMobile();
     window.addEventListener("resize", checkIfMobile);
     return () => window.removeEventListener("resize", checkIfMobile);
@@ -62,7 +53,6 @@ export default function RootLayoutClient({ children }) {
         width: "100%",
         position: "relative",
         overflow: "hidden",
-        flex: 1,
       }}
     >
       {!shouldHideLayout && (
@@ -130,7 +120,6 @@ export default function RootLayoutClient({ children }) {
       )}
 
       <FloatingWhatsApp />
-
       {!shouldHideLayout && <AIAssistant />}
     </div>
   );
