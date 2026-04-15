@@ -3820,6 +3820,7 @@ const POSPage = () => {
                     <tr>
                       <th className="px-3 py-2">Sale</th>
                       <th className="px-3 py-2">Time</th>
+                      <th className="px-3 py-2">Items sold</th>
                       <th className="px-3 py-2 text-right">Amount</th>
                       <th className="px-3 py-2">Payment</th>
                     </tr>
@@ -3830,6 +3831,29 @@ const POSPage = () => {
                         <td className="px-3 py-2 font-medium text-gray-900">{tx.saleNumber}</td>
                         <td className="px-3 py-2 text-gray-600">
                           {tx.saleDate ? new Date(tx.saleDate).toLocaleString() : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-gray-700 text-xs max-w-[14rem]">
+                          {(tx.lineItems || []).length === 0 ? (
+                            <span className="text-gray-400">—</span>
+                          ) : (
+                            <ul className="list-disc list-inside space-y-0.5">
+                              {(tx.lineItems || []).map((li, idx) => (
+                                <li key={`${tx.id}-${idx}`}>
+                                  <span className="font-medium text-gray-800">{li.description}</span>
+                                  {' × '}
+                                  {li.quantity}
+                                  {li.unitPrice != null ? (
+                                    <span className="text-gray-500">
+                                      {' '}
+                                      @ {formatCurrency(li.unitPrice)}
+                                    </span>
+                                  ) : null}
+                                  {' → '}
+                                  {formatCurrency(li.amount ?? 0)}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right font-semibold">{formatCurrency(tx.total || 0)}</td>
                         <td className="px-3 py-2 text-gray-700">

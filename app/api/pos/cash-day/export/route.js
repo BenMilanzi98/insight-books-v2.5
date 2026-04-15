@@ -3,6 +3,10 @@ import { getUserFromSession } from '@/lib/auth';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
 import { getPosCashDayState } from '@/lib/posCashDayService';
 import { generatePosDailySalesPdfBuffer } from '@/lib/posDailySalesPdf';
+import {
+  POS_DAILY_LINE_ITEM_HEADERS,
+  buildPosDailyLineItemDataRows,
+} from '@/lib/posDailySalesLineItemsExport';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -41,11 +45,13 @@ export async function GET(request) {
     rows.push(['Closing balance (opening + total sales)', String(cashState?.metrics?.closingBalance ?? '')]);
     rows.push(['Total sales', String(report.totalSales ?? 0)]);
     rows.push([]);
-    rows.push(['Sale #', 'Time (UTC)', 'Total', 'Payment detail']);
-
-    for (const tx of report.transactions || []) {
-      const t = tx.saleDate ? new Date(tx.saleDate).toISOString() : '';
-      rows.push([tx.saleNumber, t, String(tx.total ?? 0), tx.primaryPaymentLabel || '']);
+    rows.push(['Line items — one row per product / custom line']);
+    rows.push(POS_DAILY_LINE_ITEM_HEADERS);
+    const lineRows = buildPosDailyLineItemDataRows(report.transactions);
+    if (lineRows.length === 0) {
+      rows.push(['', '', 'No completed POS sales for this date.', '', '', '', '', '']);
+    } else {
+      rows.push(...lineRows);
     }
 
     if (format === 'xlsx' || format === 'excel') {
