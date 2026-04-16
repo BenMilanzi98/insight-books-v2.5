@@ -46,10 +46,6 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    if (source.isSystem || target.isSystem) {
-      return NextResponse.json({ error: 'System accounts cannot be merged' }, { status: 400 });
-    }
-
     if (source.mergedIntoAccountId) {
       return NextResponse.json(
         { error: 'This account has already been merged into another account and is kept for audit only.' },

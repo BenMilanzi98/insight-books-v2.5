@@ -181,10 +181,6 @@ const ChartOfAccountsPage = () => {
 
   const openMergeModal = async (sourceAccount) => {
     if (!sourceAccount) return;
-    if (sourceAccount.isSystem) {
-      setMergeError('System accounts cannot be merged.');
-      return;
-    }
     setMergeSourceAccount(sourceAccount);
     setMergeTargetId('');
     setMergeError(null);
@@ -788,9 +784,12 @@ const ChartOfAccountsPage = () => {
               <button
                 type="button"
                 onClick={() => openMergeModal(account)}
-                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-violet-700'}`}
-                title={account.isSystem ? 'System account (read-only)' : 'Merge into another account'}
-                disabled={account.isSystem}
+                className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-violet-700 sm:p-2"
+                title={
+                  account.isSystem
+                    ? 'Merge this system account into another (same type/normal balance)'
+                    : 'Merge into another account'
+                }
               >
                 <GitMerge size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
@@ -1259,7 +1258,9 @@ const ChartOfAccountsPage = () => {
                   </div>
 
                   <div className="p-3 border border-amber-200 bg-amber-50 rounded-md text-amber-900 text-sm">
-                    Tip: Prefer merging accounts with the same code/type/normal balance. If you’re unsure, check posted usage before merging.
+                    Tip: Prefer merging accounts with the same type and normal balance (required by the server). System
+                    accounts can be merged like any other row; pick the surviving account you want pickers and reports to
+                    use going forward.
                   </div>
 
                   <div className="flex justify-end space-x-3 pt-2">

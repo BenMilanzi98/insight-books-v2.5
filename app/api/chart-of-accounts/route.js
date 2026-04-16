@@ -11,6 +11,7 @@ import {
   buildMergeRollupContext,
   aggregateGroupByRowsBySurvivor,
 } from '@/lib/accountMergeRollup';
+import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -65,6 +66,108 @@ function applyCoaParentRollup(accounts) {
   for (const a of list) {
     a.currentBalance = rollup(a.id);
   }
+  return list;
+}
+
+/**
+ * Inventory (1300) must match Stock Management: one total from the same product aggregate as /stock.
+ * Rewrites postedDirectBalance on the 1300 Asset subtree so rolled parent total equals that amount.
+ * If subtree leaves had no posted balance, the full total sits on 1300 and descendants are 0.
+ * If leaves had balances, the stock total is split across leaves by those weights (parent direct 0) so sums match.
+ */
+function applyStockLedInventoryCoaSubtree(accounts, stockTotal) {
+  if (!Array.isArray(accounts) || accounts.length === 0) return accounts;
+  const list = accounts.map((a) => ({ ...a }));
+  const byId = new Map(list.map((a) => [a.id, a]));
+  const typeAsset = (a) => {
+    const t = String(a.accountType || a.type || '').trim();
+    return t === 'Asset' || t === 'ASSET';
+  };
+
+  const inv = list.find(
+    (a) => String(a.accountCode || a.code || '').trim() === '1300' && typeAsset(a)
+  );
+  if (!inv) return list;
+
+  const S = Number(stockTotal) || 0;
+  const childrenByParent = new Map();
+  for (const a of list) {
+    if (!a.parentAccountId) continue;
+    if (!childrenByParent.has(a.parentAccountId)) {
+      childrenByParent.set(a.parentAccountId, []);
+    }
+    childrenByParent.get(a.parentAccountId).push(a.id);
+  }
+
+  const subtree = new Set([inv.id]);
+  const stack = [inv.id];
+  while (stack.length) {
+    const id = stack.pop();
+    for (const k of childrenByParent.get(id) || []) {
+      if (!subtree.has(k)) {
+        subtree.add(k);
+        stack.push(k);
+      }
+    }
+  }
+
+  const leafIds = [...subtree].filter((id) => {
+    const kids = childrenByParent.get(id) || [];
+    return !kids.some((k) => subtree.has(k));
+  });
+
+  const weightSnap = new Map();
+  for (const lid of leafIds) {
+    if (lid === inv.id) continue;
+    const row = byId.get(lid);
+    if (!row) continue;
+    weightSnap.set(
+      lid,
+      Math.abs(Number(row.postedDirectBalance ?? row.currentBalance ?? 0) || 0)
+    );
+  }
+  const W = [...weightSnap.values()].reduce((a, b) => a + b, 0);
+
+  const note =
+    W < 1e-9
+      ? 'Inventory total matches Stock Management (all on this account; no leaf GL to split).'
+      : 'Inventory total matches Stock Management; sub-accounts split this total by relative posted amounts on each leaf.';
+
+  if (W < 1e-9) {
+    inv.postedDirectBalance = S;
+    inv.additionalBalance = 0;
+    inv.inventoryBalanceSource = 'stock_management_aggregate';
+    inv.inventoryBalanceNote = note;
+    for (const id of subtree) {
+      if (id === inv.id) continue;
+      const a = byId.get(id);
+      if (!a) continue;
+      a.postedDirectBalance = 0;
+      a.additionalBalance = 0;
+      a.inventoryBalanceSource = 'stock_management_aggregate';
+      a.inventoryBalanceNote = note;
+    }
+  } else {
+    inv.postedDirectBalance = 0;
+    inv.additionalBalance = 0;
+    inv.inventoryBalanceSource = 'stock_management_aggregate';
+    inv.inventoryBalanceNote = note;
+    for (const id of subtree) {
+      if (id === inv.id) continue;
+      const a = byId.get(id);
+      if (!a) continue;
+      if (leafIds.includes(id) && weightSnap.has(id)) {
+        const w = weightSnap.get(id) || 0;
+        a.postedDirectBalance = (S * w) / W;
+      } else {
+        a.postedDirectBalance = 0;
+      }
+      a.additionalBalance = 0;
+      a.inventoryBalanceSource = 'stock_management_aggregate';
+      a.inventoryBalanceNote = note;
+    }
+  }
+
   return list;
 }
 
@@ -440,43 +543,41 @@ export async function GET(request) {
       }
     }
 
-    // Inventory value from products
+    // Inventory value from products — match /api/stock/statistics (branch + cost display rules)
     let inventoryProducts = [];
     try {
+      const invWhere = {
+        tenantId: user.tenantId,
+        isService: false,
+        isDeleted: false,
+      };
+      if (user?.currentBranchId) {
+        invWhere.branchId = user.currentBranchId;
+      }
       inventoryProducts = await prisma.product.findMany({
-        where: {
-          tenantId: user.tenantId,
-          isService: false,
-          isDeleted: false
-        },
+        where: invWhere,
         select: {
           stockLevel: true,
           cost: true,
           totalStockValue: true,
-          averageCost: true
-        }
+          averageCost: true,
+          lastPurchaseCost: true,
+        },
       });
     } catch (error) {
       console.error('Error fetching inventory products:', error);
     }
-    // Same valuation as dashboard / balance sheet: prefer stored totalStockValue, else cost×qty, else averageCost×qty
     const totalInventoryValue = inventoryProducts.reduce((sum, product) => {
       try {
+        const stockLevel = Number(product.stockLevel) || 0;
+        const cost = resolveProductCostPriceForDisplay(product);
         const stored =
           product.totalStockValue != null ? Number(product.totalStockValue) : null;
-        if (stored != null && !Number.isNaN(stored) && stored > 0) {
-          return sum + stored;
-        }
-        const qty = Number(product.stockLevel);
-        const cost = Number(product.cost);
-        if (!Number.isNaN(qty) && !Number.isNaN(cost)) {
-          return sum + qty * cost;
-        }
-        const avg = Number(product.averageCost);
-        if (!Number.isNaN(qty) && !Number.isNaN(avg)) {
-          return sum + qty * avg;
-        }
-        return sum;
+        const productValue =
+          stored != null && !Number.isNaN(stored) && stored > 0
+            ? stored
+            : stockLevel * cost;
+        return sum + productValue;
       } catch {
         return sum;
       }
@@ -894,19 +995,19 @@ export async function GET(request) {
           console.log(`✅ Matched AR account: ${accountCode} - ${account.accountName || account.name}, value: ${totalAccountsReceivable}`);
         }
         
-        // Inventory: canonical 1300 only (avoid 13000/13001 each receiving full tenant stock).
-        // Name match for custom setups. Like AR: subledger replaces GL on this row so FIFO/totalStockValue is not double-counted with journals.
-        const isInventoryAccount =
-          accountCode === '1300' ||
-          (accountName.includes('inventory') && !accountName.includes('receivable'));
+        // Custom inventory GL (not 1300): leaf only; canonical 1300 is handled after parent/child branch so headers still match /stock.
+        const isCustomInventoryName =
+          accountCode !== '1300' &&
+          accountName.includes('inventory') &&
+          !accountName.includes('receivable');
         isInventoryLedger =
-          isInventoryAccount && (accountType === 'ASSET' || accountType === 'Asset');
+          isCustomInventoryName && (accountType === 'ASSET' || accountType === 'Asset');
 
         if (isInventoryLedger) {
           balance = totalInventoryValue;
           additionalBalance = 0;
           console.log(`✅ Matched inventory account: ${accountCode} - ${account.accountName || account.name}, value: ${totalInventoryValue}`);
-        } else if (isInventoryAccount) {
+        } else if (isCustomInventoryName) {
           console.log(`⚠️ Inventory account ${accountCode} - ${account.accountName || account.name} type mismatch: ${accountType} (expected ASSET)`);
         }
         
@@ -1178,6 +1279,7 @@ export async function GET(request) {
           // Accounts Receivable: use ONLY unpaid invoices (already set in balance above)
           finalBalance = balance; // balance is already set to totalAccountsReceivable above
         } else if (isInventoryLedger) {
+          // Non-1300 custom "inventory" GL rows: stock aggregate (same products as /stock)
           finalBalance = balance;
         } else {
           // Other accounts: combine journal entries + additional balances
@@ -1262,7 +1364,12 @@ export async function GET(request) {
 
     // Same accountCode on multiple rows breaks hierarchy rollup — merge amounts and remap parents.
     const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
-    const accountsWithParentRollup = applyCoaParentRollup(deduplicatedAccounts);
+    // Inventory (1300 subtree): always reconcile to Stock Management aggregate (never unexplained GL on parent).
+    const stockLedAccounts = applyStockLedInventoryCoaSubtree(
+      deduplicatedAccounts,
+      totalInventoryValue
+    );
+    const accountsWithParentRollup = applyCoaParentRollup(stockLedAccounts);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');
     const parent500 = accountsWithParentRollup.find((a) => codeOf(a) === '500000');
