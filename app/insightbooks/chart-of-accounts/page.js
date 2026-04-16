@@ -8,6 +8,7 @@ import {
   BookOpen,
   Check,
   ChevronRight,
+  CloudDownload,
   GitMerge,
   Loader2,
   Pencil,
@@ -215,32 +216,19 @@ export default function AdminSystemChartOfAccountsPage() {
   const [addParentCode, setAddParentCode] = useState("5000");
   const [tenantInventory, setTenantInventory] = useState(null);
   const [tenantInventoryError, setTenantInventoryError] = useState(null);
+  const [tenantPullLoading, setTenantPullLoading] = useState(false);
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantIdFilter, setTenantIdFilter] = useState("");
   const [tenantSourceTab, setTenantSourceTab] = useState("gl");
 
-  const load = useCallback(async () => {
+  const loadDefinition = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setTenantInventoryError(null);
     try {
-      const [defRes, invRes] = await Promise.all([
-        fetch("/api/admin/system-coa", { credentials: "include" }),
-        fetch("/api/admin/system-coa/tenant-accounts", { credentials: "include" }),
-      ]);
+      const defRes = await fetch("/api/admin/system-coa", { credentials: "include" });
       const data = await defRes.json().catch(() => ({}));
       if (!defRes.ok) throw new Error(data.error || "Failed to load");
       setPayload(data.payload);
-
-      if (invRes.ok) {
-        const inv = await invRes.json().catch(() => ({}));
-        setTenantInventory(inv);
-        setTenantInventoryError(null);
-      } else {
-        const invErr = await invRes.json().catch(() => ({}));
-        setTenantInventory(null);
-        setTenantInventoryError(invErr.error || `Tenant inventory failed (${invRes.status})`);
-      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -248,9 +236,34 @@ export default function AdminSystemChartOfAccountsPage() {
     }
   }, []);
 
+  /** Same data tenants see under Chart of accounts + Payment accounts (management); all businesses, read-only. */
+  const pullTenantAccounts = useCallback(async () => {
+    setTenantPullLoading(true);
+    setTenantInventoryError(null);
+    setMessage(null);
+    try {
+      const invRes = await fetch("/api/admin/system-coa/tenant-accounts", { credentials: "include" });
+      const inv = await invRes.json().catch(() => ({}));
+      if (!invRes.ok) {
+        setTenantInventoryError(inv.error || `Tenant pull failed (${invRes.status})`);
+        return;
+      }
+      setTenantInventory(inv);
+      setTenantInventoryError(null);
+      const gl = inv.meta?.chartAccountCount ?? 0;
+      const pay = inv.meta?.paymentAccountCount ?? 0;
+      const tn = inv.meta?.tenantCount ?? 0;
+      setMessage(`Pulled ${gl} GL / chart rows and ${pay} payment (management) accounts across ${tn} tenants.`);
+    } catch (e) {
+      setTenantInventoryError(e?.message || "Tenant pull failed");
+    } finally {
+      setTenantPullLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    load();
-  }, [load]);
+    loadDefinition();
+  }, [loadDefinition]);
 
   useEffect(() => {
     if (!mergeRow && !editRow && !addOpen) return;
@@ -531,11 +544,11 @@ export default function AdminSystemChartOfAccountsPage() {
         <div className="flex w-full min-w-0 flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
           <button
             type="button"
-            onClick={load}
+            onClick={loadDefinition}
             className="inline-flex min-h-[44px] w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto sm:min-h-0 sm:py-2"
           >
             <RefreshCw className="h-4 w-4 shrink-0" />
-            Reload
+            Reload definition
           </button>
           <button
             type="button"
@@ -673,34 +686,77 @@ export default function AdminSystemChartOfAccountsPage() {
       </div>
 
       <section className="mt-10 space-y-4 border-t border-slate-200 pt-8" aria-labelledby="tenant-inventory-heading">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h2 id="tenant-inventory-heading" className="text-lg font-semibold text-slate-900">
-              Accounts across all tenants
+              Tenant chart &amp; payment accounts
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
-              Read-only list of every chart-of-accounts row and every payment / cash-bank method account. Use it to spot
-              extra codes, naming drift, unlinked POS wallets, and merges before you adjust the system template above.
+              Pull a read-only snapshot of what every business uses today: the same GL rows as tenant{" "}
+              <span className="font-medium text-slate-800">/chart-of-accounts</span> and the same payment methods as{" "}
+              <span className="font-medium text-slate-800">/payments/management</span> (cash, bank, wallet, POS, etc.).
+              Use it to decide which codes to keep in the system template, what to merge, and which payment accounts
+              still need a linked GL code.
             </p>
             {tenantInventory?.meta && (
               <p className="mt-2 text-xs text-slate-500">
-                Loaded:{" "}
+                Last pull:{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> GL rows,{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment
                 accounts, <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
-                {tenantInventory.meta.filteredByTenantId ? ` (filtered to one tenant)` : ""}.
+                {tenantInventory.meta.filteredByTenantId ? ` (API filtered to one tenant)` : ""}.
               </p>
             )}
+          </div>
+          <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
+            <button
+              type="button"
+              onClick={pullTenantAccounts}
+              disabled={tenantPullLoading}
+              className="inline-flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[44px] sm:w-auto sm:py-2.5"
+            >
+              {tenantPullLoading ? (
+                <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+              ) : (
+                <CloudDownload className="h-5 w-5 shrink-0" />
+              )}
+              {tenantInventory ? "Refresh tenant pull" : "Pull all tenant accounts"}
+            </button>
           </div>
         </div>
 
         {tenantInventoryError && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
-            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
-            <span className="min-w-0 break-words">
-              Could not load tenant inventory: {tenantInventoryError}. The system template above may still load; try
-              Reload.
-            </span>
+          <div className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="flex min-w-0 items-start gap-2">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <span className="min-w-0 break-words">
+                Could not pull tenant data: {tenantInventoryError}. The system template above is unchanged.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={pullTenantAccounts}
+              disabled={tenantPullLoading}
+              className="inline-flex min-h-[44px] shrink-0 touch-manipulation items-center justify-center rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!tenantInventory && !tenantInventoryError && !tenantPullLoading && (
+          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center">
+            <p className="mx-auto max-w-lg text-sm text-slate-600">
+              No tenant snapshot loaded yet. Press <strong>Pull all tenant accounts</strong> above to load every
+              business&apos;s chart of accounts and payment management accounts into this page.
+            </p>
+          </div>
+        )}
+
+        {tenantPullLoading && !tenantInventory && (
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-12 text-slate-600">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="text-sm font-medium">Pulling accounts from all tenants…</span>
           </div>
         )}
 
