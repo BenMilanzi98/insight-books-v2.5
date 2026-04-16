@@ -50,11 +50,100 @@ function buildChildrenMap(accounts) {
   return m;
 }
 
-function TreeRows({
-  parentKey,
+/** Every whitespace-separated token must appear as a substring (case-insensitive), e.g. "transport exp" → "Transport Expenses". */
+function textMatchesTokenSearch(haystack, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  const h = String(haystack || "").toLowerCase();
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (!tokens.length) return true;
+  return tokens.every((t) => h.includes(t));
+}
+
+function coaDefinitionSearchHaystack(row) {
+  return [
+    row.code,
+    row.name,
+    row.type,
+    row.subtype,
+    row.description,
+    row.normalBalance,
+    row.parentCode,
+  ]
+    .filter((x) => x != null && String(x).trim())
+    .join(" ");
+}
+
+/**
+ * When searching, show matching rows plus every ancestor so the tree still makes sense.
+ * @returns {Set<string> | null} null = no filter (show all)
+ */
+function getVisibleCodesForCoaSearch(accounts, query) {
+  const q = String(query || "").trim();
+  if (!q || !accounts?.length) return null;
+  const byCode = new Map(accounts.map((a) => [a.code, a]));
+  const matchCodes = new Set();
+  for (const a of accounts) {
+    if (a?.code && textMatchesTokenSearch(coaDefinitionSearchHaystack(a), q)) {
+      matchCodes.add(a.code);
+    }
+  }
+  if (matchCodes.size === 0) return new Set();
+  const visible = new Set(matchCodes);
+  for (const code of matchCodes) {
+    let cur = code;
+    const seen = new Set();
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      visible.add(cur);
+      const p = byCode.get(cur)?.parentCode;
+      cur = p && byCode.has(p) ? p : null;
+    }
+  }
+  return visible;
+}
+
+/** BFS from canonical roots plus any other top-level rows (parentCode empty → __root__). */
+function getReachableAccountCodes(childrenMap, rootCodes) {
+  const seeds = new Set(rootCodes);
+  const rootBucket = childrenMap.get("__root__") || [];
+  for (const r of rootBucket) {
+    if (r?.code) seeds.add(r.code);
+  }
+  const seen = new Set();
+  const stack = [...seeds];
+  while (stack.length) {
+    const c = stack.pop();
+    if (!c || seen.has(c)) continue;
+    seen.add(c);
+    for (const ch of childrenMap.get(c) || []) {
+      if (ch?.code) stack.push(ch.code);
+    }
+  }
+  return seen;
+}
+
+/** Accounts not reachable from seeds — e.g. broken parentCode or cycles. Forest roots for rendering. */
+function getOrphanForestRoots(accounts, reachableCodes) {
+  const byCode = new Map(accounts.map((a) => [a.code, a]));
+  const unreachable = accounts.filter((a) => a?.code && !reachableCodes.has(a.code));
+  const U = new Set(unreachable.map((a) => a.code));
+  return unreachable
+    .filter((a) => {
+      const p = a.parentCode;
+      if (!p || !byCode.has(p)) return true;
+      if (!U.has(p)) return true;
+      return false;
+    })
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+}
+
+function CoaTableRow({
+  row,
   depth,
   childrenMap,
   payload,
+  visibleCodes,
   onDropOn,
   dragCode,
   setDragCode,
@@ -62,135 +151,163 @@ function TreeRows({
   onMerge,
   onToggleDeactivate,
 }) {
-  const rows = childrenMap.get(parentKey) || [];
-  return rows.map((row) => {
-    const isRoot = ROOT_CODES.includes(row.code);
-    const isMergeSource = (payload.merges || []).some((m) => m.sourceCode === row.code);
-    const mergeTarget = (payload.merges || []).find((m) => m.sourceCode === row.code);
-    const deactivated = (payload.deactivatedCodes || []).includes(row.code);
-    const childKey = row.code;
-    const hasKids = (childrenMap.get(childKey) || []).length > 0;
+  const isRoot = ROOT_CODES.includes(row.code);
+  const isMergeSource = (payload.merges || []).some((m) => m.sourceCode === row.code);
+  const mergeTarget = (payload.merges || []).find((m) => m.sourceCode === row.code);
+  const deactivated = (payload.deactivatedCodes || []).includes(row.code);
+  const childKey = row.code;
+  const hasKids = (childrenMap.get(childKey) || []).some((ch) => !visibleCodes || visibleCodes.has(ch.code));
 
-    return (
-      <React.Fragment key={row.code}>
-        <tr
-          className={`border-b border-slate-100 ${deactivated ? "bg-slate-50 text-slate-400" : "bg-white"}`}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "move";
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            const from = e.dataTransfer.getData("text/coa-code") || dragCode;
-            if (from && from !== row.code) onDropOn(from, row.code);
-            setDragCode(null);
-          }}
-        >
-          <td
-            className={`sticky left-0 z-[1] border-r border-slate-100 bg-inherit px-2 py-2 align-middle sm:static sm:z-auto sm:border-r-0 ${deactivated ? "bg-slate-50" : "bg-white"}`}
-            style={{ paddingLeft: 8 + depth * 12 }}
+  return (
+    <tr
+      className={`border-b border-slate-100 ${deactivated ? "bg-slate-50 text-slate-400" : "bg-white"}`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        const from = e.dataTransfer.getData("text/coa-code") || dragCode;
+        if (from && from !== row.code) onDropOn(from, row.code);
+        setDragCode(null);
+      }}
+    >
+      <td
+        className={`sticky left-0 z-[1] border-r border-slate-100 bg-inherit px-2 py-2 align-middle sm:static sm:z-auto sm:border-r-0 ${deactivated ? "bg-slate-50" : "bg-white"}`}
+        style={{ paddingLeft: 8 + depth * 12 }}
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          {hasKids ? (
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+          ) : (
+            <span className="inline-block w-4 shrink-0" aria-hidden />
+          )}
+          <span
+            draggable={!row.isSystem || !isRoot}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/coa-code", row.code);
+              e.dataTransfer.effectAllowed = "move";
+              setDragCode(row.code);
+            }}
+            onDragEnd={() => setDragCode(null)}
+            className={`min-h-[44px] min-w-0 touch-manipulation cursor-grab rounded px-1.5 py-2 font-mono text-xs font-semibold leading-tight active:cursor-grabbing sm:min-h-0 sm:py-0.5 ${dragCode === row.code ? "bg-indigo-100 text-indigo-900" : "text-slate-800"}`}
+            title="Drag onto another row to reparent under that account"
           >
-            <div className="flex min-w-0 items-center gap-1">
-              {hasKids ? (
-                <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-              ) : (
-                <span className="inline-block w-4 shrink-0" aria-hidden />
-              )}
-              <span
-                draggable={!row.isSystem || !isRoot}
-                onDragStart={(e) => {
-                  e.dataTransfer.setData("text/coa-code", row.code);
-                  e.dataTransfer.effectAllowed = "move";
-                  setDragCode(row.code);
-                }}
-                onDragEnd={() => setDragCode(null)}
-                className={`min-h-[44px] min-w-0 touch-manipulation cursor-grab rounded px-1.5 py-2 font-mono text-xs font-semibold leading-tight active:cursor-grabbing sm:min-h-0 sm:py-0.5 ${dragCode === row.code ? "bg-indigo-100 text-indigo-900" : "text-slate-800"}`}
-                title="Drag onto another row to reparent under that account"
-              >
-                {row.code}
-              </span>
-            </div>
-          </td>
-          <td className="max-w-[min(100vw,280px)] px-2 py-2 text-sm text-slate-900 sm:max-w-none">
-            {mergeTarget ? (
-              <span className="block text-slate-600">
-                <span className="font-mono text-xs">{row.code}</span>
-                <span className="mx-1">→</span>
-                <span className="font-semibold text-indigo-700">{mergeTarget.targetCode}</span>
-                <span className="mt-0.5 block text-[11px] font-normal text-slate-500 sm:inline sm:mt-0">
-                  (merged for display / pickers)
-                </span>
-              </span>
-            ) : (
-              <span className="line-clamp-2 sm:line-clamp-none">{row.name}</span>
-            )}
-          </td>
-          <td className="hidden px-2 py-2 text-xs text-slate-600 md:table-cell">{row.type}</td>
-          <td className="hidden w-14 px-1 py-2 text-center sm:table-cell">
-            <input
-              type="checkbox"
-              className="h-4 w-4 touch-manipulation rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-              checked={deactivated}
-              disabled={row.isSystem}
-              title={row.isSystem ? "System accounts cannot be deactivated" : "Deactivate on all tenants when applied"}
-              onChange={() => onToggleDeactivate(row.code)}
-            />
-          </td>
-          <td className="px-1 py-2 sm:px-2">
-            <div className="flex items-center justify-end gap-0.5 sm:justify-end">
-              <span className="mr-1 text-[10px] font-medium uppercase text-slate-400 sm:hidden">Off</span>
-              <input
-                type="checkbox"
-                className="h-5 w-5 touch-manipulation rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 sm:hidden"
-                checked={deactivated}
-                disabled={row.isSystem}
-                aria-label={`Deactivate ${row.code}`}
-                onChange={() => onToggleDeactivate(row.code)}
-              />
-              <button
-                type="button"
-                className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:p-1.5"
-                title="Rename"
-                onClick={() => onEdit(row)}
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-slate-100 hover:text-violet-700 disabled:opacity-30 sm:p-1.5"
-                title="Merge into another code (keeps this row & code in DB for audit)"
-                disabled={Boolean(row.isSystem)}
-                onClick={() => onMerge(row)}
-              >
-                <GitMerge className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 sm:p-1.5"
-                title="Remove merge for this code"
-                disabled={!isMergeSource}
-                onClick={() => onMerge(row, true)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </td>
-        </tr>
-        <TreeRows
-          parentKey={childKey}
-          depth={depth + 1}
-          childrenMap={childrenMap}
-          payload={payload}
-          onDropOn={onDropOn}
-          dragCode={dragCode}
-          setDragCode={setDragCode}
-          onEdit={onEdit}
-          onMerge={onMerge}
-          onToggleDeactivate={onToggleDeactivate}
+            {row.code}
+          </span>
+        </div>
+      </td>
+      <td className="max-w-[min(100vw,280px)] px-2 py-2 text-sm text-slate-900 sm:max-w-none">
+        {mergeTarget ? (
+          <span className="block text-slate-600">
+            <span className="font-mono text-xs">{row.code}</span>
+            <span className="mx-1">→</span>
+            <span className="font-semibold text-indigo-700">{mergeTarget.targetCode}</span>
+            <span className="mt-0.5 block text-[11px] font-normal text-slate-500 sm:inline sm:mt-0">
+              (merged for display / pickers)
+            </span>
+          </span>
+        ) : (
+          <span className="line-clamp-2 sm:line-clamp-none">{row.name}</span>
+        )}
+      </td>
+      <td className="hidden px-2 py-2 text-xs text-slate-600 md:table-cell">{row.type}</td>
+      <td className="hidden w-14 px-1 py-2 text-center sm:table-cell">
+        <input
+          type="checkbox"
+          className="h-4 w-4 touch-manipulation rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          checked={deactivated}
+          disabled={row.isSystem}
+          title={row.isSystem ? "System accounts cannot be deactivated" : "Deactivate on all tenants when applied"}
+          onChange={() => onToggleDeactivate(row.code)}
         />
-      </React.Fragment>
-    );
-  });
+      </td>
+      <td className="px-1 py-2 sm:px-2">
+        <div className="flex items-center justify-end gap-0.5 sm:justify-end">
+          <span className="mr-1 text-[10px] font-medium uppercase text-slate-400 sm:hidden">Off</span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 touch-manipulation rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 sm:hidden"
+            checked={deactivated}
+            disabled={row.isSystem}
+            aria-label={`Deactivate ${row.code}`}
+            onChange={() => onToggleDeactivate(row.code)}
+          />
+          <button
+            type="button"
+            className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 sm:p-1.5"
+            title="Rename"
+            onClick={() => onEdit(row)}
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-slate-100 hover:text-violet-700 disabled:opacity-30 sm:p-1.5"
+            title="Merge into another code (system accounts allowed; both codes stay in DB for audit)"
+            onClick={() => onMerge(row)}
+          >
+            <GitMerge className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="touch-manipulation rounded-md p-2.5 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 sm:p-1.5"
+            title="Remove merge for this code"
+            disabled={!isMergeSource}
+            onClick={() => onMerge(row, true)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function TreeRows({
+  parentKey,
+  depth,
+  childrenMap,
+  payload,
+  visibleCodes,
+  onDropOn,
+  dragCode,
+  setDragCode,
+  onEdit,
+  onMerge,
+  onToggleDeactivate,
+}) {
+  const rows = (childrenMap.get(parentKey) || []).filter((r) => !visibleCodes || visibleCodes.has(r.code));
+  return rows.map((row) => (
+    <React.Fragment key={row.code}>
+      <CoaTableRow
+        row={row}
+        depth={depth}
+        childrenMap={childrenMap}
+        payload={payload}
+        visibleCodes={visibleCodes}
+        onDropOn={onDropOn}
+        dragCode={dragCode}
+        setDragCode={setDragCode}
+        onEdit={onEdit}
+        onMerge={onMerge}
+        onToggleDeactivate={onToggleDeactivate}
+      />
+      <TreeRows
+        parentKey={row.code}
+        depth={depth + 1}
+        childrenMap={childrenMap}
+        payload={payload}
+        visibleCodes={visibleCodes}
+        onDropOn={onDropOn}
+        dragCode={dragCode}
+        setDragCode={setDragCode}
+        onEdit={onEdit}
+        onMerge={onMerge}
+        onToggleDeactivate={onToggleDeactivate}
+      />
+    </React.Fragment>
+  ));
 }
 
 function ModalPortal({ children, open }) {
@@ -220,6 +337,8 @@ export default function AdminSystemChartOfAccountsPage() {
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantIdFilter, setTenantIdFilter] = useState("");
   const [tenantSourceTab, setTenantSourceTab] = useState("gl");
+  /** Filter system definition table: tokenized substring match on name, code, type, subtype, description. */
+  const [coaDefinitionSearch, setCoaDefinitionSearch] = useState("");
 
   const loadDefinition = useCallback(async () => {
     setLoading(true);
@@ -293,6 +412,51 @@ export default function AdminSystemChartOfAccountsPage() {
     return buildChildrenMap(payload.accounts);
   }, [payload]);
 
+  /** Top-level rows (no parent) besides the five canonical roots — still draggable into the main tree. */
+  const extraRootLevelAccounts = useMemo(() => {
+    const bucket = childrenMap.get("__root__") || [];
+    return bucket
+      .filter((r) => r?.code && !ROOT_CODES.includes(r.code))
+      .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  }, [childrenMap]);
+
+  const reachableAllCodes = useMemo(
+    () => getReachableAccountCodes(childrenMap, ROOT_CODES),
+    [childrenMap]
+  );
+
+  const orphanForestRoots = useMemo(() => {
+    if (!payload?.accounts?.length) return [];
+    return getOrphanForestRoots(payload.accounts, reachableAllCodes);
+  }, [payload, reachableAllCodes]);
+
+  const coaSearchVisibleCodes = useMemo(
+    () => getVisibleCodesForCoaSearch(payload?.accounts, coaDefinitionSearch),
+    [payload?.accounts, coaDefinitionSearch]
+  );
+
+  const coaSearchStats = useMemo(() => {
+    const q = coaDefinitionSearch.trim();
+    if (!q || !payload?.accounts?.length) {
+      return { active: false, directMatches: 0, visibleRows: 0 };
+    }
+    const directMatches = payload.accounts.filter((a) =>
+      textMatchesTokenSearch(coaDefinitionSearchHaystack(a), q)
+    ).length;
+    const visibleRows = coaSearchVisibleCodes instanceof Set ? coaSearchVisibleCodes.size : 0;
+    return { active: true, directMatches, visibleRows };
+  }, [payload?.accounts, coaDefinitionSearch, coaSearchVisibleCodes]);
+
+  const extraRootVisible = useMemo(() => {
+    if (!coaSearchVisibleCodes) return extraRootLevelAccounts;
+    return extraRootLevelAccounts.filter((r) => coaSearchVisibleCodes.has(r.code));
+  }, [extraRootLevelAccounts, coaSearchVisibleCodes]);
+
+  const orphanRootsVisible = useMemo(() => {
+    if (!coaSearchVisibleCodes) return orphanForestRoots;
+    return orphanForestRoots.filter((r) => coaSearchVisibleCodes.has(r.code));
+  }, [orphanForestRoots, coaSearchVisibleCodes]);
+
   const parentOptions = useMemo(() => {
     if (!payload?.accounts) return [];
     return [...payload.accounts].sort((a, b) =>
@@ -305,33 +469,34 @@ export default function AdminSystemChartOfAccountsPage() {
   const filteredTenantChart = useMemo(() => {
     const rows = tenantInventory?.chartAccounts || [];
     const tid = tenantIdFilter.trim();
-    const q = tenantSearch.trim().toLowerCase();
+    const q = tenantSearch.trim();
     return rows.filter((r) => {
       if (tid && r.tenantId !== tid) return false;
-      if (!q) return true;
       const blob = [
         r.tenant?.name,
         r.tenant?.subdomain,
         r.accountCode,
         r.accountName,
         r.accountType,
+        r.accountSubtype,
+        r.description,
         r.mergedIntoAccount?.accountCode,
+        r.mergedIntoAccount?.accountName,
         r.parentAccount?.accountCode,
+        r.parentAccount?.accountName,
       ]
         .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+        .join(" ");
+      return textMatchesTokenSearch(blob, q);
     });
   }, [tenantInventory, tenantIdFilter, tenantSearch]);
 
   const filteredTenantPayments = useMemo(() => {
     const rows = tenantInventory?.paymentAccounts || [];
     const tid = tenantIdFilter.trim();
-    const q = tenantSearch.trim().toLowerCase();
+    const q = tenantSearch.trim();
     return rows.filter((r) => {
       if (tid && r.tenantId !== tid) return false;
-      if (!q) return true;
       const blob = [
         r.tenant?.name,
         r.tenant?.subdomain,
@@ -340,11 +505,11 @@ export default function AdminSystemChartOfAccountsPage() {
         r.reference,
         r.coaAccount?.accountCode,
         r.coaAccount?.accountName,
+        r.coaAccount?.accountType,
       ]
         .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return blob.includes(q);
+        .join(" ");
+      return textMatchesTokenSearch(blob, q);
     });
   }, [tenantInventory, tenantIdFilter, tenantSearch]);
 
@@ -603,9 +768,45 @@ export default function AdminSystemChartOfAccountsPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 bg-white px-3 py-3 sm:px-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <label htmlFor="coa-def-search" className="sr-only">
+              Search system accounts by name or code
+            </label>
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                id="coa-def-search"
+                type="search"
+                value={coaDefinitionSearch}
+                onChange={(e) => setCoaDefinitionSearch(e.target.value)}
+                placeholder='e.g. transport — matches "Transportation", "Transport expense", codes…'
+                className="block min-h-[44px] w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setCoaDefinitionSearch("")}
+              className="inline-flex min-h-[44px] shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+            >
+              Clear search
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Multiple words: each word must appear somewhere in the account name, code, type, subtype, or description. Rows include
+            parent path so you can drag or <strong>merge</strong> (system accounts can be merge sources or targets).
+          </p>
+          {coaSearchStats.active && (
+            <p className="mt-1 text-xs font-medium text-indigo-800">
+              {coaSearchStats.directMatches} direct match{coaSearchStats.directMatches === 1 ? "" : "es"},{" "}
+              {coaSearchStats.visibleRows} row{coaSearchStats.visibleRows === 1 ? "" : "s"} shown (with ancestors).
+            </p>
+          )}
+        </div>
         <div className="border-b border-slate-100 bg-slate-50 px-3 py-2.5 text-xs leading-snug text-slate-600 sm:text-sm">
-          Drag a <span className="font-mono">code</span> chip onto a row to set that row as the new parent (no cycles). Roots:{" "}
-          {ROOT_CODES.join(", ")}.
+          Drag a <span className="font-mono">code</span> chip onto a row to set that row as the new parent (no cycles). Every account in
+          the definition appears below: main tree under roots {ROOT_CODES.join(", ")}, then any other top-level codes, then disconnected
+          rows (fix by dragging onto a valid parent). <strong>Merge</strong> uses the row actions (including system accounts).
         </div>
         <div className="max-h-[min(70dvh,720px)] overflow-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full min-w-[min(100%,520px)] border-collapse text-left text-sm sm:min-w-[640px]">
@@ -621,9 +822,20 @@ export default function AdminSystemChartOfAccountsPage() {
               </tr>
             </thead>
             <tbody>
+              {coaDefinitionSearch.trim() && coaSearchVisibleCodes?.size === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-slate-600">
+                    No system accounts match <span className="font-mono font-semibold text-slate-800">{coaDefinitionSearch.trim()}</span>
+                    . Try fewer or shorter words (e.g. <span className="font-mono">transport</span>).
+                  </td>
+                </tr>
+              )}
               {ROOT_CODES.map((code) => {
                 const row = payload?.accounts?.find((a) => a.code === code);
                 if (!row) return null;
+                if (coaSearchVisibleCodes && !coaSearchVisibleCodes.has(code)) return null;
+                const rootIsMergeSource = (payload.merges || []).some((m) => m.sourceCode === row.code);
+                const rootMergeTarget = (payload.merges || []).find((m) => m.sourceCode === row.code);
                 return (
                   <React.Fragment key={code}>
                     <tr
@@ -652,17 +864,50 @@ export default function AdminSystemChartOfAccountsPage() {
                           {row.code}
                         </span>
                       </td>
-                      <td className="px-2 py-2">{row.name}</td>
+                      <td className="px-2 py-2">
+                        {rootMergeTarget ? (
+                          <span className="block text-slate-700">
+                            <span className="font-mono text-xs">{row.code}</span>
+                            <span className="mx-1">→</span>
+                            <span className="font-semibold text-indigo-800">{rootMergeTarget.targetCode}</span>
+                            <span className="mt-0.5 block text-[11px] font-normal text-slate-600 sm:inline sm:mt-0">
+                              (merged for display / pickers)
+                            </span>
+                          </span>
+                        ) : (
+                          row.name
+                        )}
+                      </td>
                       <td className="hidden px-2 py-2 text-xs md:table-cell">{row.type}</td>
                       <td className="hidden px-2 py-2 text-center sm:table-cell">—</td>
                       <td className="px-1 py-2 text-right sm:px-2">
-                        <button
-                          type="button"
-                          className="touch-manipulation rounded-md p-2.5 text-slate-600 hover:bg-white sm:p-1.5"
-                          onClick={() => openEdit(row)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-0.5">
+                          <button
+                            type="button"
+                            className="touch-manipulation rounded-md p-2.5 text-slate-600 hover:bg-white sm:p-1.5"
+                            title="Rename"
+                            onClick={() => openEdit(row)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="touch-manipulation rounded-md p-2.5 text-slate-600 hover:bg-white hover:text-violet-800 sm:p-1.5"
+                            title="Merge this root into another code (system merges allowed)"
+                            onClick={() => onMerge(row)}
+                          >
+                            <GitMerge className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="touch-manipulation rounded-md p-2.5 text-slate-600 hover:bg-white hover:text-rose-700 disabled:opacity-30 sm:p-1.5"
+                            title="Remove merge for this code"
+                            disabled={!rootIsMergeSource}
+                            onClick={() => onMerge(row, true)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                     <TreeRows
@@ -670,6 +915,7 @@ export default function AdminSystemChartOfAccountsPage() {
                       depth={1}
                       childrenMap={childrenMap}
                       payload={payload}
+                      visibleCodes={coaSearchVisibleCodes}
                       onDropOn={onDropOn}
                       dragCode={dragCode}
                       setDragCode={setDragCode}
@@ -680,6 +926,86 @@ export default function AdminSystemChartOfAccountsPage() {
                   </React.Fragment>
                 );
               })}
+              {extraRootVisible.length > 0 && (
+                <>
+                  <tr className="border-b border-sky-200 bg-sky-50">
+                    <td colSpan={5} className="px-2 py-2 text-xs font-semibold text-sky-950">
+                      Other top-level accounts (same bucket as roots; drag a code onto a row under{" "}
+                      {ROOT_CODES.join(", ")} to attach to the main tree).
+                    </td>
+                  </tr>
+                  {extraRootVisible.map((row) => (
+                    <React.Fragment key={`xroot-${row.code}`}>
+                      <CoaTableRow
+                        row={row}
+                        depth={0}
+                        childrenMap={childrenMap}
+                        payload={payload}
+                        visibleCodes={coaSearchVisibleCodes}
+                        onDropOn={onDropOn}
+                        dragCode={dragCode}
+                        setDragCode={setDragCode}
+                        onEdit={openEdit}
+                        onMerge={onMerge}
+                        onToggleDeactivate={onToggleDeactivate}
+                      />
+                      <TreeRows
+                        parentKey={row.code}
+                        depth={1}
+                        childrenMap={childrenMap}
+                        payload={payload}
+                        visibleCodes={coaSearchVisibleCodes}
+                        onDropOn={onDropOn}
+                        dragCode={dragCode}
+                        setDragCode={setDragCode}
+                        onEdit={openEdit}
+                        onMerge={onMerge}
+                        onToggleDeactivate={onToggleDeactivate}
+                      />
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
+              {orphanRootsVisible.length > 0 && (
+                <>
+                  <tr className="border-b border-amber-200 bg-amber-50">
+                    <td colSpan={5} className="px-2 py-2 text-xs font-semibold text-amber-950">
+                      Disconnected accounts (parent code missing from this list or not in the tree). Drag a code onto any valid row
+                      above to reparent so they join the main chart.
+                    </td>
+                  </tr>
+                  {orphanRootsVisible.map((row) => (
+                    <React.Fragment key={`orphan-${row.code}`}>
+                      <CoaTableRow
+                        row={row}
+                        depth={0}
+                        childrenMap={childrenMap}
+                        payload={payload}
+                        visibleCodes={coaSearchVisibleCodes}
+                        onDropOn={onDropOn}
+                        dragCode={dragCode}
+                        setDragCode={setDragCode}
+                        onEdit={openEdit}
+                        onMerge={onMerge}
+                        onToggleDeactivate={onToggleDeactivate}
+                      />
+                      <TreeRows
+                        parentKey={row.code}
+                        depth={1}
+                        childrenMap={childrenMap}
+                        payload={payload}
+                        visibleCodes={coaSearchVisibleCodes}
+                        onDropOn={onDropOn}
+                        dragCode={dragCode}
+                        setDragCode={setDragCode}
+                        onEdit={openEdit}
+                        onMerge={onMerge}
+                        onToggleDeactivate={onToggleDeactivate}
+                      />
+                    </React.Fragment>
+                  ))}
+                </>
+              )}
             </tbody>
           </table>
         </div>
@@ -792,7 +1118,7 @@ export default function AdminSystemChartOfAccountsPage() {
                     type="search"
                     value={tenantSearch}
                     onChange={(e) => setTenantSearch(e.target.value)}
-                    placeholder="Code, name, subdomain…"
+                    placeholder="Words: transport expense — matches names, codes, types…"
                     className="block min-h-[44px] w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   />
                 </div>
@@ -1024,7 +1350,8 @@ export default function AdminSystemChartOfAccountsPage() {
               </div>
               <p className="text-sm text-slate-600">
                 Source <span className="font-mono font-semibold">{mergeRow.code}</span> remains in the database with its code for every
-                tenant; pickers use the target account instead.
+                tenant; pickers use the target account instead. System-flagged accounts can be sources or targets here (this updates the
+                definition until you Apply to tenants).
               </p>
               <div className="mt-4">
                 <label htmlFor="merge-target-select" className="block text-sm font-medium text-slate-700">
