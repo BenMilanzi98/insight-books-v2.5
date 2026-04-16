@@ -1,7 +1,7 @@
 // app/api/journal-entries/export/route.js
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 
 const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
@@ -13,6 +13,15 @@ function isFinanceAdmin(user) {
     roleName.includes('admin') ||
     roleName === 'master_admin'
   );
+}
+
+function isTenantOwnerRole(user) {
+  const rn = user?.role?.name?.toLowerCase() || '';
+  return rn === 'owner';
+}
+
+function canExportJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.export');
 }
 
 /**
@@ -31,9 +40,9 @@ export async function GET(request) {
     
     const tenantId = user.tenantId;
     
-    if (!isFinanceAdmin(user)) {
+    if (!canExportJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to export journal entries.' },
+        { error: 'Access denied. You do not have permission to export journal entries.' },
         { status: 403 }
       );
     }

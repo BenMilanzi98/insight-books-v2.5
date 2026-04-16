@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
 import {
   createAndPostEntry,
   createDraftEntry,
@@ -57,6 +57,19 @@ function isFinanceAdmin(user) {
     roleName.includes('admin') ||
     roleName === 'master_admin'
   );
+}
+
+function isTenantOwnerRole(user) {
+  const rn = user?.role?.name?.toLowerCase() || '';
+  return rn === 'owner';
+}
+
+function canViewJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.view');
+}
+
+function canCreateJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.create');
 }
 
 function buildWhereClause(tenantId, searchParams) {
@@ -231,9 +244,9 @@ export async function GET(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canViewJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to view journal entries.' },
+        { error: 'Access denied. You do not have permission to view journal entries.' },
         { status: 403 }
       );
     }
@@ -368,9 +381,9 @@ export async function POST(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canCreateJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to create journal entries.' },
+        { error: 'Access denied. You do not have permission to create journal entries.' },
         { status: 403 }
       );
     }

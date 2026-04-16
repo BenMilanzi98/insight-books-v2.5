@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { getUserFromSession } from '@/lib/auth';
+import { getUserFromSession, hasPermission } from '@/lib/auth';
 import {
   createReversalEntry,
   postEntry,
@@ -52,6 +52,27 @@ function isFinanceAdmin(user) {
   );
 }
 
+function isTenantOwnerRole(user) {
+  const rn = user?.role?.name?.toLowerCase() || '';
+  return rn === 'owner';
+}
+
+function canViewJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.view');
+}
+
+function canUpdateJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.update');
+}
+
+function canPostJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.post');
+}
+
+function canDeleteJournalEntries(user) {
+  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.delete');
+}
+
 function normalizeLines(lines = [], fallbackDescription) {
   return lines
     .filter((line) => !!line.accountId)
@@ -85,9 +106,9 @@ export async function GET(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canViewJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to view journal entries.' },
+        { error: 'Access denied. You do not have permission to view journal entries.' },
         { status: 403 }
       );
     }
@@ -367,9 +388,9 @@ export async function POST(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canPostJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to post journal entries.' },
+        { error: 'Access denied. You do not have permission to post or reverse journal entries.' },
         { status: 403 }
       );
     }
@@ -441,9 +462,9 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canDeleteJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to delete journal entries.' },
+        { error: 'Access denied. You do not have permission to delete journal entries.' },
         { status: 403 }
       );
     }
