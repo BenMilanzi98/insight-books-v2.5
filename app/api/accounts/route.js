@@ -31,6 +31,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const forSelect = searchParams.get('forSelect') === 'true';
     const includeInactive = searchParams.get('includeInactive') === 'true';
+    const includeMergedSources = searchParams.get('includeMergedSources') === 'true';
 
     // Parse query parameters - forSelect returns full list of active accounts (e.g. journal entry dropdown)
     const page = parseInt(searchParams.get('page')) || 1;
@@ -53,8 +54,8 @@ export async function GET(request) {
       where.isActive = true;
     }
 
-    // Logical merges (system CoA): keep source rows for audit but exclude from account pickers
-    if (forSelect) {
+    // Logical merges: keep source rows in DB for audit; exclude from lists/pickers unless auditing.
+    if (!includeMergedSources) {
       where.mergedIntoAccountId = null;
     }
 

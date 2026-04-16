@@ -169,7 +169,30 @@ export async function DELETE(request, { params }) {
         { status: 400 }
       );
     }
-    
+
+    if (existingAccount.mergedIntoAccountId) {
+      return NextResponse.json(
+        {
+          error:
+            'Cannot delete a merged source account. It remains in the database for auditing; only the surviving account is shown in lists.',
+        },
+        { status: 400 }
+      );
+    }
+
+    const mergedIntoThis = await prisma.account.count({
+      where: { mergedIntoAccountId: accountId, tenantId },
+    });
+    if (mergedIntoThis > 0) {
+      return NextResponse.json(
+        {
+          error:
+            'Cannot delete an account that other accounts have been merged into. Merge sources are kept for audit.',
+        },
+        { status: 400 }
+      );
+    }
+
     // Delete account
     await prisma.account.delete({
       where: {

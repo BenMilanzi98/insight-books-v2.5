@@ -82,6 +82,8 @@ export async function GET(request) {
     const isActive = searchParams.get('isActive');
     const search = searchParams.get('search');
     const includeInactive = searchParams.get('includeInactive') === 'true';
+    /** When true, include rows where mergedIntoAccountId is set (merge sources kept for audit). */
+    const includeMergedSources = searchParams.get('includeMergedSources') === 'true';
 
     const where = {
       tenantId: user.tenantId
@@ -91,12 +93,20 @@ export async function GET(request) {
       where.accountType = normalizeAccountType(accountType);
     }
 
+    // Merge sources stay in the DB but are hidden from the chart and pickers unless auditing.
+    if (!includeMergedSources) {
+      where.mergedIntoAccountId = null;
+    }
+
     const andBlocks = [];
     if (isActive === 'true' || (!includeInactive && isActive !== 'false')) {
-      // Include inactive rows that are logical merge sources (audit / chart visibility)
-      andBlocks.push({
-        OR: [{ isActive: true }, { mergedIntoAccountId: { not: null } }],
-      });
+      if (includeMergedSources) {
+        andBlocks.push({
+          OR: [{ isActive: true }, { mergedIntoAccountId: { not: null } }],
+        });
+      } else {
+        andBlocks.push({ isActive: true });
+      }
     } else if (isActive === 'false') {
       where.isActive = false;
     }

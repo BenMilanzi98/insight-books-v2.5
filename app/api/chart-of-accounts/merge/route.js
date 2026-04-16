@@ -50,6 +50,20 @@ export async function POST(request) {
       return NextResponse.json({ error: 'System accounts cannot be merged' }, { status: 400 });
     }
 
+    if (source.mergedIntoAccountId) {
+      return NextResponse.json(
+        { error: 'This account has already been merged into another account and is kept for audit only.' },
+        { status: 400 }
+      );
+    }
+
+    if (target.mergedIntoAccountId) {
+      return NextResponse.json(
+        { error: 'Cannot merge into an account that is itself merged into another. Pick the surviving account instead.' },
+        { status: 400 }
+      );
+    }
+
     // Keep this conservative: merging accounts with different semantics can break reports/balances.
     const sourceType = normalizeAccountType(source.accountType);
     const targetType = normalizeAccountType(target.accountType);
@@ -71,7 +85,12 @@ export async function POST(request) {
 
       await tx.account.update({
         where: { id: source.id },
-        data: { balance: 0, isActive: false }
+        data: {
+          balance: 0,
+          isActive: false,
+          // Logical merge: row and code remain for audit; lists/pickers hide sources via mergedIntoAccountId.
+          mergedIntoAccountId: target.id,
+        },
       });
 
       // 2) Move hierarchy children to the target account
@@ -245,7 +264,8 @@ export async function POST(request) {
           tenantId: user.tenantId,
           details: JSON.stringify({
             sourceAccountId: source.id,
-            targetAccountId: target.id
+            targetAccountId: target.id,
+            mergedIntoAccountId: target.id,
           })
         }
       });

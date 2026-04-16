@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { buildDefaultSystemCoaPayload } from "@/lib/systemCoaPayload";
 import {
   AlertCircle,
+  BookOpen,
   Check,
   ChevronRight,
   GitMerge,
@@ -13,8 +14,10 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   Trash2,
   Upload,
+  Wallet,
   X,
 } from "lucide-react";
 
@@ -210,15 +213,34 @@ export default function AdminSystemChartOfAccountsPage() {
   const [addCode, setAddCode] = useState("");
   const [addName, setAddName] = useState("");
   const [addParentCode, setAddParentCode] = useState("5000");
+  const [tenantInventory, setTenantInventory] = useState(null);
+  const [tenantInventoryError, setTenantInventoryError] = useState(null);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantIdFilter, setTenantIdFilter] = useState("");
+  const [tenantSourceTab, setTenantSourceTab] = useState("gl");
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setTenantInventoryError(null);
     try {
-      const res = await fetch("/api/admin/system-coa", { credentials: "include" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to load");
+      const [defRes, invRes] = await Promise.all([
+        fetch("/api/admin/system-coa", { credentials: "include" }),
+        fetch("/api/admin/system-coa/tenant-accounts", { credentials: "include" }),
+      ]);
+      const data = await defRes.json().catch(() => ({}));
+      if (!defRes.ok) throw new Error(data.error || "Failed to load");
       setPayload(data.payload);
+
+      if (invRes.ok) {
+        const inv = await invRes.json().catch(() => ({}));
+        setTenantInventory(inv);
+        setTenantInventoryError(null);
+      } else {
+        const invErr = await invRes.json().catch(() => ({}));
+        setTenantInventory(null);
+        setTenantInventoryError(invErr.error || `Tenant inventory failed (${invRes.status})`);
+      }
     } catch (e) {
       setError(e.message);
     } finally {
@@ -264,6 +286,54 @@ export default function AdminSystemChartOfAccountsPage() {
       a.code.localeCompare(b.code, undefined, { numeric: true })
     );
   }, [payload]);
+
+  const systemCodeSet = useMemo(() => new Set((payload?.accounts || []).map((a) => a.code)), [payload]);
+
+  const filteredTenantChart = useMemo(() => {
+    const rows = tenantInventory?.chartAccounts || [];
+    const tid = tenantIdFilter.trim();
+    const q = tenantSearch.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (tid && r.tenantId !== tid) return false;
+      if (!q) return true;
+      const blob = [
+        r.tenant?.name,
+        r.tenant?.subdomain,
+        r.accountCode,
+        r.accountName,
+        r.accountType,
+        r.mergedIntoAccount?.accountCode,
+        r.parentAccount?.accountCode,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [tenantInventory, tenantIdFilter, tenantSearch]);
+
+  const filteredTenantPayments = useMemo(() => {
+    const rows = tenantInventory?.paymentAccounts || [];
+    const tid = tenantIdFilter.trim();
+    const q = tenantSearch.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (tid && r.tenantId !== tid) return false;
+      if (!q) return true;
+      const blob = [
+        r.tenant?.name,
+        r.tenant?.subdomain,
+        r.name,
+        r.accountType,
+        r.reference,
+        r.coaAccount?.accountCode,
+        r.coaAccount?.accountName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return blob.includes(q);
+    });
+  }, [tenantInventory, tenantIdFilter, tenantSearch]);
 
   const onDropOn = useCallback((movingCode, newParentCode) => {
     setPayload((prev) => {
@@ -386,9 +456,10 @@ export default function AdminSystemChartOfAccountsPage() {
     }
   };
 
-  const openAdd = () => {
-    setAddCode("");
-    setAddName("");
+  const openAdd = (prefillCode, prefillName) => {
+    const str = (v) => (typeof v === "string" ? v : "");
+    setAddCode(str(prefillCode));
+    setAddName(str(prefillName));
     setAddParentCode("5000");
     setAddOpen(true);
   };
@@ -503,7 +574,7 @@ export default function AdminSystemChartOfAccountsPage() {
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         <button
           type="button"
-          onClick={openAdd}
+          onClick={() => openAdd()}
           className="inline-flex min-h-[44px] w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 hover:bg-slate-50 sm:w-auto sm:min-h-0 sm:py-2"
         >
           <Plus className="h-4 w-4 shrink-0" />
@@ -600,6 +671,264 @@ export default function AdminSystemChartOfAccountsPage() {
           </table>
         </div>
       </div>
+
+      <section className="mt-10 space-y-4 border-t border-slate-200 pt-8" aria-labelledby="tenant-inventory-heading">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h2 id="tenant-inventory-heading" className="text-lg font-semibold text-slate-900">
+              Accounts across all tenants
+            </h2>
+            <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
+              Read-only list of every chart-of-accounts row and every payment / cash-bank method account. Use it to spot
+              extra codes, naming drift, unlinked POS wallets, and merges before you adjust the system template above.
+            </p>
+            {tenantInventory?.meta && (
+              <p className="mt-2 text-xs text-slate-500">
+                Loaded:{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> GL rows,{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment
+                accounts, <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
+                {tenantInventory.meta.filteredByTenantId ? ` (filtered to one tenant)` : ""}.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {tenantInventoryError && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-900 sm:px-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+            <span className="min-w-0 break-words">
+              Could not load tenant inventory: {tenantInventoryError}. The system template above may still load; try
+              Reload.
+            </span>
+          </div>
+        )}
+
+        {tenantInventory && (
+          <>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="min-w-0 flex-1 sm:max-w-xs">
+                <label htmlFor="tenant-inv-filter" className="block text-xs font-medium text-slate-600">
+                  Business
+                </label>
+                <select
+                  id="tenant-inv-filter"
+                  className="mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  value={tenantIdFilter}
+                  onChange={(e) => setTenantIdFilter(e.target.value)}
+                >
+                  <option value="">All tenants</option>
+                  {(tenantInventory.tenants || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({t.subdomain})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0 flex-1 sm:max-w-md">
+                <label htmlFor="tenant-inv-search" className="block text-xs font-medium text-slate-600">
+                  Search
+                </label>
+                <div className="relative mt-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    id="tenant-inv-search"
+                    type="search"
+                    value={tenantSearch}
+                    onChange={(e) => setTenantSearch(e.target.value)}
+                    placeholder="Code, name, subdomain…"
+                    className="block min-h-[44px] w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setTenantSourceTab("gl")}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium touch-manipulation sm:flex-none sm:px-4 ${
+                  tenantSourceTab === "gl"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <BookOpen className="h-4 w-4 shrink-0" />
+                GL / chart ({filteredTenantChart.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setTenantSourceTab("payment")}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium touch-manipulation sm:flex-none sm:px-4 ${
+                  tenantSourceTab === "payment"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Wallet className="h-4 w-4 shrink-0" />
+                Payment accounts ({filteredTenantPayments.length})
+              </button>
+            </div>
+
+            {tenantSourceTab === "gl" && (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="max-h-[min(60dvh,560px)] overflow-auto overscroll-x-contain">
+                  <table className="w-full min-w-[720px] border-collapse text-left text-xs sm:text-sm">
+                    <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase tracking-wide text-slate-600">
+                      <tr>
+                        <th className="px-2 py-2">Tenant</th>
+                        <th className="px-2 py-2 font-mono">Code</th>
+                        <th className="min-w-0 px-2 py-2">Name</th>
+                        <th className="hidden px-2 py-2 lg:table-cell">Type</th>
+                        <th className="hidden px-2 py-2 md:table-cell">Parent</th>
+                        <th className="px-2 py-2">Status</th>
+                        <th className="px-2 py-2 text-right">Template</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTenantChart.map((r) => {
+                        const code = (r.accountCode || "").trim();
+                        const inTemplate = code && systemCodeSet.has(code);
+                        return (
+                          <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
+                            <td className="max-w-[140px] px-2 py-2 align-top">
+                              <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
+                                {r.tenant?.name || "—"}
+                              </div>
+                              <div className="truncate text-[11px] text-slate-500" title={r.tenant?.subdomain}>
+                                {r.tenant?.subdomain}
+                              </div>
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 font-mono text-xs font-semibold text-slate-900">
+                              {r.accountCode || "—"}
+                            </td>
+                            <td className="min-w-0 px-2 py-2 text-slate-800">
+                              <div className="break-words">{r.accountName || "—"}</div>
+                              {r.mergedIntoAccount && (
+                                <div className="mt-0.5 text-[11px] text-violet-700">
+                                  Merged → {r.mergedIntoAccount.accountCode}{" "}
+                                  {r.mergedIntoAccount.accountName ? `(${r.mergedIntoAccount.accountName})` : ""}
+                                </div>
+                              )}
+                            </td>
+                            <td className="hidden whitespace-nowrap px-2 py-2 text-slate-600 lg:table-cell">
+                              {r.accountType || "—"}
+                            </td>
+                            <td className="hidden px-2 py-2 font-mono text-[11px] text-slate-600 md:table-cell">
+                              {r.parentAccount?.accountCode || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2">
+                              {!r.isActive ? (
+                                <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                                  Inactive
+                                </span>
+                              ) : r.mergedIntoAccountId ? (
+                                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-800">
+                                  Merged
+                                </span>
+                              ) : (
+                                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
+                                  Active
+                                </span>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-right">
+                              {inTemplate ? (
+                                <span className="text-[11px] font-medium text-emerald-700">In template</span>
+                              ) : code ? (
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                                  onClick={() => {
+                                    openAdd(code, r.accountName || "");
+                                    setMessage("Prefilled Add account from tenant row — pick parent and save.");
+                                  }}
+                                >
+                                  Add to template
+                                </button>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {tenantSourceTab === "payment" && (
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="max-h-[min(60dvh,560px)] overflow-auto overscroll-x-contain">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-xs sm:text-sm">
+                    <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase tracking-wide text-slate-600">
+                      <tr>
+                        <th className="px-2 py-2">Tenant</th>
+                        <th className="min-w-0 px-2 py-2">Payment account</th>
+                        <th className="hidden px-2 py-2 sm:table-cell">Method type</th>
+                        <th className="hidden min-w-0 px-2 py-2 lg:table-cell">Reference</th>
+                        <th className="min-w-0 px-2 py-2">Linked GL</th>
+                        <th className="px-2 py-2">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredTenantPayments.map((r) => (
+                        <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
+                          <td className="max-w-[140px] px-2 py-2 align-top">
+                            <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
+                              {r.tenant?.name || "—"}
+                            </div>
+                            <div className="truncate text-[11px] text-slate-500">{r.tenant?.subdomain}</div>
+                          </td>
+                          <td className="min-w-0 px-2 py-2 font-medium text-slate-900">
+                            {r.name}
+                            {r.isSystem ? (
+                              <span className="ml-1 rounded bg-slate-200 px-1 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                                System
+                              </span>
+                            ) : null}
+                          </td>
+                          <td className="hidden whitespace-nowrap px-2 py-2 text-slate-600 sm:table-cell">
+                            {r.accountType || "—"}
+                          </td>
+                          <td className="hidden max-w-[180px] truncate px-2 py-2 text-slate-600 lg:table-cell" title={r.reference || ""}>
+                            {r.reference || "—"}
+                          </td>
+                          <td className="min-w-0 px-2 py-2">
+                            {r.coaAccount ? (
+                              <span className="font-mono text-xs text-slate-800">
+                                {r.coaAccount.accountCode}
+                                <span className="mt-0.5 block font-sans text-[11px] font-normal text-slate-600 sm:inline sm:ml-1">
+                                  {r.coaAccount.accountName}
+                                </span>
+                              </span>
+                            ) : (
+                              <span className="text-amber-700">Not linked</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2">
+                            {r.isActive ? (
+                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
+                                Active
+                              </span>
+                            ) : (
+                              <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                                Inactive
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
 
       <ModalPortal open={anyModal}>
         <>
