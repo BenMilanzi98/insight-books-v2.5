@@ -43,7 +43,6 @@ export async function GET(request) {
           mergedIntoAccountId: true,
           parentAccountId: true,
           description: true,
-          tenant: { select: { name: true, subdomain: true, status: true } },
           mergedIntoAccount: {
             select: { id: true, accountCode: true, accountName: true },
           },
@@ -64,7 +63,6 @@ export async function GET(request) {
           isActive: true,
           isSystem: true,
           coaAccountId: true,
-          tenant: { select: { name: true, subdomain: true, status: true } },
           coaAccount: {
             select: { id: true, accountCode: true, accountName: true, accountType: true },
           },
@@ -75,14 +73,12 @@ export async function GET(request) {
         where: tenantWhere,
         select: {
           id: true,
-          name: true,
-          subdomain: true,
           status: true,
           _count: {
             select: { accounts: true, paymentAccounts: true },
           },
         },
-        orderBy: { name: 'asc' },
+        orderBy: { id: 'asc' },
       }),
     ]);
 
@@ -130,13 +126,52 @@ export async function GET(request) {
       console.warn('tenant-accounts: saved definition catalog skipped:', e?.message || e);
     }
 
+    const normCode = (c) => String(c ?? '').trim();
+    /** Case-insensitive key so the same GL code is not listed twice. */
+    const codeDedupeKey = (c) => normCode(c).toLowerCase();
+
+    const distinctGlCodes = new Set();
+    for (const a of chartAccounts) {
+      const k = codeDedupeKey(a.accountCode);
+      if (k) distinctGlCodes.add(k);
+    }
+    for (const a of savedDefinitionCatalog) {
+      const k = codeDedupeKey(a.code);
+      if (k) distinctGlCodes.add(k);
+    }
+    for (const a of blueprintChartCatalog) {
+      const k = codeDedupeKey(a.code);
+      if (k) distinctGlCodes.add(k);
+    }
+
+    const seenKeys = new Set();
+    const combinedGlCatalog = [];
+    for (const a of chartAccounts) {
+      const k = codeDedupeKey(a.accountCode);
+      if (!k || seenKeys.has(k)) continue;
+      seenKeys.add(k);
+      combinedGlCatalog.push({ ...a, _inventorySource: 'tenant' });
+    }
+    for (const a of savedDefinitionCatalog) {
+      const k = codeDedupeKey(a.code);
+      if (!k || seenKeys.has(k)) continue;
+      seenKeys.add(k);
+      combinedGlCatalog.push({ ...a });
+    }
+    for (const a of blueprintChartCatalog) {
+      const k = codeDedupeKey(a.code);
+      if (!k || seenKeys.has(k)) continue;
+      seenKeys.add(k);
+      combinedGlCatalog.push({ ...a });
+    }
+
     return NextResponse.json({
       meta: {
         chartAccountCount: chartAccounts.length,
         blueprintCatalogCount: blueprintChartCatalog.length,
         savedDefinitionCatalogCount: savedDefinitionCatalog.length,
-        combinedGlCatalogCount:
-          chartAccounts.length + blueprintChartCatalog.length + savedDefinitionCatalog.length,
+        /** Union of unique codes across tenant rows + saved template + blueprint (same rule as catalog UI). */
+        combinedGlCatalogCount: distinctGlCodes.size,
         paymentAccountCount: paymentAccounts.length,
         tenantCount: tenantSummaries.length,
         distinctTenantIdsInRows: tenantIds.size,
@@ -144,15 +179,11 @@ export async function GET(request) {
       },
       tenants: tenantSummaries.map((t) => ({
         id: t.id,
-        name: t.name,
-        subdomain: t.subdomain,
         status: t.status,
         chartAccountCount: t._count.accounts,
         paymentAccountCount: t._count.paymentAccounts,
       })),
-      chartAccounts,
-      blueprintChartCatalog,
-      savedDefinitionCatalog,
+      combinedGlCatalog,
       paymentAccounts,
     });
   } catch (error) {

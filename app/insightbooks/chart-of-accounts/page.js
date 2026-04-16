@@ -60,6 +60,12 @@ function textMatchesTokenSearch(haystack, query) {
   return tokens.every((t) => h.includes(t));
 }
 
+/** Catalog UI: scope filter labels use internal tenant id only (no business display names). */
+function formatTenantIdForScope(id) {
+  const s = String(id ?? "").trim();
+  return s || "—";
+}
+
 function coaDefinitionSearchHaystack(row) {
   return [
     row.code,
@@ -374,8 +380,9 @@ export default function AdminSystemChartOfAccountsPage() {
       const tn = inv.meta?.tenantCount ?? 0;
       const bp = inv.meta?.blueprintCatalogCount ?? 0;
       const sd = inv.meta?.savedDefinitionCatalogCount ?? 0;
+      const rawTenant = inv.meta?.chartAccountCount ?? 0;
       setMessage(
-        `Pulled GL catalog: ${gl} rows (${inv.meta?.chartAccountCount ?? 0} tenant DB + ${bp} default blueprint + ${sd} saved definition) and ${pay} payment accounts across ${tn} tenants. Merges are configured in the system template above, then Apply to all tenants.`
+        `Pulled GL catalog: ${gl} distinct codes (${rawTenant} tenant DB rows + ${bp} blueprint + ${sd} saved definition entries, deduplicated by code) and ${pay} payment accounts across ${tn} tenants. Merges are configured in the system template above, then Apply to all tenants.`
       );
     } catch (e) {
       setTenantInventoryError(e?.message || "Tenant pull failed");
@@ -470,14 +477,53 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const systemCodeSet = useMemo(() => new Set((payload?.accounts || []).map((a) => a.code)), [payload]);
 
-  /** Tenant DB rows + default blueprint (code) + saved system definition (DB) — full GL picture for merge planning. */
+  const mergeBySourceCode = useMemo(() => {
+    const m = new Map();
+    for (const x of payload?.merges || []) {
+      if (x?.sourceCode) m.set(x.sourceCode, x);
+    }
+    return m;
+  }, [payload?.merges]);
+
+  /** Server-built union: tenant DB (deduped by code) + saved definition + blueprint; optional scope by tenant id. */
   const allGlInventoryRows = useMemo(() => {
     if (!tenantInventory) return [];
+    const tid = tenantIdFilter.trim();
+    const combined = tenantInventory.combinedGlCatalog;
+    if (Array.isArray(combined) && combined.length > 0) {
+      if (!tid) return combined;
+      return combined.filter((r) => {
+        if (r._inventorySource !== "tenant") return true;
+        return r.tenantId === tid;
+      });
+    }
     const tenant = (tenantInventory.chartAccounts || []).map((r) => ({ ...r, _inventorySource: "tenant" }));
     const bp = (tenantInventory.blueprintChartCatalog || []).map((r) => ({ ...r, _inventorySource: "blueprint" }));
     const sd = (tenantInventory.savedDefinitionCatalog || []).map((r) => ({ ...r, _inventorySource: "saved_definition" }));
-    return [...tenant, ...bp, ...sd];
-  }, [tenantInventory]);
+    const norm = (c) => String(c ?? "").trim().toLowerCase();
+    const seen = new Set();
+    const out = [];
+    const tenantSlice = tid ? tenant.filter((r) => r.tenantId === tid) : tenant;
+    for (const r of tenantSlice) {
+      const c = norm(r.accountCode);
+      if (!c || seen.has(c)) continue;
+      seen.add(c);
+      out.push(r);
+    }
+    for (const r of sd) {
+      const c = norm(r.code);
+      if (!c || seen.has(c)) continue;
+      seen.add(c);
+      out.push(r);
+    }
+    for (const r of bp) {
+      const c = norm(r.code);
+      if (!c || seen.has(c)) continue;
+      seen.add(c);
+      out.push(r);
+    }
+    return out;
+  }, [tenantInventory, tenantIdFilter]);
 
   const filteredTenantChart = useMemo(() => {
     const tid = tenantIdFilter.trim();
@@ -487,8 +533,7 @@ export default function AdminSystemChartOfAccountsPage() {
       const blob =
         r._inventorySource === "tenant"
           ? [
-              r.tenant?.name,
-              r.tenant?.subdomain,
+              r.tenantId,
               r.accountCode,
               r.accountName,
               r.accountType,
@@ -499,7 +544,7 @@ export default function AdminSystemChartOfAccountsPage() {
               r.parentAccount?.accountCode,
               r.parentAccount?.accountName,
             ]
-              .filter(Boolean)
+              .filter((x) => x != null && String(x).trim())
               .join(" ")
           : [
               r.code,
@@ -524,8 +569,7 @@ export default function AdminSystemChartOfAccountsPage() {
     return rows.filter((r) => {
       if (tid && r.tenantId !== tid) return false;
       const blob = [
-        r.tenant?.name,
-        r.tenant?.subdomain,
+        r.tenantId,
         r.name,
         r.accountType,
         r.reference,
@@ -1047,19 +1091,20 @@ export default function AdminSystemChartOfAccountsPage() {
               One pull lists <strong>everywhere</strong> chart-of-accounts codes appear: <strong>all tenant databases</strong> (same as
               each business&apos;s <span className="font-medium text-slate-800">/chart-of-accounts</span>), the{" "}
               <strong>default hard-coded blueprint</strong> shipped in code, and the <strong>saved system definition</strong> in the
-              database (the template you edit above). Use search to find similar names, then add or merge codes in the{" "}
-              <strong>system template</strong> and <strong>Apply to all tenants</strong>. Payment methods still come from{" "}
+              database (the template you edit above).               Use search to find similar names. Codes that appear in the <strong>system template</strong> (editor above) can use{" "}
+              <strong>Merge into…</strong> in the catalog table to designate the survivor account; then <strong>Save</strong> and{" "}
+              <strong>Apply to all tenants</strong>. Other codes: <strong>Add to template</strong> first. Payment methods still come from{" "}
               <span className="font-medium text-slate-800">/payments/management</span>.
             </p>
             {tenantInventory?.meta && (
               <p className="mt-2 text-xs text-slate-500">
                 Last pull:{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.combinedGlCatalogCount ?? tenantInventory.meta.chartAccountCount}</span>{" "}
-                GL catalog rows (
-                <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> tenant DB +{" "}
+                distinct GL codes (
+                <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> tenant DB rows +{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.blueprintCatalogCount ?? 0}</span> blueprint +{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.savedDefinitionCatalogCount ?? 0}</span> saved
-                definition),{" "}
+                definition, deduplicated by code),{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment accounts,{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
                 {tenantInventory.meta.filteredByTenantId ? ` (API filtered to one tenant)` : ""}.
@@ -1123,18 +1168,18 @@ export default function AdminSystemChartOfAccountsPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="min-w-0 flex-1 sm:max-w-xs">
                 <label htmlFor="tenant-inv-filter" className="block text-xs font-medium text-slate-600">
-                  Business (tenant DB rows only)
+                  Tenant ID (tenant DB rows only)
                 </label>
                 <select
                   id="tenant-inv-filter"
-                  className="mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                  className="mt-1 block min-h-[44px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   value={tenantIdFilter}
                   onChange={(e) => setTenantIdFilter(e.target.value)}
                 >
                   <option value="">All tenants</option>
                   {(tenantInventory.tenants || []).map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.name} ({t.subdomain})
+                      {formatTenantIdForScope(t.id)}
                     </option>
                   ))}
                 </select>
@@ -1190,16 +1235,17 @@ export default function AdminSystemChartOfAccountsPage() {
             {tenantSourceTab === "gl" && (
               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                 <div className="max-h-[min(60dvh,560px)] overflow-auto overscroll-x-contain">
-                  <table className="w-full min-w-[720px] border-collapse text-left text-xs sm:text-sm">
+                  <table className="w-full min-w-[820px] border-collapse text-left text-xs sm:text-sm">
                     <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase tracking-wide text-slate-600">
                       <tr>
-                        <th className="px-2 py-2">Origin</th>
+                        <th className="px-2 py-2">Source</th>
                         <th className="px-2 py-2 font-mono">Code</th>
                         <th className="min-w-0 px-2 py-2">Name</th>
                         <th className="hidden px-2 py-2 lg:table-cell">Type</th>
                         <th className="hidden px-2 py-2 md:table-cell">Parent</th>
                         <th className="px-2 py-2">Status</th>
-                        <th className="px-2 py-2 text-right">Editor template</th>
+                        <th className="px-2 py-2 text-right">In editor</th>
+                        <th className="min-w-[9.5rem] px-2 py-2 text-right">Merge (survivor)</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1215,16 +1261,18 @@ export default function AdminSystemChartOfAccountsPage() {
                         const rowKey = isTenant ? r.id : `${r._inventorySource}-${r.code}`;
                         const rowTint =
                           isBp ? "bg-sky-50/40" : r._inventorySource === "saved_definition" ? "bg-violet-50/35" : "";
+                        const systemMerge = codeTrim ? mergeBySourceCode.get(codeTrim) : null;
                         return (
                           <tr key={rowKey} className={`border-b border-slate-100 hover:bg-slate-50/80 ${rowTint}`}>
-                            <td className="max-w-[160px] px-2 py-2 align-top">
+                            <td className="max-w-[200px] px-2 py-2 align-top">
                               {isTenant ? (
                                 <>
-                                  <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
-                                    {r.tenant?.name || "—"}
-                                  </div>
-                                  <div className="truncate text-[11px] text-slate-500" title={r.tenant?.subdomain}>
-                                    {r.tenant?.subdomain}
+                                  <div className="truncate font-medium text-slate-800">Tenant database</div>
+                                  <div
+                                    className="truncate font-mono text-[11px] text-slate-500"
+                                    title={r.tenantId || ""}
+                                  >
+                                    {formatTenantIdForScope(r.tenantId)}
                                   </div>
                                 </>
                               ) : isBp ? (
@@ -1280,7 +1328,7 @@ export default function AdminSystemChartOfAccountsPage() {
                             </td>
                             <td className="whitespace-nowrap px-2 py-2 text-right">
                               {inTemplate ? (
-                                <span className="text-[11px] font-medium text-emerald-700">In editor</span>
+                                <span className="text-[11px] font-medium text-emerald-700">Yes</span>
                               ) : codeTrim ? (
                                 <button
                                   type="button"
@@ -1294,6 +1342,50 @@ export default function AdminSystemChartOfAccountsPage() {
                                 </button>
                               ) : (
                                 <span className="text-slate-400">—</span>
+                              )}
+                            </td>
+                            <td className="min-w-0 px-2 py-2 text-right align-top">
+                              {!codeTrim ? (
+                                <span className="text-slate-400">—</span>
+                              ) : !inTemplate ? (
+                                <span
+                                  className="text-[11px] text-slate-500"
+                                  title="Merge is configured on the system template. Add this code to the editor first."
+                                >
+                                  Add to editor first
+                                </span>
+                              ) : systemMerge ? (
+                                <div className="flex flex-col items-end gap-1.5">
+                                  <span className="text-left text-[10px] leading-tight text-violet-900 sm:text-right">
+                                    <span className="font-mono font-semibold">{codeTrim}</span>
+                                    <span className="mx-0.5">→</span>
+                                    <span className="font-mono font-semibold">{systemMerge.targetCode}</span>
+                                  </span>
+                                  <div className="flex flex-wrap justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      className="touch-manipulation rounded-md border border-slate-200 bg-white px-2 py-1.5 text-[11px] font-medium text-slate-800 hover:bg-slate-50"
+                                      onClick={() => onMerge({ code: codeTrim, name: dispName || codeTrim })}
+                                    >
+                                      Change target
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="touch-manipulation rounded-md border border-rose-200 bg-rose-50 px-2 py-1.5 text-[11px] font-medium text-rose-900 hover:bg-rose-100"
+                                      onClick={() => onMerge({ code: codeTrim }, true)}
+                                    >
+                                      Clear merge
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="touch-manipulation rounded-md bg-indigo-600 px-2.5 py-2 text-[11px] font-semibold text-white shadow-sm hover:bg-indigo-700"
+                                  onClick={() => onMerge({ code: codeTrim, name: dispName || codeTrim })}
+                                >
+                                  Merge into…
+                                </button>
                               )}
                             </td>
                           </tr>
@@ -1311,7 +1403,7 @@ export default function AdminSystemChartOfAccountsPage() {
                   <table className="w-full min-w-[640px] border-collapse text-left text-xs sm:text-sm">
                     <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase tracking-wide text-slate-600">
                       <tr>
-                        <th className="px-2 py-2">Tenant</th>
+                        <th className="px-2 py-2">Tenant ID</th>
                         <th className="min-w-0 px-2 py-2">Payment account</th>
                         <th className="hidden px-2 py-2 sm:table-cell">Method type</th>
                         <th className="hidden min-w-0 px-2 py-2 lg:table-cell">Reference</th>
@@ -1322,11 +1414,13 @@ export default function AdminSystemChartOfAccountsPage() {
                     <tbody>
                       {filteredTenantPayments.map((r) => (
                         <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
-                          <td className="max-w-[140px] px-2 py-2 align-top">
-                            <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
-                              {r.tenant?.name || "—"}
+                          <td className="max-w-[200px] px-2 py-2 align-top">
+                            <div
+                              className="truncate font-mono text-xs font-medium text-slate-800"
+                              title={r.tenantId || ""}
+                            >
+                              {formatTenantIdForScope(r.tenantId)}
                             </div>
-                            <div className="truncate text-[11px] text-slate-500">{r.tenant?.subdomain}</div>
                           </td>
                           <td className="min-w-0 px-2 py-2 font-medium text-slate-900">
                             {r.name}
@@ -1414,8 +1508,9 @@ export default function AdminSystemChartOfAccountsPage() {
               </div>
               <p className="text-sm text-slate-600">
                 Source <span className="font-mono font-semibold">{mergeRow.code}</span> remains in the database with its code for every
-                tenant; pickers use the target account instead. System-flagged accounts can be sources or targets here (this updates the
-                definition until you Apply to tenants).
+                tenant; pickers use the target account instead. You can open this dialog from the main chart or from the{" "}
+                <span className="font-medium">Merge (survivor)</span> column in the full GL catalog below. System-flagged accounts can be
+                sources or targets. <strong>Save definition</strong> then <strong>Apply to all tenants</strong> to push merges live.
               </p>
               <div className="mt-4">
                 <label htmlFor="merge-target-select" className="block text-sm font-medium text-slate-700">
