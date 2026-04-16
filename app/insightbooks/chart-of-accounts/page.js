@@ -1088,8 +1088,10 @@ export default function AdminSystemChartOfAccountsPage() {
               Full GL catalog (entire system)
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
-              One pull lists <strong>everywhere</strong> chart-of-accounts codes appear: <strong>all tenant databases</strong> (same as
-              each business&apos;s <span className="font-medium text-slate-800">/chart-of-accounts</span>), the{" "}
+              One pull lists <strong>everywhere</strong> GL codes appear: <strong>all tenant chart rows</strong> (including legacy{" "}
+              <span className="font-mono text-slate-700">code</span>-only accounts), <strong>CoA linked from payment methods</strong> (
+              <span className="font-medium text-slate-800">/payments/management</span>), <strong>accounts tied to expense categories</strong> (
+              <span className="font-medium text-slate-800">/expenses</span>), the{" "}
               <strong>default hard-coded blueprint</strong> shipped in code, and the <strong>saved system definition</strong> in the
               database (the template you edit above).               Use search to find similar names. Codes that appear in the <strong>system template</strong> (editor above) can use{" "}
               <strong>Merge into…</strong> in the catalog table to designate the survivor account; then <strong>Save</strong> and{" "}

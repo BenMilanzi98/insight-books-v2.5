@@ -1893,7 +1893,7 @@ model Account {
   description              String?
   normalBalance            String?
   parentAccountId          String?
-  /// Logical merge (system CoA): this row keeps its code for audit; UI and pickers use the target account.
+  /// Logical merge (system CoA): posting stays on this row (original code); reporting/UI roll up to mergedInto target.
   mergedIntoAccountId      String?
   parentAccount            Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
   childAccounts            Account[]               @relation("AccountHierarchy")

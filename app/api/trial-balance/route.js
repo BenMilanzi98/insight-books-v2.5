@@ -2,6 +2,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  fetchTenantAccountsForMergeRollup,
+  buildMergeRollupContext,
+} from '@/lib/accountMergeRollup';
 
 /**
  * GET handler for trial balance
@@ -85,6 +89,28 @@ export async function GET(request) {
         }
       });
       accounts = Array.from(accountMap.values());
+
+      const mergeRollupRows = await fetchTenantAccountsForMergeRollup(tenantId, prisma);
+      const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
+      const rolledUpJournalLines = await prisma.journalEntryLine.findMany({
+        where: {
+          journalEntry: {
+            tenantId,
+            entryDate: { lte: endDate },
+            status: 'Posted',
+          },
+        },
+        select: { accountId: true, debitAmount: true, creditAmount: true },
+      });
+      const journalAggBySurvivor = new Map();
+      for (const ln of rolledUpJournalLines) {
+        const s = mergeRollupCtx.survivorOf(ln.accountId);
+        const prev = journalAggBySurvivor.get(s) || { deb: 0, cre: 0 };
+        journalAggBySurvivor.set(s, {
+          deb: prev.deb + (parseFloat(ln.debitAmount) || 0),
+          cre: prev.cre + (parseFloat(ln.creditAmount) || 0),
+        });
+      }
       
       // Get payment method balances (same as Chart of Accounts)
       const paymentMethodBalances = await prisma.accountBalance.findMany({
@@ -240,13 +266,14 @@ export async function GET(request) {
           return null;
         }
         
-        // Calculate from journal entries
-        const totalDebits = account.journalEntryLines.reduce((sum, line) => 
-          sum + (parseFloat(line.debitAmount) || 0), 0
-        );
-        const totalCredits = account.journalEntryLines.reduce((sum, line) => 
-          sum + (parseFloat(line.creditAmount) || 0), 0
-        );
+        // Calculate from journal entries (merge sources roll up to survivor)
+        const rolled = journalAggBySurvivor.get(account.id);
+        const totalDebits = rolled
+          ? rolled.deb
+          : account.journalEntryLines.reduce((sum, line) => sum + (parseFloat(line.debitAmount) || 0), 0);
+        const totalCredits = rolled
+          ? rolled.cre
+          : account.journalEntryLines.reduce((sum, line) => sum + (parseFloat(line.creditAmount) || 0), 0);
         
         const normalBalance = account.normalBalance || 
           (account.accountType === 'Asset' || account.accountType === 'Expense' ? 'Debit' : 'Credit');

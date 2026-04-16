@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { getParallelGoodsReceiptTransactionIds } from '@/lib/generalLedgerGoodsReceiptDedup';
+import {
+  fetchTenantAccountsForMergeRollup,
+  buildMergeRollupContext,
+} from '@/lib/accountMergeRollup';
 
 const toDateRange = (startDate, endDate) => {
   const range = {};
@@ -70,8 +74,15 @@ export async function GET(request) {
     
     const dateRange = toDateRange(startDate, endDate);
 
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(tenantId, prisma);
+    const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
+    const ledgerAccountIds =
+      accountId && accountId !== 'all'
+        ? mergeRollupCtx.allIdsRollingInto(mergeRollupCtx.survivorOf(accountId))
+        : null;
+
     const journalWhere = {
-      ...(accountId && accountId !== 'all' ? { accountId } : {}),
+      ...(ledgerAccountIds ? { accountId: { in: ledgerAccountIds } } : {}),
       ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
       ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       journalEntry: {
@@ -98,7 +109,7 @@ export async function GET(request) {
     };
 
     const transactionWhere = {
-      ...(accountId && accountId !== 'all' ? { accountId } : {}),
+      ...(ledgerAccountIds ? { accountId: { in: ledgerAccountIds } } : {}),
       ...(balanceType === 'debit' ? { debitAmount: { gt: 0 } } : {}),
       ...(balanceType === 'credit' ? { creditAmount: { gt: 0 } } : {}),
       transaction: {
@@ -130,14 +141,36 @@ export async function GET(request) {
       prisma.journalEntryLine.findMany({
         where: journalWhere,
         include: {
-          account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
+          account: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true,
+              code: true,
+              name: true,
+              accountType: true,
+              type: true,
+              normalBalance: true,
+            },
+          },
           journalEntry: { select: { id: true, entryDate: true, referenceNumber: true, description: true, branchId: true, sourceType: true, sourceId: true } },
         },
       }),
       prisma.transactionLine.findMany({
         where: transactionWhere,
         include: {
-          account: { select: { id: true, accountCode: true, accountName: true, accountType: true, normalBalance: true } },
+          account: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true,
+              code: true,
+              name: true,
+              accountType: true,
+              type: true,
+              normalBalance: true,
+            },
+          },
           transaction: {
             select: {
               id: true,
@@ -163,11 +196,12 @@ export async function GET(request) {
     if (accountId && accountId !== 'all' && startDate) {
       const openingDate = new Date(startDate);
       openingDate.setHours(0, 0, 0, 0);
+      const survivorId = mergeRollupCtx.survivorOf(accountId);
       const [openingJournal, openingTransaction, acc] = await Promise.all([
         prisma.journalEntryLine.aggregate({
           where: {
             ...journalWhere,
-            accountId,
+            ...(ledgerAccountIds ? { accountId: { in: ledgerAccountIds } } : {}),
             journalEntry: {
               ...journalWhere.journalEntry,
               entryDate: { lt: openingDate },
@@ -178,7 +212,7 @@ export async function GET(request) {
         prisma.transactionLine.aggregate({
           where: {
             ...transactionWhere,
-            accountId,
+            ...(ledgerAccountIds ? { accountId: { in: ledgerAccountIds } } : {}),
             transaction: {
               ...transactionWhere.transaction,
               date: { lt: openingDate },
@@ -187,55 +221,67 @@ export async function GET(request) {
           _sum: { debitAmount: true, creditAmount: true },
         }),
         prisma.account.findUnique({
-          where: { id: accountId },
-          select: { accountType: true, normalBalance: true },
+          where: { id: survivorId },
+          select: { accountType: true, normalBalance: true, type: true },
         }),
       ]);
       const deb = (openingJournal._sum.debitAmount || 0) + (openingTransaction._sum.debitAmount || 0);
       const cre = (openingJournal._sum.creditAmount || 0) + (openingTransaction._sum.creditAmount || 0);
-      const normal = getNormalBalance(acc?.accountType, acc?.normalBalance);
+      const normal = getNormalBalance(acc?.accountType || acc?.type, acc?.normalBalance);
       openingBalance = normal === 'debit' ? (deb - cre) : (cre - deb);
       running = openingBalance;
     }
 
+    const mapGlLine = (line, entryType, extras) => {
+      const d = mergeRollupCtx.displayFieldsForPostingAccountId(line.accountId);
+      const orig = line.account;
+      const postingCode = orig?.accountCode || orig?.code || '';
+      const postingName = orig?.accountName || orig?.name || '';
+      const survAcc = d?.displayAccountId ? mergeRollupCtx.byId.get(d.displayAccountId) : null;
+      const displayType = survAcc?.accountType || survAcc?.type || orig?.accountType || orig?.type || '';
+      const displayNormal = survAcc?.normalBalance || orig?.normalBalance || null;
+      return {
+        id: line.id,
+        ...extras,
+        entryType,
+        accountId: line.accountId,
+        postingAccountId: line.accountId,
+        postingAccountCode: (d?.postingAccountCode ?? postingCode) || null,
+        postingAccountName: (d?.postingAccountName ?? postingName) || null,
+        displayAccountId: d?.displayAccountId ?? line.accountId,
+        accountCode: d?.displayAccountCode ?? postingCode,
+        accountName: d?.displayAccountName ?? postingName,
+        accountType: displayType,
+        normalBalance: displayNormal,
+        debit: line.debitAmount || 0,
+        credit: line.creditAmount || 0,
+      };
+    };
+
     const combined = [
-      ...journalLines.map((line) => ({
-        id: line.id,
-        transactionId: line.journalEntryId,
-        entryType: 'JournalEntry',
-        date: line.journalEntry?.entryDate ? new Date(line.journalEntry.entryDate).toISOString() : null,
-        description: line.journalEntry?.description || line.description || '',
-        reference: line.journalEntry?.referenceNumber || '',
-        accountId: line.accountId,
-        accountCode: line.account?.accountCode || '',
-        accountName: line.account?.accountName || '',
-        accountType: line.account?.accountType || '',
-        normalBalance: line.account?.normalBalance || null,
-        debit: line.debitAmount || 0,
-        credit: line.creditAmount || 0,
-        sourceType: line.journalEntry?.sourceType || 'JournalEntry',
-        sourceId: line.journalEntry?.sourceId || null,
-      })),
-      ...transactionLines.map((line) => ({
-        id: line.id,
-        transactionId: line.transactionId,
-        entryType: line.transaction?.entryType || 'Transaction',
-        isReversal: line.transaction?.isReversal ?? false,
-        reversedTransactionId: line.transaction?.reversedTransactionId || null,
-        reversalReason: line.transaction?.reversalReason || null,
-        date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
-        description: line.transaction?.description || line.description || '',
-        reference: line.transaction?.reference || '',
-        accountId: line.accountId,
-        accountCode: line.account?.accountCode || '',
-        accountName: line.account?.accountName || '',
-        accountType: line.account?.accountType || '',
-        normalBalance: line.account?.normalBalance || null,
-        debit: line.debitAmount || 0,
-        credit: line.creditAmount || 0,
-        sourceType: line.transaction?.sourceType || 'Transaction',
-        sourceId: line.transaction?.sourceId || null,
-      })),
+      ...journalLines.map((line) =>
+        mapGlLine(line, 'JournalEntry', {
+          transactionId: line.journalEntryId,
+          date: line.journalEntry?.entryDate ? new Date(line.journalEntry.entryDate).toISOString() : null,
+          description: line.journalEntry?.description || line.description || '',
+          reference: line.journalEntry?.referenceNumber || '',
+          sourceType: line.journalEntry?.sourceType || 'JournalEntry',
+          sourceId: line.journalEntry?.sourceId || null,
+        })
+      ),
+      ...transactionLines.map((line) =>
+        mapGlLine(line, line.transaction?.entryType || 'Transaction', {
+          transactionId: line.transactionId,
+          isReversal: line.transaction?.isReversal ?? false,
+          reversedTransactionId: line.transaction?.reversedTransactionId || null,
+          reversalReason: line.transaction?.reversalReason || null,
+          date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
+          description: line.transaction?.description || line.description || '',
+          reference: line.transaction?.reference || '',
+          sourceType: line.transaction?.sourceType || 'Transaction',
+          sourceId: line.transaction?.sourceId || null,
+        })
+      ),
     ];
 
     combined.sort((a, b) => {

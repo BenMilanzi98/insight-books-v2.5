@@ -5,7 +5,11 @@ import {
   createAndPostEntry,
   createDraftEntry,
 } from '@/lib/journalService';
-import { formatJournalEntries } from '@/lib/journalEntryFormatter';
+import { formatJournalEntries, applyMergeDisplayToJournalPayload } from '@/lib/journalEntryFormatter';
+import {
+  fetchTenantAccountsForMergeRollup,
+  buildMergeRollupContext,
+} from '@/lib/accountMergeRollup';
 import { validateNoDuplicateInventoryLines } from '@/lib/journalManualLineValidation';
 
 /**
@@ -259,6 +263,9 @@ export async function GET(request) {
     );
     const skip = (page - 1) * limit;
 
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
+    const mergeJournalCtx = buildMergeRollupContext(mergeRollupRows);
+
     const where = buildWhereClause(user.tenantId, searchParams);
     const sortBy = searchParams.get('sortBy') || 'entryDate';
     const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc';
@@ -309,7 +316,7 @@ export async function GET(request) {
       const total = merged.length;
       const entries = merged.slice(skip, skip + limit);
       return NextResponse.json({
-        entries: formatJournalEntries(entries),
+        entries: applyMergeDisplayToJournalPayload(formatJournalEntries(entries), mergeJournalCtx),
         pagination: {
           page,
           limit,
@@ -351,7 +358,7 @@ export async function GET(request) {
     }
 
     return NextResponse.json({
-      entries: formatJournalEntries(entries),
+      entries: applyMergeDisplayToJournalPayload(formatJournalEntries(entries), mergeJournalCtx),
       pagination: {
         page,
         limit,

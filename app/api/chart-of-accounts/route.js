@@ -6,6 +6,11 @@ import {
   canViewChartOfAccounts,
   canCreateChartOfAccount,
 } from '@/lib/chartOfAccountsAccess';
+import {
+  fetchTenantAccountsForMergeRollup,
+  buildMergeRollupContext,
+  aggregateGroupByRowsBySurvivor,
+} from '@/lib/accountMergeRollup';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -658,7 +663,10 @@ export async function GET(request) {
       payrollCount: payrolls.length
     });
 
-    // Posted GL lines from Transaction model (sales, payroll, etc.) — one aggregate for all accounts
+    const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
+    const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
+
+    // Posted GL lines from Transaction model (sales, payroll, etc.) — roll merge sources into survivors
     let txnByAccountId = {};
     try {
       const txnAggRows = await prisma.transactionLine.groupBy({
@@ -677,13 +685,17 @@ export async function GET(request) {
           id: true,
         },
       });
+      const txnMerged = aggregateGroupByRowsBySurvivor(
+        txnAggRows,
+        mergeRollupCtx.survivorOf
+      );
       txnByAccountId = Object.fromEntries(
-        txnAggRows.map((r) => [
-          r.accountId,
+        [...txnMerged].map(([k, v]) => [
+          k,
           {
-            debit: Number(r._sum.debitAmount || 0),
-            credit: Number(r._sum.creditAmount || 0),
-            lineCount: r._count.id,
+            debit: v.debit,
+            credit: v.credit,
+            lineCount: v.lineCount,
           },
         ])
       );
@@ -696,9 +708,10 @@ export async function GET(request) {
     const accountsWithBalances = await Promise.allSettled(accounts.map(async (account) => {
       try {
         // Get all journal entry lines for this account (both Posted and Draft)
+        const journalAccountIds = mergeRollupCtx.allIdsRollingInto(account.id);
         const allJournalLines = await prisma.journalEntryLine.findMany({
           where: {
-            accountId: account.id,
+            accountId: { in: journalAccountIds },
             journalEntry: {
               tenantId: user.tenantId
             }
