@@ -25,46 +25,45 @@ const PaymentModal = ({
   transferFundsOnly = false,
 }) => {
   const [formData, setFormData] = useState(emptyForm);
-  const [balances, setBalances] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [paymentAccounts, setPaymentAccounts] = useState([]);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  const fetchBalancesLegacy = useCallback(async () => {
-    try {
-      const res = await fetch("/api/payments/account-balances");
-      const data = await res.json();
-      setBalances(data.balances || []);
-    } catch (err) {
-      console.error("Failed to fetch balances", err);
-    }
-  }, []);
-
   const fetchPaymentAccounts = useCallback(async () => {
     try {
-      if (transferFundsOnly) {
-        const res = await fetch("/api/payment-accounts/balances");
-        const data = await res.json();
-        if (data.success && data.accounts) {
-          setPaymentAccounts(
-            data.accounts.map((a) => ({
-              ...a,
-              balance: typeof a.balance === "number" ? a.balance : parseFloat(a.balance) || 0,
-            }))
-          );
-        }
+      const res = await fetch("/api/payment-accounts/balances", { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok && data.success && data.accounts) {
+        setPaymentAccounts(
+          data.accounts.map((a) => ({
+            ...a,
+            balance: typeof a.balance === "number" ? a.balance : parseFloat(a.balance) || 0,
+          }))
+        );
         return;
       }
-      const res = await fetch("/api/payment-accounts?activeOnly=true");
-      const data = await res.json();
-      if (data.success && data.paymentAccounts) {
-        setPaymentAccounts(data.paymentAccounts);
+      const fallback = await fetch("/api/payment-accounts?activeOnly=true", { cache: "no-store" });
+      const fb = await fallback.json();
+      if (fallback.ok && fb.success && fb.paymentAccounts) {
+        setPaymentAccounts(
+          fb.paymentAccounts
+            .filter((a) => a.isActive !== false)
+            .map((a) => ({
+              id: a.id,
+              name: a.name,
+              accountType: a.accountType,
+              reference: a.reference,
+              isSystem: a.isSystem,
+              isActive: a.isActive,
+              balance: typeof a.balance === "number" ? a.balance : 0,
+            }))
+        );
       }
     } catch (err) {
       console.error("Failed to fetch payment accounts", err);
     }
-  }, [transferFundsOnly]);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -73,10 +72,7 @@ const PaymentModal = ({
       setErrors({});
     }
     fetchPaymentAccounts();
-    if (!transferFundsOnly) {
-      fetchBalancesLegacy();
-    }
-  }, [isOpen, transferFundsOnly, fetchPaymentAccounts, fetchBalancesLegacy]);
+  }, [isOpen, transferFundsOnly, fetchPaymentAccounts]);
 
   useEffect(() => {
     if (!isOpen || transferFundsOnly) return;
@@ -119,16 +115,10 @@ const PaymentModal = ({
       (acc) => acc.id === accountIdOrName || acc.name === accountIdOrName
     );
     if (!account) return 0;
-    if (transferFundsOnly && account.balance != null) {
+    if (account.balance != null) {
       return Number(account.balance) || 0;
     }
-    const normalizedName = account.name.toLowerCase().trim().replace(/\s+/g, "_");
-    return (
-      balances.find((b) => {
-        const balanceName = (b.account || "").toLowerCase().trim().replace(/\s+/g, "_");
-        return balanceName === normalizedName || balanceName === account.name.toLowerCase();
-      })?.balance ?? 0
-    );
+    return 0;
   };
 
   const amount = parseFloat(formData.amount || "0");

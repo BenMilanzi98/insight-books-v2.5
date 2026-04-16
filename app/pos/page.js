@@ -447,22 +447,29 @@ const POSPage = () => {
     }
   };
 
-  // Load payment accounts
+  // Load payment accounts (same as /payments/management: balances API, then list fallback)
   const loadPaymentAccounts = async () => {
     try {
       setIsLoadingPaymentAccounts(true);
-      const response = await fetch('/api/payment-accounts?activeOnly=true', { cache: 'no-store' });
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.paymentAccounts) {
-          setPaymentAccounts(data.paymentAccounts);
-          // Set default to first active account (prefer Cash if exists)
-          const cashAccount = data.paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive);
-          const defaultAccount = cashAccount || data.paymentAccounts.find(acc => acc.isActive) || data.paymentAccounts[0];
-          if (defaultAccount) {
-            setPaymentMethod(defaultAccount.id); // Use account ID
-            setPaymentAllocations([{ paymentAccountId: defaultAccount.id, amount: 0 }]);
-          }
+      let list = [];
+      const balRes = await fetch('/api/payment-accounts/balances', { cache: 'no-store' });
+      const balData = await balRes.json().catch(() => ({}));
+      if (balRes.ok && balData.success && Array.isArray(balData.accounts)) {
+        list = balData.accounts;
+      } else {
+        const response = await fetch('/api/payment-accounts?activeOnly=true', { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.success && data.paymentAccounts) {
+          list = data.paymentAccounts.filter((acc) => acc.isActive !== false);
+        }
+      }
+      if (list.length) {
+        setPaymentAccounts(list);
+        const cashAccount = list.find((acc) => acc.accountType === 'Cash' && acc.isActive !== false);
+        const defaultAccount = cashAccount || list.find((acc) => acc.isActive !== false) || list[0];
+        if (defaultAccount) {
+          setPaymentMethod(defaultAccount.id);
+          setPaymentAllocations([{ paymentAccountId: defaultAccount.id, amount: 0 }]);
         }
       }
     } catch (error) {

@@ -278,21 +278,24 @@ export async function POST(request) {
         });
 
         if (!payeAccount) {
+          const { findCurrentLiabilitiesGroupId } = await import('@/lib/coaPostingCodes');
+          const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
           payeAccount = await prisma.account.create({
             data: {
-              code: '2100',
-              name: 'PAYE Liability',
+              code: '2130',
+              name: 'PAYE Payable',
               type: 'LIABILITY',
-              accountCode: '2100',
-              accountName: 'PAYE Liability',
+              accountCode: '2130',
+              accountName: 'PAYE Payable',
               accountType: 'Liability',
-              accountSubtype: 'Tax Payable',
+              accountSubtype: 'Current Liability',
               normalBalance: 'Credit',
               balance: 0,
-              tenantId: user.tenantId
+              tenantId: user.tenantId,
+              ...(parentId ? { parentAccountId: parentId } : {}),
             }
           });
-          console.log('✅ Created PAYE Liability account:', payeAccount.id);
+          console.log('✅ Created PAYE Payable account:', payeAccount.id);
         }
 
         // Create PAYE tax type with account linked
@@ -1420,12 +1423,12 @@ async function getOrCreatePayrollAccounts(tenantId) {
  */
 function generateAccountCode(accountName) {
   const codes = {
-    'Salaries Expense': '5230', // Standard salary expense account code - used for payroll
-    'PAYE Liability': '2100',
+    'Salaries Expense': '5201',
+    'PAYE Liability': '2130',
     'NPS Employee Contribution Liability': '2101',
     'NPS Employer Contribution Liability': '2102',
     'Payroll Deductions Liability': '2103',
-    'Cash': '1000'
+    Cash: '1110',
   };
   
   return codes[accountName] || '9999';

@@ -21,7 +21,6 @@ import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { paymentMethods } from "@/lib/paymentMethods";
 
 const interestTypeOptions = [
   { value: "reducing_balance", label: "Reducing Balance" },
@@ -242,28 +241,34 @@ const AssetManagement = () => {
   useEffect(() => {
     const loadPaymentAccounts = async () => {
       try {
-        const res = await fetch('/api/payments/account-balances');
-        if (!res.ok) {
-          throw new Error('Failed to load payment accounts');
+        const res = await fetch('/api/payment-accounts/balances', { cache: 'no-store' });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.success && Array.isArray(data.accounts)) {
+          setPaymentAccounts(
+            data.accounts.map((a) => ({
+              key: a.id,
+              name: a.name,
+              balance: typeof a.balance === 'number' ? a.balance : parseFloat(a.balance) || 0,
+            }))
+          );
+          return;
         }
-        const data = await res.json();
-        const balances = data.balances || [];
-        const mapped = paymentMethods.map((method) => {
-          const balanceEntry = balances.find((b) => b.account === method.key);
-          return {
-            key: method.key,
-            name: method.name,
-            balance: balanceEntry ? balanceEntry.balance : 0
-          };
-        });
-        setPaymentAccounts(mapped);
+        const fb = await fetch('/api/payment-accounts?activeOnly=true', { cache: 'no-store' });
+        const fbData = await fb.json().catch(() => ({}));
+        if (fb.ok && fbData.success && fbData.paymentAccounts) {
+          setPaymentAccounts(
+            fbData.paymentAccounts
+              .filter((a) => a.isActive !== false)
+              .map((a) => ({
+                key: a.id,
+                name: a.name,
+                balance: 0,
+              }))
+          );
+        }
       } catch (error) {
         console.error('Error loading payment accounts:', error);
-        setPaymentAccounts(paymentMethods.map((method) => ({
-          key: method.key,
-          name: method.name,
-          balance: 0
-        })));
+        setPaymentAccounts([]);
       }
     };
     loadPaymentAccounts();

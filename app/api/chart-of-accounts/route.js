@@ -16,7 +16,8 @@ const normalizeAccountType = (value) => {
   return ACCOUNT_TYPES.includes(upper) ? upper : normalized;
 };
 
-const validateAccountCode = (code) => /^\d{3,10}$/.test(code || '');
+// Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
+const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
 
 /**
  * Parent account rows should equal sum of child balances plus any balance posted
@@ -811,9 +812,14 @@ export async function GET(request) {
           }
         }
         
-        // Accounts Payable (code 2000 or name contains "payable")
-        if ((accountCode === '2000' || accountName.includes('payable')) && 
-            accountType === 'Liability' && !accountName.includes('tax')) {
+        // Accounts Payable (2110 canonical; legacy 2100 AP; avoid current-liabilities group / tax payables)
+        if (
+          (accountCode === '2110' ||
+            (accountCode === '2100' && !accountName.includes('current liabilities')) ||
+            accountName.includes('accounts payable')) &&
+          accountType === 'Liability' &&
+          !accountName.includes('tax')
+        ) {
           additionalBalance += totalAccountsPayable;
         }
 
@@ -823,8 +829,8 @@ export async function GET(request) {
           additionalBalance += totalTaxPayable;
         }
 
-        // Liabilities/Loans (code 2050-2100 or name contains "loan" or "liability")
-        if ((accountCodeNum >= 2050 && accountCodeNum <= 2100) || 
+        // Liabilities/Loans (code 2050-2160 or name contains "loan" or "liability")
+        if ((accountCodeNum >= 2050 && accountCodeNum <= 2160) || 
             (accountName.includes('loan') || (accountName.includes('liability') && !accountName.includes('payable')))) {
           if (accountType === 'Liability') {
             // Match by liability type

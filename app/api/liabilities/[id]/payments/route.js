@@ -74,7 +74,7 @@ async function resolvePaymentAccount(client, tenantId, paymentMethod) {
  */
 async function resolveLiabilityAccount(client, tenantId, liabilityName = null) {
   // Preferred account codes for loans/liabilities
-  const preferredCodes = ['2300', '2400', '2000', '2100'];
+  const preferredCodes = ['2510', '2160', '2500', '2300', '2400', '2110', '2000', '2100'];
 
   for (const code of preferredCodes) {
     const account = await client.account.findFirst({

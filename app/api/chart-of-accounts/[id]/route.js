@@ -16,7 +16,7 @@ const normalizeAccountType = (value) => {
   return ACCOUNT_TYPES.includes(upper) ? upper : normalized;
 };
 
-const validateAccountCode = (code) => /^\d{3,10}$/.test(code || '');
+const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
 
 // GET - Get single account
 export async function GET(request, { params }) {

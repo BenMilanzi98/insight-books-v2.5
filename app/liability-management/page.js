@@ -18,6 +18,7 @@ import {
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 const interestTypeOptions = [
   { value: "reducing_balance", label: "Reducing Balance" },
@@ -195,6 +196,9 @@ const buildLiabilityPayload = (form) => {
 };
 
 const LiabilityManagement = () => {
+  const { paymentAccounts: liabilityPayAccounts, isLoading: liabilityPayAccountsLoading } =
+    usePaymentAccounts();
+
   // State variables
   const [liabilities, setLiabilities] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -275,7 +279,8 @@ const LiabilityManagement = () => {
     principalPaid: "",
     interestPaid: "",
     reference: "",
-    notes: ""
+    notes: "",
+    paymentMethod: "",
   });
   
   // Fetch categories when component mounts
@@ -353,6 +358,20 @@ const LiabilityManagement = () => {
     setPaymentEntryMode("custom");
     setSelectedScheduleIndex("");
   }, [paymentLiability]);
+
+  useEffect(() => {
+    if (!showPaymentModal || !liabilityPayAccounts.length) return;
+    setPaymentFormData((prev) => {
+      if (prev.paymentMethod && liabilityPayAccounts.some((a) => a.id === prev.paymentMethod)) {
+        return prev;
+      }
+      const def =
+        liabilityPayAccounts.find((a) => String(a.accountType).toLowerCase() === "bank") ||
+        liabilityPayAccounts.find((a) => a.isActive !== false) ||
+        liabilityPayAccounts[0];
+      return { ...prev, paymentMethod: def?.id || "" };
+    });
+  }, [showPaymentModal, liabilityPayAccounts]);
   
   // Fetch categories from API
   const fetchCategories = async () => {
@@ -592,7 +611,8 @@ const LiabilityManagement = () => {
         principalPaid: "",
         interestPaid: "",
         reference: "",
-        notes: ""
+        notes: "",
+        paymentMethod: "",
       });
     } catch (error) {
       console.error("Error recording payment:", error);
@@ -719,7 +739,8 @@ const LiabilityManagement = () => {
       principalPaid: "",
       interestPaid: "",
       reference: "",
-      notes: ""
+      notes: "",
+      paymentMethod: "",
     });
     setShowPaymentModal(true);
   };
@@ -1631,6 +1652,33 @@ const LiabilityManagement = () => {
                         </p>
                       </div>
                     )}
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-1">Pay from account *</label>
+                      <select
+                        className="w-full p-2 border border-gray-200 rounded"
+                        value={paymentFormData.paymentMethod || ""}
+                        onChange={(e) =>
+                          setPaymentFormData({ ...paymentFormData, paymentMethod: e.target.value })
+                        }
+                        required
+                        disabled={liabilityPayAccountsLoading || !liabilityPayAccounts.length}
+                      >
+                        {!liabilityPayAccounts.length && (
+                          <option value="">
+                            {liabilityPayAccountsLoading ? "Loading accounts…" : "No payment accounts"}
+                          </option>
+                        )}
+                        {liabilityPayAccounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.name}
+                            {acc.accountType ? ` (${acc.accountType})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Same payment accounts as /payments/management.
+                      </p>
+                    </div>
                     <div className="mb-4">
                       <label className="block text-sm font-medium mb-1">Payment Amount *</label>
                       <input

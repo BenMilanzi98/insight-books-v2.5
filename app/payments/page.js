@@ -326,28 +326,26 @@ const PaymentAccountsPage = () => {
               <RefreshCw size={16} className={syncingPayments ? "animate-spin" : ""} />
               {syncingPayments ? "Syncing…" : "Sync payments"}
             </button>
+            <button
+              type="button"
+              className="px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-100 inline-flex items-center gap-2 shadow-sm"
+              onClick={() => {
+                resetAccountForm();
+                setAccountModalOpen(true);
+              }}
+            >
+              <Plus size={18} />
+              Add account
+            </button>
             {pagePermissions.canCreatePayments && (
-              <>
-                <button
-                  type="button"
-                  className="px-4 py-2 border border-indigo-200 bg-indigo-50 text-indigo-800 rounded-lg text-sm font-semibold hover:bg-indigo-100 inline-flex items-center gap-2 shadow-sm"
-                  onClick={() => {
-                    resetAccountForm();
-                    setAccountModalOpen(true);
-                  }}
-                >
-                  <Plus size={18} />
-                  Add account
-                </button>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 inline-flex items-center gap-2 shadow-md"
-                  onClick={() => setIsModalOpen(true)}
-                >
-                  <PlusCircle size={18} />
-                  Transfer Funds
-                </button>
-              </>
+              <button
+                type="button"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 inline-flex items-center gap-2 shadow-md"
+                onClick={() => setIsModalOpen(true)}
+              >
+                <PlusCircle size={18} />
+                Transfer Funds
+              </button>
             )}
           </div>
         </div>
@@ -377,19 +375,17 @@ const PaymentAccountsPage = () => {
           ) : paymentAccounts.length === 0 ? (
             <div className="text-center py-14 text-gray-500 text-sm space-y-3">
               <p>No payment accounts yet.</p>
-              {pagePermissions.canCreatePayments ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetAccountForm();
-                    setAccountModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-                >
-                  <Plus size={16} />
-                  Add payment account
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  resetAccountForm();
+                  setAccountModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
+              >
+                <Plus size={16} />
+                Add payment account
+              </button>
               <p>
                 Or use{" "}
                 <a href="/payments/management" className="text-indigo-600 font-medium hover:underline">

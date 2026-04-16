@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { findCurrentLiabilitiesGroupId } from '@/lib/coaPostingCodes';
 
 /**
  * GET handler for deductions
@@ -94,21 +95,23 @@ export async function GET(request) {
 
         // If PAYE account doesn't exist, create it
         if (!payeAccount) {
+          const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
           payeAccount = await prisma.account.create({
             data: {
-              code: '2100',
-              name: 'PAYE Liability',
+              code: '2130',
+              name: 'PAYE Payable',
               type: 'LIABILITY',
-              accountCode: '2100',
-              accountName: 'PAYE Liability',
+              accountCode: '2130',
+              accountName: 'PAYE Payable',
               accountType: 'Liability',
-              accountSubtype: 'Tax Payable',
+              accountSubtype: 'Current Liability',
               normalBalance: 'Credit',
               balance: 0,
-              tenantId: user.tenantId
+              tenantId: user.tenantId,
+              ...(parentId ? { parentAccountId: parentId } : {}),
             }
           });
-          console.log('✅ Created PAYE Liability account:', payeAccount.id);
+          console.log('✅ Created PAYE Payable account:', payeAccount.id);
         }
 
         // Create PAYE tax type with account linked (REQUIRED for tracking)
@@ -152,18 +155,20 @@ export async function GET(request) {
           });
 
           if (!payeAccount) {
+            const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
             payeAccount = await prisma.account.create({
               data: {
-                code: '2100',
-                name: 'PAYE Liability',
+                code: '2130',
+                name: 'PAYE Payable',
                 type: 'LIABILITY',
-                accountCode: '2100',
-                accountName: 'PAYE Liability',
+                accountCode: '2130',
+                accountName: 'PAYE Payable',
                 accountType: 'Liability',
-                accountSubtype: 'Tax Payable',
+                accountSubtype: 'Current Liability',
                 normalBalance: 'Credit',
                 balance: 0,
-                tenantId: user.tenantId
+                tenantId: user.tenantId,
+                ...(parentId ? { parentAccountId: parentId } : {}),
               }
             });
           }

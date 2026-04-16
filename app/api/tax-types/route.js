@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { findCurrentLiabilitiesGroupId } from '@/lib/coaPostingCodes';
 
 /**
  * GET /api/tax-types
@@ -54,18 +55,20 @@ export async function GET(request) {
 
           // If PAYE account doesn't exist, create it
           if (!payeAccount) {
+            const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
             payeAccount = await prisma.account.create({
               data: {
-                code: '2100',
-                name: 'PAYE Liability',
+                code: '2130',
+                name: 'PAYE Payable',
                 type: 'LIABILITY',
-                accountCode: '2100',
-                accountName: 'PAYE Liability',
+                accountCode: '2130',
+                accountName: 'PAYE Payable',
                 accountType: 'Liability',
-                accountSubtype: 'Tax Payable',
+                accountSubtype: 'Current Liability',
                 normalBalance: 'Credit',
                 balance: 0,
-                tenantId: user.tenantId
+                tenantId: user.tenantId,
+                ...(parentId ? { parentAccountId: parentId } : {}),
               }
             });
           }
@@ -98,18 +101,20 @@ export async function GET(request) {
         });
 
         if (!payeAccount) {
+          const parentId = await findCurrentLiabilitiesGroupId(user.tenantId, prisma);
           payeAccount = await prisma.account.create({
             data: {
-              code: '2100',
-              name: 'PAYE Liability',
+              code: '2130',
+              name: 'PAYE Payable',
               type: 'LIABILITY',
-              accountCode: '2100',
-              accountName: 'PAYE Liability',
+              accountCode: '2130',
+              accountName: 'PAYE Payable',
               accountType: 'Liability',
-              accountSubtype: 'Tax Payable',
+              accountSubtype: 'Current Liability',
               normalBalance: 'Credit',
               balance: 0,
-              tenantId: user.tenantId
+              tenantId: user.tenantId,
+              ...(parentId ? { parentAccountId: parentId } : {}),
             }
           });
         }

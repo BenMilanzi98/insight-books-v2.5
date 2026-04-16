@@ -1,12 +1,12 @@
 "use client";
-import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  Download, 
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Eye,
+  Download,
   Upload,
   ChevronRight,
   ChevronDown,
@@ -16,7 +16,17 @@ import {
   Loader2,
   X,
   GitMerge,
-  BookOpen
+  BookOpen,
+  LayoutGrid,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Shield,
+  Sparkles,
+  Wallet,
+  Landmark,
+  Scale,
+  TrendingUp,
+  Receipt,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -55,11 +65,67 @@ const ChartOfAccountsPage = () => {
   
   // Subtype options by account type
   const accountSubtypes = {
-    'Asset': ['Current Asset', 'Non-Current Asset'],
-    'Liability': ['Current Liability', 'Non-Current Liability'],
-    'Equity': [],
-    'Income': ['Operating Income', 'Other Income'],
-    'Expense': ['Cost of Sales', 'Operating Expense', 'Other Expense']
+    Asset: ['Group', 'Current Asset', 'Non-current Asset', 'Non-Current Asset'],
+    Liability: ['Group', 'Current Liability', 'Non-current Liability', 'Non-Current Liability'],
+    Equity: ['Group', 'Equity', 'Capital'],
+    Income: ['Group', 'Operating Income', 'Other Income'],
+    Expense: ['Group', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
+  };
+
+  const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
+
+  /** Visual theme per top-level GL bucket — cards, row accents, hero accents */
+  const ROOT_THEME = {
+    '1000': {
+      bar: 'border-l-emerald-500',
+      rowBg: 'from-emerald-50/90 via-white to-white',
+      glow: 'bg-emerald-400/30',
+      card: 'from-emerald-500/[0.07] via-white to-white ring-emerald-200/40 hover:ring-emerald-300/50',
+      icon: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/25',
+      Icon: Wallet,
+    },
+    '2000': {
+      bar: 'border-l-sky-500',
+      rowBg: 'from-sky-50/90 via-white to-white',
+      glow: 'bg-sky-400/30',
+      card: 'from-sky-500/[0.07] via-white to-white ring-sky-200/40 hover:ring-sky-300/50',
+      icon: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-sky-500/25',
+      Icon: Landmark,
+    },
+    '3000': {
+      bar: 'border-l-violet-500',
+      rowBg: 'from-violet-50/90 via-white to-white',
+      glow: 'bg-violet-400/30',
+      card: 'from-violet-500/[0.07] via-white to-white ring-violet-200/40 hover:ring-violet-300/50',
+      icon: 'bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-violet-500/25',
+      Icon: Scale,
+    },
+    '4000': {
+      bar: 'border-l-amber-500',
+      rowBg: 'from-amber-50/80 via-white to-white',
+      glow: 'bg-amber-400/25',
+      card: 'from-amber-500/[0.08] via-white to-white ring-amber-200/50 hover:ring-amber-300/55',
+      icon: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/25',
+      Icon: TrendingUp,
+    },
+    '5000': {
+      bar: 'border-l-rose-500',
+      rowBg: 'from-rose-50/90 via-white to-white',
+      glow: 'bg-rose-400/28',
+      card: 'from-rose-500/[0.07] via-white to-white ring-rose-200/40 hover:ring-rose-300/50',
+      icon: 'bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-rose-500/25',
+      Icon: Receipt,
+    },
+  };
+
+  const typeBadgeClass = (t) => {
+    const x = String(t || '').toLowerCase();
+    if (x === 'asset') return 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/70';
+    if (x === 'liability') return 'bg-sky-50 text-sky-900 ring-1 ring-sky-200/70';
+    if (x === 'equity') return 'bg-violet-50 text-violet-900 ring-1 ring-violet-200/70';
+    if (x === 'income' || x === 'revenue') return 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/70';
+    if (x === 'expense') return 'bg-rose-50 text-rose-900 ring-1 ring-rose-200/70';
+    return 'bg-slate-100 text-slate-800 ring-1 ring-slate-200/80';
   };
 
   // Load accounts
@@ -67,11 +133,20 @@ const ChartOfAccountsPage = () => {
     loadAccounts();
   }, [accountTypeFilter, activeFilter]);
 
+  // Default-expand five main category roots and Capital parent (500000) for faster navigation
   useEffect(() => {
-    const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
-    if (cap?.id) {
-      setExpandedAccounts((prev) => new Set([...prev, cap.id]));
-    }
+    if (!accounts.length) return;
+    const rootCodes = ['1000', '2000', '3000', '4000', '5000'];
+    setExpandedAccounts((prev) => {
+      const next = new Set(prev);
+      for (const a of accounts) {
+        const c = a.accountCode || a.code;
+        if (c && rootCodes.includes(c)) next.add(a.id);
+      }
+      const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
+      if (cap?.id) next.add(cap.id);
+      return next;
+    });
   }, [accounts]);
 
   const loadAccounts = async () => {
@@ -477,6 +552,16 @@ const ChartOfAccountsPage = () => {
     const accountMap = new Map();
     const rootAccounts = [];
 
+    const normCode = (c) =>
+      String(c || '')
+        .split(/-/)
+        .map((p) => {
+          const digits = p.replace(/\D/g, '');
+          if (digits.length) return digits.padStart(8, '0');
+          return p;
+        })
+        .join('.');
+
     // Create map
     accounts.forEach(account => {
       accountMap.set(account.id, { ...account, children: [] });
@@ -497,14 +582,13 @@ const ChartOfAccountsPage = () => {
       }
     });
 
-    // Sort by account code
-    const sortAccounts = (accounts) => {
-      accounts.sort((a, b) => {
+    const sortAccounts = (list) => {
+      list.sort((a, b) => {
         const codeA = a.accountCode || a.code || '';
         const codeB = b.accountCode || b.code || '';
-        return codeA.localeCompare(codeB);
+        return normCode(codeA).localeCompare(normCode(codeB), undefined, { numeric: true });
       });
-      accounts.forEach(account => {
+      list.forEach((account) => {
         if (account.children && account.children.length > 0) {
           sortAccounts(account.children);
         }
@@ -515,224 +599,468 @@ const ChartOfAccountsPage = () => {
     return rootAccounts;
   };
 
+  const hierarchicalAccounts = useMemo(() => buildHierarchy(accounts), [accounts]);
+
+  const countSubtree = useCallback((node) => {
+    if (!node) return 0;
+    let n = 1;
+    for (const c of node.children || []) n += countSubtree(c);
+    return n;
+  }, []);
+
+  const rootOverview = useMemo(
+    () =>
+      hierarchicalAccounts.map((node) => ({
+        id: node.id,
+        code: node.accountCode || node.code,
+        title: node.accountName || node.name,
+        type: node.accountType || node.type,
+        count: countSubtree(node),
+      })),
+    [hierarchicalAccounts, countSubtree],
+  );
+
+  const collectAllIds = useCallback((node) => {
+    const out = [node.id];
+    for (const c of node.children || []) out.push(...collectAllIds(c));
+    return out;
+  }, []);
+
+  const handleExpandAll = useCallback(() => {
+    const ids = new Set();
+    for (const root of hierarchicalAccounts) {
+      for (const id of collectAllIds(root)) ids.add(id);
+    }
+    setExpandedAccounts(ids);
+  }, [hierarchicalAccounts, collectAllIds]);
+
+  const handleCollapseToRoots = useCallback(() => {
+    const next = new Set();
+    for (const a of accounts) {
+      const c = a.accountCode || a.code;
+      if (c && ROOT_CODES.has(c)) next.add(a.id);
+    }
+    const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
+    if (cap?.id) next.add(cap.id);
+    setExpandedAccounts(next);
+  }, [accounts]);
+
   const renderAccountRow = (account, level = 0) => {
     const hasChildren = account.children && account.children.length > 0;
     const isExpanded = expandedAccounts.has(account.id);
-    const indent = level * 24;
     const accountCode = account.accountCode || account.code || 'N/A';
     const accountName = account.accountName || account.name || 'Unnamed Account';
+    const acctType = account.accountType || account.type || '';
+    const isRoot = level === 0 && ROOT_CODES.has(String(accountCode));
+    const isGroup =
+      String(account.accountSubtype || '').toLowerCase() === 'group' ||
+      (hasChildren && ['1000', '2000', '3000', '4000', '5000', '1100', '1120', '1500', '1900', '2100', '2500', '5100', '5200'].includes(String(accountCode)));
 
     const isLocked = account.isSystem || account.transactionCount > 0;
+    const rootTheme = isRoot ? ROOT_THEME[String(accountCode)] : null;
+
     return (
       <React.Fragment key={account.id}>
-        <tr className={`hover:bg-indigo-50/30 transition-colors ${!account.isActive ? 'opacity-60' : ''}`}>
-          <td className="px-5 py-3 text-sm">
-            <div className="flex items-center" style={{ paddingLeft: `${indent}px` }}>
+        <tr
+          className={[
+            'group/row border-b border-slate-100/80 transition-all duration-200',
+            !account.isActive ? 'opacity-50' : '',
+            isRoot && rootTheme
+              ? `border-l-[3px] ${rootTheme.bar} bg-gradient-to-r ${rootTheme.rowBg} hover:shadow-[inset_0_0_0_9999px_rgba(255,255,255,0.35)]`
+              : 'border-l-[3px] border-l-transparent bg-white/90 hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-white',
+          ].join(' ')}
+        >
+          <td className="px-4 py-3 align-middle">
+            <div
+              className="flex items-center gap-2.5 min-w-0"
+              style={{ paddingLeft: `${level * 18}px` }}
+            >
               {hasChildren ? (
                 <button
+                  type="button"
                   onClick={() => toggleExpand(account.id)}
-                  className="mr-2 text-slate-400 hover:text-indigo-600"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200/90 bg-gradient-to-b from-white to-slate-50 text-slate-600 shadow-sm ring-1 ring-slate-900/[0.03] transition hover:scale-105 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md"
+                  aria-expanded={isExpanded}
                 >
-                  {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  {isExpanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
                 </button>
               ) : (
-                <span className="w-6 mr-2"></span>
+                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden>
+                  <span className="h-2 w-2 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 shadow-inner" />
+                </span>
               )}
-              <span className="font-medium text-gray-900">{accountCode}</span>
+              <code
+                className={[
+                  'shrink-0 rounded-lg px-2.5 py-1 font-mono text-[12px] font-semibold tabular-nums tracking-tight',
+                  isRoot
+                    ? 'bg-white/90 text-slate-900 shadow-sm ring-1 ring-slate-300/50'
+                    : 'bg-slate-100/95 text-slate-800 ring-1 ring-slate-200/50',
+                ].join(' ')}
+              >
+                {accountCode}
+              </code>
             </div>
           </td>
-          <td className="px-5 py-3 text-sm text-gray-900">
-            {level > 0 && <span className="text-gray-400 mr-2">└─</span>}
-            {accountName}
+          <td className="px-4 py-3 align-middle">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span
+                className={[
+                  'min-w-0 text-[13px] leading-snug text-slate-900',
+                  isGroup || isRoot ? 'font-semibold tracking-tight' : 'font-medium text-slate-800',
+                ].join(' ')}
+              >
+                {accountName}
+              </span>
+              {account.isSystem ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-md shadow-indigo-500/25">
+                  <Shield size={10} strokeWidth={2.5} />
+                  System
+                </span>
+              ) : null}
+            </div>
           </td>
-          <td className="px-5 py-3 text-sm text-gray-700">{account.accountType || account.type || 'N/A'}</td>
-          <td className="px-5 py-3 text-sm text-gray-700 text-right font-medium">
+          <td className="px-4 py-3 align-middle">
+            <span
+              className={[
+                'inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold capitalize shadow-sm',
+                typeBadgeClass(acctType),
+              ].join(' ')}
+            >
+              {acctType || '—'}
+            </span>
+          </td>
+          <td className="px-4 py-3 text-right align-middle font-mono text-[13px] font-bold tabular-nums tracking-tight text-slate-800">
             {formatCurrency(account.currentBalance || 0)}
           </td>
-          <td className="px-5 py-3 text-sm">
+          <td className="px-4 py-3 align-middle">
             {account.isActive ? (
-              <span className="inline-flex items-center text-green-600">
-                <CheckCircle size={14} className="mr-1" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 px-2.5 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
+                <CheckCircle size={13} strokeWidth={2.5} className="text-emerald-600" />
                 Active
               </span>
             ) : (
-              <span className="inline-flex items-center text-gray-400">
-                <XCircle size={14} className="mr-1" />
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200/90">
+                <XCircle size={13} strokeWidth={2.5} />
                 Inactive
               </span>
             )}
           </td>
-          <td className="px-5 py-3 text-sm">
-            <div className="flex items-center space-x-2">
+          <td className="px-4 py-3 align-middle">
+            <div className="inline-flex items-center justify-end gap-0.5 rounded-2xl border border-slate-200/60 bg-slate-50/80 p-0.5 shadow-inner sm:justify-start">
               <button
+                type="button"
                 onClick={() => openViewModal(account)}
-                className="text-blue-600 hover:text-blue-800 transition-colors"
-                title="View Details"
+                className="rounded-xl p-2 text-slate-500 transition-all hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                title="View details"
               >
-                <Eye size={16} />
+                <Eye size={16} strokeWidth={2} />
               </button>
               <button
+                type="button"
                 onClick={() => !account.isSystem && openEditModal(account)}
-                className={`transition-colors ${account.isSystem ? 'text-gray-300 cursor-not-allowed' : 'text-gray-600 hover:text-gray-800'}`}
+                className={`rounded-xl p-2 transition-all ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
                 title={account.isSystem ? 'System account (read-only)' : 'Edit'}
                 disabled={account.isSystem}
               >
-                <Edit size={16} />
+                <Edit size={16} strokeWidth={2} />
               </button>
               <button
+                type="button"
                 onClick={() => openMergeModal(account)}
-                className={`transition-colors ${account.isSystem ? 'text-gray-300 cursor-not-allowed' : 'text-purple-600 hover:text-purple-800'}`}
-                title={account.isSystem ? 'System account (read-only)' : 'Merge accounts'}
+                className={`rounded-xl p-2 transition-all ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-violet-50 hover:text-violet-700 hover:shadow-sm'}`}
+                title={account.isSystem ? 'System account (read-only)' : 'Merge into another account'}
                 disabled={account.isSystem}
               >
-                <GitMerge size={16} />
+                <GitMerge size={16} strokeWidth={2} />
               </button>
               <button
+                type="button"
                 onClick={() => handleDeleteAccount(account.id)}
-                className={`transition-colors ${isLocked ? 'text-gray-300 cursor-not-allowed' : 'text-red-600 hover:text-red-800'}`}
-                title={isLocked ? 'Account in use or system account' : 'Delete'}
+                className={`rounded-xl p-2 transition-all ${isLocked ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-rose-50 hover:text-rose-600 hover:shadow-sm'}`}
+                title={isLocked ? 'Account in use or system account' : 'Delete or deactivate'}
                 disabled={isLocked}
               >
-                <Trash2 size={16} />
+                <Trash2 size={16} strokeWidth={2} />
               </button>
             </div>
           </td>
         </tr>
-        {hasChildren && isExpanded && account.children.map(child => renderAccountRow(child, level + 1))}
+        {hasChildren && isExpanded && account.children.map((child) => renderAccountRow(child, level + 1))}
       </React.Fragment>
     );
   };
 
-  const hierarchicalAccounts = buildHierarchy(accounts);
-
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40">
-        <div className="w-full px-4 sm:px-6 lg:px-8 py-6 lg:py-8 pb-12">
-          {/* Header */}
-          <div className="rounded-2xl bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-700 shadow-xl shadow-indigo-200/50 p-6 sm:p-8 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
-                  <BookOpen className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
+      <div className="relative min-h-screen overflow-hidden bg-slate-100">
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_70%_at_50%_-28%,rgba(99,102,241,0.18),transparent_52%)]"
+          aria-hidden
+        />
+        <div className="pointer-events-none absolute -left-40 top-1/4 h-[28rem] w-[28rem] rounded-full bg-teal-400/15 blur-3xl" aria-hidden />
+        <div className="pointer-events-none absolute -right-32 bottom-0 h-72 w-72 rounded-full bg-violet-500/12 blur-3xl" aria-hidden />
+        <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[min(100%,64rem)] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/80 to-transparent" aria-hidden />
+
+        <div className="relative mx-auto max-w-[1680px] px-4 sm:px-6 lg:px-10 py-8 lg:py-12 pb-20">
+          {/* Hero */}
+          <header className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/70 bg-white/45 p-7 shadow-[0_28px_90px_-24px_rgba(15,23,42,0.18)] backdrop-blur-2xl ring-1 ring-slate-900/[0.04] sm:p-10">
+            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-400/25 via-violet-400/10 to-transparent blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 left-0 h-48 w-48 rounded-full bg-teal-400/10 blur-2xl" />
+            <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex max-w-3xl gap-5">
+                <div className="relative shrink-0">
+                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 opacity-90 blur-md" />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white shadow-xl shadow-indigo-600/30 ring-1 ring-white/20">
+                    <BookOpen className="h-8 w-8" strokeWidth={1.6} />
+                  </div>
                 </div>
                 <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">Chart of Accounts</h1>
-                  <p className="text-indigo-100 text-sm mt-0.5">Manage your accounting accounts and structure</p>
+                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-indigo-600/90">
+                    <Sparkles size={14} className="text-amber-400" strokeWidth={2} />
+                    General ledger
+                  </p>
+                  <h1 className="mt-2 bg-gradient-to-r from-slate-900 via-indigo-950 to-violet-900 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent sm:text-5xl sm:leading-[1.1]">
+                    Chart of accounts
+                  </h1>
+                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+                    Your live hierarchy from <span className="font-mono font-semibold text-slate-800">1000</span>–
+                    <span className="font-mono font-semibold text-slate-800">5000</span>. Expand branches to audit codes,
+                    balances, and protected system postings — all in one view.
+                  </p>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-2 lg:justify-end">
                 <button
                   type="button"
                   onClick={handleInitializeBaseline}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
                   title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
                 >
-                  <CheckCircle size={18} />
-                  Generate missing accounts & defaults
+                  <CheckCircle size={17} strokeWidth={2} className="text-emerald-600" />
+                  Sync CoA
                 </button>
                 <button
                   type="button"
                   onClick={() => handleImportTemplate('retail')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
-                  title="Import Retail Template"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
                 >
-                  <Upload size={18} />
+                  <Upload size={17} strokeWidth={2} />
                   Templates
                 </button>
                 <button
                   type="button"
                   onClick={() => handleExport('json')}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 transition-colors"
-                  title="Export as JSON"
+                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
                 >
-                  <Download size={18} />
+                  <Download size={17} strokeWidth={2} />
                   Export
                 </button>
-                <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/20 hover:bg-white/30 text-white font-medium border border-white/20 cursor-pointer transition-colors">
-                  <Upload size={18} />
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md">
+                  <Upload size={17} strokeWidth={2} />
                   Import
                   <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
                 </label>
                 <button
                   type="button"
-                  onClick={() => { resetForm(); setShowAddModal(true); }}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-indigo-600 hover:bg-indigo-50 font-semibold shadow-lg transition-colors"
+                  onClick={() => {
+                    resetForm();
+                    setShowAddModal(true);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-violet-600 hover:shadow-indigo-500/40"
                 >
-                  <Plus size={18} />
-                  Add Account
+                  <Plus size={18} strokeWidth={2.5} />
+                  Add account
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* Filters */}
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 p-4 sm:p-6 mb-6">
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by code, name, or description..."
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/50 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400 focus:bg-white transition-all"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
+            {/* Category constellation */}
+            {!loading && rootOverview.length > 0 && (
+              <div className="relative mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+                {rootOverview.map((r) => {
+                  const th = ROOT_THEME[r.code] || {};
+                  const IconComp = th.Icon || LayoutGrid;
+                  return (
+                    <div
+                      key={r.id}
+                      className={`group relative overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br p-5 shadow-lg ring-1 transition duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl ${th.card || 'from-white to-slate-50 ring-slate-200/50'}`}
+                    >
+                      <div
+                        className={`pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-40 blur-2xl transition duration-500 group-hover:opacity-100 group-hover:blur-3xl ${th.glow || 'bg-slate-300/20'}`}
+                      />
+                      <div className="relative flex items-start justify-between gap-3">
+                        <div
+                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg ${th.icon || 'bg-slate-700 text-white shadow-slate-500/20'}`}
+                        >
+                          <IconComp size={20} strokeWidth={2} />
+                        </div>
+                        <span className="rounded-full bg-slate-900/[0.06] px-2.5 py-1 text-[10px] font-bold tabular-nums uppercase tracking-wider text-slate-600 ring-1 ring-slate-900/5">
+                          {r.count} in tree
+                        </span>
+                      </div>
+                      <p className="relative mt-4 truncate text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        {r.title}
+                      </p>
+                      <p className="relative mt-1 font-mono text-2xl font-black tabular-nums tracking-tight text-slate-900">
+                        {r.code}
+                      </p>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </header>
+
+          {/* Toolbar */}
+          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/55 p-4 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.12)] backdrop-blur-xl ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+            <div className="relative min-w-0 flex-1 max-w-xl">
+              <Search
+                size={18}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400/90"
+                strokeWidth={2}
+              />
+              <input
+                type="search"
+                placeholder="Filter by code, name, or description…"
+                className="w-full rounded-2xl border border-slate-200/80 bg-white/70 py-3 pl-12 pr-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 shadow-inner transition focus:border-indigo-300/80 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               <select
                 value={accountTypeFilter}
                 onChange={(e) => setAccountTypeFilter(e.target.value)}
-                className="px-3 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-400"
+                className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
               >
-                <option value="All">All Types</option>
-                {accountTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                <option value="All">All types</option>
+                {accountTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
-              <label className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-slate-200 bg-white cursor-pointer hover:bg-slate-50 transition-colors">
-                <input type="checkbox" checked={activeFilter} onChange={(e) => setActiveFilter(e.target.checked)} className="rounded text-indigo-600" />
-                <span className="text-sm font-medium text-slate-700">Active only</span>
+              <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white">
+                <input
+                  type="checkbox"
+                  checked={activeFilter}
+                  onChange={(e) => setActiveFilter(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+                />
+                Active only
               </label>
+              {!loading && hierarchicalAccounts.length > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleExpandAll}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-900"
+                    title="Expand all rows"
+                  >
+                    <ChevronsDownUp size={17} strokeWidth={2} />
+                    Expand all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCollapseToRoots}
+                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-900"
+                    title="Collapse to main categories"
+                  >
+                    <ChevronsUpDown size={17} strokeWidth={2} />
+                    Main only
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
           {error && (
-            <div className="mb-6 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 px-4 py-3 flex items-center gap-2 shadow-sm">
-              <AlertCircle size={20} />
+            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-rose-200/80 bg-gradient-to-r from-rose-50 to-orange-50/50 px-5 py-4 text-sm font-medium text-rose-900 shadow-md backdrop-blur-sm">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <AlertCircle size={20} strokeWidth={2} />
+              </span>
               {error}
             </div>
           )}
 
-          {/* Accounts Table */}
-          <div className="rounded-2xl bg-white shadow-lg shadow-slate-200/50 border border-slate-100 overflow-hidden">
+          <details className="group mb-8 overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white/70 via-white/40 to-indigo-50/30 shadow-lg backdrop-blur-xl open:shadow-xl">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-800 sm:px-6 sm:py-5 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 to-violet-500/10 text-indigo-700 ring-1 ring-indigo-200/40">
+                  <BookOpen size={18} strokeWidth={2} />
+                </span>
+                <span>Posting rules &amp; protected accounts</span>
+              </span>
+              <ChevronDown
+                size={20}
+                className="shrink-0 text-indigo-400 transition duration-300 group-open:rotate-180"
+                strokeWidth={2}
+              />
+            </summary>
+            <div className="border-t border-white/60 bg-white/30 px-5 py-5 text-sm leading-relaxed text-slate-600 sm:px-6">
+              <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
+                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
+                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">System</span>
+                  <p className="mt-2 text-slate-600">
+                    Gradient <strong className="text-slate-800">System</strong> badges mark GL lines wired into invoices, POS, bills, and tax — read-only in the grid.
+                  </p>
+                </li>
+                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
+                  <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Extend</span>
+                  <p className="mt-2 text-slate-600">
+                    Add payment rails under{' '}
+                    <code className="rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-xs font-semibold">1120</code>{' '}
+                    as <code className="font-mono text-xs font-semibold">1130-xx</code>, or new expense leaves under{' '}
+                    <code className="font-mono text-xs font-semibold">5000</code>.
+                  </p>
+                </li>
+                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
+                  <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Anchors</span>
+                  <p className="mt-2 text-slate-600">
+                    <code className="font-mono text-xs font-bold text-slate-900">1110</code> cash ·{' '}
+                    <code className="font-mono text-xs font-bold text-slate-900">1200</code> AR ·{' '}
+                    <code className="font-mono text-xs font-bold text-slate-900">2110</code> AP ·{' '}
+                    <code className="font-mono text-xs font-bold text-slate-900">4100</code> sales
+                  </p>
+                </li>
+              </ul>
+            </div>
+          </details>
+
+          {/* Ledger table */}
+          <div className="overflow-hidden rounded-[1.75rem] border border-white/60 bg-white/50 shadow-[0_24px_80px_-28px_rgba(15,23,42,0.2)] backdrop-blur-xl ring-1 ring-slate-900/[0.04]">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
-                <p className="text-slate-500 font-medium">Loading accounts...</p>
+              <div className="flex flex-col items-center justify-center gap-5 py-28">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400/20" />
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-xl">
+                    <Loader2 size={30} className="animate-spin" strokeWidth={2} />
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-slate-600">Composing your ledger…</p>
               </div>
             ) : hierarchicalAccounts.length === 0 ? (
-              <div className="py-20 text-center px-4">
-                <div className="p-4 rounded-2xl bg-slate-100 inline-block mb-4">
-                  <AlertCircle size={48} className="text-slate-400" />
+              <div className="relative px-6 py-24 text-center">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.08),transparent_65%)]" />
+                <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200/80 shadow-inner ring-1 ring-white/50">
+                  <AlertCircle size={36} className="text-slate-400" strokeWidth={1.5} />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-700 mb-2">No accounts found</h3>
-                <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                  Generate the standard chart, payment accounts, and tax GL defaults (recommended if your tenant was created without full setup), import a template, or add accounts manually.
+                <h3 className="relative text-xl font-bold text-slate-900">Nothing to show yet</h3>
+                <p className="relative mx-auto mt-2 max-w-md text-sm text-slate-600">
+                  Sync the standard chart and defaults, import a template, or craft accounts manually — your hierarchy will light up here.
                 </p>
-                <div className="flex flex-wrap justify-center gap-3">
+                <div className="relative mt-10 flex flex-wrap justify-center gap-3">
                   <button
                     type="button"
                     onClick={handleInitializeBaseline}
-                    className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors"
+                    className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-700 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-600"
                   >
-                    Generate missing accounts & defaults
+                    Sync standard CoA
                   </button>
                   <button
                     type="button"
                     onClick={() => handleImportTemplate('retail')}
-                    className="px-5 py-2.5 rounded-xl border border-indigo-200 bg-white text-indigo-700 font-semibold hover:bg-indigo-50 transition-colors"
+                    className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800 shadow-md transition hover:bg-slate-50"
                   >
                     Import retail template
                   </button>
@@ -740,24 +1068,47 @@ const ChartOfAccountsPage = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-sm">
+                <table className="min-w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr className="bg-gradient-to-r from-slate-50 to-slate-100/80 border-b border-slate-200">
-                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Code</th>
-                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Account name</th>
-                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Type</th>
-                      <th className="px-5 py-3.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wider">Balance</th>
-                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Status</th>
-                      <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Actions</th>
+                    <tr className="border-b border-slate-200/80 bg-gradient-to-b from-slate-100/95 to-slate-50/90 backdrop-blur-md">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Code
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Account
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Type
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-right text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Balance
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Status
+                      </th>
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {hierarchicalAccounts.map(account => renderAccountRow(account))}
-                  </tbody>
+                  {hierarchicalAccounts.map((root, idx) => (
+                    <tbody
+                      key={root.id}
+                      className={
+                        idx === 0
+                          ? ''
+                          : 'border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-transparent'
+                      }
+                    >
+                      {renderAccountRow(root, 0)}
+                    </tbody>
+                  ))}
                 </table>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
+      </div>
 
         {/* Add Account Modal */}
         {showAddModal && (
@@ -922,8 +1273,6 @@ const ChartOfAccountsPage = () => {
             </div>
           </div>
         )}
-        </div>
-      </div>
     </PermissionGuard>
   );
 };

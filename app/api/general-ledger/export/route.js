@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
+import { getParallelGoodsReceiptTransactionIds } from '@/lib/generalLedgerGoodsReceiptDedup';
 
 const toDateRange = (startDate, endDate) => {
   const range = {};
@@ -36,6 +37,10 @@ export async function GET(request) {
 
     const user = await getUserFromSession(request);
     const tenantId = user.tenantId;
+
+    const excludeParallelGrTxIds = await getParallelGoodsReceiptTransactionIds(tenantId, prisma);
+    const transactionIdNotInParallelGr =
+      excludeParallelGrTxIds.length > 0 ? { id: { notIn: excludeParallelGrTxIds } } : {};
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
@@ -82,6 +87,7 @@ export async function GET(request) {
       transaction: {
         tenantId,
         status: { in: ['posted', 'Posted'] },
+        ...transactionIdNotInParallelGr,
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
       },

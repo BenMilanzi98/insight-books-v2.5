@@ -89,6 +89,7 @@ const SalesPage = () => {
   const [isEditingTax, setIsEditingTax] = useState(false);
   const [tempTaxRate, setTempTaxRate] = useState(16.5);
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentAccountsForEdit, setPaymentAccountsForEdit] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSuccess, setSaleSuccess] = useState(false);
   const [saleError, setSaleError] = useState(null);
@@ -220,6 +221,20 @@ const loadSale = async (productList) => {
     try {
     setIsLoading(true);
     setError(null);
+
+    let payAccounts = [];
+    const balRes = await fetch("/api/payment-accounts/balances", { cache: "no-store" });
+    const balJson = await balRes.json().catch(() => ({}));
+    if (balRes.ok && balJson.success && Array.isArray(balJson.accounts)) {
+      payAccounts = balJson.accounts;
+    } else {
+      const listRes = await fetch("/api/payment-accounts?activeOnly=true", { cache: "no-store" });
+      const listJson = await listRes.json().catch(() => ({}));
+      if (listRes.ok && listJson.success && listJson.paymentAccounts) {
+        payAccounts = listJson.paymentAccounts.filter((a) => a.isActive !== false);
+      }
+    }
+    setPaymentAccountsForEdit(payAccounts);
     
     const saleData = await fetchSaleById(id);
     setSale(saleData);
@@ -244,7 +259,29 @@ const loadSale = async (productList) => {
 
     setSelectedProducts(productsToAdd);
 
-    setPaymentMethod(saleData.paymentMethod || "cash");
+    const rawPm = saleData.paymentMethod || "";
+    let resolvedPm = rawPm;
+    if (payAccounts.length) {
+      if (payAccounts.some((a) => a.id === rawPm)) {
+        resolvedPm = rawPm;
+      } else {
+        const legacy = paymentMethods.find((m) => m.key === rawPm);
+        const cashAcc = payAccounts.find((a) => String(a.accountType).toLowerCase() === "cash");
+        if (legacy?.key === "cash") {
+          resolvedPm = cashAcc?.id || payAccounts[0].id;
+        } else if (legacy) {
+          const byName = payAccounts.find((a) =>
+            a.name.toLowerCase().includes(String(legacy.name).toLowerCase().split(" ")[0])
+          );
+          resolvedPm = byName?.id || cashAcc?.id || payAccounts[0].id;
+        } else {
+          resolvedPm = cashAcc?.id || payAccounts[0].id;
+        }
+      }
+    } else {
+      resolvedPm = rawPm || "cash";
+    }
+    setPaymentMethod(resolvedPm);
     setDiscount(saleData.discount || 0);
     setTaxRate(saleData.taxRate || 16.5);
     setSelectedCustomer(saleData.clientId || "");
@@ -1080,19 +1117,24 @@ const loadSale = async (productList) => {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-1">Payment Method</label>
-              <div className="grid grid-cols-3 gap-2">
-                {paymentMethods.map(method => (
+              <label className="block text-sm font-medium mb-1">Payment account</label>
+              <p className="text-xs text-gray-500 mb-2">From Payment Accounts (/payments/management).</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {(paymentAccountsForEdit.length
+                  ? paymentAccountsForEdit
+                  : paymentMethods.map((m) => ({ id: m.key, name: m.name, icon: m.icon }))
+                ).map((method) => (
                   <button
-                    key={method.key}
-                    onClick={() => setPaymentMethod(method.key)}
-                    className={`p-2 border rounded-md flex justify-center items-center ${
-                      paymentMethod === method.key
+                    type="button"
+                    key={method.id}
+                    onClick={() => setPaymentMethod(method.id)}
+                    className={`p-2 border rounded-md flex justify-center items-center text-sm ${
+                      paymentMethod === method.id
                         ? 'bg-blue-50 border-blue-200 text-blue-700'
                         : 'border-gray-200'
                     }`}
                   >
-                    <span className="mr-2">{method.icon}</span>
+                    {method.icon ? <span className="mr-2">{method.icon}</span> : null}
                     {method.name}
                   </button>
                 ))}
@@ -1258,7 +1300,9 @@ const loadSale = async (productList) => {
               <p className="text-sm text-gray-600 mb-2">Sale Details:</p>
               <p className="text-lg font-bold mb-1">Total: {formatCurrency(calculateTotal())}</p>
               <p className="text-sm text-gray-600">
-                Payment Method: {getPaymentMethodName(paymentMethod)}
+                Payment account:{" "}
+                {paymentAccountsForEdit.find((a) => a.id === paymentMethod)?.name ||
+                  getPaymentMethodName(paymentMethod)}
               </p>
             </div>
             

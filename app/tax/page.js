@@ -15,8 +15,11 @@ import { calculateDateRange, getTimeframeLabel } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 export default function TaxManagement() {
+  const { paymentAccounts: taxPayAccounts, isLoading: taxPayAccountsLoading } = usePaymentAccounts();
+
   // State for filtering and data
   const [timeframe, setTimeframe] = useState("thisMonth");
   const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" });
@@ -39,8 +42,15 @@ export default function TaxManagement() {
   const [showSettlementModal, setShowSettlementModal] = useState(false);
   const [settlementAmount, setSettlementAmount] = useState(0);
   const [settlementDescription, setSettlementDescription] = useState("");
-  const [settlementPaymentMethod, setSettlementPaymentMethod] = useState("cash");
+  const [settlementPaymentMethod, setSettlementPaymentMethod] = useState("");
   
+  useEffect(() => {
+    if (!taxPayAccounts.length || settlementPaymentMethod) return;
+    const def =
+      taxPayAccounts.find((a) => String(a.accountType).toLowerCase() === "cash") || taxPayAccounts[0];
+    if (def?.id) setSettlementPaymentMethod(def.id);
+  }, [taxPayAccounts, settlementPaymentMethod]);
+
   useEffect(() => {
     const fetchPermissions = async () => {  
       const canExportTax = await getPermission("tax.export");  
@@ -292,6 +302,10 @@ export default function TaxManagement() {
   const processTaxSettlement = async () => {
     if (settlementAmount <= 0) {
       alert("Invalid settlement amount.");
+      return;
+    }
+    if (!settlementPaymentMethod) {
+      alert("Select a payment account (configure accounts under /payments/management).");
       return;
     }
 
@@ -703,19 +717,27 @@ export default function TaxManagement() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Payment Method
+                  Pay from account
                 </label>
                 <select
                   value={settlementPaymentMethod}
                   onChange={(e) => setSettlementPaymentMethod(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={taxPayAccountsLoading || !taxPayAccounts.length}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
                 >
-                  <option value="cash">Cash</option>
-                  <option value="card">Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="check">Check</option>
+                  {!taxPayAccounts.length && (
+                    <option value="">{taxPayAccountsLoading ? "Loading accounts…" : "No payment accounts"}</option>
+                  )}
+                  {taxPayAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name}
+                      {acc.accountType ? ` (${acc.accountType})` : ""}
+                    </option>
+                  ))}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Accounts are managed under Payment Accounts (same list as /payments/management).
+                </p>
               </div>
 
               <div className="flex space-x-3 pt-4">

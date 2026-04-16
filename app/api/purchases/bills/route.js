@@ -319,26 +319,8 @@ async function finalizeInventoryPurchaseBill(tx, bill, tenantId, userId) {
     throw new Error('Inventory account not found. Please set up your chart of accounts.');
   }
 
-  // Get or create accounts payable account
-  let apAccount = await tx.account.findFirst({
-    where: {
-      tenantId,
-      accountCode: '2100',
-      accountType: 'Liability',
-      isActive: true
-    }
-  });
-
-  if (!apAccount) {
-    apAccount = await tx.account.findFirst({
-      where: {
-        tenantId,
-        accountName: { contains: 'Accounts Payable', mode: 'insensitive' },
-        accountType: 'Liability',
-        isActive: true
-      }
-    });
-  }
+  const { findAccountsPayableGlAccount } = await import('@/lib/coaPostingCodes');
+  const apAccount = await findAccountsPayableGlAccount(tenantId, tx);
 
   if (!apAccount) {
     throw new Error('Accounts Payable account not found. Please set up your chart of accounts.');
