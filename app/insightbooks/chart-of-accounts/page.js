@@ -369,10 +369,14 @@ export default function AdminSystemChartOfAccountsPage() {
       }
       setTenantInventory(inv);
       setTenantInventoryError(null);
-      const gl = inv.meta?.chartAccountCount ?? 0;
+      const gl = inv.meta?.combinedGlCatalogCount ?? inv.meta?.chartAccountCount ?? 0;
       const pay = inv.meta?.paymentAccountCount ?? 0;
       const tn = inv.meta?.tenantCount ?? 0;
-      setMessage(`Pulled ${gl} GL / chart rows and ${pay} payment (management) accounts across ${tn} tenants.`);
+      const bp = inv.meta?.blueprintCatalogCount ?? 0;
+      const sd = inv.meta?.savedDefinitionCatalogCount ?? 0;
+      setMessage(
+        `Pulled GL catalog: ${gl} rows (${inv.meta?.chartAccountCount ?? 0} tenant DB + ${bp} default blueprint + ${sd} saved definition) and ${pay} payment accounts across ${tn} tenants. Merges are configured in the system template above, then Apply to all tenants.`
+      );
     } catch (e) {
       setTenantInventoryError(e?.message || "Tenant pull failed");
     } finally {
@@ -466,30 +470,52 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const systemCodeSet = useMemo(() => new Set((payload?.accounts || []).map((a) => a.code)), [payload]);
 
+  /** Tenant DB rows + default blueprint (code) + saved system definition (DB) — full GL picture for merge planning. */
+  const allGlInventoryRows = useMemo(() => {
+    if (!tenantInventory) return [];
+    const tenant = (tenantInventory.chartAccounts || []).map((r) => ({ ...r, _inventorySource: "tenant" }));
+    const bp = (tenantInventory.blueprintChartCatalog || []).map((r) => ({ ...r, _inventorySource: "blueprint" }));
+    const sd = (tenantInventory.savedDefinitionCatalog || []).map((r) => ({ ...r, _inventorySource: "saved_definition" }));
+    return [...tenant, ...bp, ...sd];
+  }, [tenantInventory]);
+
   const filteredTenantChart = useMemo(() => {
-    const rows = tenantInventory?.chartAccounts || [];
     const tid = tenantIdFilter.trim();
     const q = tenantSearch.trim();
-    return rows.filter((r) => {
-      if (tid && r.tenantId !== tid) return false;
-      const blob = [
-        r.tenant?.name,
-        r.tenant?.subdomain,
-        r.accountCode,
-        r.accountName,
-        r.accountType,
-        r.accountSubtype,
-        r.description,
-        r.mergedIntoAccount?.accountCode,
-        r.mergedIntoAccount?.accountName,
-        r.parentAccount?.accountCode,
-        r.parentAccount?.accountName,
-      ]
-        .filter(Boolean)
-        .join(" ");
+    return allGlInventoryRows.filter((r) => {
+      if (tid && r._inventorySource === "tenant" && r.tenantId !== tid) return false;
+      const blob =
+        r._inventorySource === "tenant"
+          ? [
+              r.tenant?.name,
+              r.tenant?.subdomain,
+              r.accountCode,
+              r.accountName,
+              r.accountType,
+              r.accountSubtype,
+              r.description,
+              r.mergedIntoAccount?.accountCode,
+              r.mergedIntoAccount?.accountName,
+              r.parentAccount?.accountCode,
+              r.parentAccount?.accountName,
+            ]
+              .filter(Boolean)
+              .join(" ")
+          : [
+              r.code,
+              r.name,
+              r.type,
+              r.subtype,
+              r.parentCode,
+              r.description,
+              r._inventorySource,
+              r.isSystem ? "system" : "",
+            ]
+              .filter(Boolean)
+              .join(" ");
       return textMatchesTokenSearch(blob, q);
     });
-  }, [tenantInventory, tenantIdFilter, tenantSearch]);
+  }, [allGlInventoryRows, tenantIdFilter, tenantSearch]);
 
   const filteredTenantPayments = useMemo(() => {
     const rows = tenantInventory?.paymentAccounts || [];
@@ -1015,21 +1041,27 @@ export default function AdminSystemChartOfAccountsPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <h2 id="tenant-inventory-heading" className="text-lg font-semibold text-slate-900">
-              Tenant chart &amp; payment accounts
+              Full GL catalog (entire system)
             </h2>
             <p className="mt-1 max-w-3xl text-sm leading-relaxed text-slate-600">
-              Pull a read-only snapshot of what every business uses today: the same GL rows as tenant{" "}
-              <span className="font-medium text-slate-800">/chart-of-accounts</span> and the same payment methods as{" "}
-              <span className="font-medium text-slate-800">/payments/management</span> (cash, bank, wallet, POS, etc.).
-              Use it to decide which codes to keep in the system template, what to merge, and which payment accounts
-              still need a linked GL code.
+              One pull lists <strong>everywhere</strong> chart-of-accounts codes appear: <strong>all tenant databases</strong> (same as
+              each business&apos;s <span className="font-medium text-slate-800">/chart-of-accounts</span>), the{" "}
+              <strong>default hard-coded blueprint</strong> shipped in code, and the <strong>saved system definition</strong> in the
+              database (the template you edit above). Use search to find similar names, then add or merge codes in the{" "}
+              <strong>system template</strong> and <strong>Apply to all tenants</strong>. Payment methods still come from{" "}
+              <span className="font-medium text-slate-800">/payments/management</span>.
             </p>
             {tenantInventory?.meta && (
               <p className="mt-2 text-xs text-slate-500">
                 Last pull:{" "}
-                <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> GL rows,{" "}
-                <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment
-                accounts, <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
+                <span className="font-medium text-slate-700">{tenantInventory.meta.combinedGlCatalogCount ?? tenantInventory.meta.chartAccountCount}</span>{" "}
+                GL catalog rows (
+                <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> tenant DB +{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.blueprintCatalogCount ?? 0}</span> blueprint +{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.savedDefinitionCatalogCount ?? 0}</span> saved
+                definition),{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment accounts,{" "}
+                <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
                 {tenantInventory.meta.filteredByTenantId ? ` (API filtered to one tenant)` : ""}.
               </p>
             )}
@@ -1046,7 +1078,7 @@ export default function AdminSystemChartOfAccountsPage() {
               ) : (
                 <CloudDownload className="h-5 w-5 shrink-0" />
               )}
-              {tenantInventory ? "Refresh tenant pull" : "Pull all tenant accounts"}
+              {tenantInventory ? "Refresh full catalog" : "Pull full GL catalog"}
             </button>
           </div>
         </div>
@@ -1073,8 +1105,8 @@ export default function AdminSystemChartOfAccountsPage() {
         {!tenantInventory && !tenantInventoryError && !tenantPullLoading && (
           <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-8 text-center">
             <p className="mx-auto max-w-lg text-sm text-slate-600">
-              No tenant snapshot loaded yet. Press <strong>Pull all tenant accounts</strong> above to load every
-              business&apos;s chart of accounts and payment management accounts into this page.
+              No catalog loaded yet. Press <strong>Pull full GL catalog</strong> above to load tenant chart rows, the default
+              hard-coded blueprint, the saved system definition from the database, and payment accounts from every business.
             </p>
           </div>
         )}
@@ -1082,7 +1114,7 @@ export default function AdminSystemChartOfAccountsPage() {
         {tenantPullLoading && !tenantInventory && (
           <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-12 text-slate-600">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="text-sm font-medium">Pulling accounts from all tenants…</span>
+            <span className="text-sm font-medium">Pulling full GL catalog from the system…</span>
           </div>
         )}
 
@@ -1091,7 +1123,7 @@ export default function AdminSystemChartOfAccountsPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
               <div className="min-w-0 flex-1 sm:max-w-xs">
                 <label htmlFor="tenant-inv-filter" className="block text-xs font-medium text-slate-600">
-                  Business
+                  Business (tenant DB rows only)
                 </label>
                 <select
                   id="tenant-inv-filter"
@@ -1106,6 +1138,9 @@ export default function AdminSystemChartOfAccountsPage() {
                     </option>
                   ))}
                 </select>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Blueprint and saved-definition rows always stay visible; this filter only narrows tenant DB rows.
+                </p>
               </div>
               <div className="min-w-0 flex-1 sm:max-w-md">
                 <label htmlFor="tenant-inv-search" className="block text-xs font-medium text-slate-600">
@@ -1136,7 +1171,7 @@ export default function AdminSystemChartOfAccountsPage() {
                 }`}
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
-                GL / chart ({filteredTenantChart.length})
+                GL / full catalog ({filteredTenantChart.length})
               </button>
               <button
                 type="button"
@@ -1158,35 +1193,58 @@ export default function AdminSystemChartOfAccountsPage() {
                   <table className="w-full min-w-[720px] border-collapse text-left text-xs sm:text-sm">
                     <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase tracking-wide text-slate-600">
                       <tr>
-                        <th className="px-2 py-2">Tenant</th>
+                        <th className="px-2 py-2">Origin</th>
                         <th className="px-2 py-2 font-mono">Code</th>
                         <th className="min-w-0 px-2 py-2">Name</th>
                         <th className="hidden px-2 py-2 lg:table-cell">Type</th>
                         <th className="hidden px-2 py-2 md:table-cell">Parent</th>
                         <th className="px-2 py-2">Status</th>
-                        <th className="px-2 py-2 text-right">Template</th>
+                        <th className="px-2 py-2 text-right">Editor template</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredTenantChart.map((r) => {
-                        const code = (r.accountCode || "").trim();
-                        const inTemplate = code && systemCodeSet.has(code);
+                        const isTenant = r._inventorySource === "tenant";
+                        const isBp = r._inventorySource === "blueprint";
+                        const code = (isTenant ? r.accountCode : r.code) || "";
+                        const codeTrim = String(code).trim();
+                        const dispName = isTenant ? r.accountName : r.name;
+                        const dispType = isTenant ? r.accountType : r.type;
+                        const parentDisp = isTenant ? r.parentAccount?.accountCode || "—" : r.parentCode || "—";
+                        const inTemplate = codeTrim && systemCodeSet.has(codeTrim);
+                        const rowKey = isTenant ? r.id : `${r._inventorySource}-${r.code}`;
+                        const rowTint =
+                          isBp ? "bg-sky-50/40" : r._inventorySource === "saved_definition" ? "bg-violet-50/35" : "";
                         return (
-                          <tr key={r.id} className="border-b border-slate-100 hover:bg-slate-50/80">
-                            <td className="max-w-[140px] px-2 py-2 align-top">
-                              <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
-                                {r.tenant?.name || "—"}
-                              </div>
-                              <div className="truncate text-[11px] text-slate-500" title={r.tenant?.subdomain}>
-                                {r.tenant?.subdomain}
-                              </div>
+                          <tr key={rowKey} className={`border-b border-slate-100 hover:bg-slate-50/80 ${rowTint}`}>
+                            <td className="max-w-[160px] px-2 py-2 align-top">
+                              {isTenant ? (
+                                <>
+                                  <div className="truncate font-medium text-slate-800" title={r.tenant?.name}>
+                                    {r.tenant?.name || "—"}
+                                  </div>
+                                  <div className="truncate text-[11px] text-slate-500" title={r.tenant?.subdomain}>
+                                    {r.tenant?.subdomain}
+                                  </div>
+                                </>
+                              ) : isBp ? (
+                                <>
+                                  <div className="font-medium text-sky-950">Default blueprint</div>
+                                  <div className="text-[11px] text-sky-800">Hard-coded in app</div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="font-medium text-violet-950">Saved definition</div>
+                                  <div className="text-[11px] text-violet-800">Database template</div>
+                                </>
+                              )}
                             </td>
                             <td className="whitespace-nowrap px-2 py-2 font-mono text-xs font-semibold text-slate-900">
-                              {r.accountCode || "—"}
+                              {codeTrim || "—"}
                             </td>
                             <td className="min-w-0 px-2 py-2 text-slate-800">
-                              <div className="break-words">{r.accountName || "—"}</div>
-                              {r.mergedIntoAccount && (
+                              <div className="break-words">{dispName || "—"}</div>
+                              {isTenant && r.mergedIntoAccount && (
                                 <div className="mt-0.5 text-[11px] text-violet-700">
                                   Merged → {r.mergedIntoAccount.accountCode}{" "}
                                   {r.mergedIntoAccount.accountName ? `(${r.mergedIntoAccount.accountName})` : ""}
@@ -1194,36 +1252,42 @@ export default function AdminSystemChartOfAccountsPage() {
                               )}
                             </td>
                             <td className="hidden whitespace-nowrap px-2 py-2 text-slate-600 lg:table-cell">
-                              {r.accountType || "—"}
+                              {dispType || "—"}
                             </td>
                             <td className="hidden px-2 py-2 font-mono text-[11px] text-slate-600 md:table-cell">
-                              {r.parentAccount?.accountCode || "—"}
+                              {parentDisp}
                             </td>
                             <td className="whitespace-nowrap px-2 py-2">
-                              {!r.isActive ? (
-                                <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
-                                  Inactive
-                                </span>
-                              ) : r.mergedIntoAccountId ? (
-                                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-800">
-                                  Merged
-                                </span>
+                              {isTenant ? (
+                                !r.isActive ? (
+                                  <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
+                                    Inactive
+                                  </span>
+                                ) : r.mergedIntoAccountId ? (
+                                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-violet-800">
+                                    Merged
+                                  </span>
+                                ) : (
+                                  <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
+                                    Active
+                                  </span>
+                                )
                               ) : (
-                                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
-                                  Active
+                                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                                  Reference
                                 </span>
                               )}
                             </td>
                             <td className="whitespace-nowrap px-2 py-2 text-right">
                               {inTemplate ? (
-                                <span className="text-[11px] font-medium text-emerald-700">In template</span>
-                              ) : code ? (
+                                <span className="text-[11px] font-medium text-emerald-700">In editor</span>
+                              ) : codeTrim ? (
                                 <button
                                   type="button"
                                   className="text-[11px] font-semibold text-indigo-600 hover:underline"
                                   onClick={() => {
-                                    openAdd(code, r.accountName || "");
-                                    setMessage("Prefilled Add account from tenant row — pick parent and save.");
+                                    openAdd(codeTrim, dispName || "");
+                                    setMessage("Prefilled Add account in the system template above — pick parent, Save, then Apply to all tenants.");
                                   }}
                                 >
                                   Add to template

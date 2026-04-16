@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminFromRequest } from '@/lib/adminAuth';
+import {
+  buildDefaultSystemCoaPayload,
+  validateSystemCoaPayload,
+} from '@/lib/systemCoaPayload';
+
+const SYSTEM_COA_ID = 'default';
 
 /**
- * Admin-only: all tenant-scoped GL accounts and payment accounts (read-only inventory)
- * for reconciling the system chart template against real tenant data.
+ * Admin-only: tenant GL accounts, payment accounts, plus default blueprint and saved system definition
+ * (read-only catalog for /insightbooks/chart-of-accounts merge planning).
  */
 export async function GET(request) {
   try {
@@ -85,9 +91,52 @@ export async function GET(request) {
       ...paymentAccounts.map((p) => p.tenantId),
     ]);
 
+    const defaultPayload = buildDefaultSystemCoaPayload();
+    const blueprintChartCatalog = (defaultPayload.accounts || []).map((a) => ({
+      _inventorySource: 'blueprint',
+      code: a.code,
+      name: a.name,
+      type: a.type,
+      subtype: a.subtype ?? null,
+      parentCode: a.parentCode ?? null,
+      normalBalance: a.normalBalance ?? null,
+      isSystem: Boolean(a.isSystem),
+      description: a.description ?? null,
+    }));
+
+    let savedDefinitionCatalog = [];
+    try {
+      const defRow = await prisma.systemCoaDefinition.findUnique({
+        where: { id: SYSTEM_COA_ID },
+        select: { payload: true },
+      });
+      if (defRow?.payload && typeof defRow.payload === 'object') {
+        const v = validateSystemCoaPayload(defRow.payload);
+        if (v.ok && Array.isArray(v.payload.accounts)) {
+          savedDefinitionCatalog = v.payload.accounts.map((a) => ({
+            _inventorySource: 'saved_definition',
+            code: a.code,
+            name: a.name,
+            type: a.type,
+            subtype: a.subtype ?? null,
+            parentCode: a.parentCode ?? null,
+            normalBalance: a.normalBalance ?? null,
+            isSystem: Boolean(a.isSystem),
+            description: a.description ?? null,
+          }));
+        }
+      }
+    } catch (e) {
+      console.warn('tenant-accounts: saved definition catalog skipped:', e?.message || e);
+    }
+
     return NextResponse.json({
       meta: {
         chartAccountCount: chartAccounts.length,
+        blueprintCatalogCount: blueprintChartCatalog.length,
+        savedDefinitionCatalogCount: savedDefinitionCatalog.length,
+        combinedGlCatalogCount:
+          chartAccounts.length + blueprintChartCatalog.length + savedDefinitionCatalog.length,
         paymentAccountCount: paymentAccounts.length,
         tenantCount: tenantSummaries.length,
         distinctTenantIdsInRows: tenantIds.size,
@@ -102,6 +151,8 @@ export async function GET(request) {
         paymentAccountCount: t._count.paymentAccounts,
       })),
       chartAccounts,
+      blueprintChartCatalog,
+      savedDefinitionCatalog,
       paymentAccounts,
     });
   } catch (error) {
