@@ -451,17 +451,35 @@ export async function GET(request) {
         },
         select: {
           stockLevel: true,
-          cost: true
+          cost: true,
+          totalStockValue: true,
+          averageCost: true
         }
       });
     } catch (error) {
       console.error('Error fetching inventory products:', error);
     }
+    // Same valuation as dashboard / balance sheet: prefer stored totalStockValue, else cost×qty, else averageCost×qty
     const totalInventoryValue = inventoryProducts.reduce((sum, product) => {
-      const qty = parseFloat(product.stockLevel) || 0;
-      const cost = parseFloat(product.cost) || 0;
-      const productValue = qty * cost;
-      return sum + productValue;
+      try {
+        const stored =
+          product.totalStockValue != null ? Number(product.totalStockValue) : null;
+        if (stored != null && !Number.isNaN(stored) && stored > 0) {
+          return sum + stored;
+        }
+        const qty = Number(product.stockLevel);
+        const cost = Number(product.cost);
+        if (!Number.isNaN(qty) && !Number.isNaN(cost)) {
+          return sum + qty * cost;
+        }
+        const avg = Number(product.averageCost);
+        if (!Number.isNaN(qty) && !Number.isNaN(avg)) {
+          return sum + qty * avg;
+        }
+        return sum;
+      } catch {
+        return sum;
+      }
     }, 0);
     
     // Debug logging
@@ -863,6 +881,7 @@ export async function GET(request) {
 
         // Add balances from other sources based on account type and name
         let additionalBalance = 0;
+        let isInventoryLedger = false;
 
         if (!hasChildren) {
         // Accounts Receivable (code 1100 or name contains "receivable")
@@ -875,14 +894,17 @@ export async function GET(request) {
           console.log(`✅ Matched AR account: ${accountCode} - ${account.accountName || account.name}, value: ${totalAccountsReceivable}`);
         }
         
-        // Inventory: standard code 1300 (1200 is AR in this product). Name match for custom setups.
-        const isInventoryAccount = accountCode === '1300' ||
-                                   accountCode.startsWith('1300') ||
-                                   (accountName.includes('inventory') &&
-                                     !accountName.includes('receivable'));
-        
-        if (isInventoryAccount && (accountType === 'ASSET' || accountType === 'Asset')) {
-          additionalBalance += totalInventoryValue;
+        // Inventory: canonical 1300 only (avoid 13000/13001 each receiving full tenant stock).
+        // Name match for custom setups. Like AR: subledger replaces GL on this row so FIFO/totalStockValue is not double-counted with journals.
+        const isInventoryAccount =
+          accountCode === '1300' ||
+          (accountName.includes('inventory') && !accountName.includes('receivable'));
+        isInventoryLedger =
+          isInventoryAccount && (accountType === 'ASSET' || accountType === 'Asset');
+
+        if (isInventoryLedger) {
+          balance = totalInventoryValue;
+          additionalBalance = 0;
           console.log(`✅ Matched inventory account: ${accountCode} - ${account.accountName || account.name}, value: ${totalInventoryValue}`);
         } else if (isInventoryAccount) {
           console.log(`⚠️ Inventory account ${accountCode} - ${account.accountName || account.name} type mismatch: ${accountType} (expected ASSET)`);
@@ -890,7 +912,8 @@ export async function GET(request) {
         
         // Assets/Equipment/Furniture/Vehicles (non-current assets)
         // Match by account code ranges (1300-1599 for assets) or by name
-        if (isAssetAccount) {
+        // Skip when this row is the inventory subledger (1300 / name) so equipment heuristics do not stack on inventory.
+        if (isAssetAccount && !isInventoryLedger) {
           // Try to match asset category to account name or code
           const matchingAssets = assets.filter(asset => {
             const categoryName = (asset.category?.name || '').toLowerCase();
@@ -1154,6 +1177,8 @@ export async function GET(request) {
         if (isAccountsReceivable) {
           // Accounts Receivable: use ONLY unpaid invoices (already set in balance above)
           finalBalance = balance; // balance is already set to totalAccountsReceivable above
+        } else if (isInventoryLedger) {
+          finalBalance = balance;
         } else {
           // Other accounts: combine journal entries + additional balances
           const totalOtherBalances = additionalBalance;
