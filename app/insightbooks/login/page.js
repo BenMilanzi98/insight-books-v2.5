@@ -46,12 +46,16 @@ export default function AdminLogin() {
           window.location.href = '/insightbooks/dashboard';
         }, 500);
       } else {
-        setError(
+        const hint =
+          typeof data.details === 'string' && data.details.trim()
+            ? ` (${data.details.trim()})`
+            : '';
+        const base =
           data.error ||
-            (response.status === 503
-              ? 'Service unavailable. The server may be missing JWT configuration.'
-              : 'Login failed')
-        );
+          (response.status === 503
+            ? 'Service unavailable. The server may be missing JWT configuration.'
+            : 'Login failed');
+        setError(base + hint);
       }
     } catch (error) {
       setError('Network error. Please try again.');

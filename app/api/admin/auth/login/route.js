@@ -6,19 +6,31 @@ import { getJwtSecret } from '@/lib/serverJwtSecret';
 
 export async function POST(request) {
   try {
-    const { email, password } = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
 
-    // Validate input
-    if (!email || !password) {
+    const emailRaw = typeof body?.email === 'string' ? body.email.trim() : '';
+    const passwordRaw = typeof body?.password === 'string' ? body.password : '';
+
+    if (!emailRaw || !passwordRaw) {
       return NextResponse.json(
         { success: false, error: 'Email and password are required' },
         { status: 400 }
       );
     }
 
+    const emailNorm = emailRaw.toLowerCase();
+
     // Find admin user
     const admin = await prisma.admin.findUnique({
-      where: { email: email.toLowerCase() },
+      where: { email: emailNorm },
       select: {
         id: true,
         email: true,
@@ -39,7 +51,17 @@ export async function POST(request) {
     }
 
     // Verify password
-    const isValidPassword = await bcrypt.compare(password, admin.password);
+    let isValidPassword = false;
+    try {
+      if (!admin.password || typeof admin.password !== 'string') {
+        isValidPassword = false;
+      } else {
+        isValidPassword = await bcrypt.compare(passwordRaw, admin.password);
+      }
+    } catch (compareErr) {
+      console.error('Admin login bcrypt error:', compareErr);
+      isValidPassword = false;
+    }
     if (!isValidPassword) {
       return NextResponse.json(
         { success: false, error: 'Invalid credentials' },
@@ -47,43 +69,42 @@ export async function POST(request) {
       );
     }
 
-    // Update last login
-    await prisma.admin.update({
-      where: { id: admin.id },
-      data: { lastLogin: new Date() }
-    });
+    // Update last login (non-fatal)
+    try {
+      await prisma.admin.update({
+        where: { id: admin.id },
+        data: { lastLogin: new Date() },
+      });
+    } catch (e) {
+      console.error('Admin login lastLogin update skipped:', e?.message || e);
+    }
 
-    // Create admin audit log
-    await prisma.adminAuditLog.create({
-      data: {
-        adminId: admin.id,
-        action: 'LOGIN',
-        entityType: 'ADMIN',
-        entityId: admin.id,
-        details: 'Admin logged in successfully',
-        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown'
-      }
-    });
+    // Audit log (non-fatal — login must succeed even if log table fails)
+    try {
+      await prisma.adminAuditLog.create({
+        data: {
+          adminId: admin.id,
+          action: 'LOGIN',
+          entityType: 'ADMIN',
+          entityId: admin.id,
+          details: 'Admin logged in successfully',
+          ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
+          userAgent: request.headers.get('user-agent') || 'unknown',
+        },
+      });
+    } catch (e) {
+      console.error('Admin login audit log skipped:', e?.message || e);
+    }
 
     // Generate JWT token (requires JWT_SECRET in production)
-    let token;
+    let secret;
     try {
-      token = jwt.sign(
-        {
-          adminId: admin.id,
-          email: admin.email,
-          role: admin.role,
-          isAdmin: true
-        },
-        getJwtSecret(),
-        { expiresIn: '24h' }
-      );
-    } catch (signErr) {
+      secret = getJwtSecret();
+    } catch (secretErr) {
       if (
-        signErr?.message?.includes('JWT_SECRET') ||
-        signErr?.message?.includes('SESSION_SECRET') ||
-        signErr?.message?.includes('production')
+        secretErr?.message?.includes('JWT_SECRET') ||
+        secretErr?.message?.includes('SESSION_SECRET') ||
+        secretErr?.message?.includes('production')
       ) {
         return NextResponse.json(
           {
@@ -94,7 +115,30 @@ export async function POST(request) {
           { status: 503 }
         );
       }
-      throw signErr;
+      throw secretErr;
+    }
+
+    let token;
+    try {
+      token = jwt.sign(
+        {
+          adminId: admin.id,
+          email: admin.email,
+          role: admin.role,
+          isAdmin: true,
+        },
+        secret,
+        { expiresIn: '24h' }
+      );
+    } catch (signErr) {
+      console.error('Admin login JWT sign error:', signErr);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Sign-in failed while issuing a session token. Check server logs and JWT configuration.',
+        },
+        { status: 503 }
+      );
     }
 
     // Create response with admin data
