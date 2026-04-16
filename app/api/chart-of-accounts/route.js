@@ -27,6 +27,7 @@ const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code |
 /**
  * Parent account rows should equal sum of child balances plus any balance posted
  * directly to the parent account (avoids aggregate heuristics double-counting vs children).
+ * Uses postedDirectBalance (GL + rules on that row only) so rollup is not affected by in-place updates.
  */
 function applyCoaParentRollup(accounts) {
   const list = accounts.map((a) => ({ ...a }));
@@ -47,8 +48,11 @@ function applyCoaParentRollup(accounts) {
     if (!acc) return 0;
     const childIds = childrenByParent.get(id) || [];
     const code = String(acc.accountCode || acc.code || '');
+    const directBase = Number.isFinite(Number(acc.postedDirectBalance))
+      ? Number(acc.postedDirectBalance)
+      : Number(acc.currentBalance) || 0;
     // Capital parent 500000: stored balance mirrors transferable pool; roll up from children only to avoid double-count.
-    const direct = code === '500000' ? 0 : Number(acc.currentBalance) || 0;
+    const direct = code === '500000' ? 0 : directBase;
     if (childIds.length === 0) {
       memo.set(id, direct);
       return direct;
@@ -62,6 +66,84 @@ function applyCoaParentRollup(accounts) {
     a.currentBalance = rollup(a.id);
   }
   return list;
+}
+
+/** Same display code on multiple Account rows breaks parent/child rollup — merge into one row and remap parent ids. */
+function mergeDuplicateAccountCodeRows(accounts) {
+  if (!Array.isArray(accounts) || accounts.length === 0) return accounts;
+  const keyFor = (a) => {
+    const c = String(a.accountCode || a.code || '').trim().toLowerCase();
+    return c || null;
+  };
+  const groups = new Map();
+  const noCodeKey = [];
+  for (const a of accounts) {
+    const k = keyFor(a);
+    if (!k) {
+      noCodeKey.push(a);
+      continue;
+    }
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(a);
+  }
+  const idRemap = new Map();
+  const pickCanonical = (group) => {
+    const score = (r) =>
+      (Number(r.postedEntryCount) || 0) * 1e12 +
+      (Number(r.transactionCount) || 0) * 1e6 +
+      Math.abs(Number(r.postedDirectBalance ?? r.currentBalance) || 0);
+    return [...group].sort((a, b) => score(b) - score(a))[0];
+  };
+  const out = [...noCodeKey];
+  for (const [, group] of groups) {
+    if (group.length === 1) {
+      out.push(group[0]);
+      continue;
+    }
+    const canonical = { ...pickCanonical(group) };
+    const others = group.filter((x) => x.id !== canonical.id);
+    for (const d of others) {
+      idRemap.set(d.id, canonical.id);
+    }
+    let sumPosted = Number(canonical.postedDirectBalance ?? canonical.currentBalance) || 0;
+    let sumCur = Number(canonical.currentBalance) || 0;
+    let sumTx = Number(canonical.transactionCount) || 0;
+    let sumPostedCount = Number(canonical.postedEntryCount) || 0;
+    let sumDraft = Number(canonical.draftEntryCount) || 0;
+    let sumJbal = Number(canonical.journalEntryBalance) || 0;
+    let sumAdd = Number(canonical.additionalBalance) || 0;
+    for (const d of others) {
+      sumPosted += Number(d.postedDirectBalance ?? d.currentBalance) || 0;
+      sumCur += Number(d.currentBalance) || 0;
+      sumTx += Number(d.transactionCount) || 0;
+      sumPostedCount += Number(d.postedEntryCount) || 0;
+      sumDraft += Number(d.draftEntryCount) || 0;
+      sumJbal += Number(d.journalEntryBalance) || 0;
+      sumAdd += Number(d.additionalBalance) || 0;
+    }
+    canonical.postedDirectBalance = sumPosted;
+    canonical.currentBalance = sumCur;
+    canonical.transactionCount = sumTx;
+    canonical.postedEntryCount = sumPostedCount;
+    canonical.draftEntryCount = sumDraft;
+    canonical.journalEntryBalance = sumJbal;
+    canonical.additionalBalance = sumAdd;
+    out.push(canonical);
+  }
+  const remapPid = (pid) => {
+    if (!pid) return pid;
+    const seen = new Set();
+    let p = pid;
+    while (p && idRemap.has(p) && !seen.has(p)) {
+      seen.add(p);
+      p = idRemap.get(p);
+    }
+    return p;
+  };
+  return out.map((a) => ({
+    ...a,
+    parentAccountId: remapPid(a.parentAccountId),
+  }));
 }
 
 // GET - List all accounts with filtering and search
@@ -1093,6 +1175,8 @@ export async function GET(request) {
 
         const accountResult = {
           ...account,
+          /** GL + heuristics on this account id only (before parent/child rollup). */
+          postedDirectBalance: finalBalance,
           currentBalance: finalBalance,
           transactionCount: postedLines.length + txAgg.lineCount,
           postedEntryCount: postedLines.length + txAgg.lineCount,
@@ -1117,6 +1201,7 @@ export async function GET(request) {
         // Return account with zero balance if calculation fails
         return {
           ...account,
+          postedDirectBalance: 0,
           currentBalance: 0,
           transactionCount: 0,
           postedEntryCount: 0,
@@ -1138,6 +1223,7 @@ export async function GET(request) {
           const account = accounts[index];
           return {
             ...account,
+            postedDirectBalance: 0,
             currentBalance: 0,
             transactionCount: 0,
             postedEntryCount: 0,
@@ -1149,29 +1235,8 @@ export async function GET(request) {
       })
       .filter(account => account !== null && account !== undefined);
 
-    // Deduplicate accounts by accountCode (keep the one with the highest balance or most recent)
-    const accountMap = new Map();
-    for (const account of successfulAccounts) {
-      const code = (account.accountCode || account.code || '').trim();
-      const dedupeKey = code || `__id__${account.id}`;
-      const existing = accountMap.get(dedupeKey);
-      if (!existing) {
-        accountMap.set(dedupeKey, account);
-      } else {
-        // If duplicate, keep the one with higher balance or more transactions
-        const existingBalance = Math.abs(existing.currentBalance || 0);
-        const newBalance = Math.abs(account.currentBalance || 0);
-        const existingTransactions = existing.transactionCount || 0;
-        const newTransactions = account.transactionCount || 0;
-        
-        if (newBalance > existingBalance || 
-            (newBalance === existingBalance && newTransactions > existingTransactions)) {
-          accountMap.set(dedupeKey, account);
-        }
-      }
-    }
-    
-    const deduplicatedAccounts = Array.from(accountMap.values());
+    // Same accountCode on multiple rows breaks hierarchy rollup — merge amounts and remap parents.
+    const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
     const accountsWithParentRollup = applyCoaParentRollup(deduplicatedAccounts);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');

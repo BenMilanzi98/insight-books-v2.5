@@ -515,6 +515,8 @@ const ChartOfAccountsPage = () => {
         // List endpoint includes rollup for parent accounts; detail GET is GL-only on that code.
         setSelectedAccount({
           ...data,
+          postedDirectBalance:
+            account.postedDirectBalance != null ? account.postedDirectBalance : data.postedDirectBalance,
           currentBalance:
             account.currentBalance != null ? account.currentBalance : data.currentBalance,
         });
@@ -648,6 +650,13 @@ const ChartOfAccountsPage = () => {
 
     const isLocked = account.isSystem || account.transactionCount > 0;
     const rootTheme = isRoot ? ROOT_THEME[String(accountCode)] : null;
+    const showRollupHint =
+      hasChildren &&
+      account.postedDirectBalance != null &&
+      Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005;
+    const rollupBalanceTitle = showRollupHint
+      ? `Posted on this account only: ${formatCurrency(account.postedDirectBalance)}. Total including all sub-accounts: ${formatCurrency(account.currentBalance || 0)}. Immediate sub-rows add up (with any amount on this code) to match the parent total.`
+      : undefined;
 
     return (
       <React.Fragment key={account.id}>
@@ -715,7 +724,10 @@ const ChartOfAccountsPage = () => {
               ) : null}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:hidden">
-              <span className="font-mono text-xs tabular-nums font-medium text-slate-700">
+              <span
+                className="font-mono text-xs tabular-nums font-medium text-slate-700"
+                title={rollupBalanceTitle || undefined}
+              >
                 {formatCurrency(account.currentBalance || 0)}
               </span>
               {acctType ? (
@@ -735,7 +747,10 @@ const ChartOfAccountsPage = () => {
               {acctType || '—'}
             </span>
           </td>
-          <td className="hidden px-3 py-2.5 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-4 sm:py-3 md:text-[13px]">
+          <td
+            className="hidden px-3 py-2.5 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-4 sm:py-3 md:text-[13px]"
+            title={rollupBalanceTitle || undefined}
+          >
             {formatCurrency(account.currentBalance || 0)}
           </td>
           <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
@@ -1543,6 +1558,13 @@ const ViewAccountModal = ({ account, onClose }) => {
               <p className="text-base font-semibold text-gray-900">
                 {formatCurrency(account.currentBalance || 0)}
               </p>
+              {account.postedDirectBalance != null &&
+                Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    Posted on this code only: {formatCurrency(account.postedDirectBalance)} — total includes all
+                    sub-accounts shown on this row.
+                  </p>
+                )}
             </div>
           </div>
 
