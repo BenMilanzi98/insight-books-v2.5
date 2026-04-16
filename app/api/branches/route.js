@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
-import { hasPremiumAccess } from '@/lib/subscriptionService';
+import { hasStandardAccess } from '@/lib/subscriptionService';
 import { syncBranchActiveStatus } from '@/lib/branchSubscriptionService';
 
 // GET - list branches for current tenant
@@ -121,14 +121,13 @@ export async function POST(request) {
     // - Each additional branch must be paid separately
     // We still require the BUSINESS (tenant) itself to be subscribed to use the app.
     // This prevents bypassing tenant-level subscription entirely.
-    const hasTenantPremium = await hasPremiumAccess(user.tenantId);
+    const tenantCanUseApp = await hasStandardAccess(user.tenantId);
 
-    // If tenant isn't subscribed, they shouldn't be managing branches at all.
-    // (Keeps your existing "business requires subscription" requirement intact.)
-    if (!hasTenantPremium) {
+    // Trial or paid: tenant must have standard access (same bar as the rest of the app).
+    if (!tenantCanUseApp) {
       return NextResponse.json(
         {
-          error: 'Active business subscription required. Please subscribe to continue.',
+          error: 'Active subscription or trial required. Please subscribe to continue.',
           code: 'SUBSCRIPTION_REQUIRED',
           scope: 'tenant',
         },

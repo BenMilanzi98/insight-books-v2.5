@@ -31,7 +31,9 @@ export async function POST(request) {
     }
 
     await prisma.$transaction(async (tx) => {
-      await initializeNewTenantFinancialDefaults(user.tenantId, tx);
+      await initializeNewTenantFinancialDefaults(user.tenantId, tx, {
+        preferSystemCoaDefinition: false,
+      });
     });
 
     const [accountCount, paymentAccountCount] = await Promise.all([

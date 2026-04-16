@@ -15,6 +15,14 @@ describe('RBAC permission checks (hasPermission)', () => {
     expect(hasPermission(user, 'roles.delete')).toBe(true);
   });
 
+  it('allows Owner and Admin with empty permission maps (trial / full-access roles)', () => {
+    const owner = { role: { name: 'Owner', permissions: {} } };
+    expect(hasPermission(owner, 'users.view')).toBe(true);
+    expect(hasPermission(owner, 'roles.delete')).toBe(true);
+    const admin = { role: { name: 'Admin', permissions: {} } };
+    expect(hasPermission(admin, 'accounts.update')).toBe(true);
+  });
+
   it('supports nested permission maps', () => {
     const user = { role: { name: 'Staff', permissions: { users: { view: true, create: false } } } };
     expect(hasPermission(user, 'users.view')).toBe(true);

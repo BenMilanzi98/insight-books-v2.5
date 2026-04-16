@@ -21,12 +21,12 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Shield,
-  Sparkles,
   Wallet,
   Landmark,
   Scale,
   TrendingUp,
   Receipt,
+  Sparkles,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from '@/components/PermissionGuard';
@@ -74,46 +74,36 @@ const ChartOfAccountsPage = () => {
 
   const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
 
-  /** Visual theme per top-level GL bucket — cards, row accents, hero accents */
+  /** Accent per GL root — left stripe + icon tint (clean, not loud) */
   const ROOT_THEME = {
     '1000': {
-      bar: 'border-l-emerald-500',
-      rowBg: 'from-emerald-50/90 via-white to-white',
-      glow: 'bg-emerald-400/30',
-      card: 'from-emerald-500/[0.07] via-white to-white ring-emerald-200/40 hover:ring-emerald-300/50',
-      icon: 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-emerald-500/25',
+      accent: 'border-l-[3px] border-l-emerald-500',
+      rowBg: 'bg-emerald-50/50',
+      iconWrap: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100',
       Icon: Wallet,
     },
     '2000': {
-      bar: 'border-l-sky-500',
-      rowBg: 'from-sky-50/90 via-white to-white',
-      glow: 'bg-sky-400/30',
-      card: 'from-sky-500/[0.07] via-white to-white ring-sky-200/40 hover:ring-sky-300/50',
-      icon: 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-sky-500/25',
+      accent: 'border-l-[3px] border-l-sky-500',
+      rowBg: 'bg-sky-50/50',
+      iconWrap: 'bg-sky-50 text-sky-900 ring-1 ring-sky-100',
       Icon: Landmark,
     },
     '3000': {
-      bar: 'border-l-violet-500',
-      rowBg: 'from-violet-50/90 via-white to-white',
-      glow: 'bg-violet-400/30',
-      card: 'from-violet-500/[0.07] via-white to-white ring-violet-200/40 hover:ring-violet-300/50',
-      icon: 'bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-violet-500/25',
+      accent: 'border-l-[3px] border-l-violet-500',
+      rowBg: 'bg-violet-50/50',
+      iconWrap: 'bg-violet-50 text-violet-900 ring-1 ring-violet-100',
       Icon: Scale,
     },
     '4000': {
-      bar: 'border-l-amber-500',
-      rowBg: 'from-amber-50/80 via-white to-white',
-      glow: 'bg-amber-400/25',
-      card: 'from-amber-500/[0.08] via-white to-white ring-amber-200/50 hover:ring-amber-300/55',
-      icon: 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-amber-500/25',
+      accent: 'border-l-[3px] border-l-amber-500',
+      rowBg: 'bg-amber-50/40',
+      iconWrap: 'bg-amber-50 text-amber-950 ring-1 ring-amber-100',
       Icon: TrendingUp,
     },
     '5000': {
-      bar: 'border-l-rose-500',
-      rowBg: 'from-rose-50/90 via-white to-white',
-      glow: 'bg-rose-400/28',
-      card: 'from-rose-500/[0.07] via-white to-white ring-rose-200/40 hover:ring-rose-300/50',
-      icon: 'bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-rose-500/25',
+      accent: 'border-l-[3px] border-l-rose-500',
+      rowBg: 'bg-rose-50/50',
+      iconWrap: 'bg-rose-50 text-rose-900 ring-1 ring-rose-100',
       Icon: Receipt,
     },
   };
@@ -663,14 +653,14 @@ const ChartOfAccountsPage = () => {
       <React.Fragment key={account.id}>
         <tr
           className={[
-            'group/row border-b border-slate-100/80 transition-all duration-200',
+            'group/row border-b border-slate-100 transition-colors duration-150',
             !account.isActive ? 'opacity-50' : '',
             isRoot && rootTheme
-              ? `border-l-[3px] ${rootTheme.bar} bg-gradient-to-r ${rootTheme.rowBg} hover:shadow-[inset_0_0_0_9999px_rgba(255,255,255,0.35)]`
-              : 'border-l-[3px] border-l-transparent bg-white/90 hover:bg-gradient-to-r hover:from-slate-50/80 hover:to-white',
+              ? `${rootTheme.accent} ${rootTheme.rowBg} hover:bg-slate-50/90`
+              : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/90',
           ].join(' ')}
         >
-          <td className="px-4 py-3 align-middle">
+          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
             <div
               className="flex items-center gap-2.5 min-w-0"
               style={{ paddingLeft: `${level * 18}px` }}
@@ -679,14 +669,14 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={() => toggleExpand(account.id)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200/90 bg-gradient-to-b from-white to-slate-50 text-slate-600 shadow-sm ring-1 ring-slate-900/[0.03] transition hover:scale-105 hover:border-indigo-200 hover:text-indigo-700 hover:shadow-md"
+                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]"
                   aria-expanded={isExpanded}
                 >
                   {isExpanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
                 </button>
               ) : (
-                <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden>
-                  <span className="h-2 w-2 rounded-full bg-gradient-to-br from-slate-300 to-slate-400 shadow-inner" />
+                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
                 </span>
               )}
               <code
@@ -701,8 +691,8 @@ const ChartOfAccountsPage = () => {
               </code>
             </div>
           </td>
-          <td className="px-4 py-3 align-middle">
-            <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span
                 className={[
                   'min-w-0 text-[13px] leading-snug text-slate-900',
@@ -711,76 +701,92 @@ const ChartOfAccountsPage = () => {
               >
                 {accountName}
               </span>
+              {account.mergedIntoAccount ? (
+                <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-900 ring-1 ring-violet-100" title="System merge: row and code kept for audit; pickers use target">
+                  → {account.mergedIntoAccount.accountCode}{' '}
+                  {account.mergedIntoAccount.accountName || ''}
+                </span>
+              ) : null}
               {account.isSystem ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white shadow-md shadow-indigo-500/25">
+                <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
                   <Shield size={10} strokeWidth={2.5} />
                   System
                 </span>
               ) : null}
             </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:hidden">
+              <span className="font-mono text-xs tabular-nums font-medium text-slate-700">
+                {formatCurrency(account.currentBalance || 0)}
+              </span>
+              {acctType ? (
+                <span className={`text-[10px] font-medium capitalize ${typeBadgeClass(acctType)} rounded px-1.5 py-0`}>
+                  {acctType}
+                </span>
+              ) : null}
+            </div>
           </td>
-          <td className="px-4 py-3 align-middle">
+          <td className="hidden px-3 py-2.5 align-middle sm:table-cell sm:px-4 sm:py-3">
             <span
               className={[
-                'inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold capitalize shadow-sm',
+                'inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize',
                 typeBadgeClass(acctType),
               ].join(' ')}
             >
               {acctType || '—'}
             </span>
           </td>
-          <td className="px-4 py-3 text-right align-middle font-mono text-[13px] font-bold tabular-nums tracking-tight text-slate-800">
+          <td className="hidden px-3 py-2.5 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-4 sm:py-3 md:text-[13px]">
             {formatCurrency(account.currentBalance || 0)}
           </td>
-          <td className="px-4 py-3 align-middle">
+          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
             {account.isActive ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-emerald-50 to-teal-50 px-2.5 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/70">
-                <CheckCircle size={13} strokeWidth={2.5} className="text-emerald-600" />
-                Active
+              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-100 sm:text-xs">
+                <CheckCircle size={12} strokeWidth={2.5} className="text-emerald-600" />
+                <span className="hidden sm:inline">Active</span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200/90">
-                <XCircle size={13} strokeWidth={2.5} />
-                Inactive
+              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200 sm:text-xs">
+                <XCircle size={12} strokeWidth={2.5} />
+                <span className="hidden sm:inline">Inactive</span>
               </span>
             )}
           </td>
-          <td className="px-4 py-3 align-middle">
-            <div className="inline-flex items-center justify-end gap-0.5 rounded-2xl border border-slate-200/60 bg-slate-50/80 p-0.5 shadow-inner sm:justify-start">
+          <td className="px-2 py-2.5 align-middle sm:px-4 sm:py-3">
+            <div className="inline-flex items-center justify-end gap-0.5 rounded-lg border border-slate-200 bg-slate-50/90 p-0.5 sm:justify-start">
               <button
                 type="button"
                 onClick={() => openViewModal(account)}
-                className="rounded-xl p-2 text-slate-500 transition-all hover:bg-white hover:text-indigo-600 hover:shadow-sm"
+                className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-900 sm:p-2"
                 title="View details"
               >
-                <Eye size={16} strokeWidth={2} />
+                <Eye size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
               <button
                 type="button"
                 onClick={() => !account.isSystem && openEditModal(account)}
-                className={`rounded-xl p-2 transition-all ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm'}`}
+                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-900'}`}
                 title={account.isSystem ? 'System account (read-only)' : 'Edit'}
                 disabled={account.isSystem}
               >
-                <Edit size={16} strokeWidth={2} />
+                <Edit size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
               <button
                 type="button"
                 onClick={() => openMergeModal(account)}
-                className={`rounded-xl p-2 transition-all ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-violet-50 hover:text-violet-700 hover:shadow-sm'}`}
+                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-violet-700'}`}
                 title={account.isSystem ? 'System account (read-only)' : 'Merge into another account'}
                 disabled={account.isSystem}
               >
-                <GitMerge size={16} strokeWidth={2} />
+                <GitMerge size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
               <button
                 type="button"
                 onClick={() => handleDeleteAccount(account.id)}
-                className={`rounded-xl p-2 transition-all ${isLocked ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-rose-50 hover:text-rose-600 hover:shadow-sm'}`}
+                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${isLocked ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-rose-600'}`}
                 title={isLocked ? 'Account in use or system account' : 'Delete or deactivate'}
                 disabled={isLocked}
               >
-                <Trash2 size={16} strokeWidth={2} />
+                <Trash2 size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
               </button>
             </div>
           </td>
@@ -792,26 +798,22 @@ const ChartOfAccountsPage = () => {
 
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="relative min-h-screen overflow-hidden bg-slate-100">
+      <div className="relative min-h-screen overflow-hidden bg-slate-50">
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_120%_70%_at_50%_-28%,rgba(99,102,241,0.18),transparent_52%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_-20%,rgba(99,102,241,0.08),transparent_50%)]"
           aria-hidden
         />
-        <div className="pointer-events-none absolute -left-40 top-1/4 h-[28rem] w-[28rem] rounded-full bg-teal-400/15 blur-3xl" aria-hidden />
-        <div className="pointer-events-none absolute -right-32 bottom-0 h-72 w-72 rounded-full bg-violet-500/12 blur-3xl" aria-hidden />
-        <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[min(100%,64rem)] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/80 to-transparent" aria-hidden />
 
-        <div className="relative mx-auto max-w-[1680px] px-4 sm:px-6 lg:px-10 py-8 lg:py-12 pb-20">
+        <div className="relative mx-auto max-w-[1680px] px-3 py-6 pb-16 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
           {/* Hero */}
-          <header className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/70 bg-white/45 p-7 shadow-[0_28px_90px_-24px_rgba(15,23,42,0.18)] backdrop-blur-2xl ring-1 ring-slate-900/[0.04] sm:p-10">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-400/25 via-violet-400/10 to-transparent blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-16 left-0 h-48 w-48 rounded-full bg-teal-400/10 blur-2xl" />
+          <header className="relative mb-8 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-900/[0.03] sm:mb-10 sm:rounded-3xl sm:p-8 lg:p-10">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-indigo-500/[0.06] blur-2xl" />
+            <div className="pointer-events-none absolute -bottom-12 left-0 h-40 w-40 rounded-full bg-slate-400/[0.05] blur-2xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
               <div className="flex max-w-3xl gap-5">
                 <div className="relative shrink-0">
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 opacity-90 blur-md" />
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 text-white shadow-xl shadow-indigo-600/30 ring-1 ring-white/20">
-                    <BookOpen className="h-8 w-8" strokeWidth={1.6} />
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20 ring-1 ring-indigo-500/30 sm:h-16 sm:w-16">
+                    <BookOpen className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={1.6} />
                   </div>
                 </div>
                 <div>
@@ -819,7 +821,7 @@ const ChartOfAccountsPage = () => {
                     <Sparkles size={14} className="text-amber-400" strokeWidth={2} />
                     General ledger
                   </p>
-                  <h1 className="mt-2 bg-gradient-to-r from-slate-900 via-indigo-950 to-violet-900 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent sm:text-5xl sm:leading-[1.1]">
+                  <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl sm:leading-tight">
                     Chart of accounts
                   </h1>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
@@ -833,7 +835,7 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={handleInitializeBaseline}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                   title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
                 >
                   <CheckCircle size={17} strokeWidth={2} className="text-emerald-600" />
@@ -842,7 +844,7 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={() => handleImportTemplate('retail')}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Upload size={17} strokeWidth={2} />
                   Templates
@@ -850,12 +852,12 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={() => handleExport('json')}
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                 >
                   <Download size={17} strokeWidth={2} />
                   Export
                 </button>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-white/60 bg-white/55 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm backdrop-blur-sm transition hover:bg-white/90 hover:shadow-md">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
                   <Upload size={17} strokeWidth={2} />
                   Import
                   <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
@@ -866,7 +868,7 @@ const ChartOfAccountsPage = () => {
                     resetForm();
                     setShowAddModal(true);
                   }}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-indigo-500/30 transition hover:from-indigo-500 hover:to-violet-600 hover:shadow-indigo-500/40"
+                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
                 >
                   <Plus size={18} strokeWidth={2.5} />
                   Add account
@@ -876,32 +878,32 @@ const ChartOfAccountsPage = () => {
 
             {/* Category constellation */}
             {!loading && rootOverview.length > 0 && (
-              <div className="relative mt-10 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="relative mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5">
                 {rootOverview.map((r) => {
                   const th = ROOT_THEME[r.code] || {};
                   const IconComp = th.Icon || LayoutGrid;
                   return (
                     <div
                       key={r.id}
-                      className={`group relative overflow-hidden rounded-2xl border border-white/80 bg-gradient-to-br p-5 shadow-lg ring-1 transition duration-300 ease-out hover:-translate-y-1 hover:shadow-2xl ${th.card || 'from-white to-slate-50 ring-slate-200/50'}`}
+                      className={[
+                        'rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md',
+                        th.accent || 'border-l-[3px] border-l-slate-300',
+                      ].join(' ')}
                     >
-                      <div
-                        className={`pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-40 blur-2xl transition duration-500 group-hover:opacity-100 group-hover:blur-3xl ${th.glow || 'bg-slate-300/20'}`}
-                      />
-                      <div className="relative flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3">
                         <div
-                          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-lg ${th.icon || 'bg-slate-700 text-white shadow-slate-500/20'}`}
+                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${th.iconWrap || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}
                         >
-                          <IconComp size={20} strokeWidth={2} />
+                          <IconComp size={18} strokeWidth={2} />
                         </div>
-                        <span className="rounded-full bg-slate-900/[0.06] px-2.5 py-1 text-[10px] font-bold tabular-nums uppercase tracking-wider text-slate-600 ring-1 ring-slate-900/5">
+                        <span className="rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold tabular-nums uppercase tracking-wide text-slate-600 ring-1 ring-slate-200/80">
                           {r.count} in tree
                         </span>
                       </div>
-                      <p className="relative mt-4 truncate text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <p className="mt-3 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
                         {r.title}
                       </p>
-                      <p className="relative mt-1 font-mono text-2xl font-black tabular-nums tracking-tight text-slate-900">
+                      <p className="mt-0.5 font-mono text-xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-2xl">
                         {r.code}
                       </p>
                     </div>
@@ -912,17 +914,17 @@ const ChartOfAccountsPage = () => {
           </header>
 
           {/* Toolbar */}
-          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-white/70 bg-white/55 p-4 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.12)] backdrop-blur-xl ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.02] sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
             <div className="relative min-w-0 flex-1 max-w-xl">
               <Search
                 size={18}
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-indigo-400/90"
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 sm:left-4"
                 strokeWidth={2}
               />
               <input
                 type="search"
                 placeholder="Filter by code, name, or description…"
-                className="w-full rounded-2xl border border-slate-200/80 bg-white/70 py-3 pl-12 pr-4 text-sm font-medium text-slate-900 placeholder:text-slate-400 shadow-inner transition focus:border-indigo-300/80 focus:bg-white focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:py-3 sm:pl-12 sm:pr-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -931,7 +933,7 @@ const ChartOfAccountsPage = () => {
               <select
                 value={accountTypeFilter}
                 onChange={(e) => setAccountTypeFilter(e.target.value)}
-                className="rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm focus:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/15"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
               >
                 <option value="All">All types</option>
                 {accountTypes.map((type) => (
@@ -940,7 +942,7 @@ const ChartOfAccountsPage = () => {
                   </option>
                 ))}
               </select>
-              <label className="flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white">
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
                 <input
                   type="checkbox"
                   checked={activeFilter}
@@ -954,7 +956,7 @@ const ChartOfAccountsPage = () => {
                   <button
                     type="button"
                     onClick={handleExpandAll}
-                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/50 hover:text-indigo-900"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                     title="Expand all rows"
                   >
                     <ChevronsDownUp size={17} strokeWidth={2} />
@@ -963,7 +965,7 @@ const ChartOfAccountsPage = () => {
                   <button
                     type="button"
                     onClick={handleCollapseToRoots}
-                    className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-white/80 px-3.5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-violet-200 hover:bg-violet-50/50 hover:text-violet-900"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
                     title="Collapse to main categories"
                   >
                     <ChevronsUpDown size={17} strokeWidth={2} />
@@ -983,10 +985,10 @@ const ChartOfAccountsPage = () => {
             </div>
           )}
 
-          <details className="group mb-8 overflow-hidden rounded-3xl border border-white/70 bg-gradient-to-br from-white/70 via-white/40 to-indigo-50/30 shadow-lg backdrop-blur-xl open:shadow-xl">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-bold text-slate-800 sm:px-6 sm:py-5 [&::-webkit-details-marker]:hidden">
+          <details className="group mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md sm:mb-8">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-slate-800 sm:px-5 sm:py-4 [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 to-violet-500/10 text-indigo-700 ring-1 ring-indigo-200/40">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100 sm:h-10 sm:w-10">
                   <BookOpen size={18} strokeWidth={2} />
                 </span>
                 <span>Posting rules &amp; protected accounts</span>
@@ -997,16 +999,16 @@ const ChartOfAccountsPage = () => {
                 strokeWidth={2}
               />
             </summary>
-            <div className="border-t border-white/60 bg-white/30 px-5 py-5 text-sm leading-relaxed text-slate-600 sm:px-6">
-              <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
-                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
-                  <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">System</span>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-4 text-sm leading-relaxed text-slate-600 sm:px-5 sm:py-5">
+              <ul className="grid gap-3 sm:grid-cols-1 lg:grid-cols-3 lg:gap-4">
+                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">System</span>
                   <p className="mt-2 text-slate-600">
-                    Gradient <strong className="text-slate-800">System</strong> badges mark GL lines wired into invoices, POS, bills, and tax — read-only in the grid.
+                    <strong className="text-slate-800">System</strong> badges mark GL lines wired into invoices, POS, bills, and tax — read-only in the grid.
                   </p>
                 </li>
-                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
-                  <span className="text-xs font-bold uppercase tracking-wider text-violet-600">Extend</span>
+                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-violet-600">Extend</span>
                   <p className="mt-2 text-slate-600">
                     Add payment rails under{' '}
                     <code className="rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-xs font-semibold">1120</code>{' '}
@@ -1014,8 +1016,8 @@ const ChartOfAccountsPage = () => {
                     <code className="font-mono text-xs font-semibold">5000</code>.
                   </p>
                 </li>
-                <li className="rounded-2xl border border-white/60 bg-white/50 p-4 shadow-sm">
-                  <span className="text-xs font-bold uppercase tracking-wider text-teal-600">Anchors</span>
+                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-600">Anchors</span>
                   <p className="mt-2 text-slate-600">
                     <code className="font-mono text-xs font-bold text-slate-900">1110</code> cash ·{' '}
                     <code className="font-mono text-xs font-bold text-slate-900">1200</code> AR ·{' '}
@@ -1028,7 +1030,7 @@ const ChartOfAccountsPage = () => {
           </details>
 
           {/* Ledger table */}
-          <div className="overflow-hidden rounded-[1.75rem] border border-white/60 bg-white/50 shadow-[0_24px_80px_-28px_rgba(15,23,42,0.2)] backdrop-blur-xl ring-1 ring-slate-900/[0.04]">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/[0.02] sm:rounded-3xl">
             {loading ? (
               <div className="flex flex-col items-center justify-center gap-5 py-28">
                 <div className="relative">
@@ -1067,26 +1069,26 @@ const ChartOfAccountsPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-left text-sm">
+              <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+                <table className="w-full min-w-[720px] border-collapse text-left text-sm sm:min-w-full">
                   <thead>
-                    <tr className="border-b border-slate-200/80 bg-gradient-to-b from-slate-100/95 to-slate-50/90 backdrop-blur-md">
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    <tr className="border-b border-slate-200 bg-slate-50/90">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
                         Code
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
                         Account
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-4 sm:py-3.5">
                         Type
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-right text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-4 sm:py-3.5">
                         Balance
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
                         Status
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-2 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
                         Actions
                       </th>
                     </tr>

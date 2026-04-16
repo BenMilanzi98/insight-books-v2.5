@@ -1865,6 +1865,16 @@ model TransactionLine {
   @@index([accountId])
 }
 
+/// Singleton JSON payload edited in /insightbooks/chart-of-accounts; applied to all tenants.
+model SystemCoaDefinition {
+  id               String   @id @default("default")
+  payload          Json
+  updatedAt        DateTime @updatedAt
+  updatedByEmail String?
+
+  @@map("system_coa_definition")
+}
+
 model Account {
   id                       String                  @id @default(cuid())
   code                     String?                 @map("code")
@@ -1883,8 +1893,12 @@ model Account {
   description              String?
   normalBalance            String?
   parentAccountId          String?
+  /// Logical merge (system CoA): this row keeps its code for audit; UI and pickers use the target account.
+  mergedIntoAccountId      String?
   parentAccount            Account?                @relation("AccountHierarchy", fields: [parentAccountId], references: [id])
   childAccounts            Account[]               @relation("AccountHierarchy")
+  mergedIntoAccount        Account?                @relation("AccountCoaMerge", fields: [mergedIntoAccountId], references: [id], onDelete: SetNull)
+  accountsMergedIntoThis   Account[]               @relation("AccountCoaMerge")
   tenant                   Tenant?                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   accountBalances          AccountBalanceHistory[]
   bankAccounts             BankAccount[]
@@ -1909,6 +1923,7 @@ model Account {
   @@index([isActive])
   @@index([parentAccountId])
   @@index([accountCode])
+  @@index([mergedIntoAccountId])
 }
 
 model TaxType {

@@ -53,6 +53,11 @@ export async function GET(request) {
       where.isActive = true;
     }
 
+    // Logical merges (system CoA): keep source rows for audit but exclude from account pickers
+    if (forSelect) {
+      where.mergedIntoAccountId = null;
+    }
+
     // Add account type filter if provided (Account has both type and accountType)
     if (type && type !== 'all') {
       where.AND = [

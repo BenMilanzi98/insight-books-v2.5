@@ -91,18 +91,28 @@ export async function GET(request) {
       where.accountType = normalizeAccountType(accountType);
     }
 
+    const andBlocks = [];
     if (isActive === 'true' || (!includeInactive && isActive !== 'false')) {
-      where.isActive = true;
+      // Include inactive rows that are logical merge sources (audit / chart visibility)
+      andBlocks.push({
+        OR: [{ isActive: true }, { mergedIntoAccountId: { not: null } }],
+      });
     } else if (isActive === 'false') {
       where.isActive = false;
     }
 
     if (search) {
-      where.OR = [
-        { accountCode: { contains: search, mode: 'insensitive' } },
-        { accountName: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ];
+      andBlocks.push({
+        OR: [
+          { accountCode: { contains: search, mode: 'insensitive' } },
+          { accountName: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    if (andBlocks.length) {
+      where.AND = andBlocks;
     }
 
     let accounts = [];
@@ -111,6 +121,13 @@ export async function GET(request) {
         where,
         include: {
           parentAccount: {
+            select: {
+              id: true,
+              accountCode: true,
+              accountName: true
+            }
+          },
+          mergedIntoAccount: {
             select: {
               id: true,
               accountCode: true,
