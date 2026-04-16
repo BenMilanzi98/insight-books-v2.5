@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { buildDefaultSystemCoaPayload } from "@/lib/systemCoaPayload";
+import { buildDefaultSystemCoaPayload, normalizeAccountType } from "@/lib/systemCoaPayload";
 import {
   AlertCircle,
   BookOpen,
@@ -23,6 +23,72 @@ import {
 } from "lucide-react";
 
 const ROOT_CODES = ["1000", "2000", "3000", "4000", "5000"];
+
+function normCoaKey(c) {
+  return String(c ?? "").trim().toLowerCase();
+}
+
+/** Turn a combinedGlCatalog API row into a system template account (append-only). */
+function catalogRowToTemplateAccount(r) {
+  if (!r || typeof r !== "object") return null;
+  const isTenant = r._inventorySource === "tenant";
+  const code = String(isTenant ? r.accountCode ?? "" : r.code ?? "").trim();
+  if (!code) return null;
+  const name = String((isTenant ? r.accountName : r.name) || "").trim() || code;
+  const rawType = isTenant ? r.accountType : r.type;
+  const type = normalizeAccountType(rawType || "Asset");
+  const subtype = isTenant ? r.accountSubtype || null : r.subtype || null;
+  let parentCode = null;
+  if (isTenant && r.parentAccount) {
+    parentCode =
+      String(r.parentAccount.accountCode || r.parentAccount.code || "").trim() || null;
+  } else if (!isTenant) {
+    parentCode = r.parentCode ? String(r.parentCode).trim() || null : null;
+  }
+  const normalBalance =
+    r.normalBalance || (type === "Asset" || type === "Expense" ? "Debit" : "Credit");
+  const src = isTenant
+    ? "tenant GL"
+    : r._inventorySource === "blueprint"
+      ? "blueprint"
+      : r._inventorySource === "saved_definition"
+        ? "saved definition"
+        : "catalog";
+  return {
+    code,
+    name,
+    type,
+    subtype,
+    parentCode,
+    normalBalance,
+    isSystem: Boolean(r.isSystem),
+    description:
+      (typeof r.description === "string" && r.description.trim()) ||
+      `From ${src} catalog pull — drag under a valid parent if needed, then Save.`,
+  };
+}
+
+/** Append any catalog codes missing from the template so they appear in the editor table. */
+function mergeCatalogIntoPayloadAccounts(prevPayload, catalogRows) {
+  if (!prevPayload?.accounts || !Array.isArray(catalogRows) || catalogRows.length === 0) {
+    return prevPayload;
+  }
+  const existing = new Map(prevPayload.accounts.map((a) => [normCoaKey(a.code), a]));
+  const additions = [];
+  for (const row of catalogRows) {
+    const acc = catalogRowToTemplateAccount(row);
+    if (!acc) continue;
+    const k = normCoaKey(acc.code);
+    if (existing.has(k)) continue;
+    existing.set(k, acc);
+    additions.push(acc);
+  }
+  if (additions.length === 0) return prevPayload;
+  return {
+    ...prevPayload,
+    accounts: [...prevPayload.accounts, ...additions],
+  };
+}
 
 function isAncestor(accounts, ancestorCode, nodeCode) {
   const byCode = new Map(accounts.map((a) => [a.code, a]));
@@ -382,7 +448,7 @@ export default function AdminSystemChartOfAccountsPage() {
       const sd = inv.meta?.savedDefinitionCatalogCount ?? 0;
       const rawTenant = inv.meta?.chartAccountCount ?? 0;
       setMessage(
-        `Pulled GL catalog: ${gl} distinct codes (${rawTenant} tenant DB rows + ${bp} blueprint + ${sd} saved definition entries, deduplicated by code) and ${pay} payment accounts across ${tn} tenants. Merges are configured in the system template above, then Apply to all tenants.`
+        `Pulled GL catalog: ${gl} distinct codes (${rawTenant} tenant DB rows + ${bp} blueprint + ${sd} saved definition entries, deduplicated by code) and ${pay} payment accounts across ${tn} tenants. Missing codes were added to the system template table above — drag parents, merge, Save, then Apply to all tenants.`
       );
     } catch (e) {
       setTenantInventoryError(e?.message || "Tenant pull failed");
@@ -394,6 +460,14 @@ export default function AdminSystemChartOfAccountsPage() {
   useEffect(() => {
     loadDefinition();
   }, [loadDefinition]);
+
+  /** After a catalog pull (or reload), append any pulled codes missing from the template so they show in the draggable table. */
+  useEffect(() => {
+    if (loading || !payload?.accounts?.length) return;
+    const cat = tenantInventory?.combinedGlCatalog;
+    if (!cat?.length) return;
+    setPayload((prev) => mergeCatalogIntoPayloadAccounts(prev, cat));
+  }, [loading, tenantInventory, payload]);
 
   useEffect(() => {
     if (!mergeRow && !editRow && !addOpen) return;
@@ -583,32 +657,40 @@ export default function AdminSystemChartOfAccountsPage() {
     });
   }, [tenantInventory, tenantIdFilter, tenantSearch]);
 
-  const onDropOn = useCallback((movingCode, newParentCode) => {
-    setPayload((prev) => {
-      if (!prev?.accounts) return prev;
-      if (movingCode === newParentCode) return prev;
-      if (isAncestor(prev.accounts, movingCode, newParentCode)) {
-        setError("Cannot move an account under one of its descendants.");
-        return prev;
-      }
-      const next = {
-        ...prev,
-        accounts: prev.accounts.map((a) =>
-          a.code === movingCode ? { ...a, parentCode: newParentCode } : a
-        ),
-      };
-      setError(null);
-      setMessage("Structure updated locally — save, then apply to tenants.");
-      return next;
-    });
-  }, []);
+  const onDropOn = useCallback(
+    (movingCode, newParentCode) => {
+      setPayload((prev) => {
+        if (!prev?.accounts) return prev;
+        const cat = tenantInventory?.combinedGlCatalog || [];
+        const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+        const accounts = base.accounts;
+        if (movingCode === newParentCode) return base;
+        if (isAncestor(accounts, movingCode, newParentCode)) {
+          setError("Cannot move an account under one of its descendants.");
+          return base;
+        }
+        const next = {
+          ...base,
+          accounts: accounts.map((a) =>
+            a.code === movingCode ? { ...a, parentCode: newParentCode } : a
+          ),
+        };
+        setError(null);
+        setMessage("Structure updated locally — save, then apply to tenants.");
+        return next;
+      });
+    },
+    [tenantInventory]
+  );
 
   const onToggleDeactivate = (code) => {
+    const cat = tenantInventory?.combinedGlCatalog || [];
     setPayload((prev) => {
-      const set = new Set(prev.deactivatedCodes || []);
+      const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+      const set = new Set(base.deactivatedCodes || []);
       if (set.has(code)) set.delete(code);
       else set.add(code);
-      return { ...prev, deactivatedCodes: [...set] };
+      return { ...base, deactivatedCodes: [...set] };
     });
     setMessage(null);
   };
@@ -621,20 +703,28 @@ export default function AdminSystemChartOfAccountsPage() {
   const saveEdit = () => {
     const trimmed = editName.trim();
     if (!editRow || !trimmed) return;
-    setPayload((prev) => ({
-      ...prev,
-      accounts: prev.accounts.map((a) => (a.code === editRow.code ? { ...a, name: trimmed } : a)),
-    }));
+    const cat = tenantInventory?.combinedGlCatalog || [];
+    setPayload((prev) => {
+      const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+      return {
+        ...base,
+        accounts: base.accounts.map((a) => (a.code === editRow.code ? { ...a, name: trimmed } : a)),
+      };
+    });
     setEditRow(null);
     setMessage("Renamed locally — save, then apply to tenants.");
   };
 
   const onMerge = (row, unmerge) => {
     if (unmerge) {
-      setPayload((prev) => ({
-        ...prev,
-        merges: (prev.merges || []).filter((m) => m.sourceCode !== row.code),
-      }));
+      const cat = tenantInventory?.combinedGlCatalog || [];
+      setPayload((prev) => {
+        const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+        return {
+          ...base,
+          merges: (base.merges || []).filter((m) => m.sourceCode !== row.code),
+        };
+      });
       setMergeRow(null);
       setMessage("Merge removed locally — save, then apply.");
       return;
@@ -645,10 +735,12 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const confirmMerge = () => {
     if (!mergeRow || !mergeTarget || mergeRow.code === mergeTarget) return;
+    const cat = tenantInventory?.combinedGlCatalog || [];
     setPayload((prev) => {
-      const others = (prev.merges || []).filter((m) => m.sourceCode !== mergeRow.code);
+      const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+      const others = (base.merges || []).filter((m) => m.sourceCode !== mergeRow.code);
       return {
-        ...prev,
+        ...base,
         merges: [...others, { sourceCode: mergeRow.code, targetCode: mergeTarget }],
       };
     });
@@ -715,31 +807,36 @@ export default function AdminSystemChartOfAccountsPage() {
   const saveAdd = () => {
     const c = addCode.trim();
     if (!c || !payload?.accounts) return;
-    if (payload.accounts.some((a) => a.code === c)) {
+    const cat = tenantInventory?.combinedGlCatalog || [];
+    const merged = mergeCatalogIntoPayloadAccounts(payload, cat);
+    if (merged.accounts.some((a) => a.code === c)) {
       setError("That code already exists.");
       return;
     }
-    if (!payload.accounts.some((a) => a.code === addParentCode)) {
+    if (!merged.accounts.some((a) => a.code === addParentCode)) {
       setError("Parent code must exist in the list.");
       return;
     }
     const name = addName.trim() || c;
-    setPayload((prev) => ({
-      ...prev,
-      accounts: [
-        ...prev.accounts,
-        {
-          code: c,
-          name,
-          type: "Expense",
-          subtype: "Operating Expense",
-          normalBalance: "Debit",
-          parentCode: addParentCode,
-          isSystem: false,
-          description: null,
-        },
-      ],
-    }));
+    setPayload((prev) => {
+      const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+      return {
+        ...base,
+        accounts: [
+          ...base.accounts,
+          {
+            code: c,
+            name,
+            type: "Expense",
+            subtype: "Operating Expense",
+            normalBalance: "Debit",
+            parentCode: addParentCode,
+            isSystem: false,
+            description: null,
+          },
+        ],
+      };
+    });
     setAddOpen(false);
     setError(null);
     setMessage("Account added locally — save, then apply.");
@@ -747,7 +844,10 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const resetFromBlueprint = () => {
     if (!window.confirm("Reset the editor to the built-in blueprint? This does not change the server until you click Save.")) return;
-    setPayload(buildDefaultSystemCoaPayload());
+    const cat = tenantInventory?.combinedGlCatalog || [];
+    let next = buildDefaultSystemCoaPayload();
+    if (cat.length) next = mergeCatalogIntoPayloadAccounts(next, cat);
+    setPayload(next);
     setMessage("Reset to default blueprint in editor only — click Save to store, then Apply.");
   };
 
@@ -874,9 +974,11 @@ export default function AdminSystemChartOfAccountsPage() {
           )}
         </div>
         <div className="border-b border-slate-100 bg-slate-50 px-3 py-2.5 text-xs leading-snug text-slate-600 sm:text-sm">
-          Drag a <span className="font-mono">code</span> chip onto a row to set that row as the new parent (no cycles). Every account in
-          the definition appears below: main tree under roots {ROOT_CODES.join(", ")}, then any other top-level codes, then disconnected
-          rows (fix by dragging onto a valid parent). <strong>Merge</strong> uses the row actions (including system accounts).
+          Drag a <span className="font-mono">code</span> chip onto a row to set that row as the new parent (no cycles). The table lists
+          every account in the saved definition <strong>plus</strong> any GL codes from the last <strong>Pull full GL catalog</strong> that
+          were not already in the template (they appear as extra top-level or disconnected rows until you drag under roots{" "}
+          {ROOT_CODES.join(", ")}). <strong>Merge</strong> uses the row actions (including system accounts); Save then Apply updates all
+          sections of the system.
         </div>
         <div className="max-h-[min(70dvh,720px)] overflow-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
           <table className="w-full min-w-[min(100%,520px)] border-collapse text-left text-sm sm:min-w-[640px]">
@@ -1093,9 +1195,9 @@ export default function AdminSystemChartOfAccountsPage() {
               <span className="font-medium text-slate-800">/payments/management</span>), <strong>accounts tied to expense categories</strong> (
               <span className="font-medium text-slate-800">/expenses</span>), the{" "}
               <strong>default hard-coded blueprint</strong> shipped in code, and the <strong>saved system definition</strong> in the
-              database (the template you edit above).               Use search to find similar names. Codes that appear in the <strong>system template</strong> (editor above) can use{" "}
-              <strong>Merge into…</strong> in the catalog table to designate the survivor account; then <strong>Save</strong> and{" "}
-              <strong>Apply to all tenants</strong>. Other codes: <strong>Add to template</strong> first. Payment methods still come from{" "}
+              database (the template you edit above). After a pull, missing codes are added to that template automatically so you can
+              reparent or merge there. Use search to find names. The catalog table below still offers <strong>Add to template</strong> for
+              one-off adds. Payment methods still come from{" "}
               <span className="font-medium text-slate-800">/payments/management</span>.
             </p>
             {tenantInventory?.meta && (
