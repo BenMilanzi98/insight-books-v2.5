@@ -295,7 +295,7 @@ export async function GET(request, { params }) {
     
     const taxData = processTaxesForReceipt(sale.items, sale.totalTaxAmount);
     console.log('Receipt API - Processed tax data:', JSON.stringify(taxData, null, 2));
-
+    
     const receiptReqUrl = new URL(request.url);
     const format = receiptReqUrl.searchParams.get('format');
     const autoPrintParam = receiptReqUrl.searchParams.get('autoPrint');
@@ -344,11 +344,11 @@ export async function GET(request, { params }) {
 </script>`;
     const receiptHtml = `<!DOCTYPE html>
 <html lang="en"${suppressAutoPrint ? ' class="receipt-embed"' : ''}>
-<head>
-<meta charset="utf-8">
+    <head>
+      <meta charset="utf-8">
 <meta name="viewport" content="width=302,initial-scale=1,maximum-scale=1">
-<title>Receipt - ${sale.saleNumber}</title>
-<style>
+      <title>Receipt - ${sale.saleNumber}</title>
+      <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{background:#94a3b8;height:auto}
 html.receipt-embed,html.receipt-embed body{min-height:0!important;max-height:none}
@@ -408,10 +408,10 @@ body{
   html{background:#fff!important}
   body{width:80mm;max-width:80mm;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   @page{margin:0;size:80mm auto}
-}
-</style>
-</head>
-<body>
+        }
+      </style>
+    </head>
+    <body>
 <div class="paper">
 <div class="body">
 
@@ -420,8 +420,8 @@ body{
     ${sale.tenant.logoUrl
       ? `<img src="${sale.tenant.logoUrl.startsWith('http') ? sale.tenant.logoUrl : `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}${sale.tenant.logoUrl}`}" alt="${sale.tenant.name}" class="co-logo">`
       : `<div class="co-name">${sale.tenant.name}</div>`}
-  </div>
-
+        </div>
+        
   <div class="rtitle">RECEIPT</div>
 
   <!-- Meta fields -->
@@ -439,12 +439,12 @@ body{
   <table class="itbl">
     <thead><tr><th>QTY</th><th>DESC</th><th class="r">PRICE</th></tr></thead>
     <tbody>
-      ${sale.items.map(item => {
+        ${sale.items.map(item => {
         const qty = parseFloat(item.quantity || 1);
         const unitPrice = parseFloat(item.unitPrice || 0);
         const discAmt = parseFloat(item.discountAmount || 0);
         const subtotal = (qty * unitPrice) - discAmt;
-        const itemTaxes = item.itemTaxes || [];
+          const itemTaxes = item.itemTaxes || [];
         let itemTaxTotal = 0;
         itemTaxes.forEach(t => { itemTaxTotal += parseFloat(t.taxAmount || 0); });
         if (itemTaxTotal === 0 && item.taxAmount) itemTaxTotal = parseFloat(item.taxAmount || 0);
@@ -539,7 +539,7 @@ ${suppressAutoPrint ? receiptLayoutClampScript : `<script>
   catch(e1){try{window.matchMedia('print').addListener(function(mql){if(!mql.matches)tryClose();});}catch(e2){}}
 })();
 </script>`}
-</body>
+    </body>
 </html>`;
     
     // Log the receipt generation in the audit log (non-blocking; don't fail receipt on audit error)

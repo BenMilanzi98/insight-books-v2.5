@@ -1,0 +1,273 @@
+
+
+# 🧠 InsightBooks – “Add Service” Feature (Separate from Products)
+
+---
+
+# 1. 🎯 Design Principle
+
+👉 **Single Items Table (Backend)**
+👉 **Separate Entry Points (Frontend)**
+
+So:
+
+* Same database
+* Same invoice system
+* BUT different user experience
+
+---
+
+# 2. 🧭 UI Navigation (Stock Module)
+
+Inside **Stock**, structure like this:
+
+```id="2yx3zn"
+Stock
+ ├── Products
+ │     └── [+ Add Product]
+ ├── Services
+ │     └── [+ Add Service]
+```
+
+---
+
+# 3. ➕ Add Service Button (Key UX Flow)
+
+When user clicks:
+
+👉 **“+ Add Service”**
+
+Open a **Service-specific form** (not product form)
+
+---
+
+# 4. 🖥️ Service Form (Clean & Focused)
+
+---
+
+## Fields:
+
+```id="3qf6rj"
+Service Name
+Service Code (optional)
+Description
+
+Pricing:
+- Billing Type:
+    (•) Fixed 
+    (•) Hourly
+    (•) Daily
+
+- Rate
+
+Accounting:
+- Income Account
+- Tax (VAT) pull from Tax management account 
+
+Optional:
+- Default Quantity (e.g. 1 hour)
+```
+
+---
+
+## ❌ Hidden (Important)
+
+Do NOT show:
+
+* Quantity in stock
+* Inventory account
+* Reorder levels
+
+---
+
+# 5. 🧱 Backend Implementation
+
+---
+
+## A. Items Table (Same Table)
+
+```sql id="7ap2fj"
+type = 'service'
+track_stock = false
+quantity = null
+```
+
+---
+
+## B. API Endpoint
+
+```id="d3lzfw"
+POST /api/services
+```
+
+Internally:
+
+```id="c5p7rw"
+INSERT INTO items
+(type = 'service', ...)
+```
+
+---
+
+# 6. 📦 Product vs Service Separation (Logic Layer)
+
+---
+
+## UI Separation
+
+| Feature       | Product | Service |
+| ------------- | ------- | ------- |
+| Add Button    | ✅       | ✅       |
+| Separate List | ✅       | ✅       |
+
+---
+
+## Backend (Shared)
+
+| Feature       | Product | Service |
+| ------------- | ------- | ------- |
+| Items Table   | ✅       | ✅       |
+| Invoice Usage | ✅       | ✅       |
+
+---
+
+# 7. 🧾 Invoice Behavior
+
+---
+
+When adding items:
+
+👉 User can select:
+
+* Products
+* Services
+
+---
+
+## Logic:
+
+```id="0c9u5y"
+IF item.type == "product"
+    → reduce stock
+ELSE IF item.type == "service"
+    → no stock movement
+```
+
+---
+
+# 8. 🔗 Important Clarification (Your Concern)
+
+You said:
+
+> “Do not mix it with hiring or rental directly”
+
+✅ Correct — and here’s how to keep it clean:
+
+---
+
+## Separation of Concerns
+
+| Feature        | Role                      |
+| -------------- | ------------------------- |
+| Services       | Pricing / billing unit    |
+| Rentals/Hiring | Operational booking logic |
+
+---
+
+### Example:
+
+* Service = “Room Rental (per night)”
+* Rental Module = handles:
+
+  * Dates
+  * Availability
+  * Booking
+
+👉 They connect at invoice level — NOT UI level
+
+---
+
+# 9. 🧠 Developer Rules (VERY IMPORTANT)
+
+---
+
+## Rule 1:
+
+```id="v7xyj0"
+Service ≠ Asset
+```
+
+---
+
+## Rule 2:
+
+```id="n71y3f"
+Service does NOT affect inventory
+```
+
+---
+
+## Rule 3:
+
+```id="tzv8kq"
+Service is only for billing
+```
+
+---
+
+# 10. 📊 Services List Page
+
+---
+
+Display:
+
+```id="6fyebl"
+Service Name     Type     Rate     Usage
+----------------------------------------
+Consulting       Hourly   50,000   120 invoices
+Room Rental      Daily    25,000   80 invoices
+Web design       no       20,000   50 invoices
+```
+
+---
+
+# 11. 🚀 Future-Proofing (Important)
+
+This structure allows you to later add:
+
+* Subscriptions (monthly services)
+* Retainers
+* Automated billing
+* SaaS pricing
+
+---
+
+# 12. 💡 Final Architecture Summary
+
+---
+
+### Frontend:
+
+* Add Product Button
+* Add Service Button
+
+---
+
+### Backend:
+
+* One unified Items table
+
+---
+
+### Logic:
+
+* Product → inventory
+* Service → revenue only
+
+---
+
+# 🔥 Final Developer Instruction
+
+Tell your team / AI agent:
+
+> “Create a separate Service UI and API, but store services in the same items table using type='service'. Do not include any inventory logic for services.”

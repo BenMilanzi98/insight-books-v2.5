@@ -164,7 +164,9 @@ export default function TaxAccountsPage() {
       let taxTypeId = selectedAccount ? selectedAccount.taxType.id : null;
       if (!taxTypeId && taxAccounts.length > 0) {
         // Find the tax account with the highest net payable
-        const accountWithPayable = taxAccounts.find(acc => acc.netPayable > 0);
+        const accountWithPayable = taxAccounts.find(
+          (acc) => (acc.netDueInPeriod ?? Math.max(0, acc.netPayable || 0)) > 0
+        );
         if (accountWithPayable) {
           taxTypeId = accountWithPayable.taxType.id;
         }
@@ -238,7 +240,7 @@ export default function TaxAccountsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {summary && summary.totalNetPayable > 0 && (
+          {summary && (summary.totalNetDueInPeriod ?? Math.max(0, summary.totalNetPayable || 0)) > 0 && (
             <button
               onClick={() => handleSettleTax(null)}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
@@ -398,14 +400,26 @@ export default function TaxAccountsPage() {
           <div className="bg-purple-50 rounded-lg p-6">
             <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="text-purple-600" size={24} />
-              <h3 className="text-sm font-medium text-gray-700">Net Payable</h3>
+              <h3 className="text-sm font-medium text-gray-700">Net due (period)</h3>
             </div>
             <p className="text-2xl font-bold text-purple-600">
-              {formatCurrency(summary.totalNetPayable || 0)}
+              {formatCurrency(
+                summary.totalNetDueInPeriod ?? Math.max(0, summary.totalNetPayable || 0)
+              )}
             </p>
             <p className="text-xs text-gray-500 mt-1">
-              Amount due to tax authorities
+              Amount still owed for the selected date window (reversals shown separately, not as negative net
+              tax).
             </p>
+            {Number(summary.totalPeriodReversalOverhang) > 0 && (
+              <p className="text-xs text-amber-900 mt-2 border-t border-amber-100 pt-2">
+                Reversals in window exceed in-window collections by{" "}
+                <span className="font-semibold">
+                  {formatCurrency(summary.totalPeriodReversalOverhang)}
+                </span>
+                . Use Tax Types → Reversed Taxes or widen the range to align with original invoice tax dates.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -455,7 +469,7 @@ export default function TaxAccountsPage() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {account.netPayable > 0 && (
+                    {(account.netDueInPeriod ?? Math.max(0, account.netPayable || 0)) > 0 && (
                       <button
                         onClick={() => handleSettleTax(account)}
                         className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 text-sm"
@@ -494,12 +508,17 @@ export default function TaxAccountsPage() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Net Payable</p>
-                    <p className={`text-lg font-semibold ${
-                      account.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
-                    }`}>
-                      {formatCurrency(account.netPayable)}
+                    <p className="text-xs text-gray-500 mb-1">Net due (period)</p>
+                    <p className="text-lg font-semibold text-purple-600">
+                      {formatCurrency(
+                        account.netDueInPeriod ?? Math.max(0, account.netPayable || 0)
+                      )}
                     </p>
+                    {Number(account.periodReversalOverhang) > 0 && (
+                      <p className="text-xs text-amber-800 mt-1">
+                        Reversal overhang: {formatCurrency(account.periodReversalOverhang)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
@@ -539,7 +558,11 @@ export default function TaxAccountsPage() {
           setSettlementSuccess(false);
         }}
         onSubmit={handleSettlementSubmit}
-        taxLiability={selectedAccount ? selectedAccount.netPayable : (summary?.totalNetPayable || 0)}
+        taxLiability={
+          selectedAccount
+            ? selectedAccount.netDueInPeriod ?? Math.max(0, selectedAccount.netPayable || 0)
+            : summary?.totalNetDueInPeriod ?? Math.max(0, summary?.totalNetPayable || 0)
+        }
         taxTypeId={selectedAccount ? selectedAccount.taxType.id : null}
       />
 

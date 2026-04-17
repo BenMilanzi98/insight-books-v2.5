@@ -34,6 +34,8 @@ import {
   FileCheck,
   DollarSign,
   PieChart,
+  KeyRound,
+  Wrench,
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { userHasPermission } from "@/lib/permissions";
@@ -58,6 +60,9 @@ const iconMap = {
   payments: CreditCard,
   reports: BarChart3,
   stock: Package,
+  rental: KeyRound,
+  Rentals: Building2,
+  Hiring: Wrench,
   purchases: ShoppingCart,
   businessModule: Landmark,
   hr: Users,
@@ -107,6 +112,9 @@ const NavIcon = ({ name, active, size = 18 }) => {
     payments: "#22C55E", // Green
     reports: "#3B82F6", // Blue
     stock: "#EAB308", // Yellow
+    rental: "#6366F1",
+    Rentals: "#6366F1",
+    Hiring: "#D97706",
     purchases: "#EF4444", // Red
     businessModule: "#8B5CF6", // Purple
     hr: "#06B6D4", // Cyan
@@ -222,6 +230,16 @@ const navigationByPermission = {
         label: "Additional Modules",
         items: [
           { href: "/stock", icon: "stock", text: "Stock Management" },
+          {
+            href: "/rentals",
+            icon: "rental",
+            text: "Rental & Hiring",
+            expandable: true,
+            subItems: [
+              { href: "/rentals", text: "Rentals" },
+              { href: "/rentals/hiring", text: "Hiring" },
+            ],
+          },
           {
             href: "/purchases/suppliers",
             icon: "purchases",
@@ -358,6 +376,13 @@ const navigationByPermission = {
     items: [
       { href: "/stock", icon: "stock", text: "Stock Management", permission: "stock.view" },
     ]
+  },
+  rental: {
+    label: "Rental & Hiring",
+    items: [
+      { href: "/rentals", icon: "rental", text: "Rentals", permission: "rentals.view" },
+      { href: "/rentals/hiring", icon: "rental", text: "Hiring", permission: "rentals.view" },
+    ],
   },
   assets: {
     label: "Asset Management",
@@ -668,11 +693,35 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
       });
     }
 
+    if (
+      userHasPermission(user, "rentals.view") ||
+      userHasPermission(user, "rentals.create") ||
+      userHasPermission(user, "invoices.view") ||
+      userHasPermission(user, "invoices.create")
+    ) {
+      additionalItems.push({
+        href: "/rentals",
+        icon: "rental",
+        text: "Rental & Hiring",
+        expandable: true,
+        subItems: [
+          { href: "/rentals", text: "Rentals" },
+          { href: "/rentals/hiring", text: "Hiring" },
+        ],
+      });
+    }
+
     if (userHasPermission(user, "budgets.view")) {
       additionalItems.push({
-        href: "/budget",
+        href: "/budget-forecast/reports",
         icon: "reports",
-        text: "Budgeting",
+        text: "Budget & Forecast",
+        expandable: true,
+        subItems: [
+          { href: "/budget-forecast/reports", text: "Variance reports" },
+          { href: "/budget-forecast/budgets", text: "Expense budgets" },
+          { href: "/budget-forecast/forecasts", text: "Revenue forecasts" },
+        ],
       });
     }
 

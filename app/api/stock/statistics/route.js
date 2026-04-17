@@ -16,8 +16,8 @@ export async function GET(request) {
       );
     }
    
-    // Get total products count (excluding soft-deleted products if field exists)
-    let whereClause = { tenantId: user.tenantId };
+    // Physical inventory only (exclude billable services from stock metrics)
+    let whereClause = { tenantId: user.tenantId, isService: false };
     
     // Add branch filtering - Product model uses branch relation, not branchId
     if (user?.currentBranchId) {
@@ -40,6 +40,21 @@ export async function GET(request) {
     const totalItems = await prisma.product.count({
       where: whereClause
     });
+
+    let serviceCount = 0;
+    try {
+      const serviceCountWhere = {
+        tenantId: user.tenantId,
+        isService: true,
+        ...(whereClause.branchId ? { branchId: whereClause.branchId } : {}),
+      };
+      if (whereClause.isDeleted === false) {
+        serviceCountWhere.isDeleted = false;
+      }
+      serviceCount = await prisma.product.count({ where: serviceCountWhere });
+    } catch (_) {
+      serviceCount = 0;
+    }
    
     // Get all active products with correct field names
     const products = await prisma.product.findMany({
@@ -104,6 +119,7 @@ export async function GET(request) {
     // Return statistics with fallbacks
     return NextResponse.json({
       totalItems,
+      serviceCount,
       totalValue: totalValue.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2

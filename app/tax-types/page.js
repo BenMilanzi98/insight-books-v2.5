@@ -178,7 +178,10 @@ export default function TaxTypesPage() {
             balancesMap[id] = {
               totalCollected: acc.totalCollected,
               totalPaid: acc.totalPaid,
+              totalRefunded: acc.totalRefunded,
               netPayable: acc.netPayable,
+              netDueInPeriod: acc.netDueInPeriod,
+              periodReversalOverhang: acc.periodReversalOverhang,
               currentBalance: acc.currentBalance,
             };
           }
@@ -484,8 +487,8 @@ export default function TaxTypesPage() {
           </div>
           <div>
             <p className="text-sm text-blue-800 font-medium">How it works</p>
-            <p className="text-sm text-blue-600 mt-1">
-              Each tax type is linked to an account (usually a Liability account). <strong>Taxes collected</strong> come from sales and invoices; <strong>taxes paid</strong> come from purchases (purchase orders, expenses, supplier bills). Net payable = collected − paid.
+              <p className="text-sm text-blue-600 mt-1">
+              Each tax type is linked to an account (usually a Liability account). <strong>Taxes collected</strong> come from sales and invoices; <strong>taxes paid</strong> come from purchases (purchase orders, expenses, supplier bills). <strong>Reversed / refunded</strong> includes invoice voids and GL tax reversals in the period. <strong>Net due</strong> is the amount still owed for the selected window (never shown as a confusing negative total).
             </p>
           </div>
         </div>
@@ -672,14 +675,30 @@ export default function TaxTypesPage() {
                         </span>
                       </div>
                     )}
-                    {balance.netPayable !== undefined && (
-                      <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
-                        <span className="text-sm text-gray-600">Net Payable</span>
-                        <span className={`font-semibold ${
-                          balance.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
-                        }`}>
-                          {formatCurrency(balance.netPayable)}
+                    {balance.totalRefunded !== undefined && Number(balance.totalRefunded) > 0 && (
+                      <div className="flex items-center justify-between bg-yellow-50 rounded-lg px-3 py-2">
+                        <span className="text-sm text-gray-600">Reversed / refunded (period)</span>
+                        <span className="font-semibold text-yellow-800">
+                          {formatCurrency(balance.totalRefunded)}
                         </span>
+                      </div>
+                    )}
+                    {balance.netDueInPeriod !== undefined && (
+                      <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-600">Net due (period)</span>
+                          <span className="font-semibold text-purple-600">
+                            {formatCurrency(balance.netDueInPeriod)}
+                          </span>
+                        </div>
+                        {Number(balance.periodReversalOverhang) > 0 && (
+                          <p className="text-xs text-amber-800 border-t border-amber-100 pt-1">
+                            Reversals in this date window exceed collections shown here by{" "}
+                            <span className="font-semibold">{formatCurrency(balance.periodReversalOverhang)}</span>
+                            . Widen the period or see <strong>Reversed Taxes</strong> below for invoice void/refund
+                            detail.
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -726,7 +745,13 @@ export default function TaxTypesPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900">Reversed Taxes</h2>
               <p className="text-sm text-gray-500">
-                POS and invoice refunds, standalone GL <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries, tax lines reversed inside compound expense journals, and PAYE reversed from payroll journal postings (including embedded PAYE when no separate Tax-Payroll entry exists). Hover a row for journal IDs.
+                POS and invoice refunds, <strong>invoice void / refund tax GL</strong> (
+                <code className="text-xs bg-gray-100 px-1 rounded">Tax-InvoiceVoid</code>,{" "}
+                <code className="text-xs bg-gray-100 px-1 rounded">Tax-InvoiceRefund</code>
+                ), standalone <code className="text-xs bg-gray-100 px-1 rounded">Tax-Reversal</code> entries,
+                tax lines reversed inside compound expense journals, and PAYE reversed from payroll journal
+                postings (including embedded PAYE when no separate Tax-Payroll entry exists). Hover a row for
+                journal IDs.
               </p>
             </div>
           </div>

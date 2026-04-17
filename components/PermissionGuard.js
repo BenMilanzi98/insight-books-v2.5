@@ -4,36 +4,52 @@
 import { useEffect, useState } from "react";
 import { checkPermission } from "@/lib/permissions";
 
-export default function PermissionGuard({ permission, children }) {
+/**
+ * @param {{ permission?: string, permissions?: string[], children: import('react').ReactNode }} props
+ * If `permissions` is set, the user needs **any one** of those permissions (OR). Otherwise `permission` (single) is required.
+ */
+export default function PermissionGuard({ permission, permissions, children }) {
   const [allowed, setAllowed] = useState(null);
+
+  const permList =
+    Array.isArray(permissions) && permissions.length > 0
+      ? permissions
+      : permission
+        ? [permission]
+        : [];
 
   useEffect(() => {
     let mounted = true;
 
-    checkPermission(permission)
-      .then((result) => {
+    (async () => {
+      try {
+        let ok = false;
+        for (const p of permList) {
+          if (await checkPermission(p)) {
+            ok = true;
+            break;
+          }
+        }
         if (mounted) {
-          if (!result) {
-            console.warn(`Access denied: Missing permission '${permission}'`);
-            // Instead of redirecting, show access denied message
+          if (!ok) {
+            console.warn(`Access denied: Missing one of [${permList.join(", ")}]`);
             setAllowed(false);
           } else {
             setAllowed(true);
           }
         }
-      })
-      .catch((error) => {
-        console.error('Permission check failed:', error);
+      } catch (error) {
+        console.error("Permission check failed:", error);
         if (mounted) {
-          // Fail closed: never broaden access on auth/permission check failures.
           setAllowed(false);
         }
-      });
+      }
+    })();
 
     return () => {
       mounted = false;
     };
-  }, [permission]);
+  }, [JSON.stringify(permList)]);
 
   if (allowed === null) return null; // Loading state
   if (allowed === false) {

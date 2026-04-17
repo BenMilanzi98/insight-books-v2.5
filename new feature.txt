@@ -1,0 +1,484 @@
+
+# 🧠 InsightBooks – Rental & Hiring Module
+
+## Full AI Agent Developer Implementation Guide
+
+---
+
+# 1. 🧭 Module Placement & Navigation
+
+### Sidebar Structure
+
+Insert in sidebar:
+
+```
+Stock
+Rental & Hiring   👈 NEW MODULE
+    ├── Rentals
+    └── Hiring
+Budgeting
+```
+
+---
+
+## 🧩 Concept Separation
+
+| Module  | Use Case                                                       |
+| ------- | -------------------------------------------------------------- |
+| Rentals | Time-based assets (Rooms, Lodges, Spaces)                      |
+| Hiring  | Quantity-based or time + quantity (Equipment, Tools, Machines) |
+
+---
+
+# 2. 🏗️ Core System Architecture
+
+You are NOT building from scratch.
+You are extending:
+
+👉 **Invoices**
+👉 **Items (Products/Services)**
+👉 **Customers**
+
+---
+
+## 🧱 New Core Entities
+
+### 1. Assets Table
+
+```sql
+assets
+- id
+- name
+- category (room, equipment, vehicle, etc.)
+- type (rental | hiring)
+- branch_id
+- status (available, booked, maintenance)
+- quantity (for hiring assets)
+- created_at
+```
+
+---
+
+### 2. Rental_Transactions Table
+
+```sql
+rental_transactions
+- id
+- invoice_id (FK)
+- customer_id
+- type (rental | hiring)
+- start_datetime
+- end_datetime
+- status (booked, active, completed, cancelled)
+- total_amount
+- created_at
+```
+
+---
+
+### 3. Rental_Items Table
+
+```sql
+rental_items
+- id
+- rental_transaction_id
+- asset_id
+- quantity
+- rate
+- total
+```
+
+---
+
+### 4. Asset_Availability Table (IMPORTANT)
+
+```sql
+asset_availability
+- id
+- asset_id
+- start_datetime
+- end_datetime
+- status (booked)
+- reference_id (rental_transaction_id)
+```
+
+👉 This is what prevents double booking.
+
+---
+
+# 3. 🧠 AI Agent System Behavior
+
+Your AI agent (or backend logic) must enforce:
+
+---
+
+## Rule 1: Availability Check
+
+Before confirming:
+
+```
+SELECT * FROM asset_availability
+WHERE asset_id = ?
+AND (
+    (start <= requested_end)
+    AND (end >= requested_start)
+)
+```
+
+👉 If exists → BLOCK booking
+👉 If none → ALLOW
+
+---
+
+## Rule 2: Status Automation
+
+| Event           | Action            |
+| --------------- | ----------------- |
+| Booking created | asset → BOOKED    |
+| Rental active   | asset → IN USE    |
+| Completed       | asset → AVAILABLE |
+
+---
+
+## Rule 3: Invoice Sync
+
+Every rental/hiring MUST:
+
+👉 Generate or link to Invoice
+
+---
+
+# 4. 🧾 Invoice Integration (CRITICAL)
+
+## Extend Invoice Model
+
+Add fields:
+
+```sql
+invoices
+- rental_flag (boolean)
+- rental_transaction_id
+```
+
+---
+
+## Invoice Creation Flow
+
+### Step 1:
+
+User clicks:
+👉 “New Rental” or “New Hiring”
+
+---
+
+### Step 2:
+
+System opens:
+👉 Rental Form (NOT standard invoice UI)
+
+---
+
+### Step 3:
+
+User inputs:
+
+* Customer
+* Asset(s)
+* Timeframe
+* Quantity (if hiring)
+
+---
+
+### Step 4:
+
+System auto-calculates:
+
+```
+Total = Rate × Time × Quantity
+```
+
+---
+
+### Step 5:
+
+System:
+✅ Creates Invoice
+✅ Creates Rental Transaction
+✅ Blocks Asset Availability
+
+---
+
+# 5. 🖥️ UI/UX STRUCTURE
+
+---
+
+## A. Rentals Page (Rooms / Time-Based)
+
+### Screen Sections:
+
+1. **Top Stats**
+
+* Total Assets
+* Booked
+* Available
+
+2. **Calendar View (IMPORTANT)**
+
+* Timeline of bookings
+
+3. **Assets List**
+
+```
+Room 1   [Booked]
+Room 2   [Available]
+Room 3   [Available]
+```
+
+---
+
+## B. Hiring Page (Equipment)
+
+### Screen Sections:
+
+1. Asset List with Quantity
+
+```
+Generator (5 units)
+Available: 3
+Booked: 2
+```
+
+2. Booking Table
+
+---
+
+# 6. 🔄 Booking Workflows
+
+---
+
+## 🏨 RENTALS FLOW (Rooms)
+
+```
+Create Rental
+→ Select Room
+→ Select Dates
+→ System checks availability
+→ Confirm
+→ Invoice generated
+→ Room marked BOOKED
+```
+
+---
+
+## 🏗️ HIRING FLOW (Equipment)
+
+```
+Create Hiring
+→ Select Equipment
+→ Enter Quantity
+→ Select Duration
+→ Check quantity availability
+→ Confirm
+→ Invoice generated
+→ Reduce available quantity
+```
+
+---
+
+# 7. 📊 Availability Engine
+
+---
+
+## Rental (Single Asset)
+
+```
+Room 1 → 1 unit only
+Status = Booked / Available
+```
+
+---
+
+## Hiring (Multiple Units)
+
+```
+Generator → 10 units total
+
+Booked = 4  
+Available = 6
+```
+
+---
+
+## Query Logic
+
+```sql
+available = total_quantity - SUM(booked_quantity)
+```
+
+---
+
+# 8. 🔔 Smart Automations
+
+---
+
+## 1. Auto Release
+
+When:
+
+```
+NOW > end_datetime
+```
+
+System:
+
+* Mark rental completed
+* Release asset
+
+---
+
+## 2. Late Detection
+
+```
+IF NOW > end_datetime AND not returned
+→ status = overdue
+→ add extra charges
+```
+
+---
+
+## 3. Notifications
+
+* Booking confirmation
+* Return reminders
+* Overdue alerts
+
+---
+
+# 9. 🧠 AI-ASSISTED FEATURES (OPTIONAL BUT POWERFUL)
+
+---
+
+## AI Agent Can:
+
+### 1. Suggest Available Assets
+
+> “Room 1 is booked, Room 2 is available”
+
+### 2. Recommend Pricing
+
+> “Weekend rate is higher”
+
+### 3. Predict Demand
+
+> Based on booking history
+
+---
+
+# 10. ⚙️ API STRUCTURE
+
+---
+
+## Create Rental
+
+```
+POST /api/rentals
+```
+
+## Check Availability
+
+```
+POST /api/rentals/check-availability
+```
+
+## Get Calendar
+
+```
+GET /api/rentals/calendar
+```
+
+## Complete Rental
+
+```
+POST /api/rentals/complete
+```
+
+---
+
+# 11. 🔐 Edge Cases (IMPORTANT)
+
+---
+
+### ❌ Double Booking
+
+Handled via availability table
+
+---
+
+### ❌ Partial Returns (Hiring)
+
+Allow:
+
+```
+Return 2 out of 5 items
+```
+
+---
+
+### ❌ Overbooking Quantity
+
+Block if:
+
+```
+requested > available
+```
+
+---
+
+### ❌ Cancel Booking
+
+* Remove availability record
+* Free asset
+
+---
+
+# 12. 🚀 MVP vs PRO
+
+---
+
+## MVP (Ship Fast)
+
+* Asset list
+* Booking form
+* Invoice integration
+* Availability check
+
+---
+
+## PRO Version
+
+* Calendar UI
+* Multi-branch assets
+* Mobile scanning
+* Customer booking portal
+
+---
+
+# 13. 💡 Final System Philosophy
+
+This module should behave like:
+
+👉 **“Operational Layer on top of Accounting”**
+
+Because:
+
+* Invoice = Money
+* Rental = Real-world activity
+
+---
+
+# 14. 🔥 Developer Instruction (VERY IMPORTANT)
+
+Tell your devs / AI agent this:
+
+> “Do not build rentals separate from invoices. Rentals must create and depend on invoices, while assets depend on availability tracking.”
+

@@ -38,6 +38,8 @@ model Tenant {
   branches                   Branch[]
   branchSubscriptions        BranchSubscription[]
   budgets                    Budget[]
+  bfExpenseBudgetHeaders     BfExpenseBudgetHeader[]
+  bfRevenueForecastHeaders     BfRevenueForecastHeader[]
   clients                    Client[]
   benefits                   Benefit[]
   deductions                 Deduction[]
@@ -102,6 +104,8 @@ model Tenant {
   eisInvoices                EISInvoice[]
   eisConfiguration           EISConfiguration?
   eisUsage                   EISUsage[]
+  rentalAssets               RentalAsset[]
+  rentalTransactions         RentalTransaction[]
 }
 
 model Branch {
@@ -129,6 +133,7 @@ model Branch {
   userBranches          UserBranch[]
   stockTransfersFrom    StockTransfer[]         @relation("StockTransferFrom")
   stockTransfersTo      StockTransfer[]         @relation("StockTransferTo")
+  rentalAssets          RentalAsset[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -338,6 +343,9 @@ model User {
   posCashDaysOpened              PosCashDay[]           @relation("PosCashDayOpenedBy")
   posCashDaysClosed              PosCashDay[]           @relation("PosCashDayClosedBy")
   posCashDayDepositsCreated      PosCashDayDeposit[]    @relation("PosCashDayDepositCreatedBy")
+  rentalTransactionsCreated      RentalTransaction[]    @relation("RentalTransactionCreatedBy")
+  createdBfExpenseBudgetHeaders  BfExpenseBudgetHeader[] @relation("BfExpenseBudgetHeaderCreatedBy")
+  createdBfRevenueForecastHeaders BfRevenueForecastHeader[] @relation("BfRevenueForecastHeaderCreatedBy")
 
   @@index([email])
   @@index([tenantId])
@@ -462,11 +470,12 @@ model Client {
   updatedAt     DateTime    @updatedAt
   tenantId      String
   tenant        Tenant      @relation(fields: [tenantId], references: [id])
-  invoices      Invoice[]
-  quotations    Quotation[]
-  sales         Sale[]
-  creditNotes   CreditNote[]
-  debitNotes    DebitNote[]
+  invoices            Invoice[]
+  quotations          Quotation[]
+  sales               Sale[]
+  creditNotes         CreditNote[]
+  debitNotes          DebitNote[]
+  rentalTransactions  RentalTransaction[]
 }
 
 model Invoice {
@@ -508,6 +517,8 @@ model Invoice {
   reversalReason        String?
   reversedAt            DateTime?
   reversedById          String?
+  /// True when this invoice was created from Rental & Hiring (operational layer).
+  isRentalInvoice       Boolean         @default(false)
   branch                Branch?         @relation(fields: [branchId], references: [id])
   client                Client          @relation(fields: [clientId], references: [id])
   createdBy             User            @relation("InvoiceCreator", fields: [createdById], references: [id])
@@ -520,11 +531,105 @@ model Invoice {
   attachments           InvoiceAttachment[]
   creditNotes           CreditNote[]
   debitNotes            DebitNote[]
+  rentalTransaction     RentalTransaction?
 
   @@unique([tenantId, invoiceNumber])
   @@index([branchId])
   @@index([isReversal])
   @@index([reversedTransactionId])
+  @@index([isRentalInvoice])
+}
+
+/// Bookable resource for Rental (time/room) or Hiring (quantity + time) — not the fixed-asset `Asset` model.
+model RentalAsset {
+  id            String   @id @default(cuid())
+  tenantId      String
+  branchId      String?
+  name          String
+  description   String?
+  category      String   @default("general")
+  /// rental = single-unit time booking; hiring = quantity pool over time
+  kind          String
+  status        String   @default("available")
+  totalQuantity Int      @default(1)
+  defaultRate   Float    @default(0)
+  rateUnit      String   @default("day")
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant              Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch?                   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  items               RentalItem[]
+  availabilitySlots RentalAssetAvailability[]
+
+  @@index([tenantId, kind])
+  @@index([tenantId, isActive])
+  @@index([branchId])
+}
+
+/// One rental/hiring booking linked 1:1 to an invoice.
+model RentalTransaction {
+  id          String   @id @default(cuid())
+  tenantId    String
+  invoiceId   String   @unique
+  clientId    String
+  kind        String
+  startAt     DateTime
+  endAt       DateTime
+  status      String   @default("booked")
+  totalAmount Float    @default(0)
+  notes       String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant              Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice             Invoice                   @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client              Client                    @relation(fields: [clientId], references: [id])
+  createdBy           User                      @relation("RentalTransactionCreatedBy", fields: [createdById], references: [id])
+  items               RentalItem[]
+  availabilitySlots RentalAssetAvailability[]
+
+  @@index([tenantId])
+  @@index([tenantId, kind])
+  @@index([clientId])
+  @@index([startAt, endAt])
+  @@index([status])
+}
+
+model RentalItem {
+  id                    String @id @default(cuid())
+  rentalTransactionId  String
+  rentalAssetId        String
+  quantity             Int    @default(1)
+  unitRate             Float
+  billableUnits        Float
+  total                Float
+  returnedQuantity     Int    @default(0)
+
+  rentalTransaction RentalTransaction @relation(fields: [rentalTransactionId], references: [id], onDelete: Cascade)
+  rentalAsset       RentalAsset       @relation(fields: [rentalAssetId], references: [id], onDelete: Restrict)
+
+  @@index([rentalTransactionId])
+  @@index([rentalAssetId])
+}
+
+/// Blocks double-booking: overlapping rows for the same asset must not exceed `totalQuantity` for hiring.
+model RentalAssetAvailability {
+  id                    String @id @default(cuid())
+  rentalAssetId        String
+  rentalTransactionId  String
+  startAt              DateTime
+  endAt                DateTime
+  status               String @default("booked")
+  quantity             Int    @default(1)
+
+  rentalAsset       RentalAsset       @relation(fields: [rentalAssetId], references: [id], onDelete: Cascade)
+  rentalTransaction RentalTransaction @relation(fields: [rentalTransactionId], references: [id], onDelete: Cascade)
+
+  @@index([rentalAssetId, startAt, endAt])
+  @@index([rentalTransactionId])
 }
 
 model InvoiceAttachment {
@@ -1036,6 +1141,11 @@ model Product {
   cost                  Float?
   stockLevel            Decimal?               @db.Decimal(15, 6)
   isService             Boolean                @default(false)
+  /// Billing unit for sellable services: fixed | hourly | daily
+  serviceBillingType    String?
+  /// Default quantity on invoices/POS (e.g. 1 hour)
+  serviceDefaultQty     Decimal?               @db.Decimal(12, 4)
+  incomeAccountId       String?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   tenantId              String
@@ -1078,6 +1188,7 @@ model Product {
   invoiceItems          InvoiceItem[]
   branch                Branch?                @relation(fields: [branchId], references: [id])
   inventoryCategory     InventoryCategory?     @relation(fields: [categoryId], references: [id])
+  incomeAccount         Account?               @relation("ProductIncomeAccount", fields: [incomeAccountId], references: [id])
   cogsAccount           Account?               @relation("ProductCogsAccount", fields: [cogsAccountId], references: [id])
   deletedByUser         User?                  @relation("ProductDeletions", fields: [deletedBy], references: [id])
   inventoryAccount      Account?               @relation("ProductInventoryAccount", fields: [inventoryAccountId], references: [id])
@@ -1903,6 +2014,8 @@ model Account {
   accountBalances          AccountBalanceHistory[]
   bankAccounts             BankAccount[]
   budgetItems              BudgetItem[]
+  bfExpenseBudgetLines     BfExpenseBudgetLine[]
+  bfRevenueForecastLines     BfRevenueForecastLine[]
   equityAccounts           EquityAccount[]
   expenseAccounts          Expense[]               @relation("ExpenseAccount")
   expenseSources           Expense[]               @relation("ExpenseSourceAccount")
@@ -1910,6 +2023,7 @@ model Account {
   journalEntryLines        JournalEntryLine[]
   productsCogs             Product[]               @relation("ProductCogsAccount")
   productsInventory        Product[]               @relation("ProductInventoryAccount")
+  productsIncome           Product[]               @relation("ProductIncomeAccount")
   taxTypes                 TaxType[]               @relation("TaxTypeAccount")
   transactionLines         TransactionLine[]       @relation("TransactionLineAccount")
   invoiceItems             InvoiceItem[]
@@ -2761,6 +2875,87 @@ model BudgetItem {
   @@index([period])
   @@index([branchId])
   @@index([categoryId])
+}
+
+/// CoA-linked expense budgets (Budget & Forecast module). Actuals are never stored here.
+model BfExpenseBudgetHeader {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  periodType  String // monthly | quarterly | yearly
+  startDate   DateTime
+  endDate     DateTime
+  createdById String?
+  status      String   @default("draft") // draft | active
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User?                 @relation("BfExpenseBudgetHeaderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  lines     BfExpenseBudgetLine[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([periodType])
+  @@index([startDate, endDate])
+}
+
+model BfExpenseBudgetLine {
+  id                    String   @id @default(cuid())
+  expenseBudgetHeaderId String
+  accountId             String
+  period                String // e.g. 2026-01, 2026-Q1, 2026
+  plannedAmount         Float    @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  header  BfExpenseBudgetHeader @relation(fields: [expenseBudgetHeaderId], references: [id], onDelete: Cascade)
+  account Account               @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([expenseBudgetHeaderId, accountId, period])
+  @@index([expenseBudgetHeaderId])
+  @@index([accountId])
+}
+
+/// CoA-linked revenue forecasts. Supports named versions (v1, v2, …).
+model BfRevenueForecastHeader {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  periodType  String // monthly | quarterly | yearly
+  startDate   DateTime
+  endDate     DateTime
+  version     String   @default("v1")
+  createdById String?
+  status      String   @default("draft") // draft | active
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant    Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdBy User?                   @relation("BfRevenueForecastHeaderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  lines     BfRevenueForecastLine[]
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([periodType])
+  @@index([startDate, endDate])
+}
+
+model BfRevenueForecastLine {
+  id                      String   @id @default(cuid())
+  revenueForecastHeaderId String
+  accountId               String
+  period                  String
+  plannedAmount           Float    @default(0)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  header  BfRevenueForecastHeader @relation(fields: [revenueForecastHeaderId], references: [id], onDelete: Cascade)
+  account Account                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([revenueForecastHeaderId, accountId, period])
+  @@index([revenueForecastHeaderId])
+  @@index([accountId])
 }
 
 model Currency {

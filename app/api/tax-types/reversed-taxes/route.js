@@ -42,29 +42,8 @@ export async function GET(request) {
       orderBy: { refundedAt: 'desc' }
     });
 
-    const invoiceRefundWhere = {
-      tenantId: user.tenantId,
-      status: 'completed'
-    };
-    if (startDate || endDate) {
-      invoiceRefundWhere.processedAt = {};
-      if (startDate) invoiceRefundWhere.processedAt.gte = new Date(startDate);
-      if (endDate) invoiceRefundWhere.processedAt.lte = new Date(endDate + 'T23:59:59');
-    }
-
-    const invoiceRefunds = await prisma.invoiceRefund.findMany({
-      where: invoiceRefundWhere,
-      include: {
-        invoice: {
-          select: {
-            invoiceNumber: true,
-            total: true,
-            taxAmount: true
-          }
-        }
-      },
-      orderBy: { refundDate: 'desc' }
-    });
+    // Invoice refund tax is reported from GL (Tax-InvoiceRefund) via fetchGlTaxReversalReportRows to avoid
+    // double-counting with proportional InvoiceRefund rows and to match voids (Tax-InvoiceVoid).
 
     const glTaxReversals = await fetchGlTaxReversalReportRows(prisma, user.tenantId, {
       startDate,
@@ -81,20 +60,6 @@ export async function GET(request) {
         reason: s.refundReason,
         transactionId: s.id
       })),
-      ...invoiceRefunds
-        .filter((r) => {
-          const taxAmount = r.invoice?.taxAmount;
-          return taxAmount != null && Number(taxAmount) > 0;
-        })
-        .map((r) => ({
-          id: r.id,
-          date: r.processedAt || r.refundDate,
-          reference: `Invoice #${r.invoice.invoiceNumber}`,
-          type: 'Invoice Refund',
-          taxReversed: Math.abs((r.refundAmount / (r.invoice?.total || 1)) * Number(r.invoice?.taxAmount || 0)),
-          reason: r.refundReason,
-          transactionId: r.invoiceId
-        })),
       ...glTaxReversals
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 

@@ -23,6 +23,12 @@ async function getProductWithValidation(id, tenantId) {
     totalStockValue: true,
     taxRate: true,
     isService: true,
+    serviceBillingType: true,
+    serviceDefaultQty: true,
+    incomeAccountId: true,
+    incomeAccount: {
+      select: { id: true, accountName: true, accountCode: true, accountType: true },
+    },
     createdAt: true,
     updatedAt: true,
     tenantId: true,
@@ -104,9 +110,11 @@ async function getProductWithValidation(id, tenantId) {
   // Determine product status
   let status;
   const stockLevel = product.stockLevel || 0;
-  const reorderPoint = product.reorderPoint || 10; // Use the actual reorderPoint or default
-  
-  if (stockLevel === 0) {
+  const reorderPoint = product.reorderPoint ?? 10; // Use the actual reorderPoint or default
+
+  if (product.isService) {
+    status = 'Service';
+  } else if (stockLevel === 0) {
     status = 'Out of Stock';
   } else if (stockLevel <= reorderPoint) {
     status = 'Low Stock';
@@ -296,8 +304,12 @@ export async function PUT(request, { params }) {
     const rawNewStock = body.unitManagementEnabled
       ? (isStockLevelChanged ? body.quantityInStock : originalProductStock)
       : (body.quantityInStock !== undefined ? body.quantityInStock : oldStockLevel);
-    const newStockLevel = Number(rawNewStock);
-    if (Number.isNaN(newStockLevel) || newStockLevel < 0) {
+    let newStockLevel = Number(rawNewStock);
+    const convertingToProduct = body.isService === false && result.product.isService === true;
+    const treatAsService = result.product.isService === true && !convertingToProduct;
+    if (treatAsService) {
+      newStockLevel = 0;
+    } else if (Number.isNaN(newStockLevel) || newStockLevel < 0) {
       return NextResponse.json(
         { error: 'Invalid quantity or stock level' },
         { status: 400 }
@@ -385,7 +397,12 @@ export async function PUT(request, { params }) {
       description: body.description !== undefined ? body.description : result.product.description,
       category: body.category !== undefined ? body.category : result.product.category,
       stockLevel: newStockLevel,
-      reorderPoint: body.reorderPoint !== undefined ? body.reorderPoint : result.product.reorderPoint,
+      reorderPoint:
+        treatAsService
+          ? null
+          : body.reorderPoint !== undefined
+            ? body.reorderPoint
+            : result.product.reorderPoint,
       location: body.location !== undefined ? body.location : result.product.location,
       price: body.unitPrice !== undefined ? body.unitPrice : (body.price !== undefined ? body.price : result.product.price),
       cost: body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost),
@@ -396,7 +413,33 @@ export async function PUT(request, { params }) {
       // Recalculate inventory value when cost or stock changes so /stock shows correct value
       totalStockValue: (Number(newStockLevel) || 0) * numericCost
     };
-    
+
+    if (body.serviceBillingType !== undefined) {
+      const bt = String(body.serviceBillingType || '').toLowerCase();
+      updateData.serviceBillingType = ['fixed', 'hourly', 'daily'].includes(bt) ? bt : null;
+    }
+    if (body.serviceDefaultQty !== undefined) {
+      if (body.serviceDefaultQty === null || body.serviceDefaultQty === '') {
+        updateData.serviceDefaultQty = null;
+      } else {
+        const q = parseFloat(body.serviceDefaultQty);
+        updateData.serviceDefaultQty = Number.isNaN(q) || q < 0 ? null : q;
+      }
+    }
+    if (body.incomeAccountId !== undefined) {
+      updateData.incomeAccountId = body.incomeAccountId || null;
+    }
+    if (
+      body.incomeAccountId === undefined &&
+      (treatAsService || body.isService === true)
+    ) {
+      const { resolveDefaultRevenueAccountId } = await import('@/lib/defaultRevenueAccount');
+      const rid = await resolveDefaultRevenueAccountId(prisma, user.tenantId);
+      if (rid) {
+        updateData.incomeAccountId = rid;
+      }
+    }
+
     // Start a transaction to update product and log the change
     console.log("Starting product update transaction...");
     const updated = await prisma.$transaction(async (tx) => {
@@ -574,7 +617,9 @@ export async function PUT(request, { params }) {
     // Determine product status
     let status;
     const updatedReorderPoint = updated.reorderPoint || 10;
-    if (updated.stockLevel === 0) {
+    if (updated.isService) {
+      status = 'Service';
+    } else if (updated.stockLevel === 0) {
       status = 'Out of Stock';
     } else if (updated.stockLevel <= updatedReorderPoint) {
       status = 'Low Stock';

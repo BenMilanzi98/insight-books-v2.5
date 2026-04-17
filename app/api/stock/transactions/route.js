@@ -377,7 +377,8 @@ export async function POST(request) {
         stockLevel: true,
         cost: true,
         branchId: true,
-        tenantId: true
+        tenantId: true,
+        isService: true
       }
     });
     
@@ -539,7 +540,9 @@ export async function POST(request) {
     
     // Determine product status
     let status;
-    if (updatedProduct.stockLevel === 0) {
+    if (product.isService) {
+      status = 'Service';
+    } else if (updatedProduct.stockLevel === 0) {
       status = 'Out of Stock';
     } else if (updatedProduct.stockLevel <= 10) { // Default reorderPoint
       status = 'Low Stock';

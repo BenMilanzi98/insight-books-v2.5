@@ -479,7 +479,10 @@ export async function GET(request, { params }) {
     }).reverse(); // Reverse to show most recent first
 
     const netPayable = totalCollected - totalPaid - totalRefunded;
-    
+    const netDueInPeriod = Math.max(0, netPayable);
+    const periodReversalOverhang =
+      netPayable < 0 ? Number((-netPayable).toFixed(2)) : 0;
+
     // Current balance is the final runningBalance after all transactions
     const currentBalance = runningBalance;
 
@@ -498,6 +501,8 @@ export async function GET(request, { params }) {
         totalPaid,
         totalRefunded,
         netPayable,
+        netDueInPeriod,
+        periodReversalOverhang,
         currentBalance: currentBalance,
       },
       transactionHistory,

@@ -180,13 +180,9 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
     }
     
-    // Receivables on the dashboard should reflect outstanding balances affected by
-    // payments in the selected range. Filtering by invoice `issueDate` causes missing
-    // invoices when payments are received in a different timezone/day or in a later period.
-    //
-    // Instead, we filter invoices to those that have at least one completed payment
-    // within the selected date range.
-    const shouldFilterByPaymentDate = Boolean(startDate && endDate && dateRange);
+    // Optional: only invoices with a completed payment in the selected window (off by default).
+    // When on, Pending invoices with no payments yet are excluded — bad for /accounting/receivables.
+    const paymentActivityInRange = searchParams.get('paymentActivityInRange') === '1';
 
     // Get unpaid invoices
     // Include invoices that are Pending or Partial (these represent money owed by customers)
@@ -196,7 +192,7 @@ export async function GET(request) {
       // This prevents missing invoices for tenants/users in "default branch" scenarios.
       where: addBranchFilterIncludeUnassigned(userQ, {
         ...tw,
-        ...(shouldFilterByPaymentDate
+        ...(paymentActivityInRange && startDate && endDate
           ? {
               payments: {
                 some: {

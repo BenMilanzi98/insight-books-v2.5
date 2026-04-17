@@ -382,6 +382,15 @@ export async function GET(request) {
             (taxType.taxId || '').toString().toUpperCase() === 'PAYE' ||
             (taxType.taxName || '').toString().toUpperCase().includes('PAYE');
 
+          // Invoice void reverses the original Tax-Invoice journal as sourceType "Tax-Invoice-Void"
+          // and also posts Tax-InvoiceVoid via reverseAutoPostTaxEntry — same economic reversal twice.
+          const invoiceIdsWithCompoundTaxInvoiceVoid = new Set(
+            transactions
+              .filter((t) => t.sourceType === 'Tax-Invoice-Void')
+              .map((t) => t.sourceId)
+              .filter(Boolean)
+          );
+
           for (const tx of transactions) {
             const line = tx.lines[0];
             if (!line) continue;
@@ -446,10 +455,20 @@ export async function GET(request) {
               }
             }
             // Tax-Invoice is now counted above via dedicated query
-            // Handle tax reversals from refunds/voids / expense deletion (GL Tax-Reversal) explicitly
+            // Handle tax reversals from refunds/voids / expense deletion (GL Tax-Reversal) explicitly.
+            // Tax-Invoice-Void = compound JE that reverses the original Tax-Invoice posting (void flow).
+            // Tax-InvoiceVoid = separate entry from reverseAutoPostTaxEntry — skip if compound already reversed that invoice.
             else if (tx.sourceType === 'Tax-SaleRefund' || tx.sourceType === 'Tax-SaleVoid' ||
                      tx.sourceType === 'Tax-InvoiceRefund' || tx.sourceType === 'Tax-InvoiceVoid' ||
+                     tx.sourceType === 'Tax-Invoice-Void' ||
                      tx.sourceType === 'Tax-Reversal') {
+              if (
+                tx.sourceType === 'Tax-InvoiceVoid' &&
+                tx.sourceId &&
+                invoiceIdsWithCompoundTaxInvoiceVoid.has(tx.sourceId)
+              ) {
+                continue;
+              }
               // Reversals: for Liability accounts, debit reduces collected tax
               // For Asset accounts, credit reduces collected tax
               if (isLiability) {
@@ -464,9 +483,12 @@ export async function GET(request) {
                 }
               }
             }
-            // Handle remaining Tax-* sourceTypes (generic; Tax-Reversal handled above)
+            // Handle remaining Tax-* sourceTypes (generic; Tax-Reversal and invoice void/refund tax handled above)
             else if (tx.sourceType?.startsWith('Tax-') &&
                      tx.sourceType !== 'Tax-Invoice' &&
+                     tx.sourceType !== 'Tax-Invoice-Void' &&
+                     tx.sourceType !== 'Tax-InvoiceVoid' &&
+                     tx.sourceType !== 'Tax-InvoiceRefund' &&
                      tx.sourceType !== 'Tax-SupplierPayment' &&
                      tx.sourceType !== 'Tax-Reversal') {
               if (isLiability) {
@@ -529,6 +551,9 @@ export async function GET(request) {
       }
 
       const netPayable = totalCollected - totalPaid - totalRefunded;
+      const netDueInPeriod = Math.max(0, netPayable);
+      const periodReversalOverhang =
+        netPayable < 0 ? Number((-netPayable).toFixed(2)) : 0;
 
       taxAccountBalances.push({
         taxType: {
@@ -544,6 +569,10 @@ export async function GET(request) {
         totalPaid,
         totalRefunded,
         netPayable,
+        /** Same as max(0, netPayable) — amount due in the selected window (avoids confusing negative "net tax"). */
+        netDueInPeriod,
+        /** When netPayable is negative: reversals/refunds in the window exceed in-window collections (often date-range skew). */
+        periodReversalOverhang,
         currentBalance: taxType.account?.balance || 0,
         breakdown: Array.from(breakdownMap.values()).sort((a, b) => a.period.localeCompare(b.period)),
       });
@@ -555,6 +584,11 @@ export async function GET(request) {
       totalPaid: taxAccountBalances.reduce((sum, acc) => sum + acc.totalPaid, 0),
       totalRefunded: taxAccountBalances.reduce((sum, acc) => sum + acc.totalRefunded, 0),
       totalNetPayable: 0,
+      totalNetDueInPeriod: taxAccountBalances.reduce((sum, acc) => sum + acc.netDueInPeriod, 0),
+      totalPeriodReversalOverhang: taxAccountBalances.reduce(
+        (sum, acc) => sum + acc.periodReversalOverhang,
+        0
+      ),
     };
     summary.totalNetPayable = summary.totalCollected - summary.totalPaid - summary.totalRefunded;
 

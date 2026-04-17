@@ -108,6 +108,15 @@ export async function GET(request) {
         }
       }
     }
+
+    // Catalog: physical products vs billable services (same Product table)
+    const catalog = (searchParams.get('catalog') || '').toLowerCase();
+    if (catalog === 'products') {
+      where.isService = false;
+    } else if (catalog === 'services') {
+      where.isService = true;
+    }
+    const includeUsageCounts = catalog === 'services' || searchParams.get('usageCounts') === '1';
     
     // Add search filter if provided (name, SKU, barcode; barcode matches prefix/partial via Product + ProductBarcode)
     let searchOrFallback = null; // for retry when ProductBarcode relation missing
@@ -156,6 +165,7 @@ export async function GET(request) {
     
     // Fetch products (include productBarcodes only if table exists to avoid 500 before migration)
     let products;
+    const countSelect = { invoiceItems: true, saleItems: true, quotationItems: true };
     const includeWithBarcodes = {
       productTaxes: {
         include: {
@@ -164,7 +174,8 @@ export async function GET(request) {
           }
         }
       },
-      productBarcodes: { select: { barcode: true } }
+      productBarcodes: { select: { barcode: true } },
+      ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     const includeWithoutBarcodes = {
       productTaxes: {
@@ -173,7 +184,8 @@ export async function GET(request) {
             select: { id: true, taxRate: true, taxName: true, taxCode: true, calculationType: true, status: true }
           }
         }
-      }
+      },
+      ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     try {
       products = await prisma.product.findMany({
@@ -199,13 +211,23 @@ export async function GET(request) {
 
     // Process products to enhance with derived fields
     let processedProducts = products.map(product => {
+      const usageLineCount =
+        product._count != null
+          ? (Number(product._count.invoiceItems) || 0) +
+            (Number(product._count.saleItems) || 0) +
+            (Number(product._count.quotationItems) || 0)
+          : undefined;
+      const { _count: _usageCount, ...productFields } = product;
+
       // Default values for missing fields
-      const stockLevel = product.stockLevel || 0;
-      const reorderPoint = product.reorderPoint || 10;
+      const stockLevel = productFields.stockLevel || 0;
+      const reorderPoint = productFields.reorderPoint || 10;
       
-      // Determine product status based on stock level
+      // Determine product status based on stock level (services are not inventory-tracked)
       let status;
-      if (stockLevel === 0) {
+      if (productFields.isService) {
+        status = 'Service';
+      } else if (stockLevel === 0) {
         status = 'Out of Stock';
       } else if (stockLevel <= reorderPoint) {
         status = 'Low Stock';
@@ -214,12 +236,12 @@ export async function GET(request) {
       }
       
       // Compute taxRate from productTaxes relation if the field is null/0
-      const computedTaxRate = product.taxRate || (product.productTaxes || [])
+      const computedTaxRate = productFields.taxRate || (productFields.productTaxes || [])
         .filter(pt => pt.taxType && pt.taxType.status === 'Active')
         .reduce(function(sum, pt) { return sum + (parseFloat(pt.taxType.taxRate) || 0); }, 0);
       
       // Format taxes for frontend
-      const formattedTaxes = (product.productTaxes || [])
+      const formattedTaxes = (productFields.productTaxes || [])
         .filter(function(pt) { return pt.taxType && pt.taxType.status === 'Active'; })
         .map(function(pt) {
           return {
@@ -232,44 +254,45 @@ export async function GET(request) {
           };
         });
       
-      const costPrice = resolveProductCostPriceForDisplay(product);
+      const costPrice = resolveProductCostPriceForDisplay(productFields);
       // Use stored totalStockValue only when it is set and positive; otherwise compute from cost × stock so
       // inventory value is correct when cost was added later or totalStockValue was never synced
-      const totalStockValueStored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+      const totalStockValueStored = productFields.totalStockValue != null ? Number(productFields.totalStockValue) : null;
       const totalStockValue = (totalStockValueStored != null && totalStockValueStored > 0)
         ? totalStockValueStored
         : (stockLevel * costPrice);
 
       // Build barcodes array: ProductBarcode records (if loaded) + legacy Product.barcode (dedupe)
       const barcodeSet = new Set();
-      if (product.productBarcodes && Array.isArray(product.productBarcodes)) {
-        product.productBarcodes.forEach(pb => { if (pb && pb.barcode) barcodeSet.add(String(pb.barcode).trim()); });
+      if (productFields.productBarcodes && Array.isArray(productFields.productBarcodes)) {
+        productFields.productBarcodes.forEach(pb => { if (pb && pb.barcode) barcodeSet.add(String(pb.barcode).trim()); });
       }
-      if (product.barcode && String(product.barcode).trim()) barcodeSet.add(String(product.barcode).trim());
+      if (productFields.barcode && String(productFields.barcode).trim()) barcodeSet.add(String(productFields.barcode).trim());
       const barcodes = Array.from(barcodeSet);
 
       // Return product with additional fields
       return {
-        ...product,
+        ...productFields,
+        usageLineCount,
         barcodes,
         // Ensure these fields exist and have default values if null
-        category: product.category || 'Uncategorized',
+        category: productFields.category || 'Uncategorized',
         reorderPoint: reorderPoint,
-        location: product.location || 'Default Location',
+        location: productFields.location || 'Default Location',
         // Use computed taxRate from productTaxes
         taxRate: computedTaxRate,
         // Include taxes data for the frontend
         taxes: formattedTaxes,
         // Computed fields
         quantityInStock: stockLevel,
-        unitPrice: product.price,
+        unitPrice: productFields.price,
         costPrice,
         totalStockValue,
         status,
         // Ensure image fields
-        image: product.image || `/api/placeholder/80/80`,
-        imageUrl: product.image || `/api/placeholder/80/80`,
-        lastUpdated: product.updatedAt.toISOString(),
+        image: productFields.image || `/api/placeholder/80/80`,
+        imageUrl: productFields.image || `/api/placeholder/80/80`,
+        lastUpdated: productFields.updatedAt.toISOString(),
       };
     });
     
@@ -520,9 +543,12 @@ export async function POST(request) {
       imagePath = body.image.url;
     }
     
-    // Get initial stock and cost BEFORE creating product
-    const initialStock = parseInt(body.quantityInStock || body.stockLevel || 0);
-    const productCost = parseFloat(body.costPrice || body.cost || 0);
+    // Get initial stock and cost BEFORE creating product (services are never stocked)
+    let initialStock = parseInt(body.quantityInStock || body.stockLevel || 0);
+    if (body.isService) {
+      initialStock = 0;
+    }
+    const productCost = body.isService ? 0 : parseFloat(body.costPrice || body.cost || 0);
     
     // Compute taxRate from selectedTaxIds if provided, otherwise use body.taxRate
     let computedTaxRate = parseFloat(body.taxRate || 0);
@@ -573,8 +599,8 @@ export async function POST(request) {
       sku: finalSku,
       description: body.description || null,
       category: body.category || 'Uncategorized',
-      stockLevel: (initialStock > 0 && productCost > 0) ? 0 : initialStock, // Set to 0 if FIFO batch will be created
-      reorderPoint: parseInt(body.reorderPoint || 10),
+      stockLevel: body.isService ? 0 : (initialStock > 0 && productCost > 0) ? 0 : initialStock, // Set to 0 if FIFO batch will be created
+      reorderPoint: body.isService ? null : parseInt(body.reorderPoint || 10),
       location: body.location || 'Default Location',
       price: parseFloat(body.unitPrice || body.price || 0),
       cost: productCost,
@@ -588,6 +614,26 @@ export async function POST(request) {
         }
       }
     };
+
+    if (body.isService) {
+      const bt = String(body.serviceBillingType || body.billingType || 'fixed').toLowerCase();
+      if (['fixed', 'hourly', 'daily'].includes(bt)) {
+        productData.serviceBillingType = bt;
+      }
+      const { resolveDefaultRevenueAccountId } = await import('@/lib/defaultRevenueAccount');
+      const revenueId = body.incomeAccountId
+        ? String(body.incomeAccountId)
+        : await resolveDefaultRevenueAccountId(prisma, user.tenantId);
+      if (revenueId) {
+        productData.incomeAccountId = revenueId;
+      }
+      if (body.serviceDefaultQty !== undefined && body.serviceDefaultQty !== null && body.serviceDefaultQty !== '') {
+        const q = parseFloat(body.serviceDefaultQty);
+        if (!Number.isNaN(q) && q >= 0) {
+          productData.serviceDefaultQty = q;
+        }
+      }
+    }
 
     // Add branch relation if branchId is set
     if (branchIdToSet) {
@@ -676,7 +722,7 @@ export async function POST(request) {
     // Create FIFO batch if product has initial stock
     // NOTE: Product was created with stockLevel = 0 if initialStock > 0 and productCost > 0
     // If productCost is 0, product was created with stockLevel = initialStock, so we need to handle that
-    if (initialStock > 0) {
+    if (!body.isService && initialStock > 0) {
       try {
         // Use product cost, or default to 0 if not provided (FIFO will still work, just with 0 cost)
         const costForFifo = productCost > 0 ? productCost : 0;
@@ -751,7 +797,9 @@ export async function POST(request) {
     
     // Determine product status
     let status;
-    if (product.stockLevel === 0) {
+    if (product.isService) {
+      status = 'Service';
+    } else if (product.stockLevel === 0) {
       status = 'Out of Stock';
     } else if (product.stockLevel <= (product.reorderPoint || 10)) {
       status = 'Low Stock';

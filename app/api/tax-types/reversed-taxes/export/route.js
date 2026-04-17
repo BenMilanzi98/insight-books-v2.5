@@ -41,28 +41,6 @@ export async function GET(request) {
       },
       orderBy: { refundedAt: 'desc' }
     });
-    const invoiceRefundWhere = {
-      tenantId: user.tenantId,
-      status: 'completed'
-    };
-    if (startDate || endDate) {
-      invoiceRefundWhere.processedAt = {};
-      if (startDate) invoiceRefundWhere.processedAt.gte = new Date(startDate);
-      if (endDate) invoiceRefundWhere.processedAt.lte = new Date(endDate + 'T23:59:59');
-    }
-    const invoiceRefunds = await prisma.invoiceRefund.findMany({
-      where: invoiceRefundWhere,
-      include: {
-        invoice: {
-          select: {
-            invoiceNumber: true,
-            total: true,
-            taxAmount: true
-          }
-        }
-      },
-      orderBy: { refundDate: 'desc' }
-    });
     const glTaxReversals = await fetchGlTaxReversalReportRows(prisma, user.tenantId, {
       startDate,
       endDate,
@@ -77,16 +55,6 @@ export async function GET(request) {
         taxReversed: parseFloat(s.totalTaxAmount) || 0,
         reason: s.refundReason
       })),
-      ...invoiceRefunds
-        .filter((r) => r.invoice && Number(r.invoice.taxAmount) > 0)
-        .map((r) => ({
-          id: r.id,
-          date: r.processedAt || r.refundDate,
-          reference: `Invoice #${r.invoice.invoiceNumber}`,
-          type: 'Invoice Refund',
-          taxReversed: Math.abs((r.refundAmount / (r.invoice?.total || 1)) * Number(r.invoice?.taxAmount || 0)),
-          reason: r.refundReason
-        })),
       ...glTaxReversals.map((r) => ({
         id: r.id,
         date: r.date,

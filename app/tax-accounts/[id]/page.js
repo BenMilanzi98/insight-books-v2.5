@@ -288,13 +288,18 @@ export default function TaxAccountDetailPage() {
         <div className="bg-purple-50 rounded-lg p-6">
           <div className="flex items-center gap-2 mb-2">
             <TrendingUp className="text-purple-600" size={24} />
-            <h3 className="text-sm font-medium text-gray-700">Net Payable</h3>
+            <h3 className="text-sm font-medium text-gray-700">Net due (period)</h3>
           </div>
-          <p className={`text-2xl font-bold ${
-            summary.netPayable >= 0 ? 'text-purple-600' : 'text-green-600'
-          }`}>
-            {formatCurrency(summary.netPayable || 0)}
+          <p className="text-2xl font-bold text-purple-600">
+            {formatCurrency(
+              summary.netDueInPeriod ?? Math.max(0, summary.netPayable || 0)
+            )}
           </p>
+          {Number(summary.periodReversalOverhang) > 0 && (
+            <p className="text-xs text-amber-900 mt-1">
+              Reversal overhang in window: {formatCurrency(summary.periodReversalOverhang)}
+            </p>
+          )}
           <p className="text-xs text-gray-500 mt-1">
             Current Balance: {formatCurrency(summary.currentBalance || 0)}
           </p>

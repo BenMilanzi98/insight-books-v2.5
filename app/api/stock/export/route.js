@@ -180,7 +180,9 @@ export async function GET(request) {
         const reorderPoint = exportToNumber(product.reorderPoint) || 10;
 
         let productStatus;
-        if (stockLevel === 0) {
+        if (product.isService) {
+          productStatus = 'Service';
+        } else if (stockLevel === 0) {
           productStatus = 'Out of Stock';
         } else if (stockLevel <= reorderPoint) {
           productStatus = 'Low Stock';

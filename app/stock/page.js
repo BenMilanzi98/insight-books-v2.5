@@ -38,6 +38,7 @@ import {
   FileSpreadsheet,
   Calendar,
   Settings,
+  Briefcase,
 } from "lucide-react";
 import ProductSearchSelect from "@/components/ProductSearchSelect";
 import Link from "next/link";
@@ -48,6 +49,7 @@ import ExpiryAlertSystem from "@/components/ExpiryAlertSystem";
 import DynamicCategorySelect from "@/components/DynamicCategorySelect";
 import ProductDeletionWarningModal from "@/components/ProductDeletionWarningModal";
 import SkuConflictModal from "@/components/Stock/SkuConflictModal";
+import ServiceFormModal, { formatBillingLabel } from "@/components/Stock/ServiceFormModal";
 import ReceivingModule from "@/components/Stock/ReceivingModule";
 import UnitManagement from "@/components/UnitManagement/UnitManagement";
 import BulkTaxApplicationModal from "@/components/BulkTaxApplicationModal";
@@ -79,10 +81,15 @@ const StockManagement = () => {
   const [searchTimeout, setSearchTimeout] = useState(null);
   const [statistics, setStatistics] = useState({
     totalItems: 0,
+    serviceCount: 0,
     totalValue: "0.00",
     lowStock: 0,
     outOfStock: 0
   });
+  /** products = physical stock; services = billable catalog (same Product table, isService) */
+  const [stockCatalog, setStockCatalog] = useState("products");
+  const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
+  const [serviceFormProduct, setServiceFormProduct] = useState(null);
   const [statisticsLoading, setStatisticsLoading] = useState(false);
   
   // NEW: Deletion warning modal state
@@ -275,6 +282,20 @@ const StockManagement = () => {
     setToast(prev => ({ ...prev, show: false }));
   };
   
+  const stockCatalogBootRef = useRef(true);
+  useEffect(() => {
+    if (stockCatalogBootRef.current) {
+      stockCatalogBootRef.current = false;
+      return;
+    }
+    setShowDeletedItems(false);
+    setSelectedProducts([]);
+    setPagination((prev) => ({ ...prev, currentPage: 1 }));
+    setView("list");
+    loadInventory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockCatalog]);
+
   // Initial data loading
   useEffect(() => {
     loadInventory();
@@ -322,6 +343,7 @@ const StockManagement = () => {
   useEffect(() => {
     const modalsOpen =
       isFormOpen ||
+      isServiceFormOpen ||
       isDetailOpen ||
       isTransactionFormOpen ||
       confirmDialog.isOpen ||
@@ -339,6 +361,7 @@ const StockManagement = () => {
     };
   }, [
     isFormOpen,
+    isServiceFormOpen,
     isDetailOpen,
     isTransactionFormOpen,
     confirmDialog.isOpen,
@@ -348,7 +371,7 @@ const StockManagement = () => {
   
   // Reload product transactions when selectedItem changes and detail modal is open
   useEffect(() => {
-    if (isDetailOpen && selectedItem?.id) {
+    if (isDetailOpen && selectedItem?.id && !selectedItem.isService) {
       console.log('useEffect: Loading product transactions for:', selectedItem.id);
       loadProductTransactions(selectedItem.id);
     } else if (!isDetailOpen) {
@@ -363,6 +386,7 @@ const StockManagement = () => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         if (isFormOpen) setIsFormOpen(false);
+        else if (isServiceFormOpen) setIsServiceFormOpen(false);
         else if (isDetailOpen) setIsDetailOpen(false);
         else if (isTransactionFormOpen) setIsTransactionFormOpen(false);
         else if (confirmDialog.isOpen) setConfirmDialog(prev => ({ ...prev, isOpen: false }));
@@ -378,6 +402,7 @@ const StockManagement = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
     isFormOpen,
+    isServiceFormOpen,
     isDetailOpen,
     isTransactionFormOpen,
     confirmDialog.isOpen,
@@ -402,6 +427,12 @@ const StockManagement = () => {
         if (order) queryParams.append('order', order);
         if (page) queryParams.append('page', page);
         if (limit) queryParams.append('limit', limit);
+        if (params.catalog === 'services' || params.catalog === 'products') {
+          queryParams.append('catalog', params.catalog);
+        }
+        if (params.usageCounts) {
+          queryParams.append('usageCounts', '1');
+        }
         // Tenant-wide stock: entire business, not scoped to a single location
         queryParams.append('allBranches', 'true');
         
@@ -688,7 +719,9 @@ const StockManagement = () => {
         order: sortDirection,
         // Use server-side pagination with 20 items per page
         page: pagination.currentPage,
-        limit: pagination.pageSize
+        limit: pagination.pageSize,
+        catalog: stockCatalog === "services" ? "services" : "products",
+        usageCounts: stockCatalog === "services",
       };
       
       const data = await inventoryService.fetchProducts(params).catch(() => {
@@ -946,6 +979,7 @@ const StockManagement = () => {
         const activeInventory = inventory.filter(item => !item.isDeleted);
         return {
           totalItems: activeInventory.length,
+          serviceCount: 0,
           totalValue: activeInventory.reduce((sum, item) => {
             const quantity = item.quantityInStock || 0;
             const cost = item.costPrice || 0;
@@ -966,7 +1000,11 @@ const StockManagement = () => {
         };
       });
       
-      setStatistics(stats);
+      setStatistics((prev) => ({
+        ...prev,
+        ...stats,
+        serviceCount: stats.serviceCount ?? prev.serviceCount ?? 0,
+      }));
     } catch (error) {
       console.error("Error loading statistics:", error);
       // Don't set error state for statistics, just log it
@@ -1167,29 +1205,25 @@ const StockManagement = () => {
     // Clear previous transactions immediately
     setProductTransactions([]);
     
-    // Fetch complete product data including units
+    let resolved = item;
     try {
       const response = await fetch(`/api/stock/${item.id}`);
       if (response.ok) {
-        const completeProduct = await response.json();
-        setSelectedItem(completeProduct);
+        resolved = await response.json();
+        setSelectedItem(resolved);
       } else {
-        // Fallback to the item from product list
         setSelectedItem(item);
       }
     } catch (error) {
       console.error('Error fetching complete product data:', error);
-      // Fallback to the item from product list
       setSelectedItem(item);
     }
     
     setIsDetailOpen(true);
     
-    // Load transactions for this product - ensure we use the correct product ID
-    const productIdToLoad = item?.id;
-    if (productIdToLoad) {
-      console.log('Loading transactions for product:', productIdToLoad);
-      await loadProductTransactions(productIdToLoad);
+    if (resolved?.id && !resolved.isService) {
+      console.log('Loading transactions for product:', resolved.id);
+      await loadProductTransactions(resolved.id);
     }
   };
 
@@ -1264,27 +1298,38 @@ const StockManagement = () => {
     setIsEditing(false);
     setIsFormOpen(true);
   };
+
+  const handleAddService = () => {
+    setServiceFormProduct(null);
+    setIsServiceFormOpen(true);
+  };
   
   // Open form for editing a product
   const handleEditProduct = async (product, e) => {
     if (e) e.stopPropagation(); // Prevent triggering the row click
-    
-    // Fetch complete product data including units for editing
+
+    let completeProduct = product;
     try {
       const response = await fetch(`/api/stock/${product.id}`);
       if (response.ok) {
-        const completeProduct = await response.json();
+        completeProduct = await response.json();
         setSelectedItem(completeProduct);
       } else {
-        // Fallback to the product from product list
-    setSelectedItem(product);
+        setSelectedItem(product);
       }
     } catch (error) {
       console.error('Error fetching complete product data for editing:', error);
-      // Fallback to the product from product list
       setSelectedItem(product);
     }
-    
+
+    if (completeProduct.isService || stockCatalog === "services") {
+      setServiceFormProduct(completeProduct);
+      setIsServiceFormOpen(true);
+      setIsFormOpen(false);
+      setIsEditing(false);
+      return;
+    }
+
     setIsEditing(true);
     setIsFormOpen(true);
   };
@@ -2289,6 +2334,10 @@ const StockManagement = () => {
         badgeClass = "bg-red-50 text-red-700 border border-red-200";
         icon = <AlertCircle className="w-3.5 h-3.5 mr-1" />;
         break;
+      case "Service":
+        badgeClass = "bg-violet-50 text-violet-800 border border-violet-200";
+        icon = <Briefcase className="w-3.5 h-3.5 mr-1" />;
+        break;
       default:
         badgeClass = "bg-gray-50 text-gray-700 border border-gray-200";
     }
@@ -2331,12 +2380,47 @@ const StockManagement = () => {
       )}
 
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 lg:mb-8">
-        <div>
+        <div className="w-full lg:w-auto min-w-0">
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Stock Management</h1>
-          <p className="text-gray-500 mt-1">Manage your products, track stock levels, and monitor stock activity for this business</p>
+          <p className="text-gray-500 mt-1 max-w-2xl">
+            {stockCatalog === "services"
+              ? "Billable services — pricing and tax only; no inventory or stock movements."
+              : "Manage physical products, track stock levels, and monitor stock activity for this business."}
+          </p>
+          <div className="mt-4 inline-flex rounded-xl border border-gray-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                stockCatalog === "products"
+                  ? "bg-blue-600 text-white shadow"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+              onClick={() => setStockCatalog("products")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Package size={16} />
+                Products
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                stockCatalog === "services"
+                  ? "bg-violet-600 text-white shadow"
+                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+              }`}
+              onClick={() => setStockCatalog("services")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Briefcase size={16} />
+                Services
+              </span>
+            </button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* View Toggle */}
+          {/* View Toggle — products only (deleted services use product archive when needed) */}
+          {stockCatalog === "products" && (
           <div className="flex bg-white rounded-lg p-1 shadow-sm border border-gray-200">
             <button
               className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
@@ -2366,9 +2450,12 @@ const StockManagement = () => {
               Deleted ({deletedProducts.length})
             </button>
           </div>
+          )}
 
           {!showDeletedItems ? (
             <>
+              {stockCatalog === "products" && (
+              <>
               {/* Batch Operations Toggle */}
               <button
                 className={`px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-all duration-200 ${
@@ -2413,6 +2500,48 @@ const StockManagement = () => {
                 <ShoppingCart size={16} />
                 <span>New purchase order</span>
               </button>
+              </>
+              )}
+
+              {stockCatalog === "services" && pagePermissions.canCreateStock && (
+                <button
+                  type="button"
+                  className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-violet-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-violet-200 hover:from-violet-700 hover:to-violet-800 transition-all duration-200"
+                  onClick={handleAddService}
+                >
+                  <Plus size={16} />
+                  <span>Add Service</span>
+                </button>
+              )}
+
+              {stockCatalog === "services" && (
+                <button
+                  type="button"
+                  className={`px-4 py-2.5 rounded-lg font-medium flex items-center gap-2 transition-all duration-200 ${
+                    isSelectMode
+                      ? "bg-orange-600 text-white shadow-lg shadow-orange-200 hover:bg-orange-700"
+                      : "bg-white text-gray-700 shadow-sm border border-gray-200 hover:bg-gray-50 hover:shadow-md"
+                  }`}
+                  onClick={() => {
+                    setIsSelectMode(!isSelectMode);
+                    setSelectedProducts([]);
+                  }}
+                >
+                  <CheckSquare size={16} />
+                  <span>{isSelectMode ? "Cancel selection" : "Select services"}</span>
+                </button>
+              )}
+
+              {stockCatalog === "services" && isSelectMode && selectedProducts.length > 0 && (
+                <button
+                  type="button"
+                  className="px-4 py-2.5 bg-red-600 text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-red-200 hover:bg-red-700 transition-all duration-200"
+                  onClick={handleBatchDelete}
+                >
+                  <Trash2 size={16} />
+                  <span>Delete selected ({selectedProducts.length})</span>
+                </button>
+              )}
             </>
           ) : (
             /* Deleted Items View Controls */
@@ -2430,7 +2559,7 @@ const StockManagement = () => {
             )
           )}
           
-          {/* NEW: Bulk Operations Button */}
+          {stockCatalog === "products" && (
           <button 
             className="px-4 py-2.5 bg-white text-gray-700 rounded-lg font-medium flex items-center gap-2 shadow-sm border border-gray-200 hover:bg-gray-50 hover:shadow-md transition-all duration-200"
             onClick={() => setIsBulkOperationsOpen(true)}
@@ -2438,8 +2567,8 @@ const StockManagement = () => {
             <FileSpreadsheet size={16} />
             <span>Bulk Operations</span>
           </button>
+          )}
           
-          {/* NEW: Apply Taxes Button */}
           <button 
             className="px-4 py-2.5 bg-white text-purple-700 rounded-lg font-medium flex items-center gap-2 shadow-sm border border-gray-200 hover:bg-purple-50 hover:shadow-md transition-all duration-200"
             onClick={() => setIsBulkTaxModalOpen(true)}
@@ -2448,7 +2577,7 @@ const StockManagement = () => {
             <span>Apply Taxes</span>
           </button>
           
-          {/* NEW: Expiry Alerts Button */}
+          {stockCatalog === "products" && (
           <button 
             className="px-4 py-2.5 bg-white text-orange-700 rounded-lg font-medium flex items-center gap-2 shadow-sm border border-gray-200 hover:bg-orange-50 hover:shadow-md transition-all duration-200"
             onClick={() => setIsExpiryAlertsOpen(true)}
@@ -2456,16 +2585,51 @@ const StockManagement = () => {
             <Calendar size={16} />
             <span>Expiry Alerts</span>
           </button>
+          )}
         </div>
       </div>
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-6 lg:mb-8">
+      <div className={`grid grid-cols-1 gap-4 lg:gap-6 mb-6 lg:mb-8 ${stockCatalog === "services" ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}>
         {/* Total Products Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500">Total Products</p>
+              <p className="text-sm font-medium text-gray-500">
+                {stockCatalog === "services" ? "Services" : "Total products"}
+              </p>
+              <div className="mt-2">
+                {statisticsLoading ? (
+                  <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
+                ) : (
+                  <p className="text-3xl font-bold text-gray-900">
+                    {stockCatalog === "services"
+                      ? statistics.serviceCount ?? 0
+                      : statistics.totalItems}
+                  </p>
+                )}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {stockCatalog === "services"
+                  ? "Billable services in this business"
+                  : "Physical SKUs in stock"}
+              </p>
+            </div>
+            <div className={`p-3 rounded-xl ${stockCatalog === "services" ? "bg-violet-50" : "bg-blue-50"}`}>
+              {stockCatalog === "services" ? (
+                <Briefcase size={24} className="text-violet-600" />
+              ) : (
+                <Package size={24} className="text-blue-600" />
+              )}
+            </div>
+          </div>
+        </div>
+
+        {stockCatalog === "services" && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500">Physical products</p>
               <div className="mt-2">
                 {statisticsLoading ? (
                   <div className="h-8 w-20 bg-gray-200 rounded animate-pulse"></div>
@@ -2473,14 +2637,17 @@ const StockManagement = () => {
                   <p className="text-3xl font-bold text-gray-900">{statistics.totalItems}</p>
                 )}
               </div>
-              <p className="text-xs text-gray-400 mt-1">Active items in stock</p>
+              <p className="text-xs text-gray-400 mt-1">Switch to Products to manage inventory</p>
             </div>
             <div className="p-3 bg-blue-50 rounded-xl">
               <Package size={24} className="text-blue-600" />
             </div>
           </div>
         </div>
+        )}
         
+        {stockCatalog === "products" && (
+        <>
         {/* Stock value card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 hover:shadow-md transition-shadow duration-200">
           <div className="flex items-center justify-between">
@@ -2540,9 +2707,11 @@ const StockManagement = () => {
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
 
-      {!showDeletedItems && (
+      {stockCatalog === "products" && !showDeletedItems && (
         <ReceivingModule refreshTrigger={receivingRefresh} />
       )}
 
@@ -2552,7 +2721,11 @@ const StockManagement = () => {
           <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by name or SKU..."
+            placeholder={
+              stockCatalog === "services"
+                ? "Search services by name or code…"
+                : "Search by name or SKU..."
+            }
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all duration-200"
@@ -2576,7 +2749,7 @@ const StockManagement = () => {
             </select>
           </div>
           
-          {/* Status Filter */}
+          {stockCatalog === "products" && (
           <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 hover:bg-white transition-all duration-200">
             <Filter size={16} className="text-gray-400 mr-2" />
             <select 
@@ -2590,8 +2763,9 @@ const StockManagement = () => {
               <option value="Out of Stock">Out of Stock</option>
             </select>
           </div>
+          )}
           
-          {/* Location Filter */}
+          {stockCatalog === "products" && (
           <div className="relative flex items-center border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 hover:bg-white transition-all duration-200">
             <Filter size={16} className="text-gray-400 mr-2" />
             <select 
@@ -2606,10 +2780,11 @@ const StockManagement = () => {
               ))}
             </select>
           </div>
+          )}
           
           <div className="h-6 w-px bg-gray-200 mx-1"></div>
           
-          {/* View Toggle Buttons */}
+          {stockCatalog === "products" && (
           <div className="flex border border-gray-200 rounded-lg overflow-hidden">
             <button 
               className={`px-3 py-2 flex items-center gap-1.5 transition-all duration-200 ${
@@ -2645,6 +2820,7 @@ const StockManagement = () => {
               <span className="text-xs font-medium">Grid</span>
             </button>
           </div>
+          )}
           
           {pagePermissions.canExportStock && (
             <button 
@@ -2656,7 +2832,8 @@ const StockManagement = () => {
             </button>
           )}
           
-          {/* Stock Transfers View Toggle */}
+          {stockCatalog === "products" && (
+          <>
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium ${
               view === 'transfers' 
@@ -2672,7 +2849,6 @@ const StockManagement = () => {
             <span className="text-sm">Transfers</span>
           </button>
 
-          {/* Stock Movement Report */}
           <button
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium ${
               stockMovementReportOpen
@@ -2684,11 +2860,13 @@ const StockManagement = () => {
             <FileText size={16} />
             <span className="text-sm">Stock movement report</span>
           </button>
+          </>
+          )}
         </div>
       </div>
 
       {/* Stock Movement Report (in-page) */}
-      {stockMovementReportOpen && (
+      {stockCatalog === "products" && stockMovementReportOpen && (
         <div className="mb-6 lg:mb-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-slate-50">
             <h2 className="text-lg font-semibold text-gray-900">Stock movement report</h2>
@@ -2743,7 +2921,7 @@ const StockManagement = () => {
           </div>
         </div>
       ) : (
-        view === 'list' ? (
+        (view === 'list' || stockCatalog === 'services') ? (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -2770,63 +2948,127 @@ const StockManagement = () => {
                         />
                       </th>
                     )}
-                    <th 
-                      className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
-                      onClick={() => handleSort('name')}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Product Name</span>
-                        {sortField === 'name' && (
-                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-blue-600" /> : <ArrowDown size={12} className="text-blue-600" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
-                    <th 
-                      className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
-                      onClick={() => handleSort('category')}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Category</span>
-                        {sortField === 'category' && (
-                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-blue-600" /> : <ArrowDown size={12} className="text-blue-600" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
-                      onClick={() => handleSort('quantityInStock')}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Quantity</span>
-                        {sortField === 'quantityInStock' && (
-                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-blue-600" /> : <ArrowDown size={12} className="text-blue-600" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
-                      onClick={() => handleSort('unitPrice')}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Unit Price</span>
-                        {sortField === 'unitPrice' && (
-                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-blue-600" /> : <ArrowDown size={12} className="text-blue-600" />
-                        )}
-                      </div>
-                    </th>
-                    <th 
-                      className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
-                      onClick={() => handleSort('status')}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>Status</span>
-                        {sortField === 'status' && (
-                          sortDirection === 'asc' ? <ArrowUp size={12} className="text-blue-600" /> : <ArrowDown size={12} className="text-blue-600" />
-                        )}
-                      </div>
-                    </th>
-                    <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Stock value</th>
+                    {stockCatalog === "services" ? (
+                      <>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("name")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Service name</span>
+                            {sortField === "name" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-violet-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-violet-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Code
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Billing
+                        </th>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("unitPrice")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Rate</span>
+                            {sortField === "unitPrice" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-violet-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-violet-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          VAT %
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Line items
+                        </th>
+                      </>
+                    ) : (
+                      <>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("name")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Product Name</span>
+                            {sortField === "name" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-blue-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-blue-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</th>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("category")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Category</span>
+                            {sortField === "category" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-blue-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-blue-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("quantityInStock")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Quantity</span>
+                            {sortField === "quantityInStock" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-blue-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-blue-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("unitPrice")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Unit Price</span>
+                            {sortField === "unitPrice" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-blue-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-blue-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th
+                          className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100/50 transition-colors"
+                          onClick={() => handleSort("status")}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span>Status</span>
+                            {sortField === "status" &&
+                              (sortDirection === "asc" ? (
+                                <ArrowUp size={12} className="text-blue-600" />
+                              ) : (
+                                <ArrowDown size={12} className="text-blue-600" />
+                              ))}
+                          </div>
+                        </th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                          Stock value
+                        </th>
+                      </>
+                    )}
                     <th className="px-4 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -2857,48 +3099,87 @@ const StockManagement = () => {
                           />
                         </td>
                       )}
-                      <td className="px-4 py-4">
-                        <div className="flex items-center">
-                          <img src={item.image || "/api/placeholder/80/80"} alt={item.name} className="w-11 h-11 mr-3 object-cover rounded-lg shadow-sm" />
-                          <div>
-                            <span className="font-medium text-gray-900 block">{item.name}</span>
-                            {showDeletedItems && (
-                              <div className="text-xs text-red-500 mt-1 font-medium">
-                                Deleted: {formatDate(item.deletedAt)}
-                                {item.deletionReason && ` - ${item.deletionReason}`}
+                      {stockCatalog === "services" ? (
+                        <>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center min-w-0">
+                              <div className="w-10 h-10 rounded-lg bg-violet-50 text-violet-700 flex items-center justify-center mr-3 shrink-0">
+                                <Briefcase className="w-5 h-5" />
                               </div>
+                              <div className="min-w-0">
+                                <span className="font-medium text-gray-900 block truncate">{item.name}</span>
+                                {item.description && (
+                                  <span className="text-xs text-gray-500 line-clamp-1">{item.description}</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm">
+                            <span className="font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded text-xs">
+                              {item.sku || "—"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-violet-50 text-violet-800 border border-violet-100">
+                              {formatBillingLabel(item.serviceBillingType)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm font-semibold text-gray-900">
+                            {formatCurrency(item.unitPrice)}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-700">
+                            {item.taxRate != null ? `${Number(item.taxRate).toFixed(2)}%` : "—"}
+                          </td>
+                          <td className="px-4 py-4 text-sm font-medium text-gray-800">
+                            {item.usageLineCount != null ? item.usageLineCount : "—"}
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center">
+                              <img src={item.image || "/api/placeholder/80/80"} alt={item.name} className="w-11 h-11 mr-3 object-cover rounded-lg shadow-sm" />
+                              <div>
+                                <span className="font-medium text-gray-900 block">{item.name}</span>
+                                {showDeletedItems && (
+                                  <div className="text-xs text-red-500 mt-1 font-medium">
+                                    Deleted: {formatDate(item.deletedAt)}
+                                    {item.deletionReason && ` - ${item.deletionReason}`}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4 text-sm">
+                            <span className="font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded text-xs">
+                              {item.sku}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600">
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                              {item.category || "Uncategorized"}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-4 text-sm font-semibold ${
+                            item.status === 'Out of Stock' ? 'text-red-600' : 
+                            item.status === 'Low Stock' ? 'text-amber-600' : 
+                            'text-gray-700'
+                          }`}>
+                            {item.quantityInStock}
+                          </td>
+                          <td className="px-4 py-4 text-sm font-medium text-gray-700">{formatCurrency(item.unitPrice)}</td>
+                          <td className="px-4 py-4 text-sm">
+                            <StatusBadge status={item.status} />
+                          </td>
+                          <td className="px-4 py-4 text-sm font-bold text-gray-900">
+                            {formatCurrency(
+                              item.totalStockValue != null && !isNaN(Number(item.totalStockValue))
+                                ? Number(item.totalStockValue)
+                                : (item.quantityInStock * (item.costPrice || 0))
                             )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-4 text-sm">
-                        <span className="font-mono text-gray-600 bg-gray-100 px-2 py-1 rounded text-xs">
-                          {item.sku}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-600">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                          {item.category || "Uncategorized"}
-                        </span>
-                      </td>
-                      <td className={`px-4 py-4 text-sm font-semibold ${
-                        item.status === 'Out of Stock' ? 'text-red-600' : 
-                        item.status === 'Low Stock' ? 'text-amber-600' : 
-                        'text-gray-700'
-                      }`}>
-                        {item.quantityInStock}
-                      </td>
-                      <td className="px-4 py-4 text-sm font-medium text-gray-700">{formatCurrency(item.unitPrice)}</td>
-                      <td className="px-4 py-4 text-sm">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="px-4 py-4 text-sm font-bold text-gray-900">
-                        {formatCurrency(
-                          item.totalStockValue != null && !isNaN(Number(item.totalStockValue))
-                            ? Number(item.totalStockValue)
-                            : (item.quantityInStock * (item.costPrice || 0))
-                        )}
-                      </td>
+                          </td>
+                        </>
+                      )}
                       <td className="px-4 py-4 text-sm">
                         <div className="flex space-x-1.5" onClick={(e) => e.stopPropagation()}>
                           {showDeletedItems ? (
@@ -2951,14 +3232,35 @@ const StockManagement = () => {
             {inventory.length === 0 && (
               <div className="py-16 text-center">
                 <div className="bg-gray-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                  <Package className="w-10 h-10 text-gray-300" />
+                  {stockCatalog === "services" ? (
+                    <Briefcase className="w-10 h-10 text-violet-300" />
+                  ) : (
+                    <Package className="w-10 h-10 text-gray-300" />
+                  )}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No products found</h3>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  {stockCatalog === "services" ? "No services yet" : "No products found"}
+                </h3>
                 <p className="text-gray-500 mb-6 max-w-sm mx-auto">
-                  {(searchTerm || categoryFilter !== "All" || statusFilter !== "All") 
+                  {stockCatalog === "services"
+                    ? searchTerm || categoryFilter !== "All"
+                      ? "Try adjusting your search or category filter"
+                      : "Create a service for consulting, room rates, delivery fees, and other non-inventory billing."
+                    : (searchTerm || categoryFilter !== "All" || statusFilter !== "All") 
                     ? "Try adjusting your search or filter criteria" 
                     : "Get started by adding your first product to stock"}
                 </p>
+                {stockCatalog === "services" ? (
+                  pagePermissions.canCreateStock && (
+                    <button 
+                      className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-violet-700 text-white rounded-lg font-medium shadow-lg shadow-violet-200 hover:from-violet-700 hover:to-violet-800 transition-all duration-200 flex items-center gap-2 mx-auto"
+                      onClick={handleAddService}
+                    >
+                      <Plus size={18} />
+                      Add your first service
+                    </button>
+                  )
+                ) : (
                 <button 
                   className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-200 hover:from-blue-700 hover:to-blue-800 transition-all duration-200 flex items-center gap-2 mx-auto"
                   onClick={handleAddProduct}
@@ -2966,10 +3268,11 @@ const StockManagement = () => {
                   <Plus size={18} />
                   Add Your First Product
                 </button>
+                )}
               </div>
             )}
           </div>
-        ) : (
+        ) : stockCatalog === 'products' ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {(showDeletedItems ? deletedProducts : inventory).map((item) => (
               <div 
@@ -3123,7 +3426,7 @@ const StockManagement = () => {
               </div>
             )}
           </div>
-        )
+        ) : null
       )}
       
       {/* NEW: Pagination Controls */}
@@ -3132,7 +3435,8 @@ const StockManagement = () => {
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <span className="text-sm text-gray-600">
-                Showing <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> to <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> of <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span> products
+                Showing <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const n = (p - 1) * s + 1; return Number.isFinite(n) ? n : 0; })()}</span> to <span className="font-semibold text-gray-900">{(() => { const p = Number(pagination.currentPage) || 1; const s = Number(pagination.pageSize) || 20; const t = Number(pagination.totalItems) || 0; const n = Math.min(p * s, t); return Number.isFinite(n) ? n : 0; })()}</span> of <span className="font-semibold text-gray-900">{Number.isFinite(Number(pagination.totalItems)) ? (Number(pagination.totalItems) || 0) : 0}</span>{" "}
+                {stockCatalog === "services" ? "services" : "products"}
               </span>
               
               <div className="flex items-center gap-2">
@@ -3425,21 +3729,34 @@ const StockManagement = () => {
                 <div className="md:col-span-2">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <span className="text-sm text-gray-500">SKU</span>
+                      <span className="text-sm text-gray-500">{selectedItem.isService ? "Service code" : "SKU"}</span>
                       <div className="font-medium">{selectedItem.sku}</div>
                     </div>
                     <div>
                       <span className="text-sm text-gray-500">Category</span>
                       <div className="font-medium">{selectedItem.category}</div>
                     </div>
+                    {!selectedItem.isService && (
                     <div>
                       <span className="text-sm text-gray-500">Location</span>
                       <div className="font-medium">{selectedItem.location || 'Not specified'}</div>
                     </div>
+                    )}
+                    {selectedItem.isService && (
+                    <div className="md:col-span-2">
+                      <span className="text-sm text-gray-500">Revenue account</span>
+                      <div className="font-medium">
+                        {selectedItem.incomeAccount
+                          ? `${String(selectedItem.incomeAccount.accountCode || "").trim()} — ${selectedItem.incomeAccount.accountName || "Revenue"}`
+                          : "Standard revenue (4000) — resolved when the service is saved"}
+                      </div>
+                    </div>
+                    )}
                     <div>
                       <span className="text-sm text-gray-500">Last Updated</span>
                       <div className="font-medium">{formatDate(selectedItem.lastUpdated)}</div>
                     </div>
+                    {!selectedItem.isService && (
                     <div className="md:col-span-2">
                       <span className="text-sm text-gray-500">Barcodes</span>
                       <div className="font-medium flex flex-wrap gap-2 mt-0.5">
@@ -3457,11 +3774,13 @@ const StockManagement = () => {
                         <p className="text-xs text-gray-500 mt-1">Any of these can be used in POS to search for this product.</p>
                       )}
                     </div>
+                    )}
                   </div>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {!selectedItem.isService && (
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h3 className="font-medium text-lg mb-4">Stock Information</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -3489,22 +3808,41 @@ const StockManagement = () => {
                     </div>
                   </div>
                 </div>
+                )}
                 
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-medium text-lg mb-4">Pricing</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                <div className={`bg-gray-50 p-4 rounded-lg ${selectedItem.isService ? "md:col-span-2" : ""}`}>
+                  <h3 className="font-medium text-lg mb-4">{selectedItem.isService ? "Service pricing" : "Pricing"}</h3>
+                  <div className={`grid gap-4 ${selectedItem.isService ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-2"}`}>
+                    {!selectedItem.isService && (
                     <div>
                       <span className="text-sm text-gray-500">Cost Price</span>
                       <div className="text-lg font-bold">{formatCurrency(selectedItem.costPrice)}</div>
                     </div>
+                    )}
                     <div>
-                      <span className="text-sm text-gray-500">Selling Price</span>
+                      <span className="text-sm text-gray-500">{selectedItem.isService ? "Rate" : "Selling Price"}</span>
                       <div className="text-lg font-bold">{formatCurrency(selectedItem.unitPrice)}</div>
                     </div>
+                    {selectedItem.isService && (
+                      <div>
+                        <span className="text-sm text-gray-500">Billing</span>
+                        <div className="text-lg font-bold">{formatBillingLabel(selectedItem.serviceBillingType)}</div>
+                      </div>
+                    )}
+                    {selectedItem.isService && selectedItem.serviceDefaultQty != null && (
+                      <div>
+                        <span className="text-sm text-gray-500">Default quantity</span>
+                        <div className="text-lg font-bold">{String(selectedItem.serviceDefaultQty)}</div>
+                      </div>
+                    )}
+                    {!selectedItem.isService && (
+                    <>
                     <div>
                       <span className="text-sm text-gray-500">Profit Margin</span>
                       <div className="text-lg font-bold">
-                        {Math.round(((selectedItem.unitPrice - selectedItem.costPrice) / selectedItem.unitPrice) * 100)}%
+                        {selectedItem.unitPrice
+                          ? `${Math.round(((selectedItem.unitPrice - (selectedItem.costPrice || 0)) / selectedItem.unitPrice) * 100)}%`
+                          : "—"}
                       </div>
                     </div>
                     <div>
@@ -3517,12 +3855,14 @@ const StockManagement = () => {
                         )}
                       </div>
                     </div>
+                    </>
+                    )}
                   </div>
                 </div>
               </div>
               
               {/* Product Units Display */}
-              {selectedItem?.units && selectedItem.units.length > 0 && (
+              {!selectedItem.isService && selectedItem?.units && selectedItem.units.length > 0 && (
                 <div className="bg-blue-50 p-4 rounded-lg mb-6">
                   <h3 className="font-medium text-lg mb-4 text-blue-900">Product Units</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -3569,6 +3909,7 @@ const StockManagement = () => {
                 </div>
               )}
               
+              {!selectedItem.isService && (
               <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
                 <div className="px-4 py-3 border-b border-gray-200">
                   <h3 className="font-medium text-lg">Stock activity</h3>
@@ -3684,11 +4025,12 @@ const StockManagement = () => {
                   )}
                 </div>
               </div>
+              )}
             </div>
             
             <div className="p-5 border-t border-gray-200 bg-gray-50 flex justify-between">
               <div className="flex space-x-2">
-              {pagePermissions.canAdjustStock &&(<> <button 
+              {pagePermissions.canAdjustStock && !selectedItem.isService && (<> <button 
                   className="px-3 py-1.5 border border-gray-300 rounded text-sm flex items-center gap-1 hover:bg-gray-50"
                   onClick={() => {
                     setIsDetailOpen(false);
@@ -3745,7 +4087,7 @@ const StockManagement = () => {
                     handleEditProduct(selectedItem);
                   }}
                 >
-                  Edit Product
+                  {selectedItem.isService ? "Edit service" : "Edit Product"}
                 </button>)}
               </div>
             </div>
@@ -3821,6 +4163,25 @@ const StockManagement = () => {
           </div>
         </div>
       )}
+
+      <ServiceFormModal
+        isOpen={isServiceFormOpen}
+        onClose={() => {
+          setIsServiceFormOpen(false);
+          setServiceFormProduct(null);
+        }}
+        initialProduct={serviceFormProduct}
+        showToast={showToast}
+        canSubmit={
+          Boolean(serviceFormProduct?.id)
+            ? pagePermissions.canUpdateStock
+            : pagePermissions.canCreateStock
+        }
+        onSaved={() => {
+          loadInventory();
+          loadStatistics();
+        }}
+      />
 
       {/* Product Form Modal */}
       {isFormOpen && (
@@ -4697,7 +5058,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     selectedUnits: [],
     unitConfigurations: {},
     // Tax assignment fields
-    selectedTaxIds: []
+    selectedTaxIds: [],
+    isService: false
   });
   
   const [imageFile, setImageFile] = useState(null);
@@ -4938,7 +5300,8 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         selectedBaseUnit: null,
         selectedUnits: [],
         unitConfigurations: {},
-        selectedTaxIds: []
+        selectedTaxIds: [],
+        isService: false
       });
       setPreviewUrl(null);
       setImageFile(null);
@@ -5049,6 +5412,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         dimensions: product.dimensions || "",
         barcodes: Array.isArray(product.barcodes) ? product.barcodes : (product.barcode ? [product.barcode] : []),
         tags: product.tags || [],
+        isService: Boolean(product.isService),
         // Unit management fields
         ...unitManagementData
       });
@@ -5199,8 +5563,13 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     const quantityInStock = formData.quantityInStock === '' ? 0 : parseFloat(formData.quantityInStock) || 0;
     const reorderPoint = formData.reorderPoint === '' ? 0 : parseFloat(formData.reorderPoint) || 0;
     
-    const status = quantityInStock === 0 ? "Out of Stock" :
-                   quantityInStock <= reorderPoint ? "Low Stock" : "In Stock";
+    const status = formData.isService
+      ? "Service"
+      : quantityInStock === 0
+        ? "Out of Stock"
+        : quantityInStock <= reorderPoint
+          ? "Low Stock"
+          : "In Stock";
     
     // Ensure category is not empty, use "Uncategorized" as default
     const categoryValue = formData.category ? formData.category.trim() : "Uncategorized";
