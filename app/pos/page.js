@@ -44,7 +44,8 @@ import {
   Lock,
   Building2,
   LayoutGrid,
-  List
+  List,
+  Sparkles,
 
 } from 'lucide-react';
 import { 
@@ -144,6 +145,9 @@ const POSPage = () => {
   
   // Current sale state
   const [selectedProducts, setSelectedProducts] = useState([]);
+  /** Short toast when a line is added to the sale cart (cleared after 1s). */
+  const [cartToast, setCartToast] = useState(null);
+  const cartToastTimerRef = useRef(null);
   const [selectedProduct, setSelectedProduct] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [paymentMethod, setPaymentMethod] = useState(""); // Start empty, will be set when accounts load
@@ -944,6 +948,27 @@ const POSPage = () => {
     }
   };
   
+  const showCartAddedToast = useCallback((itemLabel) => {
+    const name = (itemLabel && String(itemLabel).trim()) || 'Item';
+    if (cartToastTimerRef.current) {
+      clearTimeout(cartToastTimerRef.current);
+      cartToastTimerRef.current = null;
+    }
+    setCartToast(`${name} added to cart`);
+    cartToastTimerRef.current = setTimeout(() => {
+      setCartToast(null);
+      cartToastTimerRef.current = null;
+    }, 1000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (cartToastTimerRef.current) {
+        clearTimeout(cartToastTimerRef.current);
+      }
+    };
+  }, []);
+
   // Helper function to check if product has unit management enabled
   const hasUnitManagement = (product) => {
     const hasUnits = !!(product?.units && product.units.length > 0);
@@ -1088,6 +1113,7 @@ const POSPage = () => {
             : p
         ));
       }
+      showCartAddedToast(detailedProduct.name);
     } else {
       // Determine initial price (base unit price for unit-managed)
       let initialPrice = detailedProduct.price;
@@ -1158,6 +1184,7 @@ const POSPage = () => {
       }
       
       setSelectedProducts([...selectedProducts, newProduct]);
+      showCartAddedToast(detailedProduct.name);
     }
     
     // Clear product selection
@@ -1208,6 +1235,7 @@ const POSPage = () => {
     };
 
     setSelectedProducts([...selectedProducts, customProd]);
+    showCartAddedToast(customProd.name);
     
     // Reset form
     setCustomProduct({ name: "", price: "", description: "" });
@@ -2326,8 +2354,29 @@ const POSPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-indigo-50 p-4 sm:p-6 lg:p-8">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 lg:mb-8">
-        <div>
-          <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-1">Point of Sale</h1>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">Point of Sale</h1>
+            {cartToast ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="relative inline-flex max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-full border border-emerald-300/50 bg-gradient-to-r from-emerald-50/95 via-white to-teal-50/90 py-1.5 pl-2 pr-4 shadow-[0_4px_20px_-4px_rgba(5,150,105,0.35)] ring-2 ring-emerald-400/20 backdrop-blur-sm motion-reduce:shadow-md motion-reduce:ring-1"
+              >
+                <span
+                  className="pointer-events-none absolute -left-1/4 top-0 h-full w-1/2 skew-x-12 bg-gradient-to-r from-transparent via-white/70 to-transparent opacity-80 motion-reduce:hidden"
+                  aria-hidden
+                />
+                <span className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-inner shadow-emerald-900/20">
+                  <CheckCircle className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                </span>
+                <Sparkles className="relative h-3.5 w-3.5 shrink-0 text-amber-500 sm:h-4 sm:w-4" strokeWidth={2} aria-hidden />
+                <span className="relative min-w-0 truncate text-sm font-semibold tracking-tight text-emerald-950">
+                  {cartToast}
+                </span>
+              </div>
+            ) : null}
+          </div>
           <p className="text-sm text-gray-600">Process sales and manage transactions</p>
         </div>
         <div className="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -4569,6 +4618,7 @@ const POSPage = () => {
         onClose={() => setShowClientModal(false)}
         onClientCreated={handleClientCreated}
       />
+
     </div>
     </PermissionGuard>
   );

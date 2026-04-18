@@ -10,6 +10,7 @@ import {
   ChevronRight,
   CloudDownload,
   GitMerge,
+  GripVertical,
   Loader2,
   Pencil,
   Plus,
@@ -210,13 +211,30 @@ function getOrphanForestRoots(accounts, reachableCodes) {
     .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
 }
 
+const GL_TYPE_FILTER_OPTIONS = ["All", "Asset", "Liability", "Equity", "Income", "Expense"];
+
+/** Normalize DB `accountType` / legacy `type` for filters (Revenue → Income). */
+function tenantRowCanonicalAccountType(row) {
+  const raw = String(row?.accountType || row?.type || "").trim();
+  if (!raw) return "";
+  const up = raw.toUpperCase();
+  if (up === "REVENUE" || up === "INCOME") return "Income";
+  const cap = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+  if (GL_TYPE_FILTER_OPTIONS.includes(cap)) return cap;
+  if (up === "ASSET") return "Asset";
+  if (up === "LIABILITY") return "Liability";
+  if (up === "EQUITY") return "Equity";
+  if (up === "EXPENSE") return "Expense";
+  return cap;
+}
+
 function CoaTableRow({
   row,
   depth,
   childrenMap,
   payload,
   visibleCodes,
-  onDropOn,
+  onSystemRowDrop,
   dragCode,
   setDragCode,
   onEdit,
@@ -238,10 +256,7 @@ function CoaTableRow({
         e.dataTransfer.dropEffect = "move";
       }}
       onDrop={(e) => {
-        e.preventDefault();
-        const from = e.dataTransfer.getData("text/coa-code") || dragCode;
-        if (from && from !== row.code) onDropOn(from, row.code);
-        setDragCode(null);
+        onSystemRowDrop(e, row.code);
       }}
     >
       <td
@@ -342,7 +357,7 @@ function TreeRows({
   childrenMap,
   payload,
   visibleCodes,
-  onDropOn,
+  onSystemRowDrop,
   dragCode,
   setDragCode,
   onEdit,
@@ -358,7 +373,7 @@ function TreeRows({
         childrenMap={childrenMap}
         payload={payload}
         visibleCodes={visibleCodes}
-        onDropOn={onDropOn}
+        onSystemRowDrop={onSystemRowDrop}
         dragCode={dragCode}
         setDragCode={setDragCode}
         onEdit={onEdit}
@@ -371,7 +386,7 @@ function TreeRows({
         childrenMap={childrenMap}
         payload={payload}
         visibleCodes={visibleCodes}
-        onDropOn={onDropOn}
+        onSystemRowDrop={onSystemRowDrop}
         dragCode={dragCode}
         setDragCode={setDragCode}
         onEdit={onEdit}
@@ -411,6 +426,10 @@ export default function AdminSystemChartOfAccountsPage() {
   const [tenantSourceTab, setTenantSourceTab] = useState("gl");
   /** Filter system definition table: tokenized substring match on name, code, type, subtype, description. */
   const [coaDefinitionSearch, setCoaDefinitionSearch] = useState("");
+  /** Right panel: canonical type filter for every tenant GL row. */
+  const [inventoryGlTypeFilter, setInventoryGlTypeFilter] = useState("All");
+  const [tenantGlSelectedIds, setTenantGlSelectedIds] = useState([]);
+  const [batchMergeTargetCode, setBatchMergeTargetCode] = useState("");
 
   const loadDefinition = useCallback(async () => {
     setLoading(true);
@@ -433,7 +452,10 @@ export default function AdminSystemChartOfAccountsPage() {
     setTenantInventoryError(null);
     setMessage(null);
     try {
-      const invRes = await fetch("/api/admin/system-coa/tenant-accounts", { credentials: "include" });
+      const invRes = await fetch(
+        "/api/admin/system-coa/tenant-accounts?includeAllTenantRows=true",
+        { credentials: "include" }
+      );
       const inv = await invRes.json().catch(() => ({}));
       if (!invRes.ok) {
         setTenantInventoryError(inv.error || `Tenant pull failed (${invRes.status})`);
@@ -441,14 +463,19 @@ export default function AdminSystemChartOfAccountsPage() {
       }
       setTenantInventory(inv);
       setTenantInventoryError(null);
+      setTenantGlSelectedIds([]);
+      setBatchMergeTargetCode("");
       const gl = inv.meta?.combinedGlCatalogCount ?? inv.meta?.chartAccountCount ?? 0;
       const pay = inv.meta?.paymentAccountCount ?? 0;
       const tn = inv.meta?.tenantCount ?? 0;
       const bp = inv.meta?.blueprintCatalogCount ?? 0;
       const sd = inv.meta?.savedDefinitionCatalogCount ?? 0;
       const rawTenant = inv.meta?.chartAccountCount ?? 0;
+      const allRows = inv.meta?.allTenantGlAccountCount ?? inv.allTenantGlAccounts?.length ?? 0;
       setMessage(
-        `Pulled GL catalog: ${gl} distinct codes (${rawTenant} tenant DB rows + ${bp} blueprint + ${sd} saved definition entries, deduplicated by code) and ${pay} payment accounts across ${tn} tenants. Missing codes were added to the system template table above — drag parents, merge, Save, then Apply to all tenants.`
+        `Pulled GL catalog: ${gl} distinct codes (${rawTenant} tenant DB rows + ${bp} blueprint + ${sd} saved definition, deduplicated) and ${pay} payment accounts across ${tn} tenants. ` +
+          `${allRows ? `${allRows} per-tenant chart rows loaded in the right panel. ` : ""}` +
+          `Missing codes were merged into the system template — drag between panels, batch-merge by type, Save, then Apply.`
       );
     } catch (e) {
       setTenantInventoryError(e?.message || "Tenant pull failed");
@@ -463,11 +490,14 @@ export default function AdminSystemChartOfAccountsPage() {
 
   /** After a catalog pull (or reload), append any pulled codes missing from the template so they show in the draggable table. */
   useEffect(() => {
-    if (loading || !payload?.accounts?.length) return;
+    if (loading) return;
     const cat = tenantInventory?.combinedGlCatalog;
     if (!cat?.length) return;
-    setPayload((prev) => mergeCatalogIntoPayloadAccounts(prev, cat));
-  }, [loading, tenantInventory, payload]);
+    setPayload((prev) => {
+      if (!prev?.accounts?.length) return prev;
+      return mergeCatalogIntoPayloadAccounts(prev, cat);
+    });
+  }, [loading, tenantInventory?.combinedGlCatalog]);
 
   useEffect(() => {
     if (!mergeRow && !editRow && !addOpen) return;
@@ -657,6 +687,59 @@ export default function AdminSystemChartOfAccountsPage() {
     });
   }, [tenantInventory, tenantIdFilter, tenantSearch]);
 
+  /** Every Account row from all tenants; unique GL code when view is narrowed (type / search / tenant). */
+  const filteredAllTenantGlAccounts = useMemo(() => {
+    const rows = tenantInventory?.allTenantGlAccounts;
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    const tid = tenantIdFilter.trim();
+    const q = tenantSearch.trim();
+    const type = inventoryGlTypeFilter;
+    const filtered = rows.filter((r) => {
+      if (tid && r.tenantId !== tid) return false;
+      if (type !== "All") {
+        const ct = tenantRowCanonicalAccountType(r);
+        if (ct !== type) return false;
+      }
+      const blob = [
+        r.tenantId,
+        r.accountCode,
+        r.accountName,
+        r.accountType,
+        r.type,
+        r.accountSubtype,
+        r.description,
+        r.parentAccount?.accountCode,
+        r.parentAccount?.accountName,
+        r.mergedIntoAccount?.accountCode,
+      ]
+        .filter((x) => x != null && String(x).trim())
+        .join(" ");
+      return textMatchesTokenSearch(blob, q);
+    });
+
+    const narrowView = type !== "All" || q.length > 0 || Boolean(tid);
+    if (!narrowView) return filtered;
+
+    const seen = new Set();
+    const deduped = [];
+    for (const r of filtered) {
+      const codeNorm = String(r.accountCode || r.code || "").trim().toLowerCase();
+      const key = codeNorm || `__id_${r.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(r);
+    }
+    return deduped;
+  }, [tenantInventory?.allTenantGlAccounts, tenantIdFilter, tenantSearch, inventoryGlTypeFilter]);
+
+  /** Bottom “GL” tab: hide duplicate tenant rows when the right panel lists them all. */
+  const filteredTenantChartReferenceOnly = useMemo(() => {
+    if (tenantInventory?.allTenantGlAccounts?.length) {
+      return filteredTenantChart.filter((r) => r._inventorySource !== "tenant");
+    }
+    return filteredTenantChart;
+  }, [filteredTenantChart, tenantInventory?.allTenantGlAccounts]);
+
   const onDropOn = useCallback(
     (movingCode, newParentCode) => {
       setPayload((prev) => {
@@ -682,6 +765,104 @@ export default function AdminSystemChartOfAccountsPage() {
     },
     [tenantInventory]
   );
+
+  const onDropTenantRowOnTemplate = useCallback(
+    (tenantRow, newParentCode) => {
+      const acc = catalogRowToTemplateAccount({ ...tenantRow, _inventorySource: "tenant" });
+      if (!acc?.code) return;
+      setPayload((prev) => {
+        if (!prev?.accounts) return prev;
+        const cat = tenantInventory?.combinedGlCatalog || [];
+        const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+        const accounts = base.accounts;
+        const exists = accounts.some((a) => a.code === acc.code);
+        if (exists && isAncestor(accounts, acc.code, newParentCode)) {
+          setError("Cannot place this code under one of its descendants.");
+          return base;
+        }
+        setError(null);
+        setMessage("Template updated from tenant row — Save, then Apply to tenants.");
+        if (!exists) {
+          return {
+            ...base,
+            accounts: [...accounts, { ...acc, parentCode: newParentCode }],
+          };
+        }
+        return {
+          ...base,
+          accounts: accounts.map((a) =>
+            a.code === acc.code
+              ? {
+                  ...a,
+                  parentCode: newParentCode,
+                  name: acc.name || a.name,
+                }
+              : a
+          ),
+        };
+      });
+    },
+    [tenantInventory]
+  );
+
+  const handleDropOnSystemRow = useCallback(
+    (e, newParentCode) => {
+      e.preventDefault();
+      const json = e.dataTransfer.getData("application/json");
+      if (json) {
+        try {
+          const row = JSON.parse(json);
+          if (row?._inventorySource === "tenant" && (row.accountCode || row.code)) {
+            onDropTenantRowOnTemplate(row, newParentCode);
+            setDragCode(null);
+            return;
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      const from = e.dataTransfer.getData("text/coa-code") || dragCode;
+      if (from && from !== newParentCode) onDropOn(from, newParentCode);
+      setDragCode(null);
+    },
+    [dragCode, onDropOn, onDropTenantRowOnTemplate]
+  );
+
+  const toggleTenantGlSelected = useCallback((id) => {
+    setTenantGlSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }, []);
+
+  const applyBatchTemplateMerges = useCallback(() => {
+    const target = batchMergeTargetCode.trim();
+    if (!target || !payload?.accounts?.some((a) => a.code === target)) {
+      setError("Enter a survivor account code that exists in the system template (left).");
+      return;
+    }
+    const all = tenantInventory?.allTenantGlAccounts || [];
+    const rows = all.filter((r) => tenantGlSelectedIds.includes(r.id));
+    const codes = [
+      ...new Set(
+        rows
+          .map((r) => String(r.accountCode || r.code || "").trim())
+          .filter(Boolean)
+      ),
+    ].filter((c) => c !== target);
+    if (codes.length === 0) {
+      setError("Select rows whose GL codes should merge into the survivor (exclude the survivor code).");
+      return;
+    }
+    const cat = tenantInventory?.combinedGlCatalog || [];
+    setPayload((prev) => {
+      const base = mergeCatalogIntoPayloadAccounts(prev, cat);
+      const map = new Map((base.merges || []).map((m) => [m.sourceCode, m]));
+      for (const c of codes) map.set(c, { sourceCode: c, targetCode: target });
+      return { ...base, merges: [...map.values()] };
+    });
+    setTenantGlSelectedIds([]);
+    setBatchMergeTargetCode("");
+    setError(null);
+    setMessage(`Registered ${codes.length} template merge(s) into ${target} — Save, then Apply.`);
+  }, [batchMergeTargetCode, payload?.accounts, tenantGlSelectedIds, tenantInventory]);
 
   const onToggleDeactivate = (code) => {
     const cat = tenantInventory?.combinedGlCatalog || [];
@@ -865,7 +1046,7 @@ export default function AdminSystemChartOfAccountsPage() {
   const anyModal = mergeModalOpen || editModalOpen || addOpen;
 
   return (
-    <div className="mx-auto w-full min-w-0 max-w-6xl px-3 py-4 sm:px-4 sm:py-6 md:px-6">
+    <div className="w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">System chart of accounts</h1>
@@ -937,6 +1118,9 @@ export default function AdminSystemChartOfAccountsPage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 xl:items-start">
+        <div className="min-w-0 space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">System template (draggable)</p>
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 bg-white px-3 py-3 sm:px-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1016,12 +1200,7 @@ export default function AdminSystemChartOfAccountsPage() {
                         e.preventDefault();
                         e.dataTransfer.dropEffect = "move";
                       }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        const from = e.dataTransfer.getData("text/coa-code") || dragCode;
-                        if (from && from !== code) onDropOn(from, code);
-                        setDragCode(null);
-                      }}
+                      onDrop={(e) => handleDropOnSystemRow(e, code)}
                     >
                       <td className="sticky left-0 z-[1] border-r border-slate-200 bg-slate-200/95 px-2 py-2 font-mono text-xs sm:static sm:z-auto sm:border-r-0 sm:bg-transparent">
                         <span
@@ -1088,7 +1267,7 @@ export default function AdminSystemChartOfAccountsPage() {
                       childrenMap={childrenMap}
                       payload={payload}
                       visibleCodes={coaSearchVisibleCodes}
-                      onDropOn={onDropOn}
+                      onSystemRowDrop={handleDropOnSystemRow}
                       dragCode={dragCode}
                       setDragCode={setDragCode}
                       onEdit={openEdit}
@@ -1114,7 +1293,7 @@ export default function AdminSystemChartOfAccountsPage() {
                         childrenMap={childrenMap}
                         payload={payload}
                         visibleCodes={coaSearchVisibleCodes}
-                        onDropOn={onDropOn}
+                        onSystemRowDrop={handleDropOnSystemRow}
                         dragCode={dragCode}
                         setDragCode={setDragCode}
                         onEdit={openEdit}
@@ -1127,7 +1306,7 @@ export default function AdminSystemChartOfAccountsPage() {
                         childrenMap={childrenMap}
                         payload={payload}
                         visibleCodes={coaSearchVisibleCodes}
-                        onDropOn={onDropOn}
+                        onSystemRowDrop={handleDropOnSystemRow}
                         dragCode={dragCode}
                         setDragCode={setDragCode}
                         onEdit={openEdit}
@@ -1154,7 +1333,7 @@ export default function AdminSystemChartOfAccountsPage() {
                         childrenMap={childrenMap}
                         payload={payload}
                         visibleCodes={coaSearchVisibleCodes}
-                        onDropOn={onDropOn}
+                        onSystemRowDrop={handleDropOnSystemRow}
                         dragCode={dragCode}
                         setDragCode={setDragCode}
                         onEdit={openEdit}
@@ -1167,7 +1346,7 @@ export default function AdminSystemChartOfAccountsPage() {
                         childrenMap={childrenMap}
                         payload={payload}
                         visibleCodes={coaSearchVisibleCodes}
-                        onDropOn={onDropOn}
+                        onSystemRowDrop={handleDropOnSystemRow}
                         dragCode={dragCode}
                         setDragCode={setDragCode}
                         onEdit={openEdit}
@@ -1180,6 +1359,241 @@ export default function AdminSystemChartOfAccountsPage() {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+        </div>
+
+        <div className="min-w-0 space-y-3 xl:border-l xl:border-slate-200 xl:pl-6">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">All tenant chart accounts</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-600">
+              Every GL row from every tenant (same scope as tenant <span className="font-mono">/chart-of-accounts</span>). Filter by
+              type, multi-select codes, register merges into the template survivor, or <strong>drag a row</strong> onto the left table to
+              add/reparent that code under your chosen parent. Then Save and Apply.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={pullTenantAccounts}
+            disabled={tenantPullLoading}
+            className="inline-flex min-h-[44px] w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:opacity-60 xl:w-auto"
+          >
+            {tenantPullLoading ? (
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
+            ) : (
+              <CloudDownload className="h-5 w-5 shrink-0" />
+            )}
+            {tenantInventory ? "Refresh tenant data" : "Pull full GL catalog"}
+          </button>
+          {tenantInventory?.allTenantGlAccounts?.length > 0 && (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600">Account type</label>
+                  <select
+                    className="mt-1 block w-full min-h-[40px] rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm"
+                    value={inventoryGlTypeFilter}
+                    onChange={(e) => setInventoryGlTypeFilter(e.target.value)}
+                  >
+                    {GL_TYPE_FILTER_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt === "Income" ? "Income / Revenue" : opt}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-600">Tenant ID</label>
+                  <select
+                    className="mt-1 block w-full min-h-[40px] rounded-lg border border-slate-300 bg-white px-2 py-2 font-mono text-xs"
+                    value={tenantIdFilter}
+                    onChange={(e) => setTenantIdFilter(e.target.value)}
+                  >
+                    <option value="">All tenants</option>
+                    {(tenantInventory.tenants || []).map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {formatTenantIdForScope(t.id)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="tenant-gl-panel-search" className="block text-xs font-medium text-slate-600">
+                    Search rows
+                  </label>
+                  <div className="relative mt-1">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      id="tenant-gl-panel-search"
+                      type="search"
+                      value={tenantSearch}
+                      onChange={(e) => setTenantSearch(e.target.value)}
+                      placeholder="Code, name, tenant…"
+                      className="block w-full min-h-[40px] rounded-lg border border-slate-300 py-2 pl-8 pr-2 text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/60 p-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <span className="text-xs font-medium text-violet-950">
+                  {tenantGlSelectedIds.length} selected — survivor template code:
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="e.g. 5100"
+                  value={batchMergeTargetCode}
+                  onChange={(e) => setBatchMergeTargetCode(e.target.value)}
+                  className="min-h-[40px] w-full rounded border border-violet-300 px-2 font-mono text-sm sm:max-w-[8rem]"
+                />
+                <button
+                  type="button"
+                  onClick={applyBatchTemplateMerges}
+                  className="inline-flex min-h-[40px] items-center justify-center gap-1 rounded-lg bg-violet-700 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-800"
+                >
+                  <GitMerge className="h-3.5 w-3.5" />
+                  Add merges to template
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTenantGlSelectedIds(filteredAllTenantGlAccounts.map((r) => r.id))}
+                  className="text-xs font-medium text-violet-900 underline"
+                >
+                  Select visible
+                </button>
+                <button type="button" onClick={() => setTenantGlSelectedIds([])} className="text-xs font-medium text-slate-600 underline">
+                  Clear
+                </button>
+              </div>
+              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="max-h-[min(62dvh,720px)] overflow-auto">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-xs">
+                    <thead className="sticky top-0 z-[2] border-b border-slate-200 bg-slate-100 font-semibold uppercase text-slate-600">
+                      <tr>
+                        <th className="w-10 px-1 py-2"> </th>
+                        <th className="px-1 py-2"> </th>
+                        <th className="px-2 py-2">Tenant</th>
+                        <th className="px-2 py-2 font-mono">Code</th>
+                        <th className="min-w-0 px-2 py-2">Name</th>
+                        <th className="px-2 py-2">Type</th>
+                        <th className="hidden px-2 py-2 md:table-cell">Parent</th>
+                        <th className="px-2 py-2 text-right">Template</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredAllTenantGlAccounts.map((r) => {
+                        const codeTrim = String(r.accountCode || r.code || "").trim();
+                        const canon = tenantRowCanonicalAccountType(r);
+                        const inTemplate = codeTrim && systemCodeSet.has(codeTrim);
+                        const dragPayload = JSON.stringify({
+                          _inventorySource: "tenant",
+                          id: r.id,
+                          tenantId: r.tenantId,
+                          accountCode: r.accountCode,
+                          accountName: r.accountName,
+                          code: r.code,
+                          name: r.name,
+                          accountType: r.accountType,
+                          type: r.type,
+                          accountSubtype: r.accountSubtype,
+                          description: r.description,
+                          isSystem: r.isSystem,
+                          parentAccount: r.parentAccount,
+                          mergedIntoAccount: r.mergedIntoAccount,
+                        });
+                        return (
+                          <tr
+                            key={r.id}
+                            className={`border-b border-slate-100 ${tenantGlSelectedIds.includes(r.id) ? "bg-indigo-50/80" : "hover:bg-slate-50/80"}`}
+                          >
+                            <td className="px-1 py-2 align-middle">
+                              <input
+                                type="checkbox"
+                                checked={tenantGlSelectedIds.includes(r.id)}
+                                onChange={() => toggleTenantGlSelected(r.id)}
+                                className="h-4 w-4 rounded border-slate-300"
+                                aria-label={`Select ${codeTrim}`}
+                              />
+                            </td>
+                            <td className="px-0 py-2 align-middle">
+                              <span
+                                draggable
+                                title="Drag onto a row in the system template (left) to add or reparent this GL code"
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData("application/json", dragPayload);
+                                  e.dataTransfer.effectAllowed = "copyMove";
+                                }}
+                                className="inline-flex cursor-grab touch-manipulation text-slate-400 hover:text-indigo-600"
+                              >
+                                <GripVertical className="h-5 w-5" aria-hidden />
+                              </span>
+                            </td>
+                            <td className="max-w-[120px] truncate px-2 py-2 font-mono text-[10px] text-slate-600" title={r.tenantId}>
+                              {formatTenantIdForScope(r.tenantId)}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 font-mono text-[11px] font-semibold">{codeTrim || "—"}</td>
+                            <td className="min-w-0 px-2 py-2 text-slate-800">
+                              <div className="line-clamp-2 break-words">{r.accountName || r.name || "—"}</div>
+                              {r.mergedIntoAccountId ? (
+                                <div className="text-[10px] text-violet-700">Merged in DB</div>
+                              ) : null}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-slate-600">{canon || "—"}</td>
+                            <td className="hidden px-2 py-2 font-mono text-[10px] text-slate-500 md:table-cell">
+                              {r.parentAccount?.accountCode || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-2 py-2 text-right">
+                              {inTemplate ? (
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                                  onClick={() => {
+                                    const acc = payload?.accounts?.find((a) => a.code === codeTrim);
+                                    if (acc) openEdit(acc);
+                                  }}
+                                >
+                                  Edit name
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className="text-[11px] font-semibold text-indigo-600 hover:underline"
+                                  onClick={() => {
+                                    openAdd(codeTrim, r.accountName || r.name || "");
+                                    setMessage("Prefilled from tenant row — set parent on the left, Save, then Apply.");
+                                  }}
+                                >
+                                  Add…
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {inventoryGlTypeFilter !== "All" || tenantSearch.trim() || tenantIdFilter.trim() ? (
+                  <>
+                    <span className="font-medium text-slate-700">Unique GL codes</span> in this view (e.g. 1120 once) when filtered by
+                    type, search, or tenant.{" "}
+                  </>
+                ) : null}
+                Showing {filteredAllTenantGlAccounts.length} row
+                {filteredAllTenantGlAccounts.length === 1 ? "" : "s"} of {tenantInventory.allTenantGlAccounts.length} account rows
+                loaded.
+              </p>
+            </>
+          )}
+          {!tenantPullLoading && tenantInventory && !tenantInventory.allTenantGlAccounts?.length && (
+            <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-sm text-slate-600">
+              Pull the catalog to load per-tenant chart rows. If the list stays empty, check admin API logs.
+            </p>
+          )}
         </div>
       </div>
 
@@ -1197,7 +1611,7 @@ export default function AdminSystemChartOfAccountsPage() {
               <strong>default hard-coded blueprint</strong> shipped in code, and the <strong>saved system definition</strong> in the
               database (the template you edit above). After a pull, missing codes are added to that template automatically so you can
               reparent or merge there. Use search to find names. The catalog table below still offers <strong>Add to template</strong> for
-              one-off adds. Payment methods still come from{" "}
+              one-off adds. Per-tenant chart rows are in the <strong>right panel</strong> above. Payment methods still come from{" "}
               <span className="font-medium text-slate-800">/payments/management</span>.
             </p>
             {tenantInventory?.meta && (
@@ -1208,27 +1622,17 @@ export default function AdminSystemChartOfAccountsPage() {
                 <span className="font-medium text-slate-700">{tenantInventory.meta.chartAccountCount}</span> tenant DB rows +{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.blueprintCatalogCount ?? 0}</span> blueprint +{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.savedDefinitionCatalogCount ?? 0}</span> saved
-                definition, deduplicated by code),{" "}
+                definition, deduplicated by code)
+                {tenantInventory.meta.allTenantGlAccountCount != null
+                  ? `; ${tenantInventory.meta.allTenantGlAccountCount} full tenant chart rows in the right panel`
+                  : ""}
+                ,{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.paymentAccountCount}</span> payment accounts,{" "}
                 <span className="font-medium text-slate-700">{tenantInventory.meta.tenantCount}</span> tenants
-                {tenantInventory.meta.filteredByTenantId ? ` (API filtered to one tenant)` : ""}.
+                {tenantInventory.meta.filteredByTenantId ? ` (API filtered to one tenant)` : ""}. Use{" "}
+                <strong>Pull / Refresh tenant data</strong> in the right column to reload.
               </p>
             )}
-          </div>
-          <div className="flex w-full min-w-0 shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
-            <button
-              type="button"
-              onClick={pullTenantAccounts}
-              disabled={tenantPullLoading}
-              className="inline-flex min-h-[48px] w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 sm:min-h-[44px] sm:w-auto sm:py-2.5"
-            >
-              {tenantPullLoading ? (
-                <Loader2 className="h-5 w-5 shrink-0 animate-spin" />
-              ) : (
-                <CloudDownload className="h-5 w-5 shrink-0" />
-              )}
-              {tenantInventory ? "Refresh full catalog" : "Pull full GL catalog"}
-            </button>
           </div>
         </div>
 
@@ -1320,7 +1724,7 @@ export default function AdminSystemChartOfAccountsPage() {
                 }`}
               >
                 <BookOpen className="h-4 w-4 shrink-0" />
-                GL / full catalog ({filteredTenantChart.length})
+                GL reference ({filteredTenantChartReferenceOnly.length})
               </button>
               <button
                 type="button"
@@ -1353,7 +1757,7 @@ export default function AdminSystemChartOfAccountsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredTenantChart.map((r) => {
+                      {filteredTenantChartReferenceOnly.map((r) => {
                         const isTenant = r._inventorySource === "tenant";
                         const isBp = r._inventorySource === "blueprint";
                         const code = (isTenant ? r.accountCode : r.code) || "";

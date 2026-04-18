@@ -44,7 +44,7 @@ export default function SupplierReportsPage() {
         throw new Error("Tenant ID not found");
       }
 
-      const r = calculateDateRange(timeframe, timeframe === "custom" ? customDateRange : null);
+      const r = calculateDateRange(timeframe, false, timeframe === "custom" ? customDateRange : null);
       const start = r.startDate.toISOString().split("T")[0];
       const end = r.endDate.toISOString().split("T")[0];
 

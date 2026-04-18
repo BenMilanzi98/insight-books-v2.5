@@ -98,81 +98,94 @@ export async function GET(request) {
       ];
     }
     
-    // Find COGS account(s) for this tenant (cost accounts mapped to expense reports)
+    // Find COGS account(s) for this tenant (must match GL used by POS: ~5100 Cost of Sales)
     const cogsAccounts = await prisma.account.findMany({
       where: {
         tenantId: user.tenantId,
         isActive: true,
-        accountType: 'Expense',
         OR: [
-          { accountCode: '5000' },
-          { code: '5000' },
+          {
+            accountType: 'Expense',
+            OR: [
+              { accountCode: '5000' },
+              { code: '5000' },
+              { accountCode: '5100' },
+              { code: '5100' },
+              { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+              { accountName: { contains: 'cost of sales', mode: 'insensitive' } },
+              { accountName: { contains: 'cogs', mode: 'insensitive' } },
+              { name: { contains: 'cost of goods', mode: 'insensitive' } },
+              { name: { contains: 'cost of sales', mode: 'insensitive' } },
+              { name: { contains: 'cogs', mode: 'insensitive' } },
+            ],
+          },
           { accountCode: '5100' },
           { code: '5100' },
-          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-          { accountName: { contains: 'cogs', mode: 'insensitive' } },
-          { name: { contains: 'cost of goods', mode: 'insensitive' } },
-          { name: { contains: 'cogs', mode: 'insensitive' } }
-        ]
+        ],
       },
       select: { id: true, accountName: true, name: true }
     });
-    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    const cogsAccountIds = [...new Set(cogsAccounts.map((acc) => acc.id))];
 
-    // Build COGS transaction filter
-    const cogsTransactionFilter = {
-      accountId: { in: cogsAccountIds },
-      debitAmount: { gt: 0 },
-      transaction: {
-        tenantId: user.tenantId,
-        status: 'posted'
+    // Build COGS transaction filter (Prisma `in: []` is invalid — skip GL COGS rows if no accounts)
+    const cogsTransactionFilter =
+      cogsAccountIds.length > 0
+        ? {
+            accountId: { in: cogsAccountIds },
+            debitAmount: { gt: 0 },
+            transaction: {
+              tenantId: user.tenantId,
+              status: 'posted'
+            }
+          }
+        : null;
+
+    if (cogsTransactionFilter) {
+      // Add branch filter to COGS transactions if applicable
+      if (branchId) {
+        cogsTransactionFilter.transaction.branchId = branchId;
+      } else if (user?.currentBranchId) {
+        cogsTransactionFilter.transaction.branchId = user.currentBranchId;
       }
-    };
 
-    // Add branch filter to COGS transactions if applicable
-    if (branchId) {
-      cogsTransactionFilter.transaction.branchId = branchId;
-    } else if (user?.currentBranchId) {
-      cogsTransactionFilter.transaction.branchId = user.currentBranchId;
-    }
-
-    // Add date range filter to COGS transactions if provided
-    if (dateFrom || dateTo) {
-      cogsTransactionFilter.transaction.date = {};
-      if (dateFrom) {
-        cogsTransactionFilter.transaction.date.gte = new Date(dateFrom);
+      // Add date range filter to COGS transactions if provided
+      if (dateFrom || dateTo) {
+        cogsTransactionFilter.transaction.date = {};
+        if (dateFrom) {
+          cogsTransactionFilter.transaction.date.gte = new Date(dateFrom);
+        }
+        if (dateTo) {
+          cogsTransactionFilter.transaction.date.lte = new Date(dateTo);
+        }
       }
-      if (dateTo) {
-        cogsTransactionFilter.transaction.date.lte = new Date(dateTo);
-      }
-    }
 
-    // Add search filter to COGS transactions if provided
-    if (search) {
-      cogsTransactionFilter.transaction.OR = [
-        { description: { contains: search, mode: 'insensitive' } },
-        { reference: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    // Drop COGS list rows once the parent GL journal has been reversed (original stays in GL for audit)
-    try {
-      const reversedParents = await prisma.transaction.findMany({
-        where: {
-          tenantId: user.tenantId,
-          isReversal: true,
-          reversedTransactionId: { not: null },
-        },
-        select: { reversedTransactionId: true },
-      });
-      const reversedParentIds = [
-        ...new Set(reversedParents.map((r) => r.reversedTransactionId).filter(Boolean)),
-      ];
-      if (reversedParentIds.length > 0) {
-        cogsTransactionFilter.transaction.id = { notIn: reversedParentIds };
+      // Add search filter to COGS transactions if provided
+      if (search) {
+        cogsTransactionFilter.transaction.OR = [
+          { description: { contains: search, mode: 'insensitive' } },
+          { reference: { contains: search, mode: 'insensitive' } }
+        ];
       }
-    } catch (reversalFilterErr) {
-      console.warn('COGS reversed-transaction filter skipped:', reversalFilterErr?.message);
+
+      // Drop COGS list rows once the parent GL journal has been reversed (original stays in GL for audit)
+      try {
+        const reversedParents = await prisma.transaction.findMany({
+          where: {
+            tenantId: user.tenantId,
+            isReversal: true,
+            reversedTransactionId: { not: null },
+          },
+          select: { reversedTransactionId: true },
+        });
+        const reversedParentIds = [
+          ...new Set(reversedParents.map((r) => r.reversedTransactionId).filter(Boolean)),
+        ];
+        if (reversedParentIds.length > 0) {
+          cogsTransactionFilter.transaction.id = { notIn: reversedParentIds };
+        }
+      } catch (reversalFilterErr) {
+        console.warn('COGS reversed-transaction filter skipped:', reversalFilterErr?.message);
+      }
     }
 
     // Check if we should include COGS transactions
@@ -232,8 +245,8 @@ export async function GET(request) {
         (categoryLower === 'salary advance' || category === 'Salary Advance')
           ? Promise.resolve(0) // Don't count regular expenses when filtering by Salary Advance
           : prisma.expense.count({ where: whereClause }),
-        (includeCOGS && cogsAccountIds.length > 0 && categoryLower !== 'salary advance' && category !== 'Salary Advance')
-          ? prisma.transactionLine.count({ where: cogsTransactionFilter }) 
+        (includeCOGS && cogsTransactionFilter && categoryLower !== 'salary advance' && category !== 'Salary Advance')
+          ? prisma.transactionLine.count({ where: cogsTransactionFilter })
           : Promise.resolve(0),
         includeSalaryAdvances
           ? prisma.salaryAdvance.count({ where: salaryAdvanceFilter })
@@ -319,7 +332,7 @@ export async function GET(request) {
     // Fetch COGS transactions if there are COGS accounts and we should include them
     // Exclude COGS when filtering by "Salary Advance"
     let cogsTransactions = [];
-    if (includeCOGS && cogsAccountIds.length > 0 && categoryLower !== 'salary advance' && category !== 'Salary Advance') {
+    if (includeCOGS && cogsTransactionFilter && categoryLower !== 'salary advance' && category !== 'Salary Advance') {
       const cogsTransactionLines = await prisma.transactionLine.findMany({
         where: cogsTransactionFilter,
         include: {

@@ -52,7 +52,7 @@ import { SalesReport } from "@/components/SalesReport";
 import { formatCurrency } from "@/lib/currencyUtils";
 
 import { FinancialRatiosReport } from "@/components/FinancialRatiosReport";
-import { getTimeframeLabel, formatDate } from "@/lib/dateUtils";
+import { getTimeframeLabel, formatDate, formatPeriodRange, formatYmdInTimeZone } from "@/lib/dateUtils";
 import PermissionGuard from "@/components/PermissionGuard";
 import {
   ResponsiveContainer,
@@ -133,7 +133,7 @@ const FinancialReportingPage = () => {
   const [stockMovement, setStockMovement] = useState(null);
   const [stockMovementProductId, setStockMovementProductId] = useState(null);
   const [posDailyReport, setPosDailyReport] = useState(null);
-  const [posDailyDate, setPosDailyDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [posDailyDate, setPosDailyDate] = useState(() => formatYmdInTimeZone(new Date()));
   const [financialRatios, setFinancialRatios] = useState(null);
   const analyticsLineColors = {
     revenue: '#2563eb',
@@ -302,9 +302,12 @@ const FinancialReportingPage = () => {
   // Display date range for summary (from API or derived)
   const summaryDateRangeLabel = useMemo(() => {
     if (financialSummary?.timeframe?.startDate && financialSummary?.timeframe?.endDate) {
-      const start = new Date(financialSummary.timeframe.startDate);
-      const end = new Date(financialSummary.timeframe.endDate);
-      return `${formatDate(start)} – ${formatDate(end)}`;
+      const label = formatPeriodRange(
+        financialSummary.timeframe.startDate,
+        financialSummary.timeframe.endDate,
+        ' – '
+      );
+      if (label) return label;
     }
     return getTimeframeLabel(timeframe);
   }, [financialSummary?.timeframe, timeframe]);
@@ -313,21 +316,13 @@ const FinancialReportingPage = () => {
     const pStart = financialAnalytics?.period?.startDate;
     const pEnd = financialAnalytics?.period?.endDate;
     if (pStart && pEnd) {
-      const start = new Date(pStart);
-      const end = new Date(pEnd);
-      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-        return `${formatDate(start)} – ${formatDate(end)}`;
-      }
-      return `${pStart} – ${pEnd}`;
+      const label = formatPeriodRange(pStart, pEnd, ' – ');
+      if (label) return label;
     }
 
     if (timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate) {
-      const start = new Date(customDateRange.startDate);
-      const end = new Date(customDateRange.endDate);
-      if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
-        return `${formatDate(start)} – ${formatDate(end)}`;
-      }
-      return `${customDateRange.startDate} – ${customDateRange.endDate}`;
+      const label = formatPeriodRange(customDateRange.startDate, customDateRange.endDate, ' – ');
+      if (label) return label;
     }
 
     return summaryDateRangeLabel;

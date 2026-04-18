@@ -1,7 +1,7 @@
 // components/DateRangeSelector.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, ChevronDown, X } from 'lucide-react';
-import { getTimeframeLabel, getDateRange } from '@/lib/dateUtils';
+import { Calendar, ChevronDown, X, RefreshCw, Loader2 } from 'lucide-react';
+import { getTimeframeLabel, getDefaultCustomRange, formatPeriodRange } from '@/lib/dateUtils';
 
 /**
  * Date Range Selector Component
@@ -19,14 +19,11 @@ export const DateRangeSelector = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Set initial custom dates if timeframe is 'custom' (default: current calendar month, 1st to last day)
+  // Set initial custom dates when switching to custom (sync with parent; same pattern as UniversalDateRangeFilter)
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional one-time fill when parent sets timeframe to custom */
   useEffect(() => {
     if (timeframe === 'custom' && (!customStartDate || !customEndDate)) {
-      const t = new Date();
-      const start = new Date(t.getFullYear(), t.getMonth(), 1);
-      const end = new Date(t.getFullYear(), t.getMonth() + 1, 0);
-      const startStr = start.toISOString().split('T')[0];
-      const endStr = end.toISOString().split('T')[0];
+      const { startDate: startStr, endDate: endStr } = getDefaultCustomRange();
       setCustomStartDate(startStr);
       setCustomEndDate(endStr);
       if (onCustomDateChange) {
@@ -34,6 +31,7 @@ export const DateRangeSelector = ({
       }
     }
   }, [timeframe, customStartDate, customEndDate, onCustomDateChange]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Listen for clicks outside the dropdown to close it
   useEffect(() => {
@@ -88,8 +86,8 @@ export const DateRangeSelector = ({
         disabled={disabled}
       >
         <Calendar size={16} className="mr-2" />
-        {timeframe === 'custom' 
-          ? `${customStartDate} to ${customEndDate}`
+        {timeframe === 'custom' && customStartDate && customEndDate
+          ? (formatPeriodRange(customStartDate, customEndDate, ' – ') || `${customStartDate} – ${customEndDate}`)
           : getTimeframeLabel(timeframe)
         }
         <ChevronDown size={15} className="ml-2" />
@@ -151,12 +149,6 @@ export const DateRangeSelector = ({
     </div>
   );
 };
-
-// components/ReportDateFilter.jsx
-import React, { useState } from 'react';
-import { DateRangeSelector } from './DateRangeSelector';
-import { Calendar, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
-import { formatDate } from '@/lib/dateUtils';
 
 /**
  * Report Date Filter

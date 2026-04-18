@@ -101,6 +101,8 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const tenantIdFilter = searchParams.get('tenantId')?.trim() || null;
+    /** When true, response includes every tenant Account row (not deduped by code) for admin CoA tooling. */
+    const includeAllTenantRows = searchParams.get('includeAllTenantRows') === 'true';
 
     const tenantWhere = tenantIdFilter ? { id: tenantIdFilter } : {};
 
@@ -297,6 +299,10 @@ export async function GET(request) {
       combinedGlCatalog.push({ ...a });
     }
 
+    const allTenantGlAccounts = includeAllTenantRows
+      ? chartAccounts.map((a) => ({ ...a, _inventorySource: 'tenant' }))
+      : undefined;
+
     return NextResponse.json({
       meta: {
         chartAccountCount: chartAccountRowCount,
@@ -304,10 +310,12 @@ export async function GET(request) {
         savedDefinitionCatalogCount: savedDefinitionCatalog.length,
         /** Union of unique codes across tenant rows + saved template + blueprint (same rule as catalog UI). */
         combinedGlCatalogCount: distinctGlCodes.size,
+        allTenantGlAccountCount: includeAllTenantRows ? chartAccountRowCount : undefined,
         paymentAccountCount: paymentAccounts.length,
         tenantCount: tenantSummaries.length,
         distinctTenantIdsInRows: tenantIds.size,
         filteredByTenantId: tenantIdFilter,
+        includeAllTenantRows,
       },
       tenants: tenantSummaries.map((t) => ({
         id: t.id,
@@ -317,6 +325,7 @@ export async function GET(request) {
       })),
       combinedGlCatalog,
       paymentAccounts: paymentAccountsOut,
+      ...(includeAllTenantRows && allTenantGlAccounts ? { allTenantGlAccounts } : {}),
     });
   } catch (error) {
     console.error('admin system-coa tenant-accounts GET:', error);

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  ALLOWED_PAYMENT_ACCOUNT_TYPES,
+  PaymentGlSlotsExhaustedError,
+} from '@/lib/paymentAccountCoaLink';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -105,6 +109,16 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    if (!ALLOWED_PAYMENT_ACCOUNT_TYPES.includes(String(accountType).trim())) {
+      return NextResponse.json(
+        {
+          error: `Invalid account type. Allowed: ${ALLOWED_PAYMENT_ACCOUNT_TYPES.join(', ')}`,
+          code: 'INVALID_PAYMENT_ACCOUNT_TYPE',
+        },
+        { status: 400 }
+      );
+    }
+
     const existing = await prisma.paymentAccount.findUnique({
       where: {
         tenantId_name: {
@@ -120,22 +134,32 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    let paymentAccount = await prisma.paymentAccount.create({
-      data: {
-        tenantId: user.tenantId,
-        name: name.trim(),
-        accountType,
-        reference: reference?.trim() || null,
-        isActive,
-        isSystem: false
-      }
-    });
+    const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
 
+    let paymentAccount;
     try {
-      const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
-      paymentAccount = await ensurePaymentAccountCoaLink(user.tenantId, paymentAccount, prisma);
+      paymentAccount = await prisma.$transaction(async (tx) => {
+        const created = await tx.paymentAccount.create({
+          data: {
+            tenantId: user.tenantId,
+            name: name.trim(),
+            accountType,
+            reference: reference?.trim() || null,
+            isActive,
+            isSystem: false,
+          },
+        });
+        return ensurePaymentAccountCoaLink(user.tenantId, created, tx);
+      });
     } catch (linkErr) {
+      if (linkErr instanceof PaymentGlSlotsExhaustedError) {
+        return NextResponse.json(
+          { error: linkErr.message, code: linkErr.code },
+          { status: 400 }
+        );
+      }
       console.warn('COA link failed for new payment account:', linkErr?.message || linkErr);
+      throw linkErr;
     }
 
     try {

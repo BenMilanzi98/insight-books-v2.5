@@ -18,6 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
+import { formatPeriodRange } from '@/lib/dateUtils';
 import { getPermission } from '@/lib/permissions';
 /**
  * Generic FinancialReport component that displays a report with a header and content
@@ -223,7 +224,7 @@ export const ProfitLossReport = ({
   if (!data) return null;
 
   const companyName = data.companyName || 'Company';
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
   const totalRevenue = data.revenue?.total || 0;
   const netIncome = getValue(data.netIncome);
   const netProfit = getValue(data.operatingIncome) ?? getValue(data.netIncome) ?? 0;
@@ -1525,7 +1526,7 @@ export const TaxSummaryReport = ({
   return (
     <FinancialReport
       title="Tax Summary"
-      subtitle={data?.period ? `${data.period.startDate} to ${data.period.endDate}` : "Tax Report"}
+      subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Tax Report"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
       onRefresh={onRefresh}
@@ -1980,7 +1981,7 @@ export const CashFlowReport = ({
   if (!data) return null;
 
   const companyName = data.companyName || 'Company';
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
   const netCashFlow = data.netCashFlow || data.summary?.netIncreaseDecrease || 0;
   const openingBalance = data.openingCashBalance || data.summary?.openingCashBalance || data.cashBalances?.openingBalance || 0;
   const closingBalance = data.closingCashBalance || data.summary?.closingCashBalance || data.cashBalances?.closingBalance || 0;

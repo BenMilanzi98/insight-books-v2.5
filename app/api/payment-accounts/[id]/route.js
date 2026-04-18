@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  ALLOWED_PAYMENT_ACCOUNT_TYPES,
+  PaymentGlSlotsExhaustedError,
+} from '@/lib/paymentAccountCoaLink';
 
 // GET - Get a specific payment account
 export async function GET(request, { params }) {
@@ -60,6 +64,16 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { name, accountType, reference, isActive } = body;
 
+    if (accountType !== undefined && !ALLOWED_PAYMENT_ACCOUNT_TYPES.includes(String(accountType).trim())) {
+      return NextResponse.json(
+        {
+          error: `Invalid account type. Allowed: ${ALLOWED_PAYMENT_ACCOUNT_TYPES.join(', ')}`,
+          code: 'INVALID_PAYMENT_ACCOUNT_TYPE',
+        },
+        { status: 400 }
+      );
+    }
+
     // Find the payment account
     const existing = await prisma.paymentAccount.findFirst({
       where: {
@@ -97,35 +111,60 @@ export async function PUT(request, { params }) {
       }
     }
 
-    // Update payment account
+    // Update payment account (clear GL link when type changes so we can attach under the new main)
     const updateData = {};
     if (name !== undefined) updateData.name = name.trim();
     if (accountType !== undefined) updateData.accountType = accountType;
     if (reference !== undefined) updateData.reference = reference?.trim() || null;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (
+      accountType !== undefined &&
+      String(accountType).trim() !== String(existing.accountType || '').trim()
+    ) {
+      updateData.coaAccountId = null;
+    }
 
-    const paymentAccount = await prisma.paymentAccount.update({
-      where: { id },
-      data: updateData
-    });
+    const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
+
+    let refreshed;
+    try {
+      refreshed = await prisma.$transaction(async (tx) => {
+        const updated = await tx.paymentAccount.update({
+          where: { id },
+          data: updateData,
+        });
+        await ensurePaymentAccountCoaLink(user.tenantId, updated, tx);
+        return tx.paymentAccount.findFirst({
+          where: { id, tenantId: user.tenantId },
+        });
+      });
+    } catch (linkErr) {
+      if (linkErr instanceof PaymentGlSlotsExhaustedError) {
+        return NextResponse.json(
+          { error: linkErr.message, code: linkErr.code },
+          { status: 400 }
+        );
+      }
+      throw linkErr;
+    }
 
     // Audit log
     await prisma.auditLog.create({
       data: {
         action: 'PAYMENT_ACCOUNT_UPDATED',
         entityType: 'PAYMENT_ACCOUNT',
-        entityId: paymentAccount.id,
+        entityId: refreshed.id,
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
-          name: paymentAccount.name,
-          accountType: paymentAccount.accountType,
-          isActive: paymentAccount.isActive
+          name: refreshed.name,
+          accountType: refreshed.accountType,
+          isActive: refreshed.isActive
         })
       }
     });
 
-    return NextResponse.json({ success: true, paymentAccount });
+    return NextResponse.json({ success: true, paymentAccount: refreshed });
   } catch (error) {
     console.error('Error updating payment account:', error);
     return NextResponse.json({ error: 'Failed to update payment account' }, { status: 500 });

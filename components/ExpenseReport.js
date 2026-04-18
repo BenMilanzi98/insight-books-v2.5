@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { FinancialReport, PercentageChange } from './FinancialReportComponents';
 import { formatCurrency } from '@/lib/currencyUtils';
+import { formatPeriodRange } from '@/lib/dateUtils';
 import { BarChart, PieChart, ChevronDown, ChevronUp } from 'lucide-react';
 
 /**
@@ -48,7 +49,7 @@ export const ExpenseReport = ({
   return (
     <FinancialReport
       title="Expense Report"
-      subtitle={data?.period ? `${data.period.startDate} to ${data.period.endDate}` : "Expense Analysis"}
+      subtitle={data?.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : "Expense Analysis"}
       timeframe={timeframe}
       onTimeframeChange={onTimeframeChange}
       onRefresh={onRefresh}

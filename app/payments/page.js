@@ -211,7 +211,15 @@ const PaymentAccountsPage = () => {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Failed to create account");
+      if (!res.ok) {
+        if (data.code === "PAYMENT_GL_SLOTS_EXHAUSTED") {
+          window.alert(
+            data.error ||
+              `You can only add up to 9 payment accounts of this type. Each type uses its own GL code range (e.g. Bank: 1141–1149).`
+          );
+        }
+        throw new Error(data.error || "Failed to create account");
+      }
       showNotification("Payment account created", "success");
       setAccountModalOpen(false);
       resetAccountForm();

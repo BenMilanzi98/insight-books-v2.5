@@ -9,15 +9,11 @@ import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 
 // Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
-  // Handle custom date range
-  if (timeframe === 'custom' && customDateRange && customDateRange.startDate && customDateRange.endDate) {
-    return {
-      startDate: customDateRange.startDate,
-      endDate: customDateRange.endDate
-    };
-  }
-
-  const { startDate, endDate } = calculateDateRange(timeframe);
+  const custom =
+    timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate
+      ? customDateRange
+      : null;
+  const { startDate, endDate } = calculateDateRange(timeframe, false, custom);
   return {
     startDate: formatYmdInTimeZone(startDate),
     endDate: formatYmdInTimeZone(endDate)

@@ -7,7 +7,8 @@ import {
   getTimeframeLabel, 
   validateDateRange, 
   getDefaultCustomRange,
-  formatDate 
+  formatDate,
+  formatPeriodRange
 } from '@/lib/dateUtils';
 
 /**
@@ -116,8 +117,8 @@ export const UniversalDateRangeFilter = ({
 
   // Get current timeframe label
   const getCurrentTimeframeLabel = () => {
-    if (timeframe === 'custom') {
-      return `${formatDate(customStartDate, 'short')} - ${formatDate(customEndDate, 'short')}`;
+    if (timeframe === 'custom' && customStartDate && customEndDate) {
+      return formatPeriodRange(customStartDate, customEndDate, ' – ') || getTimeframeLabel('custom');
     }
     return getTimeframeLabel(timeframe);
   };

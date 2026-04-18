@@ -17,7 +17,6 @@ import {
   X,
   GitMerge,
   BookOpen,
-  LayoutGrid,
   ChevronsDownUp,
   ChevronsUpDown,
   Shield,
@@ -589,25 +588,6 @@ const ChartOfAccountsPage = () => {
 
   const hierarchicalAccounts = useMemo(() => buildHierarchy(accounts), [accounts]);
 
-  const countSubtree = useCallback((node) => {
-    if (!node) return 0;
-    let n = 1;
-    for (const c of node.children || []) n += countSubtree(c);
-    return n;
-  }, []);
-
-  const rootOverview = useMemo(
-    () =>
-      hierarchicalAccounts.map((node) => ({
-        id: node.id,
-        code: node.accountCode || node.code,
-        title: node.accountName || node.name,
-        type: node.accountType || node.type,
-        count: countSubtree(node),
-      })),
-    [hierarchicalAccounts, countSubtree],
-  );
-
   const collectAllIds = useCallback((node) => {
     const out = [node.id];
     for (const c of node.children || []) out.push(...collectAllIds(c));
@@ -658,14 +638,14 @@ const ChartOfAccountsPage = () => {
       <React.Fragment key={account.id}>
         <tr
           className={[
-            'group/row border-b border-slate-100 transition-colors duration-150',
-            !account.isActive ? 'opacity-50' : '',
+            'group/row border-b border-slate-100/90 transition-colors duration-150',
+            !account.isActive ? 'opacity-55' : '',
             isRoot && rootTheme
-              ? `${rootTheme.accent} ${rootTheme.rowBg} hover:bg-slate-50/90`
-              : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/90',
+              ? `${rootTheme.accent} ${rootTheme.rowBg} hover:bg-white/80`
+              : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/70',
           ].join(' ')}
         >
-          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
+          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
             <div
               className="flex items-center gap-2.5 min-w-0"
               style={{ paddingLeft: `${level * 18}px` }}
@@ -674,7 +654,7 @@ const ChartOfAccountsPage = () => {
                 <button
                   type="button"
                   onClick={() => toggleExpand(account.id)}
-                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.98]"
+                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-900 active:scale-[0.98]"
                   aria-expanded={isExpanded}
                 >
                   {isExpanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
@@ -696,7 +676,7 @@ const ChartOfAccountsPage = () => {
               </code>
             </div>
           </td>
-          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
+          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <span
                 className={[
@@ -733,7 +713,7 @@ const ChartOfAccountsPage = () => {
               ) : null}
             </div>
           </td>
-          <td className="hidden px-3 py-2.5 align-middle sm:table-cell sm:px-4 sm:py-3">
+          <td className="hidden px-4 py-3 align-middle sm:table-cell sm:px-5 sm:py-3.5">
             <span
               className={[
                 'inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize',
@@ -744,12 +724,12 @@ const ChartOfAccountsPage = () => {
             </span>
           </td>
           <td
-            className="hidden px-3 py-2.5 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-4 sm:py-3 md:text-[13px]"
+            className="hidden px-4 py-3 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-5 sm:py-3.5 md:text-[13px]"
             title={rollupBalanceTitle || undefined}
           >
             {formatCurrency(account.currentBalance || 0)}
           </td>
-          <td className="px-3 py-2.5 align-middle sm:px-4 sm:py-3">
+          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
             {account.isActive ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-100 sm:text-xs">
                 <CheckCircle size={12} strokeWidth={2.5} className="text-emerald-600" />
@@ -762,8 +742,8 @@ const ChartOfAccountsPage = () => {
               </span>
             )}
           </td>
-          <td className="px-2 py-2.5 align-middle sm:px-4 sm:py-3">
-            <div className="inline-flex items-center justify-end gap-0.5 rounded-lg border border-slate-200 bg-slate-50/90 p-0.5 sm:justify-start">
+          <td className="px-3 py-3 align-middle sm:px-5 sm:py-3.5">
+            <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/90 p-0.5 shadow-sm sm:justify-start">
               <button
                 type="button"
                 onClick={() => openViewModal(account)}
@@ -810,32 +790,41 @@ const ChartOfAccountsPage = () => {
     );
   };
 
+  const coaBtnSecondary =
+    'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
+
   return (
     <PermissionGuard permission="accounts.view">
-      <div className="relative min-h-screen overflow-hidden bg-slate-50">
+      <div className="relative min-h-screen overflow-hidden bg-slate-100">
         <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_100%_60%_at_50%_-20%,rgba(99,102,241,0.08),transparent_50%)]"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_90%_50%_at_50%_-15%,rgba(79,70,229,0.09),transparent_55%)]"
+          aria-hidden
+        />
+        <div
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(148,163,184,0.12),transparent_45%)]"
           aria-hidden
         />
 
-        <div className="relative mx-auto max-w-[1680px] px-3 py-6 pb-16 sm:px-6 sm:py-8 lg:px-10 lg:py-10">
+        <div className="relative mx-auto max-w-[1680px] px-3 py-6 pb-20 sm:px-6 sm:py-10 lg:px-10 lg:py-12">
           {/* Hero */}
-          <header className="relative mb-8 overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm ring-1 ring-slate-900/[0.03] sm:mb-10 sm:rounded-3xl sm:p-8 lg:p-10">
-            <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-indigo-500/[0.06] blur-2xl" />
-            <div className="pointer-events-none absolute -bottom-12 left-0 h-40 w-40 rounded-full bg-slate-400/[0.05] blur-2xl" />
+          <header className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-6 shadow-[0_12px_40px_-12px_rgba(15,23,42,0.12)] backdrop-blur-md ring-1 ring-slate-900/[0.04] sm:mb-10 sm:p-8 lg:p-10">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-indigo-300/50 to-transparent" />
+            <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-500/[0.07] blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-slate-400/[0.06] blur-3xl" />
             <div className="relative flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex max-w-3xl gap-5">
+              <div className="flex max-w-3xl gap-5 sm:gap-6">
                 <div className="relative shrink-0">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-600/20 ring-1 ring-indigo-500/30 sm:h-16 sm:w-16">
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-violet-600/10 blur-md" aria-hidden />
+                  <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 text-white shadow-lg shadow-indigo-600/25 ring-1 ring-white/20 sm:h-[4.25rem] sm:w-[4.25rem]">
                     <BookOpen className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={1.6} />
                   </div>
                 </div>
                 <div>
-                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.2em] text-indigo-600/90">
-                    <Sparkles size={14} className="text-amber-400" strokeWidth={2} />
+                  <p className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.22em] text-indigo-600">
+                    <Sparkles size={14} className="text-amber-500" strokeWidth={2} />
                     General ledger
                   </p>
-                  <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 sm:text-4xl sm:leading-tight">
+                  <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-[2.35rem] sm:leading-[1.15]">
                     Chart of accounts
                   </h1>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
@@ -845,90 +834,51 @@ const ChartOfAccountsPage = () => {
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2 lg:justify-end">
-                <button
-                  type="button"
-                  onClick={handleInitializeBaseline}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                  title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
-                >
-                  <CheckCircle size={17} strokeWidth={2} className="text-emerald-600" />
-                  Sync CoA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleImportTemplate('retail')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Upload size={17} strokeWidth={2} />
-                  Templates
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExport('json')}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                >
-                  <Download size={17} strokeWidth={2} />
-                  Export
-                </button>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50">
-                  <Upload size={17} strokeWidth={2} />
-                  Import
-                  <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetForm();
-                    setShowAddModal(true);
-                  }}
-                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-                >
-                  <Plus size={18} strokeWidth={2.5} />
-                  Add account
-                </button>
+              <div className="flex flex-col gap-3 lg:items-end">
+                <p className="hidden text-right text-[11px] font-medium uppercase tracking-wider text-slate-400 lg:block">
+                  Actions
+                </p>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <button
+                    type="button"
+                    onClick={handleInitializeBaseline}
+                    className={coaBtnSecondary}
+                    title="Creates missing standard GL accounts, default payment accounts, and tax accounts (same as new-tenant setup)"
+                  >
+                    <CheckCircle size={17} strokeWidth={2} className="text-emerald-600" />
+                    Sync CoA
+                  </button>
+                  <button type="button" onClick={() => handleImportTemplate('retail')} className={coaBtnSecondary}>
+                    <Upload size={17} strokeWidth={2} />
+                    Templates
+                  </button>
+                  <button type="button" onClick={() => handleExport('json')} className={coaBtnSecondary}>
+                    <Download size={17} strokeWidth={2} />
+                    Export
+                  </button>
+                  <label className={`${coaBtnSecondary} cursor-pointer`}>
+                    <Upload size={17} strokeWidth={2} />
+                    Import
+                    <input type="file" accept=".json,.csv" onChange={handleImport} className="hidden" />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      resetForm();
+                      setShowAddModal(true);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/25 transition hover:bg-indigo-700 active:scale-[0.99]"
+                  >
+                    <Plus size={18} strokeWidth={2.5} />
+                    Add account
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Category constellation */}
-            {!loading && rootOverview.length > 0 && (
-              <div className="relative mt-8 grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-5">
-                {rootOverview.map((r) => {
-                  const th = ROOT_THEME[r.code] || {};
-                  const IconComp = th.Icon || LayoutGrid;
-                  return (
-                    <div
-                      key={r.id}
-                      className={[
-                        'rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md',
-                        th.accent || 'border-l-[3px] border-l-slate-300',
-                      ].join(' ')}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${th.iconWrap || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}
-                        >
-                          <IconComp size={18} strokeWidth={2} />
-                        </div>
-                        <span className="rounded-md bg-slate-50 px-2 py-1 text-[10px] font-semibold tabular-nums uppercase tracking-wide text-slate-600 ring-1 ring-slate-200/80">
-                          {r.count} in tree
-                        </span>
-                      </div>
-                      <p className="mt-3 truncate text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                        {r.title}
-                      </p>
-                      <p className="mt-0.5 font-mono text-xl font-bold tabular-nums tracking-tight text-slate-900 sm:text-2xl">
-                        {r.code}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </header>
 
           {/* Toolbar */}
-          <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm ring-1 ring-slate-900/[0.02] sm:mb-6 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-4">
+          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5">
             <div className="relative min-w-0 flex-1 max-w-xl">
               <Search
                 size={18}
@@ -938,7 +888,7 @@ const ChartOfAccountsPage = () => {
               <input
                 type="search"
                 placeholder="Filter by code, name, or description…"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-900 placeholder:text-slate-400 shadow-sm transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:py-3 sm:pl-12 sm:pr-4"
+                className="w-full rounded-xl border-0 bg-slate-50 py-2.5 pl-10 pr-3 text-sm text-slate-900 ring-1 ring-slate-200/80 transition placeholder:text-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/25 sm:py-3 sm:pl-12 sm:pr-4"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -947,7 +897,7 @@ const ChartOfAccountsPage = () => {
               <select
                 value={accountTypeFilter}
                 onChange={(e) => setAccountTypeFilter(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
               >
                 <option value="All">All types</option>
                 {accountTypes.map((type) => (
@@ -956,7 +906,7 @@ const ChartOfAccountsPage = () => {
                   </option>
                 ))}
               </select>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
                 <input
                   type="checkbox"
                   checked={activeFilter}
@@ -970,7 +920,7 @@ const ChartOfAccountsPage = () => {
                   <button
                     type="button"
                     onClick={handleExpandAll}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                    className={coaBtnSecondary}
                     title="Expand all rows"
                   >
                     <ChevronsDownUp size={17} strokeWidth={2} />
@@ -979,7 +929,7 @@ const ChartOfAccountsPage = () => {
                   <button
                     type="button"
                     onClick={handleCollapseToRoots}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                    className={coaBtnSecondary}
                     title="Collapse to main categories"
                   >
                     <ChevronsUpDown size={17} strokeWidth={2} />
@@ -991,21 +941,24 @@ const ChartOfAccountsPage = () => {
           </div>
 
           {error && (
-            <div className="mb-6 flex items-center gap-3 rounded-2xl border border-rose-200/80 bg-gradient-to-r from-rose-50 to-orange-50/50 px-5 py-4 text-sm font-medium text-rose-900 shadow-md backdrop-blur-sm">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                <AlertCircle size={20} strokeWidth={2} />
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-4 rounded-2xl border border-rose-200/90 bg-rose-50/80 px-5 py-4 text-sm font-medium text-rose-950 shadow-sm backdrop-blur-sm"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 ring-1 ring-rose-200/60">
+                <AlertCircle size={22} strokeWidth={2} />
               </span>
-              {error}
+              <span className="pt-0.5">{error}</span>
             </div>
           )}
 
-          <details className="group mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm open:shadow-md sm:mb-8">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3.5 text-sm font-semibold text-slate-800 sm:px-5 sm:py-4 [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100 sm:h-10 sm:w-10">
+          <details className="group mb-8 overflow-hidden rounded-3xl border border-slate-200/70 bg-white/90 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] open:shadow-md">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50/80 sm:px-6 sm:py-5 [&::-webkit-details-marker]:hidden">
+              <span className="inline-flex items-center gap-3.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-700 ring-1 ring-indigo-100/80">
                   <BookOpen size={18} strokeWidth={2} />
                 </span>
-                <span>Posting rules &amp; protected accounts</span>
+                <span className="text-[15px] tracking-tight">Posting rules &amp; protected accounts</span>
               </span>
               <ChevronDown
                 size={20}
@@ -1013,30 +966,31 @@ const ChartOfAccountsPage = () => {
                 strokeWidth={2}
               />
             </summary>
-            <div className="border-t border-slate-100 bg-slate-50/50 px-4 py-4 text-sm leading-relaxed text-slate-600 sm:px-5 sm:py-5">
-              <ul className="grid gap-3 sm:grid-cols-1 lg:grid-cols-3 lg:gap-4">
-                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">System</span>
-                  <p className="mt-2 text-slate-600">
-                    <strong className="text-slate-800">System</strong> badges mark GL lines wired into invoices, POS, bills, and tax — read-only in the grid.
+            <div className="border-t border-slate-100/90 bg-gradient-to-b from-slate-50/80 to-slate-50/40 px-5 py-5 sm:px-6 sm:py-6">
+              <ul className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
+                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-indigo-600">System</span>
+                  <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
+                    <strong className="font-semibold text-slate-800">System</strong> badges mark GL lines wired into
+                    invoices, POS, bills, and tax — read-only in the grid.
                   </p>
                 </li>
-                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-violet-600">Extend</span>
-                  <p className="mt-2 text-slate-600">
+                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Extend</span>
+                  <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
                     Add payment rails under{' '}
-                    <code className="rounded-md bg-slate-900/5 px-1.5 py-0.5 font-mono text-xs font-semibold">1120</code>{' '}
-                    as <code className="font-mono text-xs font-semibold">1130-xx</code>, or new expense leaves under{' '}
-                    <code className="font-mono text-xs font-semibold">5000</code>.
+                    <code className="rounded-md bg-slate-900/[0.06] px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-800">
+                      1120
+                    </code>{' '}
+                    as <code className="font-mono text-xs font-semibold text-slate-800">1130-xx</code>, or new expense
+                    leaves under <code className="font-mono text-xs font-semibold text-slate-800">5000</code>.
                   </p>
                 </li>
-                <li className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm sm:p-4">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-teal-600">Anchors</span>
-                  <p className="mt-2 text-slate-600">
-                    <code className="font-mono text-xs font-bold text-slate-900">1110</code> cash ·{' '}
-                    <code className="font-mono text-xs font-bold text-slate-900">1200</code> AR ·{' '}
-                    <code className="font-mono text-xs font-bold text-slate-900">2110</code> AP ·{' '}
-                    <code className="font-mono text-xs font-bold text-slate-900">4100</code> sales
+                <li className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.02] sm:p-5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-teal-600">Anchors</span>
+                  <p className="mt-2.5 font-mono text-sm font-semibold leading-relaxed text-slate-700">
+                    <span className="text-slate-900">1110</span> cash · <span className="text-slate-900">1200</span> AR ·{' '}
+                    <span className="text-slate-900">2110</span> AP · <span className="text-slate-900">4100</span> sales
                   </p>
                 </li>
               </ul>
@@ -1044,39 +998,39 @@ const ChartOfAccountsPage = () => {
           </details>
 
           {/* Ledger table */}
-          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/[0.02] sm:rounded-3xl">
+          <div className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.04]">
             {loading ? (
-              <div className="flex flex-col items-center justify-center gap-5 py-28">
+              <div className="flex flex-col items-center justify-center gap-6 py-32">
                 <div className="relative">
-                  <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400/20" />
-                  <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-xl">
-                    <Loader2 size={30} className="animate-spin" strokeWidth={2} />
+                  <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400/15" />
+                  <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-xl shadow-indigo-600/20 ring-1 ring-white/10">
+                    <Loader2 size={32} className="animate-spin" strokeWidth={2} />
                   </div>
                 </div>
-                <p className="text-sm font-semibold text-slate-600">Composing your ledger…</p>
+                <p className="text-sm font-medium text-slate-500">Loading chart of accounts…</p>
               </div>
             ) : hierarchicalAccounts.length === 0 ? (
-              <div className="relative px-6 py-24 text-center">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.08),transparent_65%)]" />
-                <div className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200/80 shadow-inner ring-1 ring-white/50">
-                  <AlertCircle size={36} className="text-slate-400" strokeWidth={1.5} />
+              <div className="relative px-6 py-28 text-center">
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.1),transparent_60%)]" />
+                <div className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200/70 shadow-inner ring-1 ring-white/60">
+                  <AlertCircle size={40} className="text-slate-400" strokeWidth={1.5} />
                 </div>
-                <h3 className="relative text-xl font-bold text-slate-900">Nothing to show yet</h3>
-                <p className="relative mx-auto mt-2 max-w-md text-sm text-slate-600">
-                  Sync the standard chart and defaults, import a template, or craft accounts manually — your hierarchy will light up here.
+                <h3 className="relative text-xl font-bold tracking-tight text-slate-900">No accounts yet</h3>
+                <p className="relative mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
+                  Sync the standard chart, import a template, or add accounts manually — your hierarchy will appear here.
                 </p>
                 <div className="relative mt-10 flex flex-wrap justify-center gap-3">
                   <button
                     type="button"
                     onClick={handleInitializeBaseline}
-                    className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-700 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-600"
+                    className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:bg-indigo-700"
                   >
                     Sync standard CoA
                   </button>
                   <button
                     type="button"
                     onClick={() => handleImportTemplate('retail')}
-                    className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-800 shadow-md transition hover:bg-slate-50"
+                    className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
                   >
                     Import retail template
                   </button>
@@ -1086,23 +1040,23 @@ const ChartOfAccountsPage = () => {
               <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
                 <table className="w-full min-w-[720px] border-collapse text-left text-sm sm:min-w-full">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/90">
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
+                    <tr className="border-b border-slate-200/90 bg-slate-50/95 backdrop-blur-md">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                         Code
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                         Account
                       </th>
-                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-4 sm:py-3.5">
+                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
                         Type
                       </th>
-                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-3 py-3 text-right text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-4 sm:py-3.5">
+                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
                         Balance
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                         Status
                       </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-2 py-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500 sm:px-4 sm:py-3.5">
+                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
                         Actions
                       </th>
                     </tr>
@@ -1113,7 +1067,7 @@ const ChartOfAccountsPage = () => {
                       className={
                         idx === 0
                           ? ''
-                          : 'border-t border-slate-200/60 bg-gradient-to-b from-slate-50/50 to-transparent'
+                          : 'border-t-2 border-slate-100 bg-gradient-to-b from-slate-50/40 to-white'
                       }
                     >
                       {renderAccountRow(root, 0)}
@@ -1179,7 +1133,7 @@ const ChartOfAccountsPage = () => {
         {/* Merge Accounts Modal */}
         {showMergeModal && mergeSourceAccount && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
             onClick={() => {
               setShowMergeModal(false);
               setMergeSourceAccount(null);
@@ -1188,12 +1142,17 @@ const ChartOfAccountsPage = () => {
             }}
           >
             <div
-              className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto"
+              className="max-h-[90vh] w-full max-w-2xl overflow-hidden overflow-y-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 border-b border-gray-200 bg-gray-50/50">
-                <div className="flex justify-between items-center">
-                  <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Merge Accounts</h2>
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Merge accounts</h2>
+                    <p className="mt-2 max-w-lg text-sm leading-relaxed text-slate-600">
+                      References move to the target account; the source account is deactivated afterward.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
@@ -1202,45 +1161,52 @@ const ChartOfAccountsPage = () => {
                       setMergeTargetId('');
                       setMergeError(null);
                     }}
-                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                    className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                    aria-label="Close"
                   >
-                    <X size={24} />
+                    <X size={22} strokeWidth={2} />
                   </button>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
-                  This will reassign all references from the source account to the target account and then deactivate the source account.
-                </p>
               </div>
 
-              <div className="p-6 space-y-4">
+              <div className="space-y-5 px-6 py-6">
                 {mergeError && (
-                  <div className="p-3 border border-red-300 bg-red-50 rounded-md text-red-700 text-sm">
+                  <div
+                    role="alert"
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900"
+                  >
                     {mergeError}
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Source account</label>
-                    <div className="p-3 border border-gray-200 rounded-md bg-gray-50">
-                      <div className="font-semibold text-gray-900">
-                        {mergeSourceAccount.accountCode || mergeSourceAccount.code || 'N/A'} - {mergeSourceAccount.accountName || mergeSourceAccount.name || 'Unnamed Account'}
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Source account
+                    </label>
+                    <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-4 ring-1 ring-slate-900/[0.02]">
+                      <div className="font-semibold text-slate-900">
+                        {mergeSourceAccount.accountCode || mergeSourceAccount.code || 'N/A'} —{' '}
+                        {mergeSourceAccount.accountName || mergeSourceAccount.name || 'Unnamed Account'}
                       </div>
-                      <div className="text-sm text-gray-600">
-                        Type: {mergeSourceAccount.accountType || mergeSourceAccount.type || 'N/A'} | Normal: {mergeSourceAccount.normalBalance || 'N/A'}
+                      <div className="mt-1.5 text-sm text-slate-600">
+                        Type {mergeSourceAccount.accountType || mergeSourceAccount.type || 'N/A'} · Normal{' '}
+                        {mergeSourceAccount.normalBalance || 'N/A'}
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Target account</label>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Target account
+                    </label>
                     <select
                       value={mergeTargetId}
                       onChange={(e) => setMergeTargetId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                       disabled={mergeLoading}
                     >
-                      <option value="">Select target...</option>
+                      <option value="">Select target…</option>
                       {mergeAccounts
                         .filter((a) => a && a.id !== mergeSourceAccount.id)
                         .map((a) => {
@@ -1250,20 +1216,19 @@ const ChartOfAccountsPage = () => {
                           const isActive = a.isActive ? 'Active' : 'Inactive';
                           return (
                             <option key={a.id} value={a.id}>
-                              {code} - {name} ({type}, {isActive})
+                              {code} — {name} ({type}, {isActive})
                             </option>
                           );
                         })}
                     </select>
                   </div>
 
-                  <div className="p-3 border border-amber-200 bg-amber-50 rounded-md text-amber-900 text-sm">
-                    Tip: Prefer merging accounts with the same type and normal balance (required by the server). System
-                    accounts can be merged like any other row; pick the surviving account you want pickers and reports to
-                    use going forward.
+                  <div className="rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm leading-relaxed text-amber-950">
+                    Prefer the same account type and normal balance (required by the server). Choose the account you want
+                    pickers and reports to use going forward.
                   </div>
 
-                  <div className="flex justify-end space-x-3 pt-2">
+                  <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
                     <button
                       type="button"
                       onClick={() => {
@@ -1272,7 +1237,7 @@ const ChartOfAccountsPage = () => {
                         setMergeTargetId('');
                         setMergeError(null);
                       }}
-                      className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors"
+                      className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
                       disabled={mergeLoading}
                     >
                       Cancel
@@ -1280,10 +1245,10 @@ const ChartOfAccountsPage = () => {
                     <button
                       type="button"
                       onClick={handleMergeAccounts}
-                      className="px-4 py-2 bg-purple-700 text-white rounded-md hover:bg-purple-800 transition-colors disabled:opacity-50"
+                      className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={mergeLoading || !mergeTargetId}
                     >
-                      {mergeLoading ? 'Merging…' : 'Merge'}
+                      {mergeLoading ? 'Merging…' : 'Merge accounts'}
                     </button>
                   </div>
                 </div>
@@ -1327,139 +1292,153 @@ const AccountModal = ({
     }
   }, [formData.accountType, isEdit]);
 
+  const field =
+    'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
+  const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onCancel}>
-      <div className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-200 bg-gray-50/50">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">{title}</h2>
-            <button onClick={onCancel} className="text-gray-500 hover:text-gray-700 transition-colors">
-              <X size={24} />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">{title}</h2>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close"
+            >
+              <X size={22} strokeWidth={2} />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="space-y-5 px-6 py-6">
           {error && (
-            <div className="p-3 border border-red-300 bg-red-50 rounded-md text-red-700 text-sm">
+            <div
+              role="alert"
+              className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900"
+            >
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Account Code * <span className="text-xs text-gray-500">(numeric only)</span>
+              <label className={label}>
+                Account code <span className="font-normal normal-case text-slate-400">(required, numeric)</span>
               </label>
               <input
                 type="text"
                 value={formData.accountCode}
                 onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 1010"
+                className={field}
+                placeholder="e.g. 1010"
                 disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Account Name *
-              </label>
+              <label className={label}>Account name</label>
               <input
                 type="text"
                 value={formData.accountName}
                 onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., Cash on Hand"
+                className={field}
+                placeholder="e.g. Cash on hand"
                 disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Account Type *
-              </label>
+              <label className={label}>Account type</label>
               <select
                 value={formData.accountType}
                 onChange={(e) => setFormData({ ...formData, accountType: e.target.value, accountSubtype: '' })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={field}
                 disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               >
-                {accountTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                {accountTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Sub-Type
-              </label>
+              <label className={label}>Sub-type</label>
               <select
                 value={formData.accountSubtype}
                 onChange={(e) => setFormData({ ...formData, accountSubtype: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={field}
                 disabled={!accountSubtypes[formData.accountType] || accountSubtypes[formData.accountType].length === 0}
               >
                 <option value="">None</option>
-                {accountSubtypes[formData.accountType]?.map(subtype => (
-                  <option key={subtype} value={subtype}>{subtype}</option>
+                {accountSubtypes[formData.accountType]?.map((subtype) => (
+                  <option key={subtype} value={subtype}>
+                    {subtype}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Normal Balance *
-              </label>
-              <div className="flex items-center space-x-4 mt-2">
-                <label className="flex items-center">
+              <label className={label}>Normal balance</label>
+              <div className="mt-2 flex flex-wrap items-center gap-6">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                   <input
                     type="radio"
                     value="Debit"
                     checked={formData.normalBalance === 'Debit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
-                    className="mr-2"
+                    className="border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
-                  <span>Debit</span>
+                  Debit
                 </label>
-                <label className="flex items-center">
+                <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
                   <input
                     type="radio"
                     value="Credit"
                     checked={formData.normalBalance === 'Credit'}
                     onChange={(e) => setFormData({ ...formData, normalBalance: e.target.value })}
-                    className="mr-2"
+                    className="border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
                     disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
                   />
-                  <span>Credit</span>
+                  Credit
                 </label>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Parent Account <span className="text-xs text-gray-500">(optional)</span>
+              <label className={label}>
+                Parent <span className="font-normal normal-case text-slate-400">(optional)</span>
               </label>
               <select
                 value={formData.parentAccountId}
                 onChange={(e) => setFormData({ ...formData, parentAccountId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className={field}
               >
-                <option value="">None (Top Level)</option>
+                <option value="">None (top level)</option>
                 {accounts
-                  .filter(a => (a.accountType || a.type) === formData.accountType && a.id !== account?.id)
-                  .map(acc => {
+                  .filter((a) => (a.accountType || a.type) === formData.accountType && a.id !== account?.id)
+                  .map((acc) => {
                     const code = acc.accountCode || acc.code || 'N/A';
                     const name = acc.accountName || acc.name || 'Unnamed';
                     return (
                       <option key={acc.id} value={acc.id}>
-                        {code} - {name}
+                        {code} — {name}
                       </option>
                     );
                   })}
@@ -1468,43 +1447,41 @@ const AccountModal = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Description
-            </label>
+            <label className={label}>Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className={`${field} min-h-[5.5rem] resize-y`}
               rows={3}
-              placeholder="What this account is used for..."
+              placeholder="What this account is used for…"
             />
           </div>
 
-          <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="rounded"
-              />
-              <span className="text-sm font-medium text-gray-700">Active</span>
-            </label>
-          </div>
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200/90 bg-slate-50/50 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={formData.isActive}
+              onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+            />
+            <span className="text-sm font-medium text-slate-800">Account is active</span>
+          </label>
         </div>
 
-        <div className="p-6 border-t border-gray-200 bg-gray-50/50 flex justify-end space-x-3">
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 bg-slate-50/60 px-6 py-4">
           <button
+            type="button"
             onClick={onCancel}
-            className="px-4 py-2 border border-gray-300 bg-white rounded-md hover:bg-gray-50 text-gray-700 transition-colors"
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={onSave}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700"
           >
-            {isEdit ? 'Update Account' : 'Create Account'}
+            {isEdit ? 'Save changes' : 'Create account'}
           </button>
         </div>
       </div>
@@ -1514,80 +1491,94 @@ const AccountModal = ({
 
 // View Account Modal Component
 const ViewAccountModal = ({ account, onClose }) => {
+  const dl = 'text-xs font-semibold uppercase tracking-wider text-slate-500';
+  const card = 'rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 ring-1 ring-slate-900/[0.02]';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={onClose}>
-      <div className="bg-white rounded-lg border border-gray-300 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="p-6 border-b border-gray-200 bg-gray-50/50">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Account Details</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-700 transition-colors">
-              <X size={24} />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Account details</h2>
+              <p className="mt-1 font-mono text-sm font-semibold text-indigo-600">
+                {account.accountCode || account.code || 'N/A'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Close"
+            >
+              <X size={22} strokeWidth={2} />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Account Code</label>
-              <p className="text-base font-semibold text-gray-900">{account.accountCode || account.code || 'N/A'}</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Account Name</label>
-              <p className="text-base font-semibold text-gray-900">{account.accountName || account.name || 'Unnamed Account'}</p>
-            </div>
+        <div className="space-y-5 px-6 py-6">
+          <div className={card}>
+            <p className={dl}>Name</p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {account.accountName || account.name || 'Unnamed account'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Account Type</label>
-              <p className="text-base text-gray-900">{account.accountType || account.type || 'N/A'}</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className={card}>
+              <p className={dl}>Type</p>
+              <p className="mt-1 font-medium capitalize text-slate-900">{account.accountType || account.type || '—'}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Sub-Type</label>
-              <p className="text-base text-gray-900">{account.accountSubtype || 'N/A'}</p>
+            <div className={card}>
+              <p className={dl}>Sub-type</p>
+              <p className="mt-1 font-medium text-slate-900">{account.accountSubtype || '—'}</p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Normal Balance</label>
-              <p className="text-base text-gray-900">{account.normalBalance || 'N/A'}</p>
+            <div className={card}>
+              <p className={dl}>Normal balance</p>
+              <p className="mt-1 font-medium text-slate-900">{account.normalBalance || '—'}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Current Balance</label>
-              <p className="text-base font-semibold text-gray-900">
+            <div className={card}>
+              <p className={dl}>Current balance</p>
+              <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
                 {formatCurrency(account.currentBalance || 0)}
               </p>
               {account.postedDirectBalance != null &&
                 Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
-                  <p className="mt-1 text-sm text-gray-600">
-                    Posted on this code only: {formatCurrency(account.postedDirectBalance)} — total includes all
-                    sub-accounts shown on this row.
+                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                    Posted on this code only: {formatCurrency(account.postedDirectBalance)}. Total includes
+                    sub-accounts on this row.
                   </p>
                 )}
             </div>
           </div>
 
           {account.parentAccount && (
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Parent Account</label>
-              <p className="text-base text-gray-900">
-                {account.parentAccount.accountCode || account.parentAccount.code || 'N/A'} - {account.parentAccount.accountName || account.parentAccount.name || 'Unnamed'}
+            <div className={card}>
+              <p className={dl}>Parent</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">
+                {account.parentAccount.accountCode || account.parentAccount.code || 'N/A'} —{' '}
+                {account.parentAccount.accountName || account.parentAccount.name || 'Unnamed'}
               </p>
             </div>
           )}
 
           {account.childAccounts && account.childAccounts.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Child Accounts</label>
-              <ul className="list-disc list-inside space-y-1">
-                {account.childAccounts.map(child => {
+            <div className={card}>
+              <p className={dl}>Child accounts</p>
+              <ul className="mt-2 space-y-2 border-t border-slate-200/60 pt-3">
+                {account.childAccounts.map((child) => {
                   const code = child.accountCode || child.code || 'N/A';
                   const name = child.accountName || child.name || 'Unnamed';
                   return (
-                    <li key={child.id} className="text-base text-gray-900">
-                      {code} - {name}
+                    <li key={child.id} className="flex justify-between gap-3 text-sm text-slate-800">
+                      <span className="font-mono font-semibold tabular-nums text-indigo-700">{code}</span>
+                      <span className="min-w-0 text-right text-slate-700">{name}</span>
                     </li>
                   );
                 })}
@@ -1596,40 +1587,44 @@ const ViewAccountModal = ({ account, onClose }) => {
           )}
 
           {account.description && (
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Description</label>
-              <p className="text-base text-gray-900">{account.description}</p>
+            <div className={card}>
+              <p className={dl}>Description</p>
+              <p className="mt-1 text-sm leading-relaxed text-slate-700">{account.description}</p>
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Status</label>
-              <p className="text-base text-gray-900">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className={card}>
+              <p className={dl}>Status</p>
+              <p className="mt-1">
                 {account.isActive ? (
-                  <span className="inline-flex items-center text-green-600">
-                    <CheckCircle size={16} className="mr-1" />
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
+                    <CheckCircle size={18} strokeWidth={2} className="text-emerald-600" />
                     Active
                   </span>
                 ) : (
-                  <span className="inline-flex items-center text-gray-400">
-                    <XCircle size={16} className="mr-1" />
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
+                    <XCircle size={18} strokeWidth={2} />
                     Inactive
                   </span>
                 )}
               </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Transactions</label>
-              <p className="text-base text-gray-900">{account.transactionCount || 0} posted entries</p>
+            <div className={card}>
+              <p className={dl}>Transactions</p>
+              <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
+                {account.transactionCount || 0}
+                <span className="ml-2 text-sm font-normal text-slate-600">posted</span>
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="p-6 border-t border-gray-200 bg-gray-50/50 flex justify-end">
+        <div className="flex justify-end border-t border-slate-100 bg-slate-50/60 px-6 py-4">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700"
           >
             Close
           </button>

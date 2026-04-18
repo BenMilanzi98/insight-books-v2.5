@@ -84,6 +84,12 @@ function PaymentManagementPageInner() {
       const data = await response.json();
 
       if (!response.ok) {
+        if (data.code === 'PAYMENT_GL_SLOTS_EXHAUSTED') {
+          window.alert(
+            data.error ||
+              'You can only add up to 9 payment accounts of this type under its main GL account (e.g. Bank uses 1141–1149 under 1140).'
+          );
+        }
         throw new Error(data.error || 'Failed to save payment account');
       }
 

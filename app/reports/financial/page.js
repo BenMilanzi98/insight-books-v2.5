@@ -12,7 +12,7 @@ import {
   Activity,
   RefreshCw
 } from "lucide-react";
-import { formatCurrency, formatDate } from "@/lib/dateUtils";
+import { formatCurrency, formatDate, formatYmdInTimeZone } from "@/lib/dateUtils";
 import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
 import { calculateDateRange } from "@/lib/dateUtils";
 
@@ -30,12 +30,12 @@ const FinancialReportsPage = () => {
   const fetchFinancialData = async () => {
     try {
       setIsLoading(true);
-      const r = calculateDateRange(timeframe, timeframe === "custom" ? customDateRange : null);
+      const r = calculateDateRange(timeframe, false, timeframe === "custom" ? customDateRange : null);
       const params = new URLSearchParams();
       params.set("dateRange", timeframe === "custom" ? "custom" : timeframe);
       if (timeframe === "custom") {
-        params.set("startDate", r.startDate.toISOString().split("T")[0]);
-        params.set("endDate", r.endDate.toISOString().split("T")[0]);
+        params.set("startDate", formatYmdInTimeZone(r.startDate));
+        params.set("endDate", formatYmdInTimeZone(r.endDate));
       }
       const response = await fetch(`/api/dashboard/income-expenses?${params.toString()}`);
       if (response.ok) {

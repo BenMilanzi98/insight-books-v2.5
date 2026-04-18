@@ -138,11 +138,11 @@ export async function GET(request) {
     const transactions = await prisma.transaction.findMany({
       where,
       include: {
-        journalEntries: {
+        lines: {
           include: {
-            account: true
-          }
-        }
+            account: true,
+          },
+        },
       },
       orderBy: {
         date: 'desc'

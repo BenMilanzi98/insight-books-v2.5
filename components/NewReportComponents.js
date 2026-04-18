@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Package, TrendingUp, TrendingDown, PieChart } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
+import { formatDate, formatPeriodRange } from '@/lib/dateUtils';
 import { FinancialReport } from './FinancialReportComponents';
 
 /** Group movements by day or week; returns array of { date, transactionType, qtyIn, qtyOut, balance, reference }. Balance = closing balance for that period. */
@@ -88,7 +89,7 @@ export const StockMovementReport = ({
 
   if (!data) return null;
 
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
   const companyName = data.companyName || 'Company';
   
   const handlePageChange = (page) => {
@@ -224,7 +225,7 @@ export const StockMovementReport = ({
                   <tbody className="divide-y divide-slate-200 bg-white">
                     <tr className="bg-emerald-50/70">
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800">
-                        {data.period?.startDate ? new Date(data.period.startDate).toLocaleDateString() : ''}
+                        {data.period?.startDate ? formatDate(data.period.startDate) : ''}
                       </td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800">Opening balance</td>
                       <td className="px-4 py-2.5 text-sm font-medium text-slate-800 text-right">0</td>
@@ -235,7 +236,7 @@ export const StockMovementReport = ({
                     {(groupBy === 'none' ? productMovement.movements : groupMovements(productMovement.movements || [], groupBy)).map((movement, mIdx) => (
                       <tr key={mIdx} className="hover:bg-slate-50/70">
                         <td className="px-4 py-2.5 text-sm text-slate-800">
-                          {movement.date ? new Date(movement.date).toLocaleDateString() : ''}
+                          {movement.date ? formatDate(movement.date) : ''}
                         </td>
                         <td className="px-4 py-2.5 text-sm text-slate-800">{movement.transactionType || ''}</td>
                         <td className="px-4 py-2.5 text-sm text-slate-800 text-right">{Number(movement.qtyIn) || 0}</td>
@@ -341,6 +342,7 @@ export const PosDailyReport = ({
   onExport
 }) => {
   const displayDate = date || data?.date || new Date().toISOString().split('T')[0];
+  const displayDateLabel = formatDate(displayDate);
   const totalSales = Number(data?.totalSales) || 0;
   const transactionCount = Number(data?.transactionCount) || 0;
   const itemsSold = Number(data?.itemsSold) || 0;
@@ -367,7 +369,7 @@ export const PosDailyReport = ({
   return (
     <FinancialReport
       title="Daily POS Report"
-      subtitle={displayDate}
+      subtitle={displayDateLabel !== 'N/A' && displayDateLabel !== 'Invalid Date' ? displayDateLabel : displayDate}
       onRefresh={onRefresh}
       onExport={onExport}
       loading={loading}
@@ -532,7 +534,7 @@ export const SalesAnalysisReport = ({
 
   if (!data) return null;
 
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
   const companyName = data.companyName || 'Company';
 
   const handlePageChange = (page) => {
@@ -910,7 +912,7 @@ export const ExpenseAnalysisReport = ({
   
   if (!data) return null;
 
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
 
   return (
     <FinancialReport
@@ -1031,7 +1033,7 @@ export const ProfitabilityAnalysisReport = ({
   
   if (!data) return null;
 
-  const periodLabel = data.period ? `${data.period.startDate} to ${data.period.endDate}` : '';
+  const periodLabel = data.period ? formatPeriodRange(data.period.startDate, data.period.endDate) : '';
 
   return (
     <FinancialReport

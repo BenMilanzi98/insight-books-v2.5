@@ -3,6 +3,72 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { initializeDefaultPaymentAccounts } from '@/lib/paymentAccountInitialization';
 
+async function ensurePaymentCoaForAccounts(tenantId, rows) {
+  const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
+  for (const p of rows) {
+    try {
+      await ensurePaymentAccountCoaLink(tenantId, p, prisma);
+    } catch (e) {
+      console.warn('ensurePaymentAccountCoaLink failed (balances):', p?.id, e?.message || e);
+    }
+  }
+}
+
+/** Same as GET /api/payment-accounts: create type mains + GL children so Chart of Accounts shows payment methods. */
+async function syncPaymentAccountsToCoa(tenantId) {
+  await initializeDefaultPaymentAccounts(tenantId, prisma);
+
+  let paymentAccounts = await prisma.paymentAccount.findMany({
+    where: { tenantId, isActive: true },
+    orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+  });
+
+  const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
+  if (needsLink.length > 0) {
+    await ensurePaymentCoaForAccounts(tenantId, needsLink.slice(0, 50));
+    paymentAccounts = await prisma.paymentAccount.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  const linkedIds = [
+    ...new Set(paymentAccounts.map((p) => p.coaAccountId).filter(Boolean)),
+  ];
+  if (linkedIds.length) {
+    const badRows = await prisma.account.findMany({
+      where: {
+        id: { in: linkedIds },
+        OR: [{ isActive: false }, { mergedIntoAccountId: { not: null } }],
+      },
+      select: { id: true },
+    });
+    const badIds = new Set(badRows.map((r) => r.id));
+    const toRepair = paymentAccounts.filter((p) => p.coaAccountId && badIds.has(p.coaAccountId));
+    const repairSlice = toRepair.slice(0, 30);
+    for (const p of repairSlice) {
+      await prisma.paymentAccount.update({
+        where: { id: p.id },
+        data: { coaAccountId: null },
+      });
+    }
+    if (repairSlice.length) {
+      await ensurePaymentCoaForAccounts(
+        tenantId,
+        repairSlice.map((p) => ({ ...p, coaAccountId: null }))
+      );
+    }
+    if (toRepair.length) {
+      paymentAccounts = await prisma.paymentAccount.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
+      });
+    }
+  }
+
+  return paymentAccounts;
+}
+
 // GET - Get actual balances for all payment accounts (AccountBalance + Chart of Accounts)
 export async function GET(request) {
   try {
@@ -13,20 +79,7 @@ export async function GET(request) {
 
     const tenantId = user.tenantId;
 
-    // Ensure system default payment accounts exist (e.g. Cash) for this tenant.
-    await initializeDefaultPaymentAccounts(tenantId, prisma);
-
-    // Get all active payment accounts
-    const paymentAccounts = await prisma.paymentAccount.findMany({
-      where: {
-        tenantId,
-        isActive: true
-      },
-      orderBy: [
-        { isSystem: 'desc' },
-        { name: 'asc' }
-      ]
-    });
+    const paymentAccounts = await syncPaymentAccountsToCoa(tenantId);
 
     // All AccountBalance records for tenant (source of truth for cash/bank/mobile)
     const accountBalanceRecords = await prisma.accountBalance.findMany({
