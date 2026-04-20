@@ -14,7 +14,10 @@ import {
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 import { isCanonicalCode, isStructureExtensionCode } from '@/lib/coaMigration/canonicalCodes.js';
 import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js';
-import { pickPrimaryAccountForStructure } from '@/lib/coaPhinduStructureTree.js';
+import {
+  pickPrimaryAccountForStructure,
+  applyCatchAllRowDisplayBalancesToList,
+} from '@/lib/coaPhinduStructureTree.js';
 import {
   blueprintCatalogTitleForCode,
   alignChartAccountsListToBlueprint,
@@ -801,19 +804,21 @@ export async function GET(request) {
       totalInventoryValue
     );
     const accountsWithParentRollup = applyCoaParentRollup(stockLedAccounts);
+    const accountsWithCatchAllDisplay =
+      applyCatchAllRowDisplayBalancesToList(accountsWithParentRollup);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');
     const parentCap =
-      accountsWithParentRollup.find((a) => codeOf(a) === '3100') ||
-      accountsWithParentRollup.find((a) => codeOf(a) === '500000');
+      accountsWithCatchAllDisplay.find((a) => codeOf(a) === '3100') ||
+      accountsWithCatchAllDisplay.find((a) => codeOf(a) === '500000');
     const sortedAccounts = (() => {
       if (!parentCap) {
-        return [...accountsWithParentRollup].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
+        return [...accountsWithCatchAllDisplay].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
       }
-      const children = accountsWithParentRollup
+      const children = accountsWithCatchAllDisplay
         .filter((a) => a.parentAccountId === parentCap.id)
         .sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
-      const rest = accountsWithParentRollup.filter(
+      const rest = accountsWithCatchAllDisplay.filter(
         (a) => a.id !== parentCap.id && a.parentAccountId !== parentCap.id
       );
       const restSorted = rest.sort((a, b) => codeOf(a).localeCompare(codeOf(b)));

@@ -21,6 +21,7 @@ import {
   PHINDU_COA_STRUCTURE,
   groupAccountsByCode,
   sumLedgerBalances,
+  structureRowDisplayBalance,
   pickPrimaryAccountForStructure,
   accountsFor1130ExtraDropdown,
   accountsForCatchAllDropdown,
@@ -202,7 +203,8 @@ export default function PhinduLedgerCoaTable({
     const matches = (accountsByCode.get(node.code) || []).filter((a) =>
       activeFilter ? a.isActive !== false : true
     );
-    const rowBalance = sumLedgerBalances(matches);
+    // Range catch-alls (5900, …): balances post to codes like 5003 in the bucket, not on 5900 itself.
+    const rowBalance = structureRowDisplayBalance(matches, node.code, dropdownBuckets);
     const primary =
       pickPrimaryAccountForStructure(matches, node.name, node.code) ||
       matches.find((m) => m.isActive !== false) ||
