@@ -223,32 +223,52 @@ export async function DELETE(request, context) {
       });
     }
     
-    // Create audit log
-    await prisma.auditLog.create({
-      data: {
-        action: 'PAYROLL_REVERSED',
-        entityType: 'PAYROLL',
-        entityId: payrollId,
-        userId: user.id,
-        tenantId: user.tenantId,
-        details: JSON.stringify({
-          employeeName: existingPayroll.employee?.name ?? null,
-          periodStart: existingPayroll.periodStart,
-          periodEnd: existingPayroll.periodEnd,
-          reversalReason: reversalReason,
-          reversalTransactionId: reversal?.reversal?.id || null,
-        }),
-      },
-    });
-    
+    // Create audit log (non-fatal — reversal already completed)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: 'PAYROLL_REVERSED',
+          entityType: 'PAYROLL',
+          entityId: payrollId,
+          userId: user.id,
+          tenantId: user.tenantId,
+          details: JSON.stringify({
+            employeeName: existingPayroll.employee?.name ?? null,
+            periodStart: existingPayroll.periodStart,
+            periodEnd: existingPayroll.periodEnd,
+            reversalReason: reversalReason,
+            reversalTransactionId: reversal?.reversal?.id || null,
+          }),
+        },
+      });
+    } catch (auditErr) {
+      console.error('Payroll delete audit log failed (non-fatal):', auditErr?.message || auditErr);
+    }
+
     return NextResponse.json({
       message: 'Payroll reversed successfully',
       reversal: reversal || null
     });
   } catch (error) {
-    console.error(`Error deleting payroll ${context?.params?.id}:`, error);
+    const errMsg = String(error?.message || error || '');
+    console.error('Error deleting payroll:', error);
+
+    if (/closed accounting period/i.test(errMsg)) {
+      return NextResponse.json({ error: errMsg }, { status: 423 });
+    }
+    if (
+      /multiple payroll journals/i.test(errMsg) ||
+      /already been reversed/i.test(errMsg) ||
+      /transaction has already been reversed/i.test(errMsg)
+    ) {
+      return NextResponse.json({ error: errMsg }, { status: 409 });
+    }
+
     return NextResponse.json(
-      { error: 'Failed to delete payroll. Please try again.' },
+      {
+        error: 'Failed to delete payroll. Please try again.',
+        ...(process.env.NODE_ENV !== 'production' && { detail: errMsg }),
+      },
       { status: 500 }
     );
   }
