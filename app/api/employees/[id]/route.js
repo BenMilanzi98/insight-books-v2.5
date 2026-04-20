@@ -17,14 +17,8 @@ export async function GET(request, { params }) {
       );
     }
     
-    // Check permission with proper error handling
-    const hasPermission = await requirePermission(request, 'employees.view');
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'You do not have permission to view employee details' },
-        { status: 403 }
-      );
-    }
+    const perm = await requirePermission(request, 'employees.view');
+    if (perm) return perm;
     
     const { id: employeeId } = await params;
     
@@ -75,14 +69,8 @@ export async function PUT(request, { params }) {
       );
     }
     
-    // Check permission with proper error handling
-    const hasPermission = await requirePermission(request, 'employees.update');
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'You do not have permission to update employee details' },
-        { status: 403 }
-      );
-    }
+    const perm = await requirePermission(request, 'employees.update');
+    if (perm) return perm;
     
     const { id: employeeId } = await params;
     const body = await request.json();
@@ -378,14 +366,8 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Check permission
-    const hasPermission = await requirePermission(request, 'employees.delete');
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'You do not have permission to delete employees' },
-        { status: 403 }
-      );
-    }
+    const perm = await requirePermission(request, 'employees.delete');
+    if (perm) return perm;
 
     const { id: employeeId } = await params;
 

@@ -16,13 +16,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
 
-    const hasPermission = await requirePermission(request, 'employees.delete');
-    if (!hasPermission) {
-      return NextResponse.json(
-        { error: 'You do not have permission to delete employees' },
-        { status: 403 }
-      );
-    }
+    const perm = await requirePermission(request, 'employees.delete');
+    if (perm) return perm;
 
     const body = await request.json();
     const ids = Array.isArray(body.ids) ? body.ids.filter((id) => typeof id === 'string' && id.trim()) : [];

@@ -62,10 +62,8 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    const allowed = await requirePermission(request, 'employees.update');
-    if (!allowed) {
-      return NextResponse.json({ error: 'You do not have permission to update employees' }, { status: 403 });
-    }
+    const perm = await requirePermission(request, 'employees.update');
+    if (perm) return perm;
 
     const body = await request.json().catch(() => ({}));
     const action = body.action === 'disable' ? 'disable' : 'enable';
