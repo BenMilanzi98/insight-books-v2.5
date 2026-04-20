@@ -268,7 +268,7 @@ export const ProfitLossReport = ({
             <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{companyName || 'Company'}</h1>
             <h2 className="text-lg sm:text-xl font-semibold text-slate-600 mt-2">Income Statement</h2>
             <p className="text-sm text-slate-500 mt-1">For the period: {periodLabel}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Revenue and COGS are system-generated. Operating expenses reflect your expense categories.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Revenue and COGS are system-generated. Operating expenses are rolled up to your Chart of Accounts main expense lines.</p>
           </div>
 
           {/* Comparison Toggle */}

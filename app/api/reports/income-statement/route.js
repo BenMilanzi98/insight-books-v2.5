@@ -193,7 +193,7 @@ export async function GET(request) {
         operatingExpenses: {
           ...data.operatingExpenses,
           total: data.totalOperatingExpenses || data.operatingExpenses?.total || 0,
-          // Dynamic categories: user-created expense categories (display name = category; accountCode locked)
+          // Operating expenses: rolled up to Chart of Accounts main lines (same as lib/incomeStatementService)
           categories: (data.operatingExpenses?.categories || []).map(cat => ({
             category: cat.category,
             accountCode: cat.accountCode,
