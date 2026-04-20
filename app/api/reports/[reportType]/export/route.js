@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 import * as XLSX from 'xlsx';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 
@@ -271,10 +272,7 @@ export async function GET(request, context) {
  * Revenue: ONE line — Sales Revenue. COGS: ONE line — Cost of Goods Sold (FIFO).
  */
 async function generateIncomeStatementData(tenantId, startDate, endDate) {
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
 
   // Sales Revenue = Invoices (Paid/Completed) + POS sales (completed) — one line only
   const invoiceAgg = await prisma.invoice.aggregate({
@@ -743,9 +741,10 @@ function flattenIncomeStatementForCSV(statement) {
     { type: 'Subtotal', category: 'Gross Profit', amount: grossProfit, percentage: pct(grossProfit) }
   ];
   (statement?.operatingExpenses?.categories ?? []).forEach((cat) => {
+    const label = stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || '');
     rows.push({
       type: 'Expense',
-      category: cat.category ?? cat.accountName ?? '',
+      category: label,
       amount: Number(cat.amount ?? 0),
       percentage: pct(cat.amount ?? 0)
     });
@@ -840,7 +839,7 @@ async function generateIncomeStatementExcelResponse(statement, startDate, endDat
 
   operatingExpenses.forEach((cat) => {
     const r = ws.getRow(rowNum++);
-    r.getCell(1).value = cat.category ?? cat.accountName ?? '';
+    r.getCell(1).value = stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || '');
     setAmount(r, 2, Number(cat.amount ?? 0));
   });
 
@@ -1132,7 +1131,8 @@ async function generateIncomeStatementPDF(tenantId, startDate, endDate, request)
     categories.forEach((cat) => {
       const amt = cat.amount ?? 0;
       const pct = totalRevenue > 0 ? (amt / totalRevenue) * 100 : 0;
-      tableData.push([cat.accountName || cat.category || 'Expense', '', formatCurrency(amt), `${pct.toFixed(1)}%`]);
+      const name = stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || 'Expense');
+      tableData.push([name, '', formatCurrency(amt), `${pct.toFixed(1)}%`]);
     });
     const totalOperatingExpenses = data.totalOperatingExpenses ?? getValue(data.operatingExpenses?.total) ?? 0;
     const totalOperatingExpensesPct = totalRevenue > 0 ? (totalOperatingExpenses / totalRevenue) * 100 : 0;

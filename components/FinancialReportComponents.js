@@ -18,7 +18,7 @@ import {
   X
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
-import { formatPeriodRange } from '@/lib/dateUtils';
+import { formatPeriodRange, stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
 import { getPermission } from '@/lib/permissions';
 /**
  * Generic FinancialReport component that displays a report with a header and content
@@ -468,18 +468,23 @@ export const ProfitLossReport = ({
                 <tr className="bg-slate-50/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
                     <span className="block">Operating expenses</span>
-                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Expense categories with activity in this period (expenses & payroll)</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Rolled up to main chart-of-accounts expense lines (expenses, payroll, depreciation)</span>
                   </td>
                 </tr>
                 {hasOperatingExpenses ? (
                   operatingExpensesCategories.map((category, index) => {
+                    const rowLabel = stripEmbeddedPeriodFromReportLabel(
+                      category.accountName || category.category || ''
+                    );
                     const previousCategory = data.previous?.operatingExpenses?.categories?.find(
-                      cat => (cat.accountCode && cat.accountCode === category.accountCode) || cat.category === category.category
+                      (cat) =>
+                        (cat.accountCode && cat.accountCode === category.accountCode) ||
+                        stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || '') === rowLabel
                     );
                     return (
                       <IncomeStatementRow
-                        key={`expense-category-${index}-${category.accountCode ?? category.category}`}
-                        label={category.category}
+                        key={`expense-category-${index}-${category.accountCode ?? rowLabel}`}
+                        label={rowLabel}
                         value={{
                           amount: category.amount || 0,
                           percentage: category.percentage || 0,
@@ -487,7 +492,7 @@ export const ProfitLossReport = ({
                         }}
                         totalRevenue={totalRevenue}
                         hasDetails={(category.details || []).length > 0}
-                        onDrillDown={() => handleDrillDown({ type: category.category, details: category.details || [] })}
+                        onDrillDown={() => handleDrillDown({ type: rowLabel, details: category.details || [] })}
                         previousValue={previousCategory ? {
                           amount: previousCategory.amount || 0,
                           percentage: previousCategory.percentage || 0,

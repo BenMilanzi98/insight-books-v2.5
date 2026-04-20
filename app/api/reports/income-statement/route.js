@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { generateIncomeStatementFromAccounts } from '@/lib/incomeStatementService';
 import { getCOGSSummary } from '@/lib/cogsIntegration';
+import { stripEmbeddedPeriodFromReportLabel } from '@/lib/dateUtils';
 
 /**
  * Professional Income Statement (Profit & Loss Statement) API
@@ -194,13 +195,24 @@ export async function GET(request) {
           ...data.operatingExpenses,
           total: data.totalOperatingExpenses || data.operatingExpenses?.total || 0,
           // Operating expenses: rolled up to Chart of Accounts main lines (same as lib/incomeStatementService)
-          categories: (data.operatingExpenses?.categories || []).map(cat => ({
-            category: cat.category,
-            accountCode: cat.accountCode,
-            amount: cat.amount,
-            percentage: totalRevenue > 0 ? (cat.amount / totalRevenue) * 100 : 0,
-            details: cat.details || []
-          })),
+          categories: (data.operatingExpenses?.categories || []).map((cat) => {
+            const cleanName = stripEmbeddedPeriodFromReportLabel(
+              cat.accountName || cat.category || ''
+            );
+            return {
+              category: cleanName || cat.category,
+              accountName: cleanName || cat.accountName,
+              accountCode: cat.accountCode,
+              amount: cat.amount,
+              percentage: totalRevenue > 0 ? (cat.amount / totalRevenue) * 100 : 0,
+              details: (cat.details || []).map((d) => ({
+                ...d,
+                category: d.category
+                  ? stripEmbeddedPeriodFromReportLabel(d.category)
+                  : d.category
+              }))
+            };
+          }),
           // Keep legacy fields for backward compatibility (will be empty if using dynamic categories)
           salariesWages: {
             amount: data.operatingExpenses?.salaries || 0,

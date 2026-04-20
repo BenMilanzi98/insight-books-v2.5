@@ -315,12 +315,11 @@ export const exportReport = async (reportType, format, params = {}) => {
   try {
     const queryParams = new URLSearchParams();
     
-    // Add timeframe params if provided
-    if (params.timeframe) {
-      const { startDate, endDate } = getDateRange(params.timeframe, params.customDateRange);
-      queryParams.append('startDate', startDate);
-      queryParams.append('endDate', endDate);
-    }
+    // Calendar-aligned range (default: full current month, 1st–last day; this year = 1 Jan–31 Dec)
+    const tf = params.timeframe || 'thisMonth';
+    const { startDate, endDate } = getDateRange(tf, params.customDateRange);
+    queryParams.append('startDate', startDate);
+    queryParams.append('endDate', endDate);
     
     // Add any other params
     Object.entries(params).forEach(([key, value]) => {
