@@ -213,7 +213,11 @@ function mergeDuplicateAccountCodeRows(accounts) {
       (Number(r.postedEntryCount) || 0) * 1e12 +
       (Number(r.transactionCount) || 0) * 1e6 +
       Math.abs(Number(r.postedDirectBalance ?? r.currentBalance) || 0);
-    return [...group].sort((a, b) => score(b) - score(a))[0];
+    return [...group].sort((a, b) => {
+      const d = score(b) - score(a);
+      if (d !== 0) return d;
+      return String(a.id).localeCompare(String(b.id));
+    })[0];
   };
   const out = [...noCodeKey];
   for (const [, group] of groups) {
@@ -401,6 +405,13 @@ export async function GET(request) {
         error: 'Failed to fetch accounts'
       });
     }
+
+    // Stable order for balance aggregation + duplicate-code merge (avoids tie-break drift across reloads).
+    accounts.sort((a, b) => {
+      const ca = String(a.accountCode || a.code || '').localeCompare(String(b.accountCode || b.code || ''));
+      if (ca !== 0) return ca;
+      return String(a.id).localeCompare(String(b.id));
+    });
 
     const parentIdsWithChildren = new Set();
     for (const a of accounts) {
@@ -827,14 +838,22 @@ export async function GET(request) {
 
     const accountsForResponse = alignChartAccountsListToBlueprint(sortedAccounts);
 
-    return NextResponse.json({
-      accounts: accountsForResponse,
-      total: accountsForResponse.length,
-      traceability: {
-        policy:
-          'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Without posted GL, only these non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts, and the 1300 subtree is then aligned to the same inventory aggregate as Stock Management. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+    return NextResponse.json(
+      {
+        accounts: accountsForResponse,
+        total: accountsForResponse.length,
+        traceability: {
+          policy:
+            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Without posted GL, only these non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts, and the 1300 subtree is then aligned to the same inventory aggregate as Stock Management. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+        },
       },
-    });
+      {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+          Pragma: 'no-cache',
+        },
+      }
+    );
   } catch (error) {
     console.error('Error fetching chart of accounts:', error);
     console.error('Error stack:', error.stack);

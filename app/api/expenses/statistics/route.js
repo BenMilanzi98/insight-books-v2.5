@@ -33,15 +33,15 @@ export async function GET(request) {
       dateFilter.lte = new Date(dateTo);
     }
     
-    // Base query filter for tenant's expenses (exclude deleted)
+    // Base query filter for tenant's expenses (exclude deleted).
+    // Branch rule must match GET /api/expenses: strict current branch when set (no OR null),
+    // so totals match the on-screen table and CSV export.
     const baseFilter = {
       tenantId: user.tenantId,
       isDeleted: false
     };
-    
-    // Include supplier/PO expenses (null branchId) when a branch is selected
     if (user?.currentBranchId) {
-      baseFilter.OR = [{ branchId: user.currentBranchId }, { branchId: null }];
+      baseFilter.branchId = user.currentBranchId;
     }
     
     // Only add date filter if there are actual date constraints
@@ -93,6 +93,45 @@ export async function GET(request) {
         amount: true
       }
     });
+
+    const APPROVAL_BUCKET_STATUSES = ['Approved', 'Pending', 'Rejected', 'Draft'];
+    const draftExpenses = await prisma.expense.aggregate({
+      where: {
+        ...baseFilter,
+        status: 'Draft'
+      },
+      _count: true,
+      _sum: { amount: true }
+    });
+    const otherApprovalExpenses = await prisma.expense.aggregate({
+      where: {
+        ...baseFilter,
+        status: { notIn: APPROVAL_BUCKET_STATUSES }
+      },
+      _count: true,
+      _sum: { amount: true }
+    });
+
+    // Approved expenses that still need cash/settlement (matches grid "Payment status")
+    const outstandingPaymentRows = await prisma.expense.findMany({
+      where: {
+        ...baseFilter,
+        status: 'Approved',
+        paymentStatus: { in: ['Pending', 'Partially'] }
+      },
+      select: {
+        amount: true,
+        taxAmount: true,
+        paidAmount: true
+      }
+    });
+    let outstandingPaymentSum = 0;
+    for (const row of outstandingPaymentRows) {
+      const totalDue =
+        Number(row.amount) + Number(row.taxAmount != null ? row.taxAmount : 0);
+      const paid = Number(row.paidAmount != null ? row.paidAmount : 0);
+      outstandingPaymentSum += Math.max(0, totalDue - paid);
+    }
     
     // Get expenses by category (only categories that have at least one expense)
     const expensesByCategory = await prisma.expense.groupBy({
@@ -176,7 +215,7 @@ export async function GET(request) {
       
       const transactionWhere = {
         tenantId: user.tenantId,
-        status: 'posted',
+        status: { in: ['posted', 'Posted'] },
         ...(Object.keys(transactionDateFilter).length > 0 ? { date: transactionDateFilter } : {}),
         ...(user?.currentBranchId ? { branchId: user.currentBranchId } : {}),
       };
@@ -195,9 +234,17 @@ export async function GET(request) {
       });
     }
     
-    // Calculate total expenses including COGS
-    const totalExpenseAmount = (totalExpenses._sum.amount || 0) + cogsTotal;
+    const operatingSum = totalExpenses._sum.amount || 0;
+    const operatingCount = totalExpenses._count || 0;
+    // Grand total (expense rows + GL COGS net) — used for category % and "all-in" view
+    const totalExpenseAmount = operatingSum + cogsTotal;
     const approvedAmount = approvedExpenses._sum.amount || 0;
+    const pendingAmount = pendingExpenses._sum.amount || 0;
+    const rejectedAmount = rejectedExpenses._sum.amount || 0;
+    const draftAmount = draftExpenses._sum.amount || 0;
+    const otherAmount = otherApprovalExpenses._sum.amount || 0;
+    const approvalBucketsOperatingSum =
+      approvedAmount + pendingAmount + rejectedAmount + draftAmount + otherAmount;
     
     // Map: category name (as stored in Expense) -> sum amount
     const amountByCategory = new Map();
@@ -267,16 +314,22 @@ export async function GET(request) {
       return amountB - amountA;
     });
     
+    const fmt = (n) =>
+      Number(n).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+
     // Return statistics
-    return NextResponse.json({
+    const res = NextResponse.json({
       total: {
-        count: (totalExpenses._count || 0) + cogsTransactionCount,
-        amount: totalExpenseAmount.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }),
-        cogsIncluded: cogsTotal > 0,
-        cogsAmount: cogsTotal
+        // Expense rows only (matches list + export); COGS is separate
+        count: operatingCount,
+        amount: fmt(operatingSum),
+        cogsIncluded: cogsTotal !== 0,
+        cogsAmount: cogsTotal,
+        cogsPostingCount: cogsTransactionCount,
+        grandTotalAmount: fmt(totalExpenseAmount)
       },
       approved: {
         count: approvedExpenses._count || 0,
@@ -285,12 +338,21 @@ export async function GET(request) {
           maximumFractionDigits: 2
         })
       },
+      // Approval workflow: status === 'Pending' (not payment column)
       pending: {
         count: pendingExpenses._count || 0,
         amount: (pendingExpenses._sum.amount || 0).toLocaleString(undefined, {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         })
+      },
+      pendingApproval: {
+        count: pendingExpenses._count || 0,
+        amount: fmt(pendingAmount)
+      },
+      outstandingPayment: {
+        count: outstandingPaymentRows.length,
+        amount: fmt(outstandingPaymentSum)
       },
       rejected: {
         count: rejectedExpenses._count || 0,
@@ -299,8 +361,24 @@ export async function GET(request) {
           maximumFractionDigits: 2
         })
       },
+      draft: {
+        count: draftExpenses._count || 0,
+        amount: fmt(draftAmount)
+      },
+      otherStatuses: {
+        count: otherApprovalExpenses._count || 0,
+        amount: fmt(otherAmount)
+      },
+      reconciliation: {
+        operatingSum,
+        approvalBucketsOperatingSum,
+        matches:
+          Math.abs(operatingSum - approvalBucketsOperatingSum) < 0.01
+      },
       byCategory: formattedCategoryStats
     });
+    res.headers.set('Cache-Control', 'no-store');
+    return res;
   } catch (error) {
     console.error('Error fetching expense statistics:', error);
     return NextResponse.json(

@@ -27,10 +27,18 @@ export async function GET(request) {
     const dateTo = searchParams.get('dateTo');
     const format = searchParams.get('format') || 'csv'; // Default to CSV
     
-    // Build filter object for Prisma
+    const branchIdParam = searchParams.get('branchId');
+
+    // Build filter object for Prisma (align with GET /api/expenses list)
     const where = {
-      tenantId: user.tenantId, // Filter by tenant ID for multi-tenancy
+      tenantId: user.tenantId,
+      isDeleted: false
     };
+    if (branchIdParam) {
+      where.branchId = branchIdParam;
+    } else if (user?.currentBranchId) {
+      where.branchId = user.currentBranchId;
+    }
     
     // Add status filter if provided
     if (status && status !== 'all') {
@@ -84,7 +92,9 @@ export async function GET(request) {
     
     // For CSV format
     if (format === 'csv') {
-      return generateCsvResponse(expenses);
+      const res = generateCsvResponse(expenses);
+      res.headers.set('Cache-Control', 'no-store');
+      return res;
     }
     
     // For other formats (could implement PDF, Excel, etc.)
@@ -102,7 +112,7 @@ export async function GET(request) {
 }
 
 // Generate CSV response
-async function generateCsvResponse(expenses) {
+function generateCsvResponse(expenses) {
   // Define CSV header
   const csvStringifier = createObjectCsvStringifier({
     header: [
@@ -112,7 +122,11 @@ async function generateCsvResponse(expenses) {
       { id: 'merchant', title: 'Merchant' },
       { id: 'category', title: 'Category' },
       { id: 'amount', title: 'Amount' },
-      { id: 'status', title: 'Status' },
+      { id: 'taxAmount', title: 'Tax Amount' },
+      { id: 'paidAmount', title: 'Paid Amount' },
+      { id: 'status', title: 'Approval Status' },
+      { id: 'paymentStatus', title: 'Payment Status' },
+      { id: 'branchId', title: 'Branch ID' },
       { id: 'submittedBy', title: 'Submitted By' },
       { id: 'notes', title: 'Notes' },
       { id: 'createdAt', title: 'Created At' }
@@ -127,7 +141,11 @@ async function generateCsvResponse(expenses) {
     merchant: expense.merchant || '',
     category: expense.category,
     amount: expense.amount.toFixed(2),
+    taxAmount: (expense.taxAmount != null ? expense.taxAmount : 0).toFixed(2),
+    paidAmount: (expense.paidAmount != null ? expense.paidAmount : 0).toFixed(2),
     status: expense.status,
+    paymentStatus: expense.paymentStatus || '',
+    branchId: expense.branchId || '',
     submittedBy: expense.submittedBy ? expense.submittedBy.name : '',
     notes: expense.notes || '',
     createdAt: expense.createdAt.toISOString().split('T')[0]

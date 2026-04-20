@@ -208,10 +208,10 @@ export const createExpenseWithAttachments = async (expenseData, attachments) => 
       const url = `/api/expenses/statistics${queryString ? `?${queryString}` : ''}`;
       
       const response = await fetch(url, {
-        cache: 'no-cache', // Disable caching for statistics
+        cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
+          'Cache-Control': 'no-store',
+          Pragma: 'no-cache'
         }
       });
       

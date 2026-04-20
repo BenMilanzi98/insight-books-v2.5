@@ -258,10 +258,22 @@ const ExpensesPage = () => {
   const [showPaymentHistory, setShowPaymentHistory] = useState(false);
   
   const [statistics, setStatistics] = useState({
-    total: { count: 0, amount: '0' },
+    total: {
+      count: 0,
+      amount: '0',
+      cogsIncluded: false,
+      cogsAmount: 0,
+      cogsPostingCount: 0,
+      grandTotalAmount: '0'
+    },
     approved: { count: 0, amount: '0' },
     pending: { count: 0, amount: '0' },
+    pendingApproval: { count: 0, amount: '0' },
+    outstandingPayment: { count: 0, amount: '0' },
     rejected: { count: 0, amount: '0' },
+    draft: { count: 0, amount: '0' },
+    otherStatuses: { count: 0, amount: '0' },
+    reconciliation: { matches: true },
     byCategory: []
   });
   const [categoryPagination, setCategoryPagination] = useState({
@@ -1388,9 +1400,9 @@ const handleFileUpload = async (e) => {
   };
 
   // Handle payment success
-  const handlePaymentSuccess = (data) => {
-    // Refresh expenses list to show updated payment status
-    loadExpenses();
+  const handlePaymentSuccess = async () => {
+    await loadExpenses();
+    await loadStatistics(true);
     setSuccessMessage('Payment processed successfully');
     setTimeout(() => setSuccessMessage(null), 3000);
   };
@@ -1845,18 +1857,27 @@ const handleFileUpload = async (e) => {
       {/* Tab Content */}
       {mainTab === "expenses" && (
         <>
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
+            {/* Statistics Cards — amounts align with the table (branch + non-deleted); COGS is called out separately */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-8">
               <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-400 via-blue-500 to-blue-600"></div>
                 <div className="p-6">
                   <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total Expenses</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Total (expense records)</div>
                   </div>
                   <div className="text-xl sm:text-2xl font-bold text-gray-900 truncate" title={`MK ${statistics.total.amount}`}>MK {statistics.total.amount}</div>
                   <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expenses to date since the business was opened
+                    <span className="font-semibold text-gray-700">{statistics.total.count}</span> expense rows (this branch)
                   </div>
+                  {statistics.total?.cogsIncluded ? (
+                    <div className="text-xs text-gray-500 mt-1 space-y-0.5">
+                      <div>COGS (from GL, net): MK {Number(statistics.total.cogsAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="font-medium text-gray-700">Combined with COGS: MK {statistics.total.grandTotalAmount}</div>
+                    </div>
+                  ) : null}
+                  {statistics.reconciliation && statistics.reconciliation.matches === false ? (
+                    <p className="text-xs text-amber-700 mt-2">Some expenses use non-standard approval statuses; approved + pending + rejected + draft may not equal the total above.</p>
+                  ) : null}
                 </div>
               </div>
               
@@ -1873,15 +1894,30 @@ const handleFileUpload = async (e) => {
                 </div>
               </div>
 
+              <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-orange-200/50 border border-white/50 hover:shadow-xl hover:shadow-orange-200/60 transition-all duration-300 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-amber-500 to-yellow-500"></div>
+                <div className="p-6">
+                  <div className="mb-3">
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Outstanding payment</div>
+                  </div>
+                  <div className="text-xl sm:text-2xl font-bold text-orange-700 truncate" title={`MK ${statistics.outstandingPayment?.amount ?? '0.00'}`}>
+                    MK {statistics.outstandingPayment?.amount ?? '0.00'}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-2">
+                    <span className="font-semibold text-gray-700">{statistics.outstandingPayment?.count ?? 0}</span> approved, not fully paid (remaining balance)
+                  </div>
+                </div>
+              </div>
+
               <div className="group bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-yellow-200/50 border border-white/50 hover:shadow-xl hover:shadow-yellow-200/60 transition-all duration-300 relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500"></div>
                 <div className="p-6">
                   <div className="mb-3">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Pending</div>
+                    <div className="text-xs sm:text-sm text-gray-600 font-medium uppercase tracking-wide">Awaiting approval</div>
                   </div>
-                  <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending.amount}`}>MK {statistics.pending.amount}</div>
+                  <div className="text-xl sm:text-2xl font-bold text-yellow-700 truncate" title={`MK ${statistics.pending?.amount}`}>MK {statistics.pending?.amount ?? '0.00'}</div>
                   <div className="text-xs text-gray-500 mt-2">
-                    <span className="font-semibold text-gray-700">{statistics.pending.count}</span> pending
+                    <span className="font-semibold text-gray-700">{statistics.pending?.count ?? 0}</span> not yet approved
                   </div>
                 </div>
               </div>

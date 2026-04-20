@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Plus,
   Search,
@@ -28,6 +28,8 @@ const ChartOfAccountsPage = () => {
   const [auditMode, setAuditMode] = useState(false);
   /** API returns blueprint + 1130-xx / 3101–3199 only. */
   const [canonicalSurface, setCanonicalSurface] = useState(false);
+  /** Cancels stale chart fetches so overlapping requests cannot apply results out of order. */
+  const chartFetchAbortRef = useRef(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -61,23 +63,23 @@ const ChartOfAccountsPage = () => {
     Expense: ['Group', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
   };
 
-  // Load accounts
-  useEffect(() => {
-    loadAccounts();
-  }, [accountTypeFilter, activeFilter, auditMode, canonicalSurface]);
+  const loadAccounts = useCallback(async () => {
+    chartFetchAbortRef.current?.abort();
+    const ac = new AbortController();
+    chartFetchAbortRef.current = ac;
+    const { signal } = ac;
 
-  const loadAccounts = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-
       const params = new URLSearchParams();
       if (accountTypeFilter !== 'All') {
         params.append('accountType', accountTypeFilter);
       }
       params.append('isActive', activeFilter.toString());
-      if (searchQuery) {
-        params.append('search', searchQuery);
+      const trimmedSearch = searchQuery.trim();
+      if (trimmedSearch) {
+        params.append('search', trimmedSearch);
       }
       if (auditMode) {
         params.append('includeChartHidden', 'true');
@@ -87,24 +89,47 @@ const ChartOfAccountsPage = () => {
         params.append('canonicalSurface', 'true');
       }
 
-      const response = await fetch(`/api/chart-of-accounts?${params.toString()}`);
-      
+      const response = await fetch(`/api/chart-of-accounts?${params.toString()}`, {
+        signal,
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+
       if (!response.ok) {
         throw new Error('Failed to load accounts');
       }
 
       const data = await response.json();
+      if (signal.aborted) return;
       setAccounts(data.accounts || []);
     } catch (err) {
+      if (err?.name === 'AbortError' || signal.aborted) return;
       console.error('Error loading accounts:', err);
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
-  };
+  }, [accountTypeFilter, activeFilter, auditMode, canonicalSurface, searchQuery]);
+
+  // Single schedule: no duplicate mount fetch (previously a second effect debounced empty search and raced).
+  useEffect(() => {
+    const delay = searchQuery.trim() ? 300 : 0;
+    const timer = setTimeout(() => {
+      void loadAccounts();
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      chartFetchAbortRef.current?.abort();
+    };
+  }, [loadAccounts]);
 
   const loadMergeAccounts = async () => {
-    const response = await fetch('/api/chart-of-accounts?includeInactive=true');
+    const response = await fetch('/api/chart-of-accounts?includeInactive=true', {
+      cache: 'no-store',
+      credentials: 'same-origin',
+    });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.error || 'Failed to load accounts for merge');
@@ -126,15 +151,6 @@ const ChartOfAccountsPage = () => {
     }
   };
 
-  // Search with debounce
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadAccounts();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   const handleAddAccount = async () => {
     try {
       setError(null);
@@ -153,7 +169,7 @@ const ChartOfAccountsPage = () => {
 
       setShowAddModal(false);
       resetForm();
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     }
@@ -178,7 +194,7 @@ const ChartOfAccountsPage = () => {
       setShowEditModal(false);
       setSelectedAccount(null);
       resetForm();
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     }
@@ -202,7 +218,7 @@ const ChartOfAccountsPage = () => {
         throw new Error(data.error || 'Failed to delete account');
       }
 
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     }
@@ -271,7 +287,7 @@ const ChartOfAccountsPage = () => {
       }
 
       alert(`Successfully imported template! Created: ${data.results.created}, Skipped: ${data.results.skipped}`);
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -307,7 +323,7 @@ const ChartOfAccountsPage = () => {
           : null,
       ].filter(Boolean);
       alert(parts.join(' '));
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -400,7 +416,7 @@ const ChartOfAccountsPage = () => {
       }
 
       alert(`Import completed! Created: ${data.results.created}, Updated: ${data.results.updated}, Skipped: ${data.results.skipped}`);
-      loadAccounts();
+      await loadAccounts();
     } catch (err) {
       setError(err.message);
     } finally {
