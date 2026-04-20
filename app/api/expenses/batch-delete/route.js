@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
+import { GL_POSTED_STATUSES } from '@/lib/expenseGlPosting';
 
 // POST - Batch delete expenses
 export async function POST(request) {
@@ -101,7 +102,7 @@ export async function POST(request) {
           tenantId: user.tenantId,
           sourceType: 'Expense',
           sourceId: expense.id,
-          status: 'posted',
+          status: GL_POSTED_STATUSES,
           isReversal: false
         },
         select: { id: true }

@@ -625,6 +625,12 @@ const ChartOfAccountsPage = () => {
             </div>
           </div>
 
+          <p className="mb-6 text-xs leading-relaxed text-slate-500">
+            Posted balances use journal entries and GL transactions. With a branch selected in your session, totals
+            include only that branch (same scope as the expense register). COGS, payroll, and other non-register
+            postings still appear on expense accounts under the GL.
+          </p>
+
           {error && (
             <div
               role="alert"

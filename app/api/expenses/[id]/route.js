@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
 import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
+import {
+  GL_POSTED_STATUSES,
+  postApprovedExpenseJournalIfMissing
+} from '@/lib/expenseGlPosting';
 
 // Helper function to get expense by ID with validation
 async function getExpenseWithValidation(id, userId, tenantId) {
@@ -150,7 +154,7 @@ export async function PUT(request, { params }) {
         tenantId: user.tenantId,
         sourceType: 'Expense',
         sourceId: expenseId,
-        status: 'posted',
+        status: GL_POSTED_STATUSES,
         isReversal: false
       },
       select: { id: true }
@@ -254,15 +258,43 @@ export async function PUT(request, { params }) {
     if (body.paidAmount !== undefined) updateData.paidAmount = body.paidAmount;
     if (body.paymentReference !== undefined) updateData.paymentReference = body.paymentReference;
 
-    // Update the expense
-    const updatedExpense = await prisma.expense.update({
-      where: { id: expenseId },
-      data: updateData,
-      include: {
-        expenseAttachments: true
+    let updatedExpense;
+    try {
+      updatedExpense = await prisma.$transaction(async (tx) => {
+        const updated = await tx.expense.update({
+          where: { id: expenseId },
+          data: updateData,
+          include: {
+            expenseAttachments: true
+          }
+        });
+        await postApprovedExpenseJournalIfMissing({
+          tx,
+          tenantId: user.tenantId,
+          userId: user.id,
+          expense: updated
+        });
+        return updated;
+      });
+    } catch (txErr) {
+      const msg = txErr?.message || 'Update failed';
+      const code = txErr?.code;
+      if (
+        code === 'EXPENSE_TAX_EXCEEDS_GROSS' ||
+        code === 'EXPENSE_GL_PENDING_NO_SUPPLIER' ||
+        code === 'EXPENSE_GL_NO_ACCOUNT' ||
+        code === 'EXPENSE_GL_NO_PAYMENT_METHOD' ||
+        msg.includes('general ledger') ||
+        msg.includes('Tax amount cannot exceed') ||
+        msg.includes('Payment method is required') ||
+        msg.includes('Expense account is required') ||
+        msg.includes('unpaid and has no supplier')
+      ) {
+        return NextResponse.json({ error: msg }, { status: 400 });
       }
-    });
-    
+      throw txErr;
+    }
+
     await prisma.auditLog.create({
       data: {
         action: 'EXPENSE_UPDATED',
@@ -364,7 +396,7 @@ export async function DELETE(request, { params }) {
         tenantId: user.tenantId,
         sourceType: 'Expense',
         sourceId: expenseId,
-        status: 'posted',
+        status: GL_POSTED_STATUSES,
         isReversal: false
       },
       select: { id: true }

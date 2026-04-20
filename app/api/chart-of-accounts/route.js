@@ -563,6 +563,12 @@ export async function GET(request) {
     const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
     const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
 
+    /** When set, GL transaction lines match branch-scoped registers (e.g. expenses). */
+    const glBranchFilter =
+      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
+        ? { branchId: user.currentBranchId }
+        : {};
+
     // Posted GL lines from Transaction model (sales, payroll, etc.) — roll merge sources into survivors
     let txnByAccountId = {};
     try {
@@ -572,6 +578,7 @@ export async function GET(request) {
           transaction: {
             tenantId: user.tenantId,
             status: { in: ['posted', 'Posted'] },
+            ...glBranchFilter,
           },
         },
         _sum: {
@@ -610,7 +617,8 @@ export async function GET(request) {
           where: {
             accountId: { in: journalAccountIds },
             journalEntry: {
-              tenantId: user.tenantId
+              tenantId: user.tenantId,
+              ...glBranchFilter,
             }
           },
           include: {

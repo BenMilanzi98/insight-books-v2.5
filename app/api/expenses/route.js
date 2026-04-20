@@ -8,6 +8,7 @@ import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -613,6 +614,17 @@ export async function POST(request) {
     }
     const taxAmount = body.taxAmount != null ? Number(body.taxAmount) : 0;
     const taxRate = body.taxRate != null ? Number(body.taxRate) : 0;
+
+    let journalBase;
+    let journalTax;
+    try {
+      ({ base: journalBase, tax: journalTax } = normalizeExpenseAmountsForGl(amount, taxAmount));
+    } catch (normErr) {
+      return NextResponse.json(
+        { error: normErr.message || 'Invalid amount and tax combination.' },
+        { status: 400 }
+      );
+    }
     
     let expenseAccount = null;
     let expenseCategory = null;
@@ -746,6 +758,20 @@ export async function POST(request) {
     const categoryForCreate = (selectedCategory != null && String(selectedCategory).trim()) ? String(selectedCategory).trim() : 'Uncategorized';
     const statusForCreate = body.status != null ? String(body.status).trim() : 'Pending';
 
+    if (statusForCreate === 'Approved') {
+      const hasSupplier =
+        body.supplierId != null && String(body.supplierId).trim() !== '';
+      if (paymentStatus === 'Pending' && !hasSupplier) {
+        return NextResponse.json(
+          {
+            error:
+              'An expense cannot be created as Approved while payment is still pending and no supplier is set. Record payment, add a supplier for Accounts Payable, or leave status as Pending until posting is possible.'
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Base create data (required and commonly supported fields)
     const expenseCreateData = {
       description: description || 'Expense',
@@ -826,64 +852,41 @@ export async function POST(request) {
         }
 
         // Create journal entry for expense
-        try {
-          console.log('🔥 About to create journal entry for expense:', expense.id);
-          const journalEntry = await createExpenseJournalEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            expenseId: expense.id,
-            expenseDate: paymentDate,
-            amount,
-            taxAmount: taxAmount || 0,
-            taxTypeId: effectiveTaxTypeId || null,
-            category: selectedCategory,
-            expenseAccountId: expenseAccount.id,
-            paymentMethod,
-            supplierId: expense.supplierId || null,
-            paymentStatus: paymentStatus,
-            tx,
-          });
-          console.log('✅ Journal entry created successfully:', journalEntry.id);
-        } catch (journalError) {
-          console.error('❌ Error creating journal entry for expense:', journalError);
-          console.error('Journal error details:', {
-            message: journalError.message,
-            stack: journalError.stack,
-            expenseId: expense.id,
-            tenantId: user.tenantId,
-          });
-          // Don't fail the expense creation if journal entry creation fails
-        }
+        console.log('🔥 About to create journal entry for expense:', expense.id);
+        await createExpenseJournalEntry({
+          tenantId: user.tenantId,
+          userId: user.id,
+          expenseId: expense.id,
+          expenseDate: paymentDate,
+          amount: journalBase,
+          taxAmount: journalTax,
+          taxTypeId: effectiveTaxTypeId || null,
+          category: selectedCategory,
+          expenseAccountId: expenseAccount.id,
+          paymentMethod,
+          supplierId: expense.supplierId || null,
+          paymentStatus: paymentStatus,
+          tx,
+        });
+        console.log('✅ Journal entry created successfully for expense:', expense.id);
       } else if (paymentStatus === 'Pending' && expense.supplierId) {
-        // Create journal entry for unpaid supplier expense (Accounts Payable)
-        try {
-          console.log('🔥 About to create journal entry for unpaid supplier expense:', expense.id);
-          const journalEntry = await createExpenseJournalEntry({
-            tenantId: user.tenantId,
-            userId: user.id,
-            expenseId: expense.id,
-            expenseDate: expenseDate,
-            amount: amount,
-            taxAmount: taxAmount || 0,
-            taxTypeId: effectiveTaxTypeId || null,
-            category: selectedCategory,
-            expenseAccountId: expenseAccount.id,
-            paymentMethod: null, // Not paid yet
-            supplierId: expense.supplierId,
-            paymentStatus: 'Pending',
-            tx,
-          });
-          console.log('✅ Journal entry created successfully for unpaid supplier expense:', journalEntry.id);
-        } catch (journalError) {
-          console.error('❌ Error creating journal entry for unpaid supplier expense:', journalError);
-          console.error('Journal error details:', {
-            message: journalError.message,
-            stack: journalError.stack,
-            expenseId: expense.id,
-            tenantId: user.tenantId,
-          });
-          // Don't fail the expense creation if journal entry creation fails
-        }
+        console.log('🔥 About to create journal entry for unpaid supplier expense:', expense.id);
+        await createExpenseJournalEntry({
+          tenantId: user.tenantId,
+          userId: user.id,
+          expenseId: expense.id,
+          expenseDate: expenseDate,
+          amount: journalBase,
+          taxAmount: journalTax,
+          taxTypeId: effectiveTaxTypeId || null,
+          category: selectedCategory,
+          expenseAccountId: expenseAccount.id,
+          paymentMethod: null,
+          supplierId: expense.supplierId,
+          paymentStatus: 'Pending',
+          tx,
+        });
+        console.log('✅ Journal entry created successfully for unpaid supplier expense:', expense.id);
       }
 
       return { expense, payment: newPayment };
