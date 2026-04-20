@@ -4,6 +4,13 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
 import { endOfLocalDay } from '@/lib/dateUtils';
+import {
+  dashboardLocalLastWeekBounds,
+  dashboardLocalThisWeekBounds,
+  dashboardLocalTodayBounds,
+  dashboardLocalWeekBefore,
+  dashboardLocalYesterdayBounds,
+} from '@/lib/dashboardDatePeriods';
 import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 import { getEffectiveDashboardBranchId } from '@/lib/branchAccess';
 import {
@@ -46,7 +53,7 @@ export async function GET(request) {
         `[dashboard/metrics] tenantIds=${tenantIds.join(',')}, branchScoped=${branchScoped}, currentBranchId=${user.currentBranchId || 'null'}`
       );
     }
-    const dateRange = searchParams.get('dateRange') || 'month';
+    const dateRange = searchParams.get('dateRange') || 'thisMonth';
     const now = new Date();
     
     // Calculate date ranges
@@ -54,52 +61,47 @@ export async function GET(request) {
     
     switch (dateRange) {
       case 'today': {
-        // Today's data
-        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
-        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
-        // Yesterday's data
-        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
-        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
+        const cur = dashboardLocalTodayBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const prev = dashboardLocalYesterdayBounds(now);
+        previousPeriodStart = prev.start;
+        previousPeriodEnd = prev.end;
         break;
       }
 
       case 'yesterday': {
-        // Yesterday's data
-        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
-        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
-        // Day before yesterday's data
-        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0, 0));
-        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999));
+        const cur = dashboardLocalYesterdayBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+        previousPeriodStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+        previousPeriodEnd = endOfLocalDay(d);
         break;
       }
       
       case 'thisWeek': {
-        currentPeriodStart = new Date(now);
-        currentPeriodStart.setDate(now.getDate() - now.getDay());
-        currentPeriodEnd = new Date(currentPeriodStart);
-        currentPeriodEnd.setDate(currentPeriodStart.getDate() + 6);
-        previousPeriodStart = new Date(currentPeriodStart);
-        previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
-        previousPeriodEnd = new Date(currentPeriodStart);
-        previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1);
+        const cur = dashboardLocalThisWeekBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const prev = dashboardLocalLastWeekBounds(now);
+        previousPeriodStart = prev.start;
+        previousPeriodEnd = prev.end;
         break;
       }
       
       case 'lastWeek': {
-        const thisWeekSun = new Date(now);
-        thisWeekSun.setDate(now.getDate() - now.getDay());
-        currentPeriodStart = new Date(thisWeekSun);
-        currentPeriodStart.setDate(thisWeekSun.getDate() - 7);
-        currentPeriodEnd = new Date(thisWeekSun);
-        currentPeriodEnd.setDate(thisWeekSun.getDate() - 1);
-        previousPeriodStart = new Date(currentPeriodStart);
-        previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
-        previousPeriodEnd = new Date(currentPeriodStart);
-        previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1);
+        const cur = dashboardLocalLastWeekBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const prev = dashboardLocalWeekBefore(cur);
+        previousPeriodStart = prev.start;
+        previousPeriodEnd = prev.end;
         break;
       }
       
-      case 'thisMonth': {
+      case 'thisMonth':
+      case 'month': {
         currentPeriodStart = new Date(now.getFullYear(), now.getMonth(), 1);
         currentPeriodEnd = endOfLocalDay(new Date(now.getFullYear(), now.getMonth() + 1, 0));
         // Previous month

@@ -38,7 +38,7 @@ export async function GET(request) {
     const { tenantIds, branchScoped } = scope;
     const tw = tenantWhereIn(tenantIds);
     const userQ = userForDashboardBranchFilter(user, branchScoped);
-    const dateRange = searchParams.get('dateRange') || 'month';
+    const dateRange = searchParams.get('dateRange') || 'thisMonth';
     
     // Calculate date range based on the parameter
     let startDate, endDate;
@@ -60,6 +60,7 @@ export async function GET(request) {
         endDate.setHours(23, 59, 59, 999);
         break;
       case 'week':
+      case 'thisWeek':
         startDate = new Date(today);
         startDate.setDate(startDate.getDate() - startDate.getDay());
         startDate.setHours(0, 0, 0, 0);

@@ -2,7 +2,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { addBranchFilter, addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
+import {
+  dashboardLocalThisWeekBounds,
+  dashboardLocalTodayBounds,
+  dashboardLocalYesterdayBounds,
+} from '@/lib/dashboardDatePeriods';
+import { endOfLocalDay } from '@/lib/dateUtils';
 import { settledExpensePaymentOr } from '@/lib/dashboardExpenseFilters';
 import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
 import {
@@ -59,35 +65,33 @@ export async function GET(request) {
 
     switch (dateRange) {
       case 'today': {
-        // Use UTC dates to match database dates
-        const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-        const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-        const yesterdayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 0, 0, 0, 0));
-        const yesterdayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1, 23, 59, 59, 999));
-        
-        currentPeriodStart = todayStart;
-        currentPeriodEnd = todayEnd;
-        previousPeriodStart = yesterdayStart;
-        previousPeriodEnd = yesterdayEnd;
+        const cur = dashboardLocalTodayBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const prev = dashboardLocalYesterdayBounds(now);
+        previousPeriodStart = prev.start;
+        previousPeriodEnd = prev.end;
         break;
       }
       case 'yesterday': {
-        currentPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
-        currentPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
-        previousPeriodStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 0, 0, 0, 0));
-        previousPeriodEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 2, 23, 59, 59, 999));
+        const cur = dashboardLocalYesterdayBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 2);
+        previousPeriodStart = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+        previousPeriodEnd = endOfLocalDay(d);
         break;
       }
       case 'thisWeek': {
-        currentPeriodStart = new Date(now);
-        currentPeriodStart.setDate(now.getDate() - now.getDay());
-        currentPeriodEnd = new Date(currentPeriodStart);
-        currentPeriodEnd.setDate(currentPeriodStart.getDate() + 6);
-        currentPeriodEnd.setHours(23, 59, 59, 999);
-        previousPeriodStart = new Date(currentPeriodStart);
-        previousPeriodStart.setDate(currentPeriodStart.getDate() - 7);
-        previousPeriodEnd = new Date(currentPeriodStart);
-        previousPeriodEnd.setDate(currentPeriodStart.getDate() - 1);
+        const cur = dashboardLocalThisWeekBounds(now);
+        currentPeriodStart = cur.start;
+        currentPeriodEnd = cur.end;
+        const prevStart = new Date(cur.start);
+        prevStart.setDate(cur.start.getDate() - 7);
+        const prevEnd = new Date(cur.start);
+        prevEnd.setDate(cur.start.getDate() - 1);
+        previousPeriodStart = prevStart;
+        previousPeriodEnd = endOfLocalDay(prevEnd);
         break;
       }
       case 'lastWeek': {
@@ -442,7 +446,7 @@ export async function GET(request) {
     const [todayExpensesSettled, todayCOGSSettled] = await Promise.allSettled([
       // Expenses created today
       prisma.expense.aggregate({
-        where: addBranchFilter(userQ, {
+        where: addBranchFilterIncludeUnassigned(userQ, {
           ...tw,
           date: {
             gte: currentPeriodStart,
@@ -480,7 +484,7 @@ export async function GET(request) {
     const [yesterdayExpensesSettled, yesterdayCOGSSettled] = await Promise.allSettled([
       // Expenses created yesterday
       prisma.expense.aggregate({
-        where: addBranchFilter(userQ, {
+        where: addBranchFilterIncludeUnassigned(userQ, {
           ...tw,
           date: {
             gte: previousPeriodStart,
@@ -524,7 +528,7 @@ export async function GET(request) {
           const [expensesSettled, cogsSettled] = await Promise.allSettled([
             // Expenses created on this date
             prisma.expense.aggregate({
-              where: addBranchFilter(userQ, {
+              where: addBranchFilterIncludeUnassigned(userQ, {
                 ...tw,
                 date: {
                   gte: dayStart,

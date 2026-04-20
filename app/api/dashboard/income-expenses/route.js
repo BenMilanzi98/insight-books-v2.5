@@ -12,6 +12,11 @@ import {
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
+import {
+  dashboardLocalThisWeekBounds,
+  dashboardLocalTodayBounds,
+  dashboardLocalYesterdayBounds,
+} from '@/lib/dashboardDatePeriods';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -57,20 +62,21 @@ export async function GET(request) {
     
     switch (dateRange) {
       case 'today': {
-        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999));
+        const b = dashboardLocalTodayBounds(now);
+        startDate = b.start;
+        endDate = b.end;
         break;
       }
       case 'yesterday': {
-        startDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0));
-        endDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999));
+        const b = dashboardLocalYesterdayBounds(now);
+        startDate = b.start;
+        endDate = b.end;
         break;
       }
       case 'thisWeek': {
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - now.getDay());
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
+        const b = dashboardLocalThisWeekBounds(now);
+        startDate = b.start;
+        endDate = b.end;
         break;
       }
       case 'thisMonth': {
