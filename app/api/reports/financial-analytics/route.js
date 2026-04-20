@@ -3,6 +3,11 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
 import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
+import { CHART_OF_ACCOUNTS_BLUEPRINT } from '@/lib/chartOfAccountsBlueprint';
+import {
+  lookupStandardExpenseCodeFromCategorySync,
+  normalizeCategoryNameForReporting
+} from '@/lib/expenseCategoryNormalization';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -46,6 +51,56 @@ function addToMap(map, key, amount) {
 
 function round2(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+/** @type {Map<string, string>} */
+const BLUEPRINT_ACCOUNT_NAME_BY_CODE = new Map(
+  CHART_OF_ACCOUNTS_BLUEPRINT.map((row) => [row.code, row.name])
+);
+
+/**
+ * Parse account code for CoA-style sort (5000, 1130-01, cat:… last).
+ * @param {string} key
+ */
+function accountCodeSortParts(key) {
+  if (key.startsWith('cat:')) return [99999999, 99999999];
+  return key.split('-').map((p) => parseInt(p, 10) || 0);
+}
+
+function compareExpenseBreakdownKeys(aKey, bKey) {
+  const catA = aKey.startsWith('cat:');
+  const catB = bKey.startsWith('cat:');
+  if (catA !== catB) return catA ? 1 : -1;
+  const pa = accountCodeSortParts(aKey);
+  const pb = accountCodeSortParts(bKey);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const da = pa[i] ?? 0;
+    const db = pb[i] ?? 0;
+    if (da !== db) return da - db;
+  }
+  return aKey.localeCompare(bKey);
+}
+
+/** One row per GL / mapping bucket so custom category labels do not duplicate accounts. */
+function expenseBreakdownBucketForExpense(expense) {
+  const acc = expense.expenseAccount;
+  if (acc?.accountCode) {
+    const code = String(acc.accountCode).trim();
+    const blueprintName = BLUEPRINT_ACCOUNT_NAME_BY_CODE.get(code);
+    const displayName = blueprintName || acc.accountName?.trim() || code;
+    return { key: code, label: `${code} — ${displayName}` };
+  }
+  const mapped = lookupStandardExpenseCodeFromCategorySync(expense.category);
+  if (mapped) {
+    const blueprintName = BLUEPRINT_ACCOUNT_NAME_BY_CODE.get(mapped);
+    const fallback = expense.category?.trim() || 'Expense';
+    const displayName = blueprintName || fallback;
+    return { key: mapped, label: `${mapped} — ${displayName}` };
+  }
+  const raw = expense.category?.trim() || 'Unclassified';
+  const norm = normalizeCategoryNameForReporting(raw) || 'unclassified';
+  return { key: `cat:${norm}`, label: raw };
 }
 
 function safeVariancePercent(actual, budget) {
@@ -159,7 +214,13 @@ export async function GET(request) {
           amount: true,
           date: true,
           category: true,
-          description: true
+          description: true,
+          expenseAccount: {
+            select: {
+              accountCode: true,
+              accountName: true
+            }
+          }
         }
       }),
       prisma.supplierBill.findMany({
@@ -217,7 +278,8 @@ export async function GET(request) {
     ]);
 
     const trendMap = new Map();
-    const expenseBreakdown = new Map();
+    /** @type {Map<string, { label: string; value: number }>} */
+    const expenseBreakdownBuckets = new Map();
     const revenueBySource = new Map([
       ['Invoices', 0],
       ['Sales', 0]
@@ -272,8 +334,12 @@ export async function GET(request) {
       const amount = Number(expense.amount) || 0;
       const label = formatLabel(expense.date, groupBy);
       addToBucket(trendMap, label, 'expenses', amount);
-      const category = expense.category || 'Other';
-      addToMap(expenseBreakdown, category, amount);
+      const { key, label: bucketLabel } = expenseBreakdownBucketForExpense(expense);
+      if (!expenseBreakdownBuckets.has(key)) {
+        expenseBreakdownBuckets.set(key, { label: bucketLabel, value: 0 });
+      }
+      const row = expenseBreakdownBuckets.get(key);
+      row.value += amount;
     });
 
     supplierBills.forEach((bill) => {
@@ -312,10 +378,17 @@ export async function GET(request) {
       }))
       .sort((a, b) => (a.label > b.label ? 1 : -1));
 
-    const expenseBreakdownArr = Array.from(expenseBreakdown.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8);
+    const expenseBreakdownArr = Array.from(expenseBreakdownBuckets.entries())
+      .map(([key, row]) => ({
+        key,
+        name: row.label,
+        value: round2(row.value)
+      }))
+      .sort((a, b) => {
+        const byCode = compareExpenseBreakdownKeys(a.key, b.key);
+        if (byCode !== 0) return byCode;
+        return b.value - a.value;
+      });
 
     const revenueBySourceArr = Array.from(revenueBySource.entries()).map(([name, value]) => ({
       name,

@@ -839,7 +839,7 @@ const FinancialReportingPage = () => {
               <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[340px]">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-semibold text-slate-800">Expense breakdown</h4>
-                  <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} categories</span>
+                  <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} accounts</span>
                 </div>
                 {analyticsExpenseBreakdown.length > 0 ? (
                   <ResponsiveContainer width="100%" height={340}>
