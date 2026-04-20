@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { DollarSign, Calculator, Plus, Eye, TrendingUp, Calendar, User, RefreshCw, Download, Trash2, X, Loader } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 export default function GratuityManagement() {
@@ -25,7 +25,7 @@ export default function GratuityManagement() {
   });
   const [paymentData, setPaymentData] = useState({
     amount: '',
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: todayYmdLocal(),
     paymentMethod: '',
     reference: '',
     notes: ''
@@ -143,7 +143,7 @@ export default function GratuityManagement() {
       setNotification({ type: 'success', message: 'Payment recorded successfully' });
       setShowPaymentModal(false);
       const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
-      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
+      setPaymentData({ amount: '', paymentDate: todayYmdLocal(), paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
       fetchGratuityAccounts();
     } catch (error) {
       console.error('Error recording payment:', error);
@@ -480,7 +480,7 @@ export default function GratuityManagement() {
                   setShowPaymentModal(false);
                   setSelectedAccount(null);
                   const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
-      setPaymentData({ amount: '', paymentDate: new Date().toISOString().split('T')[0], paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
+      setPaymentData({ amount: '', paymentDate: todayYmdLocal(), paymentMethod: defaultAccount?.id || '', reference: '', notes: '' });
                 }}
                 className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
               >

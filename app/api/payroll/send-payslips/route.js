@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
 import { formatSalaryAmount } from '@/lib/currencyUtils';
+import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 
 // Helper function to format date
 function formatDate(date) {
@@ -177,13 +178,11 @@ export async function POST(request) {
       where: { id: user.tenantId }
     });
 
-    // Get all payroll entries for this period
-    const periodStartDate = new Date(periodStart);
-    const periodEndDate = new Date(periodEnd);
-    
-    // Set to start and end of day for accurate matching
-    periodStartDate.setHours(0, 0, 0, 0);
-    periodEndDate.setHours(23, 59, 59, 999);
+    // Align with stored payroll month bounds (same as enhanced / bulk payroll APIs)
+    const { periodStart: periodStartDate, periodEnd: periodEndDate } = normalizePayrollMonthPeriod(
+      periodStart,
+      periodEnd
+    );
     
     // Find payrolls that overlap with the specified period
     const payrollEntries = await prisma.payroll.findMany({
@@ -215,8 +214,8 @@ export async function POST(request) {
       );
     }
 
-    const monthName = new Date(periodStart).toLocaleString('default', { month: 'long' });
-    const year = new Date(periodStart).getFullYear();
+    const monthName = periodStartDate.toLocaleString('default', { month: 'long' });
+    const year = periodStartDate.getFullYear();
     const companyName = tenant?.name || 'Company';
 
     let emailsSent = 0;

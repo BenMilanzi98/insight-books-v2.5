@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { reversePayroll } from '@/lib/transactionReversalService';
+import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 
 /**
  * Helper function to get payroll by ID with proper tenant isolation
@@ -106,8 +107,12 @@ export async function PUT(request, context) {
     const updateData = {};
     
     // Only include fields that are provided in the request
-    if (body.periodStart !== undefined) updateData.periodStart = new Date(body.periodStart);
-    if (body.periodEnd !== undefined) updateData.periodEnd = new Date(body.periodEnd);
+    if (body.periodStart !== undefined || body.periodEnd !== undefined) {
+      const seed = body.periodStart !== undefined ? body.periodStart : existingPayroll.periodStart;
+      const { periodStart, periodEnd } = normalizePayrollMonthPeriod(seed, body.periodEnd ?? seed);
+      updateData.periodStart = periodStart;
+      updateData.periodEnd = periodEnd;
+    }
     if (body.basicSalary !== undefined) updateData.basicSalary = body.basicSalary;
     if (body.deductions !== undefined) updateData.deductions = body.deductions;
     if (body.additions !== undefined) updateData.additions = body.additions;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
 import { DollarSign, Calculator, Plus, Trash2, Save, Eye, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function PayrollCreation() {
@@ -148,8 +149,11 @@ export default function PayrollCreation() {
         },
         body: JSON.stringify({
           employeeId: selectedEmployee.id,
-          periodStart: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).toISOString(); })(),
-          periodEnd: (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString(); })(),
+          ...(() => {
+            const d = new Date();
+            const { startYmd, endYmd } = calendarMonthYmdRangeLocal(d.getFullYear(), d.getMonth() + 1);
+            return { periodStart: startYmd, periodEnd: endYmd };
+          })(),
           basicSalary: payrollData.grossSalary,
           allowances: payrollData.allowances,
           deductions: [...payrollData.selectedDeductions, ...payrollData.customDeductions],

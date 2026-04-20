@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatSalaryAmount } from "@/lib/currencyUtils";
 import { computeMalawiPayeMonthly } from "@/lib/malawiPAYE";
+import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 
 export default function PayrollProcessing() {
   const router = useRouter();
@@ -41,7 +42,7 @@ export default function PayrollProcessing() {
   const [formData, setFormData] = useState({
     payrollMonth: new Date().getMonth() + 1, // Current month (1-12)
     payrollYear: new Date().getFullYear(), // Current year
-    paymentDate: new Date().toISOString().split('T')[0],
+    paymentDate: todayYmdLocal(),
     expenseAccountId: '',
     paymentAccountId: '',
     sendEmails: false // Option to send payslips via email
@@ -72,14 +73,6 @@ export default function PayrollProcessing() {
     { value: 11, label: 'November' },
     { value: 12, label: 'December' }
   ];
-
-  const toYmdLocal = (value) => {
-    const d = new Date(value);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-  };
 
   useEffect(() => {
     fetchPayrollRuns();
@@ -689,8 +682,7 @@ export default function PayrollProcessing() {
             }, {});
             
             const run = Object.values(updatedRuns).find(r => 
-              new Date(r.periodStart).toISOString().split('T')[0] === 
-              new Date(periodStartToRefresh).toISOString().split('T')[0]
+              toYmdLocal(r.periodStart) === toYmdLocal(periodStartToRefresh)
             );
             if (run) {
               await handleViewRun(run);
@@ -771,8 +763,8 @@ export default function PayrollProcessing() {
       
       const payload = {
         ...formData,
-        periodStart: periodStart.toISOString().split('T')[0],
-        periodEnd: periodEnd.toISOString().split('T')[0]
+        periodStart: toYmdLocal(periodStart),
+        periodEnd: toYmdLocal(periodEnd),
       };
       
       const response = await fetch('/api/payroll/enhanced', {

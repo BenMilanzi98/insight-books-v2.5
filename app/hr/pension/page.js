@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, FileSpreadsheet, Search, User, Loader } from "lucide-react";
 import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
+import { todayYmdLocal, calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 function formatCurrency(amount) {
@@ -46,8 +47,11 @@ export default function PensionManagementPage() {
   const [npsEmployeeRatePercent, setNpsEmployeeRatePercent] = useState("");
   const [npsEmployerRatePercent, setNpsEmployerRatePercent] = useState("");
 
-  const [reportStartDate, setReportStartDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]);
-  const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split("T")[0]);
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    return calendarMonthYmdRangeLocal(d.getFullYear(), d.getMonth() + 1).startYmd;
+  });
+  const [reportEndDate, setReportEndDate] = useState(todayYmdLocal());
   const [reportEmployeeId, setReportEmployeeId] = useState("all");
 
   const [reportSummary, setReportSummary] = useState(null);

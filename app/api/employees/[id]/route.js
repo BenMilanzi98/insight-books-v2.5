@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 
 // GET - Fetch a single employee by ID
 export async function GET(request, { params }) {
@@ -157,7 +158,7 @@ export async function PUT(request, { params }) {
       departmentId: body.departmentId !== undefined ? body.departmentId : undefined,
       status: body.status !== undefined ? body.status : undefined,
       startDate: body.startDate !== undefined && body.startDate !== '' ? (() => {
-        const date = new Date(body.startDate);
+        const date = parseDateInputForMonthNormalization(body.startDate);
         return isNaN(date.getTime()) ? undefined : date;
       })() : undefined,
       address: body.address !== undefined ? body.address : undefined,
@@ -167,7 +168,7 @@ export async function PUT(request, { params }) {
       employmentType: body.employmentType !== undefined ? body.employmentType : undefined,
       hourlyRate: body.hourlyRate !== undefined ? parseFloat(body.hourlyRate) : undefined,
       dateOfBirth: body.dateOfBirth !== undefined && body.dateOfBirth !== '' ? (() => {
-        const date = new Date(body.dateOfBirth);
+        const date = parseDateInputForMonthNormalization(body.dateOfBirth);
         return isNaN(date.getTime()) ? undefined : date;
       })() : undefined,
       gender: body.gender !== undefined ? body.gender : undefined,

@@ -25,10 +25,9 @@ import {
   Mail,
   Printer
 } from "lucide-react";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate, calculateDateRange, toYmdLocal } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { UniversalDateRangeFilter } from "@/components/UniversalDateRangeFilter";
-import { calculateDateRange } from "@/lib/dateUtils";
 
 export default function HRReports() {
   const [reportType, setReportType] = useState('');
@@ -122,8 +121,8 @@ export default function HRReports() {
       return;
     }
     const r = calculateDateRange(timeframe);
-    setStartDate(r.startDate.toISOString().split("T")[0]);
-    setEndDate(r.endDate.toISOString().split("T")[0]);
+    setStartDate(toYmdLocal(r.startDate));
+    setEndDate(toYmdLocal(r.endDate));
   }, [timeframe, customDateRange]);
 
   // Fetch employees and departments on mount
@@ -409,8 +408,8 @@ export default function HRReports() {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0); // Last day of the month
     return {
-      start: startDate.toISOString().split('T')[0],
-      end: endDate.toISOString().split('T')[0]
+      start: toYmdLocal(startDate),
+      end: toYmdLocal(endDate)
     };
   };
 

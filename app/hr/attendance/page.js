@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Search, X, Clock, CheckCircle, XCircle, Calendar, User, Edit, Trash2, FileText, Download, FileSpreadsheet } from "lucide-react";
 import { downloadPDF, downloadExcel } from "@/lib/exportUtils";
+import { toYmdLocal, todayYmdLocal, calendarMonthYmdRangeLocal } from "@/lib/dateUtils";
 
 export default function AttendancePage() {
   const [employees, setEmployees] = useState([]);
@@ -11,13 +12,16 @@ export default function AttendancePage() {
   const [error, setError] = useState(null);
   const [toast, setToast] = useState({ visible: false, type: 'success', message: '' });
   
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(todayYmdLocal());
   const [searchTerm, setSearchTerm] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [showReportSection, setShowReportSection] = useState(false);
-  const [reportStartDate, setReportStartDate] = useState(new Date(new Date().setDate(1)).toISOString().split('T')[0]); // First day of current month
-  const [reportEndDate, setReportEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportStartDate, setReportStartDate] = useState(() => {
+    const d = new Date();
+    return calendarMonthYmdRangeLocal(d.getFullYear(), d.getMonth() + 1).startYmd;
+  });
+  const [reportEndDate, setReportEndDate] = useState(todayYmdLocal());
   const [reportEmployeeId, setReportEmployeeId] = useState("all");
   const [reportData, setReportData] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
@@ -196,7 +200,7 @@ export default function AttendancePage() {
         // Fallback to local state
         return attendanceRecords.find(r => 
           r.employeeId === employeeId && 
-          new Date(r.date).toISOString().split('T')[0] === selectedDate
+          toYmdLocal(r.date) === selectedDate
         );
       };
 
@@ -298,7 +302,7 @@ export default function AttendancePage() {
                 const allData = await allRes.json();
                 if (allRes.ok && allData.attendance) {
                   const matchingRecord = allData.attendance.find(r => {
-                    const recordDate = new Date(r.date).toISOString().split('T')[0];
+                    const recordDate = toYmdLocal(r.date);
                     return recordDate === selectedDate;
                   });
                   if (matchingRecord) {
@@ -373,7 +377,7 @@ export default function AttendancePage() {
         
         return attendanceRecords.find(r => 
           r.employeeId === employeeId && 
-          new Date(r.date).toISOString().split('T')[0] === selectedDate
+          toYmdLocal(r.date) === selectedDate
         );
       };
 
@@ -429,7 +433,7 @@ export default function AttendancePage() {
         // Check local state
         let record = attendanceRecords.find(r => 
           r.employeeId === formData.employeeId && 
-          new Date(r.date).toISOString().split('T')[0] === selectedDate
+          toYmdLocal(r.date) === selectedDate
         );
         
         // Always double-check with API
@@ -546,7 +550,7 @@ export default function AttendancePage() {
               const allData = await allRes.json();
               if (allRes.ok && allData.attendance) {
                 existingRecord = allData.attendance.find(r => {
-                  const recordDate = new Date(r.date).toISOString().split('T')[0];
+                  const recordDate = toYmdLocal(r.date);
                   return recordDate === selectedDate;
                 });
               }
@@ -614,7 +618,7 @@ export default function AttendancePage() {
     return attendanceRecords.find(r => {
       if (r.employeeId !== employeeId) return false;
       // Compare dates by converting to YYYY-MM-DD format
-      const recordDate = r.date ? new Date(r.date).toISOString().split('T')[0] : null;
+      const recordDate = r.date ? toYmdLocal(r.date) : null;
       return recordDate === selectedDate;
     });
   };
@@ -633,13 +637,10 @@ export default function AttendancePage() {
   const loadAttendanceReport = async () => {
     setReportLoading(true);
     try {
-      const startDate = new Date(reportStartDate);
-      const endDate = new Date(reportEndDate);
-      endDate.setHours(23, 59, 59, 999);
-
+      // Local civil day bounds (report* are YYYY-MM-DD) — avoid UTC-shift from toISOString()
       const params = new URLSearchParams({
-        fromDate: startDate.toISOString(),
-        toDate: endDate.toISOString(),
+        fromDate: `${reportStartDate}T00:00:00`,
+        toDate: `${reportEndDate}T23:59:59.999`,
         limit: 'all'
       });
 

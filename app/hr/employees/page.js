@@ -32,6 +32,7 @@ import {
   Percent,
 } from "lucide-react";
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
+import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 
 function formatNpsPercentLabel(v) {
   if (v === null || v === undefined || Number.isNaN(Number(v))) return "—";
@@ -59,7 +60,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     employmentType: "Permanent",
     grossSalary: "",
     hourlyRate: "",
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: todayYmdLocal(),
     dateOfBirth: "",
     gender: "",
     maritalStatus: "",
@@ -171,8 +172,8 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
         employmentType: employee.employmentType || "Permanent",
         grossSalary: employee.grossSalary || employee.salary || "",
         hourlyRate: employee.hourlyRate || "",
-        startDate: employee.startDate ? new Date(employee.startDate).toISOString().split('T')[0] : "",
-        dateOfBirth: employee.dateOfBirth ? new Date(employee.dateOfBirth).toISOString().split('T')[0] : "",
+        startDate: employee.startDate ? toYmdLocal(employee.startDate) : "",
+        dateOfBirth: employee.dateOfBirth ? toYmdLocal(employee.dateOfBirth) : "",
         gender: employee.gender || "",
         maritalStatus: employee.maritalStatus || "",
         nationality: employee.nationality || "Malawian",
@@ -3384,7 +3385,7 @@ const EmployeeManagement = () => {
                       type="date"
                       name="terminationDate"
                       required
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      defaultValue={todayYmdLocal()}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -3481,7 +3482,7 @@ const EmployeeManagement = () => {
                       type="date"
                       name="suspendedFrom"
                       required
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      defaultValue={todayYmdLocal()}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

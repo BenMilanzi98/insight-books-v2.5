@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { DollarSign, Plus, Eye, Edit, Trash2, Calendar, User, RefreshCw, AlertCircle, CheckCircle, Loader } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate, toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 export default function SalaryAdvancesManagement() {
@@ -18,7 +18,8 @@ export default function SalaryAdvancesManagement() {
   const [selectedAdvance, setSelectedAdvance] = useState(null);
   // Generate reference number
   const generateReference = (date, employeeId) => {
-    const dateStr = date ? new Date(date).toISOString().split('T')[0].replace(/-/g, '') : new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const ymd = date ? toYmdLocal(date) : todayYmdLocal();
+    const dateStr = ymd.replace(/-/g, '');
     const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     const employeeSuffix = employeeId ? employeeId.substring(0, 4).toUpperCase() : 'EMP';
     return `SAV-${dateStr}-${employeeSuffix}-${randomSuffix}`;
@@ -27,9 +28,9 @@ export default function SalaryAdvancesManagement() {
   const [formData, setFormData] = useState({
     employeeId: '',
     amount: '',
-    advanceDate: new Date().toISOString().split('T')[0],
+    advanceDate: todayYmdLocal(),
     repaymentMonths: 1,
-    reference: generateReference(new Date().toISOString().split('T')[0], ''),
+    reference: generateReference(todayYmdLocal(), ''),
     notes: '',
     paymentMethod: ''
   });
@@ -117,7 +118,7 @@ export default function SalaryAdvancesManagement() {
 
       setNotification({ type: 'success', message: 'Salary advance created successfully' });
       setShowCreateModal(false);
-      const newDate = new Date().toISOString().split('T')[0];
+      const newDate = todayYmdLocal();
       setFormData({
         employeeId: '',
         amount: '',
@@ -203,7 +204,7 @@ export default function SalaryAdvancesManagement() {
     setFormData({
       employeeId: advance.employeeId,
       amount: advance.amount,
-      advanceDate: new Date(advance.advanceDate).toISOString().split('T')[0],
+        advanceDate: toYmdLocal(advance.advanceDate),
       repaymentMonths: advance.repaymentMonths,
       reference: advance.reference || '',
       notes: advance.notes || '',
@@ -267,7 +268,7 @@ export default function SalaryAdvancesManagement() {
       <div className="mb-6 flex gap-3 items-center">
         <button
           onClick={() => {
-            const newDate = new Date().toISOString().split('T')[0];
+            const newDate = todayYmdLocal();
             setFormData(prev => ({
               ...prev,
               advanceDate: newDate,
@@ -515,7 +516,7 @@ export default function SalaryAdvancesManagement() {
               <button
                 onClick={() => {
                   setShowCreateModal(false);
-                  const newDate = new Date().toISOString().split('T')[0];
+                  const newDate = todayYmdLocal();
                   setFormData({
                     employeeId: '',
                     amount: '',

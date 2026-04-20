@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toYmdLocal, todayYmdLocal } from '@/lib/dateUtils';
 import { 
   PlusIcon, 
   PencilIcon, 
@@ -737,7 +738,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
     employeeId: '',
     reviewPeriod: '',
     reviewType: 'annual',
-    reviewDate: new Date().toISOString().split('T')[0],
+    reviewDate: todayYmdLocal(),
     overallRating: '',
     overallComments: '',
     strengths: '',
@@ -751,7 +752,7 @@ function ReviewModal({ review, employees, onClose, onSubmit }) {
         employeeId: review.employeeId || '',
         reviewPeriod: review.reviewPeriod || '',
         reviewType: review.reviewType || 'annual',
-        reviewDate: review.reviewDate ? new Date(review.reviewDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        reviewDate: review.reviewDate ? toYmdLocal(review.reviewDate) : todayYmdLocal(),
         overallRating: review.overallRating?.toString() || '',
         overallComments: review.overallComments || '',
         strengths: review.strengths || '',
@@ -993,7 +994,7 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
     category: '',
     targetValue: '',
     targetUnit: '',
-    startDate: new Date().toISOString().split('T')[0],
+    startDate: todayYmdLocal(),
     targetDate: '',
     progress: '0',
     currentValue: ''
@@ -1008,8 +1009,8 @@ function GoalModal({ goal, employees, onClose, onSubmit }) {
         category: goal.category || '',
         targetValue: goal.targetValue?.toString() || '',
         targetUnit: goal.targetUnit || '',
-        startDate: goal.startDate ? new Date(goal.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        targetDate: goal.targetDate ? new Date(goal.targetDate).toISOString().split('T')[0] : '',
+        startDate: goal.startDate ? toYmdLocal(goal.startDate) : todayYmdLocal(),
+        targetDate: goal.targetDate ? toYmdLocal(goal.targetDate) : '',
         progress: goal.progress?.toString() || '0',
         currentValue: goal.currentValue?.toString() || ''
       });

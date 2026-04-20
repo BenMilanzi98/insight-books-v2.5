@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { calculatePayroll } from '@/lib/payrollCalculations';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
@@ -124,11 +124,8 @@ export async function POST(request) {
       );
     }
     
-    // Normalize to 1st and last day of month for correct monthly reporting
-    const rawStart = new Date(body.periodStart);
-    const rawEnd = new Date(body.periodEnd);
-    const periodStart = startOfMonth(rawStart);
-    const periodEnd = endOfMonth(rawEnd);
+    // Normalize to 1st and last day of month (calendar-safe parsing for YYYY-MM-DD)
+    const { periodStart, periodEnd } = normalizePayrollMonthPeriod(body.periodStart, body.periodEnd);
     const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
     
     // Validate date range

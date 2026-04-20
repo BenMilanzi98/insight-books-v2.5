@@ -37,7 +37,7 @@ import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
 import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
-import { formatCurrency, formatDate, getDateRange } from "@/lib/dateUtils";
+import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
 
 // Animated Counter Component
 const CountUp = ({ end, duration = 2000, format = (val) => val }) => {
@@ -747,8 +747,8 @@ const BusinessOwnerDashboard = () => {
 
         if (selectedDateRange === "custom") {
           params.append("dateRange", "custom");
-          params.append("startDate", startDate.toISOString().split("T")[0]);
-          params.append("endDate", endDate.toISOString().split("T")[0]);
+          params.append("startDate", toYmdLocal(startDate));
+          params.append("endDate", toYmdLocal(endDate));
         } else {
           params.append("dateRange", mapDateRangeToAPI(selectedDateRange));
         }
@@ -793,8 +793,8 @@ const BusinessOwnerDashboard = () => {
       const ed = endDate instanceof Date ? endDate : new Date(endDate);
       try {
         const revParams = new URLSearchParams();
-        revParams.set('startDate', sd.toISOString().split('T')[0]);
-        revParams.set('endDate', ed.toISOString().split('T')[0]);
+        revParams.set('startDate', toYmdLocal(sd));
+        revParams.set('endDate', toYmdLocal(ed));
         if (dashboardBusinessScope === "all") {
           revParams.set("aggregate", "all");
         } else if (

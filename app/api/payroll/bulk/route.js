@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 
 /**
  * POST - Create payroll records for multiple employees for a specified period
@@ -28,11 +28,8 @@ export async function POST(request) {
       );
     }
     
-    // Normalize to 1st and last day of month for correct monthly reporting
-    const rawStart = new Date(body.periodStart);
-    const rawEnd = new Date(body.periodEnd);
-    const periodStart = startOfMonth(rawStart);
-    const periodEnd = endOfMonth(rawEnd);
+    // Normalize to 1st and last day of month (calendar-safe YYYY-MM-DD)
+    const { periodStart, periodEnd } = normalizePayrollMonthPeriod(body.periodStart, body.periodEnd);
     
     // Validate period
     if (periodStart >= periodEnd) {

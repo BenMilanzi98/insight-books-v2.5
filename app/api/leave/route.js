@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 
 // First, we need to add the Leave model to the Prisma schema
 // This would normally be added to the schema.prisma file:
@@ -177,9 +178,9 @@ export async function POST(request) {
       );
     }
     
-    // Validate date range
-    const startDate = new Date(body.startDate);
-    const endDate = new Date(body.endDate);
+    // Calendar-safe parsing for YYYY-MM-DD (matches HR UI / avoids UTC midnight shift)
+    const startDate = parseDateInputForMonthNormalization(body.startDate);
+    const endDate = parseDateInputForMonthNormalization(body.endDate);
     
     if (endDate < startDate) {
       return NextResponse.json(

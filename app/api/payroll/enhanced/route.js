@@ -7,7 +7,7 @@ import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
 import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
-import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
 
 /**
@@ -35,11 +35,8 @@ export async function POST(request) {
       );
     }
 
-    // Normalize to 1st and last day of month for correct monthly reporting and consistency
-    const rawStart = new Date(body.periodStart);
-    const rawEnd = new Date(body.periodEnd);
-    const periodStart = startOfMonth(rawStart);
-    const periodEnd = endOfMonth(rawEnd);
+    // Normalize to 1st and last day of the selected calendar month (date-only YYYY-MM-DD parsed safely for any server TZ)
+    const { periodStart, periodEnd } = normalizePayrollMonthPeriod(body.periodStart, body.periodEnd);
     const paymentDate = body.paymentDate ? new Date(body.paymentDate) : new Date();
 
     // Validate date range (after normalization)

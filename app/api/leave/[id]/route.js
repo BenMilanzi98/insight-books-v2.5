@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 
 // GET - Fetch a single leave request by ID
 export async function GET(request, { params }) {
@@ -128,8 +129,8 @@ export async function PUT(request, { params }) {
     
     // Update dates if provided
     if (body.startDate && body.endDate) {
-      const startDate = new Date(body.startDate);
-      const endDate = new Date(body.endDate);
+      const startDate = parseDateInputForMonthNormalization(body.startDate);
+      const endDate = parseDateInputForMonthNormalization(body.endDate);
       
       if (endDate < startDate) {
         return NextResponse.json(

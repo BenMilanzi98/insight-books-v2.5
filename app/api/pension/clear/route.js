@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 
 function safeNumber(n) {
   const v = Number(n);
@@ -83,9 +84,9 @@ export async function POST(request) {
     const employeeIds = Array.isArray(body.employeeIds) ? body.employeeIds.filter(Boolean) : [];
     const paymentMethod = (body.paymentMethod || 'cash').toString();
 
-    const startDate = body.startDate ? new Date(body.startDate) : null;
-    const endDate = body.endDate ? new Date(body.endDate) : null;
-    const clearDate = body.clearDate ? new Date(body.clearDate) : new Date();
+    const startDate = body.startDate ? parseDateInputForMonthNormalization(body.startDate) : null;
+    const endDate = body.endDate ? parseDateInputForMonthNormalization(body.endDate) : null;
+    const clearDate = body.clearDate ? parseDateInputForMonthNormalization(body.clearDate) : new Date();
 
     if (!employeeIds.length) {
       return NextResponse.json({ error: 'employeeIds is required' }, { status: 400 });

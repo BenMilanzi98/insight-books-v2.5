@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toYmdLocal } from '@/lib/dateUtils';
 import { PlusIcon, PencilIcon, TrashIcon, EyeIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function LeaveManagement() {
@@ -806,8 +807,8 @@ function RequestModal({ request, policies, onClose, onSubmit }) {
       setFormData({
         employeeId: request.employeeId || '',
         leavePolicyId: request.leavePolicyId || '',
-        startDate: request.startDate ? new Date(request.startDate).toISOString().split('T')[0] : '',
-        endDate: request.endDate ? new Date(request.endDate).toISOString().split('T')[0] : '',
+        startDate: request.startDate ? toYmdLocal(request.startDate) : '',
+        endDate: request.endDate ? toYmdLocal(request.endDate) : '',
         reason: request.reason || ''
       });
     }
