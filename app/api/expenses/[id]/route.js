@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
+import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
 
 // Helper function to get expense by ID with validation
 async function getExpenseWithValidation(id, userId, tenantId) {
@@ -197,8 +198,18 @@ export async function PUT(request, { params }) {
     let expenseAccount = null;
     if (body.expenseAccountId) {
       expenseAccount = await prisma.account.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' }
+        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
       });
+
+      if (!expenseAccount) {
+        const ecByPickerId = await prisma.expenseCategory.findFirst({
+          where: { id: body.expenseAccountId, tenantId: user.tenantId },
+          include: { account: true },
+        });
+        if (ecByPickerId?.account) {
+          expenseAccount = ecByPickerId.account;
+        }
+      }
 
       if (!expenseAccount) {
         return NextResponse.json(
@@ -206,6 +217,18 @@ export async function PUT(request, { params }) {
           { status: 400 }
         );
       }
+
+      const glCode = expenseAccount.accountCode || expenseAccount.code || '';
+      if (!isPhinduExpenseStructureCode(glCode)) {
+        return NextResponse.json(
+          {
+            error:
+              'That account is not an allowed expense category. Select an account from the predefined PHINDU expense list.',
+          },
+          { status: 400 }
+        );
+      }
+
       updateData.expenseAccountId = expenseAccount.id;
       updateData.category = expenseAccount.accountName;
     }

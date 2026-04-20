@@ -19,6 +19,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Authentication required or no tenant associated' }, { status: 401 });
     }
 
+    try {
+      const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+      await assertTenantCoaUnlocked(user.tenantId);
+    } catch (lockErr) {
+      if (lockErr?.code === 'COA_TENANT_LOCKED') {
+        return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+      }
+      throw lockErr;
+    }
+
     if (!canUpdateChartOfAccount(user)) {
       return NextResponse.json(
         { error: 'Access denied. accounts.update permission required.' },

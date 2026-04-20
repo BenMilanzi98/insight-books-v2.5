@@ -3,24 +3,50 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
 
 const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
+  let expenseAccount = null;
+
   if (expenseAccountId) {
-    return prisma.account.findFirst({
-      where: { id: expenseAccountId, tenantId, accountType: 'Expense', isActive: true }
+    expenseAccount = await prisma.account.findFirst({
+      where: { id: expenseAccountId, tenantId, accountType: 'Expense', isActive: true },
     });
+    if (!expenseAccount) {
+      const ec = await prisma.expenseCategory.findFirst({
+        where: { id: expenseAccountId, tenantId },
+        include: { account: true },
+      });
+      if (ec?.account?.isActive !== false && ec?.account?.accountType === 'Expense') {
+        expenseAccount = ec.account;
+      }
+    }
   }
-  if (category) {
-    return prisma.account.findFirst({
+
+  if (!expenseAccount && category) {
+    const ec = await prisma.expenseCategory.findFirst({
+      where: { tenantId, name: { equals: category, mode: 'insensitive' } },
+      include: { account: true },
+    });
+    if (ec?.account?.isActive !== false && ec?.account?.accountType === 'Expense') {
+      expenseAccount = ec.account;
+    }
+  }
+
+  if (!expenseAccount && category) {
+    expenseAccount = await prisma.account.findFirst({
       where: {
         tenantId,
         accountType: 'Expense',
         isActive: true,
-        accountName: { equals: category, mode: 'insensitive' }
-      }
+        accountName: { equals: category, mode: 'insensitive' },
+      },
     });
   }
-  return null;
+
+  const glCode = expenseAccount?.accountCode || expenseAccount?.code || '';
+  if (!expenseAccount || !isPhinduExpenseStructureCode(glCode)) return null;
+  return expenseAccount;
 };
 
 // GET - Fetch a single recurring expense by ID

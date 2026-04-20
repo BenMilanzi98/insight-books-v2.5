@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { ensureExpenseAccountsForTenant, EXPENSE_ACCOUNTS_TEMPLATE } from '@/lib/expenseCategoriesTemplate';
+import {
+  isPhinduExpenseStructureCode,
+  PHINDU_EXPENSE_STRUCTURE_CODES,
+} from '@/lib/phinduExpenseCategoryCodes.js';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -52,7 +55,7 @@ export async function GET(request) {
       const categoriesById = new Map();
       const toEntry = (accountId, code, name, account, description, fromExpenseCategory = false, expCatId = null) => {
         const entry = {
-          id: expCatId || accountId,
+          id: accountId,
           code: code || '',
           name: name || 'Unnamed',
           accountId,
@@ -92,10 +95,15 @@ export async function GET(request) {
           },
           orderBy: { name: 'asc' }
         });
-        expenseCategories.forEach(cat => {
+        expenseCategories.forEach((cat) => {
+          const acctCode = cat.account?.accountCode || cat.accountCode || '';
+          if (!isPhinduExpenseStructureCode(acctCode)) return;
           const accountId = cat.accountId;
           if (categoriesById.has(accountId)) return;
-          categoriesById.set(accountId, toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, true, cat.id));
+          categoriesById.set(
+            accountId,
+            toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, true, cat.id)
+          );
         });
       } catch (expenseCatErr) {
         console.warn('Categories API: expense categories unavailable:', expenseCatErr?.message || expenseCatErr);
@@ -111,62 +119,27 @@ export async function GET(request) {
         isActive: true
       };
       const baseWhere = { tenantId, isActive: true };
+      const phinduCodes = [...PHINDU_EXPENSE_STRUCTURE_CODES];
       try {
-        let byTypeAccounts = [];
-        let byCodeAccounts = [];
-        const runQueries = async () => {
-          [byTypeAccounts, byCodeAccounts] = await Promise.all([
-            prisma.account.findMany({
-              where: {
-                ...baseWhere,
-                OR: [
-                  { accountType: { equals: 'Expense', mode: 'insensitive' } },
-                  { type: { equals: 'Expense', mode: 'insensitive' } },
-                  { accountSubtype: { equals: 'Cost of Sales', mode: 'insensitive' } },
-                  { accountSubtype: { equals: 'Operating Expense', mode: 'insensitive' } },
-                  { accountSubtype: { equals: 'Other Expense', mode: 'insensitive' } }
-                ]
-              },
-              select: accountSelect,
-              orderBy: { accountName: 'asc' }
-            }),
-            prisma.account.findMany({
-              where: {
-                ...baseWhere,
-                OR: [
-                  { accountCode: { gte: '5000', lte: '5999' } },
-                  { code: { gte: '5000', lte: '5999' } }
-                ]
-              },
-              select: accountSelect,
-              orderBy: { accountName: 'asc' }
-            })
-          ]);
-        };
-        await runQueries();
-        const accountsById = new Map();
-        [...byTypeAccounts, ...byCodeAccounts].forEach(acc => accountsById.set(acc.id, acc));
-        const templateCodes = EXPENSE_ACCOUNTS_TEMPLATE.map((t) => t.code);
-        const existingTemplateCount = await prisma.account.count({
-          where: { tenantId, accountCode: { in: templateCodes } }
+        const phinduAccounts = await prisma.account.findMany({
+          where: {
+            ...baseWhere,
+            OR: [{ accountCode: { in: phinduCodes } }, { code: { in: phinduCodes } }],
+          },
+          select: accountSelect,
+          orderBy: [{ accountCode: 'asc' }],
         });
-        if (existingTemplateCount < EXPENSE_ACCOUNTS_TEMPLATE.length) {
-          try {
-            await ensureExpenseAccountsForTenant(tenantId, prisma);
-            await runQueries();
-            accountsById.clear();
-            [...byTypeAccounts, ...byCodeAccounts].forEach(acc => accountsById.set(acc.id, acc));
-          } catch (ensureErr) {
-            console.warn('Categories API: could not ensure expense accounts:', ensureErr?.message || ensureErr);
-          }
-        }
+        const accountsById = new Map();
+        phinduAccounts.forEach((acc) => accountsById.set(acc.id, acc));
         accountsById.forEach((acc, id) => {
           if (categoriesById.has(id)) return;
-          const label = acc.accountName || acc.name || acc.accountCode || 'Unnamed';
-          categoriesById.set(id, toEntry(id, acc.accountCode || acc.code, label, acc, null, false));
+          const code = acc.accountCode || acc.code || '';
+          if (!isPhinduExpenseStructureCode(code)) return;
+          const label = acc.accountName || acc.name || code || 'Unnamed';
+          categoriesById.set(id, toEntry(id, code, label, acc, null, false));
         });
       } catch (accountErr) {
-        console.warn('Categories API: expense accounts unavailable:', accountErr?.message || accountErr);
+        console.warn('Categories API: PHINDU expense accounts unavailable:', accountErr?.message || accountErr);
       }
 
       // Auto-create ExpenseCategory records for Account-only entries so dropdowns always have valid IDs
@@ -187,7 +160,6 @@ export async function GET(request) {
                 }
               });
             }
-            entry.id = ec.id;
             entry.expenseCategoryId = ec.id;
             entry._fromExpenseCategory = true;
           } catch (autoCreateErr) {
@@ -307,10 +279,12 @@ export async function POST(request) {
         }
       });
     } else if (type === 'expense') {
-      // Redirect to expense categories endpoint
       return NextResponse.json(
-        { error: 'Please use /api/expense-categories to create expense categories' },
-        { status: 400 }
+        {
+          error:
+            'Expense categories cannot be created here. Only predefined PHINDU expense accounts may be used.',
+        },
+        { status: 403 }
       );
     } else {
       return NextResponse.json(

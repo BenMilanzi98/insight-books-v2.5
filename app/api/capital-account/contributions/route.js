@@ -49,8 +49,7 @@ export async function GET(request) {
           ? [primaryCapital.id]
           : [];
 
-    // Legacy Owner's Capital (3100): always include when present so historical credits still list
-    // after 500000 exists from chart bootstrap but before the new contribution model is used.
+    // Owner's Capital (3100): always include when present so historical credits still list alongside the primary pool row.
     const legacy3100 = await prisma.account.findFirst({
       where: { tenantId: user.tenantId, isActive: true, accountCode: '3100' },
       select: { id: true },

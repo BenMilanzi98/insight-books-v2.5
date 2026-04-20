@@ -215,7 +215,10 @@ const DynamicCategorySelect = ({
             </div>
 
             {/* Add New Option (when not in adding mode) */}
-            {!isAdding && searchTerm && !filteredOptions.includes(searchTerm) && (
+            {onAddCategory &&
+              !isAdding &&
+              searchTerm &&
+              !filteredOptions.includes(searchTerm) && (
               <div className="border-t border-gray-200">
                 <button
                   type="button"

@@ -3,6 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildDefaultSystemCoaPayload, normalizeAccountType } from "@/lib/systemCoaPayload";
+import PhinduLedgerCoaTable from "@/components/chart-of-accounts/PhinduLedgerCoaTable";
+import { formatCurrency } from "@/lib/currencyUtils";
 import {
   AlertCircle,
   BookOpen,
@@ -430,6 +432,7 @@ export default function AdminSystemChartOfAccountsPage() {
   const [inventoryGlTypeFilter, setInventoryGlTypeFilter] = useState("All");
   const [tenantGlSelectedIds, setTenantGlSelectedIds] = useState([]);
   const [batchMergeTargetCode, setBatchMergeTargetCode] = useState("");
+  const [phinduViewAccount, setPhinduViewAccount] = useState(null);
 
   const loadDefinition = useCallback(async () => {
     setLoading(true);
@@ -731,6 +734,25 @@ export default function AdminSystemChartOfAccountsPage() {
     }
     return deduped;
   }, [tenantInventory?.allTenantGlAccounts, tenantIdFilter, tenantSearch, inventoryGlTypeFilter]);
+
+  /**
+   * System tenant accounts: all loaded tenant GL rows for the admin PHINDU chart (same row shape as tenant /chart-of-accounts).
+   * Default: every business in the pull; optional Tenant ID filter narrows to one tenant.
+   * Rows group by `accountCode` — same code across tenants aggregates balances and shows in duplicate dropdowns.
+   */
+  const systemTenantAccounts = useMemo(() => {
+    const rows = tenantInventory?.allTenantGlAccounts;
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    const tid = tenantIdFilter.trim();
+    return rows
+      .filter((r) => !tid || r.tenantId === tid)
+      .map((r) => ({
+        ...r,
+        accountCode: r.accountCode || r.code || "",
+        accountName: r.accountName || r.name || "",
+        accountType: r.accountType || r.type || "",
+      }));
+  }, [tenantInventory?.allTenantGlAccounts, tenantIdFilter]);
 
   /** Bottom “GL” tab: hide duplicate tenant rows when the right panel lists them all. */
   const filteredTenantChartReferenceOnly = useMemo(() => {
@@ -1043,7 +1065,7 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const mergeModalOpen = Boolean(mergeRow);
   const editModalOpen = Boolean(editRow);
-  const anyModal = mergeModalOpen || editModalOpen || addOpen;
+  const anyModal = mergeModalOpen || editModalOpen || addOpen || Boolean(phinduViewAccount);
 
   return (
     <div className="w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
@@ -1436,6 +1458,42 @@ export default function AdminSystemChartOfAccountsPage() {
                   </div>
                 </div>
               </div>
+
+              <section
+                className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 sm:p-4"
+                aria-labelledby="phindu-struct-heading"
+              >
+                <h3 id="phindu-struct-heading" className="text-sm font-semibold text-slate-900">
+                  PHINDU structure view
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  Same layout as tenant <span className="font-mono">/chart-of-accounts</span> (fixed tree, balances, dropdown buckets).
+                  Uses <strong>all</strong> tenant chart rows from this pull; balances and duplicate-code rows roll up by GL code across the
+                  system. Optionally choose <strong>Tenant ID</strong> to focus on one business. <strong>Merge</strong> updates the{" "}
+                  <strong>system template</strong> for that code for every tenant — <strong>Save definition</strong> then{" "}
+                  <strong>Apply to all tenants</strong>. Rename or deactivate live rows in each tenant&apos;s app.
+                </p>
+                <div className="mt-3 [&>div]:shadow-none">
+                  <PhinduLedgerCoaTable
+                    loading={tenantPullLoading && !tenantInventory}
+                    accounts={systemTenantAccounts}
+                    activeFilter={false}
+                    auditMode={true}
+                    showEdit={false}
+                    showDelete={false}
+                    onViewAccount={(a) => setPhinduViewAccount(a)}
+                    onMergeAccount={(a) => {
+                      const code = String(a.accountCode || a.code || "").trim();
+                      if (!code) return;
+                      onMerge({
+                        code,
+                        name: String(a.accountName || a.name || code).trim() || code,
+                      });
+                    }}
+                  />
+                </div>
+              </section>
+
               <div className="flex flex-col gap-2 rounded-lg border border-violet-200 bg-violet-50/60 p-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <span className="text-xs font-medium text-violet-950">
                   {tenantGlSelectedIds.length} selected — survivor template code:
@@ -2212,6 +2270,96 @@ export default function AdminSystemChartOfAccountsPage() {
                   onClick={saveAdd}
                 >
                   Add
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {phinduViewAccount && (
+          <div
+            className="fixed inset-0 z-[12000] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
+            role="presentation"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setPhinduViewAccount(null);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="phindu-view-title"
+              className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <h3 id="phindu-view-title" className="text-lg font-semibold text-slate-900">
+                  Tenant GL row
+                </h3>
+                <button
+                  type="button"
+                  className="touch-manipulation rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                  aria-label="Close"
+                  onClick={() => setPhinduViewAccount(null)}
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <dl className="space-y-2 text-sm text-slate-700">
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Tenant</dt>
+                  <dd className="mt-0.5 font-mono text-xs">{formatTenantIdForScope(phinduViewAccount.tenantId)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Code</dt>
+                  <dd className="mt-0.5 font-mono font-semibold text-slate-900">
+                    {phinduViewAccount.accountCode || phinduViewAccount.code || "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Name</dt>
+                  <dd className="mt-0.5">{phinduViewAccount.accountName || phinduViewAccount.name || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Type</dt>
+                  <dd className="mt-0.5">{phinduViewAccount.accountType || phinduViewAccount.type || "—"}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Balance</dt>
+                  <dd className="mt-0.5 font-mono">{formatCurrency(Number(phinduViewAccount.currentBalance) || 0)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Posted lines (approx.)</dt>
+                  <dd className="mt-0.5 font-mono">{Number(phinduViewAccount.transactionCount) || 0}</dd>
+                </div>
+                {phinduViewAccount.mergedIntoAccount ? (
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Merged into</dt>
+                    <dd className="mt-0.5 font-mono text-xs text-violet-800">
+                      {phinduViewAccount.mergedIntoAccount.accountCode}{" "}
+                      {phinduViewAccount.mergedIntoAccount.accountName || ""}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
+              <div className="mt-6 flex flex-col-reverse gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  className="min-h-[48px] w-full rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 sm:w-auto sm:py-2"
+                  onClick={() => setPhinduViewAccount(null)}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="min-h-[48px] w-full rounded-lg bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800 sm:w-auto sm:py-2"
+                  onClick={() => {
+                    const code = String(phinduViewAccount.accountCode || phinduViewAccount.code || "").trim();
+                    const name = String(phinduViewAccount.accountName || phinduViewAccount.name || code).trim() || code;
+                    setPhinduViewAccount(null);
+                    if (code) onMerge({ code, name });
+                  }}
+                >
+                  Merge in template…
                 </button>
               </div>
             </div>

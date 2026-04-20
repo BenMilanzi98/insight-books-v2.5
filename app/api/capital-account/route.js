@@ -130,7 +130,7 @@ export async function PUT(request) {
 
     if (capitalAccount.isSystem) {
       return NextResponse.json(
-        { error: 'System capital account (500000) cannot be renamed or deactivated from this screen.' },
+        { error: "Owner's Capital (3100) cannot be renamed or deactivated from this screen." },
         { status: 400 }
       );
     }
@@ -222,7 +222,7 @@ export async function DELETE(request) {
 
     if (capitalAccount.isSystem) {
       return NextResponse.json(
-        { error: 'The primary Capital Account (500000) cannot be deleted.' },
+        { error: "The primary Owner's Capital account (3100) cannot be deleted." },
         { status: 400 }
       );
     }

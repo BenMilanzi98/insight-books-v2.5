@@ -6,6 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
+import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -641,86 +642,67 @@ export async function POST(request) {
     let selectedCategory = body.category;
     let categoryId = null;
 
-    // Import normalization service
-    const { getOrCreateExpenseAccountForCategory } = await import('@/lib/expenseCategoryNormalization');
-
-    // First, try to find by expenseAccountId if provided
     if (body.expenseAccountId) {
       expenseAccount = await prisma.account.findFirst({
-        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' }
+        where: { id: body.expenseAccountId, tenantId: user.tenantId, accountType: 'Expense' },
       });
-      
-      // If account found, try to find associated expense category
+
       if (expenseAccount) {
-        try {
-          expenseCategory = await prisma.expenseCategory.findFirst({
-            where: {
-              tenantId: user.tenantId,
-              accountId: expenseAccount.id
-            }
-          });
-          if (expenseCategory) {
-            categoryId = expenseCategory.id;
-            selectedCategory = expenseCategory.name;
-          }
-        } catch (error) {
-          // ExpenseCategory table might not exist, that's OK
-        }
-      }
-    }
-
-    // If no account found yet, try to find by category name (ExpenseCategory)
-    if (!expenseAccount && body.category) {
-      try {
         expenseCategory = await prisma.expenseCategory.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            name: { equals: body.category, mode: 'insensitive' }
-          },
-          include: {
-            account: true
-          }
+          where: { tenantId: user.tenantId, accountId: expenseAccount.id },
         });
-
-        if (expenseCategory && expenseCategory.account) {
-          expenseAccount = expenseCategory.account;
+        if (expenseCategory) {
           categoryId = expenseCategory.id;
           selectedCategory = expenseCategory.name;
         }
-      } catch (error) {
-        // ExpenseCategory table might not exist, continue with normalization
+      } else {
+        const ecByPickerId = await prisma.expenseCategory.findFirst({
+          where: { id: body.expenseAccountId, tenantId: user.tenantId },
+          include: { account: true },
+        });
+        if (ecByPickerId?.account) {
+          expenseAccount = ecByPickerId.account;
+          expenseCategory = ecByPickerId;
+          categoryId = ecByPickerId.id;
+          selectedCategory = ecByPickerId.name;
+        }
       }
     }
 
-    // SILENT NORMALIZATION: Automatically map category to account code
-    // This ensures all categories (including duplicates) map to standard codes
     if (!expenseAccount && body.category) {
-      try {
-        expenseAccount = await getOrCreateExpenseAccountForCategory(
-          user.tenantId,
-          body.category
-        );
-        selectedCategory = body.category; // Keep original category name visible to user
-      } catch (error) {
-        console.error('Error normalizing expense category:', error);
-        // Fall back to direct account lookup
-        expenseAccount = await prisma.account.findFirst({
-          where: {
-            tenantId: user.tenantId,
-            accountType: 'Expense',
-            accountName: { equals: body.category, mode: 'insensitive' }
-          }
-        });
-        
-        if (expenseAccount) {
-          selectedCategory = expenseAccount.accountName;
-        }
+      expenseCategory = await prisma.expenseCategory.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          name: { equals: body.category, mode: 'insensitive' },
+        },
+        include: { account: true },
+      });
+
+      if (expenseCategory?.account) {
+        expenseAccount = expenseCategory.account;
+        categoryId = expenseCategory.id;
+        selectedCategory = expenseCategory.name;
       }
     }
 
     if (!expenseAccount) {
       return NextResponse.json(
-        { error: 'Invalid expense account. Please select a valid expense account from the Chart of Accounts.' },
+        {
+          error:
+            'Invalid expense account. Choose one of the predefined expense categories (PHINDU chart).',
+        },
+        { status: 400 }
+      );
+    }
+
+    const expenseGlCode =
+      expenseAccount.accountCode || expenseAccount.code || '';
+    if (!isPhinduExpenseStructureCode(expenseGlCode)) {
+      return NextResponse.json(
+        {
+          error:
+            'That account is not an allowed expense category. Select an account from the predefined PHINDU expense list.',
+        },
         { status: 400 }
       );
     }

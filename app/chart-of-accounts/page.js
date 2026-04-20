@@ -1,34 +1,21 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus,
   Search,
-  Edit,
-  Trash2,
-  Eye,
   Download,
   Upload,
-  ChevronRight,
   ChevronDown,
   CheckCircle,
   XCircle,
   AlertCircle,
-  Loader2,
   X,
-  GitMerge,
   BookOpen,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Shield,
-  Wallet,
-  Landmark,
-  Scale,
-  TrendingUp,
-  Receipt,
   Sparkles,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from '@/components/PermissionGuard';
+import PhinduLedgerCoaTable from '@/components/chart-of-accounts/PhinduLedgerCoaTable';
 
 const ChartOfAccountsPage = () => {
   const [accounts, setAccounts] = useState([]);
@@ -37,7 +24,10 @@ const ChartOfAccountsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [accountTypeFilter, setAccountTypeFilter] = useState('All');
   const [activeFilter, setActiveFilter] = useState(true);
-  const [expandedAccounts, setExpandedAccounts] = useState(new Set());
+  /** Include merged sources + chart-hidden (retired) rows for audit. */
+  const [auditMode, setAuditMode] = useState(false);
+  /** API returns blueprint + 1130-xx / 3101–3199 only. */
+  const [canonicalSurface, setCanonicalSurface] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -71,72 +61,10 @@ const ChartOfAccountsPage = () => {
     Expense: ['Group', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
   };
 
-  const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
-
-  /** Accent per GL root — left stripe + icon tint (clean, not loud) */
-  const ROOT_THEME = {
-    '1000': {
-      accent: 'border-l-[3px] border-l-emerald-500',
-      rowBg: 'bg-emerald-50/50',
-      iconWrap: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100',
-      Icon: Wallet,
-    },
-    '2000': {
-      accent: 'border-l-[3px] border-l-sky-500',
-      rowBg: 'bg-sky-50/50',
-      iconWrap: 'bg-sky-50 text-sky-900 ring-1 ring-sky-100',
-      Icon: Landmark,
-    },
-    '3000': {
-      accent: 'border-l-[3px] border-l-violet-500',
-      rowBg: 'bg-violet-50/50',
-      iconWrap: 'bg-violet-50 text-violet-900 ring-1 ring-violet-100',
-      Icon: Scale,
-    },
-    '4000': {
-      accent: 'border-l-[3px] border-l-amber-500',
-      rowBg: 'bg-amber-50/40',
-      iconWrap: 'bg-amber-50 text-amber-950 ring-1 ring-amber-100',
-      Icon: TrendingUp,
-    },
-    '5000': {
-      accent: 'border-l-[3px] border-l-rose-500',
-      rowBg: 'bg-rose-50/50',
-      iconWrap: 'bg-rose-50 text-rose-900 ring-1 ring-rose-100',
-      Icon: Receipt,
-    },
-  };
-
-  const typeBadgeClass = (t) => {
-    const x = String(t || '').toLowerCase();
-    if (x === 'asset') return 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/70';
-    if (x === 'liability') return 'bg-sky-50 text-sky-900 ring-1 ring-sky-200/70';
-    if (x === 'equity') return 'bg-violet-50 text-violet-900 ring-1 ring-violet-200/70';
-    if (x === 'income' || x === 'revenue') return 'bg-amber-50 text-amber-950 ring-1 ring-amber-200/70';
-    if (x === 'expense') return 'bg-rose-50 text-rose-900 ring-1 ring-rose-200/70';
-    return 'bg-slate-100 text-slate-800 ring-1 ring-slate-200/80';
-  };
-
   // Load accounts
   useEffect(() => {
     loadAccounts();
-  }, [accountTypeFilter, activeFilter]);
-
-  // Default-expand five main category roots and Capital parent (500000) for faster navigation
-  useEffect(() => {
-    if (!accounts.length) return;
-    const rootCodes = ['1000', '2000', '3000', '4000', '5000'];
-    setExpandedAccounts((prev) => {
-      const next = new Set(prev);
-      for (const a of accounts) {
-        const c = a.accountCode || a.code;
-        if (c && rootCodes.includes(c)) next.add(a.id);
-      }
-      const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
-      if (cap?.id) next.add(cap.id);
-      return next;
-    });
-  }, [accounts]);
+  }, [accountTypeFilter, activeFilter, auditMode, canonicalSurface]);
 
   const loadAccounts = async () => {
     try {
@@ -150,6 +78,13 @@ const ChartOfAccountsPage = () => {
       params.append('isActive', activeFilter.toString());
       if (searchQuery) {
         params.append('search', searchQuery);
+      }
+      if (auditMode) {
+        params.append('includeChartHidden', 'true');
+        params.append('includeMergedSources', 'true');
+      }
+      if (canonicalSurface) {
+        params.append('canonicalSurface', 'true');
       }
 
       const response = await fetch(`/api/chart-of-accounts?${params.toString()}`);
@@ -507,9 +442,12 @@ const ChartOfAccountsPage = () => {
       const response = await fetch(`/api/chart-of-accounts/${account.id}`);
       const data = await response.json();
       if (response.ok && data && !data.error) {
-        // List endpoint includes rollup for parent accounts; detail GET is GL-only on that code.
+        // Chart grid may roll up children on parents; API returns row-level breakdown in balanceSources.
         setSelectedAccount({
           ...data,
+          chartGridBalance:
+            account.currentBalance != null ? Number(account.currentBalance) : Number(data.currentBalance),
+          rowOnlyTotalFromApi: Number(data.currentBalance),
           postedDirectBalance:
             account.postedDirectBalance != null ? account.postedDirectBalance : data.postedDirectBalance,
           currentBalance:
@@ -522,272 +460,6 @@ const ChartOfAccountsPage = () => {
       setSelectedAccount(account);
     }
     setShowViewModal(true);
-  };
-
-  const toggleExpand = (accountId) => {
-    const newExpanded = new Set(expandedAccounts);
-    if (newExpanded.has(accountId)) {
-      newExpanded.delete(accountId);
-    } else {
-      newExpanded.add(accountId);
-    }
-    setExpandedAccounts(newExpanded);
-  };
-
-  // Build hierarchical structure
-  const buildHierarchy = (accounts) => {
-    const accountMap = new Map();
-    const rootAccounts = [];
-
-    const normCode = (c) =>
-      String(c || '')
-        .split(/-/)
-        .map((p) => {
-          const digits = p.replace(/\D/g, '');
-          if (digits.length) return digits.padStart(8, '0');
-          return p;
-        })
-        .join('.');
-
-    // Create map
-    accounts.forEach(account => {
-      accountMap.set(account.id, { ...account, children: [] });
-    });
-
-    // Build tree
-    accounts.forEach(account => {
-      const accountNode = accountMap.get(account.id);
-      if (account.parentAccountId) {
-        const parent = accountMap.get(account.parentAccountId);
-        if (parent) {
-          parent.children.push(accountNode);
-        } else {
-          rootAccounts.push(accountNode);
-        }
-      } else {
-        rootAccounts.push(accountNode);
-      }
-    });
-
-    const sortAccounts = (list) => {
-      list.sort((a, b) => {
-        const codeA = a.accountCode || a.code || '';
-        const codeB = b.accountCode || b.code || '';
-        return normCode(codeA).localeCompare(normCode(codeB), undefined, { numeric: true });
-      });
-      list.forEach((account) => {
-        if (account.children && account.children.length > 0) {
-          sortAccounts(account.children);
-        }
-      });
-    };
-
-    sortAccounts(rootAccounts);
-    return rootAccounts;
-  };
-
-  const hierarchicalAccounts = useMemo(() => buildHierarchy(accounts), [accounts]);
-
-  const collectAllIds = useCallback((node) => {
-    const out = [node.id];
-    for (const c of node.children || []) out.push(...collectAllIds(c));
-    return out;
-  }, []);
-
-  const handleExpandAll = useCallback(() => {
-    const ids = new Set();
-    for (const root of hierarchicalAccounts) {
-      for (const id of collectAllIds(root)) ids.add(id);
-    }
-    setExpandedAccounts(ids);
-  }, [hierarchicalAccounts, collectAllIds]);
-
-  const handleCollapseToRoots = useCallback(() => {
-    const next = new Set();
-    for (const a of accounts) {
-      const c = a.accountCode || a.code;
-      if (c && ROOT_CODES.has(c)) next.add(a.id);
-    }
-    const cap = accounts.find((a) => (a.accountCode || a.code) === '500000');
-    if (cap?.id) next.add(cap.id);
-    setExpandedAccounts(next);
-  }, [accounts]);
-
-  const renderAccountRow = (account, level = 0) => {
-    const hasChildren = account.children && account.children.length > 0;
-    const isExpanded = expandedAccounts.has(account.id);
-    const accountCode = account.accountCode || account.code || 'N/A';
-    const accountName = account.accountName || account.name || 'Unnamed Account';
-    const acctType = account.accountType || account.type || '';
-    const isRoot = level === 0 && ROOT_CODES.has(String(accountCode));
-    const isGroup =
-      String(account.accountSubtype || '').toLowerCase() === 'group' ||
-      (hasChildren && ['1000', '2000', '3000', '4000', '5000', '1100', '1120', '1500', '1900', '2100', '2500', '5100', '5200'].includes(String(accountCode)));
-
-    const isLocked = account.isSystem || account.transactionCount > 0;
-    const rootTheme = isRoot ? ROOT_THEME[String(accountCode)] : null;
-    const showRollupHint =
-      hasChildren &&
-      account.postedDirectBalance != null &&
-      Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005;
-    const rollupBalanceTitle = showRollupHint
-      ? `Posted on this account only: ${formatCurrency(account.postedDirectBalance)}. Total including all sub-accounts: ${formatCurrency(account.currentBalance || 0)}. Immediate sub-rows add up (with any amount on this code) to match the parent total.`
-      : undefined;
-
-    return (
-      <React.Fragment key={account.id}>
-        <tr
-          className={[
-            'group/row border-b border-slate-100/90 transition-colors duration-150',
-            !account.isActive ? 'opacity-55' : '',
-            isRoot && rootTheme
-              ? `${rootTheme.accent} ${rootTheme.rowBg} hover:bg-white/80`
-              : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/70',
-          ].join(' ')}
-        >
-          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
-            <div
-              className="flex items-center gap-2.5 min-w-0"
-              style={{ paddingLeft: `${level * 18}px` }}
-            >
-              {hasChildren ? (
-                <button
-                  type="button"
-                  onClick={() => toggleExpand(account.id)}
-                  className="flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200/90 bg-white text-slate-600 shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40 hover:text-indigo-900 active:scale-[0.98]"
-                  aria-expanded={isExpanded}
-                >
-                  {isExpanded ? <ChevronDown size={16} strokeWidth={2.25} /> : <ChevronRight size={16} strokeWidth={2.25} />}
-                </button>
-              ) : (
-                <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                </span>
-              )}
-              <code
-                className={[
-                  'shrink-0 rounded-lg px-2.5 py-1 font-mono text-[12px] font-semibold tabular-nums tracking-tight',
-                  isRoot
-                    ? 'bg-white/90 text-slate-900 shadow-sm ring-1 ring-slate-300/50'
-                    : 'bg-slate-100/95 text-slate-800 ring-1 ring-slate-200/50',
-                ].join(' ')}
-              >
-                {accountCode}
-              </code>
-            </div>
-          </td>
-          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <span
-                className={[
-                  'min-w-0 text-[13px] leading-snug text-slate-900',
-                  isGroup || isRoot ? 'font-semibold tracking-tight' : 'font-medium text-slate-800',
-                ].join(' ')}
-              >
-                {accountName}
-              </span>
-              {account.mergedIntoAccount ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-900 ring-1 ring-violet-100" title="System merge: row and code kept for audit; pickers use target">
-                  → {account.mergedIntoAccount.accountCode}{' '}
-                  {account.mergedIntoAccount.accountName || ''}
-                </span>
-              ) : null}
-              {account.isSystem ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
-                  <Shield size={10} strokeWidth={2.5} />
-                  System
-                </span>
-              ) : null}
-            </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 sm:hidden">
-              <span
-                className="font-mono text-xs tabular-nums font-medium text-slate-700"
-                title={rollupBalanceTitle || undefined}
-              >
-                {formatCurrency(account.currentBalance || 0)}
-              </span>
-              {acctType ? (
-                <span className={`text-[10px] font-medium capitalize ${typeBadgeClass(acctType)} rounded px-1.5 py-0`}>
-                  {acctType}
-                </span>
-              ) : null}
-            </div>
-          </td>
-          <td className="hidden px-4 py-3 align-middle sm:table-cell sm:px-5 sm:py-3.5">
-            <span
-              className={[
-                'inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize',
-                typeBadgeClass(acctType),
-              ].join(' ')}
-            >
-              {acctType || '—'}
-            </span>
-          </td>
-          <td
-            className="hidden px-4 py-3 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-5 sm:py-3.5 md:text-[13px]"
-            title={rollupBalanceTitle || undefined}
-          >
-            {formatCurrency(account.currentBalance || 0)}
-          </td>
-          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
-            {account.isActive ? (
-              <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-100 sm:text-xs">
-                <CheckCircle size={12} strokeWidth={2.5} className="text-emerald-600" />
-                <span className="hidden sm:inline">Active</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200 sm:text-xs">
-                <XCircle size={12} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Inactive</span>
-              </span>
-            )}
-          </td>
-          <td className="px-3 py-3 align-middle sm:px-5 sm:py-3.5">
-            <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200/80 bg-slate-50/90 p-0.5 shadow-sm sm:justify-start">
-              <button
-                type="button"
-                onClick={() => openViewModal(account)}
-                className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-900 sm:p-2"
-                title="View details"
-              >
-                <Eye size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => !account.isSystem && openEditModal(account)}
-                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${account.isSystem ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-slate-900'}`}
-                title={account.isSystem ? 'System account (read-only)' : 'Edit'}
-                disabled={account.isSystem}
-              >
-                <Edit size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => openMergeModal(account)}
-                className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-violet-700 sm:p-2"
-                title={
-                  account.isSystem
-                    ? 'Merge this system account into another (same type/normal balance)'
-                    : 'Merge into another account'
-                }
-              >
-                <GitMerge size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteAccount(account.id)}
-                className={`touch-manipulation rounded-md p-2.5 transition-colors sm:p-2 ${isLocked ? 'cursor-not-allowed text-slate-200' : 'text-slate-500 hover:bg-white hover:text-rose-600'}`}
-                title={isLocked ? 'Account in use or system account' : 'Delete or deactivate'}
-                disabled={isLocked}
-              >
-                <Trash2 size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
-              </button>
-            </div>
-          </td>
-        </tr>
-        {hasChildren && isExpanded && account.children.map((child) => renderAccountRow(child, level + 1))}
-      </React.Fragment>
-    );
   };
 
   const coaBtnSecondary =
@@ -828,9 +500,10 @@ const ChartOfAccountsPage = () => {
                     Chart of accounts
                   </h1>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
-                    Your live hierarchy from <span className="font-mono font-semibold text-slate-800">1000</span>–
-                    <span className="font-mono font-semibold text-slate-800">5000</span>. Expand branches to audit codes,
-                    balances, and protected system postings — all in one view.
+                    The main tree matches the standard PHINDU structure (same for every tenant). Your existing GL
+                    codes attach by <span className="font-mono font-semibold text-slate-800">accountCode</span>; extras
+                    appear in the dropdowns on Bank - Primary (1130), Owner's Capital (3100), and the range
+                    catch-all lines.
                   </p>
                 </div>
               </div>
@@ -915,28 +588,24 @@ const ChartOfAccountsPage = () => {
                 />
                 Active only
               </label>
-              {!loading && hierarchicalAccounts.length > 0 && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleExpandAll}
-                    className={coaBtnSecondary}
-                    title="Expand all rows"
-                  >
-                    <ChevronsDownUp size={17} strokeWidth={2} />
-                    Expand all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCollapseToRoots}
-                    className={coaBtnSecondary}
-                    title="Collapse to main categories"
-                  >
-                    <ChevronsUpDown size={17} strokeWidth={2} />
-                    Main only
-                  </button>
-                </>
-              )}
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200/90 bg-violet-50/50 px-3 py-2.5 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-50 sm:px-4">
+                <input
+                  type="checkbox"
+                  checked={auditMode}
+                  onChange={(e) => setAuditMode(e.target.checked)}
+                  className="rounded border-violet-300 text-violet-600 focus:ring-violet-500/30"
+                />
+                Audit mode
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
+                <input
+                  type="checkbox"
+                  checked={canonicalSurface}
+                  onChange={(e) => setCanonicalSurface(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
+                />
+                Canonical surface
+              </label>
             </div>
           </div>
 
@@ -980,7 +649,7 @@ const ChartOfAccountsPage = () => {
                   <p className="mt-2.5 text-sm leading-relaxed text-slate-600">
                     Add payment rails under{' '}
                     <code className="rounded-md bg-slate-900/[0.06] px-1.5 py-0.5 font-mono text-xs font-semibold text-slate-800">
-                      1120
+                      1130
                     </code>{' '}
                     as <code className="font-mono text-xs font-semibold text-slate-800">1130-xx</code>, or new expense
                     leaves under <code className="font-mono text-xs font-semibold text-slate-800">5000</code>.
@@ -997,86 +666,34 @@ const ChartOfAccountsPage = () => {
             </div>
           </details>
 
-          {/* Ledger table */}
-          <div className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white shadow-[0_4px_32px_-8px_rgba(15,23,42,0.08)] ring-1 ring-slate-900/[0.04]">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center gap-6 py-32">
-                <div className="relative">
-                  <div className="absolute inset-0 animate-ping rounded-full bg-indigo-400/15" />
-                  <div className="relative flex h-[4.5rem] w-[4.5rem] items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-xl shadow-indigo-600/20 ring-1 ring-white/10">
-                    <Loader2 size={32} className="animate-spin" strokeWidth={2} />
-                  </div>
-                </div>
-                <p className="text-sm font-medium text-slate-500">Loading chart of accounts…</p>
-              </div>
-            ) : hierarchicalAccounts.length === 0 ? (
-              <div className="relative px-6 py-28 text-center">
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(99,102,241,0.1),transparent_60%)]" />
-                <div className="relative mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-3xl bg-gradient-to-br from-slate-100 to-slate-200/70 shadow-inner ring-1 ring-white/60">
-                  <AlertCircle size={40} className="text-slate-400" strokeWidth={1.5} />
-                </div>
-                <h3 className="relative text-xl font-bold tracking-tight text-slate-900">No accounts yet</h3>
-                <p className="relative mx-auto mt-3 max-w-md text-sm leading-relaxed text-slate-600">
-                  Sync the standard chart, import a template, or add accounts manually — your hierarchy will appear here.
-                </p>
-                <div className="relative mt-10 flex flex-wrap justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleInitializeBaseline}
-                    className="rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-600/25 transition hover:bg-indigo-700"
-                  >
-                    Sync standard CoA
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleImportTemplate('retail')}
-                    className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
-                  >
-                    Import retail template
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
-                <table className="w-full min-w-[720px] border-collapse text-left text-sm sm:min-w-full">
-                  <thead>
-                    <tr className="border-b border-slate-200/90 bg-slate-50/95 backdrop-blur-md">
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                        Code
-                      </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                        Account
-                      </th>
-                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
-                        Type
-                      </th>
-                      <th className="sticky top-0 z-10 hidden whitespace-nowrap px-4 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:table-cell sm:px-5">
-                        Balance
-                      </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                        Status
-                      </th>
-                      <th className="sticky top-0 z-10 whitespace-nowrap px-3 py-3.5 text-right text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  {hierarchicalAccounts.map((root, idx) => (
-                    <tbody
-                      key={root.id}
-                      className={
-                        idx === 0
-                          ? ''
-                          : 'border-t-2 border-slate-100 bg-gradient-to-b from-slate-50/40 to-white'
-                      }
-                    >
-                      {renderAccountRow(root, 0)}
-                    </tbody>
-                  ))}
-                </table>
-              </div>
-            )}
-          </div>
+          <PhinduLedgerCoaTable
+            loading={loading}
+            accounts={accounts}
+            activeFilter={activeFilter}
+            auditMode={auditMode}
+            onViewAccount={openViewModal}
+            onEditAccount={openEditModal}
+            onMergeAccount={openMergeModal}
+            onDeleteAccount={handleDeleteAccount}
+            emptyStateExtra={
+              <>
+                <button
+                  type="button"
+                  onClick={handleInitializeBaseline}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+                >
+                  Sync standard CoA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleImportTemplate('retail')}
+                  className="rounded-lg border border-amber-300/80 bg-white px-4 py-2 text-xs font-semibold text-amber-950 shadow-sm transition hover:bg-amber-50/80"
+                >
+                  Import retail template
+                </button>
+              </>
+            }
+          />
         </div>
       </div>
 
@@ -1544,10 +1161,25 @@ const ViewAccountModal = ({ account, onClose }) => {
               <p className="mt-1 font-medium text-slate-900">{account.normalBalance || '—'}</p>
             </div>
             <div className={card}>
-              <p className={dl}>Current balance</p>
+              <p className={dl}>Current balance (chart)</p>
               <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
-                {formatCurrency(account.currentBalance || 0)}
+                {formatCurrency(
+                  account.chartGridBalance != null ? account.chartGridBalance : account.currentBalance || 0
+                )}
               </p>
+              {account.balanceSources &&
+                Math.abs(
+                  Number(account.chartGridBalance ?? account.currentBalance) -
+                    Number(account.balanceSources.displayedRowTotal)
+                ) > 0.005 && (
+                  <p className="mt-2 text-xs leading-relaxed text-amber-800">
+                    This code alone (no child rollup):{' '}
+                    <span className="font-mono font-semibold">
+                      {formatCurrency(account.balanceSources.displayedRowTotal)}
+                    </span>
+                    . The chart total above includes rolled-up sub-accounts when this row is a parent.
+                  </p>
+                )}
               {account.postedDirectBalance != null &&
                 Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
                   <p className="mt-2 text-xs leading-relaxed text-slate-600">
@@ -1557,6 +1189,147 @@ const ViewAccountModal = ({ account, onClose }) => {
                 )}
             </div>
           </div>
+
+          {account.balanceSources && (
+            <div className={card}>
+              <p className={dl}>Balance composition</p>
+              <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                Source: <span className="font-mono text-slate-800">{account.balanceSources.balanceSource}</span>
+                {account.balanceSources.mergeRollupPostingAccountCount > 1 && (
+                  <>
+                    {' '}
+                    · CoA merge rollup:{' '}
+                    <span className="font-mono">{account.balanceSources.mergeRollupPostingAccountCount}</span>{' '}
+                    account ids post into this code
+                  </>
+                )}
+              </p>
+              {account.balanceSources.reconciliationHint && (
+                <p className="mt-2 text-xs leading-relaxed text-slate-500">
+                  {account.balanceSources.reconciliationHint}
+                </p>
+              )}
+              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200/80">
+                <table className="min-w-full text-left text-sm text-slate-800">
+                  <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <tr>
+                      <th className="px-3 py-2">Source</th>
+                      <th className="px-3 py-2 text-right">Debit</th>
+                      <th className="px-3 py-2 text-right">Credit</th>
+                      <th className="px-3 py-2 text-right">Net / amount</th>
+                      <th className="px-3 py-2 text-right">Accumulated</th>
+                      <th className="px-3 py-2 text-right">Running total</th>
+                      <th className="px-3 py-2 text-right">Lines</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {account.balanceSources.components.map((row) => (
+                      <tr key={row.id} className="border-t border-slate-100">
+                        <td className="px-3 py-2 align-top">
+                          <div className="font-medium text-slate-900">{row.label}</div>
+                          {row.note && (
+                            <div className="mt-0.5 text-xs font-normal text-slate-500">{row.note}</div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {row.debit != null ? formatCurrency(row.debit) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {row.credit != null ? formatCurrency(row.credit) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                          {row.netEffect != null
+                            ? formatCurrency(row.netEffect)
+                            : row.amount != null
+                              ? formatCurrency(row.amount)
+                              : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-900">
+                          {row.accumulatedAmount != null ? formatCurrency(row.accumulatedAmount) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-indigo-900">
+                          {row.runningTotalAfterThisSource != null
+                            ? formatCurrency(row.runningTotalAfterThisSource)
+                            : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {row.lineCount != null ? row.lineCount : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="mt-2 text-xs text-slate-500">
+                Displayed row total:{' '}
+                <span className="font-mono font-semibold text-slate-800">
+                  {formatCurrency(account.balanceSources.displayedRowTotal)}
+                </span>
+                {account.balanceSources.components.length > 0 && (
+                  <>
+                    {' '}
+                    (last running total should match, for the active source row)
+                  </>
+                )}
+              </p>
+              {account.balanceSources.components.some((c) => c.detailLines?.length) && (
+                <div className="mt-4 space-y-2">
+                  <p className={dl}>Invoice-level detail (AR sub-ledger)</p>
+                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-200/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    <span>Invoice</span>
+                    <span className="text-right">Accumulated</span>
+                    <span className="text-right">Running total</span>
+                  </div>
+                  <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 border-t-0 bg-white p-2 text-xs">
+                    {account.balanceSources.components
+                      .flatMap((c) =>
+                        c.detailLines ? c.detailLines.map((d) => ({ ...d, _src: c.id, _unpaid: c.lineCount })) : []
+                      )
+                      .map((inv) => (
+                        <li
+                          key={`${inv._src}-${inv.id}`}
+                          className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-50 py-1 font-mono text-slate-700 last:border-0"
+                        >
+                          <span className="min-w-0">
+                            {inv.invoiceNumber || inv.id}{' '}
+                            <span className="text-slate-500">({inv.status || '—'})</span>
+                          </span>
+                          <span className="text-right tabular-nums text-slate-600" title="This invoice (accumulated)">
+                            {formatCurrency(inv.accumulatedAmount ?? inv.actualRemaining)}
+                          </span>
+                          <span className="text-right tabular-nums font-semibold text-indigo-900" title="Running AR total">
+                            {inv.runningTotalAfterThisSource != null
+                              ? formatCurrency(inv.runningTotalAfterThisSource)
+                              : '—'}
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                  {(() => {
+                    const ar = account.balanceSources.components.find((c) => c.id === 'ar_unpaid_invoices');
+                    if (!ar?.detailLines?.length || !ar.lineCount) return null;
+                    if (ar.lineCount <= ar.detailLines.length) return null;
+                    return (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Showing {ar.detailLines.length} of {ar.lineCount} unpaid invoices. Full AR accumulated total:{' '}
+                        <span className="font-mono font-semibold text-slate-800">
+                          {formatCurrency(ar.accumulatedAmount ?? ar.amount ?? 0)}
+                        </span>
+                        .
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+              {account.balanceSources.notes?.length > 0 && (
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                  {account.balanceSources.notes.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
 
           {account.parentAccount && (
             <div className={card}>

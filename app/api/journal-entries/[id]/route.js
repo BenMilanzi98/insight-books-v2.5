@@ -7,7 +7,10 @@ import {
 } from '@/lib/journalService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { formatJournalEntry } from '@/lib/journalEntryFormatter';
-import { validateNoDuplicateInventoryLines } from '@/lib/journalManualLineValidation';
+import {
+  validateNoDuplicateInventoryLines,
+  validateNoPostingToStructuralCoaRoots,
+} from '@/lib/journalManualLineValidation';
 
 const ENTRY_INCLUDE = {
   lines: {
@@ -250,6 +253,7 @@ export async function PUT(request, { params }) {
         accountType: true,
         type: true,
         accountSubtype: true,
+        acceptsNewTransactions: true,
       },
     });
 
@@ -272,6 +276,14 @@ export async function PUT(request, { params }) {
     if (!invDup.ok) {
       return NextResponse.json(
         { error: invDup.error, details: invDup.details },
+        { status: 400 }
+      );
+    }
+
+    const structural = validateNoPostingToStructuralCoaRoots(lines, accounts);
+    if (!structural.ok) {
+      return NextResponse.json(
+        { error: structural.error, details: structural.details },
         { status: 400 }
       );
     }

@@ -47,7 +47,6 @@ const ExpenseForm = ({
   const [selectedTaxTypeId, setSelectedTaxTypeId] = useState('');
   const taxDropdownRef = useRef(null);
 
-  // NEW: State for adding new categories
   const [availableCategories, setAvailableCategories] = useState([]);
 
   // Load payment accounts dynamically
@@ -66,24 +65,8 @@ const ExpenseForm = ({
     }
   };
 
-  // Create new expense category and return its accountId for selection
-  const handleAddExpenseCategory = async (name) => {
-    const res = await fetch('/api/expense-categories', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name.trim(), description: '' })
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to create category');
-    }
-    const data = await res.json();
-    await loadCategories();
-    return data.category?.accountId ?? data.category?.account?.id ?? null;
-  };
-
   useEffect(() => {
-    loadCategories(); // NEW: Load categories
+    loadCategories();
   }, []);
 
   // Fetch active tax types and default tax for outflow (expenses)
@@ -639,14 +622,16 @@ const ExpenseForm = ({
               options={availableCategories}
               placeholder="Select expense category"
               searchPlaceholder="Search categories..."
-              emptyMessage="No expense categories yet"
-              addNewPlaceholder="New category name..."
+              emptyMessage="No predefined expense accounts found for this business"
               required={true}
               label="Expense Category"
-              onAddCategory={handleAddExpenseCategory}
             />
             <p className="mt-1 text-xs text-gray-500">
-              Select a category or use the + button above to create a new expense category.
+              Categories are fixed to the PHINDU chart (Cost of Sales, Salaries & Wages, Rent, Utilities, etc.). Add or rename accounts in{" "}
+              <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
+                Chart of Accounts
+              </a>{" "}
+              if something is missing.
             </p>
             {errors.expenseAccountId && (
               <p className="mt-1 text-sm text-red-600 flex items-center">

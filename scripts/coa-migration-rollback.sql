@@ -1,0 +1,8 @@
+-- CoA migration rollback (manual): run only after restoring from a pre-migration snapshot.
+-- This project does not auto-generate inverse journals; use pg_dump / backup restore when possible.
+--
+-- 1) Restore database from snapshot taken before migration (preferred).
+-- 2) If you must unlock tenants left in coaLocked after a failed transaction:
+--    UPDATE "Tenant" SET "coaLocked" = false WHERE "coaLocked" = true;
+-- 3) Re-open retired accounts only if you have copied their pre-migration row state from backup;
+--    otherwise do not run ad-hoc UPDATEs without matching FK reversals.

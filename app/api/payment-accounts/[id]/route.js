@@ -60,6 +60,18 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    if (user.tenantId) {
+      try {
+        const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+        await assertTenantCoaUnlocked(user.tenantId);
+      } catch (lockErr) {
+        if (lockErr?.code === 'COA_TENANT_LOCKED') {
+          return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+        }
+        throw lockErr;
+      }
+    }
+
     const { id } = params;
     const body = await request.json();
     const { name, accountType, reference, isActive } = body;
@@ -177,6 +189,18 @@ export async function DELETE(request, { params }) {
     const user = await getUserFromSession(request);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    if (user.tenantId) {
+      try {
+        const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+        await assertTenantCoaUnlocked(user.tenantId);
+      } catch (lockErr) {
+        if (lockErr?.code === 'COA_TENANT_LOCKED') {
+          return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+        }
+        throw lockErr;
+      }
     }
 
     const { id } = params;

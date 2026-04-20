@@ -309,33 +309,24 @@ export async function GET(request) {
         // Add other balance sources
         let additionalBalance = 0;
         
-        // Accounts Receivable
-        if ((accountCode === '1100' || accountName.includes('receivable')) && 
-            account.accountType === 'Asset') {
+        // Accounts Receivable — canonical 1200 (1100 is Current Assets group, not AR).
+        if (
+          accountCode === '1200' &&
+          account.accountType === 'Asset'
+        ) {
           additionalBalance = totalAccountsReceivable;
         }
-        
-        // Inventory
-        if ((accountCode === '1200' || accountName.includes('inventory')) && 
-            account.accountType === 'Asset') {
+
+        // Inventory — canonical 1300 (1200 is receivables).
+        if (
+          accountCode === '1300' &&
+          account.accountType === 'Asset'
+        ) {
           additionalBalance = totalInventoryValue;
         }
-        
-        // Assets
-        if ((accountCode === '1300' || accountCode === '1400' || accountCode === '1500' || 
-             accountName.includes('equipment') || accountName.includes('furniture') || 
-             accountName.includes('vehicle')) && account.accountType === 'Asset') {
-          // Match specific asset accounts
-          if (accountCode === '1300' || accountName.includes('equipment')) {
-            const equipmentAssets = assets.filter(a => 
-              (parseFloat(a.originalCost) || 0) - (parseFloat(a.accumulatedDepreciation) || 0) > 0
-            );
-            additionalBalance = equipmentAssets.reduce((sum, a) => 
-              sum + ((parseFloat(a.originalCost) || 0) - (parseFloat(a.accumulatedDepreciation) || 0)), 0
-            );
-          }
-        }
-        
+
+        // Fixed-asset register overlays removed here: use posted journals (and chart-of-accounts for drill-down).
+
         // Accumulated Depreciation
         if ((accountCode === '1501' || accountName.includes('accumulated depreciation')) && 
             account.accountType === 'Asset') {
@@ -384,8 +375,10 @@ export async function GET(request) {
           additionalBalance = totalLiabilities;
         }
         
-        // Combine all balances
-        const totalBalance = journalBalance + paymentMethodBalance + additionalBalance;
+        // Prefer posted journals over sub-ledger overlays so totals reconcile to GL (same policy as chart of accounts).
+        const hasBooks = Math.abs(journalBalance) > 0.0001;
+        const overlay = hasBooks ? 0 : additionalBalance;
+        const totalBalance = journalBalance + paymentMethodBalance + overlay;
         
         // Determine debit/credit based on normal balance
         let finalDebit = 0;

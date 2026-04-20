@@ -12,6 +12,14 @@ import {
   aggregateGroupByRowsBySurvivor,
 } from '@/lib/accountMergeRollup';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
+import { isCanonicalCode, isStructureExtensionCode } from '@/lib/coaMigration/canonicalCodes.js';
+import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js';
+import { pickPrimaryAccountForStructure } from '@/lib/coaPhinduStructureTree.js';
+import {
+  blueprintCatalogTitleForCode,
+  alignChartAccountsListToBlueprint,
+} from '@/lib/coaBlueprintDisplayTitles.js';
+import { CODE_ACCOUNTS_RECEIVABLE } from '@/lib/coaPostingCodes.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -52,8 +60,9 @@ function applyCoaParentRollup(accounts) {
     const directBase = Number.isFinite(Number(acc.postedDirectBalance))
       ? Number(acc.postedDirectBalance)
       : Number(acc.currentBalance) || 0;
-    // Capital parent 500000: stored balance mirrors transferable pool; roll up from children only to avoid double-count.
-    const direct = code === '500000' ? 0 : directBase;
+    // Owner's Capital (3100) / legacy 500000: when children exist, rollup from children only to avoid double-count.
+    const direct =
+      (code === '500000' || code === '3100') && childIds.length > 0 ? 0 : directBase;
     if (childIds.length === 0) {
       memo.set(id, direct);
       return direct;
@@ -171,7 +180,10 @@ function applyStockLedInventoryCoaSubtree(accounts, stockTotal) {
   return list;
 }
 
-/** Same display code on multiple Account rows breaks parent/child rollup — merge into one row and remap parent ids. */
+/**
+ * Same display code on multiple Account rows breaks parent/child rollup — merge into one row and remap parent ids.
+ * Canonical row must not be chosen only by highest activity (that attached the wrong duplicate’s title to a GL code).
+ */
 function mergeDuplicateAccountCodeRows(accounts) {
   if (!Array.isArray(accounts) || accounts.length === 0) return accounts;
   const keyFor = (a) => {
@@ -191,6 +203,9 @@ function mergeDuplicateAccountCodeRows(accounts) {
   }
   const idRemap = new Map();
   const pickCanonical = (group) => {
+    const codeRaw = String(group[0]?.accountCode || group[0]?.code || '').trim();
+    const byBlueprint = pickPrimaryAccountForStructure(group, '', codeRaw);
+    if (byBlueprint) return byBlueprint;
     const score = (r) =>
       (Number(r.postedEntryCount) || 0) * 1e12 +
       (Number(r.transactionCount) || 0) * 1e6 +
@@ -204,6 +219,11 @@ function mergeDuplicateAccountCodeRows(accounts) {
       continue;
     }
     const canonical = { ...pickCanonical(group) };
+    const catalogTitle = blueprintCatalogTitleForCode(canonical.accountCode || canonical.code);
+    if (catalogTitle) {
+      canonical.accountName = catalogTitle;
+      canonical.name = catalogTitle;
+    }
     const others = group.filter((x) => x.id !== canonical.id);
     for (const d of others) {
       idRemap.set(d.id, canonical.id);
@@ -274,10 +294,18 @@ export async function GET(request) {
     const includeInactive = searchParams.get('includeInactive') === 'true';
     /** When true, include rows where mergedIntoAccountId is set (merge sources kept for audit). */
     const includeMergedSources = searchParams.get('includeMergedSources') === 'true';
+    /** When true, include rows with visibleInChart=false (retired / hidden from default chart). */
+    const includeChartHidden = searchParams.get('includeChartHidden') === 'true';
+    /** Blueprint + structure extensions only (strict canonical surface). */
+    const canonicalSurface = searchParams.get('canonicalSurface') === 'true';
 
     const where = {
       tenantId: user.tenantId
     };
+
+    if (!includeChartHidden) {
+      where.visibleInChart = true;
+    }
 
     if (accountType && accountType !== 'All') {
       where.accountType = normalizeAccountType(accountType);
@@ -354,6 +382,13 @@ export async function GET(request) {
           { accountCode: 'asc' }
         ]
       });
+
+      if (canonicalSurface) {
+        accounts = accounts.filter((a) => {
+          const c = String(a.accountCode || '').trim();
+          return isCanonicalCode(c) || isStructureExtensionCode(c);
+        });
+      }
     } catch (error) {
       console.error('Error fetching accounts:', error);
       // Return empty array if accounts query fails
@@ -369,15 +404,7 @@ export async function GET(request) {
       if (a.parentAccountId) parentIdsWithChildren.add(a.parentAccountId);
     }
 
-    // Get other balance sources
-    // Accounts Receivable from unpaid invoices
-    // IMPORTANT: Always filter by tenantId to ensure data isolation
-    console.log('🔒 Tenant Isolation Check:', {
-      userTenantId: user.tenantId,
-      userId: user.id,
-      userEmail: user.email
-    });
-    
+    // Accounts Receivable from unpaid invoices (sub-ledger only when the AR leaf has no posted GL).
     // Fetch invoices with their actual payments to calculate accurate remaining balance
     let allInvoices = [];
     try {
@@ -431,13 +458,6 @@ export async function GET(request) {
       };
     });
     
-    // Log all invoice statuses to see what we're working with
-    const statusCounts = {};
-    invoicesWithActualBalance.forEach(inv => {
-      statusCounts[inv.status] = (statusCounts[inv.status] || 0) + 1;
-    });
-    console.log('📊 All Invoice Statuses:', statusCounts);
-    
     // Filter for unpaid invoices - VERY STRICT: Only count invoices that are clearly unpaid
     // If user says they have no pending invoices, this should return 0
     const unpaidInvoices = invoicesWithActualBalance.filter(inv => {
@@ -479,69 +499,6 @@ export async function GET(request) {
     const totalAccountsReceivable = unpaidInvoices.reduce((sum, inv) => {
       return sum + Math.max(0, inv.actualRemaining); // Use actual calculated remaining
     }, 0);
-    
-    // Log Accounts Receivable details with tenant verification
-    console.log('📋 Accounts Receivable Calculation:', {
-      tenantId: user.tenantId, // Verify tenant isolation
-      totalInvoices: invoicesWithActualBalance.length,
-      unpaidInvoices: unpaidInvoices.length,
-      totalAccountsReceivable,
-      invoices: unpaidInvoices.map(inv => ({
-        invoiceNumber: inv.invoiceNumber,
-        total: inv.total,
-        storedTotalPaid: inv.storedTotalPaid || 0,
-        actualTotalPaid: inv.actualTotalPaid,
-        storedRemainingBalance: inv.storedRemainingBalance,
-        actualRemaining: inv.actualRemaining,
-        status: inv.status,
-        paymentCount: inv.payments.length
-      })),
-      // Show ALL invoices for debugging
-      allInvoices: invoicesWithActualBalance.map(inv => ({
-        invoiceNumber: inv.invoiceNumber,
-        status: inv.status,
-        total: inv.total,
-        storedTotalPaid: inv.storedTotalPaid || 0,
-        actualTotalPaid: inv.actualTotalPaid,
-        storedRemainingBalance: inv.storedRemainingBalance,
-        actualRemaining: inv.actualRemaining,
-        isIncluded: unpaidInvoices.some(u => u.id === inv.id),
-        reason: (() => {
-          const s = (inv.status || '').toLowerCase();
-          const r = inv.actualRemaining;
-          if (s === 'paid' || s === 'completed') return 'Status is Paid/Completed';
-          if (s === 'void') return 'Invoice is Voided';
-          if (s === 'refunded') return 'Invoice is Refunded';
-          if (s === 'draft') return 'Invoice is Draft';
-          if (r <= 0) return 'No remaining balance';
-          if (!s.includes('unpaid') && !s.includes('pending') && !s.includes('partial') && s !== 'sent') {
-            return `Status "${inv.status}" not recognized as unpaid`;
-          }
-          return 'Should be included';
-        })()
-      }))
-    });
-    
-    // Verify tenant isolation - check if any invoices belong to different tenants
-    if (invoicesWithActualBalance.length > 0) {
-      const invoicesWithTenant = await prisma.invoice.findMany({
-        where: {
-          id: { in: invoicesWithActualBalance.map(inv => inv.id) }
-        },
-        select: {
-          id: true,
-          invoiceNumber: true,
-          tenantId: true
-        }
-      });
-      
-      const wrongTenantInvoices = invoicesWithTenant.filter(inv => inv.tenantId !== user.tenantId);
-      if (wrongTenantInvoices.length > 0) {
-        console.error('🚨 SECURITY ISSUE: Found invoices from other tenants!', wrongTenantInvoices);
-      } else {
-        console.log('✅ Tenant isolation verified: All invoices belong to tenant', user.tenantId);
-      }
-    }
 
     // Inventory value from products — match /api/stock/statistics (branch + cost display rules)
     let inventoryProducts = [];
@@ -583,285 +540,10 @@ export async function GET(request) {
       }
     }, 0);
     
-    // Debug logging
-    console.log('Inventory calculation:', {
+    console.log('Chart of Accounts (GL-first): inventory aggregate & AR sub-ledger context', {
       productCount: inventoryProducts.length,
       totalInventoryValue,
-      sampleProducts: inventoryProducts.slice(0, 3).map(p => ({
-        stockLevel: p.stockLevel,
-        cost: p.cost,
-        value: (parseFloat(p.stockLevel) || 0) * (parseFloat(p.cost) || 0)
-      }))
-    });
-
-    // Assets from Asset model
-    let assets = [];
-    try {
-      assets = await prisma.asset.findMany({
-        where: {
-          tenantId: user.tenantId,
-          status: { not: 'disposed' }
-        },
-        include: {
-          category: true,
-          depreciationSchedules: {
-            where: {
-              periodEnd: { lte: new Date() }
-            },
-            orderBy: {
-              periodEnd: 'desc'
-            },
-            take: 1 // Get the most recent schedule for accumulated depreciation
-          }
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching assets:', error);
-    }
-    const totalAssetsValue = assets.reduce((sum, asset) => {
-      const grossValue = parseFloat(asset.originalCost) || 0;
-      // Use accumulatedDepreciation field directly, or from most recent schedule
-      const accumulatedDep = asset.accumulatedDepreciation || 
-        (asset.depreciationSchedules.length > 0 
-          ? parseFloat(asset.depreciationSchedules[0].accumulatedDepreciation) || 0 
-          : 0);
-      return sum + (grossValue - accumulatedDep);
-    }, 0);
-
-    // Accounts Payable from unpaid expenses
-    let unpaidExpenses = [];
-    try {
-      unpaidExpenses = await prisma.expense.findMany({
-        where: {
-          tenantId: user.tenantId,
-          paymentStatus: { in: ['Pending', 'Partially'] },
-          isDeleted: false
-        },
-        select: {
-          amount: true,
-          paidAmount: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching unpaid expenses:', error);
-    }
-    let totalAccountsPayable = unpaidExpenses.reduce((sum, exp) => {
-      const paid = parseFloat(exp.paidAmount) || 0;
-      const total = parseFloat(exp.amount) || 0;
-      return sum + (total - paid);
-    }, 0);
-    
-    // Add supplier bills (from purchase module) to Accounts Payable
-    let unpaidSupplierBills = [];
-    try {
-      unpaidSupplierBills = await prisma.supplierBill.findMany({
-        where: {
-          tenantId: user.tenantId,
-          status: { in: ['Unpaid', 'Partially Paid'] }
-        },
-        select: {
-          totalAmount: true,
-          amountPaid: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching supplier bills:', error);
-    }
-    const supplierBillsPayable = unpaidSupplierBills.reduce((sum, bill) => {
-      const paid = parseFloat(bill.amountPaid) || 0;
-      const total = parseFloat(bill.totalAmount) || 0;
-      return sum + Math.max(0, total - paid);
-    }, 0);
-    totalAccountsPayable += supplierBillsPayable;
-
-    // Revenue from invoices and sales
-    let invoices = [];
-    let sales = [];
-    try {
-      invoices = await prisma.invoice.findMany({
-        where: {
-          tenantId: user.tenantId,
-          voidedAt: null,
-          refundedAt: null
-        },
-        select: {
-          total: true,
-          status: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching invoices for revenue:', error);
-    }
-    
-    try {
-      sales = await prisma.sale.findMany({
-        where: {
-          tenantId: user.tenantId,
-          status: 'completed'
-        },
-        select: {
-          total: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching sales:', error);
-    }
-    const totalRevenue = invoices.reduce((sum, inv) => sum + (parseFloat(inv.total) || 0), 0) +
-                        sales.reduce((sum, sale) => sum + (parseFloat(sale.total) || 0), 0);
-
-    // COGS from expenses with category 'COGS' or 'Cost of Goods Sold'
-    let cogsExpenses = [];
-    try {
-      cogsExpenses = await prisma.expense.findMany({
-        where: {
-          tenantId: user.tenantId,
-          category: { in: ['COGS', 'Cost of Goods Sold', 'COGS Settlement'] },
-          isDeleted: false
-        },
-        select: {
-          amount: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching COGS expenses:', error);
-    }
-    const totalCOGS = cogsExpenses.reduce((sum, exp) => sum + (parseFloat(exp?.amount) || 0), 0);
-
-    // Expenses by category
-    let expensesByCategory = [];
-    try {
-      expensesByCategory = await prisma.expense.groupBy({
-        by: ['category'],
-        where: {
-          tenantId: user.tenantId,
-          isDeleted: false,
-          category: { not: null }
-        },
-        _sum: {
-          amount: true
-        }
-      });
-    } catch (error) {
-      console.error('Error grouping expenses by category:', error);
-      // If groupBy fails, try to get expenses and group manually
-      const allExpenses = await prisma.expense.findMany({
-        where: {
-          tenantId: user.tenantId,
-          isDeleted: false
-        },
-        select: {
-          category: true,
-          amount: true
-        }
-      });
-      
-      // Manual grouping
-      const categoryMap = new Map();
-      allExpenses.forEach(exp => {
-        const cat = exp.category || 'Other';
-        const current = categoryMap.get(cat) || 0;
-        categoryMap.set(cat, current + (parseFloat(exp.amount) || 0));
-      });
-      
-      expensesByCategory = Array.from(categoryMap.entries()).map(([category, amount]) => ({
-        category,
-        _sum: { amount }
-      }));
-    }
-
-    // Payroll expenses
-    let payrolls = [];
-    try {
-      payrolls = await prisma.payroll.findMany({
-        where: {
-          tenantId: user.tenantId,
-          status: 'processed'
-        },
-        select: {
-          grossPay: true,
-          basicSalary: true,
-          additions: true,
-          deductions: true,
-          payeAmount: true,
-          totalNpsAmount: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching payrolls:', error);
-    }
-    const totalPayrollExpense = payrolls.reduce((sum, payroll) => {
-      const gross = parseFloat(payroll.grossPay) || parseFloat(payroll.basicSalary) || 0;
-      const additions = parseFloat(payroll.additions) || 0;
-      return sum + gross + additions;
-    }, 0);
-
-    // Tax Payable from payroll (PAYE + NPS)
-    const totalTaxPayable = payrolls.reduce((sum, payroll) => {
-      const paye = parseFloat(payroll.payeAmount) || 0;
-      const nps = parseFloat(payroll.totalNpsAmount) || 0;
-      return sum + paye + nps;
-    }, 0);
-
-    // Liabilities from Liability model
-    let liabilities = [];
-    try {
-      liabilities = await prisma.liability.findMany({
-        where: {
-          tenantId: user.tenantId,
-          status: { not: 'paid_off' }
-        },
-        select: {
-          principalAmount: true,
-          interestRate: true,
-          startDate: true,
-          currentBalance: true,
-          totalPaid: true,
-          liabilityType: true
-        }
-      });
-    } catch (error) {
-      console.error('Error fetching liabilities:', error);
-    }
-    const totalLiabilities = liabilities.reduce((sum, liab) => {
-      return sum + (parseFloat(liab.currentBalance) || parseFloat(liab.principalAmount) || 0);
-    }, 0);
-
-    // Accumulated Depreciation from assets
-    const totalAccumulatedDepreciation = assets.reduce((sum, asset) => {
-      return sum + (parseFloat(asset.accumulatedDepreciation) || 0);
-    }, 0);
-
-    // Calculate Retained Earnings (Profit/Loss)
-    // Revenue - COGS - Operating Expenses - Payroll - Other Expenses
-    const totalOperatingExpenses = expensesByCategory
-      .filter(e => e?.category && !['COGS', 'Cost of Goods Sold', 'COGS Settlement'].includes(e.category))
-      .reduce((sum, exp) => {
-        const amount = exp?._sum?.amount || exp?.amount || 0;
-        return sum + (parseFloat(amount) || 0);
-      }, 0);
-    
-    const netIncome = totalRevenue - totalCOGS - totalOperatingExpenses - totalPayrollExpense;
-    
-    // Summary logging
-    console.log('📊 Chart of Accounts Data Summary:', {
-      totalInventoryValue,
       totalAccountsReceivable,
-      totalAssetsValue,
-      totalAccountsPayable,
-      totalRevenue,
-      totalCOGS,
-      totalPayrollExpense,
-      totalTaxPayable,
-      totalLiabilities,
-      totalAccumulatedDepreciation,
-      netIncome,
-      expensesByCategory: expensesByCategory.map(e => ({ 
-        category: e?.category || 'Unknown', 
-        amount: e?._sum?.amount || e?.amount || 0 
-      })),
-      assetCount: assets.length,
-      liabilityCount: liabilities.length,
-      payrollCount: payrolls.length
     });
 
     const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
@@ -955,44 +637,49 @@ export async function GET(request) {
         const normalBalance = account.normalBalance || 
           (account.accountType === 'Asset' || account.accountType === 'Expense' ? 'Debit' : 'Credit');
 
-        // Calculate balance based on normal balance
+        // Calculate balance based on normal balance (posted journal + posted transactions only)
         let balance = 0;
         if (normalBalance === 'Debit') {
           balance = totalDebits - totalCredits;
         } else {
           balance = totalCredits - totalDebits;
         }
+        const glBookBalance = balance;
+
+        const postedGlLineCount =
+          postedLines.length + (Number(txAgg.lineCount) || 0);
+        const hasPostedGlActivity = postedGlLineCount > 0;
 
         const accountCode = String(account.accountCode || account.code || '').trim();
         const accountName = (account.accountName || account.name || '').toLowerCase().trim();
         const accountType = (account.accountType || account.type || '').trim().toUpperCase();
-        const accountCodeNum = parseInt(accountCode) || 0;
-        const isAssetAccount =
-          (accountType === 'ASSET' || accountType === 'Asset') &&
-          ((accountCodeNum >= 1300 && accountCodeNum <= 1599) ||
-            accountName.includes('equipment') ||
-            accountName.includes('furniture') ||
-            accountName.includes('vehicle') ||
-            (accountName.includes('asset') && !accountName.includes('receivable')));
 
         /** Parent/header accounts: use only posted GL on this account; roll up children later. */
         const hasChildren =
           (Array.isArray(account.childAccounts) && account.childAccounts.length > 0) ||
           parentIdsWithChildren.has(account.id);
 
+        const isAccountsReceivableLeaf =
+          !hasChildren &&
+          (accountType === 'ASSET' || accountType === 'Asset') &&
+          (accountCode === CODE_ACCOUNTS_RECEIVABLE ||
+            (accountName.includes('receivable') &&
+              !accountName.includes('payable') &&
+              !accountName.includes('prepaid') &&
+              accountCode.startsWith('12') &&
+              accountCode !== '1210' &&
+              accountCode !== '1215'));
+
         // Add balances from other sources based on account type and name
         let additionalBalance = 0;
         let isInventoryLedger = false;
 
         if (!hasChildren) {
-        // Accounts Receivable (code 1100 or name contains "receivable")
-        // IMPORTANT: Use ONLY unpaid invoices, NOT journal entries (to avoid double-counting payments)
-        if ((accountCode === '1100' || accountName.includes('receivable')) && 
-            (accountType === 'ASSET' || accountType === 'Asset')) {
-          // For AR, use ONLY the unpaid invoices calculation, ignore journal entries
-          balance = Math.max(0, totalAccountsReceivable); // Ensure it's never negative
-          additionalBalance = 0; // Don't add to journal balance, replace it
-          console.log(`✅ Matched AR account: ${accountCode} - ${account.accountName || account.name}, value: ${totalAccountsReceivable}`);
+        // Accounts Receivable: canonical **1200** only (1100 is Current Assets group — never AR subledger).
+        // When no GL activity yet, show unpaid invoices; once GL posts exist, balance is traceable from journals/transactions.
+        if (isAccountsReceivableLeaf && !hasPostedGlActivity) {
+          balance = Math.max(0, totalAccountsReceivable);
+          additionalBalance = 0;
         }
         
         // Custom inventory GL (not 1300): leaf only; canonical 1300 is handled after parent/child branch so headers still match /stock.
@@ -1003,259 +690,10 @@ export async function GET(request) {
         isInventoryLedger =
           isCustomInventoryName && (accountType === 'ASSET' || accountType === 'Asset');
 
-        if (isInventoryLedger) {
+        if (isInventoryLedger && !hasPostedGlActivity) {
           balance = totalInventoryValue;
           additionalBalance = 0;
-          console.log(`✅ Matched inventory account: ${accountCode} - ${account.accountName || account.name}, value: ${totalInventoryValue}`);
-        } else if (isCustomInventoryName) {
-          console.log(`⚠️ Inventory account ${accountCode} - ${account.accountName || account.name} type mismatch: ${accountType} (expected ASSET)`);
         }
-        
-        // Assets/Equipment/Furniture/Vehicles (non-current assets)
-        // Match by account code ranges (1300-1599 for assets) or by name
-        // Skip when this row is the inventory subledger (1300 / name) so equipment heuristics do not stack on inventory.
-        if (isAssetAccount && !isInventoryLedger) {
-          // Try to match asset category to account name or code
-          const matchingAssets = assets.filter(asset => {
-            const categoryName = (asset.category?.name || '').toLowerCase();
-            const assetName = (asset.name || '').toLowerCase();
-            
-            // Match by category name
-            if (accountName.includes(categoryName) || categoryName.includes(accountName)) {
-              return true;
-            }
-            
-            // Match by asset name
-            if (accountName.includes(assetName) || assetName.includes(accountName)) {
-              return true;
-            }
-            
-            // Match by account code ranges
-            // 1300 = Equipment, 1400 = Furniture, 1500 = Vehicles
-            if (accountCode === '1300' && categoryName.includes('equipment')) return true;
-            if (accountCode === '1400' && categoryName.includes('furniture')) return true;
-            if (accountCode === '1500' && (categoryName.includes('vehicle') || categoryName.includes('car'))) return true;
-            
-            return false;
-          });
-          
-          // Sum all matching assets
-          matchingAssets.forEach(assetMatch => {
-            const grossValue = parseFloat(assetMatch.originalCost) || 0;
-            // Use accumulatedDepreciation field directly, or from most recent schedule
-            const accumulatedDep = assetMatch.accumulatedDepreciation || 
-              (assetMatch.depreciationSchedules && assetMatch.depreciationSchedules.length > 0
-                ? parseFloat(assetMatch.depreciationSchedules[0].accumulatedDepreciation) || 0
-                : 0);
-            const netValue = grossValue - accumulatedDep;
-            additionalBalance += netValue;
-            console.log(`Matched asset: ${assetMatch.name} to account ${accountCode}, net value: ${netValue}`);
-          });
-          
-          if (matchingAssets.length === 0 && assets.length > 0) {
-            console.log(`No assets matched for account ${accountCode} - ${account.accountName || account.name}. Available assets:`, 
-              assets.map(a => ({ name: a.name, category: a.category?.name })));
-          }
-        }
-        
-        // Accounts Payable (2110 canonical; legacy 2100 AP; avoid current-liabilities group / tax payables)
-        if (
-          (accountCode === '2110' ||
-            (accountCode === '2100' && !accountName.includes('current liabilities')) ||
-            accountName.includes('accounts payable')) &&
-          accountType === 'Liability' &&
-          !accountName.includes('tax')
-        ) {
-          additionalBalance += totalAccountsPayable;
-        }
-
-        // Tax Payable (code 2040 or name contains "tax payable")
-        if ((accountCode === '2040' || (accountName.includes('tax') && accountName.includes('payable'))) && 
-            accountType === 'Liability') {
-          additionalBalance += totalTaxPayable;
-        }
-
-        // Liabilities/Loans (code 2050-2160 or name contains "loan" or "liability")
-        if ((accountCodeNum >= 2050 && accountCodeNum <= 2160) || 
-            (accountName.includes('loan') || (accountName.includes('liability') && !accountName.includes('payable')))) {
-          if (accountType === 'Liability') {
-            // Match by liability type
-            const matchingLiabilities = liabilities.filter(liab => {
-              const liabType = (liab.liabilityType || '').toLowerCase();
-              if (accountName.includes('short') && liabType.includes('short')) return true;
-              if (accountName.includes('long') && liabType.includes('long')) return true;
-              if (accountName.includes('loan') && liabType.includes('loan')) return true;
-              return false;
-            });
-            matchingLiabilities.forEach(liab => {
-              additionalBalance += (parseFloat(liab.currentBalance) || parseFloat(liab.principalAmount) || 0);
-            });
-          }
-        }
-
-        // Revenue (code 4000 or name contains "revenue" or "income")
-        // Only add to the main revenue account (4000) to avoid double-counting
-        const isRevenueAccount = accountCode === '4000' && 
-            (accountType === 'REVENUE' || accountType === 'Revenue' || accountType === 'INCOME' || accountType === 'Income') &&
-            (accountName.includes('revenue') || accountName.includes('sales') || 
-             accountName.includes('income'));
-        
-        if (isRevenueAccount) {
-          additionalBalance += totalRevenue;
-          console.log(`✅ Matched revenue account: ${accountCode} - ${account.accountName || account.name}, value: ${totalRevenue}`);
-        } else if (accountCode === '4000') {
-          console.log(`⚠️ Revenue account ${accountCode} - ${account.accountName || account.name} type mismatch: ${accountType} (expected REVENUE/INCOME)`);
-        }
-
-        // COGS (code 5000 or name contains "cogs" or "cost of goods")
-        const isCOGSAccount = (accountCode === '5000' || accountCode.startsWith('5000') ||
-             accountName.includes('cogs') || 
-             accountName.includes('cost of goods')) && 
-            (accountType === 'EXPENSE' || accountType === 'Expense');
-        
-        if (isCOGSAccount) {
-          additionalBalance += totalCOGS;
-          console.log(`✅ Matched COGS account: ${accountCode} - ${account.accountName || account.name}, value: ${totalCOGS}`);
-        }
-
-        // Salaries Expense - standard code 5230 (used in payroll; shown and traced in chart of accounts)
-        if ((accountCode === '5230' || accountCode.startsWith('5230') ||
-             accountName.includes('salaries') || 
-             accountName.includes('wages')) && 
-            (accountType === 'EXPENSE' || accountType === 'Expense')) {
-          additionalBalance += totalPayrollExpense;
-          console.log(`✅ Matched salaries account: ${accountCode} - ${account.accountName || account.name}, value: ${totalPayrollExpense}`);
-        }
-
-        // Expense category to account mapping
-        // Map expense categories to their corresponding accounts
-        const expenseCategoryMap = {
-          // Office Expenses (5100)
-          'office': '5100',
-          'office supplies': '5100',
-          'supplies': '5100',
-          'office expenses': '5100',
-          
-          // Rent Expense (5200)
-          'rent': '5200',
-          'rent expense': '5200',
-          
-          // Utilities Expense (5200)
-          'utilities': '5200',
-          'utilities expense': '5200',
-          'electricity': '5200',
-          'water': '5200',
-          'internet': '5200',
-          'phone': '5200',
-          
-          // Marketing/Advertising (could be 5100 or separate)
-          'advertising': '5100', // Map to Office Expenses for now, or create 6050
-          'marketing': '5100',
-          'marketing & advertising': '5100',
-          
-          // Equipment (could be expense or asset - if expense, map to 5100)
-          'equipment': '5100', // If it's an expense, not an asset purchase
-          'equipment expense': '5100',
-          'repairs': '5100',
-          'maintenance': '5100',
-          
-          // Other common categories
-          'travel': '5100',
-          'meals': '5100',
-          'professional fees': '5100',
-          'insurance': '5100',
-          'other': '5100'
-        };
-        
-        // Match expenses by category for any expense account (5100-5500)
-        if ((accountType === 'EXPENSE' || accountType === 'Expense') && 
-            accountCodeNum >= 5100 && accountCodeNum <= 5500) {
-          
-          // Try to match by account code first
-          let matchedExpenses = null;
-          
-          // Office Expenses (5100) - matches office, supplies, advertising, marketing, equipment (expense)
-          if (accountCode === '5100' || (accountCodeNum >= 5100 && accountCodeNum < 5200 && accountName.includes('office'))) {
-            matchedExpenses = expensesByCategory.filter(e => {
-              const catName = (e.category || '').toLowerCase();
-              return catName.includes('office') || 
-                     catName.includes('supplies') ||
-                     catName.includes('advertising') ||
-                     catName.includes('marketing') ||
-                     (catName.includes('equipment') && !catName.includes('purchase')) || // Equipment expense, not asset
-                     catName.includes('repair') ||
-                     catName.includes('maintenance') ||
-                     catName.includes('travel') ||
-                     catName.includes('professional') ||
-                     catName === 'other';
-            });
-          }
-          // Rent Expense (5200)
-          else if (accountCode === '5200' || accountName.includes('rent')) {
-            matchedExpenses = expensesByCategory.filter(e => {
-              const catName = (e.category || '').toLowerCase();
-              return catName.includes('rent');
-            });
-          }
-          // Utilities Expense (5200)
-          else if (accountCode === '5200' || accountName.includes('utilities')) {
-            matchedExpenses = expensesByCategory.filter(e => {
-              const catName = (e.category || '').toLowerCase();
-              return catName.includes('utilities') || 
-                     catName.includes('electricity') || 
-                     catName.includes('water') || 
-                     catName.includes('internet') ||
-                     catName.includes('phone');
-            });
-          }
-          // Salaries Expense (5230) - trace salary/wages/payroll expenses and payroll transactions
-          else if (accountCode === '5230' || (accountName && accountName.toLowerCase().includes('salaries expense'))) {
-            matchedExpenses = expensesByCategory.filter(e => {
-              const catName = (e.category || '').toLowerCase();
-              return catName.includes('salar') || catName.includes('wages') || catName.includes('payroll');
-            });
-          }
-          // Depreciation Expense (5500)
-          else if (accountCode === '5500' || accountName.includes('depreciation')) {
-            // Depreciation expense is the annual depreciation, not accumulated
-            // This would come from depreciation schedules or journal entries
-            // For now, we'll use a portion of accumulated depreciation
-            additionalBalance += (totalAccumulatedDepreciation * 0.1); // Approximate 10% annual
-          }
-          
-          // Sum matched expenses
-          if (matchedExpenses && matchedExpenses.length > 0) {
-            const totalMatched = matchedExpenses.reduce((sum, exp) => {
-              const amount = exp?._sum?.amount || exp?.amount || 0;
-              return sum + (parseFloat(amount) || 0);
-            }, 0);
-            additionalBalance += totalMatched;
-            console.log(`✅ Matched expenses for account ${accountCode} - ${account.accountName || account.name}:`, {
-              categories: matchedExpenses.map(e => e?.category || 'Unknown'),
-              total: totalMatched
-            });
-          }
-        }
-
-        // Accumulated Depreciation (code 1501 or name contains "accumulated depreciation")
-        if ((accountCode === '1501' || accountCode.startsWith('1501') ||
-             accountName.includes('accumulated depreciation')) && 
-            (accountType === 'ASSET' || accountType === 'Asset')) {
-          additionalBalance += totalAccumulatedDepreciation;
-          console.log(`✅ Matched accumulated depreciation: ${accountCode}, value: ${totalAccumulatedDepreciation}`);
-        }
-
-        // Retained Earnings (code 3100 or name contains "retained earnings")
-        if ((accountCode === '3100' || accountCode.startsWith('3100') ||
-             accountName.includes('retained earnings')) && 
-            (accountType === 'EQUITY' || accountType === 'Equity')) {
-          additionalBalance += netIncome; // This will be cumulative over time
-          console.log(`✅ Matched retained earnings: ${accountCode}, value: ${netIncome}`);
-        }
-
-        // Owner's Capital (code 3000 or name contains "capital")
-        // Note: This typically requires manual entry or opening balance
-        // We'll leave it at journal entry balance for now
 
         } else {
           // Parent/summary account: only posted GL (journal + transaction) on this code.
@@ -1263,65 +701,58 @@ export async function GET(request) {
           additionalBalance = 0;
         }
 
-        // Also check for legacy balance field if it exists
+        const subledgerOverlayBeforeSuppress = additionalBalance;
+        if (hasPostedGlActivity) {
+          additionalBalance = 0;
+        }
+
         const legacyBalance = parseFloat(account.balance) || 0;
-        
-        // Combine balances
-        // For Accounts Receivable: use ONLY unpaid invoices (already set above)
-        // For other accounts: use journal entries + additional balances
-        let finalBalance = balance;
-        
-        // Check if this is Accounts Receivable (already handled above)
-        const isAccountsReceivable = (accountCode === '1100' || accountName.includes('receivable')) && 
-                                     (accountType === 'ASSET' || accountType === 'Asset');
-        
-        if (isAccountsReceivable) {
-          // Accounts Receivable: use ONLY unpaid invoices (already set in balance above)
-          finalBalance = balance; // balance is already set to totalAccountsReceivable above
-        } else if (isInventoryLedger) {
-          // Non-1300 custom "inventory" GL rows: stock aggregate (same products as /stock)
+
+        /** Displayed balance must reconcile to posted GL when activity exists (no GL + subledger double-count). */
+        let finalBalance;
+        if (isAccountsReceivableLeaf || isInventoryLedger) {
           finalBalance = balance;
+        } else if (hasPostedGlActivity) {
+          finalBalance = balance;
+        } else if (subledgerOverlayBeforeSuppress > 0) {
+          finalBalance = subledgerOverlayBeforeSuppress;
+        } else if (legacyBalance !== 0) {
+          finalBalance = legacyBalance;
         } else {
-          // Other accounts: combine journal entries + additional balances
-          const totalOtherBalances = additionalBalance;
-          
-          if (postedLines.length === 0) {
-            // No journal entries, use additional balance or legacy balance
-            if (totalOtherBalances > 0) {
-              finalBalance = totalOtherBalances;
-            } else if (legacyBalance !== 0) {
-              finalBalance = legacyBalance;
-            } else {
-              finalBalance = 0;
-            }
-          } else {
-            // We have journal entries, add additional balances to it
-            finalBalance = balance + totalOtherBalances;
-          }
+          finalBalance = 0;
+        }
+
+        let balanceSource = 'none';
+        if (hasPostedGlActivity) {
+          balanceSource = 'posted_gl';
+        } else if (isAccountsReceivableLeaf) {
+          balanceSource = 'ar_subledger';
+        } else if (isInventoryLedger) {
+          balanceSource = 'inventory_subledger';
+        } else if (subledgerOverlayBeforeSuppress > 0) {
+          balanceSource = 'subledger_estimate';
+        } else if (legacyBalance !== 0) {
+          balanceSource = 'legacy_account_balance';
         }
 
         const accountResult = {
           ...account,
-          /** GL + heuristics on this account id only (before parent/child rollup). */
+          /** Posted GL (and documented sub-ledgers) on this account id only (before parent/child rollup). */
           postedDirectBalance: finalBalance,
           currentBalance: finalBalance,
           transactionCount: postedLines.length + txAgg.lineCount,
           postedEntryCount: postedLines.length + txAgg.lineCount,
           draftEntryCount: draftLines.length,
-          additionalBalance: additionalBalance,
-          journalEntryBalance: balance
+          additionalBalance,
+          journalEntryBalance: balance,
+          postedGlNet: glBookBalance,
+          balanceSource,
+          subledgerOverlaySuppressed:
+            hasPostedGlActivity && subledgerOverlayBeforeSuppress > 0
+              ? subledgerOverlayBeforeSuppress
+              : 0,
         };
-        
-        // Debug log for accounts with zero balance but should have values
-        if (finalBalance === 0 && (totalInventoryValue > 0 || totalAssetsValue > 0 || totalAccountsReceivable > 0)) {
-          if ((accountCode === '1300' || (accountName.includes('inventory') && !accountName.includes('receivable'))) && accountType === 'Asset') {
-            console.log(`⚠️ Inventory account ${accountCode} - ${account.accountName || account.name} has zero balance but inventory value is ${totalInventoryValue}`);
-          }
-          if (isAssetAccount && accountType === 'Asset' && totalAssetsValue > 0) {
-            console.log(`⚠️ Asset account ${accountCode} - ${account.accountName || account.name} has zero balance but total assets value is ${totalAssetsValue}`);
-          }
-        }
-        
+
         return accountResult;
       } catch (error) {
         console.error(`Error calculating balance for account ${account?.id || 'unknown'}:`, error);
@@ -1372,24 +803,32 @@ export async function GET(request) {
     const accountsWithParentRollup = applyCoaParentRollup(stockLedAccounts);
 
     const codeOf = (a) => String(a.accountCode || a.code || '');
-    const parent500 = accountsWithParentRollup.find((a) => codeOf(a) === '500000');
+    const parentCap =
+      accountsWithParentRollup.find((a) => codeOf(a) === '3100') ||
+      accountsWithParentRollup.find((a) => codeOf(a) === '500000');
     const sortedAccounts = (() => {
-      if (!parent500) {
+      if (!parentCap) {
         return [...accountsWithParentRollup].sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
       }
       const children = accountsWithParentRollup
-        .filter((a) => a.parentAccountId === parent500.id)
+        .filter((a) => a.parentAccountId === parentCap.id)
         .sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
       const rest = accountsWithParentRollup.filter(
-        (a) => a.id !== parent500.id && a.parentAccountId !== parent500.id
+        (a) => a.id !== parentCap.id && a.parentAccountId !== parentCap.id
       );
       const restSorted = rest.sort((a, b) => codeOf(a).localeCompare(codeOf(b)));
-      return [parent500, ...children, ...restSorted];
+      return [parentCap, ...children, ...restSorted];
     })();
 
+    const accountsForResponse = alignChartAccountsListToBlueprint(sortedAccounts);
+
     return NextResponse.json({
-      accounts: sortedAccounts,
-      total: sortedAccounts.length
+      accounts: accountsForResponse,
+      total: accountsForResponse.length,
+      traceability: {
+        policy:
+          'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Without posted GL, only these non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts, and the 1300 subtree is then aligned to the same inventory aggregate as Stock Management. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+      },
     });
   } catch (error) {
     console.error('Error fetching chart of accounts:', error);
@@ -1415,6 +854,16 @@ export async function POST(request) {
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
+    }
+
+    try {
+      const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+      await assertTenantCoaUnlocked(user.tenantId);
+    } catch (lockErr) {
+      if (lockErr?.code === 'COA_TENANT_LOCKED') {
+        return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+      }
+      throw lockErr;
     }
 
     if (!canCreateChartOfAccount(user)) {
@@ -1498,10 +947,11 @@ export async function POST(request) {
       }
     }
 
-    // Validate parent account if provided
+    /** @type {{ accountCode?: string|null, accountType?: string|null } | null} */
+    let parentAccount = null;
     if (parentAccountId) {
-      const parentAccount = await prisma.account.findUnique({
-        where: { id: parentAccountId }
+      parentAccount = await prisma.account.findUnique({
+        where: { id: parentAccountId },
       });
 
       if (!parentAccount || parentAccount.tenantId !== user.tenantId) {
@@ -1511,12 +961,32 @@ export async function POST(request) {
         );
       }
 
-    if (parentAccount.accountType !== normalizedType) {
+      if (parentAccount.accountType !== normalizedType) {
         return NextResponse.json(
           { error: 'Parent account must be of the same type' },
           { status: 400 }
         );
       }
+
+      const pc = String(parentAccount.accountCode || '').trim();
+      if (pc === '1130' && !/^1130-\d{2}$/.test(String(accountCode).trim())) {
+        return NextResponse.json(
+          {
+            error: 'Invalid code for Bank & Mobile group',
+            details: 'Accounts under 1130 must use hierarchical codes like 1130-06.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const coaCreateRules = validateCoaAccountCreationRules({
+      accountCode,
+      accountType: normalizedType,
+      parentAccount,
+    });
+    if (!coaCreateRules.ok) {
+      return NextResponse.json({ error: coaCreateRules.message }, { status: 400 });
     }
 
     // Validate normal balance matches account type

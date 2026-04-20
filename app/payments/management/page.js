@@ -87,7 +87,7 @@ function PaymentManagementPageInner() {
         if (data.code === 'PAYMENT_GL_SLOTS_EXHAUSTED') {
           window.alert(
             data.error ||
-              'You can only add up to 9 payment accounts of this type under its main GL account (e.g. Bank uses 1141–1149 under 1140).'
+              'You can only add up to 9 extra Cash registers (1111–1119 under 1110), or many Bank/Mobile accounts as 1130-01, 1130-02, … under the 1130 group.'
           );
         }
         throw new Error(data.error || 'Failed to save payment account');

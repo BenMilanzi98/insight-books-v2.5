@@ -98,6 +98,16 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No tenant associated with user' }, { status: 400 });
     }
 
+    try {
+      const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+      await assertTenantCoaUnlocked(user.tenantId);
+    } catch (lockErr) {
+      if (lockErr?.code === 'COA_TENANT_LOCKED') {
+        return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+      }
+      throw lockErr;
+    }
+
     await safeInitializeDefaults(user.tenantId);
 
     const body = await request.json();

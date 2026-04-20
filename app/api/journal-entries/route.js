@@ -10,7 +10,10 @@ import {
   fetchTenantAccountsForMergeRollup,
   buildMergeRollupContext,
 } from '@/lib/accountMergeRollup';
-import { validateNoDuplicateInventoryLines } from '@/lib/journalManualLineValidation';
+import {
+  validateNoDuplicateInventoryLines,
+  validateNoPostingToStructuralCoaRoots,
+} from '@/lib/journalManualLineValidation';
 
 /**
  * Manual journal entries are restricted to adjustments only.
@@ -426,8 +429,16 @@ export async function POST(request) {
         accountType: true,
         type: true,
         accountSubtype: true,
+        acceptsNewTransactions: true,
       },
     });
+    const structural = validateNoPostingToStructuralCoaRoots(lines, lineAccounts);
+    if (!structural.ok) {
+      return NextResponse.json(
+        { error: structural.error, details: structural.details },
+        { status: 400 }
+      );
+    }
     const invDup = validateNoDuplicateInventoryLines(lines, lineAccounts);
     if (!invDup.ok) {
       return NextResponse.json(

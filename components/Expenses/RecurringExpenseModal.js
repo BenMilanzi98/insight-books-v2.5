@@ -252,7 +252,7 @@ const RecurringExpenseModal = ({
                 label="Expense Category"
               />
               <p className="mt-1 text-xs text-gray-500">
-                Create new categories from Expenses → Create New Expense (use + next to Expense Category).
+                Expense categories are limited to the predefined PHINDU list; they cannot be created from this screen.
               </p>
               {errors.expenseAccountId && (
                 <p className="mt-1 text-sm text-red-600">{errors.expenseAccountId}</p>

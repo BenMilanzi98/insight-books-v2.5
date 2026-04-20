@@ -41,13 +41,19 @@ function normalizeRelatedAccount(rel) {
 }
 
 function normalizeTenantAccountRow(a) {
+  if (!a || typeof a !== 'object') return a;
+  const { _count, balance, ...rest } = a;
+  const je = _count?.journalEntryLines ?? 0;
+  const tx = _count?.transactionLines ?? 0;
   return {
-    ...a,
+    ...rest,
     accountCode: effectiveAccountCode(a) || null,
     accountName: effectiveAccountName(a),
     accountType: effectiveAccountType(a),
     parentAccount: normalizeRelatedAccount(a.parentAccount),
     mergedIntoAccount: normalizeRelatedAccount(a.mergedIntoAccount),
+    currentBalance: Number(balance) || 0,
+    transactionCount: je + tx,
   };
 }
 
@@ -62,11 +68,23 @@ const accountSelectForCatalog = {
   type: true,
   accountSubtype: true,
   normalBalance: true,
+  balance: true,
   isActive: true,
   isSystem: true,
   mergedIntoAccountId: true,
   parentAccountId: true,
   description: true,
+  requiresReclassification: true,
+  retiredAt: true,
+  migratedToAccountCode: true,
+  visibleInChart: true,
+  acceptsNewTransactions: true,
+  _count: {
+    select: {
+      journalEntryLines: true,
+      transactionLines: true,
+    },
+  },
   mergedIntoAccount: {
     select: {
       id: true,
@@ -140,11 +158,18 @@ export async function GET(request) {
               type: true,
               accountSubtype: true,
               normalBalance: true,
+              balance: true,
               isActive: true,
               isSystem: true,
               mergedIntoAccountId: true,
               parentAccountId: true,
               description: true,
+              _count: {
+                select: {
+                  journalEntryLines: true,
+                  transactionLines: true,
+                },
+              },
               mergedIntoAccount: {
                 select: {
                   id: true,

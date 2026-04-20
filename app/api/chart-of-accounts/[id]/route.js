@@ -6,6 +6,8 @@ import {
   canViewChartOfAccounts,
   canUpdateChartOfAccount,
 } from '@/lib/chartOfAccountsAccess';
+import { alignAccountDisplayTitleToBlueprint } from '@/lib/coaBlueprintDisplayTitles.js';
+import { computeCoaAccountBalanceBreakdown } from '@/lib/coaAccountBalanceBreakdown.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -102,74 +104,29 @@ export async function GET(request, { params }) {
       });
     }
 
-    const [journalLines, txnLines] = await Promise.all([
-      prisma.journalEntryLine.findMany({
-        where: {
-          accountId: account.id,
-          journalEntry: {
-            status: postedJournalStatus,
-            tenantId: user.tenantId
-          }
-        },
-        select: {
-          debitAmount: true,
-          creditAmount: true
-        }
-      }),
-      prisma.transactionLine.findMany({
-        where: {
-          accountId: account.id,
-          transaction: {
-            status: postedGlTransactionStatus,
-            tenantId: user.tenantId
-          }
-        },
-        select: {
-          debitAmount: true,
-          creditAmount: true
-        }
-      })
-    ]);
+    const branchId = user.currentBranchId || null;
+    const balanceSources = await computeCoaAccountBalanceBreakdown(
+      prisma,
+      user.tenantId,
+      account,
+      { branchId, maxInvoiceDetailLines: 50 }
+    );
 
-    const totalDebits =
-      journalLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0) +
-      txnLines.reduce((sum, line) => sum + (line.debitAmount || 0), 0);
-    const totalCredits =
-      journalLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0) +
-      txnLines.reduce((sum, line) => sum + (line.creditAmount || 0), 0);
+    const balance = balanceSources.displayedRowTotal;
+    const journalLineCount = balanceSources.components.find((c) => c.id === 'posted_journal_lines')?.lineCount ?? 0;
+    const glTransactionLineCount =
+      balanceSources.components.find((c) => c.id === 'posted_transaction_lines')?.lineCount ?? 0;
 
-    let balance = 0;
-    if (account.normalBalance === 'Debit') {
-      balance = totalDebits - totalCredits;
-    } else {
-      balance = totalCredits - totalDebits;
-    }
-
-    const [journalLineCount, glTransactionLineCount] = await Promise.all([
-      prisma.journalEntryLine.count({
-        where: {
-          accountId: account.id,
-          journalEntry: {
-            status: postedJournalStatus,
-            tenantId: user.tenantId
-          }
-        }
-      }),
-      prisma.transactionLine.count({
-        where: {
-          accountId: account.id,
-          transaction: {
-            status: postedGlTransactionStatus,
-            tenantId: user.tenantId
-          }
-        }
-      })
-    ]);
+    const aligned = alignAccountDisplayTitleToBlueprint(account);
 
     return NextResponse.json({
-      ...account,
+      ...aligned,
       currentBalance: balance,
-      transactionCount: journalLineCount + glTransactionLineCount
+      postedDirectBalance: balance,
+      postedGlNet: balanceSources.postedGlNet,
+      balanceSource: balanceSources.balanceSource,
+      transactionCount: journalLineCount + glTransactionLineCount,
+      balanceSources,
     });
   } catch (error) {
     console.error('Error fetching account:', error);
@@ -189,6 +146,16 @@ export async function PUT(request, { params }) {
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
+    }
+
+    try {
+      const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+      await assertTenantCoaUnlocked(user.tenantId);
+    } catch (lockErr) {
+      if (lockErr?.code === 'COA_TENANT_LOCKED') {
+        return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+      }
+      throw lockErr;
     }
 
     const { id } = params;
@@ -382,6 +349,16 @@ export async function DELETE(request, { params }) {
         { error: 'Authentication required or no tenant associated' },
         { status: 401 }
       );
+    }
+
+    try {
+      const { assertTenantCoaUnlocked } = await import('@/lib/coaTenantLock');
+      await assertTenantCoaUnlocked(user.tenantId);
+    } catch (lockErr) {
+      if (lockErr?.code === 'COA_TENANT_LOCKED') {
+        return NextResponse.json({ error: lockErr.message, code: lockErr.code }, { status: 423 });
+      }
+      throw lockErr;
     }
 
     const { id } = params;

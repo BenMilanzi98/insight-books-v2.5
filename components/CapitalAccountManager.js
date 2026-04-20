@@ -411,7 +411,10 @@ const CapitalAccountManager = ({ onboarding = false }) => {
   }
 
   const isSystemCapital =
-    capitalAccount?.accountCode === "500000" || String(capitalAccount?.code || "") === "500000";
+    capitalAccount?.accountCode === "3100" ||
+    String(capitalAccount?.code || "") === "3100" ||
+    capitalAccount?.accountCode === "500000" ||
+    String(capitalAccount?.code || "") === "500000";
 
   const completeCapitalOnboarding = async () => {
     try {
@@ -1051,7 +1054,7 @@ const CapitalAccountManager = ({ onboarding = false }) => {
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Date</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Type</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Description</th>
-                  <th className="text-left py-2 px-3 font-semibold text-slate-600">GL (under 500000)</th>
+                  <th className="text-left py-2 px-3 font-semibold text-slate-600">GL (under 3100)</th>
                   <th className="text-left py-2 px-3 font-semibold text-slate-600">Account Debited</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">Amount</th>
                   <th className="text-right py-2 px-3 font-semibold text-slate-600">Running Total</th>
