@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
+import { fetchCogsExpenseRegisterRows } from '@/lib/fetchCogsExpenseRegisterRows';
 
 // GET - Export expenses data in CSV format
 export async function GET(request) {
@@ -75,24 +76,52 @@ export async function GET(request) {
       ];
     }
     
-    // Fetch expenses with user info
-    const expenses = await prisma.expense.findMany({
-      where,
-      orderBy: { date: 'desc' },
-      include: {
-        submittedBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
+    const categoryLower = typeof category === 'string' ? category.toLowerCase() : '';
+    const isSalaryAdvanceOnly =
+      categoryLower === 'salary advance' || category === 'Salary Advance';
+
+    const expenses = isSalaryAdvanceOnly
+      ? []
+      : await prisma.expense.findMany({
+          where,
+          orderBy: { date: 'desc' },
+          include: {
+            submittedBy: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
-        }
-      }
+        });
+
+    const cogsRows = await fetchCogsExpenseRegisterRows(prisma, {
+      tenantId: user.tenantId,
+      branchIdParam,
+      currentBranchId: user?.currentBranchId,
+      dateFrom,
+      dateTo,
+      search,
+      category
     });
-    
+
+    const expenseRowsForCsv = expenses.map((e) => ({
+      entryType: 'Expense',
+      ...e,
+      glJournalId: '',
+      glAccount: ''
+    }));
+
+    const merged = [...expenseRowsForCsv, ...cogsRows].sort((a, b) => {
+      const da = a.date instanceof Date ? a.date : new Date(a.date);
+      const db = b.date instanceof Date ? b.date : new Date(b.date);
+      return db.getTime() - da.getTime();
+    });
+
     // For CSV format
     if (format === 'csv') {
-      const res = generateCsvResponse(expenses);
+      const res = generateCsvResponse(merged);
       res.headers.set('Cache-Control', 'no-store');
       return res;
     }
@@ -111,11 +140,11 @@ export async function GET(request) {
   }
 }
 
-// Generate CSV response
-function generateCsvResponse(expenses) {
-  // Define CSV header
+// Generate CSV response (Expense rows + COGS GL rows, same register as the UI list)
+function generateCsvResponse(rows) {
   const csvStringifier = createObjectCsvStringifier({
     header: [
+      { id: 'entryType', title: 'Entry Type' },
       { id: 'id', title: 'ID' },
       { id: 'date', title: 'Date' },
       { id: 'description', title: 'Description' },
@@ -127,29 +156,46 @@ function generateCsvResponse(expenses) {
       { id: 'status', title: 'Approval Status' },
       { id: 'paymentStatus', title: 'Payment Status' },
       { id: 'branchId', title: 'Branch ID' },
+      { id: 'glJournalId', title: 'GL Journal ID' },
+      { id: 'glAccount', title: 'GL Account (COGS)' },
       { id: 'submittedBy', title: 'Submitted By' },
       { id: 'notes', title: 'Notes' },
       { id: 'createdAt', title: 'Created At' }
     ]
   });
-  
-  // Transform expenses data for CSV
-  const records = expenses.map(expense => ({
-    id: expense.id,
-    date: expense.date.toISOString().split('T')[0],
-    description: expense.description,
-    merchant: expense.merchant || '',
-    category: expense.category,
-    amount: expense.amount.toFixed(2),
-    taxAmount: (expense.taxAmount != null ? expense.taxAmount : 0).toFixed(2),
-    paidAmount: (expense.paidAmount != null ? expense.paidAmount : 0).toFixed(2),
-    status: expense.status,
-    paymentStatus: expense.paymentStatus || '',
-    branchId: expense.branchId || '',
-    submittedBy: expense.submittedBy ? expense.submittedBy.name : '',
-    notes: expense.notes || '',
-    createdAt: expense.createdAt.toISOString().split('T')[0]
-  }));
+
+  const records = rows.map((row) => {
+    const d = row.date instanceof Date ? row.date : new Date(row.date);
+    const dateStr = Number.isNaN(d.getTime())
+      ? ''
+      : d.toISOString().split('T')[0];
+    const ca =
+      row.createdAt instanceof Date ? row.createdAt : new Date(row.createdAt);
+    const createdStr = Number.isNaN(ca.getTime())
+      ? dateStr
+      : ca.toISOString().split('T')[0];
+    const amt =
+      typeof row.amount === 'number' ? row.amount : parseFloat(row.amount) || 0;
+    return {
+      entryType: row.entryType || 'Expense',
+      id: row.id,
+      date: dateStr,
+      description: row.description || '',
+      merchant: row.merchant || '',
+      category: row.category || '',
+      amount: amt.toFixed(2),
+      taxAmount: (row.taxAmount != null ? row.taxAmount : 0).toFixed(2),
+      paidAmount: (row.paidAmount != null ? row.paidAmount : 0).toFixed(2),
+      status: row.status || '',
+      paymentStatus: row.paymentStatus || '',
+      branchId: row.branchId || '',
+      glJournalId: row.transactionId || row.glJournalId || '',
+      glAccount: row.glAccountLabel || row.glAccount || '',
+      submittedBy: row.submittedBy ? row.submittedBy.name : '',
+      notes: row.notes || '',
+      createdAt: createdStr
+    };
+  });
   
   // Generate CSV content
   const csvContent = csvStringifier.getHeaderString() + csvStringifier.stringifyRecords(records);
