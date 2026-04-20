@@ -28,7 +28,8 @@ import {
   UserX,
   UserCheck,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Percent,
 } from "lucide-react";
 import EmployeeIDCardGenerator from "@/components/EmployeeIDCardGenerator";
 
@@ -1711,6 +1712,11 @@ const EmployeeManagement = () => {
   const [importResults, setImportResults] = useState(null);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(new Set());
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [showPayeBulkModal, setShowPayeBulkModal] = useState(false);
+  const [payeBulkScope, setPayeBulkScope] = useState("selected");
+  const [payeBulkAction, setPayeBulkAction] = useState("enable");
+  const [payeBulkSubmitting, setPayeBulkSubmitting] = useState(false);
+  const [payeBulkError, setPayeBulkError] = useState("");
   const [statistics, setStatistics] = useState({
     totalEmployees: 0,
     activeEmployees: 0,
@@ -2131,6 +2137,61 @@ const EmployeeManagement = () => {
     }
   };
 
+  const openPayeBulkModal = () => {
+    setPayeBulkError("");
+    setPayeBulkAction("enable");
+    setPayeBulkScope(selectedEmployeeIds.size > 0 ? "selected" : "all");
+    setShowPayeBulkModal(true);
+  };
+
+  const handleSubmitBulkPaye = async () => {
+    setPayeBulkError("");
+    if (payeBulkScope === "selected" && selectedEmployeeIds.size === 0) {
+      setPayeBulkError("Select employees using the checkboxes, or choose “All employees”.");
+      return;
+    }
+    if (
+      payeBulkScope === "all" &&
+      !confirm(
+        "Apply to every employee in your business? This uses the list on the server (not just the current page)."
+      )
+    ) {
+      return;
+    }
+    setPayeBulkSubmitting(true);
+    try {
+      const response = await fetch("/api/employees/bulk-apply-paye", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: payeBulkAction,
+          scope: payeBulkScope,
+          employeeIds:
+            payeBulkScope === "selected" ? Array.from(selectedEmployeeIds) : undefined,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Request failed");
+      }
+      setShowPayeBulkModal(false);
+      const u = data.updated ?? 0;
+      const s = data.skipped ?? 0;
+      setSuccessMessage(
+        payeBulkAction === "enable"
+          ? `PAYE applied: ${u} employee(s) updated${s ? `, ${s} unchanged` : ""}.`
+          : `PAYE removed: ${u} employee(s) updated${s ? `, ${s} unchanged` : ""}.`
+      );
+      setTimeout(() => setSuccessMessage(""), 5000);
+      setSelectedEmployeeIds(new Set());
+      loadEmployees(currentPage);
+    } catch (e) {
+      setPayeBulkError(e.message || "Could not update employees.");
+    } finally {
+      setPayeBulkSubmitting(false);
+    }
+  };
+
   const handleTerminateEmployee = (employee, e) => {
     if (e) e.stopPropagation();
     setEmployeeToAction(employee);
@@ -2449,6 +2510,15 @@ const EmployeeManagement = () => {
           >
             <CreditCard size={16} />
             <span>Generate ID Cards</span>
+          </button>
+          <button
+            type="button"
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md flex items-center gap-2 hover:bg-indigo-700"
+            onClick={openPayeBulkModal}
+            title="Apply or remove PAYE (Malawi income tax) for multiple employees"
+          >
+            <Percent size={16} />
+            <span>Apply PAYE…</span>
           </button>
           {selectedEmployeeIds.size > 0 && (
             <button
@@ -3477,6 +3547,123 @@ const EmployeeManagement = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk PAYE modal */}
+      {showPayeBulkModal && (
+        <div
+          className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => !payeBulkSubmitting && setShowPayeBulkModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-900">Apply PAYE to employees</h2>
+              <button
+                type="button"
+                className="text-gray-500 hover:text-gray-700"
+                disabled={payeBulkSubmitting}
+                onClick={() => setShowPayeBulkModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              <p className="text-sm text-gray-600">
+                PAYE uses your active statutory deduction named PAYE (or Income Tax). Employees with a gross salary
+                set will have net pay recalculated; others only get the deduction toggled on their profile.
+              </p>
+
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-2">Who should this apply to?</p>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="payeScope"
+                      className="mt-1"
+                      checked={payeBulkScope === "selected"}
+                      onChange={() => setPayeBulkScope("selected")}
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">Selected employees only</span>
+                      <span className="block text-xs text-gray-500">
+                        {selectedEmployeeIds.size > 0
+                          ? `${selectedEmployeeIds.size} selected on this page`
+                          : "Use row checkboxes to select people first"}
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="payeScope"
+                      className="mt-1"
+                      checked={payeBulkScope === "all"}
+                      onChange={() => setPayeBulkScope("all")}
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">All employees</span>
+                      <span className="block text-xs text-gray-500">
+                        Everyone in your business ({paginationInfo.totalCount ?? "—"} in directory)
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-sm font-medium text-gray-800 mb-2">Action</p>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="payeAction"
+                      checked={payeBulkAction === "enable"}
+                      onChange={() => setPayeBulkAction("enable")}
+                    />
+                    <span className="text-sm text-gray-900">Enable PAYE (add to deductions)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="payeAction"
+                      checked={payeBulkAction === "disable"}
+                      onChange={() => setPayeBulkAction("disable")}
+                    />
+                    <span className="text-sm text-gray-900">Remove PAYE from deductions</span>
+                  </label>
+                </div>
+              </div>
+
+              {payeBulkError && (
+                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+                  {payeBulkError}
+                </div>
+              )}
+            </div>
+            <div className="p-6 border-t border-gray-200 flex justify-end gap-3">
+              <button
+                type="button"
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                disabled={payeBulkSubmitting}
+                onClick={() => setShowPayeBulkModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                disabled={payeBulkSubmitting}
+                onClick={handleSubmitBulkPaye}
+              >
+                {payeBulkSubmitting ? "Saving…" : "Apply"}
+              </button>
             </div>
           </div>
         </div>
