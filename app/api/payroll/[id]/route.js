@@ -173,6 +173,9 @@ export async function DELETE(request, context) {
     }
     
     const { id: payrollId } = await context.params;
+    if (!payrollId || typeof payrollId !== 'string') {
+      return NextResponse.json({ error: 'Invalid payroll id' }, { status: 400 });
+    }
     const body = await request.json().catch(() => ({}));
     const reversalReasonRaw =
       typeof body?.reversalReason === 'string' ? body.reversalReason : 'Payroll deleted (auto reversal)';
@@ -209,7 +212,9 @@ export async function DELETE(request, context) {
       const noJournal =
         msg.includes('no posted journal') ||
         msg.includes('no posted journal transaction') ||
-        msg.includes('cannot be performed without gl entries');
+        msg.includes('cannot be performed without gl entries') ||
+        msg.includes('has no journal entries to reverse') ||
+        msg.includes('payroll journal transaction has no lines');
       if (!noJournal) throw e;
 
       await prisma.payroll.update({
@@ -227,7 +232,7 @@ export async function DELETE(request, context) {
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
-          employeeName: existingPayroll.employee.name,
+          employeeName: existingPayroll.employee?.name ?? null,
           periodStart: existingPayroll.periodStart,
           periodEnd: existingPayroll.periodEnd,
           reversalReason: reversalReason,

@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
 import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
+import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
 
 /**
  * POST /api/auth/login
@@ -67,6 +68,15 @@ export async function POST(request) {
       });
     } catch (lookupErr) {
       console.error('Login user lookup failed (trying without role):', lookupErr?.message || lookupErr);
+      if (isPrismaConnectionError(lookupErr)) {
+        return NextResponse.json(
+          {
+            error:
+              'Database is temporarily unavailable. Check that the database server is running and DATABASE_URL is correct.',
+          },
+          { status: 503 }
+        );
+      }
       try {
         user = await prisma.user.findFirst({
           where: { email: { equals: email, mode: 'insensitive' } },
@@ -91,6 +101,15 @@ export async function POST(request) {
         if (user) user.role = null;
       } catch (fallbackErr) {
         console.error('Login user lookup fallback failed:', fallbackErr?.message || fallbackErr);
+        if (isPrismaConnectionError(fallbackErr)) {
+          return NextResponse.json(
+            {
+              error:
+                'Database is temporarily unavailable. Check that the database server is running and DATABASE_URL is correct.',
+            },
+            { status: 503 }
+          );
+        }
         return NextResponse.json(
           { error: 'An error occurred during login' },
           { status: 500 }
@@ -260,6 +279,15 @@ export async function POST(request) {
   } catch (error) {
     console.error('Login error:', error?.message || error);
     console.error('Login error stack:', error?.stack);
+    if (isPrismaConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            'Database is temporarily unavailable. Check that the database server is running and DATABASE_URL is correct.',
+        },
+        { status: 503 }
+      );
+    }
     return NextResponse.json(
       {
         error: 'An error occurred during login',

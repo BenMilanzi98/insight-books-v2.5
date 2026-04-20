@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { permissionModules } from '@/lib/permissionsMap';
 import { applyBranchAccessToSessionUser, getSessionTokenFromRequest } from '@/lib/auth';
 import { parseSessionPayload } from '@/lib/sessionCookie';
+import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
 
 export async function GET(request) {
   try {
@@ -84,7 +85,7 @@ export async function GET(request) {
           }
         }
 
-        if (changed) {
+        if (changed && user.role?.id) {
           const updatedRole = await prisma.role.update({
             where: { id: user.role.id },
             data: { permissions: nextPerms },
@@ -122,6 +123,12 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error('Error fetching current user:', error);
+    if (isPrismaConnectionError(error)) {
+      return NextResponse.json(
+        { error: 'Database is temporarily unavailable. Check that the database server is running and DATABASE_URL is correct.' },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 });
   }
 }
