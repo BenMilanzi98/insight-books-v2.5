@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange } from '@/lib/dateUtils';
+import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 import * as XLSX from 'xlsx';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
 
@@ -274,26 +275,8 @@ export async function GET(request, context) {
 async function generateIncomeStatementData(tenantId, startDate, endDate) {
   const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
 
-  // Sales Revenue = Invoices (Paid/Completed) + POS sales (completed) — one line only
-  const invoiceAgg = await prisma.invoice.aggregate({
-    where: {
-      tenantId,
-      status: { in: ['Paid', 'Completed'] },
-      issueDate: { gte: start, lte: end },
-      voidedAt: null,
-      refundedAt: null
-    },
-    _sum: { total: true }
-  });
-  const saleAgg = await prisma.sale.aggregate({
-    where: {
-      tenantId,
-      status: 'completed',
-      saleDate: { gte: start, lte: end }
-    },
-    _sum: { total: true }
-  });
-  const totalRevenue = (Number(invoiceAgg._sum?.total ?? 0) || 0) + (Number(saleAgg._sum?.total ?? 0) || 0);
+  // Same total as dashboard + full income statement service (invoice payments + POS sales)
+  const totalRevenue = await getSalesRevenueForPeriod(tenantId, startDate, endDate, null);
   const revenueByCategory = { 'Sales Revenue': totalRevenue };
 
   // COGS: One line — Cost of Goods Sold from stock/COGS integration (same source as /stock)
