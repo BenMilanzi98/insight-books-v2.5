@@ -3,6 +3,22 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
+import { calculatePayroll } from '@/lib/payrollCalculations';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+
+function normalizeDeductionIds(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if (typeof raw === 'string') {
+    try {
+      const j = JSON.parse(raw);
+      return Array.isArray(j) ? j.map(String).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 // GET - Return raw payroll entries for the tenant (UI aggregates client-side)
 export async function GET(request) {
@@ -155,15 +171,44 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    
+
+    let npsEmployeeRatePercent = null;
+    let npsEmployerRatePercent = null;
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row) {
+        const nps = npsRatesFromTenantSettingsRow(row);
+        npsEmployeeRatePercent = nps.npsEmployeeRatePercent;
+        npsEmployerRatePercent = nps.npsEmployerRatePercent;
+      }
+    } catch {
+      // leave nulls; calculatePayroll treats as 0% NPS unless deduction selected
+    }
+
     // Create a payroll entry for each employee
     const payrollEntries = await Promise.all(employees.map(async (employee) => {
-      // Calculate deductions (assuming 10% for simplicity)
-      const standardDeduction = employee.salary * 0.1;
-      
-      // Calculate net pay
-      const netPay = employee.salary - standardDeduction;
-      
+      const grossFromField =
+        employee.grossSalary != null && Number(employee.grossSalary) > 0
+          ? Number(employee.grossSalary)
+          : Number(employee.salary) || 0;
+      const ids = normalizeDeductionIds(employee.selectedDeductions);
+      const selected =
+        ids.length > 0
+          ? await prisma.deduction.findMany({
+              where: { id: { in: ids }, tenantId: user.tenantId, isActive: true },
+            })
+          : [];
+      const calc = calculatePayroll(grossFromField, selected, {
+        npsEmployeeRatePercent,
+        npsEmployerRatePercent,
+      });
+
       return prisma.payroll.create({
         data: {
           employeeId: employee.id,
@@ -171,15 +216,15 @@ export async function POST(request) {
           periodStart,
           periodEnd,
           basicSalary: employee.salary,
-          grossPay: employee.salary,
-          deductions: standardDeduction,
-          additions: 0, // No additions for simplicity
-          netPay,
-          payeAmount: standardDeduction * 0.5, // Example PAYE calculation
-          totalNpsAmount: standardDeduction * 0.25, // Example NPS calculation
+          grossPay: grossFromField,
+          deductions: calc.totalDeductions,
+          additions: 0,
+          netPay: calc.netPay,
+          payeAmount: calc.paye.payeAmount,
+          totalNpsAmount: calc.nps.totalAmount,
           status: 'Pending',
-          paymentDate
-        }
+          paymentDate,
+        },
       });
     }));
     

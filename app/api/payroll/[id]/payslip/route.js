@@ -5,7 +5,8 @@ import { getUserFromSession } from '@/lib/auth';
 import { formatSalaryAmount } from '@/lib/currencyUtils';
 
 export async function GET(request, { params }) {
-  const payrollId = String(params.id);
+  const { id } = await params;
+  const payrollId = String(id);
 
   try {
     // Authentication check

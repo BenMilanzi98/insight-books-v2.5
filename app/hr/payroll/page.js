@@ -5,6 +5,7 @@ import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Ed
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatSalaryAmount } from "@/lib/currencyUtils";
+import { computeMalawiPayeMonthly } from "@/lib/malawiPAYE";
 
 export default function PayrollProcessing() {
   const router = useRouter();
@@ -1594,18 +1595,14 @@ export default function PayrollProcessing() {
                           const basicSalary = Number(editFormData.basicSalary) || 0;
                           const additions = Number(editFormData.additions) || 0;
                           const gross = basicSalary + additions;
-                          
-                          // Estimate PAYE using proper tax brackets
-                          let estimatedPAYE = 0;
-                          if (gross > 2550000) {
-                            estimatedPAYE = (150000 * 0) + (350000 * 0.25) + (2050000 * 0.30) + ((gross - 2550000) * 0.35);
-                          } else if (gross > 500000) {
-                            estimatedPAYE = (150000 * 0) + (350000 * 0.25) + ((gross - 500000) * 0.30);
-                          } else if (gross > 150000) {
-                            estimatedPAYE = (150000 * 0) + ((gross - 150000) * 0.25);
-                          }
-                          
-                          const estimatedNPS = gross * 0.05;
+
+                          const estimatedPAYE = computeMalawiPayeMonthly(gross).payeAmount;
+                          const npsPct =
+                            npsDisplayRates.npsEmployeeRatePercent != null &&
+                            Number.isFinite(Number(npsDisplayRates.npsEmployeeRatePercent))
+                              ? Number(npsDisplayRates.npsEmployeeRatePercent) / 100
+                              : 0.05;
+                          const estimatedNPS = gross * npsPct;
                           const otherDeductions = Object.values(editFormData.deductions || {}).reduce((sum, val) => {
                             return sum + (Number(val) || 0);
                           }, 0);

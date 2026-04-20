@@ -33,8 +33,8 @@ export async function GET(request, context) {
       );
     }
     
-    const payrollId = context.params.id;
-    
+    const { id: payrollId } = await context.params;
+
     // Check if payroll exists
     const payroll = await getPayrollById(payrollId, user.tenantId);
     
@@ -69,9 +69,9 @@ export async function PUT(request, context) {
       );
     }
     
-    const payrollId = context.params.id;
+    const { id: payrollId } = await context.params;
     const body = await request.json();
-    
+
     // Check if payroll exists
     const existingPayroll = await getPayrollById(payrollId, user.tenantId);
     
@@ -167,7 +167,7 @@ export async function DELETE(request, context) {
       );
     }
     
-    const payrollId = context.params.id;
+    const { id: payrollId } = await context.params;
     const body = await request.json().catch(() => ({}));
     const reversalReasonRaw =
       typeof body?.reversalReason === 'string' ? body.reversalReason : 'Payroll deleted (auto reversal)';
