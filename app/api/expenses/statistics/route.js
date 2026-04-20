@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 
 // GET - Fetch expense statistics
 export async function GET(request) {
@@ -181,24 +182,11 @@ export async function GET(request) {
       console.warn('Statistics: could not load full category list', e?.message || e);
     }
     
-    // Find COGS account(s) for this tenant to include in statistics
-    const cogsAccounts = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        accountType: 'Expense',
-        OR: [
-          { accountCode: '5000' },
-          { code: '5000' },
-          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-          { accountName: { contains: 'cogs', mode: 'insensitive' } },
-          { name: { contains: 'cost of goods', mode: 'insensitive' } },
-          { name: { contains: 'cogs', mode: 'insensitive' } }
-        ]
-      },
-      select: { id: true }
-    });
-    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    // COGS accounts — same set as expense list / export (incl. 5100 Cost of Sales, etc.)
+    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(
+      prisma,
+      user.tenantId
+    );
     
     // Get COGS transactions for the period
     let cogsTotal = 0;
@@ -236,8 +224,23 @@ export async function GET(request) {
     
     const operatingSum = totalExpenses._sum.amount || 0;
     const operatingCount = totalExpenses._count || 0;
-    // Grand total (expense rows + GL COGS net) — used for category % and "all-in" view
-    const totalExpenseAmount = operatingSum + cogsTotal;
+
+    // Salary advances (same scope as GET /api/expenses — not branch-filtered; optional date range)
+    const salaryAdvanceWhere = {
+      tenantId: user.tenantId,
+      status: { not: 'Cancelled' }
+    };
+    if (Object.keys(dateFilter).length > 0) {
+      salaryAdvanceWhere.advanceDate = { ...dateFilter };
+    }
+    const salaryAgg = await prisma.salaryAdvance.aggregate({
+      where: salaryAdvanceWhere,
+      _sum: { amount: true }
+    });
+    const salaryAdvancesTotal = Number(salaryAgg._sum.amount || 0);
+
+    // Grand total = expense rows + net COGS + salary advances (matches combined register / export)
+    const totalExpenseAmount = operatingSum + cogsTotal + salaryAdvancesTotal;
     const approvedAmount = approvedExpenses._sum.amount || 0;
     const pendingAmount = pendingExpenses._sum.amount || 0;
     const rejectedAmount = rejectedExpenses._sum.amount || 0;
@@ -290,6 +293,21 @@ export async function GET(request) {
       });
     }
 
+    if (salaryAdvancesTotal !== 0) {
+      const saPct =
+        totalExpenseAmount > 0
+          ? Math.round((salaryAdvancesTotal / totalExpenseAmount) * 100)
+          : 0;
+      formattedCategoryStats.push({
+        category: 'Salary Advance',
+        amount: salaryAdvancesTotal.toLocaleString(undefined, {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }),
+        percentage: saPct
+      });
+    }
+
     // Include any expense category that appeared in data but is not in allCategoryNames (e.g. legacy names)
     expensesByCategory.forEach(row => {
       const name = (row.category || '').trim();
@@ -329,6 +347,7 @@ export async function GET(request) {
         cogsIncluded: cogsTotal !== 0,
         cogsAmount: cogsTotal,
         cogsPostingCount: cogsTransactionCount,
+        salaryAdvanceAmount: salaryAdvancesTotal,
         grandTotalAmount: fmt(totalExpenseAmount)
       },
       approved: {

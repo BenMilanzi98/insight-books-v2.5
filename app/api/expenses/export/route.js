@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 import { fetchCogsExpenseRegisterRows } from '@/lib/fetchCogsExpenseRegisterRows';
+import { fetchSalaryAdvanceRegisterRows } from '@/lib/fetchSalaryAdvanceRegisterRows';
 
 // GET - Export expenses data in CSV format
 export async function GET(request) {
@@ -106,6 +107,15 @@ export async function GET(request) {
       category
     });
 
+    const salaryRows = await fetchSalaryAdvanceRegisterRows(prisma, {
+      tenantId: user.tenantId,
+      dateFrom,
+      dateTo,
+      search,
+      category,
+      accountId
+    });
+
     const expenseRowsForCsv = expenses.map((e) => ({
       entryType: 'Expense',
       ...e,
@@ -113,7 +123,7 @@ export async function GET(request) {
       glAccount: ''
     }));
 
-    const merged = [...expenseRowsForCsv, ...cogsRows].sort((a, b) => {
+    const merged = [...expenseRowsForCsv, ...cogsRows, ...salaryRows].sort((a, b) => {
       const da = a.date instanceof Date ? a.date : new Date(a.date);
       const db = b.date instanceof Date ? b.date : new Date(b.date);
       return db.getTime() - da.getTime();

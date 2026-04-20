@@ -7,6 +7,7 @@ import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
 import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 
 // GET - Fetch expenses with filtering, sorting, and pagination
 export async function GET(request) {
@@ -99,34 +100,10 @@ export async function GET(request) {
       ];
     }
     
-    // Find COGS account(s) for this tenant (must match GL used by POS: ~5100 Cost of Sales)
-    const cogsAccounts = await prisma.account.findMany({
-      where: {
-        tenantId: user.tenantId,
-        isActive: true,
-        OR: [
-          {
-            accountType: 'Expense',
-            OR: [
-              { accountCode: '5000' },
-              { code: '5000' },
-              { accountCode: '5100' },
-              { code: '5100' },
-              { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-              { accountName: { contains: 'cost of sales', mode: 'insensitive' } },
-              { accountName: { contains: 'cogs', mode: 'insensitive' } },
-              { name: { contains: 'cost of goods', mode: 'insensitive' } },
-              { name: { contains: 'cost of sales', mode: 'insensitive' } },
-              { name: { contains: 'cogs', mode: 'insensitive' } },
-            ],
-          },
-          { accountCode: '5100' },
-          { code: '5100' },
-        ],
-      },
-      select: { id: true, accountName: true, name: true }
-    });
-    const cogsAccountIds = [...new Set(cogsAccounts.map((acc) => acc.id))];
+    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(
+      prisma,
+      user.tenantId
+    );
 
     // Build COGS transaction filter (Prisma `in: []` is invalid — skip GL COGS rows if no accounts)
     const cogsTransactionFilter =
@@ -136,7 +113,7 @@ export async function GET(request) {
             debitAmount: { gt: 0 },
             transaction: {
               tenantId: user.tenantId,
-              status: 'posted'
+              status: { in: ['posted', 'Posted'] }
             }
           }
         : null;

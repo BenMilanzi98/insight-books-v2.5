@@ -264,6 +264,7 @@ const ExpensesPage = () => {
       cogsIncluded: false,
       cogsAmount: 0,
       cogsPostingCount: 0,
+      salaryAdvanceAmount: 0,
       grandTotalAmount: '0'
     },
     approved: { count: 0, amount: '0' },
@@ -1869,10 +1870,30 @@ const handleFileUpload = async (e) => {
                   <div className="text-xs text-gray-500 mt-2">
                     <span className="font-semibold text-gray-700">{statistics.total.count}</span> expense rows (this branch)
                   </div>
-                  {statistics.total?.cogsIncluded ? (
+                  {(statistics.total?.cogsIncluded ||
+                    Number(statistics.total?.salaryAdvanceAmount || 0) !== 0) ? (
                     <div className="text-xs text-gray-500 mt-1 space-y-0.5">
-                      <div>COGS (from GL, net): MK {Number(statistics.total.cogsAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      <div className="font-medium text-gray-700">Combined with COGS: MK {statistics.total.grandTotalAmount}</div>
+                      {statistics.total?.cogsIncluded ? (
+                        <div>
+                          COGS (from GL, net): MK{' '}
+                          {Number(statistics.total.cogsAmount || 0).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </div>
+                      ) : null}
+                      {Number(statistics.total?.salaryAdvanceAmount || 0) !== 0 ? (
+                        <div>
+                          Salary advances: MK{' '}
+                          {Number(statistics.total.salaryAdvanceAmount).toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </div>
+                      ) : null}
+                      <div className="font-medium text-gray-700">
+                        Combined (expenses + net COGS + salary advances): MK {statistics.total.grandTotalAmount}
+                      </div>
                     </div>
                   ) : null}
                   {statistics.reconciliation && statistics.reconciliation.matches === false ? (
