@@ -474,7 +474,7 @@ export default function PayrollProcessing() {
             message:
               blocked[0]?.reason ||
               removeData.message ||
-              'No entries could be removed. Only Pending/Draft rows without a posted journal can be removed.',
+              'No entries could be processed. Check blocked reasons or try again.',
           });
         } else if (skippedReversed > 0) {
           setToast({
@@ -489,7 +489,7 @@ export default function PayrollProcessing() {
             type: 'error',
             message:
               removeData.message ||
-              'No entries could be removed. Only Pending/Draft rows without a posted journal can be removed.',
+              'No entries could be processed. Check blocked reasons or try again.',
           });
         }
       }
@@ -1666,8 +1666,9 @@ export default function PayrollProcessing() {
               
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
-                  Remove all <strong>Pending</strong> or <strong>Draft</strong> payroll rows for this period that do not
-                  have a posted journal. This uses a dedicated server action (not DELETE) so it stays reliable.
+                  Reverse or cancel every payroll row in this period in one step: rows without a posted journal are
+                  marked <strong>Reversed</strong> (audited); rows with a posted payroll journal get a full GL reversal
+                  (same as the dedicated payroll reversal flow).
                 </p>
                 <div className="bg-gray-50 p-4 rounded-md">
                   <p className="text-sm text-gray-600">
@@ -1681,7 +1682,8 @@ export default function PayrollProcessing() {
                   </p>
                 </div>
                 <p className="text-sm text-amber-700 mt-4 font-medium">
-                  Rows that already have GL postings cannot be removed here — use the reversal action for those.
+                  If a row cannot be processed (for example duplicate journals or a locked accounting period), you will
+                  see a specific error for that employee after the run completes.
                 </p>
               </div>
               
