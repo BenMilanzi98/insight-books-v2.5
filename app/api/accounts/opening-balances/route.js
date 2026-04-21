@@ -7,6 +7,40 @@ import { generateReferenceNumber } from '@/lib/journalService';
 import { validateTransactionBalance, validateBalanceSheetEquation } from '@/lib/accountingValidation';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
+import { resolvePrimaryCapitalAccount } from '@/lib/resolveCapitalAccount';
+import { ensureCapitalParentAccount } from '@/lib/capitalCoaHelpers';
+import { mergeWizardStep } from '@/lib/setupWizardService';
+
+/**
+ * Balancing leg for opening entries: owner capital (3100 / primary capital), not suspense 3000.
+ * @param {import('@prisma/client').Prisma.TransactionClient} tx
+ */
+async function resolveOpeningBalanceCapitalPlugAccount(tenantId, tx) {
+  const primary = await resolvePrimaryCapitalAccount(tenantId, tx);
+  if (primary) return primary;
+  try {
+    return await ensureCapitalParentAccount(tenantId, tx);
+  } catch {
+    const existing = await tx.account.findFirst({
+      where: { tenantId, isActive: true, accountCode: '3100' },
+    });
+    if (existing) return existing;
+    return tx.account.create({
+      data: {
+        tenantId,
+        accountCode: '3100',
+        code: '3100',
+        accountName: "Owner's Capital",
+        name: "Owner's Capital",
+        accountType: 'Equity',
+        type: 'Equity',
+        normalBalance: 'Credit',
+        balance: 0,
+        isActive: true,
+      },
+    });
+  }
+}
 
 /**
  * GET /api/accounts/opening-balances
@@ -135,6 +169,8 @@ export async function GET(request) {
       });
     }
 
+    const capitalOffset = await resolvePrimaryCapitalAccount(user.tenantId, prisma);
+
     return NextResponse.json({
       accounts: accountsWithBalances,
       openingBalancesEquity: {
@@ -142,6 +178,13 @@ export async function GET(request) {
         accountCode: openingBalancesEquity.accountCode,
         accountName: openingBalancesEquity.accountName,
       },
+      capitalOffsetAccount: capitalOffset
+        ? {
+            id: capitalOffset.id,
+            accountCode: capitalOffset.accountCode || capitalOffset.code,
+            accountName: capitalOffset.accountName || capitalOffset.name,
+          }
+        : null,
       summary: {
         totalAccounts: accounts.length,
         accountsWithOpeningBalances: accountsWithBalances.filter(a => a.hasOpeningBalance).length,
@@ -257,7 +300,7 @@ export async function POST(request) {
         accountId,
         debitAmount,
         creditAmount,
-        description: `Opening balance - ${account.accountName}`,
+        description: `Opening balance — ${account.accountName} (capital contribution)`,
       });
 
       totalDebits += debitAmount;
@@ -267,53 +310,23 @@ export async function POST(request) {
     // Validate transaction balances
     const balanceValidation = validateTransactionBalance(transactionLines);
     if (!balanceValidation.isValid) {
-      // If not balanced, create offsetting entry to Opening Balances Equity
       const difference = balanceValidation.totalDebits - balanceValidation.totalCredits;
+      const capitalPlug = await resolveOpeningBalanceCapitalPlugAccount(user.tenantId, prisma);
 
-      // Get or create Opening Balances Equity account
-      let openingBalancesEquity = await prisma.account.findFirst({
-        where: {
-          tenantId: user.tenantId,
-          OR: [
-            { accountName: { contains: 'Opening Balances Equity', mode: 'insensitive' } },
-            { accountCode: '3000' },
-          ],
-          accountType: 'Equity',
-          isActive: true,
-        },
-      });
-
-      if (!openingBalancesEquity) {
-        openingBalancesEquity = await prisma.account.create({
-          data: {
-            tenantId: user.tenantId,
-            accountCode: '3000',
-            accountName: 'Opening Balances Equity',
-            accountType: 'Equity',
-            normalBalance: 'Credit',
-            isActive: true,
-            balance: 0,
-          },
-        });
-      }
-
-      // Add offsetting entry
       if (difference > 0) {
-        // More debits than credits, credit equity
         transactionLines.push({
-          accountId: openingBalancesEquity.id,
+          accountId: capitalPlug.id,
           debitAmount: 0,
           creditAmount: difference,
-          description: 'Opening Balances Equity - Balancing entry',
+          description: `Opening balance — capital contribution (balancing) — ${capitalPlug.accountName || capitalPlug.name || "Owner's Capital"}`,
         });
         totalCredits += difference;
       } else if (difference < 0) {
-        // More credits than debits, debit equity
         transactionLines.push({
-          accountId: openingBalancesEquity.id,
+          accountId: capitalPlug.id,
           debitAmount: Math.abs(difference),
           creditAmount: 0,
-          description: 'Opening Balances Equity - Balancing entry',
+          description: `Opening balance — capital contribution (balancing) — ${capitalPlug.accountName || capitalPlug.name || "Owner's Capital"}`,
         });
         totalDebits += Math.abs(difference);
       }
@@ -348,7 +361,7 @@ export async function POST(request) {
         data: {
           tenantId: user.tenantId,
           date: entryDate,
-          description: 'Opening Balances',
+          description: 'Opening balances — capital contribution',
           reference: referenceNumber,
           entryType: 'Opening',
           status: 'posted',
@@ -434,6 +447,29 @@ export async function POST(request) {
         balanceSheetValidation,
       };
     });
+
+    try {
+      const existingSettings = await prisma.tenantSettings.findUnique({
+        where: { tenantId: user.tenantId },
+        select: { setupWizardState: true },
+      });
+      const nextWizard = mergeWizardStep(existingSettings?.setupWizardState, 'complete', 'openingBalances');
+      await prisma.tenantSettings.upsert({
+        where: { tenantId: user.tenantId },
+        create: {
+          tenantId: user.tenantId,
+          enabledModules: [],
+          openingBalancesAsOfDate: entryDate,
+          setupWizardState: nextWizard,
+        },
+        update: {
+          openingBalancesAsOfDate: entryDate,
+          setupWizardState: nextWizard,
+        },
+      });
+    } catch (wizErr) {
+      console.warn('opening-balances: setup wizard state update skipped:', wizErr?.message || wizErr);
+    }
 
     return NextResponse.json({
       message: 'Opening balances set successfully',

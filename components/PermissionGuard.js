@@ -5,17 +5,24 @@ import { useEffect, useState } from "react";
 import { checkPermission } from "@/lib/permissions";
 
 /**
- * @param {{ permission?: string, permissions?: string[], children: import('react').ReactNode }} props
- * If `permissions` is set, the user needs **any one** of those permissions (OR). Otherwise `permission` (single) is required.
+ * @param {{
+ *   permission?: string,
+ *   requiredPermission?: string,
+ *   permissions?: string[],
+ *   children: import('react').ReactNode,
+ * }} props
+ * If `permissions` is set, the user needs **any one** of those permissions (OR).
+ * Otherwise a single permission from `permission` or legacy alias `requiredPermission` is required.
  */
-export default function PermissionGuard({ permission, permissions, children }) {
+export default function PermissionGuard({ permission, requiredPermission, permissions, children }) {
   const [allowed, setAllowed] = useState(null);
 
+  const singlePerm = permission || requiredPermission;
   const permList =
     Array.isArray(permissions) && permissions.length > 0
       ? permissions
-      : permission
-        ? [permission]
+      : singlePerm
+        ? [singlePerm]
         : [];
 
   useEffect(() => {

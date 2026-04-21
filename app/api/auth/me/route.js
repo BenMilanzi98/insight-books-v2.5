@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { permissionModules } from '@/lib/permissionsMap';
 import { applyBranchAccessToSessionUser, getSessionTokenFromRequest } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { parseSessionPayload } from '@/lib/sessionCookie';
 import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
 
@@ -67,8 +68,7 @@ export async function GET(request) {
     // Backfill permissions for full-access roles (Admin/Owner) that were created
     // before newer permission modules/actions were added to permissionModules.
     try {
-      const isFullAccessRole = ['Admin', 'Owner'].includes(user?.role?.name);
-      if (isFullAccessRole) {
+      if (isFullAccessTenantRole(user)) {
         const existingPerms = user?.role?.permissions || {};
         const nextPerms = JSON.parse(JSON.stringify(existingPerms));
         let changed = false;

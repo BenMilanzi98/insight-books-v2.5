@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Save,
@@ -17,6 +17,47 @@ import {
   HelpCircle,
 } from "lucide-react";
 import PermissionGuard from "@/components/PermissionGuard";
+
+/** Statement order for opening balance grouping */
+const COA_CATEGORY_ORDER = ["Asset", "Liability", "Equity", "Revenue", "Expense"];
+
+/** Map DB / GL type to chart section (Income rolls into Revenue for display) */
+function coaSectionKey(accountType) {
+  if (accountType === "Income") return "Revenue";
+  return accountType || "";
+}
+
+function compareAccountCodes(a, b) {
+  const ca = String(a.accountCode ?? "").trim();
+  const cb = String(b.accountCode ?? "").trim();
+  return ca.localeCompare(cb, undefined, { numeric: true, sensitivity: "base" });
+}
+
+/** Indent depth: only ancestors present in the filtered list count */
+function hierarchyDepth(account, byId) {
+  let depth = 0;
+  let cur = account;
+  const visited = new Set();
+  while (
+    cur.parentAccount?.id &&
+    byId.has(cur.parentAccount.id) &&
+    !visited.has(cur.parentAccount.id)
+  ) {
+    visited.add(cur.parentAccount.id);
+    depth += 1;
+    cur = byId.get(cur.parentAccount.id);
+    if (!cur) break;
+  }
+  return depth;
+}
+
+const COA_SECTION_HEADER_CLASS = {
+  Asset: "bg-blue-50 border-blue-200",
+  Liability: "bg-red-50 border-red-200",
+  Equity: "bg-green-50 border-green-200",
+  Revenue: "bg-purple-50 border-purple-200",
+  Expense: "bg-orange-50 border-orange-200",
+};
 
 export default function OpeningBalancesPage() {
   const router = useRouter();
@@ -120,23 +161,67 @@ export default function OpeningBalancesPage() {
   };
 
   const filteredAccounts = accounts.filter(account => {
-    // Filter by account type
-    if (filter !== "all" && account.accountType !== filter) {
-      return false;
+    if (filter !== "all") {
+      const section = coaSectionKey(account.accountType);
+      if (section !== filter && account.accountType !== filter) {
+        return false;
+      }
     }
 
-    // Filter by search term
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
+      const parentLabel = account.parentAccount
+        ? `${account.parentAccount.accountCode || ""} ${account.parentAccount.accountName || ""}`.toLowerCase()
+        : "";
       return (
         account.accountCode?.toLowerCase().includes(search) ||
         account.accountName?.toLowerCase().includes(search) ||
-        account.accountType?.toLowerCase().includes(search)
+        account.accountType?.toLowerCase().includes(search) ||
+        parentLabel.includes(search)
       );
     }
 
     return true;
   });
+
+  const groupedByCoa = useMemo(() => {
+    const byId = new Map(filteredAccounts.map((a) => [a.id, a]));
+    const sorted = [...filteredAccounts].sort((a, b) => {
+      const da = hierarchyDepth(a, byId);
+      const db = hierarchyDepth(b, byId);
+      if (da !== db) return da - db;
+      return compareAccountCodes(a, b);
+    });
+
+    /** @type {Map<string, typeof sorted>} */
+    const buckets = new Map();
+    for (const key of COA_CATEGORY_ORDER) {
+      buckets.set(key, []);
+    }
+    for (const acc of sorted) {
+      const key = coaSectionKey(acc.accountType);
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key).push(acc);
+    }
+    return COA_CATEGORY_ORDER.map((key) => ({
+      key,
+      label:
+        key === "Revenue"
+          ? "Revenue & income"
+          : key === "Asset"
+            ? "Assets"
+            : key === "Liability"
+              ? "Liabilities"
+              : key === "Equity"
+                ? "Equity"
+                : key === "Expense"
+                  ? "Expenses"
+                  : key,
+      accounts: buckets.get(key) || [],
+    })).filter((g) => g.accounts.length > 0);
+  }, [filteredAccounts]);
 
   const accountTypes = ["Asset", "Liability", "Equity", "Revenue", "Expense"];
   const accountTypeColors = {
@@ -198,7 +283,7 @@ export default function OpeningBalancesPage() {
                 <li>Enter the starting balance for each account as of your opening date</li>
                 <li>For Asset and Expense accounts: Enter positive amounts for debit balances</li>
                 <li>For Liability, Equity, and Revenue accounts: Enter positive amounts for credit balances</li>
-                <li>The system will automatically balance using the Opening Balances Equity account</li>
+                <li>The system will balance any difference to owner capital (capital contribution)</li>
                 <li>You can filter accounts by type or search by code/name</li>
                 <li>Only accounts with non-zero balances will be saved</li>
               </ul>
@@ -257,9 +342,11 @@ export default function OpeningBalancesPage() {
                 onChange={(e) => setFilter(e.target.value)}
                 className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">All Account Types</option>
-                {accountTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
+                <option value="all">All categories (chart order)</option>
+                {accountTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type === "Revenue" ? "Revenue & income" : type}
+                  </option>
                 ))}
               </select>
             </div>
@@ -314,77 +401,117 @@ export default function OpeningBalancesPage() {
             ) : (
               <span>
                 Difference: MWK {Math.abs(getTotalAssets() - (getTotalLiabilities() + getTotalEquity())).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                {" "}(The system will automatically balance using Opening Balances Equity)
+                {" "}(On save, the system posts the difference to owner capital as a capital contribution)
               </span>
             )}
           </div>
         </div>
 
-        {/* Accounts Table */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Account Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Account Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Current Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Opening Balance
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAccounts.length === 0 ? (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
-                      No accounts found
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAccounts.map((account) => (
-                    <tr key={account.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {account.accountCode || "N/A"}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {account.accountName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs font-medium rounded border ${
-                          accountTypeColors[account.accountType] || "bg-gray-50 text-gray-700 border-gray-200"
-                        }`}>
-                          {account.accountType}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        MWK {parseFloat(account.currentBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={balances[account.id] || ""}
-                          onChange={(e) => handleBalanceChange(account.id, e.target.value)}
-                          placeholder="0.00"
-                          className="w-32 px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                        />
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        {/* Accounts — grouped by chart category (statement order), indented by CoA parent chain */}
+        <div className="space-y-8">
+          {groupedByCoa.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-gray-500">
+              No accounts match your filters
+            </div>
+          ) : (
+            groupedByCoa.map((group) => {
+              const byId = new Map(group.accounts.map((a) => [a.id, a]));
+              return (
+                <div
+                  key={group.key}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+                >
+                  <div
+                    className={`px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2 ${
+                      COA_SECTION_HEADER_CLASS[group.key] || "bg-gray-50 border-gray-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className="h-4 w-4 text-gray-500 rotate-90 shrink-0" aria-hidden />
+                      <h2 className="text-lg font-semibold text-gray-900">{group.label}</h2>
+                      <span className="text-xs font-medium text-gray-500">
+                        {group.accounts.length} account{group.accounts.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                            Code
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Account
+                          </th>
+                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-28">
+                            GL type
+                          </th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-36">
+                            Current
+                          </th>
+                          <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
+                            Opening
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-100">
+                        {group.accounts.map((account) => {
+                          const depth = hierarchyDepth(account, byId);
+                          const pad = Math.min(depth, 6) * 14;
+                          const typeBadge =
+                            accountTypeColors[account.accountType] ||
+                            "bg-gray-50 text-gray-700 border-gray-200";
+                          return (
+                            <tr key={account.id} className="hover:bg-slate-50/80">
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm font-mono font-medium text-gray-900 align-top">
+                                {account.accountCode || "—"}
+                              </td>
+                              <td className="px-4 py-2.5 text-sm text-gray-900 align-top">
+                                <div style={{ paddingLeft: pad }} className="min-w-0">
+                                  {depth > 0 && account.parentAccount && (
+                                    <div className="text-[11px] text-gray-400 truncate mb-0.5">
+                                      Under {account.parentAccount.accountCode}{" "}
+                                      {account.parentAccount.accountName}
+                                    </div>
+                                  )}
+                                  <div className="font-medium text-gray-900">{account.accountName}</div>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 whitespace-nowrap align-top">
+                                <span
+                                  className={`inline-block px-2 py-0.5 text-xs font-medium rounded border ${typeBadge}`}
+                                >
+                                  {account.accountType}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-sm text-gray-600 text-right align-top tabular-nums">
+                                MWK{" "}
+                                {parseFloat(account.currentBalance || 0).toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </td>
+                              <td className="px-4 py-2.5 whitespace-nowrap text-right align-top">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={balances[account.id] || ""}
+                                  onChange={(e) => handleBalanceChange(account.id, e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-32 ml-auto px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-right tabular-nums"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Action Buttons */}

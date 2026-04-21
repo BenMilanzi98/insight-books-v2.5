@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 function shouldSkipOnboarding(pathname) {
   if (!pathname) return true;
@@ -18,7 +18,6 @@ function shouldSkipOnboarding(pathname) {
 
 export default function OnboardingGate({ children }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -31,31 +30,8 @@ export default function OnboardingGate({ children }) {
       }
 
       try {
-        const res = await fetch("/api/tenant/onboarding-status", { credentials: "include" });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || cancelled) {
-          if (!cancelled) setReady(true);
-          return;
-        }
-
-        if (!data.isTenantOwner) {
-          if (!cancelled) setReady(true);
-          return;
-        }
-
-        if (data.requiresCapital && !pathname.startsWith("/capital-account")) {
-          router.replace("/capital-account?onboarding=1");
-          return;
-        }
-
-        if (
-          !data.requiresCapital &&
-          data.requiresPayments &&
-          !pathname.startsWith("/payments/management")
-        ) {
-          router.replace("/payments/management?onboarding=1");
-          return;
-        }
+        await fetch("/api/tenant/onboarding-status", { credentials: "include" });
+        // Setup is optional: dashboard + /setup wizard remind owners; do not hard-redirect here.
       } catch {
         /* fail-open */
       }
@@ -65,7 +41,7 @@ export default function OnboardingGate({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [pathname]);
 
   if (!ready && !shouldSkipOnboarding(pathname)) {
     return (

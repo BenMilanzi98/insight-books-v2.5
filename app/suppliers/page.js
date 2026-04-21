@@ -104,8 +104,8 @@ export default function SuppliersPage() {
       const params = new URLSearchParams();
       if (search) params.set('search', search);
       if (statusFilter) params.set('isActive', statusFilter === 'active' ? 'true' : 'false');
-      
-      const res = await fetch(`/api/suppliers?${params.toString()}`, { cache: "no-store" });
+      const qs = params.toString();
+      const res = await fetch(qs ? `/api/suppliers?${qs}` : '/api/suppliers', { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Failed to load suppliers");
       setSuppliers(json?.suppliers || []);

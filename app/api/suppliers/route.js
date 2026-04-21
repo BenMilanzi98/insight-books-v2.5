@@ -5,7 +5,8 @@
  */
 
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { getUserFromSession } from '@/lib/auth';
+import { requireStandardAccess } from '@/lib/accessControl';
 import { 
   createSupplier, 
   updateSupplier, 
@@ -16,19 +17,25 @@ import {
 
 /**
  * GET /api/suppliers
- * Get all suppliers with filters and pagination
+ * Get all suppliers with filters and pagination (tenant from session).
  */
 export async function GET(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
-    
-    if (!tenantId) {
+    const accessError = await requireStandardAccess(request);
+    if (accessError) {
+      return accessError;
+    }
+
+    const user = await getUserFromSession(request);
+    if (!user?.tenantId) {
       return NextResponse.json(
-        { error: 'Tenant ID is required' },
-        { status: 400 }
+        { error: 'Authentication required' },
+        { status: 401 }
       );
     }
+
+    const tenantId = user.tenantId;
+    const { searchParams } = new URL(request.url);
 
     const options = {
       search: searchParams.get('search') || undefined,

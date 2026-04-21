@@ -23,6 +23,15 @@ describe('RBAC permission checks (hasPermission)', () => {
     expect(hasPermission(admin, 'accounts.update')).toBe(true);
   });
 
+  it('allows master-admin role name variants', () => {
+    expect(
+      hasPermission({ role: { name: 'Master Admin', permissions: {} } }, 'settings.view')
+    ).toBe(true);
+    expect(
+      hasPermission({ role: { name: 'MASTER ADMIN', permissions: {} } }, 'suppliers.delete')
+    ).toBe(true);
+  });
+
   it('supports nested permission maps', () => {
     const user = { role: { name: 'Staff', permissions: { users: { view: true, create: false } } } };
     expect(hasPermission(user, 'users.view')).toBe(true);

@@ -42,9 +42,9 @@ export async function GET(request) {
       });
     }
 
-    const requiresCapital = !settings.capitalSetupCompletedAt;
-    const requiresPayments =
-      !!settings.capitalSetupCompletedAt && !settings.paymentAccountsSetupCompletedAt;
+    // Capital/payment onboarding is optional (see /setup wizard and dashboard reminder).
+    const requiresCapital = false;
+    const requiresPayments = false;
 
     return NextResponse.json({
       isTenantOwner: true,

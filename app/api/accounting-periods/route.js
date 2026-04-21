@@ -5,8 +5,9 @@ import {
   getCurrentPeriod,
   normalizePeriodType,
   PERIOD_TYPES,
-  startOfCalendarYear,
-  endOfCalendarYear,
+  getTenantFiscalYearStartMonth,
+  startOfFinancialYearForDate,
+  endOfFinancialYearForDate,
 } from '@/lib/accountingPeriodService';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
 
@@ -34,14 +35,13 @@ function endOfDay(date) {
   return d;
 }
 
-/** Financial periods: yearly 1 Jan–31 Dec; monthly 1st–last day of month. */
-function computePeriodRange(periodType, startDate) {
+/** Yearly range follows tenant fiscal year start month; monthly = calendar month. */
+function computePeriodRange(periodType, startDate, fiscalStartMonth) {
   if (periodType === 'Yearly') {
-    const start = startOfDay(startOfCalendarYear(startDate));
-    const end = endOfCalendarYear(startDate);
+    const start = startOfDay(startOfFinancialYearForDate(startDate, fiscalStartMonth));
+    const end = endOfFinancialYearForDate(startDate, fiscalStartMonth);
     return { start, end };
   }
-  // Monthly: always 1st to last day of that month
   const start = startOfDay(startOfMonth(startDate));
   const end = endOfDay(endOfMonth(startDate));
   return { start, end };
@@ -143,6 +143,8 @@ export async function POST(request) {
       );
     }
 
+    const fiscalStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
+
     let startDate = body.startDate ? new Date(body.startDate) : null;
     let endDate = body.endDate ? new Date(body.endDate) : null;
 
@@ -156,7 +158,7 @@ export async function POST(request) {
         const nextDay = new Date(latestPeriod.endDate);
         nextDay.setDate(nextDay.getDate() + 1);
         if (periodType === 'Yearly') {
-          startDate = startOfCalendarYear(nextDay);
+          startDate = startOfDay(startOfFinancialYearForDate(nextDay, fiscalStartMonth));
         } else {
           startDate = nextDay;
         }
@@ -164,26 +166,25 @@ export async function POST(request) {
         const now = new Date();
         startDate =
           periodType === 'Yearly'
-            ? new Date(now.getFullYear(), 0, 1) // 1 January
+            ? startOfDay(startOfFinancialYearForDate(now, fiscalStartMonth))
             : new Date(now.getFullYear(), now.getMonth(), 1);
       }
     } else if (periodType === 'Yearly') {
-      // Enforce: yearly period always starts 1 January
-      startDate = startOfCalendarYear(startDate);
+      startDate = startOfDay(startOfFinancialYearForDate(startDate, fiscalStartMonth));
     } else if (periodType === 'Monthly') {
       // Enforce: monthly period always starts on 1st of the month
       startDate = startOfMonth(startDate);
     }
 
     if (!endDate || Number.isNaN(endDate.getTime())) {
-      const range = computePeriodRange(periodType, startDate);
+      const range = computePeriodRange(periodType, startDate, fiscalStartMonth);
       startDate = range.start;
       endDate = range.end;
     } else {
       endDate = endOfDay(endDate);
       if (periodType === 'Yearly') {
-        startDate = startOfDay(startOfCalendarYear(startDate));
-        endDate = endOfCalendarYear(startDate);
+        startDate = startOfDay(startOfFinancialYearForDate(startDate, fiscalStartMonth));
+        endDate = endOfFinancialYearForDate(startDate, fiscalStartMonth);
       } else if (periodType === 'Monthly') {
         startDate = startOfDay(startOfMonth(startDate));
         endDate = endOfDay(endOfMonth(endDate));

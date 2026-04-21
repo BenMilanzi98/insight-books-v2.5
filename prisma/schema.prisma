@@ -215,6 +215,14 @@ model TenantSettings {
   capitalSetupCompletedAt         DateTime?
   /// Null = owner must confirm payment accounts. Migration sets NOW() for all pre-existing TenantSettings rows.
   paymentAccountsSetupCompletedAt DateTime?
+  /// 1–12: first month of fiscal year (1 = calendar year). Used for Yearly accounting periods.
+  fiscalYearStartMonth            Int       @default(1)
+  /// Optional display / reminder; authoritative opening date is on posted Opening transactions.
+  openingBalancesAsOfDate         DateTime?
+  /// When set and in the future, dashboard setup reminder is hidden.
+  setupReminderSnoozedUntil       DateTime?
+  /// { completed: Record<stepId, iso>, skipped: Record<stepId, iso> } — see lib/setupWizardService.js
+  setupWizardState                Json?
   tenant                          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 

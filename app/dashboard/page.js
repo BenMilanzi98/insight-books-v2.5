@@ -36,6 +36,8 @@ import {
 import { getPermission } from "@/lib/permissions";
 import TrialCountdown from "@/components/TrialCountdown";
 import SubscriptionCountdownBanner from "@/components/SubscriptionCountdownBanner";
+import SetupWizardReminderBanner from "@/components/SetupWizardReminderBanner";
+import SetupWizardWelcomeModal from "@/components/SetupWizardWelcomeModal";
 import UniversalDateRangeFilter from "@/components/UniversalDateRangeFilter";
 import { formatCurrency, formatDate, getDateRange, toYmdLocal } from "@/lib/dateUtils";
 
@@ -993,6 +995,7 @@ const BusinessOwnerDashboard = () => {
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100">
+        <SetupWizardWelcomeModal />
         <div className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
           {/* Dashboard Header */}
           <div className="mb-6 sm:mb-8">
@@ -1018,6 +1021,8 @@ const BusinessOwnerDashboard = () => {
               }}
             />
           )}
+
+          <SetupWizardReminderBanner />
 
           {/* Subscription Countdown Banner */}
           {!subscriptionLoading && userSubscription && (userSubscription.isTrialActive || userSubscription.subscription) && (
