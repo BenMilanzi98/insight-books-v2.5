@@ -16,12 +16,21 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { reversePayroll, checkAccountingPeriodLock, calculateReversalImpact } from '@/lib/transactionReversalService';
+import {
+  reversePayroll,
+  checkAccountingPeriodLock,
+  calculateReversalImpact,
+  buildPostedPayrollJournalWhere,
+} from '@/lib/transactionReversalService';
+import {
+  countTransactionsLinkedToPayroll,
+  markPayrollReversedIfNotAlready,
+} from '@/lib/payrollCancelHelpers';
 
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
+    if (!user?.tenantId || !user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { searchParams } = new URL(request.url);
@@ -49,14 +58,8 @@ export async function GET(request) {
       );
     }
     const payrollJournals = await prisma.transaction.findMany({
-      where: {
-        tenantId: user.tenantId,
-        sourceType: 'Payroll',
-        sourceId: payrollId,
-        status: 'posted',
-        isReversal: false
-      },
-      orderBy: { date: 'asc' }
+      where: buildPostedPayrollJournalWhere(user.tenantId, payrollId),
+      orderBy: { date: 'asc' },
     });
     if (payrollJournals.length === 0) {
       return NextResponse.json(
@@ -122,7 +125,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
+    if (!user?.tenantId || !user.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -150,21 +153,47 @@ export async function POST(request) {
       );
     }
 
-    const result = await reversePayroll({
-      payrollId,
-      reversalReason: trimmedReason,
-      userId: user.id,
-      tenantId: user.tenantId
-    });
+    try {
+      const result = await reversePayroll({
+        payrollId,
+        reversalReason: trimmedReason,
+        userId: user.id,
+        tenantId: user.tenantId,
+      });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Payroll reversed successfully. All GL entries reversed and balances restored.',
-      reversal: result.reversal,
-      payrollReversalSummary: result.payrollReversalSummary,
-      taxReversals: result.taxReversals,
-      audit: result.audit
-    }, { status: 200 });
+      return NextResponse.json(
+        {
+          success: true,
+          message: 'Payroll reversed successfully. All GL entries reversed and balances restored.',
+          reversal: result.reversal,
+          payrollReversalSummary: result.payrollReversalSummary,
+          taxReversals: result.taxReversals,
+          audit: result.audit,
+        },
+        { status: 200 }
+      );
+    } catch (revErr) {
+      const linked = await countTransactionsLinkedToPayroll(user.tenantId, payrollId);
+      if (linked === 0) {
+        const n = await markPayrollReversedIfNotAlready(user.tenantId, payrollId);
+        if (n > 0) {
+          return NextResponse.json(
+            {
+              success: true,
+              softCancelled: true,
+              message:
+                'No GL journal was linked to this payroll; it has been marked reversed (same outcome as delete for draft/pending rows).',
+            },
+            { status: 200 }
+          );
+        }
+        return NextResponse.json(
+          { error: 'This payroll has already been reversed' },
+          { status: 400 }
+        );
+      }
+      throw revErr;
+    }
   } catch (error) {
     console.error('Payroll reversal error:', error);
     const message = error?.message || 'Payroll reversal failed';
