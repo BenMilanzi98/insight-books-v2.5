@@ -425,73 +425,84 @@ export default function PayrollProcessing() {
       const payrollEntries = data.payrolls || [];
       
       if (payrollEntries.length === 0) {
-        setToast({ visible: true, type: 'error', message: 'No payroll entries found to delete' });
+        setToast({ visible: true, type: 'error', message: 'No payroll entries found to remove' });
         setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
         setShowDeleteModal(false);
         setPayrollToDelete(null);
         return;
       }
 
-      // Delete each payroll entry
-      let deletedCount = 0;
-      let failedCount = 0;
-      const errors = [];
+      const ids = payrollEntries.map((e) => e.id).filter(Boolean);
+      const removeRes = await fetch('/api/payroll/remove-entries', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ids,
+          reason: `Remove payroll run (${formatDate(payrollToDelete.periodStart)} – ${formatDate(payrollToDelete.periodEnd)})`,
+        }),
+      });
+      const removeData = await removeRes.json().catch(() => ({}));
 
-      for (const entry of payrollEntries) {
-        try {
-          const deleteRes = await fetch(`/api/payroll/${entry.id}`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              reversalReason: `Payroll reversal from payroll run delete (${formatDate(payrollToDelete.periodStart)} - ${formatDate(payrollToDelete.periodEnd)})`
-            })
-          });
-
-          if (deleteRes.ok) {
-            deletedCount++;
-          } else {
-            const errorData = await deleteRes.json().catch(() => ({}));
-            failedCount++;
-            errors.push(errorData.error || `Failed to delete payroll for ${entry.employee?.name || 'employee'}`);
-          }
-        } catch (error) {
-          failedCount++;
-          errors.push(`Error deleting payroll: ${error.message}`);
-        }
+      if (!removeRes.ok) {
+        throw new Error(removeData.error || 'Failed to remove payroll entries');
       }
 
-      // Show appropriate message
-      if (deletedCount > 0 && failedCount === 0) {
+      const cancelled = removeData.cancelled ?? 0;
+      const blocked = Array.isArray(removeData.blocked) ? removeData.blocked : [];
+
+      if (cancelled > 0 && blocked.length === 0) {
         setToast({
           visible: true,
           type: 'success',
-          message: `Successfully deleted ${deletedCount} payroll ${deletedCount === 1 ? 'entry' : 'entries'}`
+          message: removeData.message || `Removed ${cancelled} payroll ${cancelled === 1 ? 'entry' : 'entries'}.`,
         });
-        fetchPayrollRuns(); // Refresh the list
-      } else if (deletedCount > 0 && failedCount > 0) {
+        fetchPayrollRuns();
+      } else if (cancelled > 0 && blocked.length > 0) {
         setToast({
           visible: true,
           type: 'error',
-          message: `Deleted ${deletedCount} entries, but ${failedCount} failed. ${errors[0]}`
+          message: `${removeData.message || `Removed ${cancelled}.`} First issue: ${blocked[0]?.reason || 'see blocked list'}.`,
         });
-        fetchPayrollRuns(); // Refresh the list anyway
+        fetchPayrollRuns();
       } else {
-        setToast({
-          visible: true,
-          type: 'error',
-          message: `Failed to delete payroll entries. ${errors[0] || 'Unknown error'}`
-        });
+        const skippedReversed = removeData.skippedReversed ?? 0;
+        if (blocked.length > 0) {
+          setToast({
+            visible: true,
+            type: 'error',
+            message:
+              blocked[0]?.reason ||
+              removeData.message ||
+              'No entries could be removed. Only Pending/Draft rows without a posted journal can be removed.',
+          });
+        } else if (skippedReversed > 0) {
+          setToast({
+            visible: true,
+            type: 'success',
+            message: `Nothing to do — ${skippedReversed} ${skippedReversed === 1 ? 'entry was' : 'entries were'} already reversed.`,
+          });
+          fetchPayrollRuns();
+        } else {
+          setToast({
+            visible: true,
+            type: 'error',
+            message:
+              removeData.message ||
+              'No entries could be removed. Only Pending/Draft rows without a posted journal can be removed.',
+          });
+        }
       }
 
       setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
       setShowDeleteModal(false);
       setPayrollToDelete(null);
     } catch (error) {
-      console.error('Error deleting payroll:', error);
+      console.error('Error removing payroll run:', error);
       setToast({
         visible: true,
         type: 'error',
-        message: error.message || 'Failed to delete payroll'
+        message: error.message || 'Failed to remove payroll run',
       });
       setTimeout(() => setToast(t => ({ ...t, visible: false })), 4000);
     } finally {
@@ -1024,7 +1035,7 @@ export default function PayrollProcessing() {
                         <button 
                           className="text-red-600 hover:text-red-800" 
                           onClick={() => handleDeleteClick(run)}
-                          title="Reverse Payroll"
+                          title="Remove payroll run (unposted rows only)"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -1637,13 +1648,13 @@ export default function PayrollProcessing() {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Remove payroll run confirmation */}
       {showDeleteModal && payrollToDelete && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => !isDeleting && setShowDeleteModal(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-red-600">Delete Payroll</h2>
+                <h2 className="text-xl font-semibold text-red-600">Remove payroll run</h2>
                 <button 
                   className="text-gray-500 hover:text-gray-700"
                   onClick={() => !isDeleting && setShowDeleteModal(false)}
@@ -1655,7 +1666,8 @@ export default function PayrollProcessing() {
               
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
-                  Are you sure you want to delete all payroll entries for this period?
+                  Remove all <strong>Pending</strong> or <strong>Draft</strong> payroll rows for this period that do not
+                  have a posted journal. This uses a dedicated server action (not DELETE) so it stays reliable.
                 </p>
                 <div className="bg-gray-50 p-4 rounded-md">
                   <p className="text-sm text-gray-600">
@@ -1668,8 +1680,8 @@ export default function PayrollProcessing() {
                     <strong>Total Net Pay:</strong> {formatCurrency(payrollToDelete.totalNet)}
                   </p>
                 </div>
-                <p className="text-sm text-red-600 mt-4 font-medium">
-                  ⚠️ This action cannot be undone. All payroll entries for this period will be permanently deleted.
+                <p className="text-sm text-amber-700 mt-4 font-medium">
+                  Rows that already have GL postings cannot be removed here — use the reversal action for those.
                 </p>
               </div>
               
@@ -1689,7 +1701,7 @@ export default function PayrollProcessing() {
                   {isDeleting && (
                     <span className="mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   )}
-                  {isDeleting ? 'Deleting...' : 'Delete Payroll'}
+                  {isDeleting ? 'Removing...' : 'Remove run'}
                 </button>
               </div>
             </div>
