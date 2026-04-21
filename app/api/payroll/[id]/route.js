@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { reversePayroll } from '@/lib/transactionReversalService';
+import { reversePayroll, POSTED_GL_STATUSES } from '@/lib/transactionReversalService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 
 /**
@@ -165,7 +165,7 @@ export async function DELETE(request, context) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
-    if (!user) {
+    if (!user?.tenantId) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -197,30 +197,74 @@ export async function DELETE(request, context) {
       return NextResponse.json({ message: 'Payroll already reversed' });
     }
 
-    let reversal = null;
-    try {
-      reversal = await reversePayroll({
-        payrollId,
-        reversalReason: reversalReason.length >= 10 ? reversalReason : 'Payroll deleted (auto reversal)',
-        userId: user.id,
-        tenantId: user.tenantId
-      });
-    } catch (e) {
-      // If there is no posted journal transaction (e.g. legacy/draft payroll),
-      // keep the payroll and just mark it as reversed (no partial state).
-      const msg = (e?.message || '').toLowerCase();
-      const noJournal =
-        msg.includes('no posted journal') ||
-        msg.includes('no posted journal transaction') ||
-        msg.includes('cannot be performed without gl entries') ||
-        msg.includes('has no journal entries to reverse') ||
-        msg.includes('payroll journal transaction has no lines');
-      if (!noJournal) throw e;
+    const reasonForReversal =
+      reversalReason.length >= 10 ? reversalReason : 'Payroll deleted (auto reversal)';
 
-      await prisma.payroll.update({
-        where: { id: payrollId },
-        data: { status: 'Reversed' }
+    const postedPayrollJournals = await prisma.transaction.findMany({
+      where: {
+        tenantId: user.tenantId,
+        sourceType: 'Payroll',
+        sourceId: payrollId,
+        status: { in: [...POSTED_GL_STATUSES] },
+        isReversal: false,
+      },
+      include: { lines: { take: 1 } },
+      orderBy: { date: 'asc' },
+    });
+
+    let reversal = null;
+
+    if (postedPayrollJournals.length === 0) {
+      const updated = await prisma.payroll.updateMany({
+        where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
+        data: { status: 'Reversed' },
       });
+      if (updated.count === 0) {
+        return NextResponse.json({ message: 'Payroll already reversed' });
+      }
+    } else if (postedPayrollJournals.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            'Multiple payroll journals found for this payroll; resolve duplicates before deleting.',
+        },
+        { status: 409 }
+      );
+    } else if (!postedPayrollJournals[0].lines?.length) {
+      const updated = await prisma.payroll.updateMany({
+        where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
+        data: { status: 'Reversed' },
+      });
+      if (updated.count === 0) {
+        return NextResponse.json({ message: 'Payroll already reversed' });
+      }
+    } else {
+      try {
+        reversal = await reversePayroll({
+          payrollId,
+          reversalReason: reasonForReversal,
+          userId: user.id,
+          tenantId: user.tenantId,
+        });
+      } catch (e) {
+        const msg = String(e?.message || e || '').toLowerCase();
+        const noJournal =
+          msg.includes('no posted journal') ||
+          msg.includes('no posted journal transaction') ||
+          msg.includes('cannot be performed without gl entries') ||
+          msg.includes('has no journal entries to reverse') ||
+          msg.includes('payroll journal transaction has no lines') ||
+          msg.includes('reversal cannot be performed without gl');
+        if (!noJournal) throw e;
+
+        const updated = await prisma.payroll.updateMany({
+          where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
+          data: { status: 'Reversed' },
+        });
+        if (updated.count === 0) {
+          return NextResponse.json({ message: 'Payroll already reversed' });
+        }
+      }
     }
     
     // Create audit log (non-fatal — reversal already completed)
