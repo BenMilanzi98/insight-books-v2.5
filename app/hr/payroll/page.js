@@ -341,8 +341,7 @@ export default function PayrollProcessing() {
   const canReversePayrollEntry = (entry) => {
     if (!entry?.id) return false;
     if (entry.status === 'Reversed') return false;
-    if (entry.status === 'Draft' || entry.status === 'Pending') return false;
-    return entry.status === 'Posted' || entry.status === 'Processed';
+    return true;
   };
 
   const openReversePayroll = async (entry) => {
@@ -380,7 +379,11 @@ export default function PayrollProcessing() {
       setToast({
         visible: true,
         type: 'success',
-        message: data.message || 'Payroll reversed successfully. GL and balances have been updated.',
+        message:
+          data.message ||
+          (data.softCancelled
+            ? 'Payroll marked reversed (no GL journal to reverse).'
+            : 'Payroll reversed successfully. GL and balances have been updated.'),
       });
       setShowReverseModal(false);
       setReverseTarget(null);
@@ -1282,10 +1285,10 @@ export default function PayrollProcessing() {
                                     type="button"
                                     onClick={() => openReversePayroll(entry)}
                                     className="px-2 py-1 text-xs bg-amber-50 hover:bg-amber-100 rounded border border-amber-200 text-amber-900 flex items-center gap-1"
-                                    title="Reverse payroll GL posting (requires reason)"
+                                    title="Reverse posted journal or mark unposted payroll reversed (requires reason)"
                                   >
                                     <Undo2 size={14} />
-                                    Reverse
+                                    Reverse / remove
                                   </button>
                                 )}
                                 {entry.status === 'Draft' && (
@@ -1346,7 +1349,7 @@ export default function PayrollProcessing() {
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Reverse payroll</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Reverse or remove payroll</h2>
                 <button
                   type="button"
                   className="text-gray-500 hover:text-gray-700"
@@ -1359,7 +1362,10 @@ export default function PayrollProcessing() {
               <p className="text-sm text-gray-600 mb-2">
                 <span className="font-medium">{reverseTarget.employee?.name || 'Employee'}</span>
                 {' · '}
-                Reverses the posted journal (salary expense, PAYE, liabilities, net pay/cash, etc.) and restores related balances.
+                {reversePreflight?.reversalMode === 'mark_reversed'
+                  ? (reversePreflight?.message ||
+                    'This row has no posted payroll journal. Submitting records a reversal reason and marks the payroll Reversed for audit (no offsetting GL).')
+                  : 'When a journal is posted, this reverses it (salary expense, PAYE, liabilities, net pay/cash, etc.) and restores related balances.'}
               </p>
               {reversePreflight?.pending && (
                 <div className="mb-4 text-sm text-gray-600">Checking eligibility…</div>
@@ -1371,7 +1377,9 @@ export default function PayrollProcessing() {
               )}
               {reversePreflight?.eligible && !reversePreflight?.pending && (
                 <div className="mb-4 p-3 rounded-md bg-amber-50 text-amber-900 text-sm border border-amber-200">
-                  This action posts offsetting journal entries. It cannot be undone from this screen. Accounting period must be open.
+                  {reversePreflight.reversalMode === 'mark_reversed'
+                    ? 'You are cancelling this payroll row in the books of record: status becomes Reversed and your reason is stored; there is no GL journal to post against.'
+                    : 'This action posts offsetting journal entries. It cannot be undone from this screen. The accounting period for the payroll date must be open.'}
                 </div>
               )}
               <label className="block text-sm font-medium text-gray-700 mb-1">Reversal reason (min. 10 characters)</label>
@@ -1406,7 +1414,11 @@ export default function PayrollProcessing() {
                   {reverseLoading && (
                     <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   )}
-                  Confirm reversal
+                  {reversePreflight?.pending
+                    ? 'Confirm'
+                    : reversePreflight?.reversalMode === 'mark_reversed'
+                      ? 'Mark reversed'
+                      : 'Confirm GL reversal'}
                 </button>
               </div>
             </div>
