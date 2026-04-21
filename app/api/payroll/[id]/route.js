@@ -2,7 +2,10 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import { reversePayroll, POSTED_GL_STATUSES } from '@/lib/transactionReversalService';
+import {
+  reversePayroll,
+  resolvePostedPayrollJournalState,
+} from '@/lib/transactionReversalService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 
 /**
@@ -162,6 +165,8 @@ export async function PUT(request, context) {
  * DELETE - Delete a payroll
  */
 export async function DELETE(request, context) {
+  let payrollId = null;
+  let tenantIdForRecovery = null;
   try {
     // Get user from session
     const user = await getUserFromSession(request);
@@ -171,9 +176,11 @@ export async function DELETE(request, context) {
         { status: 401 }
       );
     }
-    
-    const { id: payrollId } = await context.params;
-    if (!payrollId || typeof payrollId !== 'string') {
+    tenantIdForRecovery = user.tenantId;
+
+    const params = await context.params;
+    payrollId = typeof params?.id === 'string' ? params.id : null;
+    if (!payrollId) {
       return NextResponse.json({ error: 'Invalid payroll id' }, { status: 400 });
     }
     const body = await request.json().catch(() => ({}));
@@ -200,21 +207,11 @@ export async function DELETE(request, context) {
     const reasonForReversal =
       reversalReason.length >= 10 ? reversalReason : 'Payroll deleted (auto reversal)';
 
-    const postedPayrollJournals = await prisma.transaction.findMany({
-      where: {
-        tenantId: user.tenantId,
-        sourceType: 'Payroll',
-        sourceId: payrollId,
-        status: { in: [...POSTED_GL_STATUSES] },
-        isReversal: false,
-      },
-      include: { lines: { take: 1 } },
-      orderBy: { date: 'asc' },
-    });
+    const glState = await resolvePostedPayrollJournalState(user.tenantId, payrollId);
 
     let reversal = null;
 
-    if (postedPayrollJournals.length === 0) {
+    if (glState.kind === 'none' || glState.kind === 'empty_journal') {
       const updated = await prisma.payroll.updateMany({
         where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
         data: { status: 'Reversed' },
@@ -222,7 +219,7 @@ export async function DELETE(request, context) {
       if (updated.count === 0) {
         return NextResponse.json({ message: 'Payroll already reversed' });
       }
-    } else if (postedPayrollJournals.length > 1) {
+    } else if (glState.kind === 'multiple') {
       return NextResponse.json(
         {
           error:
@@ -230,14 +227,6 @@ export async function DELETE(request, context) {
         },
         { status: 409 }
       );
-    } else if (!postedPayrollJournals[0].lines?.length) {
-      const updated = await prisma.payroll.updateMany({
-        where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
-        data: { status: 'Reversed' },
-      });
-      if (updated.count === 0) {
-        return NextResponse.json({ message: 'Payroll already reversed' });
-      }
     } else {
       try {
         reversal = await reversePayroll({
@@ -248,14 +237,21 @@ export async function DELETE(request, context) {
         });
       } catch (e) {
         const msg = String(e?.message || e || '').toLowerCase();
-        const noJournal =
+        const noJournalMsg =
           msg.includes('no posted journal') ||
           msg.includes('no posted journal transaction') ||
           msg.includes('cannot be performed without gl entries') ||
           msg.includes('has no journal entries to reverse') ||
           msg.includes('payroll journal transaction has no lines') ||
           msg.includes('reversal cannot be performed without gl');
-        if (!noJournal) throw e;
+
+        const again = await resolvePostedPayrollJournalState(user.tenantId, payrollId);
+        const allowSoftCancel =
+          again.kind === 'none' ||
+          again.kind === 'empty_journal' ||
+          (noJournalMsg && again.kind !== 'multiple');
+
+        if (!allowSoftCancel) throw e;
 
         const updated = await prisma.payroll.updateMany({
           where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
@@ -306,6 +302,32 @@ export async function DELETE(request, context) {
       /transaction has already been reversed/i.test(errMsg)
     ) {
       return NextResponse.json({ error: errMsg }, { status: 409 });
+    }
+
+    // Last resort: if there is still no posted payroll GL for this id, never return 500 — mark reversed.
+    if (tenantIdForRecovery && payrollId) {
+      try {
+        const st = await resolvePostedPayrollJournalState(tenantIdForRecovery, payrollId);
+        if (st.kind === 'none' || st.kind === 'empty_journal') {
+          const updated = await prisma.payroll.updateMany({
+            where: {
+              id: payrollId,
+              tenantId: tenantIdForRecovery,
+              status: { not: 'Reversed' },
+            },
+            data: { status: 'Reversed' },
+          });
+          if (updated.count > 0) {
+            return NextResponse.json({
+              message: 'Payroll cancelled (no posted GL journal for this entry).',
+              reversal: null,
+            });
+          }
+          return NextResponse.json({ message: 'Payroll already reversed' });
+        }
+      } catch (recoveryErr) {
+        console.error('Payroll delete recovery failed:', recoveryErr?.message || recoveryErr);
+      }
     }
 
     return NextResponse.json(
