@@ -23,6 +23,22 @@ async function getPayrollById(id, tenantId) {
   });
 }
 
+/** Any GL row tied to this payroll id (all statuses except reversals). Used for Pending-run deletes. */
+async function countTransactionsLinkingPayroll(tenantId, payrollId) {
+  return prisma.transaction.count({
+    where: {
+      tenantId,
+      sourceId: payrollId,
+      isReversal: false,
+      OR: [
+        { sourceType: 'Payroll' },
+        { sourceType: 'payroll' },
+        { sourceType: 'PAYROLL' },
+      ],
+    },
+  });
+}
+
 /**
  * GET - Fetch a single payroll by ID
  */
@@ -170,7 +186,7 @@ export async function DELETE(request, context) {
   try {
     // Get user from session
     const user = await getUserFromSession(request);
-    if (!user?.tenantId) {
+    if (!user?.tenantId || !user.id) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
@@ -207,7 +223,89 @@ export async function DELETE(request, context) {
     const reasonForReversal =
       reversalReason.length >= 10 ? reversalReason : 'Payroll deleted (auto reversal)';
 
-    const glState = await resolvePostedPayrollJournalState(user.tenantId, payrollId);
+    /**
+     * Pre-posted payroll rows (bulk run = `Pending`, single create from process API = `Draft`)
+     * have no `Transaction` rows until processing / enhanced payroll. Cancel with count + update only.
+     */
+    const statusLower = String(existingPayroll.status || '').toLowerCase();
+    const linkedTxCount = await countTransactionsLinkingPayroll(user.tenantId, payrollId);
+    const isPreGlRow =
+      (statusLower === 'pending' || statusLower === 'draft') && linkedTxCount === 0;
+    if (isPreGlRow) {
+      const updated = await prisma.payroll.updateMany({
+        where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
+        data: { status: 'Reversed' },
+      });
+      if (updated.count === 0) {
+        return NextResponse.json({ message: 'Payroll already reversed' });
+      }
+      try {
+        await prisma.auditLog.create({
+          data: {
+            action: 'PAYROLL_REVERSED',
+            entityType: 'PAYROLL',
+            entityId: payrollId,
+            userId: user.id,
+            tenantId: user.tenantId,
+            details: JSON.stringify({
+              mode: 'pre_gl_payroll_cancelled',
+              employeeName: existingPayroll.employee?.name ?? null,
+              periodStart: existingPayroll.periodStart,
+              periodEnd: existingPayroll.periodEnd,
+              reversalReason: reasonForReversal,
+            }),
+          },
+        });
+      } catch (auditErr) {
+        console.error('Payroll pending-cancel audit log failed (non-fatal):', auditErr?.message || auditErr);
+      }
+      return NextResponse.json({
+        message: 'Payroll run entry removed (no journal posted for this row).',
+        reversal: null,
+      });
+    }
+
+    let glState;
+    try {
+      glState = await resolvePostedPayrollJournalState(user.tenantId, payrollId);
+    } catch (glResolveErr) {
+      console.error('resolvePostedPayrollJournalState failed:', glResolveErr?.message || glResolveErr);
+      const linkedAgain = await countTransactionsLinkingPayroll(user.tenantId, payrollId);
+      if (linkedAgain === 0) {
+        const updated = await prisma.payroll.updateMany({
+          where: { id: payrollId, tenantId: user.tenantId, status: { not: 'Reversed' } },
+          data: { status: 'Reversed' },
+        });
+        if (updated.count > 0) {
+          try {
+            await prisma.auditLog.create({
+              data: {
+                action: 'PAYROLL_REVERSED',
+                entityType: 'PAYROLL',
+                entityId: payrollId,
+                userId: user.id,
+                tenantId: user.tenantId,
+                details: JSON.stringify({
+                  mode: 'gl_state_resolve_failed_no_linked_tx',
+                  employeeName: existingPayroll.employee?.name ?? null,
+                  periodStart: existingPayroll.periodStart,
+                  periodEnd: existingPayroll.periodEnd,
+                  reversalReason: reasonForReversal,
+                }),
+              },
+            });
+          } catch (auditErr) {
+            console.error('Payroll delete audit (fallback) failed:', auditErr?.message || auditErr);
+          }
+          return NextResponse.json({
+            message: 'Payroll entry removed (no GL transactions linked to this row).',
+            reversal: null,
+          });
+        }
+        return NextResponse.json({ message: 'Payroll already reversed' });
+      }
+      throw glResolveErr;
+    }
 
     let reversal = null;
 
@@ -304,7 +402,35 @@ export async function DELETE(request, context) {
       return NextResponse.json({ error: errMsg }, { status: 409 });
     }
 
-    // Last resort: if there is still no posted payroll GL for this id, never return 500 — mark reversed.
+    // Last resort A: same as fast path — Pending + zero linked transactions always succeeds.
+    if (tenantIdForRecovery && payrollId) {
+      try {
+        const row = await prisma.payroll.findFirst({
+          where: { id: payrollId, tenantId: tenantIdForRecovery },
+          select: { status: true },
+        });
+        const linked = await countTransactionsLinkingPayroll(tenantIdForRecovery, payrollId);
+        const st = String(row?.status || '').toLowerCase();
+        if (row && (st === 'pending' || st === 'draft') && linked === 0) {
+          await prisma.payroll.updateMany({
+            where: {
+              id: payrollId,
+              tenantId: tenantIdForRecovery,
+              status: { not: 'Reversed' },
+            },
+            data: { status: 'Reversed' },
+          });
+          return NextResponse.json({
+            message: 'Payroll run entry removed (no journal posted for this row).',
+            reversal: null,
+          });
+        }
+      } catch (pendingRecoverErr) {
+        console.error('Payroll delete pending recovery:', pendingRecoverErr?.message || pendingRecoverErr);
+      }
+    }
+
+    // Last resort B: if there is still no posted payroll GL for this id, mark reversed.
     if (tenantIdForRecovery && payrollId) {
       try {
         const st = await resolvePostedPayrollJournalState(tenantIdForRecovery, payrollId);
@@ -327,6 +453,32 @@ export async function DELETE(request, context) {
         }
       } catch (recoveryErr) {
         console.error('Payroll delete recovery failed:', recoveryErr?.message || recoveryErr);
+      }
+    }
+
+    // Last resort C: no Transaction rows with payroll source types for this id — safe cancel even if GL resolver failed.
+    if (tenantIdForRecovery && payrollId) {
+      try {
+        const linkedFinal = await countTransactionsLinkingPayroll(tenantIdForRecovery, payrollId);
+        if (linkedFinal === 0) {
+          const updated = await prisma.payroll.updateMany({
+            where: {
+              id: payrollId,
+              tenantId: tenantIdForRecovery,
+              status: { not: 'Reversed' },
+            },
+            data: { status: 'Reversed' },
+          });
+          if (updated.count > 0) {
+            return NextResponse.json({
+              message: 'Payroll entry removed (no payroll-sourced GL transactions found).',
+              reversal: null,
+            });
+          }
+          return NextResponse.json({ message: 'Payroll already reversed' });
+        }
+      } catch (finalRecoverErr) {
+        console.error('Payroll delete final recovery:', finalRecoverErr?.message || finalRecoverErr);
       }
     }
 
