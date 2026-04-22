@@ -9,6 +9,8 @@ export default function VerifyEmailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  const deliveryFailed = searchParams.get("delivery") === "failed";
+  const fromLogin = searchParams.get("from") === "login";
 
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
@@ -212,6 +214,18 @@ export default function VerifyEmailClient() {
               </p>
             </div>
 
+            {deliveryFailed && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 rounded-lg text-sm">
+                We could not deliver the first verification email (often SMTP config on the
+                server). Use <strong>Resend Code</strong> below to try again, and check spam.
+              </div>
+            )}
+            {fromLogin && !deliveryFailed && (
+              <div className="mb-4 bg-indigo-50 border border-indigo-100 text-indigo-900 px-4 py-3 rounded-lg text-sm">
+                If you never received a code when you signed up, use <strong>Resend Code</strong>{" "}
+                to send a new one to this address.
+              </div>
+            )}
             {error && (
               <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
                 {error}

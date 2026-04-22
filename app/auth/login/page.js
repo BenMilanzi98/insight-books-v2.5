@@ -56,7 +56,11 @@ function LoginForm() {
       
       if (!response.ok) {
         if (data.requiresVerification && data.email) {
-          router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+          const q = new URLSearchParams({
+            email: data.email,
+            from: "login",
+          });
+          router.push(`/auth/verify-email?${q.toString()}`);
           return;
         }
         throw new Error(data.error || "Authentication failed");

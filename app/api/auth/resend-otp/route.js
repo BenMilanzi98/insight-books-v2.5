@@ -72,9 +72,9 @@ export async function POST(request) {
         emailError = emailResult.error;
         console.error('Resend OTP email failed:', emailResult.error);
       }
-    } catch (emailError) {
-      console.error('Error sending resend OTP email:', emailError);
-      emailError = emailError.message;
+    } catch (err) {
+      console.error('Error sending resend OTP email:', err);
+      emailError = err?.message || String(err);
     }
     
     if (!emailSent) {

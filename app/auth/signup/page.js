@@ -152,7 +152,11 @@ const Signup = () => {
 
       // Redirect to OTP verification page
       if (data.requiresVerification) {
-        router.push(`/auth/verify-email?email=${encodeURIComponent(data.email)}`);
+        const verifyParams = new URLSearchParams({ email: data.email });
+        if (data.emailSent === false) {
+          verifyParams.set("delivery", "failed");
+        }
+        router.push(`/auth/verify-email?${verifyParams.toString()}`);
         return;
       }
 
