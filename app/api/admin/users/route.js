@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import bcrypt from 'bcryptjs';
+import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
 // GET /api/admin/users - Get all users with pagination and filtering
 export async function GET(request) {
@@ -173,6 +174,10 @@ export async function POST(request) {
       );
     }
 
+    const trimmedPassword =
+      typeof password === 'string' && password.trim() ? password.trim() : '';
+    const plainPassword = trimmedPassword || generateSixCharAlphanumericPassword();
+
     // Create user
     const newUser = await prisma.user.create({
       data: {
@@ -183,7 +188,7 @@ export async function POST(request) {
         roleId: userRole.id,
         isActive: status === 'active',
         status: status, // Keep the status field as well
-        password: password ? await bcrypt.hash(password, 12) : await bcrypt.hash('temporary123', 12),
+        password: await bcrypt.hash(plainPassword, 12),
         tenantId: tenant?.id || null,
         ...(defaultBranchId && { defaultBranchId })
       },
@@ -231,10 +236,14 @@ export async function POST(request) {
       avatar: (newUser.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()
     };
 
-    return NextResponse.json({
-      message: 'User created successfully',
-      user: transformedUser
-    }, { status: 201 });
+    return NextResponse.json(
+      {
+        message: 'User created successfully',
+        user: transformedUser,
+        ...(trimmedPassword ? {} : { temporaryPassword: plainPassword }),
+      },
+      { status: 201 }
+    );
 
   } catch (error) {
     console.error('Error creating user:', error);

@@ -2970,7 +2970,7 @@ const toggleModulePermissions = (module) => {
           <div className="mt-4 flex items-center bg-blue-50 p-3 rounded text-sm">
             <AlertCircle size={16} className="text-blue-500 mr-2 flex-shrink-0" />
             <span className="text-blue-700">
-              A temporary password will be generated for the user{userFormData.sendEmail ? " and sent via email" : ""}.
+              A random 6-character password (letters and numbers) will be generated for the user{userFormData.sendEmail ? " and sent via email" : ""}.
             </span>
           </div>
         </div>

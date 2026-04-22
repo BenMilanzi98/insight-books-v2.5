@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
+import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
 // GET - Fetch users with filtering, sorting, and pagination
 export async function GET(request) {
@@ -171,15 +172,10 @@ export async function POST(request) {
       );
     }
     
-    // Generate a random password if not provided
-    let password = body.password;
-    if (!password) {
-      // Generate a secure random password
-      password = Math.random().toString(36).slice(-8) + 
-                 Math.random().toString(36).toUpperCase().slice(-4) + 
-                 Math.floor(Math.random() * 10) + 
-                 "!";
-    }
+    // Auto-generated welcome password: exactly 6 alphanumeric chars (letters + digits)
+    const trimmedProvided =
+      typeof body.password === 'string' && body.password.trim() ? body.password.trim() : '';
+    const password = trimmedProvided || generateSixCharAlphanumericPassword();
     
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);

@@ -302,15 +302,21 @@ export default function UserManagementPage() {
       }
 
       const data = await response.json();
-      setSuccess('User created successfully!');
+      if (data.temporaryPassword) {
+        setSuccess(
+          `User created successfully. Temporary password (6 characters): ${data.temporaryPassword} — copy and share securely with the user.`
+        );
+      } else {
+        setSuccess('User created successfully!');
+      }
       setShowCreateModal(false);
       
       // Refresh data
       fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
       fetchStats();
       
-      // Clear success message after 3 seconds
-      setTimeout(() => setSuccess(''), 3000);
+      // Clear success message (longer when showing a one-time temp password)
+      setTimeout(() => setSuccess(''), data.temporaryPassword ? 15000 : 3000);
       
     } catch (error) {
       console.error('Error creating user:', error);
@@ -1053,7 +1059,9 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Leave blank for auto-generated password"
               />
-              <p className="mt-1 text-xs text-gray-500">Leave blank to generate a temporary password</p>
+              <p className="mt-1 text-xs text-gray-500">
+                Leave blank to auto-generate a random 6-character password (letters and numbers). It is shown once after create if email is not used.
+              </p>
             </div>
 
             <div>

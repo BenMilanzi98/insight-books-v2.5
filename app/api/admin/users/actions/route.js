@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
+import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
 const prisma = new PrismaClient();
 
@@ -92,8 +93,8 @@ export async function POST(request) {
         break;
 
       case 'resetPassword':
-        // In a real implementation, you would generate a new password and send it to the user
-        const newPassword = generateTemporaryPassword();
+        // In a real implementation, you would persist this hash and send the password via email only
+        const newPassword = generateSixCharAlphanumericPassword();
         result = {
           success: true,
           message: 'Password reset successfully',
@@ -208,13 +209,3 @@ export async function POST(request) {
     await prisma.$disconnect();
   }
 }
-
-// Helper function to generate temporary passwords
-function generateTemporaryPassword(length = 12) {
-  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-} 

@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/serverJwtSecret';
 import bcrypt from 'bcryptjs';
+import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
 const prisma = new PrismaClient();
 
@@ -108,11 +109,9 @@ export async function POST(request) {
       );
     }
 
-    // Generate password if not provided
-    let userPassword = password;
-    if (!userPassword) {
-      userPassword = generateTemporaryPassword();
-    }
+    const trimmedPwd =
+      typeof password === 'string' && password.trim() ? password.trim() : '';
+    const userPassword = trimmedPwd || generateSixCharAlphanumericPassword();
 
     // Hash password
     const hashedPassword = await bcrypt.hash(userPassword, 12);
@@ -161,7 +160,7 @@ export async function POST(request) {
       success: true,
       message: 'User created successfully',
       user: userWithoutPassword,
-      temporaryPassword: !password ? userPassword : undefined
+      temporaryPassword: trimmedPwd ? undefined : userPassword
     });
 
   } catch (error) {
@@ -174,13 +173,3 @@ export async function POST(request) {
     await prisma.$disconnect();
   }
 }
-
-// Helper function to generate temporary passwords
-function generateTemporaryPassword(length = 12) {
-  const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  let password = '';
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-} 
