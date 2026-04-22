@@ -3,9 +3,9 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import {
-  isPhinduExpenseStructureCode,
-  PHINDU_EXPENSE_STRUCTURE_CODES,
-} from '@/lib/phinduExpenseCategoryCodes.js';
+  isSystemExpenseStructureCode,
+  SYSTEM_EXPENSE_STRUCTURE_CODES,
+} from '@/lib/systemExpenseCategoryCodes.js';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -97,7 +97,7 @@ export async function GET(request) {
         });
         expenseCategories.forEach((cat) => {
           const acctCode = cat.account?.accountCode || cat.accountCode || '';
-          if (!isPhinduExpenseStructureCode(acctCode)) return;
+          if (!isSystemExpenseStructureCode(acctCode)) return;
           const accountId = cat.accountId;
           if (categoriesById.has(accountId)) return;
           categoriesById.set(
@@ -119,27 +119,27 @@ export async function GET(request) {
         isActive: true
       };
       const baseWhere = { tenantId, isActive: true };
-      const phinduCodes = [...PHINDU_EXPENSE_STRUCTURE_CODES];
+      const systemCodes = [...SYSTEM_EXPENSE_STRUCTURE_CODES];
       try {
-        const phinduAccounts = await prisma.account.findMany({
+        const systemAccounts = await prisma.account.findMany({
           where: {
             ...baseWhere,
-            OR: [{ accountCode: { in: phinduCodes } }, { code: { in: phinduCodes } }],
+            OR: [{ accountCode: { in: systemCodes } }, { code: { in: systemCodes } }],
           },
           select: accountSelect,
           orderBy: [{ accountCode: 'asc' }],
         });
         const accountsById = new Map();
-        phinduAccounts.forEach((acc) => accountsById.set(acc.id, acc));
+        systemAccounts.forEach((acc) => accountsById.set(acc.id, acc));
         accountsById.forEach((acc, id) => {
           if (categoriesById.has(id)) return;
           const code = acc.accountCode || acc.code || '';
-          if (!isPhinduExpenseStructureCode(code)) return;
+          if (!isSystemExpenseStructureCode(code)) return;
           const label = acc.accountName || acc.name || code || 'Unnamed';
           categoriesById.set(id, toEntry(id, code, label, acc, null, false));
         });
       } catch (accountErr) {
-        console.warn('Categories API: PHINDU expense accounts unavailable:', accountErr?.message || accountErr);
+        console.warn('Categories API: SYSTEM expense accounts unavailable:', accountErr?.message || accountErr);
       }
 
       // Auto-create ExpenseCategory records for Account-only entries so dropdowns always have valid IDs
@@ -282,7 +282,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'Expense categories cannot be created here. Only predefined PHINDU expense accounts may be used.',
+            'Expense categories cannot be created here. Only predefined SYSTEM expense accounts may be used.',
         },
         { status: 403 }
       );

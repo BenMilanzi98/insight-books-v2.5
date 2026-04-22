@@ -17,7 +17,7 @@ import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js'
 import {
   pickPrimaryAccountForStructure,
   applyCatchAllRowDisplayBalancesToList,
-} from '@/lib/coaPhinduStructureTree.js';
+} from '@/lib/coaSystemStructureTree.js';
 import {
   blueprintCatalogTitleForCode,
   alignChartAccountsListToBlueprint,

@@ -6,7 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
+import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 
@@ -678,7 +678,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'Invalid expense account. Choose one of the predefined expense categories (PHINDU chart).',
+            'Invalid expense account. Choose one of the predefined expense categories (SYSTEM chart).',
         },
         { status: 400 }
       );
@@ -686,11 +686,11 @@ export async function POST(request) {
 
     const expenseGlCode =
       expenseAccount.accountCode || expenseAccount.code || '';
-    if (!isPhinduExpenseStructureCode(expenseGlCode)) {
+    if (!isSystemExpenseStructureCode(expenseGlCode)) {
       return NextResponse.json(
         {
           error:
-            'That account is not an allowed expense category. Select an account from the predefined PHINDU expense list.',
+            'That account is not an allowed expense category. Select an account from the predefined SYSTEM expense list.',
         },
         { status: 400 }
       );

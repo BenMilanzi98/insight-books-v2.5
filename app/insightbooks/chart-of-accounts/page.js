@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { buildDefaultSystemCoaPayload, normalizeAccountType } from "@/lib/systemCoaPayload";
-import PhinduLedgerCoaTable from "@/components/chart-of-accounts/PhinduLedgerCoaTable";
+import SystemLedgerCoaTable from "@/components/chart-of-accounts/SystemLedgerCoaTable";
 import { formatCurrency } from "@/lib/currencyUtils";
 import {
   AlertCircle,
@@ -432,7 +432,7 @@ export default function AdminSystemChartOfAccountsPage() {
   const [inventoryGlTypeFilter, setInventoryGlTypeFilter] = useState("All");
   const [tenantGlSelectedIds, setTenantGlSelectedIds] = useState([]);
   const [batchMergeTargetCode, setBatchMergeTargetCode] = useState("");
-  const [phinduViewAccount, setPhinduViewAccount] = useState(null);
+  const [systemViewAccount, setSystemViewAccount] = useState(null);
 
   const loadDefinition = useCallback(async () => {
     setLoading(true);
@@ -736,7 +736,7 @@ export default function AdminSystemChartOfAccountsPage() {
   }, [tenantInventory?.allTenantGlAccounts, tenantIdFilter, tenantSearch, inventoryGlTypeFilter]);
 
   /**
-   * System tenant accounts: all loaded tenant GL rows for the admin PHINDU chart (same row shape as tenant /chart-of-accounts).
+   * System tenant accounts: all loaded tenant GL rows for the admin SYSTEM chart (same row shape as tenant /chart-of-accounts).
    * Default: every business in the pull; optional Tenant ID filter narrows to one tenant.
    * Rows group by `accountCode` — same code across tenants aggregates balances and shows in duplicate dropdowns.
    */
@@ -1065,7 +1065,7 @@ export default function AdminSystemChartOfAccountsPage() {
 
   const mergeModalOpen = Boolean(mergeRow);
   const editModalOpen = Boolean(editRow);
-  const anyModal = mergeModalOpen || editModalOpen || addOpen || Boolean(phinduViewAccount);
+  const anyModal = mergeModalOpen || editModalOpen || addOpen || Boolean(systemViewAccount);
 
   return (
     <div className="w-full min-w-0 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
@@ -1461,10 +1461,10 @@ export default function AdminSystemChartOfAccountsPage() {
 
               <section
                 className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 sm:p-4"
-                aria-labelledby="phindu-struct-heading"
+                aria-labelledby="system-struct-heading"
               >
-                <h3 id="phindu-struct-heading" className="text-sm font-semibold text-slate-900">
-                  PHINDU structure view
+                <h3 id="system-struct-heading" className="text-sm font-semibold text-slate-900">
+                  SYSTEM structure view
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-slate-600">
                   Same layout as tenant <span className="font-mono">/chart-of-accounts</span> (fixed tree, balances, dropdown buckets).
@@ -1474,14 +1474,14 @@ export default function AdminSystemChartOfAccountsPage() {
                   <strong>Apply to all tenants</strong>. Rename or deactivate live rows in each tenant&apos;s app.
                 </p>
                 <div className="mt-3 [&>div]:shadow-none">
-                  <PhinduLedgerCoaTable
+                  <SystemLedgerCoaTable
                     loading={tenantPullLoading && !tenantInventory}
                     accounts={systemTenantAccounts}
                     activeFilter={false}
                     auditMode={true}
                     showEdit={false}
                     showDelete={false}
-                    onViewAccount={(a) => setPhinduViewAccount(a)}
+                    onViewAccount={(a) => setSystemViewAccount(a)}
                     onMergeAccount={(a) => {
                       const code = String(a.accountCode || a.code || "").trim();
                       if (!code) return;
@@ -2276,30 +2276,30 @@ export default function AdminSystemChartOfAccountsPage() {
           </div>
         )}
 
-        {phinduViewAccount && (
+        {systemViewAccount && (
           <div
             className="fixed inset-0 z-[12000] flex items-end justify-center bg-black/50 p-0 sm:items-center sm:p-4"
             role="presentation"
             onMouseDown={(e) => {
-              if (e.target === e.currentTarget) setPhinduViewAccount(null);
+              if (e.target === e.currentTarget) setSystemViewAccount(null);
             }}
           >
             <div
               role="dialog"
               aria-modal="true"
-              aria-labelledby="phindu-view-title"
+              aria-labelledby="system-view-title"
               className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl sm:rounded-2xl sm:p-6"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <div className="mb-3 flex items-start justify-between gap-2">
-                <h3 id="phindu-view-title" className="text-lg font-semibold text-slate-900">
+                <h3 id="system-view-title" className="text-lg font-semibold text-slate-900">
                   Tenant GL row
                 </h3>
                 <button
                   type="button"
                   className="touch-manipulation rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                   aria-label="Close"
-                  onClick={() => setPhinduViewAccount(null)}
+                  onClick={() => setSystemViewAccount(null)}
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -2307,36 +2307,36 @@ export default function AdminSystemChartOfAccountsPage() {
               <dl className="space-y-2 text-sm text-slate-700">
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Tenant</dt>
-                  <dd className="mt-0.5 font-mono text-xs">{formatTenantIdForScope(phinduViewAccount.tenantId)}</dd>
+                  <dd className="mt-0.5 font-mono text-xs">{formatTenantIdForScope(systemViewAccount.tenantId)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Code</dt>
                   <dd className="mt-0.5 font-mono font-semibold text-slate-900">
-                    {phinduViewAccount.accountCode || phinduViewAccount.code || "—"}
+                    {systemViewAccount.accountCode || systemViewAccount.code || "—"}
                   </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Name</dt>
-                  <dd className="mt-0.5">{phinduViewAccount.accountName || phinduViewAccount.name || "—"}</dd>
+                  <dd className="mt-0.5">{systemViewAccount.accountName || systemViewAccount.name || "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Type</dt>
-                  <dd className="mt-0.5">{phinduViewAccount.accountType || phinduViewAccount.type || "—"}</dd>
+                  <dd className="mt-0.5">{systemViewAccount.accountType || systemViewAccount.type || "—"}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Balance</dt>
-                  <dd className="mt-0.5 font-mono">{formatCurrency(Number(phinduViewAccount.currentBalance) || 0)}</dd>
+                  <dd className="mt-0.5 font-mono">{formatCurrency(Number(systemViewAccount.currentBalance) || 0)}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Posted lines (approx.)</dt>
-                  <dd className="mt-0.5 font-mono">{Number(phinduViewAccount.transactionCount) || 0}</dd>
+                  <dd className="mt-0.5 font-mono">{Number(systemViewAccount.transactionCount) || 0}</dd>
                 </div>
-                {phinduViewAccount.mergedIntoAccount ? (
+                {systemViewAccount.mergedIntoAccount ? (
                   <div>
                     <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Merged into</dt>
                     <dd className="mt-0.5 font-mono text-xs text-violet-800">
-                      {phinduViewAccount.mergedIntoAccount.accountCode}{" "}
-                      {phinduViewAccount.mergedIntoAccount.accountName || ""}
+                      {systemViewAccount.mergedIntoAccount.accountCode}{" "}
+                      {systemViewAccount.mergedIntoAccount.accountName || ""}
                     </dd>
                   </div>
                 ) : null}
@@ -2345,7 +2345,7 @@ export default function AdminSystemChartOfAccountsPage() {
                 <button
                   type="button"
                   className="min-h-[48px] w-full rounded-lg border border-slate-200 px-4 py-3 text-sm font-medium hover:bg-slate-50 sm:w-auto sm:py-2"
-                  onClick={() => setPhinduViewAccount(null)}
+                  onClick={() => setSystemViewAccount(null)}
                 >
                   Close
                 </button>
@@ -2353,9 +2353,9 @@ export default function AdminSystemChartOfAccountsPage() {
                   type="button"
                   className="min-h-[48px] w-full rounded-lg bg-violet-700 px-4 py-3 text-sm font-semibold text-white hover:bg-violet-800 sm:w-auto sm:py-2"
                   onClick={() => {
-                    const code = String(phinduViewAccount.accountCode || phinduViewAccount.code || "").trim();
-                    const name = String(phinduViewAccount.accountName || phinduViewAccount.name || code).trim() || code;
-                    setPhinduViewAccount(null);
+                    const code = String(systemViewAccount.accountCode || systemViewAccount.code || "").trim();
+                    const name = String(systemViewAccount.accountName || systemViewAccount.name || code).trim() || code;
+                    setSystemViewAccount(null);
                     if (code) onMerge({ code, name });
                   }}
                 >

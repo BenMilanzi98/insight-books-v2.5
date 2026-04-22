@@ -627,7 +627,7 @@ const ExpenseForm = ({
               label="Expense Category"
             />
             <p className="mt-1 text-xs text-gray-500">
-              Categories are fixed to the PHINDU chart (Cost of Sales, Salaries & Wages, Rent, Utilities, etc.). Add or rename accounts in{" "}
+              Categories are fixed to the SYSTEM chart (Cost of Sales, Salaries & Wages, Rent, Utilities, etc.). Add or rename accounts in{" "}
               <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
                 Chart of Accounts
               </a>{" "}

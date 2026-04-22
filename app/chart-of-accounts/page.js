@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from '@/components/PermissionGuard';
-import PhinduLedgerCoaTable from '@/components/chart-of-accounts/PhinduLedgerCoaTable';
+import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
 
 const ChartOfAccountsPage = () => {
   const [accounts, setAccounts] = useState([]);
@@ -516,7 +516,7 @@ const ChartOfAccountsPage = () => {
                     Chart of accounts
                   </h1>
                   <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
-                    The main tree matches the standard PHINDU structure (same for every tenant). Your existing GL
+                    The main tree matches the standard SYSTEM structure (same for every tenant). Your existing GL
                     codes attach by <span className="font-mono font-semibold text-slate-800">accountCode</span>; extras
                     appear in the dropdowns on Bank - Primary (1130), Owner's Capital (3100), and the range
                     catch-all lines.
@@ -688,7 +688,7 @@ const ChartOfAccountsPage = () => {
             </div>
           </details>
 
-          <PhinduLedgerCoaTable
+          <SystemLedgerCoaTable
             loading={loading}
             accounts={accounts}
             activeFilter={activeFilter}

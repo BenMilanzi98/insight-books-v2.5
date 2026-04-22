@@ -46,7 +46,7 @@ Assets (1000) - Main Account
     └── Intangible Assets (1920)
 ```
 
-### 1.2 Account Types in Phindu
+### 1.2 Account Types in System
 
 The system recognizes the following account types:
 
@@ -57,9 +57,9 @@ The system recognizes the following account types:
 - **Expense:** Represents costs incurred (debit balance normal)
 - **Subtotal/Group:** Used for grouping and reporting, does not directly receive postings
 
-### 1.3 Account Code Structure in Phindu
+### 1.3 Account Code Structure in System
 
-Phindu uses a hierarchical numeric coding system:
+System uses a hierarchical numeric coding system:
 
 ```
 1000-1999: Assets
@@ -154,7 +154,7 @@ Phindu uses a hierarchical numeric coding system:
 
 ---
 
-## PART 2: HOW MONEY FLOWS THROUGH THE PHINDU SYSTEM
+## PART 2: HOW MONEY FLOWS THROUGH THE SYSTEM SYSTEM
 
 ### 2.1 Sales Transaction Flow
 
@@ -737,7 +737,7 @@ Before marking implementation complete, verify:
 
 ## CONCLUSION
 
-This implementation will establish a robust, compliant accounting foundation for the Phindu system. By following these guidelines, you will ensure:
+This implementation will establish a robust, compliant accounting foundation for the System system. By following these guidelines, you will ensure:
 
 1. **Accuracy:** All transactions post to correct accounts
 2. **Compliance:** Double-entry bookkeeping principles are maintained

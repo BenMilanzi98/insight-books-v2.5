@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
+import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
 
 /**
  * GET /api/expense-categories
@@ -48,13 +48,13 @@ export async function GET(request) {
       }
     });
 
-    const phinduOnly = categories.filter((cat) => {
+    const systemOnly = categories.filter((cat) => {
       const code = cat.account?.accountCode || cat.account?.code || cat.accountCode || '';
-      return isPhinduExpenseStructureCode(code);
+      return isSystemExpenseStructureCode(code);
     });
 
     return NextResponse.json({
-      categories: phinduOnly.map(cat => ({
+      categories: systemOnly.map(cat => ({
         id: cat.id,
         name: cat.name,
         description: cat.description,
@@ -76,13 +76,13 @@ export async function GET(request) {
 }
 
 /**
- * POST /api/expense-categories — disabled; categories are fixed to PHINDU CoA codes.
+ * POST /api/expense-categories — disabled; categories are fixed to SYSTEM CoA codes.
  */
 export async function POST() {
   return NextResponse.json(
     {
       error:
-        'Creating expense categories from the app is disabled. Use the predefined PHINDU expense accounts (chart of accounts structure).',
+        'Creating expense categories from the app is disabled. Use the predefined SYSTEM expense accounts (chart of accounts structure).',
     },
     { status: 403 }
   );

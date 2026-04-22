@@ -275,7 +275,7 @@ const HistoricalExpenseModal = ({ isOpen, onClose, onSubmit, isSubmitting = fals
                 className={errors.expenseAccountId ? 'border-red-500' : ''}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Only predefined PHINDU expense accounts appear here. Adjust the chart in{" "}
+                Only predefined SYSTEM expense accounts appear here. Adjust the chart in{" "}
                 <a href="/chart-of-accounts" className="text-blue-600 hover:text-blue-800 underline">
                   Chart of Accounts
                 </a>{" "}

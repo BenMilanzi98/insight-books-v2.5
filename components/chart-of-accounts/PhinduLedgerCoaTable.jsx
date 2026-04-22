@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
 import {
-  PHINDU_COA_STRUCTURE,
+  SYSTEM_COA_STRUCTURE,
   groupAccountsByCode,
   sumLedgerBalances,
   structureRowDisplayBalance,
@@ -27,7 +27,7 @@ import {
   accountsForCatchAllDropdown,
   accountsFor3100CapitalDropdown,
   accountTypeForStructureCode,
-} from '@/lib/coaPhinduStructureTree.js';
+} from '@/lib/coaSystemStructureTree.js';
 
 const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
 
@@ -68,7 +68,7 @@ function typeBadgeClass(t) {
 }
 
 /**
- * PHINDU structure chart (same for every tenant) + dropdown buckets for out-of-tree codes.
+ * SYSTEM structure chart (same for every tenant) + dropdown buckets for out-of-tree codes.
  *
  * @param {Object} props
  * @param {Array<Record<string, unknown>>} props.accounts
@@ -84,7 +84,7 @@ function typeBadgeClass(t) {
  * @param {boolean} [props.showDelete]
  * @param {import('react').ReactNode} [props.emptyStateExtra] — e.g. Sync / Import actions when the ledger list is empty
  */
-export default function PhinduLedgerCoaTable({
+export default function SystemLedgerCoaTable({
   accounts,
   activeFilter,
   auditMode,
@@ -111,7 +111,7 @@ export default function PhinduLedgerCoaTable({
           }
         }
       };
-      walk(PHINDU_COA_STRUCTURE);
+      walk(SYSTEM_COA_STRUCTURE);
       next.add('struct-3100');
       return next;
     });
@@ -152,12 +152,12 @@ export default function PhinduLedgerCoaTable({
   }, []);
 
   const handleExpandAll = useCallback(() => {
-    setExpandedAccounts(new Set(collectStructureExpandKeys(PHINDU_COA_STRUCTURE)));
+    setExpandedAccounts(new Set(collectStructureExpandKeys(SYSTEM_COA_STRUCTURE)));
   }, [collectStructureExpandKeys]);
 
   const handleCollapseToRoots = useCallback(() => {
     const next = new Set();
-    for (const r of PHINDU_COA_STRUCTURE) {
+    for (const r of SYSTEM_COA_STRUCTURE) {
       next.add(`struct-${r.code}`);
     }
     next.add('struct-3100');
@@ -483,7 +483,7 @@ export default function PhinduLedgerCoaTable({
                 <div>
                   <p className="text-sm font-semibold text-amber-950">No ledger rows loaded yet</p>
                   <p className="mt-1 text-xs leading-relaxed text-amber-900/90">
-                    The chart below always follows the standard PHINDU structure. Sync or import to create accounts —
+                    The chart below always follows the standard SYSTEM structure. Sync or import to create accounts —
                     balances and actions will fill in as codes match.
                   </p>
                 </div>
@@ -528,7 +528,7 @@ export default function PhinduLedgerCoaTable({
                 </th>
               </tr>
             </thead>
-            {PHINDU_COA_STRUCTURE.map((root, idx) => (
+            {SYSTEM_COA_STRUCTURE.map((root, idx) => (
               <tbody
                 key={root.code}
                 className={

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
-import { isPhinduExpenseStructureCode } from '@/lib/phinduExpenseCategoryCodes.js';
+import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
 import {
   GL_POSTED_STATUSES,
   postApprovedExpenseJournalIfMissing
@@ -223,11 +223,11 @@ export async function PUT(request, { params }) {
       }
 
       const glCode = expenseAccount.accountCode || expenseAccount.code || '';
-      if (!isPhinduExpenseStructureCode(glCode)) {
+      if (!isSystemExpenseStructureCode(glCode)) {
         return NextResponse.json(
           {
             error:
-              'That account is not an allowed expense category. Select an account from the predefined PHINDU expense list.',
+              'That account is not an allowed expense category. Select an account from the predefined SYSTEM expense list.',
           },
           { status: 400 }
         );
