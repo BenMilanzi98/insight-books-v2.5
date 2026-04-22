@@ -38,6 +38,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
+        manifestPlaceholders["applicationName"] = "android.app.Application"
     }
 
     signingConfigs {
