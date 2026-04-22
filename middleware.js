@@ -1,5 +1,27 @@
 import { NextResponse } from 'next/server';
 import { parseSessionPayload } from '@/lib/sessionCookie';
+import { isPosOnlyShellRoleName } from '@/lib/tenantRoleAccess';
+
+/** Tenant pages Sales users may open (POS shell + account/subscription/switching). */
+function isPathAllowedForPosOnlyShell(pathname) {
+  if (!pathname || pathname[0] !== '/') return false;
+  if (pathname === '/pos' || pathname.startsWith('/pos/')) return true;
+  if (pathname === '/switch-tenant' || pathname.startsWith('/switch-tenant/')) return true;
+  if (pathname === '/subscription' || pathname.startsWith('/subscription/')) return true;
+  if (pathname === '/account' || pathname.startsWith('/account/')) return true;
+  if (pathname === '/profile' || pathname.startsWith('/profile/')) return true;
+  return false;
+}
+
+function tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders) {
+  if (isPosOnlyShellRoleName(sessionData.role) && !isPathAllowedForPosOnlyShell(pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/pos';
+    url.search = '';
+    return NextResponse.redirect(url, { request: { headers: requestHeaders } });
+  }
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
 
 export async function middleware(request) {
   const pathname = request.nextUrl.pathname;
@@ -153,19 +175,11 @@ export async function middleware(request) {
           // Fail-open: if the subscription API is temporarily unreachable, don't break tenant access.
           // This avoids locking users out due to transient network/DNS issues.
           console.error(`⚠️ Subscription check error, allowing request to continue:`, error);
-          return NextResponse.next({
-            request: {
-              headers: requestHeaders,
-            },
-          });
+          return tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders);
         }
       }
 
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
+      return tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders);
     } catch (error) {
       console.error('Invalid session, redirecting to login:', error);
       // Invalid session - redirect to login

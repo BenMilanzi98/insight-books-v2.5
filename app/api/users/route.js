@@ -203,7 +203,10 @@ export async function POST(request) {
         },
         department: body.department && String(body.department).trim() ? String(body.department).trim() : null,
         status: body.status || 'active',
-        isEmailVerified: false, // Require email verification
+        // Invited tenant users skip OTP; self-serve signup still uses /api/auth/signup + verify-email.
+        isEmailVerified: true,
+        otpCode: null,
+        otpExpiry: null,
         ...(defaultBranchId && { defaultBranchId })
       },
       include: {

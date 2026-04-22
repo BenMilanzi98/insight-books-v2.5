@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Bell, User, Search, X } from "lucide-react";
+import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
 
 const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, adminUser = null }) => {
   const [searchFocused, setSearchFocused] = useState(false);
@@ -86,6 +87,10 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
   
   // Mock notifications
   const notifications = [];
+
+  const appHomeHref =
+    !skipUserFetch && user?.role && isPosDefaultLandingRole(user) ? "/pos" : "/dashboard";
+  const atAppHome = pathname === appHomeHref;
   
   // Get current page title from pathname
   const getPageTitle = () => {
@@ -222,19 +227,19 @@ const AppBar = ({ toggleSidebar, sidebarOpen, isMobile, skipUserFetch = false, a
               color: "#6b7280",
               fontWeight: 400
             }}>
-              <Link 
-                href="/dashboard" 
-                style={{ 
-                  color: "#3b82f6", 
+              <Link
+                href={appHomeHref}
+                style={{
+                  color: "#3b82f6",
                   textDecoration: "none",
-                  transition: "color 0.2s ease"
+                  transition: "color 0.2s ease",
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = "#2563eb"}
-                onMouseLeave={(e) => e.currentTarget.style.color = "#3b82f6"}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#2563eb")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#3b82f6")}
               >
                 Home
-              </Link> 
-              {pathname !== "/" && pathname !== "/dashboard" && (
+              </Link>
+              {pathname !== "/" && !atAppHome && (
                 <>
                   <span style={{ color: "#d1d5db" }}>/</span>
                   <span style={{ color: "#6b7280" }}>{getPageTitle()}</span>

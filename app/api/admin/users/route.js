@@ -190,6 +190,9 @@ export async function POST(request) {
         status: status, // Keep the status field as well
         password: await bcrypt.hash(plainPassword, 12),
         tenantId: tenant?.id || null,
+        isEmailVerified: true,
+        otpCode: null,
+        otpExpiry: null,
         ...(defaultBranchId && { defaultBranchId })
       },
       include: {

@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/dateUtils";
 import { userHasPermission } from "@/lib/permissions";
+import { isPosDefaultLandingRole } from "@/lib/tenantRoleAccess";
 import { getPlanDisplayName } from "@/lib/subscriptionConfig";
 import BranchSwitcher from "./BranchSwitcher";
 
@@ -574,14 +575,24 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     if (user.role.name === 'Client') {
       return [navigationByPermission.clientPortal];
     }
-    
+
+    // Sales: POS-only shell (ignore extra perms on the role template so staff cannot browse the app)
+    if (isPosDefaultLandingRole(user)) {
+      return [
+        {
+          label: "Point of Sale",
+          items: [{ href: "/pos", icon: "pos", text: "POS" }],
+        },
+      ];
+    }
+
     // For other roles, build navigation based on permissions
     const sections = [];
-    
-    // Dashboard is always included
-    sections.push(navigationByPermission.dashboard);
-    
-    
+
+    if (userHasPermission(user, "dashboard.view")) {
+      sections.push(navigationByPermission.dashboard);
+    }
+
     // Create a Core Features section based on permissions
     const coreItems = [];
     

@@ -1,7 +1,11 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
-import { getUserFromSession, getSessionTokenFromRequest } from '@/lib/auth';
+import {
+  applyTenantMembershipRole,
+  getUserFromSession,
+  getSessionTokenFromRequest,
+} from '@/lib/auth';
 import { getSessionCookieOptions, parseSessionPayload } from '@/lib/sessionCookie';
 
 export async function POST(request) {
@@ -41,6 +45,20 @@ export async function POST(request) {
     if (!sessionData) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
+
+    const userForRole = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        tenantId: true,
+        role: { select: { id: true, name: true, permissions: true } },
+      },
+    });
+    if (userForRole) {
+      await applyTenantMembershipRole(userForRole, tenantId);
+      sessionData.role = userForRole.role?.name ?? sessionData.role ?? null;
+    }
+
     sessionData.tenantId = tenantId;
     const updatedSession = Buffer.from(JSON.stringify(sessionData)).toString('base64');
 
