@@ -191,11 +191,11 @@ export const createUser = async (userData) => {
         }),
       });
       
+      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(`Error resetting password: ${response.statusText}`);
+        throw new Error(data.error || data.detail || `Error resetting password: ${response.statusText}`);
       }
-      
-      const data = await response.json();
+
       return data;
     } catch (error) {
       console.error(`Error sending password reset email to user ${userId}:`, error);

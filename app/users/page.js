@@ -2367,13 +2367,13 @@ const toggleModulePermissions = (module) => {
       
       // Show success message
       setToast({
-        message: "Password reset email sent successfully",
+        message: "Password updated and email sent to the user.",
         type: "success"
       });
     } catch (err) {
       console.error("Error sending password reset:", err);
       setToast({
-        message: "Failed to send password reset. Please try again.",
+        message: err.message || "Failed to send password reset. Please try again.",
         type: "error"
       });
     } finally {

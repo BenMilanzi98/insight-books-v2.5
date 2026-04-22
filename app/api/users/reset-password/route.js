@@ -3,6 +3,15 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
+
+function escapeHtml(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 // POST - Reset password for a specific user
 export async function POST(request) {
@@ -45,19 +54,58 @@ export async function POST(request) {
       );
     }
 
-    // Hash the new password
+    if (sendEmail) {
+      try {
+        const { sendEmail: sendEmailSvc } = await import('@/lib/emailService');
+        const loginBase = getPublicAppBaseUrlForEmail({
+          forwardedProto: request.headers.get('x-forwarded-proto'),
+          forwardedHost: request.headers.get('x-forwarded-host'),
+        });
+        const loginUrl = `${loginBase}/auth/login`;
+        const displayName = escapeHtml(targetUser.name || 'there');
+        const displayPw = escapeHtml(newPassword);
+        const html = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <h2 style="color: #1f2937;">Password reset</h2>
+  <p style="color: #4b5563;">Hello ${displayName},</p>
+  <p style="color: #4b5563;">An administrator reset your InsightBooks password. Use the temporary password below to sign in, then change your password from your account settings if you wish.</p>
+  <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 20px 0;">
+    <p style="margin: 0 0 8px 0; font-size: 14px; color: #374151;"><strong>Temporary password</strong></p>
+    <p style="margin: 0; font-size: 18px; font-family: monospace; letter-spacing: 2px; color: #111827;">${displayPw}</p>
+  </div>
+  <p style="margin: 24px 0;">
+    <a href="${escapeHtml(loginUrl)}" style="display: inline-block; background: #4f46e5; color: #fff; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: 600;">Sign in</a>
+  </p>
+  <p style="color: #6b7280; font-size: 13px;">If you did not expect this email, contact your business administrator.</p>
+</div>`;
+        await sendEmailSvc({
+          to: targetUser.email,
+          subject: 'Your InsightBooks password was reset',
+          htmlContent: html,
+        });
+      } catch (emailErr) {
+        console.error('Admin password reset email failed:', emailErr);
+        return NextResponse.json(
+          {
+            error:
+              'Could not send email. Password was not changed. Check EMAIL_* SMTP settings and logs.',
+            detail: emailErr?.message || String(emailErr),
+          },
+          { status: 502 }
+        );
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update the user's password
     await prisma.user.update({
       where: { id: userId },
       data: {
         password: hashedPassword,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     });
 
-    // Create audit log
     await prisma.auditLog.create({
       data: {
         action: 'PASSWORD_RESET',
@@ -67,22 +115,20 @@ export async function POST(request) {
         tenantId: user.tenantId,
         details: JSON.stringify({
           resetBy: user.email,
-          targetUser: targetUser.email
-        })
-      }
+          targetUser: targetUser.email,
+          emailSent: !!sendEmail,
+        }),
+      },
     });
 
-    // Log password reset (in a real app, you'd send an email)
-    if (sendEmail) {
-      console.log('Password reset email to be sent to:', targetUser.email);
-    }
-
     return NextResponse.json({
-      message: 'Password reset successfully',
+      message: sendEmail
+        ? 'Password updated and email sent to the user.'
+        : 'Password reset successfully',
       user: {
         id: targetUser.id,
-        email: targetUser.email
-      }
+        email: targetUser.email,
+      },
     });
 
   } catch (error) {
