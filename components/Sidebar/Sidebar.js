@@ -820,7 +820,7 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
     // Create a business management section if user has access to any of these
     const businessItems = [];
     // Add User & Role Management if user has permission
-    if (userHasPermission(user, "users.view")) {
+    if (userHasPermission(user, "users.view") || userHasPermission(user, "roles.view")) {
       businessItems.push({
         href: "/users",
         icon: "users",

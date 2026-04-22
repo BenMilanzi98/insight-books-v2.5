@@ -13,13 +13,38 @@ function isPathAllowedForPosOnlyShell(pathname) {
   return false;
 }
 
-function tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders) {
+async function finishTenantRouteAccess(request, sessionCookie, sessionData, pathname, requestHeaders) {
   if (isPosOnlyShellRoleName(sessionData.role) && !isPathAllowedForPosOnlyShell(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = '/pos';
     url.search = '';
     return NextResponse.redirect(url, { request: { headers: requestHeaders } });
   }
+
+  try {
+    const guardUrl = new URL('/api/auth/page-guard', request.nextUrl.origin);
+    guardUrl.searchParams.set('path', pathname);
+    const gr = await fetch(guardUrl.toString(), {
+      headers: { cookie: `session=${sessionCookie}` },
+      cache: 'no-store',
+    });
+    if (gr.ok) {
+      const j = await gr.json();
+      if (j.allowed === false) {
+        const dest =
+          typeof j.redirect === 'string' && j.redirect.startsWith('/') ? j.redirect : '/dashboard';
+        if (dest !== pathname) {
+          const url = request.nextUrl.clone();
+          url.pathname = dest;
+          url.search = '';
+          return NextResponse.redirect(url, { request: { headers: requestHeaders } });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('page-guard middleware fetch failed:', e?.message || e);
+  }
+
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
@@ -175,11 +200,11 @@ export async function middleware(request) {
           // Fail-open: if the subscription API is temporarily unreachable, don't break tenant access.
           // This avoids locking users out due to transient network/DNS issues.
           console.error(`⚠️ Subscription check error, allowing request to continue:`, error);
-          return tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders);
+          return finishTenantRouteAccess(request, sessionCookie, sessionData, pathname, requestHeaders);
         }
       }
 
-      return tenantContinueOrPosRedirect(request, sessionData, pathname, requestHeaders);
+      return finishTenantRouteAccess(request, sessionCookie, sessionData, pathname, requestHeaders);
     } catch (error) {
       console.error('Invalid session, redirecting to login:', error);
       // Invalid session - redirect to login
