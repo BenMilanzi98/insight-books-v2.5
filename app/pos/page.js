@@ -204,6 +204,10 @@ const POSPage = () => {
   // References
   const productSearchRef = useRef(null);
   const receiptModalRef = useRef(null);
+  /** Prevents double checkout (parallel completeSale before React state updates). */
+  const completeSaleInFlightRef = useRef(false);
+  const voidSaleInFlightRef = useRef(false);
+  const refundSaleInFlightRef = useRef(false);
   
   // Add state for showing the client modal
   const [showClientModal, setShowClientModal] = useState(false);
@@ -1310,6 +1314,8 @@ const POSPage = () => {
       setSaleError("Please provide a reason for voiding the sale");
       return;
     }
+    if (voidSaleInFlightRef.current) return;
+    voidSaleInFlightRef.current = true;
 
     setIsProcessingVoid(true);
     try {
@@ -1325,6 +1331,7 @@ const POSPage = () => {
       setSaleError("Failed to void sale. Please try again.");
     } finally {
       setIsProcessingVoid(false);
+      voidSaleInFlightRef.current = false;
     }
   };
 
@@ -1334,6 +1341,8 @@ const POSPage = () => {
       setSaleError("Please provide a reason for the refund");
       return;
     }
+    if (refundSaleInFlightRef.current) return;
+    refundSaleInFlightRef.current = true;
 
     setIsProcessingRefund(true);
     try {
@@ -1349,6 +1358,7 @@ const POSPage = () => {
       setSaleError("Failed to process refund. Please try again.");
     } finally {
       setIsProcessingRefund(false);
+      refundSaleInFlightRef.current = false;
     }
   };
   
@@ -1843,7 +1853,9 @@ const POSPage = () => {
       setSaleError("Please add at least one product to the sale");
       return;
     }
-    
+    if (completeSaleInFlightRef.current) return;
+    completeSaleInFlightRef.current = true;
+    try {
     // Always resolve from a fresh fetch at checkout (avoids stale React state; in-flight dedupe shares work with mount/cart effects).
     const loaded = await loadIncomeAccounts();
     let resolvedIncomeAccountId = loaded.defaultIncomeAccountId;
@@ -2260,6 +2272,9 @@ const POSPage = () => {
       }
     } finally {
       setIsSubmitting(false);
+    }
+    } finally {
+      completeSaleInFlightRef.current = false;
     }
   };
   

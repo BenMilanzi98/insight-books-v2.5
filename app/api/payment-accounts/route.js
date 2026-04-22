@@ -110,16 +110,23 @@ export async function POST(request) {
 
     await safeInitializeDefaults(user.tenantId);
 
-    const body = await request.json();
-    const { name, accountType, reference, isActive = true } = body;
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+    const { name, accountType, reference, isActive = true } = body || {};
+    const trimmedName = String(name ?? '').trim();
+    const trimmedType = String(accountType ?? '').trim();
 
-    if (!name || !accountType) {
+    if (!trimmedName || !trimmedType) {
       return NextResponse.json({ 
         error: 'Name and account type are required' 
       }, { status: 400 });
     }
 
-    if (!ALLOWED_PAYMENT_ACCOUNT_TYPES.includes(String(accountType).trim())) {
+    if (!ALLOWED_PAYMENT_ACCOUNT_TYPES.includes(trimmedType)) {
       return NextResponse.json(
         {
           error: `Invalid account type. Allowed: ${ALLOWED_PAYMENT_ACCOUNT_TYPES.join(', ')}`,
@@ -133,7 +140,7 @@ export async function POST(request) {
       where: {
         tenantId_name: {
           tenantId: user.tenantId,
-          name: name.trim()
+          name: trimmedName
         }
       }
     });
@@ -152,10 +159,10 @@ export async function POST(request) {
         const created = await tx.paymentAccount.create({
           data: {
             tenantId: user.tenantId,
-            name: name.trim(),
-            accountType,
-            reference: reference?.trim() || null,
-            isActive,
+            name: trimmedName,
+            accountType: trimmedType,
+            reference: reference != null ? String(reference).trim() || null : null,
+            isActive: Boolean(isActive),
             isSystem: false,
           },
         });
@@ -196,10 +203,27 @@ export async function POST(request) {
     }, { status: 201 });
   } catch (error) {
     console.error('Error creating payment account:', error);
+    const code = error?.code;
+    if (code === 'P2002') {
+      return NextResponse.json(
+        {
+          error:
+            'A payment account or ledger code already exists for this business. If you just retried, wait a second and try again.',
+          code: 'PAYMENT_ACCOUNT_DUPLICATE',
+        },
+        { status: 409 }
+      );
+    }
+    if (code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Invalid chart-of-accounts link. Check that your asset accounts are set up.', code: 'P2003' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json({
       error: 'Failed to create payment account',
       hint: error?.message?.slice(0, 300) || undefined,
-      code: error?.code || undefined,
+      code: code || undefined,
     }, { status: 500 });
   }
 }

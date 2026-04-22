@@ -49,6 +49,8 @@ const GeneralLedger = () => {
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [referenceFilter, setReferenceFilter] = useState("");
   const [balanceFilter, setBalanceFilter] = useState("all"); // "debit", "credit", "all"
+  /** all | exclude | only — Transaction-backed lines only (manual JournalEntry lines unchanged). */
+  const [reversalFilter, setReversalFilter] = useState("all");
 
   // State for data
   const [transactions, setTransactions] = useState([]);
@@ -209,6 +211,9 @@ const GeneralLedger = () => {
         if (balanceFilter !== "all") {
           queryParams.append("balanceType", balanceFilter);
         }
+        if (reversalFilter !== "all") {
+          queryParams.append("reversalFilter", reversalFilter);
+        }
         
         const response = await fetch(`/api/general-ledger?${queryParams}`);
         
@@ -252,7 +257,7 @@ const GeneralLedger = () => {
     if (dateRange.startDate && dateRange.endDate) {
       fetchTransactions();
     }
-  }, [dateRange, page, limit, accountFilter, searchTerm, referenceFilter, balanceFilter]);
+  }, [dateRange, page, limit, accountFilter, searchTerm, referenceFilter, balanceFilter, reversalFilter]);
 
   // Function to generate mock transactions for demo purposes
   const generateMockTransactions = () => {
@@ -378,6 +383,9 @@ const GeneralLedger = () => {
       
       if (searchTerm) {
         queryParams.append("search", searchTerm);
+      }
+      if (reversalFilter !== "all") {
+        queryParams.append("reversalFilter", reversalFilter);
       }
       
       // Trigger file download
@@ -688,6 +696,21 @@ const GeneralLedger = () => {
                   <option value="all">All</option>
                   <option value="debit">Debit</option>
                   <option value="credit">Credit</option>
+                </select>
+              </div>
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Void / refund reversals</label>
+                <select
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500/50"
+                  value={reversalFilter}
+                  onChange={(e) => {
+                    setReversalFilter(e.target.value);
+                    setPage(1);
+                  }}
+                >
+                  <option value="all">Show all (full audit trail)</option>
+                  <option value="exclude">Hide reversal rows</option>
+                  <option value="only">Reversal rows only</option>
                 </select>
               </div>
               <div className="flex-1">

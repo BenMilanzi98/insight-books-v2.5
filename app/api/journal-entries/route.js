@@ -429,7 +429,6 @@ export async function POST(request) {
         accountType: true,
         type: true,
         accountSubtype: true,
-        acceptsNewTransactions: true,
       },
     });
     const structural = validateNoPostingToStructuralCoaRoots(lines, lineAccounts);

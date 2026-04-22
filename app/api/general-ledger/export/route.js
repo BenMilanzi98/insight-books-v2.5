@@ -61,6 +61,14 @@ export async function GET(request) {
       branchIdParam === 'all' || branchIdParam === '' ? null :
       (branchIdParam ?? user.currentBranchId ?? null);
 
+    const reversalFilter = (searchParams.get('reversalFilter') || 'all').toLowerCase();
+    const reversalTxnClause =
+      reversalFilter === 'exclude'
+        ? { isReversal: false }
+        : reversalFilter === 'only'
+          ? { isReversal: true }
+          : {};
+
     const dateRange = toDateRange(startDate, endDate);
 
     const journalWhere = {
@@ -88,6 +96,7 @@ export async function GET(request) {
         tenantId,
         status: { in: ['posted', 'Posted'] },
         ...transactionIdNotInParallelGr,
+        ...reversalTxnClause,
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
       },

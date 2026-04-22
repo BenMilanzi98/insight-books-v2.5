@@ -67,6 +67,13 @@ export async function GET(request) {
     const search = searchParams.get('search');
     const reference = searchParams.get('reference');
     const balanceType = searchParams.get('balanceType'); // 'debit', 'credit', or 'all'
+    const reversalFilter = (searchParams.get('reversalFilter') || 'all').toLowerCase();
+    const reversalTxnClause =
+      reversalFilter === 'exclude'
+        ? { isReversal: false }
+        : reversalFilter === 'only'
+          ? { isReversal: true }
+          : {};
     
     // Sorting parameters
     const sortBy = searchParams.get('sortBy') || 'date';
@@ -116,7 +123,7 @@ export async function GET(request) {
         tenantId,
         status: { in: ['posted', 'Posted'] },
         ...transactionIdNotInParallelGr,
-        // Include reversals so ledger reflects full history (invoice/sale reversals are real entries)
+        ...reversalTxnClause,
         ...(Object.keys(dateRange).length > 0 ? { date: dateRange } : {}),
         ...(branchId ? { branchId } : {}),
         ...(reference ? {
