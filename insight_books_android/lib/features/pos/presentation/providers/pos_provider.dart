@@ -245,6 +245,20 @@ class PosPageState {
   double get total => subtotal + totalTax - totalDiscount;
 }
 
+String? _pickDefaultBranchId(List<Map<String, dynamic>> branches) {
+  if (branches.isEmpty) return null;
+  for (final b in branches) {
+    final id = b['id']?.toString();
+    if (id == null || id.isEmpty) continue;
+    if (b['isDefault'] == true ||
+        b['defaultForTenant'] == true ||
+        b['default'] == true) {
+      return id;
+    }
+  }
+  return branches.first['id']?.toString();
+}
+
 @riverpod
 class Pos extends _$Pos {
   final OfflinePosQueue _offlineQueue = OfflinePosQueue();
@@ -318,12 +332,12 @@ class Pos extends _$Pos {
       final taxDefaults = await repository.fetchTaxDefaults();
       final threshold = await _offlineQueue.checkThresholds();
       final perms = await ref.read(userPermissionsProvider.future);
-      final canView = perms.isEmpty || perms.contains('sales.view');
-      final canCreate = perms.isEmpty || perms.contains('sales.create');
-      final canVoid = perms.isEmpty || perms.contains('sales.void');
-      final canRefund = perms.isEmpty || perms.contains('sales.refund');
-      final canExport = perms.isEmpty || perms.contains('sales.export');
-      final canUpdate = perms.isEmpty || perms.contains('sales.update');
+      final canView = satisfiesPermission(perms, 'sales.view');
+      final canCreate = satisfiesPermission(perms, 'sales.create');
+      final canVoid = satisfiesPermission(perms, 'sales.void');
+      final canRefund = satisfiesPermission(perms, 'sales.refund');
+      final canExport = satisfiesPermission(perms, 'sales.export');
+      final canUpdate = satisfiesPermission(perms, 'sales.update');
 
       state = state.copyWith(
         products: products,
@@ -333,8 +347,7 @@ class Pos extends _$Pos {
         incomeAccounts: incomeAccounts,
         paymentAccounts: paymentAccounts,
         branches: branches,
-        selectedBranchId:
-            branches.isNotEmpty ? (branches.first['id']?.toString()) : null,
+        selectedBranchId: _pickDefaultBranchId(branches),
         dailyReportDate: DateTime.now().toIso8601String().split('T').first,
         taxTypes: taxTypes,
         taxAccounts: taxAccounts,

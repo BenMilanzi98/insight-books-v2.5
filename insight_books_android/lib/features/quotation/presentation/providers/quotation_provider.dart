@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
-import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart'
+    show satisfiesPermission, userPermissionsProvider;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../data/quotation_repository.dart';
@@ -130,15 +131,14 @@ class QuotationController extends Notifier<QuotationPageState> {
 
   Future<void> loadPermissions() async {
     final perms = await ref.read(userPermissionsProvider.future);
-    final relax = perms.isEmpty;
     state = state.copyWith(
-      canViewQuotations: relax || perms.contains('quotations.view'),
-      canCreateQuotations: relax || perms.contains('quotations.create'),
-      canUpdateQuotations: relax || perms.contains('quotations.update'),
-      canDeleteQuotations: relax || perms.contains('quotations.delete'),
-      canExportQuotations: relax || perms.contains('quotations.export'),
-      canSendQuotations: relax || perms.contains('quotations.send'),
-      canConvertQuotations: relax || perms.contains('quotations.convert'),
+      canViewQuotations: satisfiesPermission(perms, 'quotations.view'),
+      canCreateQuotations: satisfiesPermission(perms, 'quotations.create'),
+      canUpdateQuotations: satisfiesPermission(perms, 'quotations.update'),
+      canDeleteQuotations: satisfiesPermission(perms, 'quotations.delete'),
+      canExportQuotations: satisfiesPermission(perms, 'quotations.export'),
+      canSendQuotations: satisfiesPermission(perms, 'quotations.send'),
+      canConvertQuotations: satisfiesPermission(perms, 'quotations.convert'),
     );
   }
 

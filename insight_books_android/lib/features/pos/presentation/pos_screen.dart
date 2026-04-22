@@ -86,16 +86,23 @@ class PosScreen extends ConsumerStatefulWidget {
 }
 
 class _PosScreenState extends ConsumerState<PosScreen> {
-  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _historySearchController = TextEditingController();
-  String _selectedCategory = 'all';
   /// Default: list view (primary). Users can switch to grid via the toggle.
   bool _productLayoutIsList = true;
 
+  late final VoidCallback _barcodeListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _barcodeListener = () => setState(() {});
+    _barcodeController.addListener(_barcodeListener);
+  }
+
   @override
   void dispose() {
-    _searchController.dispose();
+    _barcodeController.removeListener(_barcodeListener);
     _barcodeController.dispose();
     _historySearchController.dispose();
     super.dispose();
@@ -262,62 +269,24 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           ] else ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('branch_${posState.selectedBranchId}'),
-              initialValue: posState.selectedBranchId,
-              decoration: const InputDecoration(
-                labelText: 'Branch',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              items: posState.branches
-                  .map(
-                    (b) => DropdownMenuItem<String>(
-                      value: (b['id'] ?? '').toString(),
-                      child: Text((b['name'] ?? 'Branch').toString()),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (value) => posNotifier.setSelectedBranch(value),
-            ),
-          ),
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search products or scan SKU...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          posNotifier.searchProducts('');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: colorScheme.surface,
-              ),
-              onChanged: posNotifier.searchProducts,
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               controller: _barcodeController,
               decoration: InputDecoration(
-                hintText: 'Scan barcode (camera) or type SKU…',
+                hintText:
+                    'Search name or SKU, scan barcode, or type code…',
                 prefixIcon: const Icon(Icons.qr_code_scanner),
                 suffixIcon: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_barcodeController.text.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Clear',
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _barcodeController.clear();
+                          posNotifier.searchProducts('');
+                        },
+                      ),
                     IconButton(
                       tooltip: 'Scan with device camera',
                       icon: const Icon(Icons.photo_camera_outlined),
@@ -326,7 +295,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           : () => _scanBarcodeWithCamera(context, posNotifier),
                     ),
                     IconButton(
-                      tooltip: 'Add to cart',
+                      tooltip: 'Add exact SKU / barcode to cart',
                       icon: const Icon(Icons.add_shopping_cart_outlined),
                       onPressed: !posState.canCreateSales
                           ? null
@@ -336,6 +305,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               if (!context.mounted) return;
                               if (name != null) {
                                 _barcodeController.clear();
+                                posNotifier.searchProducts('');
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(content: Text('Added: $name')),
                                 );
@@ -343,7 +313,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text(
-                                      'No product matches this barcode/SKU',
+                                      'No exact barcode/SKU match — list is filtered by what you typed.',
                                     ),
                                   ),
                                 );
@@ -359,41 +329,28 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 filled: true,
                 fillColor: colorScheme.surface,
               ),
-              textInputAction: TextInputAction.done,
+              textInputAction: TextInputAction.search,
+              onChanged: posNotifier.searchProducts,
               onSubmitted: (value) async {
                 if (!posState.canCreateSales) return;
                 final name = await posNotifier.addToCartByBarcode(value);
                 if (!context.mounted) return;
                 if (name != null) {
                   _barcodeController.clear();
+                  posNotifier.searchProducts('');
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Added: $name')),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('No product matches this barcode/SKU'),
+                      content: Text(
+                        'No exact barcode/SKU match — list is filtered by what you typed.',
+                      ),
                     ),
                   );
                 }
               },
-            ),
-          ),
-
-          // Categories
-          SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                _buildCategoryChip(context, 'all', 'All Products'),
-                ...posState.products
-                    .map((p) => p.category)
-                    .whereType<String>()
-                    .toSet()
-                    .map((cat) => _buildCategoryChip(context, cat, cat)),
-              ],
             ),
           ),
 
@@ -575,33 +532,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         fullscreenDialog: true,
         builder: (ctx) => BarcodeScannerScreen(
           onBarcode: (code) => posNotifier.addToCartByBarcode(code),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(BuildContext context, String id, String label) {
-    final isSelected = _selectedCategory == id;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
-      child: FilterChip(
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() => _selectedCategory = id);
-          ref.read(posProvider.notifier).filterByCategory(id);
-        },
-        backgroundColor: colorScheme.surface,
-        selectedColor: colorScheme.primary.withValues(alpha: 0.2),
-        checkmarkColor: colorScheme.primary,
-        labelStyle: TextStyle(
-          color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-        ),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        side: BorderSide(
-          color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.5),
         ),
       ),
     );

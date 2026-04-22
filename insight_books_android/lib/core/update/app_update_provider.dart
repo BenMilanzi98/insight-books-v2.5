@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/update/mobile_app_telemetry.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class AppUpdateState {
@@ -14,6 +15,9 @@ class AppUpdateState {
   final String? graceEndsAt;
   final String? releaseNotes;
   final String? broadcastMessage;
+  final bool maintenance;
+  final String? maintenanceMessage;
+  final int? latestVersionCode;
 
   const AppUpdateState({
     this.mustLock = false,
@@ -24,6 +28,9 @@ class AppUpdateState {
     this.graceEndsAt,
     this.releaseNotes,
     this.broadcastMessage,
+    this.maintenance = false,
+    this.maintenanceMessage,
+    this.latestVersionCode,
   });
 
   AppUpdateState copyWith({
@@ -35,6 +42,9 @@ class AppUpdateState {
     String? graceEndsAt,
     String? releaseNotes,
     String? broadcastMessage,
+    bool? maintenance,
+    String? maintenanceMessage,
+    int? latestVersionCode,
   }) {
     return AppUpdateState(
       mustLock: mustLock ?? this.mustLock,
@@ -46,6 +56,9 @@ class AppUpdateState {
       graceEndsAt: graceEndsAt ?? this.graceEndsAt,
       releaseNotes: releaseNotes ?? this.releaseNotes,
       broadcastMessage: broadcastMessage ?? this.broadcastMessage,
+      maintenance: maintenance ?? this.maintenance,
+      maintenanceMessage: maintenanceMessage ?? this.maintenanceMessage,
+      latestVersionCode: latestVersionCode ?? this.latestVersionCode,
     );
   }
 }
@@ -86,6 +99,11 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
       final broadcastRaw = d['broadcastMessage'] as String?;
       final broadcast =
           broadcastRaw != null && broadcastRaw.isNotEmpty ? broadcastRaw : null;
+      final maintenance = d['maintenance'] == true;
+      final maintMsgRaw = d['maintenanceMessage'] as String?;
+      final maintenanceMessage =
+          maintMsgRaw != null && maintMsgRaw.trim().isNotEmpty ? maintMsgRaw : null;
+      final latestVc = (d['latestVersionCode'] as num?)?.toInt();
 
       state = AppUpdateState(
         mustLock: mustLock,
@@ -96,6 +114,18 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         graceEndsAt: graceEnds,
         releaseNotes: d['releaseNotes'] as String?,
         broadcastMessage: broadcast,
+        maintenance: maintenance,
+        maintenanceMessage: maintenanceMessage,
+        latestVersionCode: latestVc,
+      );
+
+      unawaited(
+        maybeEmitVersionCheckTelemetry(
+          ref,
+          versionCode: code,
+          versionName: info.version,
+          targetVersionCode: latestVc,
+        ),
       );
     } catch (_) {
       // Fail open: never block the app when the policy endpoint is unreachable.

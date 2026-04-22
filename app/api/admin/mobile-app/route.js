@@ -14,6 +14,7 @@ async function ensureRow() {
       gracePeriodHours: 24,
       forceLock: false,
       websiteDownloadLocked: false,
+      maintenanceLock: false,
     },
     update: {},
   });
@@ -40,6 +41,8 @@ export async function GET(request) {
         forceLock: row.forceLock,
         websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,
+        maintenanceLock: row.maintenanceLock,
+        maintenanceMessage: row.maintenanceMessage,
         updatedAt: row.updatedAt.toISOString(),
       },
       releaseFile: st
@@ -57,6 +60,8 @@ export async function GET(request) {
  * - latestVersionCode, latestVersionName, apkDownloadUrl, releaseNotes?, gracePeriodHours?, broadcastMessage?
  * - forceLock?: boolean
  * - websiteDownloadLocked?: boolean — instant lock: blocks public /api/mobile-app/download
+ * - maintenanceLock?: boolean — full-screen lock for all app installs (emergency)
+ * - maintenanceMessage?: string | null
  * - publish?: boolean — if true, sets publishedAt to now (starts 24h grace by default)
  * - clearPublish?: boolean — clears publishedAt (stops timed lock until republished)
  */
@@ -96,6 +101,14 @@ export async function POST(request) {
     if (body.websiteDownloadLocked !== undefined) {
       data.websiteDownloadLocked = !!body.websiteDownloadLocked;
     }
+    if (body.maintenanceLock !== undefined) {
+      data.maintenanceLock = !!body.maintenanceLock;
+    }
+    if (body.maintenanceMessage !== undefined) {
+      data.maintenanceMessage = body.maintenanceMessage
+        ? String(body.maintenanceMessage).trim().slice(0, 2000)
+        : null;
+    }
 
     if (body.clearPublish === true) {
       data.publishedAt = null;
@@ -122,6 +135,8 @@ export async function POST(request) {
         forceLock: row.forceLock,
         websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,
+        maintenanceLock: row.maintenanceLock,
+        maintenanceMessage: row.maintenanceMessage,
         updatedAt: row.updatedAt.toISOString(),
       },
       releaseFile: st

@@ -60,6 +60,7 @@ dependencies:
   pdfx: ^2.9.2
   printing: ^5.14.3
   pdf: ^3.11.3
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

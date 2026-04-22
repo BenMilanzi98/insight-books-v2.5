@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:insightbooks_android/core/security/app_route_access.dart';
-import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart'
+    show hasPermission, satisfiesPermission, userPermissionsProvider;
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
 import 'package:insightbooks_android/features/tenant/domain/tenant_models.dart';
 import 'package:insightbooks_android/features/tenant/presentation/providers/tenant_provider.dart';
@@ -81,7 +82,7 @@ class MainLayout extends ConsumerWidget {
     final perms = ref.watch(userPermissionsProvider).asData?.value ?? <String>{};
 
     final visibleBottom = _kAllBottomNavSpecs
-        .where((s) => hasPermission(perms, s.permission))
+        .where((s) => satisfiesPermission(perms, s.permission))
         .toList();
 
     int calculateSelectedIndex() {
@@ -422,7 +423,8 @@ class AppDrawer extends ConsumerWidget {
                 height: 44,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
-                errorBuilder: (_, __, ___) => const InsightBooksLogo(size: 36),
+                errorBuilder: (context, error, stackTrace) =>
+                    const InsightBooksLogo(size: 36),
               ),
             ),
             const Divider(height: 1, color: Colors.white12),
@@ -434,7 +436,7 @@ class AppDrawer extends ConsumerWidget {
                 shrinkWrap: true,
                 children: [
                   _SectionLabel(label: 'CORE'),
-                  if (hasPermission(perms, 'dashboard.view'))
+                  if (satisfiesPermission(perms, 'dashboard.view'))
                     _NavItem(
                       title: 'Dashboard',
                       icon: Icons.dashboard_rounded,
@@ -442,7 +444,7 @@ class AppDrawer extends ConsumerWidget {
                       route: '/dashboard',
                       currentRoute: currentRoute,
                     ),
-                  if (hasPermission(perms, 'sales.view'))
+                  if (satisfiesPermission(perms, 'sales.view'))
                     _NavItem(
                       title: 'POS',
                       icon: Icons.point_of_sale_rounded,
@@ -450,7 +452,7 @@ class AppDrawer extends ConsumerWidget {
                       route: '/pos',
                       currentRoute: currentRoute,
                     ),
-                  if (hasPermission(perms, 'invoices.view'))
+                  if (satisfiesPermission(perms, 'invoices.view'))
                     _NavItem(
                       title: 'Invoicing',
                       icon: Icons.receipt_long_rounded,
@@ -458,7 +460,7 @@ class AppDrawer extends ConsumerWidget {
                       route: '/invoice',
                       currentRoute: currentRoute,
                     ),
-                  if (hasPermission(perms, 'quotations.view'))
+                  if (satisfiesPermission(perms, 'quotations.view'))
                     _NavItem(
                       title: 'Quotations',
                       icon: Icons.description_rounded,
@@ -466,7 +468,7 @@ class AppDrawer extends ConsumerWidget {
                       route: '/quotation',
                       currentRoute: currentRoute,
                     ),
-                  if (hasPermission(perms, 'expenses.view'))
+                  if (satisfiesPermission(perms, 'expenses.view'))
                     _NavItem(
                       title: 'Expenses',
                       icon: Icons.receipt_rounded,
@@ -475,7 +477,7 @@ class AppDrawer extends ConsumerWidget {
                       currentRoute: currentRoute,
                     ),
                   const SizedBox(height: 8),
-                  if (showSwitchTenant || hasPermission(perms, 'system.view'))
+                  if (showSwitchTenant || satisfiesPermission(perms, 'system.view'))
                     _SectionLabel(label: 'ACCOUNT'),
                   if (showSwitchTenant)
                     _NavItem(
@@ -485,7 +487,7 @@ class AppDrawer extends ConsumerWidget {
                       route: '/switch-tenant',
                       currentRoute: currentRoute,
                     ),
-                  if (hasPermission(perms, 'system.view'))
+                  if (satisfiesPermission(perms, 'system.view'))
                     _NavItem(
                       title: 'Account Settings',
                       icon: Icons.person_rounded,

@@ -1,6 +1,25 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
+
+function defaultDateRange() {
+  const to = new Date();
+  const from = new Date(to);
+  from.setUTCDate(from.getUTCDate() - 30);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
 
 export default function MobileAppManagementPage() {
   const fileInputRef = useRef(null);
@@ -18,7 +37,13 @@ export default function MobileAppManagementPage() {
     forceLock: false,
     websiteDownloadLocked: false,
     broadcastMessage: '',
+    maintenanceLock: false,
+    maintenanceMessage: '',
   });
+  const [analyticsRange, setAnalyticsRange] = useState(defaultDateRange);
+  const [analytics, setAnalytics] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsError, setAnalyticsError] = useState(null);
   const [publishedAt, setPublishedAt] = useState(null);
   const [uploadOpts, setUploadOpts] = useState({
     publishOnUpload: false,
@@ -42,6 +67,8 @@ export default function MobileAppManagementPage() {
         forceLock: !!c.forceLock,
         websiteDownloadLocked: !!c.websiteDownloadLocked,
         broadcastMessage: c.broadcastMessage || '',
+        maintenanceLock: !!c.maintenanceLock,
+        maintenanceMessage: c.maintenanceMessage || '',
       });
       setPublishedAt(c.publishedAt || null);
       setReleaseFile(data.releaseFile || { exists: false });
@@ -55,6 +82,32 @@ export default function MobileAppManagementPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    try {
+      const q = new URLSearchParams({
+        from: analyticsRange.from,
+        to: analyticsRange.to,
+      });
+      const res = await fetch(`/api/admin/mobile-app/analytics?${q}`, {
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load analytics');
+      setAnalytics(data);
+    } catch (e) {
+      setAnalyticsError(e.message);
+      setAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, [analyticsRange.from, analyticsRange.to]);
+
+  useEffect(() => {
+    if (!loading) loadAnalytics();
+  }, [loading, loadAnalytics]);
 
   const save = async (extra = {}) => {
     setSaving(true);
@@ -73,6 +126,8 @@ export default function MobileAppManagementPage() {
           forceLock: form.forceLock,
           websiteDownloadLocked: form.websiteDownloadLocked,
           broadcastMessage: form.broadcastMessage || null,
+          maintenanceLock: form.maintenanceLock,
+          maintenanceMessage: form.maintenanceMessage?.trim() || null,
           ...extra,
         }),
       });
@@ -152,7 +207,7 @@ export default function MobileAppManagementPage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Android app</h1>
         <p className="text-gray-600 mt-1">
@@ -168,6 +223,12 @@ export default function MobileAppManagementPage() {
           </a>{' '}
           · Direct APK URL:{' '}
           <code className="text-xs bg-gray-100 px-1 rounded">/api/mobile-app/download</code>
+        </p>
+        <p className="text-sm text-gray-600 mt-2 border-l-4 border-gray-300 pl-3">
+          <strong>Telemetry:</strong> the Android app sends anonymous events (random device ID, build
+          number, funnel steps) to <code className="text-xs bg-gray-100 px-1">POST /api/mobile-app/telemetry</code>
+          . No accounts or personal data are included. In-app APK install uses sideloading (not Google
+          Play); if you later publish on Play, in-app APK installs are restricted by store policy.
         </p>
       </div>
 
@@ -249,6 +310,41 @@ export default function MobileAppManagementPage() {
             'none'
           )}
         </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200 border-l-4 border-l-rose-500">
+        <h2 className="text-lg font-semibold text-gray-900">Emergency maintenance</h2>
+        <p className="text-sm text-gray-600">
+          <strong>Maintenance</strong> locks <em>every</em> install at once (full-screen block).{' '}
+          <strong>Force lock</strong> below only affects devices that are still on an older{' '}
+          <code className="text-xs bg-gray-100 px-1">versionCode</code> than your latest published
+          build.
+        </p>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.maintenanceLock}
+            onChange={(e) => setForm((f) => ({ ...f, maintenanceLock: e.target.checked }))}
+          />
+          <span className="text-sm font-medium text-rose-900">Enable maintenance lock now</span>
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium text-gray-700">Message shown in the app (optional)</span>
+          <textarea
+            className="mt-1 w-full border rounded-md px-3 py-2 min-h-[72px]"
+            placeholder="e.g. We are upgrading servers. Please try again in 30 minutes."
+            value={form.maintenanceMessage}
+            onChange={(e) => setForm((f) => ({ ...f, maintenanceMessage: e.target.value }))}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => save()}
+          className="px-4 py-2 bg-rose-600 text-white rounded-md hover:bg-rose-700 disabled:opacity-50"
+        >
+          Save maintenance settings
+        </button>
       </div>
 
       <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
@@ -341,7 +437,9 @@ export default function MobileAppManagementPage() {
               checked={form.forceLock}
               onChange={(e) => setForm((f) => ({ ...f, forceLock: e.target.checked }))}
             />
-            <span className="text-sm font-medium text-gray-700">Force lock outdated apps (ignore grace)</span>
+            <span className="text-sm font-medium text-gray-700">
+              Force lock outdated apps only (ignore grace)
+            </span>
           </label>
         </div>
 
@@ -386,6 +484,140 @@ export default function MobileAppManagementPage() {
             Clear publish time
           </button>
         </div>
+      </div>
+
+      <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200 border-l-4 border-l-slate-500">
+        <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Client analytics</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Distinct devices, version checks, and OTA funnel from anonymous telemetry.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block text-sm">
+              <span className="text-gray-600">From</span>
+              <input
+                type="date"
+                className="mt-1 border rounded-md px-2 py-1 block"
+                value={analyticsRange.from}
+                onChange={(e) =>
+                  setAnalyticsRange((r) => ({ ...r, from: e.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-gray-600">To</span>
+              <input
+                type="date"
+                className="mt-1 border rounded-md px-2 py-1 block"
+                value={analyticsRange.to}
+                onChange={(e) =>
+                  setAnalyticsRange((r) => ({ ...r, to: e.target.value }))
+                }
+              />
+            </label>
+            <button
+              type="button"
+              disabled={analyticsLoading}
+              onClick={() => loadAnalytics()}
+              className="px-3 py-2 bg-slate-700 text-white rounded-md text-sm hover:bg-slate-800 disabled:opacity-50"
+            >
+              {analyticsLoading ? 'Loading…' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        {analyticsError && (
+          <div className="rounded-md px-4 py-2 text-sm bg-red-50 text-red-800">{analyticsError}</div>
+        )}
+
+        {analytics?.summary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Unique devices', value: analytics.summary.uniqueDevices },
+              { label: 'Version checks', value: analytics.summary.versionCheckCount },
+              { label: 'Downloads OK', value: analytics.summary.downloadCompleted },
+              { label: 'Download failed', value: analytics.summary.downloadFailed },
+            ].map((c) => (
+              <div
+                key={c.label}
+                className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-3"
+              >
+                <div className="text-xs text-gray-500 uppercase tracking-wide">{c.label}</div>
+                <div className="text-2xl font-semibold text-gray-900 mt-1">{c.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {analytics?.funnel && (
+          <p className="text-sm text-gray-600">
+            Funnel: {analytics.funnel.versionChecks} checks → {analytics.funnel.downloadStarted}{' '}
+            started → {analytics.funnel.downloadCompleted} completed
+            {analytics.summary?.funnelConversion != null && (
+              <> ({analytics.summary.funnelConversion}% completed / checks)</>
+            )}
+            . Install prompts: {analytics.funnel.installPrompted}.
+          </p>
+        )}
+
+        {analytics?.dauByDay?.length > 0 && (
+          <div className="h-64 w-full">
+            <p className="text-sm font-medium text-gray-700 mb-2">
+              Daily active devices (version_check, UTC day)
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={analytics.dauByDay}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="dau" name="Devices" fill="#4f46e5" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {analytics?.recentEvents?.length > 0 && (
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-2">Recent events (newest first)</h3>
+            <div className="overflow-x-auto border rounded-md">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-gray-600">
+                  <tr>
+                    <th className="px-3 py-2">Time (UTC)</th>
+                    <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Device</th>
+                    <th className="px-3 py-2">vCode</th>
+                    <th className="px-3 py-2">Target</th>
+                    <th className="px-3 py-2">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analytics.recentEvents.map((ev) => (
+                    <tr key={ev.id} className="border-t border-gray-100">
+                      <td className="px-3 py-2 whitespace-nowrap">
+                        {new Date(ev.createdAt).toISOString().slice(0, 19).replace('T', ' ')}
+                      </td>
+                      <td className="px-3 py-2 font-mono text-xs">{ev.eventType}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{ev.deviceId}</td>
+                      <td className="px-3 py-2">{ev.versionCode}</td>
+                      <td className="px-3 py-2">{ev.targetVersionCode ?? '—'}</td>
+                      <td className="px-3 py-2 text-xs text-red-700 max-w-[200px] truncate">
+                        {ev.error || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {!analyticsLoading && analytics && !analytics.recentEvents?.length && (
+          <p className="text-sm text-gray-500">No events in this range yet.</p>
+        )}
       </div>
     </div>
   );

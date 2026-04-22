@@ -34,30 +34,12 @@ export async function GET(request) {
         gracePeriodHours: 24,
         graceEndsAt: null,
         broadcastMessage: null,
+        maintenance: false,
+        maintenanceMessage: null,
         updateAvailable: false,
         mustLock: false,
         websiteDownloadAvailable: onDisk,
       });
-    }
-
-    const latest = row.latestVersionCode ?? 1;
-    const updateAvailable = clientVersionCode < latest;
-
-    let graceEndsAt = null;
-    if (row.publishedAt) {
-      const ms = row.publishedAt.getTime() + (row.gracePeriodHours ?? 24) * 3600 * 1000;
-      graceEndsAt = new Date(ms).toISOString();
-    }
-
-    const now = Date.now();
-    let mustLock = false;
-    if (updateAvailable) {
-      if (row.forceLock) {
-        mustLock = true;
-      } else if (row.publishedAt && graceEndsAt) {
-        const end = new Date(graceEndsAt).getTime();
-        if (now > end) mustLock = true;
-      }
     }
 
     const onDisk = releaseApkExists();
@@ -83,6 +65,47 @@ export async function GET(request) {
       apkDownloadUrl = storedUrl;
     }
 
+    const maintenance = !!row.maintenanceLock;
+    const maintenanceMessage = row.maintenanceMessage ?? null;
+
+    if (maintenance) {
+      return NextResponse.json({
+        latestVersionCode: row.latestVersionCode ?? 1,
+        latestVersionName: row.latestVersionName ?? '1.0.0',
+        apkDownloadUrl,
+        releaseNotes: row.releaseNotes ?? null,
+        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+        gracePeriodHours: row.gracePeriodHours ?? 24,
+        graceEndsAt: null,
+        broadcastMessage: row.broadcastMessage ?? null,
+        maintenance: true,
+        maintenanceMessage,
+        updateAvailable: true,
+        mustLock: true,
+        websiteDownloadAvailable,
+      });
+    }
+
+    const latest = row.latestVersionCode ?? 1;
+    const updateAvailable = clientVersionCode < latest;
+
+    let graceEndsAt = null;
+    if (row.publishedAt) {
+      const ms = row.publishedAt.getTime() + (row.gracePeriodHours ?? 24) * 3600 * 1000;
+      graceEndsAt = new Date(ms).toISOString();
+    }
+
+    const now = Date.now();
+    let mustLock = false;
+    if (updateAvailable) {
+      if (row.forceLock) {
+        mustLock = true;
+      } else if (row.publishedAt && graceEndsAt) {
+        const end = new Date(graceEndsAt).getTime();
+        if (now > end) mustLock = true;
+      }
+    }
+
     return NextResponse.json({
       latestVersionCode: latest,
       latestVersionName: row.latestVersionName ?? '1.0.0',
@@ -92,6 +115,8 @@ export async function GET(request) {
       gracePeriodHours: row.gracePeriodHours ?? 24,
       graceEndsAt,
       broadcastMessage: row.broadcastMessage ?? null,
+      maintenance: false,
+      maintenanceMessage: null,
       updateAvailable,
       mustLock,
       websiteDownloadAvailable,

@@ -3199,6 +3199,28 @@ model MobileAppConfig {
   websiteDownloadLocked Boolean   @default(false)
   /// Optional message shown in the Android app (poll).
   broadcastMessage      String?
+  /// When true, all app installs see full-screen lock (emergency / maintenance), regardless of versionCode.
+  maintenanceLock       Boolean   @default(false)
+  maintenanceMessage    String?
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
+}
+
+/// Anonymous Android client telemetry (version checks, OTA download funnel).
+model MobileAppClientEvent {
+  id                String   @id @default(cuid())
+  createdAt         DateTime @default(now())
+  eventType         String
+  deviceId          String
+  versionCode       Int
+  versionName       String?
+  targetVersionCode Int?
+  bytesReceived     Int?
+  bytesTotal        Int?
+  error             String?
+  meta              Json?
+
+  @@index([createdAt])
+  @@index([eventType, createdAt])
+  @@index([deviceId, createdAt])
 }

@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:io';
 
-import 'package:insightbooks_android/core/security/permissions_provider.dart';
+import 'package:insightbooks_android/core/security/permissions_provider.dart'
+    show satisfiesPermission, userPermissionsProvider;
 
 import '../../data/expense_repository.dart';
 import '../../domain/expense_model.dart';
@@ -204,14 +205,13 @@ class ExpenseController extends Notifier<ExpensePageState> {
 
   Future<void> loadPermissions() async {
     final perms = await ref.read(userPermissionsProvider.future);
-    final hasPerms = perms.isNotEmpty;
     state = state.copyWith(
-      canViewExpenses: !hasPerms || perms.contains('expenses.view'),
-      canCreateExpenses: hasPerms && perms.contains('expenses.create'),
-      canUpdateExpenses: hasPerms && perms.contains('expenses.update'),
-      canDeleteExpenses: hasPerms && perms.contains('expenses.delete'),
-      canExportExpenses: hasPerms && perms.contains('expenses.export'),
-      canApproveExpenses: hasPerms && perms.contains('expenses.approve'),
+      canViewExpenses: satisfiesPermission(perms, 'expenses.view'),
+      canCreateExpenses: satisfiesPermission(perms, 'expenses.create'),
+      canUpdateExpenses: satisfiesPermission(perms, 'expenses.update'),
+      canDeleteExpenses: satisfiesPermission(perms, 'expenses.delete'),
+      canExportExpenses: satisfiesPermission(perms, 'expenses.export'),
+      canApproveExpenses: satisfiesPermission(perms, 'expenses.approve'),
     );
   }
 

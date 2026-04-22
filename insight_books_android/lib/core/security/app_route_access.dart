@@ -39,12 +39,12 @@ String firstAccessibleRoute(
   int? tenantCount,
 }) {
   // Fully implemented screens first.
-  if (hasPermission(permissions, 'dashboard.view')) return '/dashboard';
-  if (hasPermission(permissions, 'sales.view')) return '/pos';
-  if (hasPermission(permissions, 'invoices.view')) return '/invoice';
-  if (hasPermission(permissions, 'quotations.view')) return '/quotation';
-  if (hasPermission(permissions, 'expenses.view')) return '/expenses';
-  if (hasPermission(permissions, 'system.view')) return '/account';
+  if (satisfiesPermission(permissions, 'dashboard.view')) return '/dashboard';
+  if (satisfiesPermission(permissions, 'sales.view')) return '/pos';
+  if (satisfiesPermission(permissions, 'invoices.view')) return '/invoice';
+  if (satisfiesPermission(permissions, 'quotations.view')) return '/quotation';
+  if (satisfiesPermission(permissions, 'expenses.view')) return '/expenses';
+  if (satisfiesPermission(permissions, 'system.view')) return '/account';
   if (tenantCount != null &&
       tenantCount > 1 &&
       canAccessSwitchTenant(permissions: permissions, tenantCount: tenantCount)) {
@@ -52,8 +52,8 @@ String firstAccessibleRoute(
   }
   // Partially implemented ("Coming Soon") screens as last resort.
   if (satisfiesPermission(permissions, 'stock.view')) return '/stock';
-  if (hasPermission(permissions, 'reports.view')) return '/reports';
-  if (hasPermission(permissions, 'payments.view')) return '/payments';
+  if (satisfiesPermission(permissions, 'reports.view')) return '/reports';
+  if (satisfiesPermission(permissions, 'payments.view')) return '/payments';
   // Do not send users to `/pos` (or any guarded shell route) without the matching
   // permission — that causes an infinite GoRouter redirect and a blank screen.
   return '/access-denied';

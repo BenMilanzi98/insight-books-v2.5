@@ -288,7 +288,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               width: 280,
               fit: BoxFit.contain,
               filterQuality: FilterQuality.high,
-              errorBuilder: (_, __, ___) =>
+              errorBuilder: (context, error, stackTrace) =>
                   const InsightBooksLogo(size: 120),
             ),
           ),

@@ -20,9 +20,9 @@ final goRouterRefreshNotifierProvider = Provider<GoRouterRefreshNotifier>((ref) 
   final notifier = GoRouterRefreshNotifier();
   ref.onDispose(notifier.dispose);
 
-  ref.listen(authStateProvider, (_, __) => notifier.ping());
-  ref.listen(userPermissionsProvider, (_, __) => notifier.ping());
-  ref.listen(tenantProvider, (_, __) => notifier.ping());
+  ref.listen(authStateProvider, (prev, next) => notifier.ping());
+  ref.listen(userPermissionsProvider, (prev, next) => notifier.ping());
+  ref.listen(tenantProvider, (prev, next) => notifier.ping());
 
   return notifier;
 });

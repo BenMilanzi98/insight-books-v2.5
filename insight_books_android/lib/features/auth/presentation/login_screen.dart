@@ -173,7 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                                 width: 260,
                                 fit: BoxFit.contain,
                                 filterQuality: FilterQuality.high,
-                                errorBuilder: (_, __, ___) =>
+                                errorBuilder: (context, error, stackTrace) =>
                                     const InsightBooksLogo(size: 72),
                               ),
                             ),
