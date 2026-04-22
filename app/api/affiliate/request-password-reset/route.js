@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
 const prisma = new PrismaClient();
 
@@ -44,7 +45,10 @@ export async function POST(request) {
 
     // Send password reset email
     try {
-      const resetLink = `${process.env.NEXT_PUBLIC_APP_URL || 'https://insightbooksafrica.com'}/affiliate/reset-password?token=${resetToken}`;
+      const resetLink = `${getPublicAppBaseUrlForEmail({
+        forwardedProto: request.headers.get('x-forwarded-proto'),
+        forwardedHost: request.headers.get('x-forwarded-host')
+      })}/affiliate/reset-password?token=${resetToken}`;
       
       // Here you would integrate with your email service
       // For now, we'll just log it

@@ -3,6 +3,7 @@ import { getAdminFromRequest } from '@/lib/adminAuth';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { sendEmail } from '@/lib/emailService';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
 const prisma = new PrismaClient();
 
@@ -194,7 +195,10 @@ export async function POST(request) {
 
     // Send welcome email to the affiliate
     try {
-      const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://insightbooksafrica.com'}/affiliate/login`;
+      const loginUrl = `${getPublicAppBaseUrlForEmail({
+        forwardedProto: request.headers.get('x-forwarded-proto'),
+        forwardedHost: request.headers.get('x-forwarded-host')
+      })}/affiliate/login`;
       
       const emailContent = {
         to: affiliate.email,

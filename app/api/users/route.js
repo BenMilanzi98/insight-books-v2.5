@@ -5,6 +5,7 @@ import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
+import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
 
 // GET - Fetch users with filtering, sorting, and pagination
 export async function GET(request) {
@@ -302,7 +303,10 @@ export async function POST(request) {
             name: newUser.name,
             email: newUser.email,
             password: password, // Send the plain text password
-            loginUrl: `https://insightbooksafrica.com/login`
+            loginUrl: `${getPublicAppBaseUrlForEmail({
+              forwardedProto: request.headers.get('x-forwarded-proto'),
+              forwardedHost: request.headers.get('x-forwarded-host')
+            })}/auth/login`
           }
         };
         
