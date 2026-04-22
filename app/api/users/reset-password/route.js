@@ -54,6 +54,8 @@ export async function POST(request) {
       );
     }
 
+    let smtpMeta = null;
+
     if (sendEmail) {
       try {
         const { sendEmail: sendEmailSvc } = await import('@/lib/emailService');
@@ -62,8 +64,20 @@ export async function POST(request) {
           forwardedHost: request.headers.get('x-forwarded-host'),
         });
         const loginUrl = `${loginBase}/auth/login`;
-        const displayName = escapeHtml(targetUser.name || 'there');
+        const plainName = targetUser.name || 'there';
+        const displayName = escapeHtml(plainName);
         const displayPw = escapeHtml(newPassword);
+        const textBody = [
+          `Hello ${plainName},`,
+          '',
+          'An administrator reset your InsightBooks password. Use the temporary password below to sign in.',
+          '',
+          `Temporary password: ${newPassword}`,
+          '',
+          `Sign in: ${loginUrl}`,
+          '',
+          'If you did not expect this email, contact your business administrator.',
+        ].join('\n');
         const html = `
 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
   <h2 style="color: #1f2937;">Password reset</h2>
@@ -78,11 +92,17 @@ export async function POST(request) {
   </p>
   <p style="color: #6b7280; font-size: 13px;">If you did not expect this email, contact your business administrator.</p>
 </div>`;
-        await sendEmailSvc({
+        const sendResult = await sendEmailSvc({
           to: targetUser.email,
           subject: 'Your InsightBooks password was reset',
           htmlContent: html,
+          text: textBody,
         });
+        smtpMeta = {
+          messageId: sendResult?.messageId ?? null,
+          accepted: sendResult?.accepted ?? null,
+          response: sendResult?.response ?? null,
+        };
       } catch (emailErr) {
         console.error('Admin password reset email failed:', emailErr);
         return NextResponse.json(
@@ -117,6 +137,7 @@ export async function POST(request) {
           resetBy: user.email,
           targetUser: targetUser.email,
           emailSent: !!sendEmail,
+          ...(smtpMeta && { smtp: smtpMeta }),
         }),
       },
     });
@@ -129,6 +150,7 @@ export async function POST(request) {
         id: targetUser.id,
         email: targetUser.email,
       },
+      ...(smtpMeta && { smtp: smtpMeta }),
     });
 
   } catch (error) {
