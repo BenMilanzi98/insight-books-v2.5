@@ -5,6 +5,13 @@ import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 
+function normalizeRoleId(role) {
+  if (role == null) return null;
+  if (typeof role === 'string') return role.trim() || null;
+  if (typeof role === 'object' && typeof role.id === 'string') return role.id.trim() || null;
+  return null;
+}
+
 // PUT - Update a user
 export async function PUT(request) {
   try {
@@ -46,12 +53,11 @@ export async function PUT(request) {
       );
     }
 
-    // Check if email is being changed and if it's already in use
+    // Check if email is being changed and if it's already in use (email is globally unique)
     if (updateData.email && updateData.email !== existingUser.email) {
       const emailExists = await prisma.user.findFirst({
         where: {
           email: updateData.email,
-          tenantId: user.tenantId,
           id: { not: userId }
         }
       });
@@ -71,12 +77,27 @@ export async function PUT(request) {
     if (updateData.name !== undefined) dataToUpdate.name = updateData.name;
     if (updateData.email !== undefined) dataToUpdate.email = updateData.email;
     if (updateData.role !== undefined) {
-      // Handle role assignment using Prisma connect syntax
-      dataToUpdate.role = {
-        connect: {
-          id: updateData.role
-        }
-      };
+      const roleId = normalizeRoleId(updateData.role);
+      if (!roleId) {
+        return NextResponse.json(
+          { error: 'Invalid role value' },
+          { status: 400 }
+        );
+      }
+      const roleRow = await prisma.role.findFirst({
+        where: {
+          id: roleId,
+          OR: [{ tenantId: user.tenantId }, { tenantId: null }],
+        },
+        select: { id: true },
+      });
+      if (!roleRow) {
+        return NextResponse.json(
+          { error: 'Invalid role for this business' },
+          { status: 400 }
+        );
+      }
+      dataToUpdate.role = { connect: { id: roleId } };
     }
     if (updateData.department !== undefined) dataToUpdate.department = updateData.department;
     if (updateData.status !== undefined) dataToUpdate.status = updateData.status;
@@ -90,10 +111,11 @@ export async function PUT(request) {
     // Sync allowed branches (user-branch assignment): empty array = all branches, non-empty = restrict to those
     const allowedBranchIds = updateData.allowedBranchIds;
     if (Array.isArray(allowedBranchIds)) {
+      const uniqueBranchIds = [...new Set(allowedBranchIds.filter((id) => typeof id === 'string' && id.trim()))];
       await prisma.userBranch.deleteMany({ where: { userId } });
-      if (allowedBranchIds.length > 0) {
+      if (uniqueBranchIds.length > 0) {
         const validBranchIds = await prisma.branch.findMany({
-          where: { id: { in: allowedBranchIds }, tenantId: user.tenantId },
+          where: { id: { in: uniqueBranchIds }, tenantId: user.tenantId },
           select: { id: true }
         });
         const ids = validBranchIds.map((b) => b.id);
@@ -109,30 +131,36 @@ export async function PUT(request) {
     if (Array.isArray(updateData.memberships)) {
       const requested = updateData.memberships;
 
-      const finalMemberships = [];
+      const byTenant = new Map();
       for (const m of requested) {
         const tId = String(m?.tenantId || '').trim();
         const rId = String(m?.roleId || '').trim();
         if (!tId || !rId) continue;
         const ok = await userHasAccessToTenant(user, tId);
-        if (ok) finalMemberships.push({ tenantId: tId, roleId: rId });
+        if (ok) byTenant.set(tId, { tenantId: tId, roleId: rId });
+      }
+      const finalMemberships = [...byTenant.values()];
+
+      for (const m of finalMemberships) {
+        const role = await prisma.role.findFirst({
+          where: {
+            id: m.roleId,
+            OR: [{ tenantId: m.tenantId }, { tenantId: null }],
+          },
+          select: { id: true },
+        });
+        if (!role) {
+          return NextResponse.json(
+            { error: 'Invalid role assignment for selected business' },
+            { status: 400 }
+          );
+        }
       }
 
-      try {
-        // Validate roles belong to their tenants
-        for (const m of finalMemberships) {
-          const role = await prisma.role.findFirst({
-            where: { id: m.roleId, tenantId: m.tenantId },
-            select: { id: true },
-          });
-          if (!role) {
-            throw new Error('Invalid role assignment for selected business');
-          }
-        }
-
-        await prisma.tenantMembership.deleteMany({ where: { userId } });
+      await prisma.$transaction(async (tx) => {
+        await tx.tenantMembership.deleteMany({ where: { userId } });
         if (finalMemberships.length > 0) {
-          await prisma.tenantMembership.createMany({
+          await tx.tenantMembership.createMany({
             data: finalMemberships.map((m) => ({
               userId,
               tenantId: m.tenantId,
@@ -141,9 +169,7 @@ export async function PUT(request) {
             })),
           });
         }
-
-        // Keep legacy join table in sync
-        await prisma.user.update({
+        await tx.user.update({
           where: { id: userId },
           data: {
             tenants: {
@@ -152,25 +178,35 @@ export async function PUT(request) {
           },
           select: { id: true },
         });
-      } catch (membershipWriteError) {
-        console.warn('Skipping membership updates (legacy DB / not deployed yet):', membershipWriteError?.message || membershipWriteError);
-      }
+      });
     }
 
-    // Update the user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: dataToUpdate,
-      include: {
-        role: {
-          select: {
-            id: true,
-            name: true,
-            description: true
-          }
+    const roleInclude = {
+      role: {
+        select: {
+          id: true,
+          name: true,
+          description: true
         }
       }
-    });
+    };
+
+    // Prisma rejects user.update with an empty data object
+    const updatedUser =
+      Object.keys(dataToUpdate).length > 0
+        ? await prisma.user.update({
+            where: { id: userId },
+            data: dataToUpdate,
+            include: roleInclude,
+          })
+        : await prisma.user.findUnique({
+            where: { id: userId },
+            include: roleInclude,
+          });
+
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
     // Create audit log
     await prisma.auditLog.create({
@@ -196,8 +232,25 @@ export async function PUT(request) {
     });
   } catch (error) {
     console.error('Error updating user:', error);
+    const code = error?.code;
+    if (code === 'P2002') {
+      return NextResponse.json(
+        { error: 'This update conflicts with existing data (duplicate).' },
+        { status: 400 }
+      );
+    }
+    if (code === 'P2003') {
+      return NextResponse.json(
+        { error: 'Invalid reference in update.' },
+        { status: 400 }
+      );
+    }
+    const allowDetail = process.env.NODE_ENV !== 'production';
     return NextResponse.json(
-      { error: 'Failed to update user. Please try again.' },
+      {
+        error: 'Failed to update user. Please try again.',
+        ...(allowDetail && error?.message ? { detail: String(error.message) } : {}),
+      },
       { status: 500 }
     );
   }
