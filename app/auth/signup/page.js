@@ -153,6 +153,8 @@ const Signup = () => {
       // Redirect to OTP verification page
       if (data.requiresVerification) {
         const verifyParams = new URLSearchParams({ email: data.email });
+        if (data.tenant?.id) verifyParams.set("tenantId", data.tenant.id);
+        if (data.tenant?.subdomain) verifyParams.set("subdomain", data.tenant.subdomain);
         if (data.emailSent === false) {
           verifyParams.set("delivery", "failed");
         }

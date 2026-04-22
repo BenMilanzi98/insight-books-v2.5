@@ -13,6 +13,9 @@ import {
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [subdomain, setSubdomain] = useState('');
+  const [tenantChoices, setTenantChoices] = useState([]);
+  const [showSubdomainHint, setShowSubdomainHint] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -35,14 +38,27 @@ export default function ForgotPasswordPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          ...(subdomain.trim() ? { subdomain: subdomain.trim() } : {}),
+        }),
       });
 
       const data = await response.json();
 
+      if (response.status === 409 && data.code === 'MULTI_TENANT_EMAIL') {
+        setTenantChoices(Array.isArray(data.tenants) ? data.tenants : []);
+        setShowSubdomainHint(true);
+        setError(data.error || 'Enter your company subdomain and try again.');
+        return;
+      }
+
       if (data.success) {
         setSuccess(data.message);
         setEmail(''); // Clear email field
+        setSubdomain('');
+        setShowSubdomainHint(false);
+        setTenantChoices([]);
       } else {
         setError(data.error || 'Failed to send reset email');
       }
@@ -91,6 +107,38 @@ export default function ForgotPasswordPage() {
                 />
               </div>
             </div>
+
+            {showSubdomainHint && (
+              <div>
+                <label htmlFor="subdomain" className="block text-sm font-medium text-gray-700">
+                  Company subdomain
+                </label>
+                <p className="mt-1 text-xs text-gray-500 mb-1">
+                  From your sign-up link (the part before .insightbooksafrica.com or your custom host).
+                </p>
+                <input
+                  id="subdomain"
+                  name="subdomain"
+                  type="text"
+                  value={subdomain}
+                  onChange={(e) => setSubdomain(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                  placeholder="e.g. acmecorp"
+                />
+                {tenantChoices.length > 0 && (
+                  <ul className="mt-2 text-xs text-gray-600 space-y-1">
+                    {tenantChoices.map((t) => (
+                      <li key={t.id}>
+                        <span className="font-medium text-gray-800">{t.name || 'Business'}</span>
+                        {t.subdomain ? (
+                          <span> — subdomain: {t.subdomain}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Error and Success Messages */}
             {error && (

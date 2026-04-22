@@ -97,15 +97,18 @@ export async function POST(request) {
 
     // If business email is provided, update user's email if it's different
     if (body.businessEmail && body.businessEmail !== user.email) {
-      // Check if the business email is already taken
-      const existingUser = await prisma.user.findUnique({
-        where: { email: body.businessEmail }
+      const taken = await prisma.user.findFirst({
+        where: {
+          email: { equals: String(body.businessEmail).trim(), mode: 'insensitive' },
+          tenantId: body.tenantId,
+          id: { not: body.userId },
+        },
       });
 
-      if (!existingUser) {
+      if (!taken) {
         await prisma.user.update({
           where: { id: body.userId },
-          data: { email: body.businessEmail }
+          data: { email: body.businessEmail.trim() },
         });
       }
     }

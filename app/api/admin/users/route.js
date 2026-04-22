@@ -138,14 +138,16 @@ export async function POST(request) {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: { equals: String(email).trim(), mode: 'insensitive' },
+        tenantId,
+      },
     });
 
     if (existingUser) {
       return NextResponse.json(
-        { error: 'User with this email already exists' },
+        { error: 'A user with this email already exists in that business' },
         { status: 409 }
       );
     }

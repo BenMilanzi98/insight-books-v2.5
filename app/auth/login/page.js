@@ -16,6 +16,9 @@ function LoginForm() {
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [businessSubdomain, setBusinessSubdomain] = useState("");
+  const [tenantChoices, setTenantChoices] = useState([]);
+  const [showSubdomainHint, setShowSubdomainHint] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
@@ -34,6 +37,18 @@ function LoginForm() {
     }
   }, [successMessage]);
 
+  useEffect(() => {
+    const err = searchParams.get("error");
+    const qpEmail = searchParams.get("email");
+    if (err === "multi_tenant_google" && qpEmail) {
+      setEmail(qpEmail);
+      setShowSubdomainHint(true);
+      setError(
+        "This Google account’s email is linked to more than one business. Enter your company subdomain below, then sign in again with Google or email."
+      );
+    }
+  }, [searchParams]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -48,13 +63,23 @@ function LoginForm() {
         credentials: 'include',
         body: JSON.stringify({
           email,
-          password
+          password,
+          ...(businessSubdomain.trim()
+            ? { subdomain: businessSubdomain.trim() }
+            : {}),
         })
       });
       
       const data = await response.json();
       
       if (!response.ok) {
+        if (response.status === 409 && data.code === "MULTI_TENANT_EMAIL") {
+          setTenantChoices(Array.isArray(data.tenants) ? data.tenants : []);
+          setShowSubdomainHint(true);
+          setError(data.error || "Choose your business and enter its subdomain, then try again.");
+          setIsLoading(false);
+          return;
+        }
         if (data.requiresVerification && data.email) {
           const q = new URLSearchParams({
             email: data.email,
@@ -152,6 +177,37 @@ function LoginForm() {
           )}
 
           <form onSubmit={handleSubmit}>
+            {showSubdomainHint && (
+              <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-900">
+                <p className="font-medium text-amber-950 mb-2">Company subdomain</p>
+                <p className="mb-2 text-amber-900/90">
+                  Use the subdomain from your sign-up link (e.g. <code className="bg-amber-100 px-1 rounded">acme</code> in{" "}
+                  <code className="bg-amber-100 px-1 rounded">acme.insightbooksafrica.com</code>).
+                </p>
+                <input
+                  id="subdomain"
+                  type="text"
+                  className="w-full p-2 border border-amber-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  placeholder="your-subdomain"
+                  value={businessSubdomain}
+                  onChange={(e) => setBusinessSubdomain(e.target.value)}
+                  autoComplete="organization"
+                />
+                {tenantChoices.length > 0 && (
+                  <ul className="mt-3 space-y-1 text-xs text-amber-950/80">
+                    {tenantChoices.map((t) => (
+                      <li key={t.id}>
+                        <span className="font-medium">{t.name || "Business"}</span>
+                        {t.subdomain ? (
+                          <span className="text-amber-800"> — subdomain: {t.subdomain}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="mb-6">
               <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
                 Email Address

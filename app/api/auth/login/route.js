@@ -6,6 +6,11 @@ import { applyTenantMembershipRole, getDefaultPostLoginPath } from '@/lib/auth';
 import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
 import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
+import {
+  findUsersByEmailForAuth,
+  pickUserForLogin,
+  tenantsHintFromUserCandidates,
+} from '@/lib/userEmailResolve';
 
 /**
  * POST /api/auth/login
@@ -42,33 +47,21 @@ export async function POST(request) {
       );
     }
 
-    // Find the user by email. Use a minimal select that works on all DBs (no userBranches,
-    // no defaultBranchId/ownerUserId) so development/legacy DBs that lack those fields don't 502.
+    const hintTenantId =
+      typeof body.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : '';
+    const hintSubdomain =
+      typeof body.subdomain === 'string' && body.subdomain.trim() ? body.subdomain.trim() : '';
+
     let user;
+    let candidates = [];
     try {
-      user = await prisma.user.findFirst({
-        where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          password: true,
-          isActive: true,
-          isEmailVerified: true,
-          tenantId: true,
-          role: true,
-          tenant: {
-            select: {
-              id: true,
-              name: true,
-              subdomain: true,
-              status: true
-            }
-          }
-        }
+      candidates = await findUsersByEmailForAuth(prisma, email);
+      user = await pickUserForLogin(prisma, candidates, {
+        tenantId: hintTenantId || undefined,
+        subdomain: hintSubdomain || undefined,
       });
     } catch (lookupErr) {
-      console.error('Login user lookup failed (trying without role):', lookupErr?.message || lookupErr);
+      console.error('Login user lookup failed:', lookupErr?.message || lookupErr);
       if (isPrismaConnectionError(lookupErr)) {
         return NextResponse.json(
           {
@@ -78,47 +71,21 @@ export async function POST(request) {
           { status: 503 }
         );
       }
-      try {
-        user = await prisma.user.findFirst({
-          where: { email: { equals: email, mode: 'insensitive' } },
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            password: true,
-            isActive: true,
-            isEmailVerified: true,
-            tenantId: true,
-            tenant: {
-              select: {
-                id: true,
-                name: true,
-                subdomain: true,
-                status: true
-              }
-            }
-          }
-        });
-        if (user) user.role = null;
-      } catch (fallbackErr) {
-        console.error('Login user lookup fallback failed:', fallbackErr?.message || fallbackErr);
-        if (isPrismaConnectionError(fallbackErr)) {
-          return NextResponse.json(
-            {
-              error:
-                'Database is temporarily unavailable. Check that the database server is running and DATABASE_URL is correct.',
-            },
-            { status: 503 }
-          );
-        }
-        return NextResponse.json(
-          { error: 'An error occurred during login' },
-          { status: 500 }
-        );
-      }
+      return NextResponse.json({ error: 'An error occurred during login' }, { status: 500 });
     }
 
-    // Check if user exists
+    if (!user && candidates.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            'This email is used for more than one business. Enter your business subdomain (from your company link) and try again.',
+          code: 'MULTI_TENANT_EMAIL',
+          tenants: tenantsHintFromUserCandidates(candidates),
+        },
+        { status: 409 }
+      );
+    }
+
     if (!user) {
       return NextResponse.json(
         { error: 'Invalid email or password' },

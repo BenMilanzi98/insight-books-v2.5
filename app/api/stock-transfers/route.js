@@ -5,8 +5,34 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { createFifoBatch } from '@/lib/fifoCosting';
 import { Prisma } from '@prisma/client';
-import { userHasAccessToTenant, resolvePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
+import { userHasAccessToTenant, ensurePrimaryBranchForTenant } from '@/lib/tenantStockAccess';
 import { upsertReceiptNoticeForTransfer } from '@/lib/stockTransferReceiptNotices';
+
+/**
+ * Destination business may store products as tenant-wide (branchId null) or on the primary branch.
+ * Match by SKU first, then by name (case-insensitive), and add stock to that row instead of creating a duplicate.
+ */
+async function findDestinationProductForTransfer(tx, toTenantId, primaryBranchId, sourceProduct) {
+  const branchScope = [{ branchId: primaryBranchId }, { branchId: null }];
+  const base = { tenantId: toTenantId, isDeleted: false, OR: branchScope };
+
+  const sku = sourceProduct.sku != null ? String(sourceProduct.sku).trim() : '';
+  if (sku) {
+    const bySku = await tx.product.findFirst({
+      where: { ...base, sku: { equals: sku, mode: 'insensitive' } },
+    });
+    if (bySku) return bySku;
+  }
+
+  const name = sourceProduct.name != null ? String(sourceProduct.name).trim() : '';
+  if (name) {
+    return tx.product.findFirst({
+      where: { ...base, name: { equals: name, mode: 'insensitive' } },
+    });
+  }
+
+  return null;
+}
 
 // GET - Fetch stock transfers for the tenant
 export async function GET(request) {
@@ -186,14 +212,11 @@ export async function POST(request) {
       fromTenantId = bodyFromTenant;
       toTenantId = bodyToTenant;
       resolvedFromBranch = null;
-      resolvedToBranch = await resolvePrimaryBranchForTenant(toTenantId);
+      resolvedToBranch = await ensurePrimaryBranchForTenant(toTenantId);
       if (!resolvedToBranch) {
         return NextResponse.json(
-          {
-            error:
-              'Each business must have at least one active location. Add a branch in settings or complete business setup.',
-          },
-          { status: 400 }
+          { error: 'Could not open a default stock location for the destination business.' },
+          { status: 500 }
         );
       }
     } else if (fromBranch && toBranch) {
@@ -281,14 +304,11 @@ export async function POST(request) {
         );
       }
       resolvedFromBranch =
-        sourceProduct.branchId ?? (await resolvePrimaryBranchForTenant(fromTenantId));
+        sourceProduct.branchId ?? (await ensurePrimaryBranchForTenant(fromTenantId));
       if (!resolvedFromBranch) {
         return NextResponse.json(
-          {
-            error:
-              'Product has no location and the source business has no default branch. Assign the product to a branch or set a default location.',
-          },
-          { status: 400 }
+          { error: 'Could not open a default stock location for the source business.' },
+          { status: 500 }
         );
       }
     }
@@ -429,31 +449,12 @@ export async function POST(request) {
       // If direct transfer, execute immediately
       if (directTransfer) {
         console.log('[Stock Transfer] Executing direct transfer...');
-        // Get or create destination product
-        // Try to find by SKU first, but handle null SKU case
-        let destinationProduct = null;
-        if (sourceProduct.sku) {
-          destinationProduct = await tx.product.findFirst({
-            where: {
-              tenantId: toTenantId,
-              branchId: resolvedToBranch,
-              sku: sourceProduct.sku,
-              isDeleted: false
-            }
-          });
-        }
-        
-        // If not found by SKU, try to find by name in the destination branch
-        if (!destinationProduct) {
-          destinationProduct = await tx.product.findFirst({
-            where: {
-              tenantId: toTenantId,
-              branchId: resolvedToBranch,
-              name: sourceProduct.name,
-              isDeleted: false
-            }
-          });
-        }
+        let destinationProduct = await findDestinationProductForTransfer(
+          tx,
+          toTenantId,
+          resolvedToBranch,
+          sourceProduct
+        );
 
         const productCost = parseFloat(sourceProduct.cost || 0);
         const unitCost = productCost > 0 ? productCost : 0;
@@ -462,14 +463,14 @@ export async function POST(request) {
         const qtyDecimal = transferQtyDecimal;
 
         if (!destinationProduct) {
-          // Create product in destination branch
-          // Ensure all required fields are present
+          // Create product only when no matching SKU/name exists in the destination business
           console.log('[Stock Transfer] Creating destination product...');
           try {
-            const newSku = sourceProduct.sku 
-              ? `${sourceProduct.sku}-${resolvedToBranch.substring(0, 8)}` 
-              : `TRANSFER-${sourceProduct.id.substring(0, 8)}-${Date.now()}`;
-            
+            const skuTrim = sourceProduct.sku != null ? String(sourceProduct.sku).trim() : '';
+            const newSku =
+              skuTrim ||
+              `TRANSFER-${sourceProduct.id.substring(0, 8)}-${Date.now()}`;
+
             destinationProduct = await tx.product.create({
               data: {
                 name: sourceProduct.name || 'Transferred Product',

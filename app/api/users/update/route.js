@@ -53,18 +53,19 @@ export async function PUT(request) {
       );
     }
 
-    // Check if email is being changed and if it's already in use (email is globally unique)
+    // Same email may exist in other tenants; only block duplicates within this business.
     if (updateData.email && updateData.email !== existingUser.email) {
       const emailExists = await prisma.user.findFirst({
         where: {
-          email: updateData.email,
-          id: { not: userId }
-        }
+          email: { equals: String(updateData.email).trim(), mode: 'insensitive' },
+          tenantId: user.tenantId,
+          id: { not: userId },
+        },
       });
 
       if (emailExists) {
         return NextResponse.json(
-          { error: 'Email is already in use' },
+          { error: 'This email is already in use for another user in this business' },
           { status: 400 }
         );
       }

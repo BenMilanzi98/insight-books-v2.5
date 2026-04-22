@@ -8,6 +8,7 @@ import { generateFullPermissions } from '@/lib/permissionsMap';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
 import { initializeTenantTrial } from '@/lib/subscriptionService';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
+import { findUsersByEmailForAuth, pickUserForLogin } from '@/lib/userEmailResolve';
 
 export async function GET(request) {
   try {
@@ -139,21 +140,27 @@ export async function GET(request) {
     const googleUser = userInfoResponse.data;
     console.log('Google User Info:', { email: googleUser.email, name: googleUser.name });
     
-    // Check if user exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: googleUser.email },
-      include: {
-        role: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            subdomain: true,
-            status: true
-          }
-        }
-      }
+    const emailForLookup = googleUser.email ? String(googleUser.email).trim() : '';
+    const candidates = emailForLookup
+      ? await findUsersByEmailForAuth(prisma, emailForLookup)
+      : [];
+
+    let existingUser = await pickUserForLogin(prisma, candidates, {
+      googleSub: googleUser.id != null ? String(googleUser.id) : undefined,
     });
+
+    if (!existingUser && candidates.length === 1) {
+      existingUser = candidates[0];
+    }
+
+    if (!existingUser && candidates.length > 1) {
+      const base = process.env.APP_URL || 'http://localhost:3000';
+      const qp = new URLSearchParams({
+        error: 'multi_tenant_google',
+        email: emailForLookup || '',
+      });
+      return NextResponse.redirect(`${base}/auth/login?${qp.toString()}`);
+    }
 
     if (existingUser) {
       // User exists - handle login

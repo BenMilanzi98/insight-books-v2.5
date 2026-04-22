@@ -9,6 +9,8 @@ export default function VerifyEmailClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const email = searchParams.get("email") || "";
+  const tenantId = searchParams.get("tenantId") || "";
+  const subdomain = searchParams.get("subdomain") || "";
   const deliveryFailed = searchParams.get("delivery") === "failed";
   const fromLogin = searchParams.get("from") === "login";
 
@@ -18,6 +20,9 @@ export default function VerifyEmailClient() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [tenantChoices, setTenantChoices] = useState([]);
+  const [ambiguousHint, setAmbiguousHint] = useState(false);
+  const [localSubdomain, setLocalSubdomain] = useState(subdomain);
   const inputRefs = useRef([]);
 
   useEffect(() => {
@@ -25,6 +30,10 @@ export default function VerifyEmailClient() {
       router.replace("/auth/signup");
     }
   }, [email, router]);
+
+  useEffect(() => {
+    setLocalSubdomain(subdomain);
+  }, [subdomain]);
 
   useEffect(() => {
     if (resendCooldown > 0) {
@@ -81,11 +90,22 @@ export default function VerifyEmailClient() {
       const res = await fetch("/api/auth/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp: code }),
+        body: JSON.stringify({
+          email,
+          otp: code,
+          ...(tenantId ? { tenantId } : {}),
+          ...(localSubdomain.trim() ? { subdomain: localSubdomain.trim() } : {}),
+        }),
       });
       const data = await res.json();
 
       if (!res.ok) {
+        if (res.status === 409 && data.code === "MULTI_TENANT_EMAIL") {
+          setTenantChoices(Array.isArray(data.tenants) ? data.tenants : []);
+          setAmbiguousHint(true);
+          setError(data.error || "Enter your company subdomain below, then verify again.");
+          return;
+        }
         if (data.expired) {
           setError("Code expired. Please request a new one.");
         } else if (data.alreadyVerified) {
@@ -114,10 +134,20 @@ export default function VerifyEmailClient() {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({
+          email,
+          ...(tenantId ? { tenantId } : {}),
+          ...(localSubdomain.trim() ? { subdomain: localSubdomain.trim() } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
+        if (res.status === 409 && data.code === "MULTI_TENANT_EMAIL") {
+          setTenantChoices(Array.isArray(data.tenants) ? data.tenants : []);
+          setAmbiguousHint(true);
+          setError(data.error || "Enter your company subdomain below, then resend.");
+          return;
+        }
         if (data.alreadyVerified) {
           router.push("/auth/login");
           return;
@@ -224,6 +254,29 @@ export default function VerifyEmailClient() {
               <div className="mb-4 bg-indigo-50 border border-indigo-100 text-indigo-900 px-4 py-3 rounded-lg text-sm">
                 If you never received a code when you signed up, use <strong>Resend Code</strong>{" "}
                 to send a new one to this address.
+              </div>
+            )}
+            {ambiguousHint && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 text-amber-950 px-4 py-3 rounded-lg text-sm space-y-2">
+                <p className="font-medium">Same email on more than one business</p>
+                <label className="block text-xs font-medium text-amber-900">Company subdomain</label>
+                <input
+                  type="text"
+                  className="w-full p-2 border border-amber-300 rounded-md text-sm"
+                  placeholder="e.g. acmecorp"
+                  value={localSubdomain}
+                  onChange={(e) => setLocalSubdomain(e.target.value)}
+                />
+                {tenantChoices.length > 0 && (
+                  <ul className="text-xs text-amber-900/85 space-y-1 pt-1">
+                    {tenantChoices.map((t) => (
+                      <li key={t.id}>
+                        {t.name || "Business"}
+                        {t.subdomain ? ` — ${t.subdomain}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
             {error && (

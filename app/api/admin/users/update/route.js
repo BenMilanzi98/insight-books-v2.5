@@ -42,17 +42,20 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    // Check if email is being changed and if it conflicts with another user
     if (email !== existingUser.email) {
-      const emailConflict = await prisma.user.findUnique({
-        where: { email: email.toLowerCase() }
+      const emailConflict = await prisma.user.findFirst({
+        where: {
+          email: { equals: String(email).trim(), mode: 'insensitive' },
+          tenantId,
+          id: { not: userId },
+        },
       });
 
-      if (emailConflict && emailConflict.id !== userId) {
+      if (emailConflict) {
         console.log('Email conflict detected:', email);
-        return NextResponse.json({ 
-          success: false, 
-          error: 'An user with this email already exists' 
+        return NextResponse.json({
+          success: false,
+          error: 'A user with this email already exists in that business',
         }, { status: 400 });
       }
     }

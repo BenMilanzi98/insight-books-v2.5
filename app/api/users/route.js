@@ -161,14 +161,17 @@ export async function POST(request) {
       );
     }
     
-    // Check if email is already registered
-    const existingUser = await prisma.user.findUnique({
-      where: { email: body.email }
+    // Per-tenant uniqueness: same email is allowed in other businesses.
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email: { equals: String(body.email).trim(), mode: 'insensitive' },
+        tenantId: currentUser.tenantId,
+      },
     });
-    
+
     if (existingUser) {
       return NextResponse.json(
-        { error: 'Email is already registered' },
+        { error: 'This email is already used for a user in this business' },
         { status: 400 }
       );
     }

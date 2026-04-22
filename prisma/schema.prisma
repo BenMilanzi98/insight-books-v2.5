@@ -276,7 +276,8 @@ model TenantMembership {
 
 model User {
   id                              String                       @id @default(cuid())
-  email                           String                       @unique
+  /// Unique per tenant; same address may exist for users in different businesses (SaaS).
+  email                           String
   name                            String?
   password                        String                       @db.VarChar(255)
   createdAt                       DateTime                     @default(now())
@@ -360,6 +361,7 @@ model User {
   createdBfExpenseBudgetHeaders   BfExpenseBudgetHeader[]      @relation("BfExpenseBudgetHeaderCreatedBy")
   createdBfRevenueForecastHeaders BfRevenueForecastHeader[]    @relation("BfRevenueForecastHeaderCreatedBy")
 
+  @@unique([tenantId, email])
   @@index([email])
   @@index([tenantId])
   @@index([authProvider, authProviderId])

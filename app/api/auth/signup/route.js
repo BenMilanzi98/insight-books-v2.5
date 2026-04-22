@@ -73,18 +73,8 @@ export async function POST(request) {
       subdomain = `${subdomain}${Math.floor(Math.random() * 1000)}`;
     }
    
-    // Check if email already exists
-    const existingUser = await prisma.user.findFirst({
-      where: { email: body.email }
-    });
-   
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'This email is already registered' },
-        { status: 400 }
-      );
-    }
-    
+    // Same person may register another business with the same email (per-tenant user rows).
+
     // Hash the password with bcrypt
     let hashedPassword;
     try {

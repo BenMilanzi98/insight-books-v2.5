@@ -2,6 +2,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { sendOTPEmail } from '@/lib/email';
+import {
+  findUsersByEmailForAuth,
+  pickUserForLogin,
+  tenantsHintFromUserCandidates,
+} from '@/lib/userEmailResolve';
 
 // Ensure environment variables are loaded
 import 'dotenv/config';
@@ -19,12 +24,29 @@ export async function POST(request) {
     }
     
     const email = String(body.email).trim();
-    // Case-insensitive match (same as verify-otp); avoids misses when the client normalizes casing.
-    const user = await prisma.user.findFirst({
-      where: { email: { equals: email, mode: 'insensitive' } }
+    const hintTenantId =
+      typeof body.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : '';
+    const hintSubdomain =
+      typeof body.subdomain === 'string' && body.subdomain.trim() ? body.subdomain.trim() : '';
+
+    const candidates = await findUsersByEmailForAuth(prisma, email);
+    const user = await pickUserForLogin(prisma, candidates, {
+      tenantId: hintTenantId || undefined,
+      subdomain: hintSubdomain || undefined,
     });
-    
-    // Check if user exists
+
+    if (!user && candidates.length > 1) {
+      return NextResponse.json(
+        {
+          error:
+            'This email is used for more than one business. Add your company subdomain (from your sign-up link) and try again.',
+          code: 'MULTI_TENANT_EMAIL',
+          tenants: tenantsHintFromUserCandidates(candidates),
+        },
+        { status: 409 }
+      );
+    }
+
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },

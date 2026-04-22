@@ -26,17 +26,7 @@ export async function POST(request) {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findFirst({
-      where: { email: email.toLowerCase() }
-    });
-
-    if (existingUser) {
-      return NextResponse.json(
-        { success: false, error: 'User with this email already exists' },
-        { status: 400 }
-      );
-    }
+    // Per-tenant users: allow same email when creating a new tenant in this flow.
 
     // Check if tenant subdomain already exists
     if (subdomain) {

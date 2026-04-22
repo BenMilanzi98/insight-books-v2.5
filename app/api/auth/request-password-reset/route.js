@@ -3,11 +3,20 @@ import prisma from '@/lib/prisma';
 import crypto from 'crypto';
 import { sendPasswordResetLinkEmail } from '@/lib/emailService';
 import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
+import {
+  findUsersByEmailForAuth,
+  pickUserForLogin,
+  tenantsHintFromUserCandidates,
+} from '@/lib/userEmailResolve';
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { email } = body;
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
+    const hintTenantId =
+      typeof body.tenantId === 'string' && body.tenantId.trim() ? body.tenantId.trim() : '';
+    const hintSubdomain =
+      typeof body.subdomain === 'string' && body.subdomain.trim() ? body.subdomain.trim() : '';
 
     if (!email) {
       return NextResponse.json(
@@ -16,15 +25,24 @@ export async function POST(request) {
       );
     }
 
-    // Find the user
-    const user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-      include: {
-        tenant: {
-          select: { id: true, name: true, subdomain: true }
-        }
-      }
+    const candidates = await findUsersByEmailForAuth(prisma, email);
+    const user = await pickUserForLogin(prisma, candidates, {
+      tenantId: hintTenantId || undefined,
+      subdomain: hintSubdomain || undefined,
     });
+
+    if (!user && candidates.length > 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'MULTI_TENANT_EMAIL',
+          error:
+            'This email is used for more than one business. Enter your company subdomain (from your sign-up link) and try again.',
+          tenants: tenantsHintFromUserCandidates(candidates),
+        },
+        { status: 409 }
+      );
+    }
 
     if (!user) {
       // Don't reveal if email exists or not for security
@@ -76,7 +94,7 @@ export async function POST(request) {
         entityType: 'USER',
         entityId: user.id,
         userId: user.id,
-        tenantId: user.tenantId,
+        tenantId: user.tenantId ?? undefined,
         details: `Password reset requested for user: ${user.email}`,
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         timestamp: new Date()
