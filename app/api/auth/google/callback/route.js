@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { OAuth2Client } from 'google-auth-library';
 import prisma from '@/lib/prisma';
+import { applyTenantMembershipRole, getDefaultPostLoginPath } from '@/lib/auth';
 import bcrypt from 'bcrypt';
 import { generateFullPermissions } from '@/lib/permissionsMap';
 import { seedDefaultRolesForTenant } from '@/lib/seedTenantRoles';
@@ -142,6 +143,7 @@ export async function GET(request) {
     const existingUser = await prisma.user.findUnique({
       where: { email: googleUser.email },
       include: {
+        role: true,
         tenant: {
           select: {
             id: true,
@@ -182,13 +184,20 @@ export async function GET(request) {
         initialBranchId = null;
       }
 
+      const oauthCtx = {
+        id: existingUser.id,
+        tenantId: existingUser.tenantId,
+        role: existingUser.role,
+      };
+      await applyTenantMembershipRole(oauthCtx, existingUser.tenantId);
+
       // Create session data (minimal to keep cookie/header size small).
       // Do not store full role/permissions in cookie.
       const sessionData = {
         userId: existingUser.id,
         tenantId: existingUser.tenantId,
         branchId: initialBranchId,
-        role: existingUser.role ? existingUser.role.name : null
+        role: oauthCtx.role ? oauthCtx.role.name : null
       };
 
       const session = Buffer.from(JSON.stringify(sessionData)).toString('base64');
@@ -199,10 +208,10 @@ export async function GET(request) {
         ...getSessionCookieOptions(),
       });
 
+      const base = process.env.APP_URL || 'http://localhost:3000';
+      const dest = getDefaultPostLoginPath(oauthCtx);
       console.log('Google OAuth: Existing user logged in successfully');
-      return NextResponse.redirect(
-        `${process.env.APP_URL || 'http://localhost:3000'}/dashboard`
-      );
+      return NextResponse.redirect(`${base}${dest}`);
     } else {
       // User doesn't exist - handle signup
       if (mode === 'login') {

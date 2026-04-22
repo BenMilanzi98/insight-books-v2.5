@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import PermissionGuard from "@/components/PermissionGuard";
-import { getCurrentUser } from "@/lib/permissions";
+import { getPermission } from "@/lib/permissions";
 import { Check, AlertCircle, Calendar, Lock, Unlock, PlusCircle } from "lucide-react";
 
 const AccountingPeriodsPage = () => {
@@ -22,11 +22,6 @@ const AccountingPeriodsPage = () => {
       setNewStartDate(`${y}-01-01`);
     }
   }, [newPeriodType]);
-
-  const isFinanceAdminRole = (user) => {
-    const roleName = user?.role?.name?.toLowerCase() || "";
-    return roleName.includes("finance") || roleName.includes("admin") || roleName === "master_admin";
-  };
 
   const fetchPeriods = async () => {
     setLoading(true);
@@ -50,9 +45,9 @@ const AccountingPeriodsPage = () => {
     let mounted = true;
     const checkRole = async () => {
       try {
-        const user = await getCurrentUser();
+        const ok = await getPermission("journalEntries.view");
         if (!mounted) return;
-        setRoleDenied(!isFinanceAdminRole(user));
+        setRoleDenied(!ok);
       } catch (err) {
         if (!mounted) return;
         setRoleDenied(true);
@@ -145,7 +140,7 @@ const AccountingPeriodsPage = () => {
             <div className="rounded-2xl bg-rose-50 border border-rose-200 p-6 sm:p-8 text-center shadow-sm">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-rose-800 mb-2">Access Denied</h3>
-              <p className="text-rose-600">Only Finance or Admin roles can manage accounting periods.</p>
+              <p className="text-rose-600">You need journal entry access to manage accounting periods.</p>
             </div>
           )}
 

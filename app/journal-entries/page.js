@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
-import { getCurrentUser, getPermission } from "@/lib/permissions";
+import { getPermission } from "@/lib/permissions";
 import { journalAccountOptionLabel, sortAccountsForJournalSelect } from "@/lib/journalAccountSelect";
 
 const JournalEntries = () => {
@@ -67,18 +67,13 @@ const JournalEntries = () => {
     fetchAccounts();
   }, []);
 
-  const isFinanceAdminRole = (user) => {
-    const roleName = user?.role?.name?.toLowerCase() || "";
-    return roleName.includes("finance") || roleName.includes("admin") || roleName === "master_admin";
-  };
-
   useEffect(() => {
     let mounted = true;
     const checkRole = async () => {
       try {
-        const user = await getCurrentUser();
+        const ok = await getPermission("journalEntries.view");
         if (!mounted) return;
-        setRoleDenied(!isFinanceAdminRole(user));
+        setRoleDenied(!ok);
       } catch (err) {
         if (!mounted) return;
         setRoleDenied(true);
@@ -625,7 +620,7 @@ const handleDeleteEntry = async (entryId) => {
             <div className="rounded-2xl bg-rose-50 border border-rose-200 p-6 sm:p-8 text-center shadow-sm">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
               <h3 className="text-lg font-semibold text-rose-800 mb-2">Access Denied</h3>
-              <p className="text-rose-600">Only Finance or Admin roles can access journal entries.</p>
+              <p className="text-rose-600">You need journal entry access to use this page.</p>
             </div>
           )}
           {!roleDenied && (

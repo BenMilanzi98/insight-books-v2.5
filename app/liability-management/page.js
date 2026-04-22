@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
-import { getPermission } from "@/lib/permissions";
 import { usePaymentAccounts } from "@/hooks/usePaymentAccounts";
 
 const interestTypeOptions = [
@@ -748,7 +747,9 @@ const LiabilityManagement = () => {
   const statusOptions = ["all", "active", "paid_off", "defaulted"];
   
   return (
-    <PermissionGuard requiredPermission={getPermission('FINANCIAL_MANAGEMENT')}>
+    <PermissionGuard
+      permissions={["accounts.view", "journalEntries.view", "expenses.view"]}
+    >
       <div>
         <div className="container mx-auto pb-8">
           {/* Alert message */}

@@ -257,7 +257,7 @@ export default function OpeningBalancesPage() {
   }
 
   return (
-    <PermissionGuard requiredPermission="accounting:manage">
+    <PermissionGuard permission="accounting.manage">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">

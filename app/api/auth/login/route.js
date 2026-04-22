@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcrypt';
 import prisma from '@/lib/prisma';
+import { applyTenantMembershipRole, getDefaultPostLoginPath } from '@/lib/auth';
 import { fetchUserBranchAccessContext, computeAllowedBranchIds } from '@/lib/branchAccess';
 import { getSessionCookieOptions } from '@/lib/sessionCookie';
 import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
@@ -180,6 +181,8 @@ export async function POST(request) {
       );
     }
 
+    await applyTenantMembershipRole(user, user.tenantId);
+
     // Session branch: owners / single-location tenants may use tenant or user default; assigned users only their allowed set.
     let initialBranchId = null;
     try {
@@ -262,6 +265,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       token: session, // Provided for mobile app authentication
+      defaultPostLoginPath: getDefaultPostLoginPath(user),
       user: {
         id: user.id,
         name: user.name,

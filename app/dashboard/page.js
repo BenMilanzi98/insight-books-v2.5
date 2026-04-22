@@ -445,6 +445,7 @@ const SkeletonPieChart = () => (
 );
 
 const BusinessOwnerDashboard = () => {
+  const router = useRouter();
   const [selectedDateRange, setSelectedDateRange] = useState("thisMonth");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -487,7 +488,8 @@ const BusinessOwnerDashboard = () => {
     canViewDashboard: false,
     canViewInvoices: false
   });
-  
+  const [dashboardPermissionResolved, setDashboardPermissionResolved] = useState(false);
+
   // State for user subscription data
   const [userSubscription, setUserSubscription] = useState(null);
   const [subscriptionLoading, setSubscriptionLoading] = useState(true);
@@ -548,17 +550,34 @@ const BusinessOwnerDashboard = () => {
   }, []);
   
   useEffect(() => {
+    let cancelled = false;
     const fetchPermissions = async () => {
-      const canViewDashboard = await getPermission("dashboard.view");
-      const canViewInvoices = await getPermission("invoices.view"); 
-      setPagePermissions({
-        canViewDashboard,
-        canViewInvoices 
-      });
+      try {
+        const canViewDashboard = await getPermission("dashboard.view");
+        const canViewInvoices = await getPermission("invoices.view");
+        if (!cancelled) {
+          setPagePermissions({
+            canViewDashboard,
+            canViewInvoices,
+          });
+        }
+      } finally {
+        if (!cancelled) setDashboardPermissionResolved(true);
+      }
     };
-  
+
     fetchPermissions();
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!dashboardPermissionResolved) return;
+    if (!pagePermissions.canViewDashboard) {
+      router.replace("/pos");
+    }
+  }, [dashboardPermissionResolved, pagePermissions.canViewDashboard, router]);
 
   // Fetch user subscription data
   useEffect(() => {
@@ -673,14 +692,17 @@ const BusinessOwnerDashboard = () => {
     }
   }, [dashboardBusinessScope, dashboardCustomTenantIds, userTenants.length]);
 
-  // Fetch dashboard data when date range, branch, or business scope changes
+  // Fetch dashboard data when date range, branch, or business scope changes (only if user may view dashboard)
   useEffect(() => {
+    if (!dashboardPermissionResolved || !pagePermissions.canViewDashboard) return;
     fetchDashboardData();
   }, [
     selectedDateRange,
     currentBranchId,
     dashboardBusinessScope,
     dashboardCustomTenantIds,
+    dashboardPermissionResolved,
+    pagePermissions.canViewDashboard,
   ]);
 
   // Enhanced data fetching with date range filtering
@@ -929,7 +951,37 @@ const BusinessOwnerDashboard = () => {
     ((dailyPerformance.today.expenses - dailyPerformance.yesterday.expenses) / 
     (dailyPerformance.yesterday.expenses || 1) * 100).toFixed(1) : 0;
   
-  // Error state
+  if (!dashboardPermissionResolved) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+        <div className="text-center max-w-sm">
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Checking access</h2>
+          <p className="text-xs text-gray-500">Verifying permissions…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!pagePermissions.canViewDashboard) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
+        <div className="text-center max-w-sm">
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
+            <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Opening POS</h2>
+          <p className="text-sm text-gray-600">You do not have dashboard access. Redirecting…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state (only reached when user may view dashboard)
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
@@ -950,24 +1002,7 @@ const BusinessOwnerDashboard = () => {
     );
   }
 
-  if (pagePermissions.canViewDashboard) {
-    return renderDashboard();
-  }
-
-  // Loading state when user doesn't have permission yet
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-slate-100 flex items-center justify-center p-4 sm:p-6">
-      <div className="text-center max-w-sm">
-        <div className="relative w-16 h-16 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full border-4 border-indigo-200"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
-        </div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Loading Dashboard</h2>
-        <p className="text-gray-600 text-sm mb-1">Preparing your dashboard</p>
-        <p className="text-xs text-gray-500">Verifying permissions and loading data...</p>
-      </div>
-    </div>
-  );
+  return renderDashboard();
 
   async function openStockReceiptDetail(notice) {
     try {

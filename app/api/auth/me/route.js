@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { permissionModules } from '@/lib/permissionsMap';
-import { applyBranchAccessToSessionUser, getSessionTokenFromRequest } from '@/lib/auth';
+import {
+  applyBranchAccessToSessionUser,
+  applyTenantMembershipRole,
+  getSessionTokenFromRequest,
+} from '@/lib/auth';
 import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { parseSessionPayload } from '@/lib/sessionCookie';
 import { isPrismaConnectionError } from '@/lib/isPrismaConnectionError';
@@ -65,6 +69,11 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Your account has been deactivated' }, { status: 401 });
     }
 
+    const effectiveTenantId =
+      sessionData.tenantId != null ? sessionData.tenantId : user.tenantId;
+
+    await applyTenantMembershipRole(user, effectiveTenantId);
+
     // Backfill permissions for full-access roles (Admin/Owner) that were created
     // before newer permission modules/actions were added to permissionModules.
     try {
@@ -96,9 +105,6 @@ export async function GET(request) {
     } catch (e) {
       console.error('Permissions backfill failed:', e?.message || e);
     }
-
-    const effectiveTenantId =
-      sessionData.tenantId != null ? sessionData.tenantId : user.tenantId;
 
     const branchCtxUser = {
       id: user.id,

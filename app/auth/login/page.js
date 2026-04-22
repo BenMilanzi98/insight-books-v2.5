@@ -5,12 +5,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, AlertCircle, CheckCircle } from "lucide-react";
 import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
+import { clearUserCache } from "@/lib/permissions";
 
 // Component that safely uses search params
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get('redirect') || '/dashboard';
+  const requestedRedirect = searchParams.get('redirect');
   const signupSuccess = searchParams.get('signup') === 'success';
   
   const [email, setEmail] = useState("");
@@ -60,8 +61,16 @@ function LoginForm() {
         }
         throw new Error(data.error || "Authentication failed");
       }
-      
-      router.push(redirectUrl);
+
+      const defaultPath = data.defaultPostLoginPath || '/dashboard';
+      const isGenericDashboard =
+        !requestedRedirect ||
+        requestedRedirect === '/dashboard' ||
+        requestedRedirect === '/';
+      const nextPath =
+        isGenericDashboard ? defaultPath : requestedRedirect;
+      clearUserCache();
+      router.push(nextPath);
     } catch (err) {
       setError(err.message || "Authentication failed. Please try again.");
       setIsLoading(false);

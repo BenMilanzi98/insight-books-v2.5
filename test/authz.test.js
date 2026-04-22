@@ -43,5 +43,16 @@ describe('RBAC permission checks (hasPermission)', () => {
     expect(hasPermission(user, 'users.view')).toBe(true);
     expect(hasPermission(user, 'users.create')).toBe(false);
   });
+
+  it('denies dashboard.view for Sales role even if legacy permissions include it', () => {
+    const sales = {
+      role: {
+        name: 'Sales',
+        permissions: { dashboard: { view: true }, sales: { create: true } },
+      },
+    };
+    expect(hasPermission(sales, 'dashboard.view')).toBe(false);
+    expect(hasPermission(sales, 'sales.create')).toBe(true);
+  });
 });
 
