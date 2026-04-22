@@ -173,12 +173,9 @@ export const createUser = async (userData) => {
     }
   };
   
-  // Send password reset email
+  // Send password reset email (server generates a 6-character alphanumeric temp password)
   export const sendPasswordResetEmail = async (userId) => {
     try {
-      // Generate a temporary password
-      const tempPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-      
       const response = await fetch('/api/users/reset-password', {
         method: 'POST',
         headers: {
@@ -186,8 +183,7 @@ export const createUser = async (userData) => {
         },
         body: JSON.stringify({
           userId,
-          newPassword: tempPassword,
-          sendEmail: true
+          sendEmail: true,
         }),
       });
       

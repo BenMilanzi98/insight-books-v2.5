@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { getPublicAppBaseUrlForEmail } from '@/lib/publicAppUrl';
+import { generateSixCharAlphanumericPassword } from '@/lib/generateTemporaryPassword';
 
 function escapeHtml(s) {
   return String(s ?? '')
@@ -32,12 +33,17 @@ export async function POST(request) {
     const body = await request.json();
     const { userId, newPassword, sendEmail = false } = body;
 
-    if (!userId || !newPassword) {
+    if (!userId) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+    if (!sendEmail && !newPassword) {
       return NextResponse.json(
-        { error: 'User ID and new password are required' },
+        { error: 'New password is required when sendEmail is false' },
         { status: 400 }
       );
     }
+
+    const plainPassword = sendEmail ? generateSixCharAlphanumericPassword() : String(newPassword);
 
     // Get the target user
     const targetUser = await prisma.user.findFirst({
@@ -66,13 +72,13 @@ export async function POST(request) {
         const loginUrl = `${loginBase}/auth/login`;
         const plainName = targetUser.name || 'there';
         const displayName = escapeHtml(plainName);
-        const displayPw = escapeHtml(newPassword);
+        const displayPw = escapeHtml(plainPassword);
         const textBody = [
           `Hello ${plainName},`,
           '',
           'An administrator reset your InsightBooks password. Use the temporary password below to sign in.',
           '',
-          `Temporary password: ${newPassword}`,
+          `Temporary password: ${plainPassword}`,
           '',
           `Sign in: ${loginUrl}`,
           '',
@@ -116,7 +122,7 @@ export async function POST(request) {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await bcrypt.hash(plainPassword, 10);
 
     await prisma.user.update({
       where: { id: userId },
