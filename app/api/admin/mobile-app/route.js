@@ -38,6 +38,8 @@ export async function GET(request) {
         releaseNotes: row.releaseNotes,
         publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
         gracePeriodHours: row.gracePeriodHours,
+        gracePeriodMinutes: row.gracePeriodMinutes,
+        graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
         forceLock: row.forceLock,
         websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,
@@ -57,13 +59,13 @@ export async function GET(request) {
 
 /**
  * Body:
- * - latestVersionCode, latestVersionName, apkDownloadUrl, releaseNotes?, gracePeriodHours?, broadcastMessage?
+ * - latestVersionCode, latestVersionName, apkDownloadUrl, releaseNotes?, gracePeriodHours?, gracePeriodMinutes?, graceEndsAt?
  * - forceLock?: boolean
  * - websiteDownloadLocked?: boolean — instant lock: blocks public /api/mobile-app/download
  * - maintenanceLock?: boolean — full-screen lock for all app installs (emergency)
  * - maintenanceMessage?: string | null
  * - publish?: boolean — if true, sets publishedAt to now (starts 24h grace by default)
- * - clearPublish?: boolean — clears publishedAt (stops timed lock until republished)
+ * - clearPublish?: boolean — clears publishedAt and graceEndsAt (stops timed lock until republished)
  */
 export async function POST(request) {
   try {
@@ -94,6 +96,31 @@ export async function POST(request) {
       }
       data.gracePeriodHours = g;
     }
+    if (body.gracePeriodMinutes !== undefined) {
+      if (body.gracePeriodMinutes === null || body.gracePeriodMinutes === '') {
+        data.gracePeriodMinutes = null;
+      } else {
+        const m = parseInt(String(body.gracePeriodMinutes), 10);
+        if (!Number.isFinite(m) || m < 0 || m > 525600) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid gracePeriodMinutes (0–525600)' },
+            { status: 400 },
+          );
+        }
+        data.gracePeriodMinutes = m;
+      }
+    }
+    if (body.graceEndsAt !== undefined) {
+      if (body.graceEndsAt === null || body.graceEndsAt === '') {
+        data.graceEndsAt = null;
+      } else {
+        const d = new Date(String(body.graceEndsAt));
+        if (Number.isNaN(d.getTime())) {
+          return NextResponse.json({ success: false, error: 'Invalid graceEndsAt' }, { status: 400 });
+        }
+        data.graceEndsAt = d;
+      }
+    }
     if (body.broadcastMessage !== undefined) {
       data.broadcastMessage = body.broadcastMessage ? String(body.broadcastMessage) : null;
     }
@@ -112,6 +139,7 @@ export async function POST(request) {
 
     if (body.clearPublish === true) {
       data.publishedAt = null;
+      data.graceEndsAt = null;
     }
     if (body.publish === true) {
       data.publishedAt = new Date();
@@ -132,6 +160,8 @@ export async function POST(request) {
         releaseNotes: row.releaseNotes,
         publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
         gracePeriodHours: row.gracePeriodHours,
+        gracePeriodMinutes: row.gracePeriodMinutes,
+        graceEndsAt: row.graceEndsAt ? row.graceEndsAt.toISOString() : null,
         forceLock: row.forceLock,
         websiteDownloadLocked: row.websiteDownloadLocked,
         broadcastMessage: row.broadcastMessage,

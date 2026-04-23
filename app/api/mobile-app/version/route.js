@@ -7,6 +7,22 @@ function parseVersionCode(raw) {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Grace end for outdated installs: fixed [graceEndsAt], else publishedAt + minutes or hours. */
+function computeGraceEndsAtIso(row) {
+  if (!row) return null;
+  if (row.graceEndsAt instanceof Date && !Number.isNaN(row.graceEndsAt.getTime())) {
+    return row.graceEndsAt.toISOString();
+  }
+  if (!row.publishedAt) return null;
+  const start = row.publishedAt.getTime();
+  const mins = row.gracePeriodMinutes;
+  if (mins != null && Number.isFinite(mins)) {
+    return new Date(start + mins * 60 * 1000).toISOString();
+  }
+  const h = row.gracePeriodHours ?? 24;
+  return new Date(start + h * 3600 * 1000).toISOString();
+}
+
 /**
  * Public endpoint for the Android app — no auth required.
  * Query: ?versionCode=123
@@ -32,6 +48,7 @@ export async function GET(request) {
         releaseNotes: null,
         publishedAt: null,
         gracePeriodHours: 24,
+        gracePeriodMinutes: null,
         graceEndsAt: null,
         broadcastMessage: null,
         maintenance: false,
@@ -76,6 +93,7 @@ export async function GET(request) {
         releaseNotes: row.releaseNotes ?? null,
         publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
         gracePeriodHours: row.gracePeriodHours ?? 24,
+        gracePeriodMinutes: null,
         graceEndsAt: null,
         broadcastMessage: row.broadcastMessage ?? null,
         maintenance: true,
@@ -89,18 +107,14 @@ export async function GET(request) {
     const latest = row.latestVersionCode ?? 1;
     const updateAvailable = clientVersionCode < latest;
 
-    let graceEndsAt = null;
-    if (row.publishedAt) {
-      const ms = row.publishedAt.getTime() + (row.gracePeriodHours ?? 24) * 3600 * 1000;
-      graceEndsAt = new Date(ms).toISOString();
-    }
+    const graceEndsAt = computeGraceEndsAtIso(row);
 
     const now = Date.now();
     let mustLock = false;
     if (updateAvailable) {
       if (row.forceLock) {
         mustLock = true;
-      } else if (row.publishedAt && graceEndsAt) {
+      } else if (graceEndsAt) {
         const end = new Date(graceEndsAt).getTime();
         if (now > end) mustLock = true;
       }
@@ -113,6 +127,7 @@ export async function GET(request) {
       releaseNotes: row.releaseNotes ?? null,
       publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
       gracePeriodHours: row.gracePeriodHours ?? 24,
+      gracePeriodMinutes: row.gracePeriodMinutes ?? null,
       graceEndsAt,
       broadcastMessage: row.broadcastMessage ?? null,
       maintenance: false,

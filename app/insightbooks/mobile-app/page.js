@@ -21,6 +21,15 @@ function defaultDateRange() {
   };
 }
 
+/** ISO UTC → value for `<input type="datetime-local">` in the browser's local timezone. */
+function toDatetimeLocalValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 export default function MobileAppManagementPage() {
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +43,8 @@ export default function MobileAppManagementPage() {
     apkDownloadUrl: '',
     releaseNotes: '',
     gracePeriodHours: 24,
+    gracePeriodMinutes: '',
+    graceEndsAtLocal: '',
     forceLock: false,
     websiteDownloadLocked: false,
     broadcastMessage: '',
@@ -64,6 +75,11 @@ export default function MobileAppManagementPage() {
         apkDownloadUrl: c.apkDownloadUrl || '',
         releaseNotes: c.releaseNotes || '',
         gracePeriodHours: c.gracePeriodHours ?? 24,
+        gracePeriodMinutes:
+          c.gracePeriodMinutes != null && Number.isFinite(Number(c.gracePeriodMinutes))
+            ? String(c.gracePeriodMinutes)
+            : '',
+        graceEndsAtLocal: toDatetimeLocalValue(c.graceEndsAt),
         forceLock: !!c.forceLock,
         websiteDownloadLocked: !!c.websiteDownloadLocked,
         broadcastMessage: c.broadcastMessage || '',
@@ -123,6 +139,14 @@ export default function MobileAppManagementPage() {
           apkDownloadUrl: form.apkDownloadUrl,
           releaseNotes: form.releaseNotes || null,
           gracePeriodHours: form.gracePeriodHours,
+          gracePeriodMinutes:
+            form.gracePeriodMinutes === '' || form.gracePeriodMinutes == null
+              ? null
+              : parseInt(String(form.gracePeriodMinutes), 10),
+          graceEndsAt:
+            form.graceEndsAtLocal && String(form.graceEndsAtLocal).trim()
+              ? new Date(form.graceEndsAtLocal).toISOString()
+              : null,
           forceLock: form.forceLock,
           websiteDownloadLocked: form.websiteDownloadLocked,
           broadcastMessage: form.broadcastMessage || null,
@@ -374,17 +398,22 @@ export default function MobileAppManagementPage() {
         </div>
 
         <label className="block">
-          <span className="text-sm font-medium text-gray-700">APK download URL (fallback / external)</span>
+          <span className="text-sm font-medium text-gray-700">APK download URL (site or external)</span>
           <input
-            type="url"
-            placeholder="Optional if APK is hosted on this site"
-            className="mt-1 w-full border rounded-md px-3 py-2"
+            type="text"
+            inputMode="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://… (files.fm, Drive, CDN, Play Store, etc.)"
+            className="mt-1 w-full border rounded-md px-3 py-2 font-mono text-sm"
             value={form.apkDownloadUrl}
             onChange={(e) => setForm((f) => ({ ...f, apkDownloadUrl: e.target.value }))}
           />
           <span className="text-xs text-gray-500">
-            After upload, this is set to this site&apos;s <code>/api/mobile-app/download</code>. You can
-            override with an external CDN URL if needed.
+            Use any <strong>https</strong> link to the APK (or <strong>http</strong> if you must). When
+            &quot;Lock website APK&quot; is on, the app still gets this URL if it is <em>not</em> this
+            site&apos;s <code>/api/mobile-app/download</code>. After upload without an override, this
+            field is set to the site download URL.
           </span>
         </label>
 
@@ -416,22 +445,66 @@ export default function MobileAppManagementPage() {
           </label>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-900">Grace window (outdated installs)</h3>
+          <p className="text-xs text-gray-600">
+            <strong>Fixed deadline</strong> wins over duration. Duration uses <strong>minutes</strong> if
+            set, otherwise <strong>hours</strong> after <em>Publish</em>. Requires an outdated app (
+            <code className="text-xs bg-white px-1 rounded">versionCode</code> below latest) unless you use
+            Force lock.
+          </p>
           <label className="block">
-            <span className="text-sm font-medium text-gray-700">Grace period (hours)</span>
+            <span className="text-sm font-medium text-gray-700">
+              Lock outdated installs after (local date &amp; time)
+            </span>
             <input
-              type="number"
-              min={0}
-              max={8760}
-              className="mt-1 w-full border rounded-md px-3 py-2"
-              value={form.gracePeriodHours}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, gracePeriodHours: parseInt(e.target.value, 10) || 0 }))
-              }
+              type="datetime-local"
+              className="mt-1 w-full max-w-md border rounded-md px-3 py-2"
+              value={form.graceEndsAtLocal}
+              onChange={(e) => setForm((f) => ({ ...f, graceEndsAtLocal: e.target.value }))}
             />
-            <span className="text-xs text-gray-500">After publish, users have this long to update before lock.</span>
+            <span className="text-xs text-gray-500">
+              Leave empty to use duration from publish instead. Cleared when you clear publish time.
+            </span>
           </label>
-          <label className="flex items-center gap-2 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Grace duration — minutes (optional)</span>
+              <input
+                type="number"
+                min={0}
+                max={525600}
+                placeholder="e.g. 90"
+                className="mt-1 w-full border rounded-md px-3 py-2"
+                value={form.gracePeriodMinutes}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, gracePeriodMinutes: e.target.value }))
+                }
+              />
+              <span className="text-xs text-gray-500">
+                If set (0 allowed), counted from <strong>Published at</strong> when fixed deadline above is
+                empty. Max 525600 (364 days). Leave empty to use hours only.
+              </span>
+            </label>
+            <label className="block">
+              <span className="text-sm font-medium text-gray-700">Grace duration — hours (fallback)</span>
+              <input
+                type="number"
+                min={0}
+                max={8760}
+                className="mt-1 w-full border rounded-md px-3 py-2"
+                value={form.gracePeriodHours}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, gracePeriodHours: parseInt(e.target.value, 10) || 0 }))
+                }
+              />
+              <span className="text-xs text-gray-500">
+                Used only when <strong>minutes</strong> is empty and <strong>fixed deadline</strong> is
+                empty.
+              </span>
+            </label>
+          </div>
+          <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={form.forceLock}

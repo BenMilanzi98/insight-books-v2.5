@@ -3190,9 +3190,13 @@ model MobileAppConfig {
   latestVersionName     String    @default("1.0.0")
   apkDownloadUrl        String    @default("")
   releaseNotes          String?
-  /// When this rollout was published; grace window ends at publishedAt + gracePeriodHours.
+  /// When this rollout was published; grace window ends at publishedAt + duration unless [graceEndsAt] is set.
   publishedAt           DateTime?
   gracePeriodHours      Int       @default(24)
+  /// When set, grace from publish uses this many minutes instead of [gracePeriodHours] (ignored if [graceEndsAt] is set).
+  gracePeriodMinutes    Int?
+  /// Hard deadline for the grace window (outdated installs lock after this). Overrides duration-from-publish when set.
+  graceEndsAt           DateTime?
   /// Immediately lock all clients below latestVersionCode (ignores grace).
   forceLock             Boolean   @default(false)
   /// When true, /api/mobile-app/download is disabled instantly (website APK off).

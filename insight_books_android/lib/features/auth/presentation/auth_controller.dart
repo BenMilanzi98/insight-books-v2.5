@@ -41,6 +41,8 @@ class AuthController extends Notifier<AsyncValue<bool>> {
     ref.invalidate(tenantProvider);
     ref.invalidate(accountProvider);
     ref.invalidate(userPermissionsProvider);
+    ref.invalidate(permissionProfileLoadHintProvider);
+    ref.invalidate(permissionProfileLoadWasConnectionIssueProvider);
     ref.invalidate(posProvider);
     ref.invalidate(invoiceControllerProvider);
     ref.invalidate(invoiceStatisticsProvider);

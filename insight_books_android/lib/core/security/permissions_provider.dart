@@ -1,9 +1,45 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
+import 'package:insightbooks_android/core/network/network_error_mapper.dart';
 import 'package:insightbooks_android/core/security/permission_parser.dart';
 import 'package:insightbooks_android/core/storage/storage_service.dart';
 import 'package:insightbooks_android/features/auth/presentation/auth_controller.dart';
+
+/// Last user-facing reason `/api/auth/me` could not populate permissions (shown on `/access-denied`).
+final permissionProfileLoadHintProvider =
+    NotifierProvider<PermissionProfileLoadHintNotifier, String?>(
+  PermissionProfileLoadHintNotifier.new,
+);
+
+class PermissionProfileLoadHintNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void clear() => state = null;
+
+  void setHint(String? value) => state = value;
+}
+
+/// True when the last failed profile load looked like a connectivity issue.
+final permissionProfileLoadWasConnectionIssueProvider =
+    NotifierProvider<PermissionProfileLoadWasConnectionNotifier, bool>(
+  PermissionProfileLoadWasConnectionNotifier.new,
+);
+
+class PermissionProfileLoadWasConnectionNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void clear() => state = false;
+
+  void setValue(bool value) => state = value;
+}
+
+void _clearProfileLoadDiagnostics(Ref ref) {
+  ref.read(permissionProfileLoadHintProvider.notifier).clear();
+  ref.read(permissionProfileLoadWasConnectionIssueProvider.notifier).clear();
+}
 
 /// Effective permissions from `/api/auth/me` (flattened `role.permissions`).
 /// Refreshes when [authStateProvider] becomes authenticated.
@@ -23,8 +59,11 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
     orElse: () => false,
   );
   if (!authed) {
+    _clearProfileLoadDiagnostics(ref);
     return {};
   }
+
+  _clearProfileLoadDiagnostics(ref);
 
   try {
     final storage = ref.read(storageServiceProvider);
@@ -43,7 +82,14 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
       try {
         final response = await dio.get('/api/auth/me');
         final data = response.data;
-        if (data is! Map) return {};
+        if (data is! Map) {
+          ref.read(permissionProfileLoadHintProvider.notifier).setHint(
+                'The server returned an unexpected response when loading your profile. '
+                'Try again in a moment or sign out and log in again.',
+              );
+          ref.read(permissionProfileLoadWasConnectionIssueProvider.notifier).setValue(false);
+          return {};
+        }
         return parsePermissionsFromMeResponse(
           Map<String, dynamic>.from(data),
         );
@@ -53,9 +99,29 @@ final userPermissionsProvider = FutureProvider<Set<String>>((ref) async {
       }
     }
     debugPrint('[Permissions] Failed after retries: $lastError');
+    if (lastError != null) {
+      ref.read(permissionProfileLoadWasConnectionIssueProvider.notifier).setValue(
+            NetworkErrorMapper.isConnectionError(lastError),
+          );
+      ref.read(permissionProfileLoadHintProvider.notifier).setHint(
+            NetworkErrorMapper.toUserMessage(
+              lastError,
+              fallback: 'Could not load your permissions. Please try again.',
+            ),
+          );
+    }
     return {};
   } catch (e) {
     debugPrint('[Permissions] Failed to load /api/auth/me: $e');
+    ref.read(permissionProfileLoadWasConnectionIssueProvider.notifier).setValue(
+          NetworkErrorMapper.isConnectionError(e),
+        );
+    ref.read(permissionProfileLoadHintProvider.notifier).setHint(
+          NetworkErrorMapper.toUserMessage(
+            e,
+            fallback: 'Could not load your permissions. Please try again.',
+          ),
+        );
     return {};
   }
 });

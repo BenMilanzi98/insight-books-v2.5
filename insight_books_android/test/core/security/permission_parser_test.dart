@@ -46,6 +46,75 @@ void main() {
       expect(perms.contains('sales.create'), isTrue);
       expect(perms.contains('tenants.switch'), isTrue);
     });
+
+    test('Sales Assistant with empty map gets default sales permissions', () {
+      final perms = parsePermissionsFromMeResponse({
+        'role': {'name': 'Sales Assistant', 'permissions': {}},
+      });
+      expect(perms.contains('sales.view'), isTrue);
+      expect(perms.contains('clients.view'), isTrue);
+    });
+
+    test('parses numeric 1 as granted permission', () {
+      final perms = parsePermissionsFromMeResponse({
+        'role': {
+          'name': 'Sales',
+          'permissions': {
+            'sales': {'view': 1, 'create': 0, 'delete': false},
+          },
+        },
+      });
+      expect(perms.contains('sales.view'), isTrue);
+      expect(perms.contains('sales.create'), isFalse);
+    });
+
+    test('parses permissions JSON string', () {
+      final perms = parsePermissionsFromMeResponse({
+        'role': {
+          'name': 'Sales',
+          'permissions':
+              '{"sales":{"view":true,"create":true},"clients":{"view":true}}',
+        },
+      });
+      expect(perms.contains('sales.view'), isTrue);
+      expect(perms.contains('sales.create'), isTrue);
+      expect(perms.contains('clients.view'), isTrue);
+    });
+
+    test('parses module with list of action strings', () {
+      final perms = parsePermissionsFromMeResponse({
+        'role': {
+          'name': 'Sales',
+          'permissions': {
+            'sales': ['view', 'create'],
+            'clients': ['view'],
+          },
+        },
+      });
+      expect(perms.contains('sales.view'), isTrue);
+      expect(perms.contains('sales.create'), isTrue);
+      expect(perms.contains('clients.view'), isTrue);
+    });
+
+    test('parses web custom role flat module.action keys', () {
+      final perms = parsePermissionsFromMeResponse({
+        'role': {
+          'name': 'Store Lead',
+          'permissions': {
+            'sales.view': true,
+            'sales.create': true,
+            'dashboard.view': 1,
+            'invoices.view': false,
+            'quotations.view': 'true',
+          },
+        },
+      });
+      expect(perms.contains('sales.view'), isTrue);
+      expect(perms.contains('sales.create'), isTrue);
+      expect(perms.contains('dashboard.view'), isTrue);
+      expect(perms.contains('invoices.view'), isFalse);
+      expect(perms.contains('quotations.view'), isTrue);
+    });
   });
 
   group('hasPermission', () {
