@@ -60,6 +60,10 @@ export default function MobileAppManagementPage() {
     publishOnUpload: false,
     lockWebsiteOnUpload: false,
   });
+  const [previewVc, setPreviewVc] = useState('');
+  const [previewJson, setPreviewJson] = useState(null);
+  const [previewErr, setPreviewErr] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -164,6 +168,28 @@ export default function MobileAppManagementPage() {
       setMessage({ type: 'error', text: e.message });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const runPolicyPreview = async () => {
+    const n = parseInt(String(previewVc).trim(), 10);
+    if (!Number.isFinite(n) || n < 0) {
+      setPreviewErr('Enter a valid device version code (0 or higher — same as Flutter build number after +).');
+      setPreviewJson(null);
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewErr(null);
+    setPreviewJson(null);
+    try {
+      const res = await fetch(`/api/mobile-app/version?versionCode=${n}`);
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || 'Request failed');
+      setPreviewJson(j);
+    } catch (e) {
+      setPreviewErr(e.message);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -373,6 +399,29 @@ export default function MobileAppManagementPage() {
 
       <div className="bg-white shadow rounded-lg p-6 space-y-4 border border-gray-200">
         <h2 className="text-lg font-semibold text-gray-900">Version & URLs</h2>
+        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+          <p className="font-medium text-sky-900">How in-app locking works</p>
+          <ul className="mt-2 list-disc list-inside space-y-1.5 text-sky-900/90">
+            <li>
+              <strong>Force lock</strong> and <strong>grace</strong> only affect devices whose{' '}
+              <strong>installed</strong> Android <code className="text-xs bg-white/80 px-1 rounded">versionCode</code>{' '}
+              is <strong>strictly lower</strong> than <strong>Latest version code</strong> below. In Flutter
+              that is the number after <code className="text-xs bg-white/80 px-1 rounded">+</code> in{' '}
+              <code className="text-xs bg-white/80 px-1 rounded">pubspec.yaml</code> (e.g.{' '}
+              <code className="text-xs bg-white/80 px-1 rounded">1.0.0+2</code> → code <strong>2</strong>).
+            </li>
+            <li>
+              If <strong>Latest version code</strong> is the same as (or below) a device&apos;s build
+              number, the app is considered up to date — <strong>no full-screen lock</strong>, even with
+              Force lock enabled.
+            </li>
+            <li>
+              <strong>Lock website APK</strong> only disables this site&apos;s hosted APK URL; it{' '}
+              <strong>does not</strong> show the lock overlay by itself. To block everyone immediately, use{' '}
+              <strong>Emergency maintenance</strong> above.
+            </li>
+          </ul>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block">
             <span className="text-sm font-medium text-gray-700">Latest version code (integer)</span>
@@ -514,6 +563,56 @@ export default function MobileAppManagementPage() {
               Force lock outdated apps only (ignore grace)
             </span>
           </label>
+          <p className="text-xs text-gray-500 -mt-2">
+            Outdated means: installed <code className="text-xs bg-white px-1 rounded">versionCode</code>{' '}
+            &lt; Latest version code. Raise Latest above installed builds, save, then test on a device.
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 space-y-3">
+          <h3 className="text-sm font-semibold text-gray-900">Live policy preview</h3>
+          <p className="text-xs text-gray-600">
+            Calls the same public endpoint as the Android app:{' '}
+            <code className="text-xs bg-white px-1 rounded">GET /api/mobile-app/version?versionCode=…</code>.
+            Use the build number from an installed APK to see why it does or does not get{' '}
+            <code className="text-xs bg-white px-1 rounded">mustLock</code>.
+          </p>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="block text-sm">
+              <span className="text-gray-600">Device versionCode</span>
+              <input
+                type="number"
+                min={0}
+                className="mt-1 border rounded-md px-2 py-1 w-36 block bg-white"
+                value={previewVc}
+                onChange={(e) => setPreviewVc(e.target.value)}
+                placeholder="e.g. 2"
+              />
+            </label>
+            <button
+              type="button"
+              disabled={previewLoading}
+              onClick={runPolicyPreview}
+              className="px-3 py-2 bg-slate-700 text-white rounded-md text-sm hover:bg-slate-800 disabled:opacity-50"
+            >
+              {previewLoading ? 'Loading…' : 'Preview'}
+            </button>
+          </div>
+          {previewErr && <p className="text-sm text-red-600">{previewErr}</p>}
+          {previewJson && (
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-sm font-mono bg-white rounded border border-gray-200 p-3">
+              <dt className="text-gray-500">mustLock</dt>
+              <dd>{String(previewJson.mustLock)}</dd>
+              <dt className="text-gray-500">updateAvailable</dt>
+              <dd>{String(previewJson.updateAvailable)}</dd>
+              <dt className="text-gray-500">maintenance</dt>
+              <dd>{String(previewJson.maintenance)}</dd>
+              <dt className="text-gray-500">latestVersionCode</dt>
+              <dd>{String(previewJson.latestVersionCode)}</dd>
+              <dt className="text-gray-500 sm:col-span-1">graceEndsAt</dt>
+              <dd className="sm:col-span-1 break-all">{previewJson.graceEndsAt == null ? 'null' : String(previewJson.graceEndsAt)}</dd>
+            </dl>
+          )}
         </div>
 
         <label className="block">
