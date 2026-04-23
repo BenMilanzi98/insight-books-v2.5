@@ -53,7 +53,22 @@ export async function GET(request) {
     });
   } catch (e) {
     console.error('admin mobile-app GET', e);
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
+    const code = e && typeof e === 'object' && 'code' in e ? String(e.code) : '';
+    const msg = e instanceof Error ? e.message : String(e);
+    if (code === 'P2022') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment.',
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: process.env.NODE_ENV === 'development' ? msg : 'Internal error' },
+      { status: 500 },
+    );
   }
 }
 
@@ -145,10 +160,19 @@ export async function POST(request) {
       data.publishedAt = new Date();
     }
 
-    const row = await prisma.mobileAppConfig.update({
-      where: { id: 'global' },
-      data,
-    });
+    /** Prisma rejects `update({ data: {} })`; some clients may send only `publish`/`clearPublish` merged oddly. */
+    let row;
+    if (Object.keys(data).length === 0) {
+      row = await prisma.mobileAppConfig.findUnique({ where: { id: 'global' } });
+      if (!row) {
+        return NextResponse.json({ success: false, error: 'Mobile app config row missing' }, { status: 500 });
+      }
+    } else {
+      row = await prisma.mobileAppConfig.update({
+        where: { id: 'global' },
+        data,
+      });
+    }
 
     const st = getReleaseApkStats();
     return NextResponse.json({
@@ -175,6 +199,22 @@ export async function POST(request) {
     });
   } catch (e) {
     console.error('admin mobile-app POST', e);
-    return NextResponse.json({ success: false, error: 'Internal error' }, { status: 500 });
+    const code = e && typeof e === 'object' && 'code' in e ? String(e.code) : '';
+    const msg = e instanceof Error ? e.message : String(e);
+    /** P2022 = column missing in DB (migrations not applied). */
+    if (code === 'P2022') {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment (needs MobileAppConfig grace columns and related migrations).',
+        },
+        { status: 503 },
+      );
+    }
+    return NextResponse.json(
+      { success: false, error: process.env.NODE_ENV === 'development' ? msg : 'Internal error' },
+      { status: 500 },
+    );
   }
 }
