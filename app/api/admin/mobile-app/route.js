@@ -55,15 +55,19 @@ export async function GET(request) {
     console.error('admin mobile-app GET', e);
     const code = e && typeof e === 'object' && 'code' in e ? String(e.code) : '';
     const msg = e instanceof Error ? e.message : String(e);
+    const prismaKnown = /^P[0-9]+$/.test(code);
     if (code === 'P2022') {
       return NextResponse.json(
         {
           success: false,
           error:
-            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment.',
+            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment. ' + msg,
         },
         { status: 503 },
       );
+    }
+    if (prismaKnown) {
+      return NextResponse.json({ success: false, error: msg }, { status: 500 });
     }
     return NextResponse.json(
       { success: false, error: process.env.NODE_ENV === 'development' ? msg : 'Internal error' },
@@ -201,16 +205,20 @@ export async function POST(request) {
     console.error('admin mobile-app POST', e);
     const code = e && typeof e === 'object' && 'code' in e ? String(e.code) : '';
     const msg = e instanceof Error ? e.message : String(e);
+    const prismaKnown = /^P[0-9]+$/.test(code);
     /** P2022 = column missing in DB (migrations not applied). */
     if (code === 'P2022') {
       return NextResponse.json(
         {
           success: false,
           error:
-            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment (needs MobileAppConfig grace columns and related migrations).',
+            'Database schema is out of date. Run `npx prisma migrate deploy` on this environment. ' + msg,
         },
         { status: 503 },
       );
+    }
+    if (prismaKnown) {
+      return NextResponse.json({ success: false, error: msg }, { status: 500 });
     }
     return NextResponse.json(
       { success: false, error: process.env.NODE_ENV === 'development' ? msg : 'Internal error' },
