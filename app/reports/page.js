@@ -112,7 +112,21 @@ const FinancialReportingPage = () => {
     endDate: ''
   });
   const [showCustomDateRange, setShowCustomDateRange] = useState(false);
+  const [showSingleDayPicker, setShowSingleDayPicker] = useState(false);
+  const [singleDayPickerDate, setSingleDayPickerDate] = useState(() => formatYmdInTimeZone(new Date()));
   const [showBrowseReports, setShowBrowseReports] = useState(false);
+
+  /** Date range payload for APIs: custom range, or one civil day (revenue + GL COGS for that day). */
+  const customRangeForApi = useMemo(() => {
+    if (timeframe === "singleDay") {
+      const d = customDateRange?.startDate || customDateRange?.endDate;
+      return d ? { startDate: d, endDate: d } : null;
+    }
+    if (timeframe === "custom" && customDateRange?.startDate && customDateRange?.endDate) {
+      return customDateRange;
+    }
+    return null;
+  }, [timeframe, customDateRange]);
   const [analyticsFilters, setAnalyticsFilters] = useState({
     groupBy: 'month',
     metric: 'profit',
@@ -144,23 +158,38 @@ const FinancialReportingPage = () => {
   const analyticsMetricConfig = useMemo(() => ([
     {
       id: 'revenue',
-      label: 'Total Revenue',
+      label: 'Total revenue',
       color: 'text-blue-600',
       bg: 'bg-blue-50',
       border: 'border-blue-200',
       value: financialAnalytics?.totals?.revenue || 0
     },
     {
-      id: 'expenses',
-      label: 'Total Expenses',
+      id: 'operatingExpenses',
+      label: 'Operating expenses',
+      color: 'text-orange-600',
+      bg: 'bg-orange-50',
+      border: 'border-orange-200',
+      value:
+        financialAnalytics?.totals?.operatingExpenses ??
+        Math.max(
+          0,
+          (Number(financialAnalytics?.totals?.expenses) || 0) -
+            (Number(financialAnalytics?.totals?.cogs) || 0)
+        )
+    },
+    {
+      id: 'cogs',
+      label: 'Cost of goods sold',
       color: 'text-red-600',
       bg: 'bg-red-50',
       border: 'border-red-200',
-      value: financialAnalytics?.totals?.expenses || 0
+      value: financialAnalytics?.totals?.cogs || 0
     },
     {
       id: 'profit',
-      label: 'Net Profit',
+      label: 'Net profit',
+      subtitle: 'Revenue − operating − COGS',
       color: 'text-green-600',
       bg: 'bg-green-50',
       border: 'border-green-200',
@@ -168,7 +197,7 @@ const FinancialReportingPage = () => {
     },
     {
       id: 'avgRevenue',
-      label: 'Avg Revenue / Period',
+      label: 'Avg revenue / period',
       color: 'text-purple-600',
       bg: 'bg-purple-50',
       border: 'border-purple-200',
@@ -207,10 +236,7 @@ const FinancialReportingPage = () => {
 
       try {
         // Fetch summary data
-        const summaryData = await fetchFinancialSummary(
-          timeframe, 
-          timeframe === 'custom' ? customDateRange : null
-        );
+        const summaryData = await fetchFinancialSummary(timeframe, customRangeForApi);
         setFinancialSummary(summaryData);
       } catch (err) {
         console.error("Error loading financial summary:", err);
@@ -223,7 +249,7 @@ const FinancialReportingPage = () => {
     if (activeReport === 'summary') {
       loadFinancialData();
     }
-  }, [timeframe, activeReport, customDateRange]);
+  }, [timeframe, activeReport, customRangeForApi]);
 
   useEffect(() => {
     const loadAnalytics = async () => {
@@ -232,7 +258,7 @@ const FinancialReportingPage = () => {
         setAnalyticsError(null);
         const analytics = await fetchFinancialAnalytics({
           timeframe,
-          customDateRange: timeframe === 'custom' ? customDateRange : null,
+          customDateRange: customRangeForApi,
           groupBy: analyticsFilters.groupBy,
           categoryId: analyticsFilters.categoryId
         });
@@ -247,7 +273,7 @@ const FinancialReportingPage = () => {
     };
 
     loadAnalytics();
-  }, [timeframe, customDateRange, analyticsFilters.groupBy, analyticsFilters.categoryId]);
+  }, [timeframe, customRangeForApi, analyticsFilters.groupBy, analyticsFilters.categoryId]);
 
   // NEW: Handle custom date range change
   const handleCustomDateRangeChange = (field, value) => {
@@ -259,16 +285,28 @@ const FinancialReportingPage = () => {
 
   // NEW: Handle timeframe change - show modal if custom is selected
   const handleTimeframeChange = (value) => {
-    if (value === 'custom') {
-      // Clear any existing custom date range so user can select fresh dates
+    if (value === "custom") {
       setCustomDateRange({
-        startDate: '',
-        endDate: ''
+        startDate: "",
+        endDate: "",
       });
       setShowCustomDateRange(true);
-    } else {
-      setTimeframe(value);
+      return;
     }
+    if (value === "singleDay") {
+      const d =
+        customDateRange?.startDate &&
+        customDateRange?.endDate &&
+        customDateRange.startDate === customDateRange.endDate
+          ? customDateRange.startDate
+          : formatYmdInTimeZone(new Date());
+      setSingleDayPickerDate(d);
+      setCustomDateRange({ startDate: d, endDate: d });
+      setTimeframe("singleDay");
+      setShowSingleDayPicker(true);
+      return;
+    }
+    setTimeframe(value);
   };
 
   // NEW: Apply custom date range
@@ -288,13 +326,29 @@ const FinancialReportingPage = () => {
     setError(null);
   };
 
+  const applySingleDayPicker = () => {
+    if (!singleDayPickerDate?.trim()) {
+      setError("Please select a date");
+      return;
+    }
+    const d = singleDayPickerDate.trim();
+    setCustomDateRange({ startDate: d, endDate: d });
+    setTimeframe("singleDay");
+    setShowSingleDayPicker(false);
+    setError(null);
+  };
+
   // Get effective date range for API calls
   const getEffectiveDateRange = () => {
-    if (timeframe === 'custom') {
+    if (timeframe === "custom" && customDateRange?.startDate && customDateRange?.endDate) {
       return {
         startDate: customDateRange.startDate,
-        endDate: customDateRange.endDate
+        endDate: customDateRange.endDate,
       };
+    }
+    if (timeframe === "singleDay" && (customDateRange?.startDate || customDateRange?.endDate)) {
+      const d = customDateRange.startDate || customDateRange.endDate;
+      return { startDate: d, endDate: d };
     }
     return { timeframe };
   };
@@ -309,8 +363,14 @@ const FinancialReportingPage = () => {
       );
       if (label) return label;
     }
+    if (timeframe === "today") return getTimeframeLabel("today");
+    if (timeframe === "singleDay" && (customDateRange?.startDate || customDateRange?.endDate)) {
+      const d = customDateRange.startDate || customDateRange.endDate;
+      const oneDay = formatPeriodRange(d, d, " – ");
+      if (oneDay) return oneDay;
+    }
     return getTimeframeLabel(timeframe);
-  }, [financialSummary?.timeframe, timeframe]);
+  }, [financialSummary?.timeframe, timeframe, customDateRange]);
 
   const analyticsDateRangeLabel = useMemo(() => {
     const pStart = financialAnalytics?.period?.startDate;
@@ -324,19 +384,26 @@ const FinancialReportingPage = () => {
       const label = formatPeriodRange(customDateRange.startDate, customDateRange.endDate, ' – ');
       if (label) return label;
     }
+    if (timeframe === "singleDay" && (customDateRange?.startDate || customDateRange?.endDate)) {
+      const d = customDateRange.startDate || customDateRange.endDate;
+      const label = formatPeriodRange(d, d, ' – ');
+      if (label) return label;
+    }
 
     return summaryDateRangeLabel;
   }, [financialAnalytics?.period, timeframe, customDateRange, summaryDateRangeLabel]);
 
   // Timeframe options for the main dashboard selector
   const TIMEFRAME_OPTIONS = [
-    { value: 'thisMonth', label: 'This month' },
-    { value: 'lastMonth', label: 'Last month' },
-    { value: 'thisQuarter', label: 'This quarter' },
-    { value: 'lastQuarter', label: 'Last quarter' },
-    { value: 'thisYear', label: 'This year' },
-    { value: 'lastYear', label: 'Last year' },
-    { value: 'custom', label: 'Custom...' }
+    { value: "today", label: "Today" },
+    { value: "singleDay", label: "Pick a day…" },
+    { value: "thisMonth", label: "This month" },
+    { value: "lastMonth", label: "Last month" },
+    { value: "thisQuarter", label: "This quarter" },
+    { value: "lastQuarter", label: "Last quarter" },
+    { value: "thisYear", label: "This year" },
+    { value: "lastYear", label: "Last year" },
+    { value: "custom", label: "Custom…" },
   ];
 
   // Load selected report data
@@ -352,7 +419,7 @@ const FinancialReportingPage = () => {
           case 'profit-loss':
             const profitLossData = await fetchIncomeStatement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setIncomeStatement(profitLossData);
             break;
@@ -360,7 +427,7 @@ const FinancialReportingPage = () => {
           case 'balance-sheet':
             const balanceSheetData = await fetchBalanceSheet({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setBalanceSheet(balanceSheetData);
             break;
@@ -368,7 +435,7 @@ const FinancialReportingPage = () => {
           case 'cash-flow':
             const cashFlowData = await fetchCashFlowStatement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setCashFlowStatement(cashFlowData);
             break;
@@ -376,7 +443,7 @@ const FinancialReportingPage = () => {
           case 'tax-summary':
             const taxSummaryData = await fetchTaxSummary({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setTaxSummary(taxSummaryData);
             break;
@@ -384,7 +451,7 @@ const FinancialReportingPage = () => {
           case 'expense-report':
             const expenseData = await fetchExpenseReport({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setExpenseReport(expenseData);
             break;
@@ -392,7 +459,7 @@ const FinancialReportingPage = () => {
           case 'sales-report':
             const salesData = await fetchSalesReport({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setSalesReport(salesData);
             break;
@@ -400,7 +467,7 @@ const FinancialReportingPage = () => {
           case 'stock-movement':
             const stockMovementData = await fetchStockMovement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null,
+              customDateRange: customRangeForApi,
               productId: stockMovementProductId || undefined
             });
             setStockMovement(stockMovementData);
@@ -412,7 +479,10 @@ const FinancialReportingPage = () => {
             break;
             
           case 'financial-ratios':
-            const ratiosData = await fetchFinancialRatios({ timeframe });
+            const ratiosData = await fetchFinancialRatios({
+              timeframe,
+              customDateRange: customRangeForApi
+            });
             setFinancialRatios(ratiosData);
             break;
         }
@@ -434,7 +504,7 @@ const FinancialReportingPage = () => {
     };
 
     loadSelectedReportData();
-  }, [selectedReport, timeframe, customDateRange, stockMovementProductId, posDailyDate]);
+  }, [selectedReport, timeframe, customRangeForApi, stockMovementProductId, posDailyDate]);
 
   // Handle report generation
   const handleGenerateReport = useCallback((reportId) => {
@@ -448,7 +518,7 @@ const FinancialReportingPage = () => {
       const type = reportType || selectedReport || 'summary';
       const params = {
         timeframe,
-        customDateRange: timeframe === 'custom' ? customDateRange : null
+        customDateRange: customRangeForApi
       };
       if (type === 'pos-daily') params.date = posDailyDate;
       await exportReport(type, format, params);
@@ -456,7 +526,7 @@ const FinancialReportingPage = () => {
       console.error("Error exporting report:", err);
       setError("Failed to export report. Please try again.");
     }
-  }, [selectedReport, timeframe, customDateRange, posDailyDate]);
+  }, [selectedReport, timeframe, customRangeForApi, posDailyDate]);
 
   // Handle refresh
   const handleRefresh = useCallback(async () => {
@@ -468,12 +538,12 @@ const FinancialReportingPage = () => {
         // Reload summary data
         const summaryData = await fetchFinancialSummary(
           timeframe,
-          timeframe === 'custom' ? customDateRange : null
+          customRangeForApi
         );
         setFinancialSummary(summaryData);
         const analytics = await fetchFinancialAnalytics({
           timeframe,
-          customDateRange: timeframe === 'custom' ? customDateRange : null,
+          customDateRange: customRangeForApi,
           groupBy: analyticsFilters.groupBy
         });
         setFinancialAnalytics(analytics);
@@ -483,7 +553,7 @@ const FinancialReportingPage = () => {
           case 'profit-loss':
             const incomeData = await fetchIncomeStatement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setIncomeStatement(incomeData);
             break;
@@ -491,7 +561,7 @@ const FinancialReportingPage = () => {
           case 'balance-sheet':
             const balanceData = await fetchBalanceSheet({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setBalanceSheet(balanceData);
             break;
@@ -499,7 +569,7 @@ const FinancialReportingPage = () => {
           case 'cash-flow':
             const cashFlowData = await fetchCashFlowStatement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setCashFlowStatement(cashFlowData);
             break;
@@ -507,7 +577,7 @@ const FinancialReportingPage = () => {
           case 'tax-summary':
             const taxData = await fetchTaxSummary({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setTaxSummary(taxData);
             break;
@@ -515,7 +585,7 @@ const FinancialReportingPage = () => {
           case 'expense-report':
             const expenseData = await fetchExpenseReport({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setExpenseReport(expenseData);
             break;
@@ -523,7 +593,7 @@ const FinancialReportingPage = () => {
           case 'sales-report':
             const salesData = await fetchSalesReport({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setSalesReport(salesData);
             break;
@@ -531,7 +601,7 @@ const FinancialReportingPage = () => {
           case 'stock-movement':
             const stockMovementData = await fetchStockMovement({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null,
+              customDateRange: customRangeForApi,
               productId: stockMovementProductId || undefined
             });
             setStockMovement(stockMovementData);
@@ -545,7 +615,7 @@ const FinancialReportingPage = () => {
           case 'financial-ratios':
             const ratiosData = await fetchFinancialRatios({ 
               timeframe,
-              customDateRange: timeframe === 'custom' ? customDateRange : null
+              customDateRange: customRangeForApi
             });
             setFinancialRatios(ratiosData);
             break;
@@ -557,7 +627,15 @@ const FinancialReportingPage = () => {
     } finally {
       setRefreshing(false);
     }
-  }, [activeReport, selectedReport, timeframe, customDateRange]);
+  }, [
+    activeReport,
+    selectedReport,
+    timeframe,
+    customRangeForApi,
+    analyticsFilters.groupBy,
+    stockMovementProductId,
+    posDailyDate
+  ]);
 
   // Render selected report component
   const renderSelectedReport = () => {
@@ -725,7 +803,7 @@ const FinancialReportingPage = () => {
       <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between mb-4 sm:mb-6">
           <div>
-            <h3 className="text-base font-semibold text-slate-800">Financial analytics</h3>
+            <h3 className="text-base font-semibold text-slate-800">Profit analysis</h3>
             <p className="text-sm text-slate-500 mt-0.5 break-words">
               {analyticsDateRangeLabel}
             </p>
@@ -754,8 +832,9 @@ const FinancialReportingPage = () => {
             >
               <option value="profit">Focus: Profit</option>
               <option value="revenue">Focus: Revenue</option>
-              <option value="expenses">Focus: Expenses</option>
-              <option value="avgRevenue">Focus: Average Revenue</option>
+              <option value="operatingExpenses">Focus: Operating expenses</option>
+              <option value="cogs">Focus: COGS</option>
+              <option value="avgRevenue">Focus: Average revenue</option>
             </select>
             <select
               value={analyticsFilters.categoryId}
@@ -775,7 +854,7 @@ const FinancialReportingPage = () => {
         {analyticsLoading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 size={32} className="animate-spin text-emerald-600 mr-3" />
-            <span className="text-slate-500 text-sm">Loading analytics...</span>
+            <span className="text-slate-500 text-sm">Loading profit analysis...</span>
           </div>
         ) : analyticsError ? (
           <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -783,7 +862,7 @@ const FinancialReportingPage = () => {
           </div>
         ) : financialAnalytics ? (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 mb-6">
               {analyticsMetricConfig.map((metric) => (
                 <div
                   key={metric.id}
@@ -792,6 +871,9 @@ const FinancialReportingPage = () => {
                   <p className="text-xs uppercase font-medium text-slate-500 tracking-wide mb-1">
                     {metric.label}
                   </p>
+                  {metric.subtitle ? (
+                    <p className="text-[11px] text-slate-400 mb-1">{metric.subtitle}</p>
+                  ) : null}
                   <p className={`text-xl font-semibold ${metric.color}`}>
                     {formatCurrency(metric.value)}
                   </p>
@@ -802,7 +884,7 @@ const FinancialReportingPage = () => {
             <div className="space-y-6">
               <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[380px]">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Revenue vs Expenses vs Profit</h4>
+                  <h4 className="text-sm font-semibold text-slate-800">Revenue, expenses (operating + COGS), and profit</h4>
                   <span className="text-xs text-slate-500">by {analyticsFilters.groupBy}</span>
                 </div>
                 {analyticsTrend.length > 0 ? (
@@ -1098,7 +1180,7 @@ const FinancialReportingPage = () => {
           </div>
           <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm hover:shadow transition-shadow">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-sm font-medium text-slate-500">Total Expenses</span>
+              <span className="text-sm font-medium text-slate-500">Total costs (COGS + operating)</span>
               <TrendingDown size={18} className="text-red-500" />
             </div>
             <p className="text-2xl font-bold text-slate-800">{formatCurrency(expenses)}</p>
@@ -1106,13 +1188,15 @@ const FinancialReportingPage = () => {
           </div>
           <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm hover:shadow transition-shadow">
             <div className="flex justify-between items-start mb-2">
-              <span className="text-sm font-medium text-slate-500">Net Profit</span>
+              <span className="text-sm font-medium text-slate-500">Net profit</span>
               <DollarSign size={18} className={profit >= 0 ? 'text-emerald-500' : 'text-red-500'} />
             </div>
             <p className={`text-2xl font-bold ${profit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
               {formatCurrency(profit)}
             </p>
-            <p className="text-xs text-slate-400 mt-1">{profitMargin.toFixed(1)}% margin</p>
+            <p className="text-xs text-slate-400 mt-1">
+              {profitMargin.toFixed(1)}% net margin (same as P&L)
+            </p>
           </div>
           <div className="rounded-2xl bg-white border border-slate-200 p-5 shadow-sm hover:shadow transition-shadow">
             <div className="flex justify-between items-start mb-2">
@@ -1381,6 +1465,52 @@ const FinancialReportingPage = () => {
           )}
       
           {/* Custom Date Range Modal */}
+          {showSingleDayPicker && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-2xl w-full max-w-md border border-slate-200 shadow-xl">
+                <div className="flex justify-between items-center mb-5">
+                  <h2 className="text-lg font-semibold text-slate-800">Single day (P&amp;L &amp; COGS)</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowSingleDayPicker(false)}
+                    className="p-2 rounded-xl text-slate-500 hover:bg-slate-100"
+                    aria-label="Close"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Revenue and cost of goods sold use this calendar day only (same rules as monthly reports).
+                </p>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={singleDayPickerDate}
+                    onChange={(e) => setSingleDayPickerDate(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                  />
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium"
+                    onClick={() => setShowSingleDayPicker(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors text-sm font-medium"
+                    onClick={applySingleDayPicker}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showCustomDateRange && (
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
               <div className="bg-white p-6 rounded-2xl w-full max-w-md border border-slate-200 shadow-xl">

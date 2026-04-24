@@ -9,14 +9,38 @@ import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 
 // Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
-  const custom =
-    timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate
-      ? customDateRange
-      : null;
-  const { startDate, endDate } = calculateDateRange(timeframe, false, custom);
+  if (timeframe === 'custom' && customDateRange?.startDate && customDateRange?.endDate) {
+    const { startDate, endDate } = calculateDateRange('custom', false, customDateRange);
+    return {
+      startDate: formatYmdInTimeZone(startDate),
+      endDate: formatYmdInTimeZone(endDate),
+    };
+  }
+  if (timeframe === 'singleDay') {
+    const day =
+      customDateRange?.startDate ||
+      customDateRange?.endDate ||
+      null;
+    if (day) {
+      const { startDate, endDate } = calculateDateRange('custom', false, {
+        startDate: String(day).trim(),
+        endDate: String(day).trim(),
+      });
+      return {
+        startDate: formatYmdInTimeZone(startDate),
+        endDate: formatYmdInTimeZone(endDate),
+      };
+    }
+    const { startDate, endDate } = calculateDateRange('today', false, null);
+    return {
+      startDate: formatYmdInTimeZone(startDate),
+      endDate: formatYmdInTimeZone(endDate),
+    };
+  }
+  const { startDate, endDate } = calculateDateRange(timeframe, false, null);
   return {
     startDate: formatYmdInTimeZone(startDate),
-    endDate: formatYmdInTimeZone(endDate)
+    endDate: formatYmdInTimeZone(endDate),
   };
 };
 
@@ -78,9 +102,7 @@ export const fetchBalanceSheet = async ({ timeframe, customDateRange = null }) =
     // endDate is already in YYYY-MM-DD format from getDateRange, so use it directly
     // Only convert if it's not already in the correct format
     const asOfDate = endDate || formatYmdInTimeZone(new Date());
-    
-    console.log('Balance Sheet - Timeframe:', timeframe, 'AsOfDate:', asOfDate);
-    
+
     const response = await fetch(`/api/reports/balance-sheet?asOfDate=${encodeURIComponent(asOfDate)}`);
     
     if (!response.ok) {
@@ -317,15 +339,18 @@ export const exportReport = async (reportType, format, params = {}) => {
     
     // Calendar-aligned range (default: full current month, 1st–last day; this year = 1 Jan–31 Dec)
     const tf = params.timeframe || 'thisMonth';
-    const { startDate, endDate } = getDateRange(tf, params.customDateRange);
+    const { startDate, endDate } = getDateRange(
+      tf,
+      tf === 'singleDay' || tf === 'custom' ? params.customDateRange : null
+    );
     queryParams.append('startDate', startDate);
     queryParams.append('endDate', endDate);
     
-    // Add any other params
+    // Add any other params (skip timeframe + customDateRange — range is already startDate/endDate)
     Object.entries(params).forEach(([key, value]) => {
-      if (key !== 'timeframe') {
-        queryParams.append(key, value);
-      }
+      if (key === 'timeframe' || key === 'customDateRange' || value == null) return;
+      if (typeof value === 'object') return;
+      queryParams.append(key, String(value));
     });
     
     queryParams.append('format', format);

@@ -34,9 +34,12 @@ export async function GET(request) {
     const end = new Date(endDate);
     end.setHours(23, 59, 59, 999);
     
-    // Build query filter - filter by branch
+    // Build query filter — approved register only (aligned with P&L operating expenses)
     const filter = addBranchFilter(user, {
       tenantId: user.tenantId,
+      status: 'Approved',
+      isDeleted: false,
+      isReversal: false,
       date: {
         gte: start,
         lte: end
@@ -102,6 +105,9 @@ export async function GET(request) {
       by: ['category'],
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
+        status: 'Approved',
+        isDeleted: false,
+        isReversal: false,
         date: {
           gte: start,
           lte: end

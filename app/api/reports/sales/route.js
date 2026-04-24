@@ -39,6 +39,9 @@ export async function GET(request) {
     const sales = await prisma.sale.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
+        status: 'completed',
+        voidedAt: null,
+        refundedAt: null,
         saleDate: {
           gte: start,
           lte: end
@@ -61,9 +64,9 @@ export async function GET(request) {
     const invoices = await prisma.invoice.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
-        status: {
-          in: ['Paid', 'Pending']
-        },
+        status: { in: ['Paid', 'Completed'] },
+        voidedAt: null,
+        refundedAt: null,
         issueDate: {
           gte: start,
           lte: end

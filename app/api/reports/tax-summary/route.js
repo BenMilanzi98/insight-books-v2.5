@@ -37,6 +37,9 @@ export async function GET(request) {
       where: {
         invoice: addBranchFilter(user, {
           tenantId: user.tenantId,
+          voidedAt: null,
+          refundedAt: null,
+          status: { notIn: ['Draft', 'Cancelled'] },
           issueDate: {
             gte: start,
             lte: end
@@ -64,6 +67,9 @@ export async function GET(request) {
       where: {
         sale: addBranchFilter(user, {
           tenantId: user.tenantId,
+          status: 'completed',
+          voidedAt: null,
+          refundedAt: null,
           saleDate: {
             gte: start,
             lte: end
@@ -120,6 +126,7 @@ export async function GET(request) {
     const taxExpenses = await prisma.expense.findMany({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
+        status: 'Approved',
         category: {
           contains: 'Tax' // This assumes tax expenses are categorized with "Tax" in the name
         },

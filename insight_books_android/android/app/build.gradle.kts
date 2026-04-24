@@ -38,7 +38,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         // Play Store / package_info label (pubspec semver cannot be four-part "1.0.0.1").
-        versionName = "1.0.0.1"
+        versionName = "1.0.0.2
         // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
         manifestPlaceholders["applicationName"] = "android.app.Application"
     }

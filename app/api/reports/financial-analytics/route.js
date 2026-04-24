@@ -8,6 +8,10 @@ import {
   lookupStandardExpenseCodeFromCategorySync,
   normalizeCategoryNameForReporting
 } from '@/lib/expenseCategoryNormalization';
+import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
+import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
+import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -146,68 +150,99 @@ export async function GET(request) {
     const groupBy = VALID_GROUPS.includes(groupByParam) ? groupByParam : 'month';
     const categoryIdFilter = searchParams.get('categoryId');
 
-    // Fetch data - filter by branch
-    const [invoices, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
-      prisma.invoice.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: { in: ['Paid', 'Completed'] },
-          issueDate: { gte: startDate, lte: endDate },
-          voidedAt: null,
-          refundedAt: null
-        }),
-        select: {
-          total: true,
-          issueDate: true,
-          taxAmount: true,
-          client: { select: { name: true } },
-          items: {
+    const accessEff = getEffectiveDashboardBranchId(user);
+    /** Same argument as P&L → `getSalesRevenueForPeriod(tenant, …, branchId)` (`user.currentBranchId` normalized). */
+    const plRevenueBranchId =
+      accessEff === false ? null : normalizeBranchId(user.currentBranchId) ?? null;
+
+    // Revenue: completed invoice payments by paymentDate + POS completed sales by saleDate (matches P&L).
+    const [invoicePayments, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
+      accessEff === false
+        ? Promise.resolve([])
+        : prisma.payment.findMany({
+            where: {
+              tenantId: user.tenantId,
+              isReversal: false,
+              invoiceId: { not: null },
+              status: { equals: 'Completed', mode: 'insensitive' },
+              paymentDate: { gte: startDate, lte: endDate },
+              invoice: {
+                is: {
+                  tenantId: user.tenantId,
+                  voidedAt: null,
+                  refundedAt: null
+                }
+              },
+              ...(plRevenueBranchId
+                ? {
+                    OR: [
+                      { branchId: plRevenueBranchId },
+                      { invoice: { branchId: plRevenueBranchId } }
+                    ]
+                  }
+                : {})
+            },
             select: {
               amount: true,
-              netAmount: true,
-              product: {
+              paymentDate: true,
+              invoice: {
                 select: {
-                  categoryId: true,
-                  category: true,
-                  inventoryCategory: { select: { id: true, name: true } }
+                  total: true,
+                  subtotal: true,
+                  client: { select: { name: true } },
+                  items: {
+                    select: {
+                      amount: true,
+                      netAmount: true,
+                      product: {
+                        select: {
+                          categoryId: true,
+                          category: true,
+                          inventoryCategory: { select: { id: true, name: true } }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
-          }
-        }
-      }),
-      prisma.sale.findMany({
-        where: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: 'completed',
-          saleDate: { gte: startDate, lte: endDate },
-          voidedAt: null,
-          refundedAt: null
-        }),
-        select: {
-          total: true,
-          saleDate: true,
-          taxAmount: true,
-          client: { select: { name: true } },
-          items: {
+          }),
+      accessEff === false
+        ? Promise.resolve([])
+        : prisma.sale.findMany({
+            where: {
+              tenantId: user.tenantId,
+              status: 'completed',
+              voidedAt: null,
+              refundedAt: null,
+              saleDate: { gte: startDate, lte: endDate },
+              ...(plRevenueBranchId ? { branchId: plRevenueBranchId } : {})
+            },
             select: {
-              amount: true,
-              product: {
+              total: true,
+              saleDate: true,
+              taxAmount: true,
+              client: { select: { name: true } },
+              items: {
                 select: {
-                  categoryId: true,
-                  category: true,
-                  inventoryCategory: { select: { id: true, name: true } }
+                  amount: true,
+                  product: {
+                    select: {
+                      categoryId: true,
+                      category: true,
+                      inventoryCategory: { select: { id: true, name: true } }
+                    }
+                  }
                 }
               }
             }
-          }
-        }
-      }),
+          }),
       prisma.expense.findMany({
         where: addBranchFilter(user, {
           tenantId: user.tenantId,
           status: 'Approved',
           isDeleted: false,
+          isReversal: false,
           date: { gte: startDate, lte: endDate }
         }),
         select: {
@@ -281,8 +316,8 @@ export async function GET(request) {
     /** @type {Map<string, { label: string; value: number }>} */
     const expenseBreakdownBuckets = new Map();
     const revenueBySource = new Map([
-      ['Invoices', 0],
-      ['Sales', 0]
+      ['Invoice payments', 0],
+      ['POS sales', 0]
     ]);
     const customerMap = new Map();
     const revenueByCategoryMap = new Map();
@@ -301,25 +336,64 @@ export async function GET(request) {
       return { key, id, name };
     };
 
-    invoices.forEach((invoice) => {
-      const amount = Number(invoice.total) || 0;
-      const label = formatLabel(invoice.issueDate, groupBy);
-      addToBucket(trendMap, label, 'revenue', amount);
-      addToMap(revenueBySource, 'Invoices', amount);
-      if (invoice.client?.name) addToMap(customerMap, invoice.client.name, amount);
-      for (const item of invoice.items || []) {
+    const allocatePaymentToRevenueCategories = (paymentAmount, invoice) => {
+      if (!invoice || !(Number(paymentAmount) > 0)) return;
+      const lines = invoice.items || [];
+      if (!lines.length) {
+        const key = 'legacy:Uncategorized';
+        categoriesMap.set(key, { id: null, name: 'Uncategorized' });
+        addToMap(revenueByCategoryMap, key, Number(paymentAmount));
+        return;
+      }
+      const invTotal = Math.max(Number(invoice.total) || 0, 0);
+      let sumLines = 0;
+      for (const it of lines) {
+        sumLines +=
+          Math.max(Number(it.netAmount) || 0, Number(it.amount) || 0) || 0;
+      }
+      const denom = invTotal > 0 ? invTotal : sumLines;
+      if (!(denom > 0)) {
+        const key = 'legacy:Uncategorized';
+        categoriesMap.set(key, { id: null, name: 'Uncategorized' });
+        addToMap(revenueByCategoryMap, key, Number(paymentAmount));
+        return;
+      }
+      let allocated = 0;
+      for (const item of lines) {
+        const lineAmt =
+          Math.max(Number(item.netAmount) || 0, Number(item.amount) || 0) || 0;
+        if (!(lineAmt > 0)) continue;
+        const alloc = (Number(paymentAmount) * lineAmt) / denom;
+        if (!(alloc > 0)) continue;
         const category = getCategoryDescriptor(item.product);
         categoriesMap.set(category.key, { id: category.id, name: category.name });
-        const net = Number(item.netAmount || item.amount || 0);
-        addToMap(revenueByCategoryMap, category.key, net);
+        addToMap(revenueByCategoryMap, category.key, alloc);
+        allocated += alloc;
       }
+      const remainder = Number(paymentAmount) - allocated;
+      if (remainder > 1e-4) {
+        const key = 'legacy:Uncategorized';
+        categoriesMap.set(key, { id: null, name: 'Uncategorized' });
+        addToMap(revenueByCategoryMap, key, remainder);
+      }
+    };
+
+    invoicePayments.forEach((payment) => {
+      const payAmt = Number(payment.amount) || 0;
+      if (!(payAmt > 0)) return;
+      const label = formatLabel(payment.paymentDate, groupBy);
+      addToBucket(trendMap, label, 'revenue', payAmt);
+      addToMap(revenueBySource, 'Invoice payments', payAmt);
+      const inv = payment.invoice;
+      if (inv?.client?.name) addToMap(customerMap, inv.client.name, payAmt);
+      allocatePaymentToRevenueCategories(payAmt, inv);
     });
 
     sales.forEach((sale) => {
       const amount = Number(sale.total) || 0;
       const label = formatLabel(sale.saleDate, groupBy);
       addToBucket(trendMap, label, 'revenue', amount);
-      addToMap(revenueBySource, 'Sales', amount);
+      addToMap(revenueBySource, 'POS sales', amount);
       const customerName = sale.client?.name;
       if (customerName) addToMap(customerMap, customerName, amount);
       for (const item of sale.items || []) {
@@ -341,6 +415,86 @@ export async function GET(request) {
       const row = expenseBreakdownBuckets.get(key);
       row.value += amount;
     });
+
+    /** COGS in trend + totals — aligned with P&L (GL net on COGS accounts, else activity fallback). */
+    const operatingExpenseTotal = Array.from(trendMap.values()).reduce(
+      (sum, item) => sum + (Number(item.expenses) || 0),
+      0
+    );
+    let totalCogsApplied = 0;
+    const cogsTransactionWhere = {
+      tenantId: user.tenantId,
+      date: { gte: startDate, lte: endDate },
+      status: 'posted',
+      isReversal: false
+    };
+    if (accessEff === false) {
+      cogsTransactionWhere.branchId = { in: [] };
+    } else if (plRevenueBranchId) {
+      cogsTransactionWhere.OR = [{ branchId: plRevenueBranchId }, { branchId: null }];
+    }
+
+    let useGlCogs = false;
+    let glPeriodTotal = 0;
+    const cogsAccountIds = await getCogsAccountIdsForExpenseRegister(prisma, user.tenantId);
+    if (cogsAccountIds.length > 0) {
+      const cogsLines = await prisma.transactionLine.findMany({
+        where: {
+          accountId: { in: cogsAccountIds },
+          transaction: cogsTransactionWhere
+        },
+        select: {
+          debitAmount: true,
+          creditAmount: true,
+          transaction: { select: { date: true } }
+        }
+      });
+      for (const line of cogsLines) {
+        const net =
+          (Number(line.debitAmount) || 0) - (Number(line.creditAmount) || 0);
+        glPeriodTotal += net;
+      }
+      glPeriodTotal = round2(glPeriodTotal);
+      useGlCogs = Math.abs(glPeriodTotal) > 1e-6;
+      if (useGlCogs) {
+        for (const line of cogsLines) {
+          const net =
+            (Number(line.debitAmount) || 0) - (Number(line.creditAmount) || 0);
+          if (Math.abs(net) < 1e-9) continue;
+          const label = formatLabel(line.transaction.date, groupBy);
+          addToBucket(trendMap, label, 'expenses', net);
+        }
+        totalCogsApplied = glPeriodTotal;
+      }
+    }
+
+    if (!useGlCogs && accessEff !== false) {
+      try {
+        const stats = await getCOGSTransactionStats(
+          user.tenantId,
+          startDate,
+          endDate,
+          plRevenueBranchId || undefined
+        );
+        const activityTotal = round2(Number(stats?.totalAmount ?? 0) || 0);
+        if (activityTotal > 0) {
+          const labels = Array.from(trendMap.keys());
+          const revenues = labels.map((lb) => Number(trendMap.get(lb)?.revenue) || 0);
+          const totalRev = revenues.reduce((a, b) => a + b, 0);
+          if (totalRev > 0) {
+            for (let i = 0; i < labels.length; i++) {
+              const share = revenues[i] / totalRev;
+              addToBucket(trendMap, labels[i], 'expenses', activityTotal * share);
+            }
+          } else {
+            addToBucket(trendMap, formatLabel(startDate, groupBy), 'expenses', activityTotal);
+          }
+          totalCogsApplied = activityTotal;
+        }
+      } catch (cogsErr) {
+        console.warn('Financial analytics: COGS activity fallback failed:', cogsErr?.message || cogsErr);
+      }
+    }
 
     supplierBills.forEach((bill) => {
       for (const item of bill.items || []) {
@@ -390,6 +544,19 @@ export async function GET(request) {
         return b.value - a.value;
       });
 
+    if (totalCogsApplied > 0) {
+      expenseBreakdownArr.push({
+        key: '5100',
+        name: '5100 — Cost of goods sold',
+        value: round2(totalCogsApplied)
+      });
+      expenseBreakdownArr.sort((a, b) => {
+        const byCode = compareExpenseBreakdownKeys(a.key, b.key);
+        if (byCode !== 0) return byCode;
+        return b.value - a.value;
+      });
+    }
+
     const revenueBySourceArr = Array.from(revenueBySource.entries()).map(([name, value]) => ({
       name,
       value
@@ -404,6 +571,16 @@ export async function GET(request) {
     const totalExpenses = trend.reduce((sum, item) => sum + item.expenses, 0);
     const totalProfit = totalRevenue - totalExpenses;
 
+    let plSalesRevenueTotal = null;
+    if (accessEff !== false) {
+      plSalesRevenueTotal = await getSalesRevenueForPeriod(
+        user.tenantId,
+        formatYmdInTimeZone(startDate),
+        formatYmdInTimeZone(endDate),
+        plRevenueBranchId
+      );
+    }
+
     const avgRevenue = trend.length ? totalRevenue / trend.length : 0;
     const avgExpenses = trend.length ? totalExpenses / trend.length : 0;
 
@@ -414,9 +591,12 @@ export async function GET(request) {
       ...expenseBudgetMap.keys()
     ]);
 
+    const todayCap = new Date();
+    todayCap.setHours(23, 59, 59, 999);
+    const periodEndCap = endDate.getTime() > todayCap.getTime() ? todayCap : endDate;
     const elapsedDays = Math.max(
       1,
-      Math.floor((Date.now() - startDate.getTime()) / 86400000) + 1
+      Math.floor((periodEndCap.getTime() - startDate.getTime()) / 86400000) + 1
     );
     const totalDays = Math.max(
       1,
@@ -487,10 +667,21 @@ export async function GET(request) {
       },
       totals: {
         revenue: totalRevenue,
+        /** Approved expense-register amounts only (excludes COGS). */
+        operatingExpenses: round2(operatingExpenseTotal),
+        cogs: round2(totalCogsApplied),
+        /** Operating expenses + COGS (matches P&L cost side for profit). */
         expenses: totalExpenses,
         profit: totalProfit,
         avgRevenue,
         avgExpenses
+      },
+      metadata: {
+        revenueBasis:
+          'Invoice cash: completed payments by paymentDate; POS: completed sales by saleDate (same rules as P&L sales revenue).',
+        plSalesRevenueTotal,
+        analyticsRevenueTotal: round2(totalRevenue),
+        revenueBranchId: plRevenueBranchId
       }
     };
 

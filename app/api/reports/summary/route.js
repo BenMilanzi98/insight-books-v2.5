@@ -40,8 +40,13 @@ export async function GET(request) {
       user.currentBranchId || null
     );
     const totalRevenue = Number(statement?.totalRevenue ?? 0);
-    const totalExpenses = Number(statement?.totalOperatingExpenses ?? 0);
-    const profit = Number(statement?.operatingIncome ?? statement?.netIncome ?? totalRevenue - totalExpenses);
+    const cogsAmount = Number(
+      statement?.cogs?.total ?? statement?.cogs?.costOfProductsSold ?? 0
+    );
+    const operatingExpenses = Number(statement?.totalOperatingExpenses ?? 0);
+    /** Operating + COGS — matches what net profit subtracts from revenue. */
+    const totalCosts = Math.round((cogsAmount + operatingExpenses) * 100) / 100;
+    const profit = Number(statement?.netIncome ?? statement?.operatingIncome ?? 0);
     
     // Count outstanding invoices - filter by branch
     const outstandingInvoices = await prisma.invoice.aggregate({
@@ -58,26 +63,31 @@ export async function GET(request) {
       }
     });
     
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
     const recentSales = await prisma.sale.count({
       where: addBranchFilter(user, {
         tenantId: user.tenantId,
-        saleDate: {
-          gte: new Date(new Date().setDate(new Date().getDate() - 7))
-        }
+        status: 'completed',
+        voidedAt: null,
+        refundedAt: null,
+        saleDate: { gte: weekAgo }
       })
     });
 
     const allProducts = await prisma.product.findMany({
       where: {
         tenantId: user.tenantId,
+        isDeleted: false,
         isService: false,
         stockLevel: { not: null }
       },
       select: { stockLevel: true, reorderPoint: true }
     });
-    const lowStockProducts = allProducts.filter(p => {
-      const level = p.stockLevel || 0;
-      const reorder = p.reorderPoint || 10;
+    const lowStockProducts = allProducts.filter((p) => {
+      const level = Number(p.stockLevel ?? 0);
+      const reorder = Number(p.reorderPoint ?? 10);
       return level === 0 || level <= reorder;
     }).length;
 
@@ -85,7 +95,9 @@ export async function GET(request) {
 
     return NextResponse.json({
       revenue: totalRevenue.toFixed(2),
-      expenses: totalExpenses.toFixed(2),
+      costOfGoodsSold: cogsAmount.toFixed(2),
+      operatingExpenses: operatingExpenses.toFixed(2),
+      expenses: totalCosts.toFixed(2),
       profit: profit.toFixed(2),
       profitMargin: profitMargin,
       outstandingInvoices: {

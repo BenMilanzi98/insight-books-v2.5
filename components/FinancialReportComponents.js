@@ -62,6 +62,8 @@ export const FinancialReport = ({
                   onChange={(e) => onTimeframeChange(e.target.value)}
                   disabled={loading}
                 >
+                  <option value="today">Today</option>
+                  <option value="singleDay">Pick a day…</option>
                   <option value="thisMonth">This Month</option>
                   <option value="lastMonth">Last Month</option>
                   <option value="thisQuarter">This Quarter</option>
