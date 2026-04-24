@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
-import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
+import {
+  calculateDateRange,
+  formatYmdInTimeZone,
+  parseInclusiveApiYmdRange
+} from '@/lib/dateUtils';
 import { CHART_OF_ACCOUNTS_BLUEPRINT } from '@/lib/chartOfAccountsBlueprint';
 import {
   lookupStandardExpenseCodeFromCategorySync,
@@ -14,15 +18,6 @@ import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
-
-function parseDate(value, fallback = null) {
-  if (!value) return fallback;
-  // Parse YYYY-MM-DD as local calendar date to avoid UTC day-shift issues.
-  const date = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? new Date(`${value}T00:00:00`)
-    : new Date(value);
-  return Number.isNaN(date.getTime()) ? fallback : date;
-}
 
 function formatLabel(date, groupBy) {
   const d = new Date(date);
@@ -118,20 +113,21 @@ function getDateRange(searchParams) {
   const endParam = searchParams.get('endDate');
   const timeframe = searchParams.get('timeframe') || searchParams.get('dateRange') || 'thisMonth';
 
-  // If explicit dates are provided, treat as a custom range
+  // Inclusive civil-day bounds (same as P&L) — fixes "today"/single-day missing COGS when GL posts after UTC noon.
   if (startParam && endParam) {
-    const startDate = parseDate(startParam);
-    const endDate = parseDate(endParam);
-    if (!startDate || !endDate) throw new Error('Invalid startDate or endDate');
-    if (startDate > endDate) throw new Error('Start date cannot be after end date');
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
-    return { startDate, endDate };
+    const { start, end } = parseInclusiveApiYmdRange(startParam, endParam);
+    if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      throw new Error('Invalid startDate or endDate');
+    }
+    if (start > end) throw new Error('Start date cannot be after end date');
+    return { startDate: start, endDate: end };
   }
 
-  // Otherwise, use calendar-aligned timeframe boundaries (month = 1st–last day, quarter = calendar quarter, etc)
-  const { startDate, endDate } = calculateDateRange(timeframe);
-  return { startDate, endDate };
+  const { startDate: rawStart, endDate: rawEnd } = calculateDateRange(timeframe);
+  const startYmd = formatYmdInTimeZone(rawStart);
+  const endYmd = formatYmdInTimeZone(rawEnd);
+  const { start, end } = parseInclusiveApiYmdRange(startYmd, endYmd);
+  return { startDate: start, endDate: end };
 }
 
 export async function GET(request) {

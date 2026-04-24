@@ -135,6 +135,8 @@ const FinancialReportingPage = () => {
 
   // Data state for different reports
   const [financialSummary, setFinancialSummary] = useState(null);
+  /** P&L snapshot for summary chart (separate from full profit-loss report state). */
+  const [summaryPlStatement, setSummaryPlStatement] = useState(null);
   const [financialAnalytics, setFinancialAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(null);
@@ -212,6 +214,25 @@ const FinancialReportingPage = () => {
   const analyticsExpenseCategoryForecast = financialAnalytics?.categoryForecasting?.expenses || [];
   const analyticsInventoryCategories = financialAnalytics?.categoryForecasting?.categories || [];
 
+  const plSnapshotChartData = useMemo(() => {
+    const pl = summaryPlStatement;
+    if (!pl) return [];
+    const revenue = Number(pl.totalRevenue ?? 0);
+    const cogs = Number(pl.cogs?.total ?? pl.cogs?.costOfProductsSold ?? 0);
+    const opEx = Number(pl.totalOperatingExpenses ?? 0);
+    const net = Number(pl.netIncome ?? 0);
+    return [
+      { name: 'Revenue', amount: revenue, fill: '#2563eb' },
+      { name: 'COGS', amount: cogs, fill: '#dc2626' },
+      { name: 'Operating expenses', amount: opEx, fill: '#ea580c' },
+      {
+        name: 'Net income',
+        amount: net,
+        fill: net >= 0 ? '#15803d' : '#b91c1c'
+      }
+    ];
+  }, [summaryPlStatement]);
+
   // Load reports data on component mount
   useEffect(() => {
     const loadReportsData = async () => {
@@ -235,9 +256,18 @@ const FinancialReportingPage = () => {
       setError(null);
 
       try {
-        // Fetch summary data
-        const summaryData = await fetchFinancialSummary(timeframe, customRangeForApi);
+        const [summaryData, plSnapshot] = await Promise.all([
+          fetchFinancialSummary(timeframe, customRangeForApi),
+          fetchIncomeStatement({
+            timeframe,
+            customDateRange: customRangeForApi
+          }).catch((e) => {
+            console.error('Summary P&L snapshot:', e);
+            return null;
+          })
+        ]);
         setFinancialSummary(summaryData);
+        setSummaryPlStatement(plSnapshot);
       } catch (err) {
         console.error("Error loading financial summary:", err);
         setError("Failed to load financial data. Please try again.");
@@ -535,17 +565,20 @@ const FinancialReportingPage = () => {
 
     try {
       if (activeReport === 'summary') {
-        // Reload summary data
-        const summaryData = await fetchFinancialSummary(
-          timeframe,
-          customRangeForApi
-        );
+        const [summaryData, plSnapshot, analytics] = await Promise.all([
+          fetchFinancialSummary(timeframe, customRangeForApi),
+          fetchIncomeStatement({
+            timeframe,
+            customDateRange: customRangeForApi
+          }).catch(() => null),
+          fetchFinancialAnalytics({
+            timeframe,
+            customDateRange: customRangeForApi,
+            groupBy: analyticsFilters.groupBy
+          })
+        ]);
         setFinancialSummary(summaryData);
-        const analytics = await fetchFinancialAnalytics({
-          timeframe,
-          customDateRange: customRangeForApi,
-          groupBy: analyticsFilters.groupBy
-        });
+        setSummaryPlStatement(plSnapshot);
         setFinancialAnalytics(analytics);
       } else if (selectedReport) {
         // Reload selected report
@@ -1206,6 +1239,58 @@ const FinancialReportingPage = () => {
             <p className="text-2xl font-bold text-slate-800">{formatCurrency(outstandingTotal)}</p>
             <p className="text-xs text-slate-400 mt-1">{outstandingCount} unpaid</p>
           </div>
+        </div>
+
+        {/* Profit & loss snapshot — same period and engine as full P&L */}
+        <div className="rounded-2xl bg-white border border-slate-200 p-5 sm:p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-slate-800">Profit &amp; loss snapshot</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {summaryDateRangeLabel} · revenue, COGS, operating expenses, and net income
+              </p>
+            </div>
+            <button
+              type="button"
+              className="text-sm font-medium text-emerald-700 hover:text-emerald-800 shrink-0"
+              onClick={() => handleGenerateReport('profit-loss')}
+            >
+              Open full P&amp;L →
+            </button>
+          </div>
+          {plSnapshotChartData.length > 0 ? (
+            <div className="w-full min-w-0 min-h-[280px]">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart
+                  data={plSnapshotChartData}
+                  margin={{ top: 12, right: 12, left: 4, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis
+                    dataKey="name"
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                    interval={0}
+                    height={56}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => formatCompactNumber(v)}
+                    width={52}
+                    tick={{ fill: '#64748b', fontSize: 11 }}
+                  />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="amount" radius={[6, 6, 0, 0]} maxBarSize={72}>
+                    {plSnapshotChartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-slate-500 text-sm rounded-xl bg-slate-50 border border-dashed border-slate-200">
+              No profit &amp; loss data for this period.
+            </div>
+          )}
         </div>
 
         {/* Quick reports */}
