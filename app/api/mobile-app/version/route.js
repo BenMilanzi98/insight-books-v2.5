@@ -10,8 +10,9 @@ function parseVersionCode(raw) {
 /** Grace end for outdated installs: fixed [graceEndsAt], else publishedAt + minutes or hours. */
 function computeGraceEndsAtIso(row) {
   if (!row) return null;
-  if (row.graceEndsAt instanceof Date && !Number.isNaN(row.graceEndsAt.getTime())) {
-    return row.graceEndsAt.toISOString();
+  const fixed = row.graceEndsAt != null ? new Date(row.graceEndsAt) : null;
+  if (fixed && !Number.isNaN(fixed.getTime())) {
+    return fixed.toISOString();
   }
   if (!row.publishedAt) return null;
   const start = row.publishedAt.getTime();
@@ -116,7 +117,8 @@ export async function GET(request) {
         mustLock = true;
       } else if (graceEndsAt) {
         const end = new Date(graceEndsAt).getTime();
-        if (now > end) mustLock = true;
+        // Inclusive at the exact deadline instant (wall-clock "by this time").
+        if (now >= end) mustLock = true;
       }
     }
 
@@ -132,6 +134,8 @@ export async function GET(request) {
       broadcastMessage: row.broadcastMessage ?? null,
       maintenance: false,
       maintenanceMessage: null,
+      /** Echo of query param — same logic the app uses for `updateAvailable` / lock. */
+      clientVersionCode,
       updateAvailable,
       mustLock,
       websiteDownloadAvailable,

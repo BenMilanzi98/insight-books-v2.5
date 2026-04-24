@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -15,6 +16,13 @@ double downloadProgressRatio(int received, int total) {
   if (received <= 0) return 0;
   if (received >= total) return 1;
   return received / total;
+}
+
+String _dioErrorMessage(DioException e) {
+  final parts = <String>[e.message ?? 'Download failed'];
+  final sc = e.response?.statusCode;
+  if (sc != null) parts.add('HTTP $sc');
+  return parts.join(' · ');
 }
 
 enum ApkDownloadPhase {
@@ -79,6 +87,32 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
     return u.startsWith('/') ? '$base$u' : '$base/$u';
   }
 
+  void _emitTelemetry(
+    String eventType, {
+    required int versionCode,
+    required String versionName,
+    int? targetVersionCode,
+    int? bytesReceived,
+    int? bytesTotal,
+    String? error,
+  }) {
+    unawaited(() async {
+      try {
+        final deviceId = await ref.read(mobileDeviceIdProvider.future);
+        await postMobileAppTelemetry(
+          deviceId: deviceId,
+          eventType: eventType,
+          versionCode: versionCode,
+          versionName: versionName,
+          targetVersionCode: targetVersionCode,
+          bytesReceived: bytesReceived,
+          bytesTotal: bytesTotal,
+          error: error,
+        );
+      } catch (_) {}
+    }());
+  }
+
   Future<void> downloadAndInstall({
     required String apkUrl,
     required int versionCode,
@@ -86,30 +120,26 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
     int? targetVersionCode,
   }) async {
     if (state.phase == ApkDownloadPhase.downloading ||
-        state.phase == ApkDownloadPhase.openingInstaller) {
+        state.phase == ApkDownloadPhase.openingInstaller ||
+        state.phase == ApkDownloadPhase.queued) {
       return;
     }
 
     final resolved = _resolveUrl(apkUrl);
+    // Do not use a separate "queued" phase before network work — awaiting telemetry
+    // or device id here left the UI stuck on "Queued" while the download had not started.
     state = const ApkDownloadUiState(
-      phase: ApkDownloadPhase.queued,
+      phase: ApkDownloadPhase.downloading,
       progress: 0,
-      statusLabel: 'Queued',
+      statusLabel: 'Preparing download',
     );
 
-    final deviceId = await ref.read(mobileDeviceIdProvider.future);
-    Future<void> tel(String type, {String? err, int? br, int? bt}) => postMobileAppTelemetry(
-          deviceId: deviceId,
-          eventType: type,
-          versionCode: versionCode,
-          versionName: versionName,
-          targetVersionCode: targetVersionCode,
-          bytesReceived: br,
-          bytesTotal: bt,
-          error: err,
-        );
-
-    await tel('download_started');
+    _emitTelemetry(
+      'download_started',
+      versionCode: versionCode,
+      versionName: versionName,
+      targetVersionCode: targetVersionCode,
+    );
 
     File? outFile;
     try {
@@ -120,7 +150,6 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
       }
 
       state = state.copyWith(
-        phase: ApkDownloadPhase.downloading,
         progress: 0,
         statusLabel: 'Downloading',
         clearError: true,
@@ -129,8 +158,12 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
       _downloadDio ??= Dio(
         BaseOptions(
           connectTimeout: const Duration(seconds: 45),
-          receiveTimeout: const Duration(minutes: 15),
+          receiveTimeout: const Duration(minutes: 30),
           followRedirects: true,
+          headers: {
+            HttpHeaders.userAgentHeader:
+                'InsightBooks-Android/$versionName (build $versionCode)',
+          },
         ),
       );
 
@@ -139,16 +172,30 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
         outFile.path,
         deleteOnError: true,
         onReceiveProgress: (received, total) {
-          if (total <= 0) return;
-          state = state.copyWith(
-            progress: downloadProgressRatio(received.toInt(), total.toInt()),
-            statusLabel: 'Downloading',
-          );
+          if (total > 0) {
+            state = state.copyWith(
+              progress: downloadProgressRatio(received.toInt(), total.toInt()),
+              statusLabel: 'Downloading',
+            );
+          } else if (received > 0) {
+            final mb = received / (1024 * 1024);
+            state = state.copyWith(
+              progress: 0,
+              statusLabel: 'Downloading ${mb.toStringAsFixed(1)} MB…',
+            );
+          }
         },
       );
 
       final len = await outFile.length();
-      await tel('download_completed', br: len, bt: len);
+      _emitTelemetry(
+        'download_completed',
+        versionCode: versionCode,
+        versionName: versionName,
+        targetVersionCode: targetVersionCode,
+        bytesReceived: len,
+        bytesTotal: len,
+      );
 
       state = state.copyWith(
         phase: ApkDownloadPhase.openingInstaller,
@@ -158,7 +205,12 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
 
       final open = await OpenFilex.open(outFile.path);
       if (open.type == ResultType.done) {
-        await tel('install_prompted');
+        _emitTelemetry(
+          'install_prompted',
+          versionCode: versionCode,
+          versionName: versionName,
+          targetVersionCode: targetVersionCode,
+        );
         state = const ApkDownloadUiState(
           phase: ApkDownloadPhase.idle,
           progress: 1,
@@ -166,7 +218,13 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
         );
       } else {
         final msg = open.message.isNotEmpty ? open.message : 'Could not open installer';
-        await tel('install_failed', err: msg);
+        _emitTelemetry(
+          'install_failed',
+          versionCode: versionCode,
+          versionName: versionName,
+          targetVersionCode: targetVersionCode,
+          error: msg,
+        );
         state = ApkDownloadUiState(
           phase: ApkDownloadPhase.error,
           progress: state.progress,
@@ -175,10 +233,14 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
         );
       }
     } catch (e, st) {
-      final msg = e is DioException
-          ? (e.message ?? 'Download failed')
-          : e.toString();
-      await tel('download_failed', err: msg);
+      final msg = e is DioException ? _dioErrorMessage(e) : e.toString();
+      _emitTelemetry(
+        'download_failed',
+        versionCode: versionCode,
+        versionName: versionName,
+        targetVersionCode: targetVersionCode,
+        error: msg,
+      );
       debugPrint('[ApkUpdateInstaller] $e\n$st');
       state = ApkDownloadUiState(
         phase: ApkDownloadPhase.error,

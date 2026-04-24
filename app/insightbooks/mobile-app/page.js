@@ -30,6 +30,27 @@ function toDatetimeLocalValue(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Status line for the grace datetime-local field (interpreted in the browser's local timezone). */
+function graceDeadlineStatus(datetimeLocal) {
+  const raw = datetimeLocal && String(datetimeLocal).trim();
+  if (!raw) return null;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) {
+    return { kind: 'bad', text: 'Could not parse this date/time.' };
+  }
+  const now = Date.now();
+  if (d.getTime() > now) {
+    return {
+      kind: 'future',
+      text: `This deadline is still in the future (${d.toLocaleString()} on this computer). Nothing will lock because of this clock until after that moment — and only on devices that are already "outdated" (build number strictly below Latest version code).`,
+    };
+  }
+  return {
+    kind: 'past',
+    text: `This deadline has passed (${d.toLocaleString()} local). Outdated installs should lock on the next version check if Latest version code is above their installed build.`,
+  };
+}
+
 export default function MobileAppManagementPage() {
   const fileInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
@@ -256,6 +277,11 @@ export default function MobileAppManagementPage() {
     return `${(n / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  const graceStatus = graceDeadlineStatus(form.graceEndsAtLocal);
+  const latestVcNum = Number(form.latestVersionCode);
+  const suggestedLockTestVc =
+    Number.isFinite(latestVcNum) && latestVcNum >= 1 ? latestVcNum + 1 : 2;
+
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div>
@@ -446,6 +472,18 @@ export default function MobileAppManagementPage() {
           </label>
         </div>
 
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-950">
+          <strong>Why your phone may never lock on the deadline:</strong> timed grace applies only to{' '}
+          <em>outdated</em> installs — Android <code className="text-xs bg-white px-1 rounded">versionCode</code>{' '}
+          <strong>strictly less than</strong> <strong>Latest version code</strong> (
+          <code className="text-xs bg-white px-1 rounded">{form.latestVersionCode}</code> right now). If the
+          device you are testing already uses that same build number (e.g. Flutter{' '}
+          <code className="text-xs bg-white px-1 rounded">1.0.0+{form.latestVersionCode}</code>), the server
+          treats it as up to date and <strong>will not lock it</strong>, even after the deadline. To test
+          locking, set Latest version code to at least <strong>{suggestedLockTestVc}</strong> and save, while
+          keeping the test device on the older APK.
+        </div>
+
         <label className="block">
           <span className="text-sm font-medium text-gray-700">APK download URL (site or external)</span>
           <input
@@ -516,6 +554,19 @@ export default function MobileAppManagementPage() {
               Leave empty to use duration from publish instead. Cleared when you clear publish time.
             </span>
           </label>
+          {graceStatus && (
+            <div
+              className={`rounded-md border p-3 text-sm ${
+                graceStatus.kind === 'future'
+                  ? 'border-blue-200 bg-blue-50 text-blue-950'
+                  : graceStatus.kind === 'past'
+                    ? 'border-amber-200 bg-amber-50 text-amber-950'
+                    : 'border-red-200 bg-red-50 text-red-950'
+              }`}
+            >
+              {graceStatus.text}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
               <span className="text-sm font-medium text-gray-700">Grace duration — minutes (optional)</span>
@@ -609,6 +660,12 @@ export default function MobileAppManagementPage() {
               <dd>{String(previewJson.maintenance)}</dd>
               <dt className="text-gray-500">latestVersionCode</dt>
               <dd>{String(previewJson.latestVersionCode)}</dd>
+              {'clientVersionCode' in previewJson && (
+                <>
+                  <dt className="text-gray-500">clientVersionCode</dt>
+                  <dd>{String(previewJson.clientVersionCode)}</dd>
+                </>
+              )}
               <dt className="text-gray-500 sm:col-span-1">graceEndsAt</dt>
               <dd className="sm:col-span-1 break-all">{previewJson.graceEndsAt == null ? 'null' : String(previewJson.graceEndsAt)}</dd>
             </dl>
