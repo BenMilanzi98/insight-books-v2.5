@@ -1,64 +1,99 @@
-// app/api/inventory/statistics/route.js - Updated to exclude soft-deleted products
+// GET /api/stock/statistics — aggregates for Stock Management header cards.
+// Branch scope must match GET /api/stock (list uses allBranches=true + OR branchId null).
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { resolveProductListBranchId } from '@/lib/branchAccess';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
+
+/**
+ * Same branch rules as app/api/stock/route.js for the current tenant.
+ * @returns {Promise<object|null>} Extra conjunct for AND (null = no branch filter).
+ */
+async function branchScopeClauseForStockStatistics(user, searchParams) {
+  const allBranchesParam = searchParams.get('allBranches');
+  const allBranches =
+    allBranchesParam == null || allBranchesParam === ''
+      ? true
+      : /^(1|true|yes)$/i.test(String(allBranchesParam));
+  const branchIdParam = searchParams.get('branchId')?.trim() || null;
+
+  if (allBranches && !branchIdParam) {
+    const allowed = user?.allowedBranchIds;
+    if (Array.isArray(allowed) && allowed.length === 0) {
+      return { id: { in: [] } };
+    }
+    if (allowed == null) {
+      return null;
+    }
+    return { OR: [{ branchId: null }, { branchId: { in: allowed } }] };
+  }
+
+  const desiredBranchId = resolveProductListBranchId(user, branchIdParam);
+  if (desiredBranchId === false) {
+    return { id: { in: [] } };
+  }
+  if (desiredBranchId && typeof desiredBranchId === 'string') {
+    const branch = await prisma.branch.findFirst({
+      where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
+      select: { id: true },
+    });
+    if (branch) {
+      return { OR: [{ branchId: desiredBranchId }, { branchId: null }] };
+    }
+  }
+  return null;
+}
 
 // GET - Fetch inventory statistics with fallbacks
 export async function GET(request) {
   try {
-    // Get user from session
     const user = await getUserFromSession(request);
     if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
-   
-    // Physical inventory only (exclude billable services from stock metrics)
-    let whereClause = { tenantId: user.tenantId, isService: false };
-    
-    // Add branch filtering - Product model uses branch relation, not branchId
-    if (user?.currentBranchId) {
-      whereClause.branchId = user.currentBranchId;
-    }
-    
-    // Check if isDeleted field exists by trying to query with it
+
+    const { searchParams } = new URL(request.url);
+    const tenantId = user.tenantId;
+    const branchClause = await branchScopeClauseForStockStatistics(user, searchParams);
+
+    let useDeletedFilter = false;
     try {
-      await prisma.product.findFirst({
-        where: { ...whereClause, isDeleted: false },
-        select: { id: true }
-      });
-      // If no error, the field exists, so use it
-      whereClause.isDeleted = false;
-    } catch (fieldError) {
-      // Field doesn't exist yet, continue without it
-      console.log('isDeleted field not found, using all products');
+      const probeWhere = {
+        AND: [
+          { tenantId },
+          { isService: false },
+          ...(branchClause ? [branchClause] : []),
+          { isDeleted: false },
+        ],
+      };
+      await prisma.product.findFirst({ where: probeWhere, select: { id: true } });
+      useDeletedFilter = true;
+    } catch {
+      useDeletedFilter = false;
     }
-    
-    const totalItems = await prisma.product.count({
-      where: whereClause
-    });
+
+    const buildProductWhere = (isService) => {
+      const parts = [{ tenantId }, { isService }];
+      if (useDeletedFilter) parts.push({ isDeleted: false });
+      if (branchClause) parts.push(branchClause);
+      return { AND: parts };
+    };
+
+    const physicalWhere = buildProductWhere(false);
+    const serviceWhere = buildProductWhere(true);
+
+    const totalItems = await prisma.product.count({ where: physicalWhere });
 
     let serviceCount = 0;
     try {
-      const serviceCountWhere = {
-        tenantId: user.tenantId,
-        isService: true,
-        ...(whereClause.branchId ? { branchId: whereClause.branchId } : {}),
-      };
-      if (whereClause.isDeleted === false) {
-        serviceCountWhere.isDeleted = false;
-      }
-      serviceCount = await prisma.product.count({ where: serviceCountWhere });
-    } catch (_) {
+      serviceCount = await prisma.product.count({ where: serviceWhere });
+    } catch {
       serviceCount = 0;
     }
-   
-    // Get all active products with correct field names
+
     const products = await prisma.product.findMany({
-      where: whereClause,
+      where: physicalWhere,
       select: {
         id: true,
         name: true,
@@ -67,68 +102,58 @@ export async function GET(request) {
         averageCost: true,
         lastPurchaseCost: true,
         totalStockValue: true,
-        reorderPoint: true
-      }
+        reorderPoint: true,
+      },
     });
-   
-    // Calculate inventory statistics
+
     let lowStock = 0;
     let outOfStock = 0;
     let totalValue = 0;
-   
-    products.forEach(product => {
-      // Calculate inventory value: use totalStockValue only when set and > 0, else cost × stock
-      // so that adding cost later or never-synced totalStockValue still shows correct value
+
+    products.forEach((product) => {
       const stockLevel = Number(product.stockLevel) || 0;
       const cost = resolveProductCostPriceForDisplay(product);
       const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
-      const productValue = (stored != null && stored > 0) ? stored : (stockLevel * cost);
+      const productValue = stored != null && stored > 0 ? stored : stockLevel * cost;
       totalValue += productValue;
-     
-      // Count low stock and out of stock items
-      // Use the same logic as stock alerts API
-      const reorderPoint = product.reorderPoint || 10; // Default to 10 if not set
-      
+
+      const reorderPoint = product.reorderPoint || 10;
+
       if (stockLevel === 0) {
         outOfStock++;
       } else if (stockLevel <= reorderPoint) {
         lowStock++;
       }
     });
-   
-    // Check if the InventoryTransaction model exists - it doesn't, so use mock data
+
     const recentTransactions = [];
-    // Since we don't have transactions yet, let's provide empty mock data
-    
-    // Calculate nearing reorder stats using correct field names
-    const nearingReorder = products.filter(product => {
+
+    const nearingReorder = products.filter((product) => {
       const stockLevel = product.stockLevel || 0;
-      const reorderPoint = product.reorderPoint || 10; // Use actual reorder point from database
+      const reorderPoint = product.reorderPoint || 10;
       return stockLevel > 0 && stockLevel <= reorderPoint * 1.2;
     }).length;
-   
-    // Mock categories since the category field doesn't exist yet
+
     const categoryPercentages = [
       {
         name: 'Uncategorized',
         count: totalItems,
-        percentage: 100
-      }
+        percentage: totalItems > 0 ? 100 : 0,
+      },
     ];
-   
-    // Return statistics with fallbacks
+
     return NextResponse.json({
       totalItems,
       serviceCount,
       totalValue: totalValue.toLocaleString(undefined, {
         minimumFractionDigits: 2,
-        maximumFractionDigits: 2
+        maximumFractionDigits: 2,
       }),
       lowStock,
       outOfStock,
       nearingReorder,
       categories: categoryPercentages,
-      recentTransactions
+      recentTransactions,
     });
   } catch (error) {
     console.error('Error fetching inventory statistics:', error);

@@ -428,9 +428,13 @@ export async function GET(request) {
           OR: [
             { accountCode: '5000' },
             { code: '5000' },
+            { accountCode: '5100' },
+            { code: '5100' },
             { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
+            { accountName: { contains: 'cost of sales', mode: 'insensitive' } },
             { accountName: { contains: 'cogs', mode: 'insensitive' } },
             { name: { contains: 'cost of goods', mode: 'insensitive' } },
+            { name: { contains: 'cost of sales', mode: 'insensitive' } },
             { name: { contains: 'cogs', mode: 'insensitive' } }
           ]
         },

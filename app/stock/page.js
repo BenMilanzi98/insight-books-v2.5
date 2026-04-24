@@ -586,7 +586,7 @@ const StockManagement = () => {
     // Get stock statistics
     getInventoryStatistics: async () => {
       try {
-        const response = await fetch('/api/stock/statistics');
+        const response = await fetch('/api/stock/statistics?allBranches=true');
         
         if (!response.ok) {
           throw new Error(`Error fetching stock statistics: ${response.statusText}`);

@@ -400,6 +400,7 @@ export async function PUT(request, { params }) {
                 paymentMethod: body.paymentMethod || sale.paymentMethod,
                 hasServices,
                 cogsAmount: totalCOGS,
+                branchId: sale.branchId || null,
                 tx,
               });
             }

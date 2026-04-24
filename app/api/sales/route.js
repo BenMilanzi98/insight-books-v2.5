@@ -1414,6 +1414,7 @@ export async function POST(request) {
                 standardAccounts: standardAccounts,
                 referenceNumber: referenceNumber,
                 cogsReferenceNumber: cogsReferenceNumber,
+                branchId: branchId || null,
                 tx,
               });
             } catch (journalError) {
