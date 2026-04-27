@@ -45,6 +45,7 @@ import {
   TaxSummaryReport,
   StockMovementReport,
   PosDailyReport,
+  FinancialReport,
 } from "@/components/FinancialReportComponents";
 
 import {ExpenseReport} from "@/components/ExpenseReport";
@@ -515,6 +516,9 @@ const FinancialReportingPage = () => {
             });
             setFinancialRatios(ratiosData);
             break;
+
+          case 'profit-analysis':
+            break;
         }
 
         // Update the lastGenerated date for this report
@@ -574,7 +578,8 @@ const FinancialReportingPage = () => {
           fetchFinancialAnalytics({
             timeframe,
             customDateRange: customRangeForApi,
-            groupBy: analyticsFilters.groupBy
+            groupBy: analyticsFilters.groupBy,
+            categoryId: analyticsFilters.categoryId
           })
         ]);
         setFinancialSummary(summaryData);
@@ -652,6 +657,17 @@ const FinancialReportingPage = () => {
             });
             setFinancialRatios(ratiosData);
             break;
+
+          case 'profit-analysis': {
+            const analyticsReload = await fetchFinancialAnalytics({
+              timeframe,
+              customDateRange: customRangeForApi,
+              groupBy: analyticsFilters.groupBy,
+              categoryId: analyticsFilters.categoryId
+            });
+            setFinancialAnalytics(analyticsReload);
+            break;
+          }
         }
       }
     } catch (err) {
@@ -666,6 +682,7 @@ const FinancialReportingPage = () => {
     timeframe,
     customRangeForApi,
     analyticsFilters.groupBy,
+    analyticsFilters.categoryId,
     stockMovementProductId,
     posDailyDate
   ]);
@@ -684,6 +701,33 @@ const FinancialReportingPage = () => {
             onRefresh={handleRefresh}
             onExport={(format) => handleExportReport(format, 'income-statement')}
           />
+        );
+
+      case 'profit-analysis':
+        return (
+          <FinancialReport
+            title="Profit Analysis"
+            subtitle={analyticsDateRangeLabel}
+            timeframe={timeframe}
+            onTimeframeChange={handleTimeframeChange}
+            onRefresh={handleRefresh}
+            loading={analyticsLoading}
+            error={analyticsError}
+          >
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <p className="text-xs text-slate-500 max-w-xl">
+                  Chart grouping, focus metric, and inventory category filter apply to the analysis below.
+                </p>
+                {renderProfitAnalysisControlRow()}
+              </div>
+              {financialAnalytics ? (
+                renderProfitAnalysisChartsInner()
+              ) : (
+                <div className="text-center text-slate-500 py-12 text-sm">No analytics data.</div>
+              )}
+            </div>
+          </FinancialReport>
         );
 
       case 'balance-sheet':
@@ -830,6 +874,288 @@ const FinancialReportingPage = () => {
     (report?.description && report.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
+  const renderProfitAnalysisControlRow = () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
+        {['day', 'week', 'month'].map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+              analyticsFilters.groupBy === option
+                ? 'bg-emerald-600 text-white'
+                : 'text-slate-600 hover:bg-slate-100'
+            } ${option === 'day' ? 'rounded-l-xl' : option === 'month' ? 'rounded-r-xl' : ''}`}
+            onClick={() => setAnalyticsFilters((prev) => ({ ...prev, groupBy: option }))}
+          >
+            {option === 'day' ? 'Daily' : option === 'week' ? 'Weekly' : 'Monthly'}
+          </button>
+        ))}
+      </div>
+      <select
+        value={analyticsFilters.metric}
+        onChange={(e) => setAnalyticsFilters((prev) => ({ ...prev, metric: e.target.value }))}
+        className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+      >
+        <option value="profit">Focus: Profit</option>
+        <option value="revenue">Focus: Revenue</option>
+        <option value="operatingExpenses">Focus: Operating expenses</option>
+        <option value="cogs">Focus: COGS</option>
+        <option value="avgRevenue">Focus: Average revenue</option>
+      </select>
+      <select
+        value={analyticsFilters.categoryId}
+        onChange={(e) => setAnalyticsFilters((prev) => ({ ...prev, categoryId: e.target.value }))}
+        className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[170px]"
+      >
+        <option value="">All inventory categories</option>
+        {analyticsInventoryCategories.map((cat, idx) => (
+          <option key={`${cat.id || cat.name}-${idx}`} value={cat.id || ''}>
+            {cat.name || 'Uncategorized'}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderProfitAnalysisChartsInner = () => (
+    <>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 mb-6">
+        {analyticsMetricConfig.map((metric) => (
+          <div
+            key={metric.id}
+            className={`rounded-xl border p-4 ${metric.border} ${analyticsFilters.metric === metric.id ? metric.bg : 'bg-slate-50/50'}`}
+          >
+            <p className="text-xs uppercase font-medium text-slate-500 tracking-wide mb-1">
+              {metric.label}
+            </p>
+            {metric.subtitle ? (
+              <p className="text-[11px] text-slate-400 mb-1">{metric.subtitle}</p>
+            ) : null}
+            <p className={`text-xl font-semibold ${metric.color}`}>
+              {formatCurrency(metric.value)}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-6">
+        <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[380px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h4 className="text-sm font-semibold text-slate-800">Revenue, expenses (operating + COGS), and profit</h4>
+            <span className="text-xs text-slate-500">by {analyticsFilters.groupBy}</span>
+          </div>
+          {analyticsTrend.length > 0 ? (
+            <ResponsiveContainer width="100%" height={380}>
+              <AreaChart
+                data={analyticsTrend}
+                margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
+              >
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={analyticsLineColors.revenue} stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor={analyticsLineColors.revenue} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={analyticsLineColors.expenses} stopOpacity={0.4}/>
+                    <stop offset="95%" stopColor={analyticsLineColors.expenses} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="label" minTickGap={24} />
+                <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={56} />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Legend />
+                <Area type="monotone" dataKey="revenue" stroke={analyticsLineColors.revenue} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="expenses" stroke={analyticsLineColors.expenses} fillOpacity={1} fill="url(#colorExpenses)" />
+                <Line type="monotone" dataKey="profit" stroke={analyticsLineColors.profit} strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[380px] text-slate-500 text-sm">Not enough data for this period.</div>
+          )}
+        </div>
+
+        <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[340px]">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-slate-800">Expense breakdown</h4>
+            <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} accounts</span>
+          </div>
+          {analyticsExpenseBreakdown.length > 0 ? (
+            <ResponsiveContainer width="100%" height={340}>
+              <BarChart
+                data={analyticsExpenseBreakdown}
+                margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" hide />
+                <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={64} />
+                <Tooltip formatter={(value) => formatCurrency(value)} />
+                <Legend />
+                <Bar dataKey="value" fill="#059669" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="flex items-center justify-center h-[340px] text-slate-500 text-sm">No expense data.</div>
+          )}
+        </div>
+
+        <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h4 className="text-sm font-semibold text-slate-800">Revenue forecast vs budget by inventory category</h4>
+            <span className="text-xs text-slate-500">Optional category filter, variance against budget lines</span>
+          </div>
+          {analyticsRevenueCategoryForecast.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-2 pr-2 font-medium">Category</th>
+                    <th className="py-2 px-2 font-medium text-right">Actual</th>
+                    <th className="py-2 px-2 font-medium text-right">Forecast</th>
+                    <th className="py-2 px-2 font-medium text-right">Budget</th>
+                    <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
+                    <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analyticsRevenueCategoryForecast.map((row, idx) => (
+                    <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                      <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
+                      <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(row.varianceToBudget || 0)}
+                      </td>
+                      <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(row.forecastVarianceToBudget || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
+              No revenue category forecast data for this period.
+            </div>
+          )}
+        </div>
+
+        <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h4 className="text-sm font-semibold text-slate-800">Expenditure forecast vs budget by inventory category</h4>
+            <span className="text-xs text-slate-500">Supports variance analysis against expense budget lines</span>
+          </div>
+          {analyticsExpenseCategoryForecast.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-2 pr-2 font-medium">Category</th>
+                    <th className="py-2 px-2 font-medium text-right">Actual</th>
+                    <th className="py-2 px-2 font-medium text-right">Forecast</th>
+                    <th className="py-2 px-2 font-medium text-right">Budget</th>
+                    <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
+                    <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {analyticsExpenseCategoryForecast.map((row, idx) => (
+                    <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                      <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
+                      <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
+                      <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(row.varianceToBudget || 0)}
+                      </td>
+                      <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {formatCurrency(row.forecastVarianceToBudget || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
+              No expenditure category forecast data for this period.
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="min-w-0 rounded-xl border border-slate-200 p-4 min-h-[320px]">
+            <h4 className="text-sm font-semibold text-slate-800 mb-3">Revenue by source</h4>
+            {analyticsRevenueSources.length > 0 ? (
+              <ResponsiveContainer width="100%" height={320}>
+                <PieChart>
+                  <Pie
+                    data={analyticsRevenueSources}
+                    dataKey="value"
+                    nameKey="name"
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={110}
+                    labelLine={false}
+                    label={({ name, percent }) =>
+                      analyticsRevenueSources.length <= 5
+                        ? `${name} ${(percent * 100).toFixed(0)}%`
+                        : `${(percent * 100).toFixed(0)}%`
+                    }
+                  >
+                    {analyticsRevenueSources.map((entry, index) => (
+                      <Cell key={`source-${index}`} fill={pieColors[index % pieColors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[320px] text-slate-500 text-sm">No revenue data.</div>
+            )}
+          </div>
+          <div className="min-w-0 xl:col-span-2 rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-slate-800">Top customers</h4>
+              <span className="text-xs text-slate-500">{analyticsTopCustomers.length} customers</span>
+            </div>
+            {analyticsTopCustomers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+                      <th className="py-2 pr-2 font-medium">Customer</th>
+                      <th className="py-2 px-2 font-medium text-right">Sales</th>
+                      <th className="py-2 pl-2 font-medium text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analyticsTopCustomers.slice(0, 8).map((customer, idx) => (
+                      <tr key={`${customer.name || "customer"}-${idx}`} className="border-b border-slate-100 last:border-b-0">
+                        <td className="py-2 pr-2 text-slate-700">{customer.name || "Walk-in Customer"}</td>
+                        <td className="py-2 px-2 text-right text-slate-600">{Number(customer.orders || customer.count || 0)}</td>
+                        <td className="py-2 pl-2 text-right font-medium text-slate-800">
+                          {formatCurrency(Number(customer.revenue || customer.total || 0))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-[280px] text-slate-500 text-sm">
+                No customer data.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   // Render the financial summary dashboard
   const renderAnalyticsPanel = () => {
     return (
@@ -841,47 +1167,7 @@ const FinancialReportingPage = () => {
               {analyticsDateRangeLabel}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
-              {['day', 'week', 'month'].map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors ${
-                    analyticsFilters.groupBy === option
-                      ? 'bg-emerald-600 text-white'
-                      : 'text-slate-600 hover:bg-slate-100'
-                  } ${option === 'day' ? 'rounded-l-xl' : option === 'month' ? 'rounded-r-xl' : ''}`}
-                  onClick={() => setAnalyticsFilters((prev) => ({ ...prev, groupBy: option }))}
-                >
-                  {option === 'day' ? 'Daily' : option === 'week' ? 'Weekly' : 'Monthly'}
-                </button>
-              ))}
-            </div>
-            <select
-              value={analyticsFilters.metric}
-              onChange={(e) => setAnalyticsFilters((prev) => ({ ...prev, metric: e.target.value }))}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
-            >
-              <option value="profit">Focus: Profit</option>
-              <option value="revenue">Focus: Revenue</option>
-              <option value="operatingExpenses">Focus: Operating expenses</option>
-              <option value="cogs">Focus: COGS</option>
-              <option value="avgRevenue">Focus: Average revenue</option>
-            </select>
-            <select
-              value={analyticsFilters.categoryId}
-              onChange={(e) => setAnalyticsFilters((prev) => ({ ...prev, categoryId: e.target.value }))}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white min-w-[170px]"
-            >
-              <option value="">All inventory categories</option>
-              {analyticsInventoryCategories.map((cat, idx) => (
-                <option key={`${cat.id || cat.name}-${idx}`} value={cat.id || ''}>
-                  {cat.name || 'Uncategorized'}
-                </option>
-              ))}
-            </select>
-          </div>
+          {renderProfitAnalysisControlRow()}
         </div>
 
         {analyticsLoading ? (
@@ -894,241 +1180,7 @@ const FinancialReportingPage = () => {
             {analyticsError}
           </div>
         ) : financialAnalytics ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4 mb-6">
-              {analyticsMetricConfig.map((metric) => (
-                <div
-                  key={metric.id}
-                  className={`rounded-xl border p-4 ${metric.border} ${analyticsFilters.metric === metric.id ? metric.bg : 'bg-slate-50/50'}`}
-                >
-                  <p className="text-xs uppercase font-medium text-slate-500 tracking-wide mb-1">
-                    {metric.label}
-                  </p>
-                  {metric.subtitle ? (
-                    <p className="text-[11px] text-slate-400 mb-1">{metric.subtitle}</p>
-                  ) : null}
-                  <p className={`text-xl font-semibold ${metric.color}`}>
-                    {formatCurrency(metric.value)}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-6">
-              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[380px]">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Revenue, expenses (operating + COGS), and profit</h4>
-                  <span className="text-xs text-slate-500">by {analyticsFilters.groupBy}</span>
-                </div>
-                {analyticsTrend.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={380}>
-                    <AreaChart
-                      data={analyticsTrend}
-                      margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
-                    >
-                      <defs>
-                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={analyticsLineColors.revenue} stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor={analyticsLineColors.revenue} stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="colorExpenses" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={analyticsLineColors.expenses} stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor={analyticsLineColors.expenses} stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="label" minTickGap={24} />
-                      <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={56} />
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                      <Area type="monotone" dataKey="revenue" stroke={analyticsLineColors.revenue} fillOpacity={1} fill="url(#colorRevenue)" />
-                      <Area type="monotone" dataKey="expenses" stroke={analyticsLineColors.expenses} fillOpacity={1} fill="url(#colorExpenses)" />
-                      <Line type="monotone" dataKey="profit" stroke={analyticsLineColors.profit} strokeWidth={2} dot={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[380px] text-slate-500 text-sm">Not enough data for this period.</div>
-                )}
-              </div>
-
-              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4 min-h-[340px]">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Expense breakdown</h4>
-                  <span className="text-xs text-slate-500">{analyticsExpenseBreakdown.length} accounts</span>
-                </div>
-                {analyticsExpenseBreakdown.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={340}>
-                    <BarChart
-                      data={analyticsExpenseBreakdown}
-                      margin={{ top: 12, right: 24, left: 16, bottom: 12 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" hide />
-                      <YAxis tickFormatter={(value) => formatCompactNumber(value)} width={64} />
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                      <Bar dataKey="value" fill="#059669" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[340px] text-slate-500 text-sm">No expense data.</div>
-                )}
-              </div>
-
-              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Revenue forecast vs budget by inventory category</h4>
-                  <span className="text-xs text-slate-500">Optional category filter, variance against budget lines</span>
-                </div>
-                {analyticsRevenueCategoryForecast.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                          <th className="py-2 pr-2 font-medium">Category</th>
-                          <th className="py-2 px-2 font-medium text-right">Actual</th>
-                          <th className="py-2 px-2 font-medium text-right">Forecast</th>
-                          <th className="py-2 px-2 font-medium text-right">Budget</th>
-                          <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
-                          <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analyticsRevenueCategoryForecast.map((row, idx) => (
-                          <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
-                            <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
-                            <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(row.varianceToBudget || 0)}
-                            </td>
-                            <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(row.forecastVarianceToBudget || 0)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
-                    No revenue category forecast data for this period.
-                  </div>
-                )}
-              </div>
-
-              <div className="w-full min-w-0 rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Expenditure forecast vs budget by inventory category</h4>
-                  <span className="text-xs text-slate-500">Supports variance analysis against expense budget lines</span>
-                </div>
-                {analyticsExpenseCategoryForecast.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                          <th className="py-2 pr-2 font-medium">Category</th>
-                          <th className="py-2 px-2 font-medium text-right">Actual</th>
-                          <th className="py-2 px-2 font-medium text-right">Forecast</th>
-                          <th className="py-2 px-2 font-medium text-right">Budget</th>
-                          <th className="py-2 px-2 font-medium text-right">Actual Variance</th>
-                          <th className="py-2 pl-2 font-medium text-right">Forecast Variance</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analyticsExpenseCategoryForecast.map((row, idx) => (
-                          <tr key={`${row.categoryId || row.categoryName}-${idx}`} className="border-b border-slate-100 last:border-b-0">
-                            <td className="py-2 pr-2 text-slate-700">{row.categoryName || 'Uncategorized'}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.actualAmount || 0)}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.forecastAmount || 0)}</td>
-                            <td className="py-2 px-2 text-right text-slate-700">{formatCurrency(row.budgetAmount || 0)}</td>
-                            <td className={`py-2 px-2 text-right font-medium ${(row.varianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(row.varianceToBudget || 0)}
-                            </td>
-                            <td className={`py-2 pl-2 text-right font-medium ${(row.forecastVarianceToBudget || 0) <= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                              {formatCurrency(row.forecastVarianceToBudget || 0)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-[120px] text-slate-500 text-sm">
-                    No expenditure category forecast data for this period.
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="min-w-0 rounded-xl border border-slate-200 p-4 min-h-[320px]">
-                <h4 className="text-sm font-semibold text-slate-800 mb-3">Revenue by source</h4>
-                {analyticsRevenueSources.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={320}>
-                    <PieChart>
-                      <Pie
-                        data={analyticsRevenueSources}
-                        dataKey="value"
-                        nameKey="name"
-                        cx="50%"
-                        cy="50%"
-                        outerRadius={110}
-                        labelLine={false}
-                        label={({ name, percent }) =>
-                          analyticsRevenueSources.length <= 5
-                            ? `${name} ${(percent * 100).toFixed(0)}%`
-                            : `${(percent * 100).toFixed(0)}%`
-                        }
-                      >
-                        {analyticsRevenueSources.map((entry, index) => (
-                          <Cell key={`source-${index}`} fill={pieColors[index % pieColors.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[320px] text-slate-500 text-sm">No revenue data.</div>
-                )}
-              </div>
-                <div className="min-w-0 xl:col-span-2 rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-semibold text-slate-800">Top customers</h4>
-                  <span className="text-xs text-slate-500">{analyticsTopCustomers.length} customers</span>
-                </div>
-                {analyticsTopCustomers.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[420px] text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
-                          <th className="py-2 pr-2 font-medium">Customer</th>
-                          <th className="py-2 px-2 font-medium text-right">Sales</th>
-                          <th className="py-2 pl-2 font-medium text-right">Revenue</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {analyticsTopCustomers.slice(0, 8).map((customer, idx) => (
-                          <tr key={`${customer.name || "customer"}-${idx}`} className="border-b border-slate-100 last:border-b-0">
-                            <td className="py-2 pr-2 text-slate-700">{customer.name || "Walk-in Customer"}</td>
-                            <td className="py-2 px-2 text-right text-slate-600">{Number(customer.orders || customer.count || 0)}</td>
-                            <td className="py-2 pl-2 text-right font-medium text-slate-800">
-                              {formatCurrency(Number(customer.revenue || customer.total || 0))}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-[280px] text-slate-500 text-sm">
-                    No customer data.
-                  </div>
-                )}
-              </div>
-              </div>
-            </div>
-          </>
+          renderProfitAnalysisChartsInner()
         ) : (
           <div className="text-center text-slate-500 py-12 text-sm">No analytics data.</div>
         )}
@@ -1293,10 +1345,12 @@ const FinancialReportingPage = () => {
           )}
         </div>
 
+        {renderAnalyticsPanel()}
+
         {/* Quick reports */}
         <div>
           <h3 className="text-base font-semibold text-slate-800 mb-4">Quick reports</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <button
               type="button"
               className="text-left rounded-2xl bg-white border border-slate-200 p-5 shadow-sm hover:border-emerald-200 hover:shadow transition-all"
@@ -1309,6 +1363,19 @@ const FinancialReportingPage = () => {
                 <h4 className="font-semibold text-slate-800">Profit & Loss</h4>
               </div>
               <p className="text-sm text-slate-500">Income statement for the selected period</p>
+            </button>
+            <button
+              type="button"
+              className="text-left rounded-2xl bg-white border border-slate-200 p-5 shadow-sm hover:border-emerald-200 hover:shadow transition-all"
+              onClick={() => handleGenerateReport('profit-analysis')}
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <div className="rounded-xl bg-violet-50 p-2">
+                  <PieChartIcon size={20} className="text-violet-600" />
+                </div>
+                <h4 className="font-semibold text-slate-800">Profit Analysis</h4>
+              </div>
+              <p className="text-sm text-slate-500">Trends, expense mix, forecasts, and revenue sources</p>
             </button>
             <button
               type="button"

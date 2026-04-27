@@ -25,6 +25,15 @@ export async function GET(request) {
         requiresTimeframe: true
       },
       {
+        id: 'profit-analysis',
+        name: 'Profit Analysis',
+        description: 'Revenue, expenses, profit trends, expense breakdown, forecasts, and customer mix for the period',
+        icon: 'PieChart',
+        category: 'Financial',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
         id: 'balance-sheet',
         name: 'Balance Sheet',
         description: 'Shows assets, liabilities, and equity at a specific point in time',
