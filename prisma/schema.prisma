@@ -98,6 +98,7 @@ model Tenant {
   accountingPeriods           AccountingPeriod[]
   stockTransfers              StockTransfer[]
   stockTransferReceiptNotices StockTransferReceiptNotice[]
+  inventoryExpiryAudits       InventoryExpiryAudit[]
   posCashDays                 PosCashDay[]
   tpin                        String?
   eisEnabled                  Boolean                      @default(false)
@@ -223,6 +224,12 @@ model TenantSettings {
   setupReminderSnoozedUntil       DateTime?
   /// { completed: Record<stepId, iso>, skipped: Record<stepId, iso> } — see lib/setupWizardService.js
   setupWizardState                Json?
+  /// Days before expiry for "early" alerts; null = use default 30.
+  expiryWarnDaysEarly             Int?
+  /// Days before expiry for "urgent" alerts; null = use default 7.
+  expiryWarnDaysUrgent            Int?
+  /// Optional GL for inventory write-off loss; null = auto-resolve "Inventory Adjustment Loss".
+  inventoryAdjustmentLossAccountId String?
   tenant                          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 }
 
@@ -347,6 +354,7 @@ model User {
   stockTransfersApproved          StockTransfer[]              @relation("StockTransferApprovedBy")
   stockTransfersReceived          StockTransfer[]              @relation("StockTransferReceivedBy")
   stockTransfersRejected          StockTransfer[]              @relation("StockTransferRejectedBy")
+  inventoryExpiryAudits           InventoryExpiryAudit[]
   defaultBranch                   Branch?                      @relation("UserDefaultBranch", fields: [defaultBranchId], references: [id])
   userBranches                    UserBranch[]
   role                            Role                         @relation(fields: [roleId], references: [id])
@@ -1218,6 +1226,7 @@ model Product {
   productUnits          ProductUnit[]
   productBarcodes       ProductBarcode[]
   stockTransfers        StockTransfer[]
+  inventoryExpiryAudits InventoryExpiryAudit[]
 
   @@index([categoryId])
   @@index([locationId])
@@ -1623,6 +1632,8 @@ model InventoryBatch {
   sourceType   String?
   sourceId     String?
   purchaseDate DateTime
+  /// Null = non-perishable / unknown; used for expiry alerts and FIFO issuance blocking.
+  expiryDate   DateTime?
   qtyPurchased Decimal                     @db.Decimal(18, 4)
   qtyRemaining Decimal                     @db.Decimal(18, 4)
   unitCost     Decimal                     @db.Decimal(15, 2)
@@ -1637,6 +1648,34 @@ model InventoryBatch {
   @@index([branchId])
   @@index([productId])
   @@index([purchaseDate])
+  @@index([tenantId, expiryDate])
+}
+
+/// Audit trail for batch expiry write-offs and optional restock linkage.
+model InventoryExpiryAudit {
+  id             String   @id @default(cuid())
+  tenantId       String
+  branchId       String?
+  userId         String?
+  productId      String
+  batchId        String?
+  action         String // write_off | restock
+  quantity       Decimal  @db.Decimal(18, 4)
+  unitCost       Decimal? @db.Decimal(15, 2)
+  lossAmount     Decimal? @db.Decimal(18, 2)
+  restockBatchId String?
+  journalEntryId String?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt])
+  @@index([productId])
+  @@index([batchId])
 }
 
 model InventoryBatchConsumption {

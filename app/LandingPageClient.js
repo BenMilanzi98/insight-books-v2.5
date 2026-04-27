@@ -1073,8 +1073,7 @@ function Footer() {
               />
             </Link>
             <p className="mt-6 max-w-md text-sm leading-relaxed text-slate-400">
-              Financial management for growing businesses — invoicing, stock, payroll, accounting, and
-              reporting in one secure platform.
+              Business Management Simplified.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link

@@ -1347,6 +1347,13 @@ export async function POST(request) {
                       
                       console.log(`[FIFO Sale] ✅ FIFO COGS stored in customProductData for SaleItem ${saleItem.id}: ${cogsAmountValue}`);
                     } catch (fifoError) {
+                      if (
+                        fifoError?.message &&
+                        (fifoError.message.includes('Expired stock') ||
+                          fifoError.message.includes('write off before issuing'))
+                      ) {
+                        throw fifoError;
+                      }
                       console.error(`[FIFO Sale] ❌ Error calculating FIFO COGS for product ${dataItem.productId}:`, fifoError);
                       console.error('[FIFO Sale] Error details:', {
                         message: fifoError.message,

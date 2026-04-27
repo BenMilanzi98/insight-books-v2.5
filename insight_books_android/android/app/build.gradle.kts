@@ -42,7 +42,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         // Must match pubspec `version: x.y.z+N` — N is versionCode and what the server compares.
         versionCode = flutter.versionCode
-        // Keep in sync with pubspec name part; do not hardcode (avoids label "1.0.0.6" while build is still +3).
+        // Keep in sync with pubspec name part; do not hardcode (avoids label "1.0.0.7" while build is still +3).
         versionName = flutter.versionName
         // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
         manifestPlaceholders["applicationName"] = "android.app.Application"

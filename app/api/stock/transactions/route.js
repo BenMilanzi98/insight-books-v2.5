@@ -458,6 +458,7 @@ export async function POST(request) {
             purchaseDate: new Date(),
             sourceType: 'StockIn',
             sourceId: deterministicSourceId, // Deterministic ID ensures idempotency
+            expiryDate: body.expiryDate || null,
             tx: tx,
           });
           console.log(`[Stock Transaction] Created FIFO batch for Stock In: ${stockChange} units at ${unitCost} each`);

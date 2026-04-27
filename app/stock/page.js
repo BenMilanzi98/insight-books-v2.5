@@ -4483,8 +4483,10 @@ const StockManagement = () => {
             
             <div className="p-5 max-h-[80vh] overflow-y-auto">
               <ExpiryAlertSystem
-                products={inventory}
                 onViewProduct={handleViewProduct}
+                showToast={showToast}
+                canAdjustStock={pagePermissions.canAdjustStock}
+                onInventoryChanged={loadInventory}
               />
             </div>
           </div>

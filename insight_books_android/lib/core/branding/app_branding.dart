@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 /// Product copy used on splash and marketing surfaces.
 const kAppDisplayName = 'Insight Books';
 const kAppTagline =
-    'Financial management for growing businesses — invoicing, stock, payroll, accounting, and reporting in one secure platform.';
+    'Business Management Simplified.';
 
 /// App icon shown in login, settings, and fallback contexts.
 class InsightBooksLogo extends StatelessWidget {
