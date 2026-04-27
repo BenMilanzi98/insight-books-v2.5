@@ -28,6 +28,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    // Align Kotlin bytecode with Java 17. Do not use kotlin { jvmToolchain(17) } here: that forces
+    // Gradle to resolve a JDK 17 install for javac/kotlin and fails on machines that only have JDK 21/25
+    // unless toolchain auto-provisioning (e.g. Foojay) is configured in settings.gradle.kts.
+    @Suppress("DEPRECATION")
     kotlinOptions {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
@@ -38,7 +42,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         // Play Store / package_info label (pubspec semver cannot be four-part "1.0.0.1").
-        versionName = "1.0.0.2
+        versionName = "1.0.0.2"
         // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
         manifestPlaceholders["applicationName"] = "android.app.Application"
     }
