@@ -43,7 +43,7 @@ android {
         // Must match pubspec `version: x.y.z+N` — N is what the server compares (not this string).
         versionCode = flutter.versionCode
         // Shown in Settings / PackageInfo.version (independent of +N build code).
-        versionName = "1.0.0.3"
+        versionName = "1.0.0.6"
         // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
         manifestPlaceholders["applicationName"] = "android.app.Application"
     }

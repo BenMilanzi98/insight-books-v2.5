@@ -163,94 +163,112 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          s.maintenance
-                              ? (s.maintenanceMessage ??
-                                  'The app is temporarily unavailable. Please try again later.')
-                              : s.apkUrl != null
-                                  ? 'This version is no longer supported. Download and install the latest APK to continue.'
-                                  : !s.websiteDownloadAvailable
-                                      ? 'This version is no longer supported. The public app download is disabled on the server. Ask your administrator for an update link or to enable download.'
-                                      : 'This version is no longer supported. Contact your administrator — no download URL is configured.',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                        if (!s.maintenance &&
-                            (s.clientVersionCode != null || s.latestVersionCode != null)) ...[
-                          const SizedBox(height: 12),
+                        const SizedBox(height: 12),
+                        if (s.maintenance) ...[
                           Text(
-                            'Installed: build ${s.clientVersionCode ?? "?"}\n'
-                            '(${s.clientVersionName ?? "—"}) · Server requires build ${s.latestVersionCode ?? "?"} or newer.\n'
-                            'The install "build" is pubspec +N, not the version label. Rebuild with a higher +N or lower Latest build in admin (Mobile app).',
+                            s.maintenanceMessage ??
+                                'The app is temporarily unavailable. Please try again later.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            style: const TextStyle(color: Colors.white70, fontSize: 15),
                           ),
-                        ],
-                        if (s.releaseNotes != null &&
-                            s.releaseNotes!.trim().isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            s.releaseNotes!,
+                        ] else ...[
+                          const Text(
+                            'This version is no longer supported. Download and install the latest APK to continue.',
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white54, fontSize: 13),
+                            style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.35),
                           ),
-                        ],
-                        if (s.apkUrl != null) ...[
                           const SizedBox(height: 20),
-                          if (dl.phase == ApkDownloadPhase.downloading ||
-                              dl.phase == ApkDownloadPhase.queued ||
-                              dl.phase == ApkDownloadPhase.openingInstaller) ...[
-                            Text(
-                              dl.statusLabel ?? '',
-                              style: const TextStyle(color: Colors.white70, fontSize: 13),
-                            ),
-                            const SizedBox(height: 8),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: dl.phase == ApkDownloadPhase.downloading
-                                    ? dl.progress.clamp(0.0, 1.0)
-                                    : null,
-                                minHeight: 6,
-                                backgroundColor: Colors.white24,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                          if (dl.phase == ApkDownloadPhase.error &&
-                              (dl.errorMessage ?? '').isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              dl.errorMessage!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.redAccent, fontSize: 13),
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: (dl.phase == ApkDownloadPhase.downloading ||
-                                    dl.phase == ApkDownloadPhase.openingInstaller)
-                                ? null
-                                : () => _startInAppDownload(s),
-                            child: Text(
-                              dl.phase == ApkDownloadPhase.downloading
-                                  ? 'Downloading…'
-                                  : 'Download update',
+                          Text(
+                            'Installed: build ${s.clientVersionCode ?? "—"}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                           const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: s.apkUrl == null
-                                ? null
-                                : () => _openApkInBrowser(s.apkUrl!),
-                            child: const Text(
-                              'Open in browser',
-                              style: TextStyle(color: Colors.white70),
+                          Text(
+                            'New Build: Build ${s.latestVersionCode ?? "—"}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
+                          if (s.apkUrl == null) ...[
+                            const SizedBox(height: 16),
+                            Text(
+                              !s.websiteDownloadAvailable
+                                  ? 'Download is not available from the app. Ask your administrator for an update.'
+                                  : 'No download link is configured. Ask your administrator.',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white54, fontSize: 14),
+                            ),
+                          ],
+                          if (s.apkUrl != null) ...[
+                            const SizedBox(height: 20),
+                            if (dl.phase == ApkDownloadPhase.downloading ||
+                                dl.phase == ApkDownloadPhase.queued ||
+                                dl.phase == ApkDownloadPhase.openingInstaller) ...[
+                              Text(
+                                dl.phase == ApkDownloadPhase.openingInstaller
+                                    ? 'Opening installer…'
+                                    : 'Downloading…',
+                                style: const TextStyle(color: Colors.white70, fontSize: 14),
+                              ),
+                              const SizedBox(height: 8),
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: dl.phase == ApkDownloadPhase.downloading
+                                      ? dl.progress.clamp(0.0, 1.0)
+                                      : null,
+                                  minHeight: 6,
+                                  backgroundColor: Colors.white24,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                            if (dl.phase == ApkDownloadPhase.error &&
+                                (dl.errorMessage ?? '').isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                dl.errorMessage!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                              ),
+                            ],
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                onPressed: (dl.phase == ApkDownloadPhase.downloading ||
+                                        dl.phase == ApkDownloadPhase.openingInstaller)
+                                    ? null
+                                    : () => _startInAppDownload(s),
+                                child: Text(
+                                  dl.phase == ApkDownloadPhase.downloading
+                                      ? 'Downloading…'
+                                      : 'Download',
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              width: double.infinity,
+                              child: TextButton(
+                                onPressed: () => _openApkInBrowser(s.apkUrl!),
+                                child: const Text(
+                                  'Open in browser',
+                                  style: TextStyle(color: Colors.white70, fontSize: 15),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         TextButton(
                           onPressed: () {
                             ref.read(apkUpdateInstallerProvider.notifier).reset();
@@ -258,7 +276,7 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                           },
                           child: const Text(
                             'Check again',
-                            style: TextStyle(color: Colors.white),
+                            style: TextStyle(color: Colors.white, fontSize: 15),
                           ),
                         ),
                       ],

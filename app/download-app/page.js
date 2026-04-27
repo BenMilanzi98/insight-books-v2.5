@@ -1,11 +1,115 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+
+const APK_FILENAME = 'InsightBooks-android.apk';
+
+function resolveFetchUrl(apkDownloadUrl) {
+  if (!apkDownloadUrl || typeof window === 'undefined') return '';
+  const u = String(apkDownloadUrl).trim();
+  if (u.startsWith('http://') || u.startsWith('https://')) return u;
+  if (u.startsWith('/')) return `${window.location.origin}${u}`;
+  return `${window.location.origin}/${u.replace(/^\//, '')}`;
+}
+
+function isZipApkMagic(bytes) {
+  if (!bytes || bytes.byteLength < 4) return false;
+  const a = new Uint8Array(bytes);
+  return a[0] === 0x50 && a[1] === 0x4b && a[2] === 0x03 && a[3] === 0x04;
+}
+
+/**
+ * Fetch APK bytes with progress. Uses Content-Length when present for percentage.
+ * @returns {{ blob: Blob, contentLengthKnown: boolean }}
+ */
+async function fetchApkWithProgress(url, onProgress) {
+  const res = await fetch(url, {
+    cache: 'no-store',
+    credentials: 'omit',
+    headers: { Accept: '*/*' },
+  });
+  if (!res.ok) {
+    let msg = `Download failed (${res.status})`;
+    try {
+      const t = await res.text();
+      if (t) {
+        try {
+          const j = JSON.parse(t);
+          if (j.error) msg = j.error;
+        } catch {
+          if (t.length < 200) msg = t;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+
+  const lenHeader = res.headers.get('content-length');
+  const total = lenHeader ? parseInt(lenHeader, 10) : NaN;
+  const hasTotal = Number.isFinite(total) && total > 0;
+
+  const reader = res.body?.getReader();
+  if (!reader) {
+    const buf = await res.arrayBuffer();
+    onProgress(1, buf.byteLength, buf.byteLength);
+    return {
+      blob: new Blob([buf], { type: 'application/vnd.android.package-archive' }),
+      contentLengthKnown: hasTotal,
+    };
+  }
+
+  const chunks = [];
+  let received = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value?.length) {
+      chunks.push(value);
+      received += value.length;
+      if (hasTotal) {
+        onProgress(Math.min(1, received / total), received, total);
+      } else {
+        onProgress(null, received, null);
+      }
+    }
+  }
+
+  if (hasTotal && received !== total) {
+    throw new Error('Download incomplete. Check your connection and try again.');
+  }
+
+  if (hasTotal) onProgress(1, received, total);
+  else onProgress(1, received, received);
+
+  return {
+    blob: new Blob(chunks, { type: 'application/vnd.android.package-archive' }),
+    contentLengthKnown: hasTotal,
+  };
+}
 
 export default function DownloadAppPage() {
   const [data, setData] = useState(null);
   const [err, setErr] = useState(null);
+
+  const [downloadPhase, setDownloadPhase] = useState('idle'); // idle | loading | saving | done | error
+  const [progress, setProgress] = useState(0);
+  const [progressIndeterminate, setProgressIndeterminate] = useState(false);
+  const [progressLabel, setProgressLabel] = useState('');
+  const [downloadErr, setDownloadErr] = useState(null);
+  const blobRef = useRef(null);
+  const blobUrlRef = useRef(null);
+
+  const revokeBlobUrl = useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+    blobRef.current = null;
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,6 +127,94 @@ export default function DownloadAppPage() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl]);
+
+  const apkFetchUrl = data?.apkDownloadUrl ? resolveFetchUrl(data.apkDownloadUrl) : '';
+
+  const runDownload = async () => {
+    if (!apkFetchUrl) return;
+    setDownloadErr(null);
+    revokeBlobUrl();
+    setProgress(0);
+    setProgressIndeterminate(false);
+    setProgressLabel('Starting…');
+    setDownloadPhase('loading');
+
+    try {
+      const { blob, contentLengthKnown } = await fetchApkWithProgress(apkFetchUrl, (ratio, received, total) => {
+        const mb = received / (1024 * 1024);
+        if (ratio == null) {
+          setProgress(0);
+          setProgressIndeterminate(true);
+          setProgressLabel(`${mb.toFixed(1)} MB downloaded`);
+          return;
+        }
+        setProgressIndeterminate(false);
+        const pct = Math.round(ratio * 100);
+        setProgress(ratio);
+        if (total > 0) {
+          const tmb = total / (1024 * 1024);
+          setProgressLabel(`${pct}% · ${mb.toFixed(1)} / ${tmb.toFixed(1)} MB`);
+        } else {
+          setProgressLabel(
+            ratio >= 1 ? `100% · ${mb.toFixed(1)} MB complete` : `${pct}% · ${mb.toFixed(1)} MB`,
+          );
+        }
+      });
+      const head = await blob.slice(0, 4).arrayBuffer();
+      if (!isZipApkMagic(head)) {
+        throw new Error('The file is not a valid app package. Ask your administrator to check the download link.');
+      }
+
+      blobRef.current = blob;
+      const url = URL.createObjectURL(blob);
+      blobUrlRef.current = url;
+
+      setDownloadPhase('saving');
+      setProgressLabel('Saving to Downloads…');
+      setProgress(1);
+
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = APK_FILENAME;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+
+      setDownloadPhase('done');
+      setProgressLabel('Saved to your Downloads folder.');
+    } catch (e) {
+      const msg =
+        e.name === 'TypeError' && String(e.message).includes('fetch')
+          ? 'Could not reach the download server. If the link is on another site, open it in the browser instead.'
+          : e.message || 'Download failed';
+      setDownloadErr(msg);
+      setDownloadPhase('error');
+      setProgress(0);
+      setProgressLabel('');
+      revokeBlobUrl();
+    }
+  };
+
+  const openForInstall = () => {
+    const url = blobUrlRef.current;
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  const resetDownload = () => {
+    revokeBlobUrl();
+    setDownloadPhase('idle');
+    setProgress(0);
+    setProgressIndeterminate(false);
+    setProgressLabel('');
+    setDownloadErr(null);
+  };
+
+  const canDownload = Boolean(data?.websiteDownloadAvailable && data?.apkDownloadUrl && apkFetchUrl);
+  const busy = downloadPhase === 'loading' || downloadPhase === 'saving';
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -47,13 +239,105 @@ export default function DownloadAppPage() {
               </p>
             </div>
 
-            {data.websiteDownloadAvailable && data.apkDownloadUrl ? (
-              <a
-                href="/api/mobile-app/download"
-                className="inline-flex w-full justify-center items-center rounded-xl bg-indigo-600 text-white font-semibold py-4 px-6 hover:bg-indigo-700 transition-colors"
-              >
-                Download APK
-              </a>
+            {canDownload ? (
+              <div className="rounded-xl border border-slate-200 bg-white shadow-sm px-5 py-5 text-left space-y-4">
+                {downloadPhase === 'idle' && (
+                  <button
+                    type="button"
+                    onClick={runDownload}
+                    className="inline-flex w-full justify-center items-center rounded-xl bg-indigo-600 text-white font-semibold py-4 px-6 hover:bg-indigo-700 transition-colors"
+                  >
+                    Download APK
+                  </button>
+                )}
+
+                {(downloadPhase === 'loading' || downloadPhase === 'saving') && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-slate-600">
+                      <span>{downloadPhase === 'saving' ? 'Saving' : 'Downloading'}</span>
+                      <span>
+                        {downloadPhase === 'loading' && progressIndeterminate
+                          ? '…'
+                          : downloadPhase === 'loading' && progress > 0
+                            ? `${Math.round(progress * 100)}%`
+                            : downloadPhase === 'loading'
+                              ? '—'
+                              : ''}
+                      </span>
+                    </div>
+                    <div
+                      className="h-3 w-full rounded-full bg-slate-200 overflow-hidden"
+                      role="progressbar"
+                      aria-valuenow={
+                        progressIndeterminate ? 0 : Math.round(progress * 100)
+                      }
+                      aria-valuetext={progressIndeterminate ? 'Downloading' : undefined}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      {progressIndeterminate ? (
+                        <div className="h-full w-full rounded-full bg-indigo-500/45 animate-pulse" />
+                      ) : (
+                        <div
+                          className="h-full rounded-full bg-indigo-600 transition-[width] duration-150 ease-out"
+                          style={{
+                            width:
+                              downloadPhase === 'saving'
+                                ? '100%'
+                                : `${Math.max(2, Math.round(progress * 100))}%`,
+                          }}
+                        />
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500">{progressLabel}</p>
+                  </div>
+                )}
+
+                {downloadPhase === 'done' && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-emerald-700 font-medium">{progressLabel}</p>
+                    <button
+                      type="button"
+                      onClick={openForInstall}
+                      className="inline-flex w-full justify-center items-center rounded-xl bg-emerald-600 text-white font-semibold py-4 px-6 hover:bg-emerald-700 transition-colors"
+                    >
+                      Install app
+                    </button>
+                    <p className="text-xs text-slate-500">
+                      Opens the APK so Android can run the installer. You may need to allow installs
+                      from this source. If nothing happens, open your Downloads folder and tap the
+                      APK file.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={resetDownload}
+                      className="w-full text-sm text-indigo-600 hover:underline py-2"
+                    >
+                      Download again
+                    </button>
+                  </div>
+                )}
+
+                {downloadPhase === 'error' && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{downloadErr}</p>
+                    <a
+                      href={apkFetchUrl}
+                      download={APK_FILENAME}
+                      className="inline-flex w-full justify-center items-center rounded-xl border border-slate-300 bg-white text-slate-800 font-medium py-3 px-6 hover:bg-slate-50 transition-colors"
+                    >
+                      Try direct link
+                    </a>
+                    <button
+                      type="button"
+                      onClick={resetDownload}
+                      className="w-full rounded-xl bg-indigo-600 text-white font-semibold py-3 px-6 hover:bg-indigo-700 transition-colors"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3">
                 APK download is not available right now. Please try again later or use the update

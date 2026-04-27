@@ -19,10 +19,32 @@ double downloadProgressRatio(int received, int total) {
 }
 
 String _dioErrorMessage(DioException e) {
-  final parts = <String>[e.message ?? 'Download failed'];
-  final sc = e.response?.statusCode;
-  if (sc != null) parts.add('HTTP $sc');
-  return parts.join(' · ');
+  switch (e.message) {
+    case 'download_invalid_apk':
+      return 'Could not save a valid update file. Try Open in browser.';
+    case 'download_incomplete':
+      return 'Download was interrupted. Try again or use Open in browser.';
+    default:
+      break;
+  }
+  if (e.type == DioExceptionType.connectionTimeout ||
+      e.type == DioExceptionType.receiveTimeout ||
+      e.type == DioExceptionType.sendTimeout) {
+    return 'Connection timed out. Try again or use Open in browser.';
+  }
+  if (e.type == DioExceptionType.connectionError) {
+    return 'No connection. Try again or use Open in browser.';
+  }
+  return 'Download failed. Try Open in browser or try again.';
+}
+
+/// APK files are ZIP archives; local file header starts with PK\x03\x04.
+bool _bytesLookLikeApkZip(List<int> head) {
+  if (head.length < 4) return false;
+  return head[0] == 0x50 &&
+      head[1] == 0x4b &&
+      head[2] == 0x03 &&
+      head[3] == 0x04;
 }
 
 enum ApkDownloadPhase {
@@ -160,6 +182,7 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
           connectTimeout: const Duration(seconds: 45),
           receiveTimeout: const Duration(minutes: 30),
           followRedirects: true,
+          maxRedirects: 10,
           headers: {
             HttpHeaders.userAgentHeader:
                 'InsightBooks-Android/$versionName (build $versionCode)',
@@ -167,14 +190,44 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
         ),
       );
 
-      await _downloadDio!.download(
+      // Stream to disk instead of dio.download(): some proxies/CDNs mis-report
+      // Content-Length with gzip, which can make progress hit 100% early and the
+      // saved file corrupt (Package installer: error parsing the package).
+      final resp = await _downloadDio!.get<ResponseBody>(
         resolved,
-        outFile.path,
-        deleteOnError: true,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
+        options: Options(
+          responseType: ResponseType.stream,
+          followRedirects: true,
+          maxRedirects: 10,
+          validateStatus: (code) => code == 200,
+          headers: <String, dynamic>{
+            HttpHeaders.userAgentHeader:
+                'InsightBooks-Android/$versionName (build $versionCode)',
+            // Do not ask for gzip on a binary endpoint — avoids rare CL/decompress mismatches.
+            HttpHeaders.acceptEncodingHeader: 'identity',
+            HttpHeaders.acceptHeader: '*/*',
+          },
+          receiveTimeout: const Duration(minutes: 30),
+        ),
+      );
+
+      // Do not gate on Content-Type: CDNs and reverse proxies often send
+      // application/octet-stream, empty, or odd values for a valid APK.
+      // We validate the file using the ZIP local header after the stream completes.
+
+      final clHeader = resp.headers.value(HttpHeaders.contentLengthHeader);
+      final expectedTotal = clHeader != null ? int.tryParse(clHeader) : null;
+
+      IOSink? sink;
+      try {
+        sink = outFile.openWrite();
+        var received = 0;
+        await for (final chunk in resp.data!.stream) {
+          received += chunk.length;
+          sink.add(chunk);
+          if (expectedTotal != null && expectedTotal > 0) {
             state = state.copyWith(
-              progress: downloadProgressRatio(received.toInt(), total.toInt()),
+              progress: downloadProgressRatio(received, expectedTotal),
               statusLabel: 'Downloading',
             );
           } else if (received > 0) {
@@ -184,10 +237,45 @@ class ApkUpdateInstaller extends Notifier<ApkDownloadUiState> {
               statusLabel: 'Downloading ${mb.toStringAsFixed(1)} MB…',
             );
           }
-        },
-      );
+        }
+        await sink.flush();
+        await sink.close();
+        sink = null;
+      } catch (e) {
+        await sink?.close();
+        if (await outFile.exists()) await outFile.delete();
+        rethrow;
+      }
 
       final len = await outFile.length();
+      // Only treat as failure when the file is *smaller* than Content-Length (truncated).
+      // Some stacks mis-report a *smaller* CL while still sending the full body; we still
+      // validate the ZIP/APK magic below.
+      if (expectedTotal != null && expectedTotal > 0 && len < expectedTotal) {
+        await outFile.delete();
+        throw DioException(
+          requestOptions: resp.requestOptions,
+          response: resp,
+          type: DioExceptionType.badResponse,
+          message: 'download_incomplete',
+        );
+      }
+
+      final head = await outFile.open(mode: FileMode.read);
+      try {
+        final magic = await head.read(4);
+        if (!_bytesLookLikeApkZip(magic)) {
+          await outFile.delete();
+          throw DioException(
+            requestOptions: resp.requestOptions,
+            response: resp,
+            type: DioExceptionType.badResponse,
+            message: 'download_invalid_apk',
+          );
+        }
+      } finally {
+        await head.close();
+      }
       _emitTelemetry(
         'download_completed',
         versionCode: versionCode,
