@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:insightbooks_android/core/network/api_client.dart';
 import 'package:insightbooks_android/core/update/mobile_app_telemetry.dart';
@@ -18,6 +19,9 @@ class AppUpdateState {
   final bool maintenance;
   final String? maintenanceMessage;
   final int? latestVersionCode;
+  /// From [PackageInfo.buildNumber] — must be >= server [latestVersionCode] (pubspec `+` value).
+  final int? clientVersionCode;
+  final String? clientVersionName;
 
   const AppUpdateState({
     this.mustLock = false,
@@ -31,6 +35,8 @@ class AppUpdateState {
     this.maintenance = false,
     this.maintenanceMessage,
     this.latestVersionCode,
+    this.clientVersionCode,
+    this.clientVersionName,
   });
 
   AppUpdateState copyWith({
@@ -45,6 +51,8 @@ class AppUpdateState {
     bool? maintenance,
     String? maintenanceMessage,
     int? latestVersionCode,
+    int? clientVersionCode,
+    String? clientVersionName,
   }) {
     return AppUpdateState(
       mustLock: mustLock ?? this.mustLock,
@@ -59,6 +67,8 @@ class AppUpdateState {
       maintenance: maintenance ?? this.maintenance,
       maintenanceMessage: maintenanceMessage ?? this.maintenanceMessage,
       latestVersionCode: latestVersionCode ?? this.latestVersionCode,
+      clientVersionCode: clientVersionCode ?? this.clientVersionCode,
+      clientVersionName: clientVersionName ?? this.clientVersionName,
     );
   }
 }
@@ -136,7 +146,17 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
       final dio = ref.read(dioProvider);
       final res = await dio.get<Map<String, dynamic>>(
         '/api/mobile-app/version',
-        queryParameters: {'versionCode': code},
+        queryParameters: {
+          'versionCode': code,
+          // Bust misbehaving HTTP caches so "Update required" clears right after install.
+          '_': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+        options: Options(
+          headers: <String, dynamic>{
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+          },
+        ),
       );
       final d = res.data ?? {};
       final mustLock = d['mustLock'] == true;
@@ -180,6 +200,8 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
         maintenance: maintenance,
         maintenanceMessage: maintenanceMessage,
         latestVersionCode: latestVc,
+        clientVersionCode: code,
+        clientVersionName: info.version,
       );
 
       _pollTimer?.cancel();

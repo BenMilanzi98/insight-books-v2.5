@@ -744,6 +744,8 @@ export async function POST(request) {
       const additionalInfo = {
         allowances: payrollCalculation.allowances || {},
         otherDeductions: payrollCalculation.otherDeductions || {},
+        // Malawi PAYE: gross less employee NPS (when NPS applies) before tax bands
+        payeTaxableIncome: payrollCalculation.payeTaxableIncome ?? null,
         deductionNames: deductionNames, // Store deduction names for payslip
         advanceDeductions: advanceDeductions.map(ad => ({
           advanceId: ad.advanceId,

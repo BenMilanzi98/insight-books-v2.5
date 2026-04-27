@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { publicBaseUrlFromRequest, releaseApkExists } from '@/lib/mobileAppRelease';
 
+/** Avoid stale "update required" after installs (proxies, CDNs). */
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+};
+
 function parseVersionCode(raw) {
   const n = parseInt(String(raw ?? ''), 10);
   return Number.isFinite(n) ? n : 0;
@@ -42,22 +48,25 @@ export async function GET(request) {
       const base = publicBaseUrlFromRequest(request);
       const hostedUrl =
         onDisk && base ? `${base}/api/mobile-app/download` : '';
-      return NextResponse.json({
-        latestVersionCode: 1,
-        latestVersionName: '1.0.0',
-        apkDownloadUrl: hostedUrl,
-        releaseNotes: null,
-        publishedAt: null,
-        gracePeriodHours: 24,
-        gracePeriodMinutes: null,
-        graceEndsAt: null,
-        broadcastMessage: null,
-        maintenance: false,
-        maintenanceMessage: null,
-        updateAvailable: false,
-        mustLock: false,
-        websiteDownloadAvailable: onDisk,
-      });
+      return NextResponse.json(
+        {
+          latestVersionCode: 1,
+          latestVersionName: '1.0.0',
+          apkDownloadUrl: hostedUrl,
+          releaseNotes: null,
+          publishedAt: null,
+          gracePeriodHours: 24,
+          gracePeriodMinutes: null,
+          graceEndsAt: null,
+          broadcastMessage: null,
+          maintenance: false,
+          maintenanceMessage: null,
+          updateAvailable: false,
+          mustLock: false,
+          websiteDownloadAvailable: onDisk,
+        },
+        { headers: NO_STORE_HEADERS },
+      );
     }
 
     const onDisk = releaseApkExists();
@@ -87,22 +96,25 @@ export async function GET(request) {
     const maintenanceMessage = row.maintenanceMessage ?? null;
 
     if (maintenance) {
-      return NextResponse.json({
-        latestVersionCode: row.latestVersionCode ?? 1,
-        latestVersionName: row.latestVersionName ?? '1.0.0',
-        apkDownloadUrl,
-        releaseNotes: row.releaseNotes ?? null,
-        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
-        gracePeriodHours: row.gracePeriodHours ?? 24,
-        gracePeriodMinutes: null,
-        graceEndsAt: null,
-        broadcastMessage: row.broadcastMessage ?? null,
-        maintenance: true,
-        maintenanceMessage,
-        updateAvailable: true,
-        mustLock: true,
-        websiteDownloadAvailable,
-      });
+      return NextResponse.json(
+        {
+          latestVersionCode: row.latestVersionCode ?? 1,
+          latestVersionName: row.latestVersionName ?? '1.0.0',
+          apkDownloadUrl,
+          releaseNotes: row.releaseNotes ?? null,
+          publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+          gracePeriodHours: row.gracePeriodHours ?? 24,
+          gracePeriodMinutes: null,
+          graceEndsAt: null,
+          broadcastMessage: row.broadcastMessage ?? null,
+          maintenance: true,
+          maintenanceMessage,
+          updateAvailable: true,
+          mustLock: true,
+          websiteDownloadAvailable,
+        },
+        { headers: NO_STORE_HEADERS },
+      );
     }
 
     const latest = row.latestVersionCode ?? 1;
@@ -122,29 +134,32 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.json({
-      latestVersionCode: latest,
-      latestVersionName: row.latestVersionName ?? '1.0.0',
-      apkDownloadUrl,
-      releaseNotes: row.releaseNotes ?? null,
-      publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
-      gracePeriodHours: row.gracePeriodHours ?? 24,
-      gracePeriodMinutes: row.gracePeriodMinutes ?? null,
-      graceEndsAt,
-      broadcastMessage: row.broadcastMessage ?? null,
-      maintenance: false,
-      maintenanceMessage: null,
-      /** Echo of query param — same logic the app uses for `updateAvailable` / lock. */
-      clientVersionCode,
-      updateAvailable,
-      mustLock,
-      websiteDownloadAvailable,
-    });
+    return NextResponse.json(
+      {
+        latestVersionCode: latest,
+        latestVersionName: row.latestVersionName ?? '1.0.0',
+        apkDownloadUrl,
+        releaseNotes: row.releaseNotes ?? null,
+        publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+        gracePeriodHours: row.gracePeriodHours ?? 24,
+        gracePeriodMinutes: row.gracePeriodMinutes ?? null,
+        graceEndsAt,
+        broadcastMessage: row.broadcastMessage ?? null,
+        maintenance: false,
+        maintenanceMessage: null,
+        /** Echo of query param — same logic the app uses for `updateAvailable` / lock. */
+        clientVersionCode,
+        updateAvailable,
+        mustLock,
+        websiteDownloadAvailable,
+      },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (e) {
     console.error('mobile-app/version', e);
     return NextResponse.json(
       { error: 'Failed to read app version policy' },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS },
     );
   }
 }

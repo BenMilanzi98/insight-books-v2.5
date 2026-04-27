@@ -176,6 +176,17 @@ class _AppUpdateGateState extends ConsumerState<AppUpdateGate>
                           textAlign: TextAlign.center,
                           style: const TextStyle(color: Colors.white70),
                         ),
+                        if (!s.maintenance &&
+                            (s.clientVersionCode != null || s.latestVersionCode != null)) ...[
+                          const SizedBox(height: 12),
+                          Text(
+                            'Installed: build ${s.clientVersionCode ?? "?"}\n'
+                            '(${s.clientVersionName ?? "—"}) · Server requires build ${s.latestVersionCode ?? "?"} or newer.\n'
+                            'The install "build" is pubspec +N, not the version label. Rebuild with a higher +N or lower Latest build in admin (Mobile app).',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                          ),
+                        ],
                         if (s.releaseNotes != null &&
                             s.releaseNotes!.trim().isNotEmpty) ...[
                           const SizedBox(height: 16),

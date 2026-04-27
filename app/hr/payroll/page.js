@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatSalaryAmount } from "@/lib/currencyUtils";
 import { computeMalawiPayeMonthly } from "@/lib/malawiPAYE";
+import { effectiveNpsRatePercentForPayroll } from "@/lib/npsTenantRates";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 
 export default function PayrollProcessing() {
@@ -1584,14 +1585,16 @@ export default function PayrollProcessing() {
                     </div>
                     <div className="pt-2 space-y-1">
                       <div className="text-xs text-gray-500 font-medium mb-1">Deductions (will be calculated):</div>
-                      <div className="text-xs text-gray-500 pl-2">• PAYE (based on gross pay)</div>
                       <div className="text-xs text-gray-500 pl-2">
-                        • NPS Employee (
-                        {npsDisplayRates.npsEmployeeRatePercent != null
-                          ? `${Number(npsDisplayRates.npsEmployeeRatePercent)}%`
-                          : "tenant rate — HR → Pension"}
-                        {" "}
-                        of gross pay)
+                        • PAYE (on taxable income after employee NPS / pension)
+                      </div>
+                      <div className="text-xs text-gray-500 pl-2">
+                        • NPS Employee:{" "}
+                        {effectiveNpsRatePercentForPayroll(
+                          npsDisplayRates.npsEmployeeRatePercent,
+                          true,
+                        )}
+                        % of gross pay (HR → Pension; statutory 5% when unset)
                       </div>
                       {Object.keys(editFormData.deductions || {}).length > 0 && (
                         <>
@@ -1611,13 +1614,15 @@ export default function PayrollProcessing() {
                           const additions = Number(editFormData.additions) || 0;
                           const gross = basicSalary + additions;
 
-                          const estimatedPAYE = computeMalawiPayeMonthly(gross).payeAmount;
-                          const npsPct =
-                            npsDisplayRates.npsEmployeeRatePercent != null &&
-                            Number.isFinite(Number(npsDisplayRates.npsEmployeeRatePercent))
-                              ? Number(npsDisplayRates.npsEmployeeRatePercent) / 100
-                              : 0.05;
+                          const empNpsPctPoints = effectiveNpsRatePercentForPayroll(
+                            npsDisplayRates.npsEmployeeRatePercent,
+                            true,
+                          );
+                          const npsPct = empNpsPctPoints / 100;
                           const estimatedNPS = gross * npsPct;
+                          const taxableForPaye = Math.max(0, gross - estimatedNPS);
+                          const estimatedPAYE =
+                            computeMalawiPayeMonthly(taxableForPaye).payeAmount;
                           const otherDeductions = Object.values(editFormData.deductions || {}).reduce((sum, val) => {
                             return sum + (Number(val) || 0);
                           }, 0);
