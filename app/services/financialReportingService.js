@@ -312,6 +312,33 @@ export const fetchFinancialAnalytics = async ({
 };
 
 /**
+ * Product-level profit (invoice + POS lines) for the period: revenue, cost, margin per SKU/line.
+ */
+export const fetchProductProfitDetail = async ({
+  timeframe,
+  customDateRange = null,
+  categoryId = '',
+}) => {
+  try {
+    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
+    const params = new URLSearchParams({ startDate, endDate });
+    if (categoryId) params.append('categoryId', categoryId);
+
+    const response = await fetch(`/api/reports/product-profit-detail?${params.toString()}`);
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || `Error fetching product profit detail: ${response.statusText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching product profit detail:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetch available reports
  */
 export const fetchAvailableReports = async () => {

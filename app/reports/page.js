@@ -35,7 +35,8 @@ import {
   fetchFinancialRatios,
   fetchAvailableReports,
   exportReport,
-  fetchFinancialAnalytics
+  fetchFinancialAnalytics,
+  fetchProductProfitDetail
 } from "../services/financialReportingService";
 
 import {
@@ -141,6 +142,9 @@ const FinancialReportingPage = () => {
   const [financialAnalytics, setFinancialAnalytics] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(true);
   const [analyticsError, setAnalyticsError] = useState(null);
+  const [productProfitDetail, setProductProfitDetail] = useState(null);
+  const [productProfitLoading, setProductProfitLoading] = useState(false);
+  const [productProfitError, setProductProfitError] = useState(null);
   const [incomeStatement, setIncomeStatement] = useState(null);
   const [balanceSheet, setBalanceSheet] = useState(null);
   const [cashFlowStatement, setCashFlowStatement] = useState(null);
@@ -305,6 +309,37 @@ const FinancialReportingPage = () => {
 
     loadAnalytics();
   }, [timeframe, customRangeForApi, analyticsFilters.groupBy, analyticsFilters.categoryId]);
+
+  useEffect(() => {
+    if (selectedReport !== 'profit-analysis') return undefined;
+
+    let cancelled = false;
+    (async () => {
+      setProductProfitLoading(true);
+      setProductProfitError(null);
+      try {
+        const data = await fetchProductProfitDetail({
+          timeframe,
+          customDateRange: customRangeForApi,
+          categoryId: analyticsFilters.categoryId,
+        });
+        if (!cancelled) {
+          setProductProfitDetail(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setProductProfitError(err?.message || 'Failed to load product-level profit.');
+          setProductProfitDetail(null);
+        }
+      } finally {
+        if (!cancelled) setProductProfitLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedReport, timeframe, customRangeForApi, analyticsFilters.categoryId]);
 
   // NEW: Handle custom date range change
   const handleCustomDateRangeChange = (field, value) => {
@@ -538,7 +573,7 @@ const FinancialReportingPage = () => {
     };
 
     loadSelectedReportData();
-  }, [selectedReport, timeframe, customRangeForApi, stockMovementProductId, posDailyDate]);
+  }, [selectedReport, timeframe, customRangeForApi, analyticsFilters.categoryId, stockMovementProductId, posDailyDate]);
 
   // Handle report generation
   const handleGenerateReport = useCallback((reportId) => {
@@ -659,13 +694,22 @@ const FinancialReportingPage = () => {
             break;
 
           case 'profit-analysis': {
-            const analyticsReload = await fetchFinancialAnalytics({
-              timeframe,
-              customDateRange: customRangeForApi,
-              groupBy: analyticsFilters.groupBy,
-              categoryId: analyticsFilters.categoryId
-            });
+            const [analyticsReload, productProfitReload] = await Promise.all([
+              fetchFinancialAnalytics({
+                timeframe,
+                customDateRange: customRangeForApi,
+                groupBy: analyticsFilters.groupBy,
+                categoryId: analyticsFilters.categoryId
+              }),
+              fetchProductProfitDetail({
+                timeframe,
+                customDateRange: customRangeForApi,
+                categoryId: analyticsFilters.categoryId
+              })
+            ]);
             setFinancialAnalytics(analyticsReload);
+            setProductProfitDetail(productProfitReload);
+            setProductProfitError(null);
             break;
           }
         }
@@ -937,6 +981,154 @@ const FinancialReportingPage = () => {
             </p>
           </div>
         ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-4 space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div>
+            <h4 className="text-sm font-semibold text-slate-800">Product and line sales in this period</h4>
+            <p className="text-xs text-slate-500 mt-0.5 max-w-3xl">
+              Every invoice line and completed POS line in the date range. Revenue uses line amounts; cost uses product cost, then average cost when cost is unset.
+              Respects the inventory category filter above when set.
+            </p>
+          </div>
+        </div>
+
+        {productProfitLoading ? (
+          <div className="flex items-center gap-2 py-8 text-slate-500 text-sm">
+            <Loader2 size={20} className="animate-spin text-emerald-600" />
+            Loading product-level sales…
+          </div>
+        ) : productProfitError ? (
+          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">{productProfitError}</div>
+        ) : productProfitDetail?.summary ? (
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="rounded-lg border border-blue-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Line sales (revenue)</p>
+                <p className="text-lg font-semibold text-blue-700 tabular-nums">
+                  {formatCurrency(productProfitDetail.summary.productSalesRevenue)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-red-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Product COGS</p>
+                <p className="text-lg font-semibold text-red-700 tabular-nums">
+                  {formatCurrency(productProfitDetail.summary.productCostTotal)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Gross profit (lines)</p>
+                <p className="text-lg font-semibold text-emerald-700 tabular-nums">
+                  {formatCurrency(productProfitDetail.summary.productGrossProfit)}
+                </p>
+              </div>
+              <div className="rounded-lg border border-orange-200 bg-white p-3">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Operating expenses</p>
+                <p className="text-lg font-semibold text-orange-700 tabular-nums">
+                  {formatCurrency(productProfitDetail.summary.operatingExpensesApproved)}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Approved expense register, same period</p>
+              </div>
+              <div className="rounded-lg border border-green-300 bg-white p-3 col-span-2 lg:col-span-1">
+                <p className="text-[11px] uppercase tracking-wide text-slate-500 font-medium">Profit after operating</p>
+                <p
+                  className={`text-lg font-semibold tabular-nums ${
+                    (productProfitDetail.summary.profitAfterOperatingExpenses || 0) >= 0 ? 'text-green-700' : 'text-red-700'
+                  }`}
+                >
+                  {formatCurrency(productProfitDetail.summary.profitAfterOperatingExpenses)}
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Line gross profit − operating expenses</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white max-h-[min(70vh,520px)] overflow-y-auto">
+              <table className="w-full min-w-[920px] text-sm text-left">
+                <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-200">
+                  <tr className="text-xs uppercase tracking-wide text-slate-500">
+                    <th className="py-2.5 px-3 font-medium">Product / line</th>
+                    <th className="py-2.5 px-2 font-medium">SKU</th>
+                    <th className="py-2.5 px-2 font-medium">Category</th>
+                    <th className="py-2.5 px-2 font-medium text-right">Qty</th>
+                    <th className="py-2.5 px-2 font-medium text-right">Avg sell</th>
+                    <th className="py-2.5 px-2 font-medium text-right">Avg cost</th>
+                    <th className="py-2.5 px-2 font-medium text-right">Revenue</th>
+                    <th className="py-2.5 px-2 font-medium text-right">COGS</th>
+                    <th className="py-2.5 px-2 font-medium text-right">Profit</th>
+                    <th className="py-2.5 pl-2 pr-3 font-medium text-right">Margin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(productProfitDetail.rows || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="py-10 text-center text-slate-500">
+                        No invoice or POS lines in this period for the current filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    (productProfitDetail.rows || []).map((row, idx) => (
+                      <tr key={`${row.productId || row.name}-${idx}`} className="border-b border-slate-100 hover:bg-slate-50/80">
+                        <td className="py-2 px-3 text-slate-800 font-medium max-w-[220px] truncate" title={row.name}>
+                          {row.name}
+                        </td>
+                        <td className="py-2 px-2 text-slate-600 whitespace-nowrap">{row.sku || '—'}</td>
+                        <td className="py-2 px-2 text-slate-600 max-w-[140px] truncate" title={row.categoryName}>
+                          {row.categoryName || '—'}
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums text-slate-700">
+                          {Number(row.quantity).toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                        </td>
+                        <td className="py-2 px-2 text-right tabular-nums text-slate-700">{formatCurrency(row.avgSellingPrice)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums text-slate-700">{formatCurrency(row.avgCostPrice)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatCurrency(row.revenue)}</td>
+                        <td className="py-2 px-2 text-right tabular-nums text-slate-800">{formatCurrency(row.cost)}</td>
+                        <td
+                          className={`py-2 px-2 text-right tabular-nums font-medium ${
+                            (row.profit || 0) >= 0 ? 'text-emerald-700' : 'text-red-600'
+                          }`}
+                        >
+                          {formatCurrency(row.profit)}
+                        </td>
+                        <td className="py-2 pl-2 pr-3 text-right tabular-nums text-slate-700">
+                          {row.marginPercent != null && Number.isFinite(row.marginPercent)
+                            ? `${Number(row.marginPercent).toFixed(1)}%`
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {(productProfitDetail.rows || []).length > 0 ? (
+                  <tfoot className="sticky bottom-0 bg-slate-100 border-t border-slate-200 font-semibold text-slate-800">
+                    <tr>
+                      <td colSpan={6} className="py-2.5 px-3 text-right text-xs uppercase tracking-wide text-slate-500">
+                        Totals
+                      </td>
+                      <td className="py-2.5 px-2 text-right tabular-nums">{formatCurrency(productProfitDetail.summary.productSalesRevenue)}</td>
+                      <td className="py-2.5 px-2 text-right tabular-nums">{formatCurrency(productProfitDetail.summary.productCostTotal)}</td>
+                      <td className="py-2.5 px-2 text-right tabular-nums text-emerald-800">
+                        {formatCurrency(productProfitDetail.summary.productGrossProfit)}
+                      </td>
+                      <td className="py-2.5 pl-2 pr-3 text-right text-slate-600 text-xs font-medium">
+                        {productProfitDetail.summary.productSalesRevenue > 0
+                          ? `${(
+                              (productProfitDetail.summary.productGrossProfit /
+                                productProfitDetail.summary.productSalesRevenue) *
+                              100
+                            ).toFixed(1)}%`
+                          : '—'}
+                      </td>
+                    </tr>
+                  </tfoot>
+                ) : null}
+              </table>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              {productProfitDetail.summary.lineCountInvoices} invoice lines · {productProfitDetail.summary.lineCountPos} POS
+              lines · {productProfitDetail.summary.skuCount} grouped rows
+            </p>
+          </>
+        ) : null}
       </div>
 
       <div className="space-y-6">
