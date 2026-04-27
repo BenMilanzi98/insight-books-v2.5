@@ -213,7 +213,12 @@ export default function DownloadAppPage() {
     setDownloadErr(null);
   };
 
-  const canDownload = Boolean(data?.websiteDownloadAvailable && data?.apkDownloadUrl && apkFetchUrl);
+  // `websiteDownloadAvailable` is only true when a file exists at public/releases/ and the
+  // site is not locked. A custom `apkDownloadUrl` in admin still populates `apkDownloadUrl`
+  // in the API with `websiteDownloadAvailable: false` — the page must not require that flag.
+  const canDownload = Boolean(
+    (data?.apkDownloadUrl && String(data.apkDownloadUrl).trim() !== '') && apkFetchUrl,
+  );
   const busy = downloadPhase === 'loading' || downloadPhase === 'saving';
 
   return (
@@ -339,9 +344,16 @@ export default function DownloadAppPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3">
-                APK download is not available right now. Please try again later or use the update
-                link inside the app if you already have it installed.
+              <div className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-sm px-4 py-3 text-left">
+                <p>
+                  No download link is available from the server (no hosted release file and no
+                  public URL in admin, or the site download is locked).
+                </p>
+                <p className="mt-2 text-amber-800">
+                  In <span className="font-medium">Insight Books → Mobile app</span>, upload an APK or
+                  set “APK download URL”, and ensure “Lock website APK download” is off if you use the
+                  hosted file.
+                </p>
               </div>
             )}
 
