@@ -130,10 +130,14 @@ export default function DownloadAppPage() {
 
   useEffect(() => () => revokeBlobUrl(), [revokeBlobUrl]);
 
-  const apkFetchUrl = data?.apkDownloadUrl ? resolveFetchUrl(data.apkDownloadUrl) : '';
+  /** Public app page: same-origin proxy streams external APKs (avoids CORS on files.fm, etc.). */
+  const proxyFetchUrl =
+    typeof window !== 'undefined' ? `${window.location.origin}/api/mobile-app/proxy-apk` : '';
+  /** Original link for "open direct" fallback (admin may point to a third-party host). */
+  const directApkUrl = data?.apkDownloadUrl ? resolveFetchUrl(data.apkDownloadUrl) : '';
 
   const runDownload = async () => {
-    if (!apkFetchUrl) return;
+    if (!proxyFetchUrl) return;
     setDownloadErr(null);
     revokeBlobUrl();
     setProgress(0);
@@ -142,7 +146,7 @@ export default function DownloadAppPage() {
     setDownloadPhase('loading');
 
     try {
-      const { blob, contentLengthKnown } = await fetchApkWithProgress(apkFetchUrl, (ratio, received, total) => {
+      const { blob, contentLengthKnown } = await fetchApkWithProgress(proxyFetchUrl, (ratio, received, total) => {
         const mb = received / (1024 * 1024);
         if (ratio == null) {
           setProgress(0);
@@ -217,7 +221,7 @@ export default function DownloadAppPage() {
   // site is not locked. A custom `apkDownloadUrl` in admin still populates `apkDownloadUrl`
   // in the API with `websiteDownloadAvailable: false` — the page must not require that flag.
   const canDownload = Boolean(
-    (data?.apkDownloadUrl && String(data.apkDownloadUrl).trim() !== '') && apkFetchUrl,
+    (data?.apkDownloadUrl && String(data.apkDownloadUrl).trim() !== '') && proxyFetchUrl,
   );
   const busy = downloadPhase === 'loading' || downloadPhase === 'saving';
 
@@ -327,11 +331,12 @@ export default function DownloadAppPage() {
                   <div className="space-y-3">
                     <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{downloadErr}</p>
                     <a
-                      href={apkFetchUrl}
-                      download={APK_FILENAME}
+                      href={directApkUrl}
+                      target="_blank"
+                      rel="noreferrer"
                       className="inline-flex w-full justify-center items-center rounded-xl border border-slate-300 bg-white text-slate-800 font-medium py-3 px-6 hover:bg-slate-50 transition-colors"
                     >
-                      Try direct link
+                      Open file link
                     </a>
                     <button
                       type="button"

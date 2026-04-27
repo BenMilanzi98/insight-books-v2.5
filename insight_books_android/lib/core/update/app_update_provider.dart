@@ -185,10 +185,19 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
           : null;
       final latestVc = (d['latestVersionCode'] as num?)?.toInt();
 
+      // Server compares versionCode query param to latestVersionCode. Use the same rule here so
+      // we never stay on "Update required" after installing an APK whose build matches or beats
+      // the server (handles stale responses and fixes label/code mismatches from Gradle).
+      final outdated = latestVc != null ? code < latestVc : updateAvailable;
+      final effectiveUpdateAvailable =
+          maintenance ? updateAvailable : (updateAvailable && outdated);
+      final effectiveMustLock =
+          maintenance ? mustLock : (mustLock && outdated);
+
       state = AppUpdateState(
-        mustLock: mustLock,
-        updateAvailable: updateAvailable,
-        showGraceBanner: updateAvailable && !mustLock,
+        mustLock: effectiveMustLock,
+        updateAvailable: effectiveUpdateAvailable,
+        showGraceBanner: effectiveUpdateAvailable && !effectiveMustLock,
         websiteDownloadAvailable: websiteDl,
         apkUrl: apkUrl,
         graceEndsAt: graceEnds,
@@ -207,8 +216,8 @@ class AppUpdateNotifier extends Notifier<AppUpdateState> {
       _pollTimer?.cancel();
       _schedulePeriodicPoll();
       _armGraceDeadlineRefresh(
-        updateAvailable: updateAvailable,
-        mustLock: mustLock,
+        updateAvailable: effectiveUpdateAvailable,
+        mustLock: effectiveMustLock,
         graceEndsAtIso: graceEnds,
       );
 

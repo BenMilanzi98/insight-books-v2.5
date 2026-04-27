@@ -40,10 +40,10 @@ android {
         applicationId = "com.insightbooksafrica.insightbooks_android"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        // Must match pubspec `version: x.y.z+N` — N is what the server compares (not this string).
+        // Must match pubspec `version: x.y.z+N` — N is versionCode and what the server compares.
         versionCode = flutter.versionCode
-        // Shown in Settings / PackageInfo.version (independent of +N build code).
-        versionName = "1.0.0.6"
+        // Keep in sync with pubspec name part; do not hardcode (avoids label "1.0.0.6" while build is still +3).
+        versionName = flutter.versionName
         // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
         manifestPlaceholders["applicationName"] = "android.app.Application"
     }
