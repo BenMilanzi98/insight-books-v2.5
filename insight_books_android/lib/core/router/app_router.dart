@@ -13,6 +13,7 @@ import 'package:insightbooks_android/features/dashboard/presentation/dashboard_s
 import 'package:insightbooks_android/features/pos/presentation/pos_screen.dart';
 import 'package:insightbooks_android/features/tenant/presentation/business_list_screen.dart';
 import 'package:insightbooks_android/features/account/presentation/account_screen.dart';
+import 'package:insightbooks_android/features/profile/presentation/profile_screen.dart';
 import 'package:insightbooks_android/features/invoice/presentation/invoice_list_screen.dart';
 import 'package:insightbooks_android/features/invoice/presentation/create_invoice_screen.dart';
 import 'package:insightbooks_android/features/invoice/presentation/invoice_details_screen.dart';
@@ -294,6 +295,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/account',
             pageBuilder: (context, state) =>
                 _FadePage(child: const AccountScreen(), key: state.pageKey),
+          ),
+          GoRoute(
+            path: '/profile',
+            pageBuilder: (context, state) =>
+                _FadePage(child: const ProfileScreen(), key: state.pageKey),
           ),
           GoRoute(
             path: '/switch-tenant',

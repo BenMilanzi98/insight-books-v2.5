@@ -379,6 +379,7 @@ const _iconColors = {
   'expenses': Color(0xFFF43F5E),      // rose
   'business': Color(0xFF10B981),     // emerald
   'account': Color(0xFFF59E0B),      // amber
+  'profile': Color(0xFF38BDF8),     // sky
 };
 
 class AppDrawer extends ConsumerWidget {
@@ -477,8 +478,14 @@ class AppDrawer extends ConsumerWidget {
                       currentRoute: currentRoute,
                     ),
                   const SizedBox(height: 8),
-                  if (showSwitchTenant || satisfiesPermission(perms, 'system.view'))
-                    _SectionLabel(label: 'ACCOUNT'),
+                  _SectionLabel(label: 'ACCOUNT'),
+                  _NavItem(
+                    title: 'My Profile',
+                    icon: Icons.person_outline_rounded,
+                    iconKey: 'profile',
+                    route: '/profile',
+                    currentRoute: currentRoute,
+                  ),
                   if (showSwitchTenant)
                     _NavItem(
                       title: 'Switch Business',
@@ -490,7 +497,7 @@ class AppDrawer extends ConsumerWidget {
                   if (satisfiesPermission(perms, 'system.view'))
                     _NavItem(
                       title: 'Account Settings',
-                      icon: Icons.person_rounded,
+                      icon: Icons.settings_rounded,
                       iconKey: 'account',
                       route: '/account',
                       currentRoute: currentRoute,

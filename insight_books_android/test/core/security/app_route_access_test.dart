@@ -72,6 +72,10 @@ void main() {
     test('returns null for /splash', () {
       expect(requiredPermissionForLocation('/splash'), isNull);
     });
+
+    test('returns null for /profile (any authenticated user)', () {
+      expect(requiredPermissionForLocation('/profile'), isNull);
+    });
   });
 
   group('canAccessSwitchTenant', () {

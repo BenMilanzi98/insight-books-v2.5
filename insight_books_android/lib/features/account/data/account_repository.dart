@@ -33,6 +33,11 @@ class AccountRepository {
     );
   }
 
+  /// Soft-delete the signed-in user (server sets `isActive` false). Requires password.
+  Future<void> deactivateOwnAccount({required String password}) async {
+    await _dio.post('/api/profile/deactivate', data: {'password': password});
+  }
+
   String? _toString(dynamic value) {
     if (value == null) return null;
     return value.toString();
