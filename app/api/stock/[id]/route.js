@@ -460,6 +460,59 @@ export async function PUT(request, { params }) {
         where: { id: productId },
         data: updateData
       });
+
+      // Keep batch-level expiry in sync when product-level perishable expiry is edited in /stock.
+      // This ensures Expiry Alert System reflects edits for existing open stock.
+      const shouldSyncBatchExpiry =
+        body.isPerishable !== undefined || body.expiryDate !== undefined;
+      if (shouldSyncBatchExpiry) {
+        const perishableEnabled =
+          body.isPerishable !== undefined
+            ? Boolean(body.isPerishable)
+            : Boolean(updatedProduct.isPerishable);
+        const expiryToApply =
+          perishableEnabled && updatedProduct.expiryDate
+            ? new Date(updatedProduct.expiryDate)
+            : null;
+
+        // If the product has on-hand stock but no open FIFO batches, create a baseline batch
+        // so batch-based expiry alerts can include products edited after initial creation.
+        const onHand = Number(updatedProduct.stockLevel || 0);
+        const openBatchCount = await tx.inventoryBatch.count({
+          where: {
+            tenantId: user.tenantId,
+            productId,
+            qtyRemaining: { gt: 0 },
+          },
+        });
+        if (onHand > 0 && openBatchCount === 0) {
+          await tx.inventoryBatch.create({
+            data: {
+              tenantId: user.tenantId,
+              branchId: updatedProduct.branchId || null,
+              productId,
+              sourceType: 'StockEditBackfill',
+              sourceId: `stock-edit-${productId}-${Date.now()}`,
+              purchaseDate: new Date(),
+              expiryDate: expiryToApply,
+              qtyPurchased: onHand,
+              qtyRemaining: onHand,
+              unitCost: Number(updatedProduct.cost || 0),
+            },
+          });
+        }
+
+        await tx.inventoryBatch.updateMany({
+          where: {
+            tenantId: user.tenantId,
+            productId,
+            qtyRemaining: { gt: 0 },
+          },
+          data: {
+            expiryDate: expiryToApply,
+          },
+        });
+      }
       
       // Handle unit management updates if enabled
       console.log("Checking unit management:", {
