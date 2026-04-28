@@ -750,6 +750,8 @@ export async function POST(request) {
           purchaseDate: new Date(),
           sourceType: 'DirectCreation',
           sourceId: creationSourceId,
+          // Per-batch expiry drives expiry alerts; product-level expiry alone is not enough.
+          expiryDate: body.expiryDate || null,
           tx: prisma,
         });
         console.log(`[Product Creation] Created FIFO batch for product ${product.id}: ${initialStock} units at ${costForFifo} each`);

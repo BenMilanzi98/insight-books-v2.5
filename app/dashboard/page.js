@@ -451,6 +451,7 @@ const BusinessOwnerDashboard = () => {
   const [error, setError] = useState(null);
   const [showTrialCountdown, setShowTrialCountdown] = useState(true);
   const [stockAlerts, setStockAlerts] = useState([]);
+  const [expiryAlerts, setExpiryAlerts] = useState({ rows: [], summary: null, thresholds: null });
   const [stockReceiptNotices, setStockReceiptNotices] = useState([]);
   const [stockReceiptDetail, setStockReceiptDetail] = useState(null);
   const [recentTransactions, setRecentTransactions] = useState([]);
@@ -789,7 +790,7 @@ const BusinessOwnerDashboard = () => {
 
       // Fetch all dashboard data using actual API endpoints
       // Note: Daily Performance should ALWAYS show "Today" data regardless of selected date range
-      const [metricsData, dailyPerformanceData, receivablesData, payablesData, incomeExpensesData, expensesBreakdownData, upcomingPaymentsData, stockAlertsData, financialPositionData] = await Promise.all([
+      const [metricsData, dailyPerformanceData, receivablesData, payablesData, incomeExpensesData, expensesBreakdownData, upcomingPaymentsData, stockAlertsData, financialPositionData, expiryAlertsData] = await Promise.all([
         safeFetch(buildApiUrl('/api/dashboard/metrics')),
         safeFetch(dailyPerformanceUrl),
         safeFetch(buildApiUrl('/api/dashboard/receivables')),
@@ -798,7 +799,12 @@ const BusinessOwnerDashboard = () => {
         safeFetch(buildApiUrl('/api/dashboard/expenses-breakdown')),
         safeFetch(buildApiUrl('/api/dashboard/upcoming-payments')),
         safeFetch(buildApiUrl('/api/dashboard/stock-alerts')),
-        safeFetch(buildApiUrl('/api/dashboard/financial-position'))
+        safeFetch(buildApiUrl('/api/dashboard/financial-position')),
+        safeFetch('/api/inventory/expiry-alerts').catch(() => ({
+          rows: [],
+          summary: { expired: 0, urgent: 0, early: 0, totalLineValue: 0 },
+          thresholds: { earlyDays: 30, urgentDays: 7 },
+        })),
       ]);
 
       // Update state with actual data
@@ -812,6 +818,11 @@ const BusinessOwnerDashboard = () => {
       setFinancialPosition(financialPositionData.financialPosition);
 
       setStockAlerts(stockAlertsData.alerts || []);
+      setExpiryAlerts({
+        rows: expiryAlertsData?.rows || [],
+        summary: expiryAlertsData?.summary || { expired: 0, urgent: 0, early: 0, totalLineValue: 0 },
+        thresholds: expiryAlertsData?.thresholds || { earlyDays: 30, urgentDays: 7 },
+      });
 
       const sd = startDate instanceof Date ? startDate : new Date(startDate);
       const ed = endDate instanceof Date ? endDate : new Date(endDate);
@@ -1777,7 +1788,7 @@ const BusinessOwnerDashboard = () => {
             </div>
           )}
 
-          {/* Stock Alerts Section */}
+          {/* Stock + Expiry Alerts Section */}
           <div className="mt-4 sm:mt-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg shadow-gray-200/50 border border-white/50 hover:shadow-xl hover:shadow-gray-200/60 transition-all duration-300 overflow-visible">
             <div className="p-4 sm:p-5 border-b border-gray-100/50 flex flex-wrap justify-between items-center gap-3 bg-gradient-to-r from-amber-500/5 via-transparent to-orange-500/5">
               <div className="flex items-center gap-3 min-w-0">
@@ -1796,6 +1807,65 @@ const BusinessOwnerDashboard = () => {
               </button>
             </div>
             <div className="p-5">
+              {/* Expiry alerts */}
+              <div className="mb-5 p-4 rounded-xl border border-orange-100 bg-gradient-to-r from-orange-50/90 to-red-50/60">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-800">Expiry alerts</h3>
+                    <p className="text-xs text-gray-500">
+                      Expired, urgent (≤ {expiryAlerts?.thresholds?.urgentDays ?? 7}d), and early (≤ {expiryAlerts?.thresholds?.earlyDays ?? 30}d)
+                    </p>
+                  </div>
+                  <a
+                    href="/stock"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 text-indigo-600 font-medium"
+                  >
+                    Manage in Stock
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                  <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                    <p className="text-[11px] text-red-600 font-semibold uppercase tracking-wide">Expired</p>
+                    <p className="text-lg font-bold text-red-800">{expiryAlerts?.summary?.expired ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg bg-orange-50 border border-orange-100 px-3 py-2">
+                    <p className="text-[11px] text-orange-600 font-semibold uppercase tracking-wide">Urgent</p>
+                    <p className="text-lg font-bold text-orange-800">{expiryAlerts?.summary?.urgent ?? 0}</p>
+                  </div>
+                  <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-2">
+                    <p className="text-[11px] text-amber-700 font-semibold uppercase tracking-wide">Early</p>
+                    <p className="text-lg font-bold text-amber-800">{expiryAlerts?.summary?.early ?? 0}</p>
+                  </div>
+                </div>
+
+                {expiryAlerts?.rows?.length > 0 ? (
+                  <div className="space-y-2">
+                    {expiryAlerts.rows.slice(0, 3).map((row) => (
+                      <div key={row.batchId} className="flex items-start justify-between gap-3 p-2.5 rounded-lg bg-white border border-gray-100">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">{row.productName}</p>
+                          <p className="text-xs text-gray-500">
+                            Qty {row.qtyRemaining} • Expiry {formatDate(row.expiryDate)} • {row.daysRemaining} day(s)
+                          </p>
+                        </div>
+                        <span className={`text-[11px] px-2 py-1 rounded-full font-semibold ${
+                          row.status === 'expired'
+                            ? 'bg-red-100 text-red-700'
+                            : row.status === 'urgent'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-amber-100 text-amber-700'
+                        }`}>
+                          {row.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">No current expiry alerts.</p>
+                )}
+              </div>
+
               {stockAlerts.length > 0 ? (
                 <>
                   <div className="space-y-4">
