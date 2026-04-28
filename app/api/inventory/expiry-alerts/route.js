@@ -4,6 +4,16 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { fetchExpiryAlerts } from '@/lib/expiryAlertsService';
 
+function isMissingDbFieldError(error) {
+  const msg = String(error?.message || '');
+  return (
+    error?.code === 'P2022' ||
+    msg.includes('column') ||
+    msg.includes('does not exist') ||
+    msg.includes('Unknown field')
+  );
+}
+
 export async function GET(request) {
   try {
     const accessError = await requireStandardAccess(request);
@@ -23,13 +33,19 @@ export async function GET(request) {
       }
     }
 
-    const settings = await prisma.tenantSettings.findUnique({
-      where: { tenantId: user.tenantId },
-      select: {
-        expiryWarnDaysEarly: true,
-        expiryWarnDaysUrgent: true,
-      },
-    });
+    let settings = null;
+    try {
+      settings = await prisma.tenantSettings.findUnique({
+        where: { tenantId: user.tenantId },
+        select: {
+          expiryWarnDaysEarly: true,
+          expiryWarnDaysUrgent: true,
+        },
+      });
+    } catch (settingsError) {
+      // Backward compatibility when DB migration for threshold fields is not applied yet.
+      if (!isMissingDbFieldError(settingsError)) throw settingsError;
+    }
 
     const earlyDays = settings?.expiryWarnDaysEarly ?? 30;
     const urgentDays = settings?.expiryWarnDaysUrgent ?? 7;
