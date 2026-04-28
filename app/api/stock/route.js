@@ -607,6 +607,11 @@ export async function POST(request) {
       taxRate: computedTaxRate,
       image: imagePath,
       isService: !!body.isService,
+      isPerishable: !!body.isPerishable,
+      expiryDate:
+        body.isPerishable && body.expiryDate
+          ? new Date(body.expiryDate)
+          : null,
       barcode: barcodesInput[0] || null, // legacy single field
       tenant: {
         connect: {

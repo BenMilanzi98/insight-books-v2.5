@@ -23,6 +23,8 @@ async function getProductWithValidation(id, tenantId) {
     totalStockValue: true,
     taxRate: true,
     isService: true,
+    isPerishable: true,
+    expiryDate: true,
     serviceBillingType: true,
     serviceDefaultQty: true,
     incomeAccountId: true,
@@ -172,6 +174,8 @@ async function getProductWithValidation(id, tenantId) {
       costPrice,
       totalStockValue,
       status,
+      isPerishable: !!product.isPerishable,
+      expiryDate: product.expiryDate,
       image: product.image || `/api/placeholder/80/80`,
       imageUrl: product.image || `/api/placeholder/80/80`, // Add imageUrl for consistency
       lastUpdated: product.updatedAt.toISOString(),
@@ -408,6 +412,14 @@ export async function PUT(request, { params }) {
       cost: body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost),
       taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
+      isPerishable:
+        body.isPerishable !== undefined ? !!body.isPerishable : result.product.isPerishable,
+      expiryDate:
+        body.isPerishable === false
+          ? null
+          : body.expiryDate !== undefined
+            ? (body.expiryDate ? new Date(body.expiryDate) : null)
+            : result.product.expiryDate,
       image: imagePath,
       barcode: barcodesInput && barcodesInput[0] ? barcodesInput[0] : (barcodesInput && barcodesInput.length === 0 ? null : result.product.barcode),
       // Recalculate inventory value when cost or stock changes so /stock shows correct value
@@ -751,6 +763,8 @@ export async function PUT(request, { params }) {
         costPrice: resolvedCostPrice,
         totalStockValue: resolvedTotalStockValue,
         status,
+        isPerishable: !!updated.isPerishable,
+        expiryDate: updated.expiryDate,
         image: updated.image || `/api/placeholder/80/80`,
         imageUrl: updated.image || `/api/placeholder/80/80`,
         lastUpdated: updated.updatedAt.toISOString(),
