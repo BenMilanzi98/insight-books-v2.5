@@ -31,6 +31,7 @@ import {
   fetchExpenseReport,
   fetchSalesReport,
   fetchStockMovement,
+  fetchInventoryLossReport,
   fetchPosDailyReport,
   fetchFinancialRatios,
   fetchAvailableReports,
@@ -50,6 +51,7 @@ import {
 } from "@/components/FinancialReportComponents";
 
 import {ExpenseReport} from "@/components/ExpenseReport";
+import { InventoryLossReport } from "@/components/InventoryLossReport";
 import { SalesReport } from "@/components/SalesReport";
 import { formatCurrency } from "@/lib/currencyUtils";
 
@@ -153,6 +155,8 @@ const FinancialReportingPage = () => {
   const [salesReport, setSalesReport] = useState(null);
   const [stockMovement, setStockMovement] = useState(null);
   const [stockMovementProductId, setStockMovementProductId] = useState(null);
+  const [inventoryLossReport, setInventoryLossReport] = useState(null);
+  const [inventoryLossEventType, setInventoryLossEventType] = useState('all');
   const [posDailyReport, setPosDailyReport] = useState(null);
   const [posDailyDate, setPosDailyDate] = useState(() => formatYmdInTimeZone(new Date()));
   const [financialRatios, setFinancialRatios] = useState(null);
@@ -538,6 +542,15 @@ const FinancialReportingPage = () => {
             });
             setStockMovement(stockMovementData);
             break;
+
+          case 'inventory-loss-report':
+            const inventoryLossData = await fetchInventoryLossReport({
+              timeframe,
+              customDateRange: customRangeForApi,
+              eventType: inventoryLossEventType,
+            });
+            setInventoryLossReport(inventoryLossData);
+            break;
             
           case 'pos-daily':
             const posDailyData = await fetchPosDailyReport(posDailyDate);
@@ -573,7 +586,7 @@ const FinancialReportingPage = () => {
     };
 
     loadSelectedReportData();
-  }, [selectedReport, timeframe, customRangeForApi, analyticsFilters.categoryId, stockMovementProductId, posDailyDate]);
+  }, [selectedReport, timeframe, customRangeForApi, analyticsFilters.categoryId, stockMovementProductId, inventoryLossEventType, posDailyDate]);
 
   // Handle report generation
   const handleGenerateReport = useCallback((reportId) => {
@@ -679,6 +692,15 @@ const FinancialReportingPage = () => {
             });
             setStockMovement(stockMovementData);
             break;
+
+          case 'inventory-loss-report':
+            const inventoryLossData = await fetchInventoryLossReport({
+              timeframe,
+              customDateRange: customRangeForApi,
+              eventType: inventoryLossEventType,
+            });
+            setInventoryLossReport(inventoryLossData);
+            break;
             
           case 'pos-daily':
             const posDailyData = await fetchPosDailyReport(posDailyDate);
@@ -728,6 +750,7 @@ const FinancialReportingPage = () => {
     analyticsFilters.groupBy,
     analyticsFilters.categoryId,
     stockMovementProductId,
+    inventoryLossEventType,
     posDailyDate
   ]);
 
@@ -851,6 +874,21 @@ const FinancialReportingPage = () => {
             onExport={(format) => handleExportReport(format, 'stock-movement')}
             productId={stockMovementProductId}
             onProductFilterChange={setStockMovementProductId}
+          />
+        );
+
+      case 'inventory-loss-report':
+        return (
+          <InventoryLossReport
+            data={inventoryLossReport}
+            loading={loading}
+            error={error}
+            timeframe={timeframe}
+            onTimeframeChange={handleTimeframeChange}
+            onRefresh={handleRefresh}
+            onExport={(format) => handleExportReport(format, 'inventory-losses')}
+            eventTypeFilter={inventoryLossEventType}
+            onEventTypeFilterChange={setInventoryLossEventType}
           />
         );
 

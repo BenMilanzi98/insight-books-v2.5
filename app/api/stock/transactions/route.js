@@ -511,6 +511,37 @@ export async function POST(request) {
             tx,
           });
           lossJournalEntryId = journal?.id || null;
+          const lossAccountId =
+            journal?.lines?.find((line) => Number(line.debitAmount || 0) > 0)?.accountId || null;
+          const expenseReference = `inventory-stockout:${sourceId}`;
+          const existingExpense = await tx.expense.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              originalReference: expenseReference,
+              isDeleted: false,
+            },
+            select: { id: true },
+          });
+          if (!existingExpense) {
+            await tx.expense.create({
+              data: {
+                tenantId: user.tenantId,
+                submittedById: user.id,
+                branchId: product.branchId || null,
+                description: `Manual ${body.type} inventory loss`,
+                amount: lossAmount,
+                date: new Date(),
+                category: 'Inventory Adjustment Loss',
+                expenseAccountId: lossAccountId,
+                status: 'Approved',
+                paymentStatus: 'Fully paid',
+                paymentMethod: 'journal',
+                paidAmount: lossAmount,
+                originalReference: expenseReference,
+                notes: body.notes || null,
+              },
+            });
+          }
         }
       }
       

@@ -189,6 +189,25 @@ export async function GET(request, context) {
         break;
       }
 
+      case 'inventory-losses':
+        reportData = await generateInventoryLossReportData(
+          user.tenantId,
+          startDate,
+          endDate,
+          user.currentBranchId || null
+        );
+        headers = [
+          { key: 'date', label: 'Date' },
+          { key: 'eventType', label: 'Event Type' },
+          { key: 'description', label: 'Description' },
+          { key: 'reference', label: 'Reference' },
+          { key: 'branchName', label: 'Branch' },
+          { key: 'submittedBy', label: 'Submitted By' },
+          { key: 'amount', label: 'Amount' }
+        ];
+        title = 'Inventory Loss Report';
+        break;
+
       case 'pos-daily': {
         const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
         const { generatePosDailyReport } = await import('@/lib/posDailyReportService');
@@ -543,6 +562,65 @@ async function generateExpenseReportData(tenantId, startDate, endDate) {
   }));
   
   return exportData;
+}
+
+/**
+ * Generate Inventory Loss report data for export.
+ * Includes inventory write-off + stock-out expenses mirrored from inventory journals.
+ */
+async function generateInventoryLossReportData(tenantId, startDate, endDate, branchId = null) {
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  const normalizedBranchId =
+    branchId && typeof branchId === 'object'
+      ? (typeof branchId.id === 'string' ? branchId.id : null)
+      : (typeof branchId === 'string' ? branchId : null);
+
+  const where = {
+    tenantId,
+    status: 'Approved',
+    isDeleted: false,
+    isReversal: false,
+    date: { gte: start, lte: end },
+    OR: [
+      { originalReference: { startsWith: 'inventory-writeoff:' } },
+      { originalReference: { startsWith: 'inventory-stockout:' } },
+    ],
+  };
+
+  if (normalizedBranchId) {
+    where.AND = [{ OR: [{ branchId: normalizedBranchId }, { branchId: null }] }];
+  }
+
+  const expenses = await prisma.expense.findMany({
+    where,
+    include: {
+      branch: { select: { name: true } },
+      submittedBy: { select: { name: true } },
+    },
+    orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+  });
+
+  return expenses.map((expense) => {
+    const reference = expense.originalReference || '';
+    const eventType = reference.startsWith('inventory-writeoff:')
+      ? 'Write-off'
+      : reference.startsWith('inventory-stockout:')
+      ? 'Stock-out'
+      : 'Unknown';
+    return {
+      date: expense.date.toISOString().split('T')[0],
+      eventType,
+      description: expense.description || 'Inventory adjustment loss',
+      reference: reference || 'N/A',
+      branchName: expense.branch?.name || 'Unassigned',
+      submittedBy: expense.submittedBy?.name || 'Unknown',
+      amount: Number(expense.amount || 0),
+    };
+  });
 }
 
 /**

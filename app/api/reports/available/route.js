@@ -88,6 +88,15 @@ export async function GET(request) {
         requiresTimeframe: true
       },
       {
+        id: 'inventory-loss-report',
+        name: 'Inventory Loss Report',
+        description: 'Write-off and stock-out losses with amounts, trends, and references',
+        icon: 'TrendingDown',
+        category: 'Inventory',
+        lastGenerated: null,
+        requiresTimeframe: true
+      },
+      {
         id: 'pos-daily',
         name: 'Daily POS Report',
         description: 'Quick daily snapshot of POS sales, transactions, and payment breakdown',

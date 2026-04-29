@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Menu, X, Check, ArrowRight, Play, FileText, BarChart3, Receipt, Users, ChevronLeft, ChevronRight, LayoutDashboard, UserCheck, Building2, User, CreditCard, FileText as FileTextIcon, DollarSign, Wallet, Clock, Banknote, TrendingUp, Package, Truck, Calculator, BookOpen, Briefcase, UserPlus, Brain, Sparkles, MapPin, Mail, Phone } from 'lucide-react';
 import { PUBLIC_SUBSCRIPTION_PLANS } from '@/lib/subscriptionConfig';
 
+const WHATSAPP_DEMO_URL = `https://wa.me/265894092494?text=${encodeURIComponent("I'm interested in InsightBooks, Can you please tell me more")}`;
+
 export default function LandingPageClient() {
   return (
     <main className="min-h-screen bg-slate-50 font-sans text-slate-800">
@@ -107,12 +109,14 @@ function NavigationBar() {
                   </>
                 )}
                 {showRegisterAndDemo && (
-                  <Link
-                    href="/contact"
+                  <a
+                    href={WHATSAPP_DEMO_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700 transition-all duration-300"
                   >
                     Book a Demo
-                  </Link>
+                  </a>
                 )}
               </>
             )}
@@ -155,13 +159,15 @@ function NavigationBar() {
                   </>
                 )}
                 {showRegisterAndDemo && (
-                  <Link
-                    href="/contact"
+                  <a
+                    href={WHATSAPP_DEMO_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="block w-full text-center bg-blue-600 text-white py-3 rounded-md"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Book a Demo
-                  </Link>
+                  </a>
                 )}
               </>
             )}
@@ -301,12 +307,14 @@ function HeroSection() {
                 Try for Free
                 <ArrowRight className="w-4 h-4" aria-hidden />
               </Link>
-              <Link
-                href="/contact"
+              <a
+                href={WHATSAPP_DEMO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-flex items-center justify-center rounded-xl border border-sky-300/25 bg-blue-950/30 text-sky-50 px-5 py-3.5 min-h-[48px] sm:min-h-0 text-sm font-semibold backdrop-blur-sm hover:bg-blue-900/40 transition-colors w-full sm:w-auto"
               >
                 Book a demo
-              </Link>
+              </a>
             </div>
 
             <div className="flex flex-col sm:flex-row items-center sm:items-center justify-center lg:justify-start gap-3 sm:gap-6 text-xs sm:text-sm text-blue-200/70 max-w-md mx-auto lg:max-w-none">
@@ -1035,12 +1043,14 @@ function CtaSection() {
             Register
             <ArrowRight className="h-4 w-4" aria-hidden />
           </Link>
-          <Link
-            href="/contact"
+          <a
+            href={WHATSAPP_DEMO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             className="inline-flex items-center justify-center rounded-xl border border-sky-300/30 bg-blue-950/40 px-8 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-colors hover:bg-blue-900/50"
           >
             Book a demo
-          </Link>
+          </a>
         </div>
       </div>
     </section>
@@ -1082,12 +1092,14 @@ function Footer() {
               >
                 Try for Free
               </Link>
-              <Link
-                href="/contact"
+              <a
+                href={WHATSAPP_DEMO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="rounded-lg border border-sky-400/30 bg-blue-950/50 px-4 py-2 text-sm font-semibold text-sky-100 transition-colors hover:border-sky-400/50 hover:bg-blue-900/50"
               >
                 Book a demo
-              </Link>
+              </a>
             </div>
           </div>
 

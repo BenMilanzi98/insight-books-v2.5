@@ -256,6 +256,32 @@ export const fetchStockMovement = async ({ timeframe, productId = null, customDa
 };
 
 /**
+ * Fetch inventory loss report data (write-off + stock-out)
+ */
+export const fetchInventoryLossReport = async ({
+  timeframe,
+  customDateRange = null,
+  eventType = 'all',
+}) => {
+  try {
+    const { startDate, endDate } = getDateRange(timeframe, customDateRange);
+    const params = new URLSearchParams({
+      startDate,
+      endDate,
+      eventType,
+    });
+    const response = await fetch(`/api/reports/inventory-losses?${params.toString()}`);
+    if (!response.ok) {
+      throw new Error(`Error fetching inventory loss report: ${response.statusText}`);
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching inventory loss report:', error);
+    throw error;
+  }
+};
+
+/**
  * Fetch Daily POS report for a single date (default: today).
  * @param {string} [date] - YYYY-MM-DD; defaults to today
  */

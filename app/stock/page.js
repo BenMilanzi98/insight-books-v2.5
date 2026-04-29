@@ -2860,6 +2860,14 @@ const StockManagement = () => {
             <FileText size={16} />
             <span className="text-sm">Stock movement report</span>
           </button>
+
+          <Link
+            href="/reports?report=inventory-loss-report"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 hover:shadow-sm"
+          >
+            <AlertTriangle size={16} />
+            <span className="text-sm">Inventory loss report</span>
+          </Link>
           </>
           )}
         </div>
