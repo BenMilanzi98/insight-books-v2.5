@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const UnitBasedQuantityInput = ({ 
   product, 
@@ -37,15 +37,10 @@ const UnitBasedQuantityInput = ({
     }
   }, [product?.id]); // Only depend on product ID to prevent infinite loops
 
-  // Calculate totals using useMemo to prevent infinite loops
-  const { totalBaseQuantity, totalPrice } = useMemo(() => {
-    if (!product?.units || Object.keys(unitQuantities).length === 0) {
-      return { totalBaseQuantity: 0, totalPrice: 0 };
-    }
-
-    let totalBase = 0;
-    let totalPriceCalc = 0;
-
+  // Calculate totals directly from current values.
+  let totalBaseQuantity = 0;
+  let totalPrice = 0;
+  if (product?.units && Object.keys(unitQuantities).length > 0) {
     console.log("=== TOTAL CALCULATION DEBUG ===");
     console.log("Unit quantities:", unitQuantities);
     console.log("Product units:", product.units);
@@ -55,24 +50,17 @@ const UnitBasedQuantityInput = ({
       if (unit && qty > 0) {
         const conversionRate = parseFloat(unit.conversionToBase);
         const unitPrice = parseFloat(unit.unitPrice);
-        
-        // Fix conversion logic: if conversionRate is 1000, it means 1000 of this unit = 1 base unit
-        // So we need to divide by conversionRate, not multiply
         const convertedToBase = unit.isBaseUnit ? qty : qty / conversionRate;
-        
         console.log(`Unit ${unit.symbol}: ${qty} ${unit.symbol} = ${convertedToBase.toFixed(6)} base units (conversion rate: ${conversionRate})`);
-        
-        totalBase += convertedToBase;
-        totalPriceCalc += qty * unitPrice;
+        totalBaseQuantity += convertedToBase;
+        totalPrice += qty * unitPrice;
       }
     });
 
-    console.log("Total base quantity:", totalBase.toFixed(6));
-    console.log("Total price:", totalPriceCalc.toFixed(2));
+    console.log("Total base quantity:", totalBaseQuantity.toFixed(6));
+    console.log("Total price:", totalPrice.toFixed(2));
     console.log("==============================");
-
-    return { totalBaseQuantity: totalBase, totalPrice: totalPriceCalc };
-  }, [unitQuantities, product?.units]);
+  }
 
   // Notify parent components when totals change
   useEffect(() => {

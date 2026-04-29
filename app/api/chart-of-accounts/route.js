@@ -12,7 +12,6 @@ import {
   aggregateGroupByRowsBySurvivor,
 } from '@/lib/accountMergeRollup';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
-import { isCanonicalCode, isStructureExtensionCode } from '@/lib/coaMigration/canonicalCodes.js';
 import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js';
 import {
   pickPrimaryAccountForStructure,
@@ -35,6 +34,33 @@ const normalizeAccountType = (value) => {
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
+
+function parseOptionalDate(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
+
+function buildChartDateRange(searchParams) {
+  const fromRaw = searchParams.get('dateFrom');
+  const toRaw = searchParams.get('dateTo');
+  const from = parseOptionalDate(fromRaw);
+  const to = parseOptionalDate(toRaw);
+  if (from && to && from > to) {
+    return { invalid: true };
+  }
+  if (from) from.setHours(0, 0, 0, 0);
+  if (to) to.setHours(23, 59, 59, 999);
+  return { from, to, invalid: false };
+}
+
+function buildDateBounds(range) {
+  return {
+    ...(range.from ? { gte: range.from } : {}),
+    ...(range.to ? { lte: range.to } : {}),
+  };
+}
 
 /**
  * Parent account rows should equal sum of child balances plus any balance posted
@@ -303,8 +329,11 @@ export async function GET(request) {
     const includeMergedSources = searchParams.get('includeMergedSources') === 'true';
     /** When true, include rows with visibleInChart=false (retired / hidden from default chart). */
     const includeChartHidden = searchParams.get('includeChartHidden') === 'true';
-    /** Blueprint + structure extensions only (strict canonical surface). */
-    const canonicalSurface = searchParams.get('canonicalSurface') === 'true';
+    const dateRange = buildChartDateRange(searchParams);
+    if (dateRange.invalid) {
+      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
+    }
+    const hasDateFilter = Boolean(dateRange.from || dateRange.to);
 
     const where = {
       tenantId: user.tenantId
@@ -390,12 +419,7 @@ export async function GET(request) {
         ]
       });
 
-      if (canonicalSurface) {
-        accounts = accounts.filter((a) => {
-          const c = String(a.accountCode || '').trim();
-          return isCanonicalCode(c) || isStructureExtensionCode(c);
-        });
-      }
+      // Canonical-only display removed from page controls; full tenant chart stays visible.
     } catch (error) {
       console.error('Error fetching accounts:', error);
       // Return empty array if accounts query fails
@@ -426,7 +450,15 @@ export async function GET(request) {
         where: {
           tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
           voidedAt: null,
-          refundedAt: null
+          refundedAt: null,
+          ...(dateRange.from || dateRange.to
+            ? {
+                issueDate: {
+                  ...(dateRange.from ? { gte: dateRange.from } : {}),
+                  ...(dateRange.to ? { lte: dateRange.to } : {}),
+                },
+              }
+            : {}),
         },
         select: {
           id: true,
@@ -439,7 +471,15 @@ export async function GET(request) {
           dueDate: true,
           payments: {
             where: {
-              status: 'Completed'
+              status: 'Completed',
+              ...(dateRange.from || dateRange.to
+                ? {
+                    paymentDate: {
+                      ...(dateRange.from ? { gte: dateRange.from } : {}),
+                      ...(dateRange.to ? { lte: dateRange.to } : {}),
+                    },
+                  }
+                : {}),
             },
             select: {
               amount: true,
@@ -538,7 +578,9 @@ export async function GET(request) {
     } catch (error) {
       console.error('Error fetching inventory products:', error);
     }
-    const totalInventoryValue = inventoryProducts.reduce((sum, product) => {
+    const totalInventoryValue = hasDateFilter
+      ? 0
+      : inventoryProducts.reduce((sum, product) => {
       try {
         const stockLevel = Number(product.stockLevel) || 0;
         const cost = resolveProductCostPriceForDisplay(product);
@@ -579,6 +621,7 @@ export async function GET(request) {
             tenantId: user.tenantId,
             status: { in: ['posted', 'Posted'] },
             ...glBranchFilter,
+            ...(dateRange.from || dateRange.to ? { date: buildDateBounds(dateRange) } : {}),
           },
         },
         _sum: {
@@ -619,6 +662,21 @@ export async function GET(request) {
             journalEntry: {
               tenantId: user.tenantId,
               ...glBranchFilter,
+              ...(dateRange.from || dateRange.to
+                ? {
+                    OR: [
+                      { entryDate: buildDateBounds(dateRange) },
+                      { AND: [{ entryDate: null }, { postedDate: buildDateBounds(dateRange) }] },
+                      {
+                        AND: [
+                          { entryDate: null },
+                          { postedDate: null },
+                          { createdAt: buildDateBounds(dateRange) },
+                        ],
+                      },
+                    ],
+                  }
+                : {}),
             }
           },
           include: {
@@ -853,6 +911,11 @@ export async function GET(request) {
         traceability: {
           policy:
             'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Without posted GL, only these non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts, and the 1300 subtree is then aligned to the same inventory aggregate as Stock Management. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+        },
+        period: {
+          dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
+          dateTo: dateRange.to ? dateRange.to.toISOString() : null,
+          hasDateFilter,
         },
       },
       {

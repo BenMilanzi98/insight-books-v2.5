@@ -34,7 +34,7 @@ export default function TenantSwitcher() {
     if (res.ok) {
       setCurrentTenantId(tenant.id);
       setIsOpen(false);
-      window.location.href = '/dashboard';
+      window.location.assign('/dashboard');
     }
   };
 

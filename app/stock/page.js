@@ -5046,6 +5046,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     image: "", // This will store the URL, not the blob
     // New enhanced fields
     expiryDate: "",
+    expiryAllocations: [{ qty: "", expiryDate: "", unitCost: "" }],
     discountAmount: "",
     isPerishable: false,
     batchNumber: "",
@@ -5290,6 +5291,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         location: "",
         image: "",
         expiryDate: "",
+        expiryAllocations: [{ qty: "", expiryDate: "", unitCost: "" }],
         discountAmount: "",
         isPerishable: false,
         batchNumber: "",
@@ -5406,6 +5408,14 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         image: product.image || "", // Use the stored URL
         // New enhanced fields
         expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : "",
+        expiryAllocations:
+          Array.isArray(product.expiryAllocations) && product.expiryAllocations.length > 0
+            ? product.expiryAllocations.map((row) => ({
+                qty: row.qty != null ? String(row.qty) : "",
+                expiryDate: row.expiryDate ? new Date(row.expiryDate).toISOString().split('T')[0] : "",
+                unitCost: row.unitCost != null ? String(row.unitCost) : "",
+              }))
+            : [{ qty: product.quantityInStock || "", expiryDate: product.expiryDate ? new Date(product.expiryDate).toISOString().split('T')[0] : "", unitCost: product.costPrice || "" }],
         discountAmount: product.discountAmount || "",
         isPerishable: product.isPerishable || false,
         batchNumber: product.batchNumber || "",
@@ -5494,6 +5504,35 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     }));
   };
 
+  const handleAllocationChange = (index, field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      expiryAllocations: prev.expiryAllocations.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [field]: value } : row
+      ),
+    }));
+    if (errors.expiryAllocations) {
+      setErrors((prev) => ({ ...prev, expiryAllocations: null }));
+    }
+  };
+
+  const handleAddAllocationRow = () => {
+    setFormData((prev) => ({
+      ...prev,
+      expiryAllocations: [...(prev.expiryAllocations || []), { qty: "", expiryDate: "", unitCost: "" }],
+    }));
+  };
+
+  const handleRemoveAllocationRow = (index) => {
+    setFormData((prev) => {
+      const next = (prev.expiryAllocations || []).filter((_, rowIndex) => rowIndex !== index);
+      return {
+        ...prev,
+        expiryAllocations: next.length > 0 ? next : [{ qty: "", expiryDate: "", unitCost: "" }],
+      };
+    });
+  };
+
   // Handle image file change
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -5542,11 +5581,45 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     if (formData.discountAmount !== '' && formData.discountAmount < 0) newErrors.discountAmount = "Discount amount cannot be negative";
     if (formData.weight !== '' && formData.weight < 0) newErrors.weight = "Weight cannot be negative";
     
-    if (formData.isPerishable && !formData.expiryDate) {
-      newErrors.expiryDate = "Expiry date is required for perishable items";
-    }
-    if (formData.expiryDate && new Date(formData.expiryDate) < new Date()) {
-      newErrors.expiryDate = "Expiry date cannot be in the past";
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const qtyTarget = formData.quantityInStock === '' ? 0 : parseFloat(formData.quantityInStock) || 0;
+    if (formData.isPerishable) {
+      const rows = (formData.expiryAllocations || []).filter(row =>
+        String(row.qty || '').trim() !== '' || String(row.expiryDate || '').trim() !== '' || String(row.unitCost || '').trim() !== ''
+      );
+      if (qtyTarget > 0 && rows.length === 0) {
+        newErrors.expiryAllocations = "Add at least one expiry allocation row";
+      } else if (rows.length > 0) {
+        let sum = 0;
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const rowQty = parseFloat(row.qty);
+          if (!Number.isFinite(rowQty) || rowQty <= 0) {
+            newErrors.expiryAllocations = `Row ${i + 1}: quantity must be greater than 0`;
+            break;
+          }
+          if (!row.expiryDate) {
+            newErrors.expiryAllocations = `Row ${i + 1}: expiry date is required`;
+            break;
+          }
+          const rowDate = new Date(row.expiryDate);
+          rowDate.setHours(0, 0, 0, 0);
+          if (rowDate < today) {
+            newErrors.expiryAllocations = `Row ${i + 1}: expiry date cannot be in the past`;
+            break;
+          }
+          const unitCost = row.unitCost === '' ? null : parseFloat(row.unitCost);
+          if (unitCost != null && (!Number.isFinite(unitCost) || unitCost < 0)) {
+            newErrors.expiryAllocations = `Row ${i + 1}: unit cost must be >= 0`;
+            break;
+          }
+          sum += rowQty;
+        }
+        if (!newErrors.expiryAllocations && Math.abs(sum - qtyTarget) > 1e-6) {
+          newErrors.expiryAllocations = `Allocation total (${sum}) must equal quantity in stock (${qtyTarget})`;
+        }
+      }
     }
     
     setErrors(newErrors);
@@ -5599,6 +5672,21 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         selectedUnits: formData.selectedUnits,
         unitConfigurations: formData.unitConfigurations
       };
+      if (formData.isPerishable) {
+        const allocations = (formData.expiryAllocations || [])
+          .filter(row =>
+            String(row.qty || '').trim() !== '' || String(row.expiryDate || '').trim() !== '' || String(row.unitCost || '').trim() !== ''
+          )
+          .map((row) => ({
+            qty: parseFloat(row.qty),
+            expiryDate: row.expiryDate || null,
+            ...(row.unitCost !== '' ? { unitCost: parseFloat(row.unitCost) } : {}),
+          }));
+        productData.expiryAllocations = allocations;
+        productData.expiryDate = allocations[0]?.expiryDate || formData.expiryDate || null;
+      } else {
+        productData.expiryAllocations = [];
+      }
       
       // Submit the product data - parent component will handle image uploads
       await onSubmit(productData);
@@ -6022,17 +6110,57 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
               
               {formData.isPerishable && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry Date*</label>
-                    <input
-                      type="date"
-                      name="expiryDate"
-                      value={formData.expiryDate}
-                      onChange={handleChange}
-                      min={new Date().toISOString().split('T')[0]}
-                      className={`w-full p-2 border ${errors.expiryDate ? 'border-red-500' : 'border-gray-300'} rounded-md`}
-                    />
-                    {errors.expiryDate && <p className="mt-1 text-sm text-red-500">{errors.expiryDate}</p>}
+                  <div className="md:col-span-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">Expiry Allocations*</label>
+                      <button
+                        type="button"
+                        onClick={handleAddAllocationRow}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                      >
+                        Add Row
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {(formData.expiryAllocations || []).map((row, index) => (
+                        <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                          <input
+                            type="number"
+                            value={row.qty}
+                            onChange={(e) => handleAllocationChange(index, 'qty', e.target.value)}
+                            min="0"
+                            step="0.001"
+                            placeholder="Qty"
+                            className="col-span-3 p-2 border border-gray-300 rounded-md"
+                          />
+                          <input
+                            type="date"
+                            value={row.expiryDate}
+                            onChange={(e) => handleAllocationChange(index, 'expiryDate', e.target.value)}
+                            min={new Date().toISOString().split('T')[0]}
+                            className="col-span-4 p-2 border border-gray-300 rounded-md"
+                          />
+                          <input
+                            type="number"
+                            value={row.unitCost}
+                            onChange={(e) => handleAllocationChange(index, 'unitCost', e.target.value)}
+                            min="0"
+                            step="0.01"
+                            placeholder="Unit cost (optional)"
+                            className="col-span-4 p-2 border border-gray-300 rounded-md"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveAllocationRow(index)}
+                            className="col-span-1 p-2 text-red-600 hover:text-red-700"
+                            title="Remove row"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {errors.expiryAllocations && <p className="mt-1 text-sm text-red-500">{errors.expiryAllocations}</p>}
                   </div>
                   
                   <div>

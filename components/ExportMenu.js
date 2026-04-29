@@ -127,9 +127,6 @@ export const ExportMenu = ({ reportType, data, onExport }) => {
   );
 };
 
-// services/reportExportService.js
-import { prepareExportData, downloadCSV, downloadPDF, downloadExcel } from '@/lib/exportUtils';
-
 /**
  * Export a report with the specified format
  * @param {string} reportType - Type of report
@@ -167,16 +164,12 @@ export const exportReport = async (reportType, data, format) => {
 };
 
 // Enhanced version of FinancialReport.jsx with export functionality
-import React from 'react';
 import { 
-  FileText, 
-  Download, 
   RefreshCw, 
   Calendar,
   ChevronDown,
   Loader2
 } from 'lucide-react';
-import { ExportMenu } from './ExportMenu';
 
 /**
  * Generic FinancialReport component that displays a report with a header and content

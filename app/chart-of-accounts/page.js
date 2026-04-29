@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Plus,
   Search,
-  Download,
+  FileSpreadsheet,
   Upload,
   ChevronDown,
   CheckCircle,
@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
+import { downloadExcel } from '@/lib/exportUtils';
 import PermissionGuard from '@/components/PermissionGuard';
 import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
 
@@ -24,10 +25,9 @@ const ChartOfAccountsPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [accountTypeFilter, setAccountTypeFilter] = useState('All');
   const [activeFilter, setActiveFilter] = useState(true);
-  /** Include merged sources + chart-hidden (retired) rows for audit. */
-  const [auditMode, setAuditMode] = useState(false);
-  /** API returns blueprint + 1130-xx / 3101–3199 only. */
-  const [canonicalSurface, setCanonicalSurface] = useState(false);
+  const [datePreset, setDatePreset] = useState('month');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   /** Cancels stale chart fetches so overlapping requests cannot apply results out of order. */
   const chartFetchAbortRef = useRef(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -63,7 +63,50 @@ const ChartOfAccountsPage = () => {
     Expense: ['Group', 'Cost of Sales', 'Operating Expense', 'Other Expense'],
   };
 
+  const toInputDate = (d) => {
+    const date = new Date(d);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const computePresetRange = useCallback((preset) => {
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+    if (preset === 'day') {
+      return { from: toInputDate(start), to: toInputDate(end) };
+    }
+    if (preset === 'week') {
+      const day = start.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      start.setDate(start.getDate() - diff);
+      return { from: toInputDate(start), to: toInputDate(end) };
+    }
+    if (preset === 'month') {
+      start.setDate(1);
+      return { from: toInputDate(start), to: toInputDate(end) };
+    }
+    if (preset === 'year') {
+      start.setMonth(0, 1);
+      return { from: toInputDate(start), to: toInputDate(end) };
+    }
+    return { from: '', to: '' };
+  }, []);
+
+  useEffect(() => {
+    const range = computePresetRange(datePreset);
+    setDateFrom(range.from);
+    setDateTo(range.to);
+  }, [datePreset, computePresetRange]);
+
   const loadAccounts = useCallback(async () => {
+    if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+      setError('Invalid date range: start date must be before end date.');
+      setLoading(false);
+      return;
+    }
     chartFetchAbortRef.current?.abort();
     const ac = new AbortController();
     chartFetchAbortRef.current = ac;
@@ -81,12 +124,11 @@ const ChartOfAccountsPage = () => {
       if (trimmedSearch) {
         params.append('search', trimmedSearch);
       }
-      if (auditMode) {
-        params.append('includeChartHidden', 'true');
-        params.append('includeMergedSources', 'true');
+      if (dateFrom) {
+        params.append('dateFrom', dateFrom);
       }
-      if (canonicalSurface) {
-        params.append('canonicalSurface', 'true');
+      if (dateTo) {
+        params.append('dateTo', dateTo);
       }
 
       const response = await fetch(`/api/chart-of-accounts?${params.toString()}`, {
@@ -111,7 +153,7 @@ const ChartOfAccountsPage = () => {
         setLoading(false);
       }
     }
-  }, [accountTypeFilter, activeFilter, auditMode, canonicalSurface, searchQuery]);
+  }, [accountTypeFilter, activeFilter, searchQuery, dateFrom, dateTo]);
 
   // Single schedule: no duplicate mount fetch (previously a second effect debounced empty search and raced).
   useEffect(() => {
@@ -331,41 +373,34 @@ const ChartOfAccountsPage = () => {
     }
   };
 
-  const handleExport = async (format = 'json') => {
+  const handleExportExcel = async () => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/accounts/export?format=${format}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to export accounts');
-      }
-
-      if (format === 'csv') {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `accounts-export-${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      } else {
-        const data = await response.json();
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `accounts-export-${new Date().toISOString().split('T')[0]}.json`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
+      const periodLabel = dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : (dateFrom ? `From ${dateFrom}` : (dateTo ? `Up to ${dateTo}` : 'All dates'));
+      const rows = (accounts || []).map((a) => ({
+        period: periodLabel,
+        accountCode: a.accountCode || a.code || '',
+        accountName: a.accountName || a.name || '',
+        accountType: a.accountType || a.type || '',
+        normalBalance: a.normalBalance || '',
+        currentBalance: Number(a.currentBalance || 0),
+        isActive: a.isActive ? 'Yes' : 'No',
+      }));
+      await downloadExcel(
+        rows,
+        [
+          { key: 'period', label: 'Period' },
+          { key: 'accountCode', label: 'Account Code' },
+          { key: 'accountName', label: 'Account Name' },
+          { key: 'accountType', label: 'Type' },
+          { key: 'normalBalance', label: 'Normal Balance' },
+          { key: 'currentBalance', label: 'Current Balance' },
+          { key: 'isActive', label: 'Active' },
+        ],
+        'ChartOfAccounts',
+        `chart-of-accounts_${dateFrom || 'all'}_${dateTo || 'all'}.xlsx`
+      );
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -480,6 +515,7 @@ const ChartOfAccountsPage = () => {
 
   const coaBtnSecondary =
     'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
+  const periodLabel = dateFrom && dateTo ? `${dateFrom} to ${dateTo}` : (dateFrom ? `From ${dateFrom}` : (dateTo ? `Up to ${dateTo}` : 'All dates'));
 
   return (
     <PermissionGuard permission="accounts.view">
@@ -541,9 +577,9 @@ const ChartOfAccountsPage = () => {
                     <Upload size={17} strokeWidth={2} />
                     Templates
                   </button>
-                  <button type="button" onClick={() => handleExport('json')} className={coaBtnSecondary}>
-                    <Download size={17} strokeWidth={2} />
-                    Export
+                  <button type="button" onClick={handleExportExcel} className={coaBtnSecondary}>
+                    <FileSpreadsheet size={17} strokeWidth={2} />
+                    Export Excel
                   </button>
                   <label className={`${coaBtnSecondary} cursor-pointer`}>
                     <Upload size={17} strokeWidth={2} />
@@ -582,6 +618,9 @@ const ChartOfAccountsPage = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+            <div className="inline-flex items-center rounded-xl border border-indigo-200/80 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-900">
+              Period: {periodLabel}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={accountTypeFilter}
@@ -604,31 +643,43 @@ const ChartOfAccountsPage = () => {
                 />
                 Active only
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-violet-200/90 bg-violet-50/50 px-3 py-2.5 text-sm font-medium text-violet-900 shadow-sm transition hover:bg-violet-50 sm:px-4">
-                <input
-                  type="checkbox"
-                  checked={auditMode}
-                  onChange={(e) => setAuditMode(e.target.checked)}
-                  className="rounded border-violet-300 text-violet-600 focus:ring-violet-500/30"
-                />
-                Audit mode
-              </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
-                <input
-                  type="checkbox"
-                  checked={canonicalSurface}
-                  onChange={(e) => setCanonicalSurface(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
-                />
-                Canonical surface
-              </label>
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value)}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              >
+                <option value="day">Today</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+                <option value="year">This year</option>
+                <option value="custom">Custom</option>
+              </select>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDatePreset('custom');
+                  setDateFrom(e.target.value);
+                }}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDatePreset('custom');
+                  setDateTo(e.target.value);
+                }}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              />
             </div>
           </div>
 
           <p className="mb-6 text-xs leading-relaxed text-slate-500">
             Posted balances use journal entries and GL transactions. With a branch selected in your session, totals
-            include only that branch (same scope as the expense register). COGS, payroll, and other non-register
-            postings still appear on expense accounts under the GL.
+            include only that branch (same scope as the expense register). Date filters apply to the same posting
+            dates used by the ledger. COGS, payroll, and other non-register postings still appear on expense accounts
+            under the GL.
           </p>
 
           {error && (
@@ -692,7 +743,6 @@ const ChartOfAccountsPage = () => {
             loading={loading}
             accounts={accounts}
             activeFilter={activeFilter}
-            auditMode={auditMode}
             onViewAccount={openViewModal}
             onEditAccount={openEditModal}
             onMergeAccount={openMergeModal}

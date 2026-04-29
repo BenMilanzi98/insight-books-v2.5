@@ -1,6 +1,30 @@
-import { useState, React } from 'react';
+import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { formatCurrency } from '@/lib/currencyUtils';
+
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-200 shadow-sm rounded">
+        <p className="font-medium text-gray-700">{label}</p>
+        <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+}
+
+function PieCustomTooltip({ active, payload }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-200 shadow-sm rounded">
+        <p className="font-medium text-gray-700">{payload[0].name}</p>
+        <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
+      </div>
+    );
+  }
+  return null;
+}
 
 export default function TaxSummaryChart({ taxData }) {
   const [chartType, setChartType] = useState('bar');
@@ -34,30 +58,6 @@ export default function TaxSummaryChart({ taxData }) {
 
   // Colors for pie chart
   const COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'];
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-200 shadow-sm rounded">
-          <p className="font-medium text-gray-700">{label}</p>
-          <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  const PieCustomTooltip = ({ active, payload }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-200 shadow-sm rounded">
-          <p className="font-medium text-gray-700">{payload[0].name}</p>
-          <p className="text-blue-600">{formatCurrency(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
 
   return (
     <div>

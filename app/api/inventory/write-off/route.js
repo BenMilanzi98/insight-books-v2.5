@@ -20,7 +20,7 @@ export async function POST(request) {
     } catch {
       return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-    const { batchId, quantity, notes } = body || {};
+    const { batchId, quantity, notes, branchId } = body || {};
     if (!batchId || typeof batchId !== 'string') {
       return NextResponse.json({ error: 'batchId is required' }, { status: 400 });
     }
@@ -31,6 +31,7 @@ export async function POST(request) {
       batchId,
       quantity,
       notes,
+      expectedBranchId: branchId,
     });
 
     return NextResponse.json(result);

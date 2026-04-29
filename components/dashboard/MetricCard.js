@@ -85,8 +85,6 @@ export const MetricCard = ({
 };
 
 // components/dashboard/MetricsGrid.jsx
-import React from 'react';
-import { MetricCard } from './MetricCard';
 
 /**
  * Metrics Grid Component
@@ -122,9 +120,7 @@ export const MetricsGrid = ({
 };
 
 // components/dashboard/FinancialSummaryPanel.jsx
-import React from 'react';
 import { TrendingUp, TrendingDown, DollarSign, CreditCard, AlertCircle, ShoppingBag, Users } from 'lucide-react';
-import { MetricsGrid } from './MetricsGrid';
 import { SalesTrendChart } from '../charts/SalesChart';
 import { ExpenseByCategoryChart } from '../charts/ExpenseChart';
 
@@ -259,17 +255,12 @@ export const FinancialSummaryPanel = ({
 };
 
 // components/dashboard/PerformanceSnapshot.jsx
-import React from 'react';
 import { 
-  TrendingUp, 
-  DollarSign, 
   Calendar, 
   ArrowRight,
   Share2,
-  TrendingDown,
   BarChart
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/currencyUtils';
 import { formatDate } from '@/lib/dateUtils';
 
 /**

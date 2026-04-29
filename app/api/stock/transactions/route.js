@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { createInventoryWriteOffJournalEntry } from '@/lib/inventoryWriteOffJournal';
 
 // In-memory request deduplication cache (prevents double processing)
 // Key: `${userId}-${productId}-${type}-${quantity}-${unitCost}`
@@ -417,6 +418,7 @@ export async function POST(request) {
     // Use transaction to ensure atomicity
     const result = await prisma.$transaction(async (tx) => {
       let updatedProduct;
+      let lossJournalEntryId = null;
       
       // For Stock In transactions, createFifoBatch will update stockLevel
       // For other transaction types, update stockLevel directly
@@ -490,11 +492,32 @@ export async function POST(request) {
           data: { stockLevel: newStockLevel }
         });
       }
+
+      // Post expense for stock decreases (manual Stock Out / negative Adjustment)
+      if (!product.isService && stockChange < 0) {
+        const decreaseQty = Math.abs(stockChange);
+        const basisUnitCost = Number.isFinite(unitCost) && unitCost >= 0 ? unitCost : (Number(product.cost) || 0);
+        const lossAmount = Math.round(decreaseQty * Math.max(0, basisUnitCost) * 100) / 100;
+        if (lossAmount > 0) {
+          const sourceId = `manual-stockout-${user.id}-${body.productId}-${body.type}-${decreaseQty}-${basisUnitCost}`;
+          const journal = await createInventoryWriteOffJournalEntry({
+            tenantId: user.tenantId,
+            userId: user.id,
+            amount: lossAmount,
+            description: `Manual ${body.type} inventory loss`,
+            sourceType: 'InventoryManualStockOut',
+            sourceId,
+            sourceBatchId: null,
+            tx,
+          });
+          lossJournalEntryId = journal?.id || null;
+        }
+      }
       
-      return updatedProduct;
+      return { updatedProduct, lossJournalEntryId };
     });
     
-    const updatedProduct = result;
+    const updatedProduct = result.updatedProduct;
     
     // Get product name for audit log
     const productWithName = await prisma.product.findUnique({
@@ -515,7 +538,8 @@ export async function POST(request) {
           quantity: body.quantity,
           notes: body.notes || null,
           oldStockLevel: product.stockLevel || 0,
-          newStockLevel: updatedProduct.stockLevel
+          newStockLevel: updatedProduct.stockLevel,
+          journalEntryId: result.lossJournalEntryId || null,
         })
       }
     });
@@ -563,7 +587,8 @@ export async function POST(request) {
         product: productWithName?.name || 'Unknown',
         productId: body.productId,
         user: user.name || 'Unknown User',
-        userId: user.id
+        userId: user.id,
+        journalEntryId: result.lossJournalEntryId || null,
       },
       updatedProduct: {
         id: updatedProduct.id,

@@ -4,6 +4,62 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
+const STOCK_EPSILON = 1e-6;
+
+function toFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeExpiryAllocations({
+  expiryAllocations,
+  isPerishable,
+  fallbackExpiryDate,
+  targetQty,
+  fallbackUnitCost,
+}) {
+  const qtyTarget = Math.max(0, toFiniteNumber(targetQty, 0));
+  const costFallback = Math.max(0, toFiniteNumber(fallbackUnitCost, 0));
+
+  if (!Array.isArray(expiryAllocations) || expiryAllocations.length === 0) {
+    if (qtyTarget <= 0) return [];
+    return [
+      {
+        qty: qtyTarget,
+        expiryDate: isPerishable && fallbackExpiryDate ? new Date(fallbackExpiryDate) : null,
+        unitCost: costFallback,
+      },
+    ];
+  }
+
+  const normalized = expiryAllocations.map((entry, index) => {
+    const qty = toFiniteNumber(entry?.qty, NaN);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error(`expiryAllocations[${index}].qty must be a number greater than 0`);
+    }
+    const hasExpiry = entry?.expiryDate != null && String(entry.expiryDate).trim() !== '';
+    if (isPerishable && !hasExpiry) {
+      throw new Error(`expiryAllocations[${index}].expiryDate is required for perishable items`);
+    }
+    const expiryDate = hasExpiry ? new Date(entry.expiryDate) : null;
+    if (hasExpiry && Number.isNaN(expiryDate.getTime())) {
+      throw new Error(`expiryAllocations[${index}].expiryDate must be a valid date`);
+    }
+    const unitCostRaw = entry?.unitCost !== undefined ? toFiniteNumber(entry.unitCost, NaN) : costFallback;
+    if (!Number.isFinite(unitCostRaw) || unitCostRaw < 0) {
+      throw new Error(`expiryAllocations[${index}].unitCost must be >= 0 when provided`);
+    }
+    return { qty, expiryDate, unitCost: unitCostRaw };
+  });
+
+  const sum = normalized.reduce((acc, row) => acc + row.qty, 0);
+  if (Math.abs(sum - qtyTarget) > STOCK_EPSILON) {
+    throw new Error(`expiryAllocations total qty (${sum}) must equal stock quantity (${qtyTarget})`);
+  }
+
+  return normalized;
+}
+
 // Helper function to get product by ID with validation
 async function getProductWithValidation(id, tenantId) {
   const selectBase = {
@@ -75,7 +131,12 @@ async function getProductWithValidation(id, tenantId) {
           }
         }
       }
-    }
+    },
+    inventoryBatches: {
+      where: { qtyRemaining: { gt: 0 } },
+      orderBy: [{ expiryDate: 'asc' }, { purchaseDate: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, qtyRemaining: true, unitCost: true, expiryDate: true }
+    },
   };
 
   let product;
@@ -203,7 +264,13 @@ async function getProductWithValidation(id, tenantId) {
           quantityInStock: calculatedStock,
           reorderPoint: pu.reorderPoint ?? 0,
         };
-      })
+      }),
+      expiryAllocations: (product.inventoryBatches || []).map(batch => ({
+        batchId: batch.id,
+        qty: Number(batch.qtyRemaining || 0),
+        unitCost: Number(batch.unitCost || 0),
+        expiryDate: batch.expiryDate ? new Date(batch.expiryDate).toISOString().split('T')[0] : null,
+      })),
     }
   };
 }
@@ -363,6 +430,28 @@ export async function PUT(request, { params }) {
     // Resolve new cost for recalcing totalStockValue
     const newCost = body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost);
     const numericCost = Number(newCost) || 0;
+    const requestedPerishable =
+      body.isPerishable !== undefined ? !!body.isPerishable : !!result.product.isPerishable;
+    const requestedExpiryDate =
+      body.expiryDate !== undefined ? body.expiryDate : result.product.expiryDate;
+    const hasExplicitAllocations = Array.isArray(body.expiryAllocations);
+    let desiredAllocations = null;
+    if (hasExplicitAllocations || body.isPerishable !== undefined || body.expiryDate !== undefined) {
+      try {
+        desiredAllocations = normalizeExpiryAllocations({
+          expiryAllocations: body.expiryAllocations,
+          isPerishable: requestedPerishable,
+          fallbackExpiryDate: requestedExpiryDate,
+          targetQty: newStockLevel,
+          fallbackUnitCost: numericCost,
+        });
+      } catch (allocErr) {
+        return NextResponse.json(
+          { error: allocErr?.message || 'Invalid expiryAllocations payload' },
+          { status: 400 }
+        );
+      }
+    }
 
     // Normalize barcodes for update (optional); dedupe so multiple rows are created per unique barcode
     const barcodesRaw = body.barcodes !== undefined
@@ -461,57 +550,61 @@ export async function PUT(request, { params }) {
         data: updateData
       });
 
-      // Keep batch-level expiry in sync when product-level perishable expiry is edited in /stock.
-      // This ensures Expiry Alert System reflects edits for existing open stock.
-      const shouldSyncBatchExpiry =
-        body.isPerishable !== undefined || body.expiryDate !== undefined;
-      if (shouldSyncBatchExpiry) {
-        const perishableEnabled =
-          body.isPerishable !== undefined
-            ? Boolean(body.isPerishable)
-            : Boolean(updatedProduct.isPerishable);
-        const expiryToApply =
-          perishableEnabled && updatedProduct.expiryDate
-            ? new Date(updatedProduct.expiryDate)
-            : null;
-
-        // If the product has on-hand stock but no open FIFO batches, create a baseline batch
-        // so batch-based expiry alerts can include products edited after initial creation.
-        const onHand = Number(updatedProduct.stockLevel || 0);
-        const openBatchCount = await tx.inventoryBatch.count({
+      // Reconcile open batch allocations when expiry/perishable/allocation payload is edited.
+      if (desiredAllocations !== null) {
+        const openBatches = await tx.inventoryBatch.findMany({
           where: {
             tenantId: user.tenantId,
             productId,
             qtyRemaining: { gt: 0 },
           },
+          orderBy: [{ purchaseDate: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true, qtyRemaining: true },
         });
-        if (onHand > 0 && openBatchCount === 0) {
-          await tx.inventoryBatch.create({
-            data: {
-              tenantId: user.tenantId,
-              branchId: updatedProduct.branchId || null,
-              productId,
-              sourceType: 'StockEditBackfill',
-              sourceId: `stock-edit-${productId}-${Date.now()}`,
-              purchaseDate: new Date(),
-              expiryDate: expiryToApply,
-              qtyPurchased: onHand,
-              qtyRemaining: onHand,
-              unitCost: Number(updatedProduct.cost || 0),
-            },
-          });
+
+        const rowCount = Math.max(openBatches.length, desiredAllocations.length);
+        for (let i = 0; i < rowCount; i++) {
+          const existing = openBatches[i];
+          const desired = desiredAllocations[i];
+
+          if (existing && desired) {
+            await tx.inventoryBatch.update({
+              where: { id: existing.id },
+              data: {
+                qtyRemaining: desired.qty,
+                qtyPurchased: desired.qty,
+                expiryDate: desired.expiryDate,
+                unitCost: desired.unitCost,
+              },
+            });
+            continue;
+          }
+
+          if (existing && !desired) {
+            await tx.inventoryBatch.update({
+              where: { id: existing.id },
+              data: { qtyRemaining: 0 },
+            });
+            continue;
+          }
+
+          if (!existing && desired) {
+            await tx.inventoryBatch.create({
+              data: {
+                tenantId: user.tenantId,
+                branchId: updatedProduct.branchId || null,
+                productId,
+                sourceType: 'StockAllocationUpdate',
+                sourceId: `stock-allocation-${productId}-${Date.now()}-${i + 1}`,
+                purchaseDate: new Date(),
+                expiryDate: desired.expiryDate,
+                qtyPurchased: desired.qty,
+                qtyRemaining: desired.qty,
+                unitCost: desired.unitCost,
+              },
+            });
+          }
         }
-
-        await tx.inventoryBatch.updateMany({
-          where: {
-            tenantId: user.tenantId,
-            productId,
-            qtyRemaining: { gt: 0 },
-          },
-          data: {
-            expiryDate: expiryToApply,
-          },
-        });
       }
       
       // Handle unit management updates if enabled
@@ -734,7 +827,12 @@ export async function PUT(request, { params }) {
                 }
               }
             }
-          }
+          },
+          inventoryBatches: {
+            where: { qtyRemaining: { gt: 0 } },
+            orderBy: [{ expiryDate: 'asc' }, { purchaseDate: 'asc' }, { createdAt: 'asc' }],
+            select: { id: true, qtyRemaining: true, unitCost: true, expiryDate: true }
+          },
         }
       });
     } catch (includeErr) {
@@ -743,7 +841,12 @@ export async function PUT(request, { params }) {
           where: { id: productId },
           include: {
             productUnits: { include: { unit: { select: { id: true, name: true, symbol: true, conversionToBase: true, isBaseUnit: true, baseUnit: { select: { id: true, name: true, displayName: true, baseUnit: true } } } } } },
-            productTaxes: { include: { taxType: { select: { id: true, taxId: true, taxName: true, taxCode: true, taxRate: true, calculationType: true, status: true } } } }
+            productTaxes: { include: { taxType: { select: { id: true, taxId: true, taxName: true, taxCode: true, taxRate: true, calculationType: true, status: true } } } },
+            inventoryBatches: {
+              where: { qtyRemaining: { gt: 0 } },
+              orderBy: [{ expiryDate: 'asc' }, { purchaseDate: 'asc' }, { createdAt: 'asc' }],
+              select: { id: true, qtyRemaining: true, unitCost: true, expiryDate: true }
+            }
           }
         });
         if (updatedProductWithDetails) updatedProductWithDetails.productBarcodes = [];
@@ -832,7 +935,13 @@ export async function PUT(request, { params }) {
           costPrice: pu.costPrice ?? updated.cost,
           quantityInStock: pu.quantityInStock ?? 0,
           reorderPoint: pu.reorderPoint ?? 0,
-        }))
+        })),
+        expiryAllocations: (updatedProductWithDetails.inventoryBatches || []).map(batch => ({
+          batchId: batch.id,
+          qty: Number(batch.qtyRemaining || 0),
+          unitCost: Number(batch.unitCost || 0),
+          expiryDate: batch.expiryDate ? new Date(batch.expiryDate).toISOString().split('T')[0] : null,
+        })),
       }
     });
   } catch (error) {

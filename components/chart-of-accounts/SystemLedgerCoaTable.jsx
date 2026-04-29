@@ -57,6 +57,16 @@ const ROOT_THEME = {
 const coaBtnSecondary =
   'inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:scale-[0.99]';
 
+function collectStructureExpandKeys(nodes, out = []) {
+  for (const n of nodes) {
+    if (n.children?.length) {
+      out.push(`struct-${n.code}`);
+      collectStructureExpandKeys(n.children, out);
+    }
+  }
+  return out;
+}
+
 function typeBadgeClass(t) {
   const x = String(t || '').toLowerCase();
   if (x === 'asset') return 'bg-emerald-50 text-emerald-900 ring-1 ring-emerald-200/70';
@@ -73,7 +83,6 @@ function typeBadgeClass(t) {
  * @param {Object} props
  * @param {Array<Record<string, unknown>>} props.accounts
  * @param {boolean} props.activeFilter
- * @param {boolean} props.auditMode
  * @param {boolean} props.loading
  * @param {(a: Record<string, unknown>) => void} [props.onViewAccount]
  * @param {(a: Record<string, unknown>) => void} [props.onEditAccount]
@@ -87,7 +96,6 @@ function typeBadgeClass(t) {
 export default function SystemLedgerCoaTable({
   accounts,
   activeFilter,
-  auditMode,
   loading,
   onViewAccount,
   onEditAccount,
@@ -141,19 +149,9 @@ export default function SystemLedgerCoaTable({
     [accounts]
   );
 
-  const collectStructureExpandKeys = useCallback((nodes, out = []) => {
-    for (const n of nodes) {
-      if (n.children?.length) {
-        out.push(`struct-${n.code}`);
-        collectStructureExpandKeys(n.children, out);
-      }
-    }
-    return out;
-  }, []);
-
   const handleExpandAll = useCallback(() => {
     setExpandedAccounts(new Set(collectStructureExpandKeys(SYSTEM_COA_STRUCTURE)));
-  }, [collectStructureExpandKeys]);
+  }, []);
 
   const handleCollapseToRoots = useCallback(() => {
     const next = new Set();
@@ -256,9 +254,6 @@ export default function SystemLedgerCoaTable({
           className={[
             'group/row border-b border-slate-100/90 transition-colors duration-150',
             primary && !primary.isActive ? 'opacity-55' : '',
-            auditMode && primary && (primary.retiredAt || primary.migratedToAccountCode)
-              ? 'bg-slate-100/60'
-              : '',
             isRoot && rootTheme
               ? `${rootTheme.accent} ${rootTheme.rowBg} hover:bg-white/80`
               : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/70',
@@ -327,11 +322,6 @@ export default function SystemLedgerCoaTable({
               {primary?.requiresReclassification ? (
                 <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-950 ring-1 ring-amber-200/80">
                   Needs reclassification
-                </span>
-              ) : null}
-              {auditMode && primary?.migratedToAccountCode ? (
-                <span className="inline-flex items-center gap-1 rounded-md bg-slate-200/90 px-2 py-0.5 text-[10px] font-semibold text-slate-800 ring-1 ring-slate-300/80">
-                  Migrated → {primary.migratedToAccountCode}
                 </span>
               ) : null}
             </div>

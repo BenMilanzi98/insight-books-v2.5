@@ -21,11 +21,6 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
   });
   const [error, setError] = useState(null);
 
-  // Load chart data when timeframe changes
-  useEffect(() => {
-    loadChartData(activeTimeframe);
-  }, [activeTimeframe]);
-
   // Function to load all chart data
   const loadChartData = async (selectedTimeframe) => {
     try {
@@ -86,8 +81,13 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
     }
   };
 
+  // Load chart data when timeframe changes
+  useEffect(() => {
+    loadChartData(activeTimeframe);
+  }, [activeTimeframe]);
+
   // Function to format trend data
-  const formatTrendData = (data, metricName) => {
+  function formatTrendData(data, metricName) {
     if (!data || !Array.isArray(data)) {
       // Generate some sample data if API doesn't return real data
       return generateSampleTrendData(metricName);
@@ -98,10 +98,10 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
       [metricName]: item.value,
       target: item.target
     }));
-  };
+  }
 
   // Function to format breakdown data for pie charts
-  const formatBreakdownData = (data) => {
+  function formatBreakdownData(data) {
     if (!data || !Array.isArray(data)) {
       // Generate some sample data if API doesn't return real data
       return generateSampleBreakdownData();
@@ -111,7 +111,7 @@ const FinancialDashboardCharts = ({ timeframe = "thisMonth" }) => {
       name: item.category || item.name,
       value: item.amount || item.value
     }));
-  };
+  }
 
   // Function to generate sample trend data for testing
   const generateSampleTrendData = (metricName) => {

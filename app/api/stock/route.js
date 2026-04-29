@@ -7,6 +7,62 @@ import { createFifoBatch } from '@/lib/fifoCosting';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 
+const STOCK_EPSILON = 1e-6;
+
+function toFiniteNumber(value, fallback = 0) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function normalizeExpiryAllocations({
+  expiryAllocations,
+  isPerishable,
+  fallbackExpiryDate,
+  targetQty,
+  fallbackUnitCost,
+}) {
+  const qtyTarget = Math.max(0, toFiniteNumber(targetQty, 0));
+  const costFallback = Math.max(0, toFiniteNumber(fallbackUnitCost, 0));
+
+  if (!Array.isArray(expiryAllocations) || expiryAllocations.length === 0) {
+    if (qtyTarget <= 0) return [];
+    return [
+      {
+        qty: qtyTarget,
+        expiryDate: isPerishable && fallbackExpiryDate ? new Date(fallbackExpiryDate) : null,
+        unitCost: costFallback,
+      },
+    ];
+  }
+
+  const normalized = expiryAllocations.map((entry, index) => {
+    const qty = toFiniteNumber(entry?.qty, NaN);
+    if (!Number.isFinite(qty) || qty <= 0) {
+      throw new Error(`expiryAllocations[${index}].qty must be a number greater than 0`);
+    }
+    const hasExpiry = entry?.expiryDate != null && String(entry.expiryDate).trim() !== '';
+    if (isPerishable && !hasExpiry) {
+      throw new Error(`expiryAllocations[${index}].expiryDate is required for perishable items`);
+    }
+    const expiryDate = hasExpiry ? new Date(entry.expiryDate) : null;
+    if (hasExpiry && Number.isNaN(expiryDate.getTime())) {
+      throw new Error(`expiryAllocations[${index}].expiryDate must be a valid date`);
+    }
+    const unitCostRaw = entry?.unitCost !== undefined ? toFiniteNumber(entry.unitCost, NaN) : costFallback;
+    if (!Number.isFinite(unitCostRaw) || unitCostRaw < 0) {
+      throw new Error(`expiryAllocations[${index}].unitCost must be >= 0 when provided`);
+    }
+    return { qty, expiryDate, unitCost: unitCostRaw };
+  });
+
+  const sum = normalized.reduce((acc, row) => acc + row.qty, 0);
+  if (Math.abs(sum - qtyTarget) > STOCK_EPSILON) {
+    throw new Error(`expiryAllocations total qty (${sum}) must equal stock quantity (${qtyTarget})`);
+  }
+
+  return normalized;
+}
+
 // GET - Fetch products with all fields
 export async function GET(request) {
   try {
@@ -549,6 +605,23 @@ export async function POST(request) {
       initialStock = 0;
     }
     const productCost = body.isService ? 0 : parseFloat(body.costPrice || body.cost || 0);
+    let normalizedAllocations = [];
+    if (!body.isService) {
+      try {
+        normalizedAllocations = normalizeExpiryAllocations({
+          expiryAllocations: body.expiryAllocations,
+          isPerishable: !!body.isPerishable,
+          fallbackExpiryDate: body.expiryDate,
+          targetQty: initialStock,
+          fallbackUnitCost: productCost,
+        });
+      } catch (allocErr) {
+        return NextResponse.json(
+          { error: allocErr?.message || 'Invalid expiryAllocations payload' },
+          { status: 400 }
+        );
+      }
+    }
     
     // Compute taxRate from selectedTaxIds if provided, otherwise use body.taxRate
     let computedTaxRate = parseFloat(body.taxRate || 0);
@@ -746,20 +819,27 @@ export async function POST(request) {
         // Generate deterministic sourceId for product creation
         const creationSourceId = `product-creation-${product.id}-${Date.now()}`;
         
-        await createFifoBatch({
-          tenantId: user.tenantId,
-          branchId: branchIdToSet,
-          productId: product.id,
-          quantityPurchased: initialStock,
-          unitCost: costForFifo,
-          purchaseDate: new Date(),
-          sourceType: 'DirectCreation',
-          sourceId: creationSourceId,
-          // Per-batch expiry drives expiry alerts; product-level expiry alone is not enough.
-          expiryDate: body.expiryDate || null,
-          tx: prisma,
-        });
-        console.log(`[Product Creation] Created FIFO batch for product ${product.id}: ${initialStock} units at ${costForFifo} each`);
+        const allocationRows =
+          normalizedAllocations.length > 0
+            ? normalizedAllocations
+            : [{ qty: initialStock, unitCost: costForFifo, expiryDate: body.expiryDate || null }];
+
+        for (let i = 0; i < allocationRows.length; i++) {
+          const row = allocationRows[i];
+          await createFifoBatch({
+            tenantId: user.tenantId,
+            branchId: branchIdToSet,
+            productId: product.id,
+            quantityPurchased: row.qty,
+            unitCost: row.unitCost,
+            purchaseDate: new Date(),
+            sourceType: 'DirectCreation',
+            sourceId: `${creationSourceId}-alloc-${i + 1}`,
+            expiryDate: row.expiryDate || null,
+            tx: prisma,
+          });
+        }
+        console.log(`[Product Creation] Created ${allocationRows.length} FIFO allocation batch(es) for product ${product.id}`);
         
         // Refresh product to get updated stockLevel from createFifoBatch
         const updatedProduct = await prisma.product.findUnique({
