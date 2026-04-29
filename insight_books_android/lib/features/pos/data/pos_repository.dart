@@ -383,6 +383,53 @@ class PosRepository {
     }
   }
 
+  Future<Map<String, dynamic>> fetchPosCashDayState({String? date}) async {
+    final response = await _dio.get(
+      '/api/pos/cash-day',
+      queryParameters: {
+        if (date != null && date.isNotEmpty) 'date': date,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> openPosCashDay({String? businessDate}) async {
+    final response = await _dio.post(
+      '/api/pos/cash-day/open',
+      data: {
+        if (businessDate != null && businessDate.isNotEmpty)
+          'businessDate': businessDate,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> closePosCashDay({String? businessDate}) async {
+    final response = await _dio.post(
+      '/api/pos/cash-day/close',
+      data: {
+        if (businessDate != null && businessDate.isNotEmpty)
+          'businessDate': businessDate,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> depositPosCashDay({
+    String? businessDate,
+    required List<Map<String, dynamic>> lines,
+  }) async {
+    final response = await _dio.post(
+      '/api/pos/cash-day/deposit',
+      data: {
+        if (businessDate != null && businessDate.isNotEmpty)
+          'businessDate': businessDate,
+        'lines': lines,
+      },
+    );
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> fetchEisHealth() async {
     final response = await _dio.get('/api/eis/health');
     return Map<String, dynamic>.from(response.data as Map);

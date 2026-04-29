@@ -88,6 +88,9 @@ class PosScreen extends ConsumerStatefulWidget {
 class _PosScreenState extends ConsumerState<PosScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _historySearchController = TextEditingController();
+  final TextEditingController _depositAmountController = TextEditingController();
+  final TextEditingController _depositAccountController = TextEditingController();
+  final TextEditingController _depositNotesController = TextEditingController();
   /// Default: list view (primary). Users can switch to grid via the toggle.
   bool _productLayoutIsList = true;
 
@@ -105,6 +108,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _barcodeController.removeListener(_barcodeListener);
     _barcodeController.dispose();
     _historySearchController.dispose();
+    _depositAmountController.dispose();
+    _depositAccountController.dispose();
+    _depositNotesController.dispose();
     super.dispose();
   }
 
@@ -556,9 +562,142 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final stats = posState.salesStatistics ?? const <String, dynamic>{};
     final total = (stats['total'] as Map?) ?? const {};
     final refunded = (stats['refunded'] as Map?) ?? const {};
+    final cashState = posState.posCashDayState ?? const <String, dynamic>{};
+    final cashMetrics = (cashState['metrics'] as Map?) ?? const {};
+    final hasOpenRegister = cashState['register'] != null;
+    final openingBalance =
+        (double.tryParse('${cashMetrics['openingBalance'] ?? 0}') ?? 0);
+    final cashInHand =
+        (double.tryParse('${cashMetrics['cashInHandUndeposited'] ?? 0}') ?? 0);
 
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Daily Sales (POS)'),
+                        const SizedBox(height: 4),
+                        Text(
+                          currencyFormat.format(
+                            double.tryParse('${cashMetrics['totalSales'] ?? 0}') ??
+                                0,
+                          ),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: cs.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Opening balance'),
+                        const SizedBox(height: 4),
+                        Text(
+                          currencyFormat.format(openingBalance),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Cash in hand'),
+                        const SizedBox(height: 4),
+                        Text(
+                          currencyFormat.format(cashInHand),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: cs.onSurface,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: posState.posCashActionLoading
+                      ? null
+                      : () async {
+                          if (!hasOpenRegister) {
+                            final err = await posNotifier.openPosCashDay();
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(err ?? 'Day opened')),
+                            );
+                            return;
+                          }
+                          _showDepositDialog(context, posNotifier);
+                        },
+                  icon: Icon(hasOpenRegister ? Icons.account_balance : Icons.play_arrow),
+                  label: Text(hasOpenRegister ? 'Deposit' : 'Open day'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: (!hasOpenRegister || posState.posCashActionLoading)
+                      ? null
+                      : () async {
+                          final err = await posNotifier.closePosCashDay();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err ?? 'Day closed')),
+                          );
+                        },
+                  child: const Text('Close day'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if ((posState.posCashMessage ?? '').isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                posState.posCashMessage!,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+            ),
+          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(
@@ -1059,6 +1198,80 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         const SizedBox(height: 4),
         Text(value, style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurface)),
       ],
+    );
+  }
+
+  Future<void> _showDepositDialog(
+    BuildContext context,
+    Pos posNotifier,
+  ) async {
+    _depositAmountController.clear();
+    _depositAccountController.clear();
+    _depositNotesController.clear();
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Deposit'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _depositAccountController,
+              decoration: const InputDecoration(
+                labelText: 'To Account ID',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _depositAmountController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Amount',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _depositNotesController,
+              decoration: const InputDecoration(
+                labelText: 'Notes (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final account = _depositAccountController.text.trim();
+              final amount =
+                  double.tryParse(_depositAmountController.text.trim()) ?? 0;
+              if (account.isEmpty || amount <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter valid account and amount')),
+                );
+                return;
+              }
+              final err = await posNotifier.depositPosCashDay(
+                toAccountId: account,
+                amount: amount,
+                notes: _depositNotesController.text.trim(),
+              );
+              if (!context.mounted) return;
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(err ?? 'Deposit saved')),
+              );
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 

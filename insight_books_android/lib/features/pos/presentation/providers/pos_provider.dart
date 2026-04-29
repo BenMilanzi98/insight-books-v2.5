@@ -37,6 +37,9 @@ class PosPageState {
   final String? historyDateTo;
   final String dailyReportDate;
   final Map<String, dynamic>? dailyReport;
+  final Map<String, dynamic>? posCashDayState;
+  final bool posCashActionLoading;
+  final String? posCashMessage;
   final String historicalBatchName;
   final String? historicalUploadResult;
   final int offlineSalesCount;
@@ -90,6 +93,9 @@ class PosPageState {
     this.historyDateTo,
     this.dailyReportDate = '',
     this.dailyReport,
+    this.posCashDayState,
+    this.posCashActionLoading = false,
+    this.posCashMessage,
     this.historicalBatchName = '',
     this.historicalUploadResult,
     this.offlineSalesCount = 0,
@@ -144,6 +150,9 @@ class PosPageState {
     String? historyDateTo,
     String? dailyReportDate,
     Map<String, dynamic>? dailyReport,
+    Map<String, dynamic>? posCashDayState,
+    bool? posCashActionLoading,
+    String? posCashMessage,
     String? historicalBatchName,
     String? historicalUploadResult,
     int? offlineSalesCount,
@@ -200,6 +209,9 @@ class PosPageState {
       historyDateTo: historyDateTo ?? this.historyDateTo,
       dailyReportDate: dailyReportDate ?? this.dailyReportDate,
       dailyReport: dailyReport ?? this.dailyReport,
+      posCashDayState: posCashDayState ?? this.posCashDayState,
+      posCashActionLoading: posCashActionLoading ?? this.posCashActionLoading,
+      posCashMessage: posCashMessage ?? this.posCashMessage,
       historicalBatchName: historicalBatchName ?? this.historicalBatchName,
       historicalUploadResult: historicalUploadResult ?? this.historicalUploadResult,
       offlineSalesCount: offlineSalesCount ?? this.offlineSalesCount,
@@ -367,6 +379,7 @@ class Pos extends _$Pos {
       );
       await loadEisStatus();
       await loadDailyReport();
+      await loadPosCashDayState();
       await loadSalesHistory();
       if (online) {
         await syncOfflineSales();
@@ -760,9 +773,94 @@ class Pos extends _$Pos {
     } catch (_) {}
   }
 
+  Future<void> loadPosCashDayState() async {
+    try {
+      final stateMap = await ref
+          .read(posRepositoryProvider)
+          .fetchPosCashDayState(date: state.dailyReportDate);
+      if (!ref.mounted) return;
+      state = state.copyWith(posCashDayState: stateMap);
+    } catch (_) {}
+  }
+
   void setDailyReportDate(String date) {
     state = state.copyWith(dailyReportDate: date);
     loadDailyReport();
+    loadPosCashDayState();
+  }
+
+  Future<String?> openPosCashDay() async {
+    state = state.copyWith(posCashActionLoading: true, posCashMessage: null);
+    try {
+      await ref
+          .read(posRepositoryProvider)
+          .openPosCashDay(businessDate: state.dailyReportDate);
+      await loadPosCashDayState();
+      if (!ref.mounted) return null;
+      state = state.copyWith(
+        posCashActionLoading: false,
+        posCashMessage: 'Day opened successfully.',
+      );
+      return null;
+    } catch (e) {
+      if (!ref.mounted) return _safeErrorMessage(e);
+      final err = _safeErrorMessage(e);
+      state = state.copyWith(posCashActionLoading: false, posCashMessage: err);
+      return err;
+    }
+  }
+
+  Future<String?> closePosCashDay() async {
+    state = state.copyWith(posCashActionLoading: true, posCashMessage: null);
+    try {
+      await ref
+          .read(posRepositoryProvider)
+          .closePosCashDay(businessDate: state.dailyReportDate);
+      await loadPosCashDayState();
+      if (!ref.mounted) return null;
+      state = state.copyWith(
+        posCashActionLoading: false,
+        posCashMessage: 'Day closed successfully.',
+      );
+      return null;
+    } catch (e) {
+      if (!ref.mounted) return _safeErrorMessage(e);
+      final err = _safeErrorMessage(e);
+      state = state.copyWith(posCashActionLoading: false, posCashMessage: err);
+      return err;
+    }
+  }
+
+  Future<String?> depositPosCashDay({
+    required String toAccountId,
+    required double amount,
+    String? notes,
+  }) async {
+    state = state.copyWith(posCashActionLoading: true, posCashMessage: null);
+    try {
+      await ref.read(posRepositoryProvider).depositPosCashDay(
+        businessDate: state.dailyReportDate,
+        lines: [
+          {
+            'toAccountId': toAccountId,
+            'amount': amount,
+            if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+          },
+        ],
+      );
+      await loadPosCashDayState();
+      if (!ref.mounted) return null;
+      state = state.copyWith(
+        posCashActionLoading: false,
+        posCashMessage: 'Deposit recorded.',
+      );
+      return null;
+    } catch (e) {
+      if (!ref.mounted) return _safeErrorMessage(e);
+      final err = _safeErrorMessage(e);
+      state = state.copyWith(posCashActionLoading: false, posCashMessage: err);
+      return err;
+    }
   }
 
   void setHistoricalBatchName(String value) {
