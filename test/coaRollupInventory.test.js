@@ -163,6 +163,40 @@ describe('foldCatchAllBucketTotalsIntoPostedDirect', () => {
     const r1000b = second.find((a) => a.accountCode === '1000');
     expect(r1000b.currentBalance).toBeCloseTo(35, 5);
   });
+
+  it('folds orphan bucket onto 1900 when canonical 1999 row is missing', () => {
+    const orphan = {
+      id: 'o1',
+      parentAccountId: null,
+      accountCode: '1750',
+      accountType: 'Asset',
+      postedDirectBalance: 25,
+      currentBalance: 25,
+    };
+    const p1900 = {
+      id: 'p1900',
+      parentAccountId: 'p1000',
+      accountCode: '1900',
+      accountType: 'Asset',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const p1000 = {
+      id: 'p1000',
+      parentAccountId: null,
+      accountCode: '1000',
+      accountType: 'Asset',
+      postedDirectBalance: 0,
+      currentBalance: 0,
+    };
+    const first = applyCoaParentRollup([p1000, p1900, orphan]);
+    const folded = foldCatchAllBucketTotalsIntoPostedDirect(first);
+    const second = applyCoaParentRollup(folded);
+    const r1900 = second.find((a) => a.accountCode === '1900');
+    const r1000b = second.find((a) => a.accountCode === '1000');
+    expect(r1900.currentBalance).toBeCloseTo(25, 5);
+    expect(r1000b.currentBalance).toBeCloseTo(25, 5);
+  });
 });
 
 describe('apply3100CapitalBucketAncestorPropagation', () => {
@@ -195,6 +229,27 @@ describe('apply3100CapitalBucketAncestorPropagation', () => {
     expect(capRow.currentBalance).toBe(40);
     expect(eqRow.currentBalance).toBe(40);
   });
+
+  it('adds capital bucket to 3000 when 3100 row is missing', () => {
+    const eq = {
+      id: 'eq',
+      parentAccountId: null,
+      accountCode: '3000',
+      postedDirectBalance: 10,
+      currentBalance: 10,
+    };
+    const orphan3105 = {
+      id: 'o3105',
+      parentAccountId: null,
+      accountCode: '3105',
+      postedDirectBalance: 40,
+      currentBalance: 40,
+    };
+    const rolled = applyCoaParentRollup([eq, orphan3105]);
+    const patched = apply3100CapitalBucketAncestorPropagation(rolled);
+    const eqRow = patched.find((a) => a.id === 'eq');
+    expect(eqRow.currentBalance).toBe(50);
+  });
 });
 
 describe('structureRowDisplayBalance', () => {
@@ -204,6 +259,13 @@ describe('structureRowDisplayBalance', () => {
       c1999: [{ currentBalance: 50 }],
     });
     expect(bal).toBe(99);
+  });
+
+  it('shows bucket total when folded code has no ledger row', () => {
+    const bal = structureRowDisplayBalance([], '1999', {
+      c1999: [{ currentBalance: 30 }, { currentBalance: 20 }],
+    });
+    expect(bal).toBe(50);
   });
 });
 
