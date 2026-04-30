@@ -45,8 +45,6 @@ android {
         // Android settings should show four-part label as requested.
         // Keep versionCode from pubspec (+N), but force visible versionName here.
         versionName = "1.0.0.8"
-        // Resolves ${applicationName} in AndroidManifest.xml for Android Studio / manifest merger.
-        manifestPlaceholders["applicationName"] = "android.app.Application"
     }
 
     signingConfigs {

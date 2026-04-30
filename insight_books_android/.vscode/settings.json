@@ -1,0 +1,9 @@
+{
+  "xml.validation.filters": [
+    {
+      "pattern": "**/AndroidManifest.xml",
+      "enabled": false
+    }
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic"
+}
