@@ -270,6 +270,11 @@ const AssetManagement = () => {
       { principal: 0, interest: 0, payment: 0 }
     );
   }, [paymentSchedule]);
+
+  const [assetGlSubtreeAccounts, setAssetGlSubtreeAccounts] = useState([]);
+  const [liabilityGlSubtreeAccounts, setLiabilityGlSubtreeAccounts] = useState([]);
+  const [assetUnallocatedGlCount, setAssetUnallocatedGlCount] = useState(0);
+  const [liabilityEditPaymentCount, setLiabilityEditPaymentCount] = useState(0);
   
   useEffect(() => {
     const loadPaymentAccounts = async () => {
@@ -332,24 +337,6 @@ const AssetManagement = () => {
     };
   }, []);
 
-  useEffect(() => {
-    if (!showAssetModal || assetEditId) return;
-    if (!assetGlSubtreeAccounts.length) return;
-    setAssetFormData((prev) => {
-      if (prev.glAccountId) return prev;
-      return { ...prev, glAccountId: pickDefaultAssetGlAccountId(assetGlSubtreeAccounts) };
-    });
-  }, [showAssetModal, assetEditId, assetGlSubtreeAccounts]);
-
-  useEffect(() => {
-    if (!showLiabilityModal || liabilityEditId) return;
-    if (!liabilityGlSubtreeAccounts.length) return;
-    setLiabilityFormData((prev) => {
-      if (prev.glAccountId) return prev;
-      return { ...prev, glAccountId: pickDefaultLiabilityGlAccountId(liabilityGlSubtreeAccounts) };
-    });
-  }, [showLiabilityModal, liabilityEditId, liabilityGlSubtreeAccounts]);
-
   const limit = 10;
   
   // Asset Filters
@@ -363,11 +350,6 @@ const AssetManagement = () => {
   const [liabilityStatusFilter, setLiabilityStatusFilter] = useState("all");
   const [liabilityTypeFilter, setLiabilityTypeFilter] = useState("all");
   const [liabilitySearchTerm, setLiabilitySearchTerm] = useState("");
-
-  const [assetGlSubtreeAccounts, setAssetGlSubtreeAccounts] = useState([]);
-  const [liabilityGlSubtreeAccounts, setLiabilityGlSubtreeAccounts] = useState([]);
-  const [assetUnallocatedGlCount, setAssetUnallocatedGlCount] = useState(0);
-  const [liabilityEditPaymentCount, setLiabilityEditPaymentCount] = useState(0);
   
   // Shared alert
   const [showAlert, setShowAlert] = useState(false);
@@ -422,6 +404,24 @@ const AssetManagement = () => {
     notes: "",
     glAccountId: "",
   });
+
+  useEffect(() => {
+    if (!showAssetModal || assetEditId) return;
+    if (!assetGlSubtreeAccounts.length) return;
+    setAssetFormData((prev) => {
+      if (prev.glAccountId) return prev;
+      return { ...prev, glAccountId: pickDefaultAssetGlAccountId(assetGlSubtreeAccounts) };
+    });
+  }, [showAssetModal, assetEditId, assetGlSubtreeAccounts]);
+
+  useEffect(() => {
+    if (!showLiabilityModal || liabilityEditId) return;
+    if (!liabilityGlSubtreeAccounts.length) return;
+    setLiabilityFormData((prev) => {
+      if (prev.glAccountId) return prev;
+      return { ...prev, glAccountId: pickDefaultLiabilityGlAccountId(liabilityGlSubtreeAccounts) };
+    });
+  }, [showLiabilityModal, liabilityEditId, liabilityGlSubtreeAccounts]);
   
   const [liabilityCategoryFormData, setLiabilityCategoryFormData] = useState({
     name: "",
