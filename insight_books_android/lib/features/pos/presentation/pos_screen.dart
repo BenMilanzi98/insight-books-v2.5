@@ -275,6 +275,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
           ] else ...[
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: _buildPosCashDayPanel(context, posState, posNotifier),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: TextField(
               controller: _barcodeController,
               decoration: InputDecoration(
@@ -562,142 +566,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final stats = posState.salesStatistics ?? const <String, dynamic>{};
     final total = (stats['total'] as Map?) ?? const {};
     final refunded = (stats['refunded'] as Map?) ?? const {};
-    final cashState = posState.posCashDayState ?? const <String, dynamic>{};
-    final cashMetrics = (cashState['metrics'] as Map?) ?? const {};
-    final hasOpenRegister = cashState['register'] != null;
-    final openingBalance =
-        (double.tryParse('${cashMetrics['openingBalance'] ?? 0}') ?? 0);
-    final cashInHand =
-        (double.tryParse('${cashMetrics['cashInHandUndeposited'] ?? 0}') ?? 0);
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Daily Sales (POS)'),
-                        const SizedBox(height: 4),
-                        Text(
-                          currencyFormat.format(
-                            double.tryParse('${cashMetrics['totalSales'] ?? 0}') ??
-                                0,
-                          ),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: cs.primary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Opening balance'),
-                        const SizedBox(height: 4),
-                        Text(
-                          currencyFormat.format(openingBalance),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Cash in hand'),
-                        const SizedBox(height: 4),
-                        Text(
-                          currencyFormat.format(cashInHand),
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: cs.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: posState.posCashActionLoading
-                      ? null
-                      : () async {
-                          if (!hasOpenRegister) {
-                            final err = await posNotifier.openPosCashDay();
-                            if (!context.mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(err ?? 'Day opened')),
-                            );
-                            return;
-                          }
-                          _showDepositDialog(context, posNotifier);
-                        },
-                  icon: Icon(hasOpenRegister ? Icons.account_balance : Icons.play_arrow),
-                  label: Text(hasOpenRegister ? 'Deposit' : 'Open day'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: (!hasOpenRegister || posState.posCashActionLoading)
-                      ? null
-                      : () async {
-                          final err = await posNotifier.closePosCashDay();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(err ?? 'Day closed')),
-                          );
-                        },
-                  child: const Text('Close day'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        if ((posState.posCashMessage ?? '').isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                posState.posCashMessage!,
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-              ),
-            ),
-          ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Row(
@@ -1107,6 +978,147 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   itemCount: posState.recentSales.length,
                 ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildPosCashDayPanel(
+    BuildContext context,
+    PosPageState posState,
+    Pos posNotifier,
+  ) {
+    final currencyFormat = NumberFormat.currency(symbol: 'MWK ', decimalDigits: 2);
+    final cs = Theme.of(context).colorScheme;
+    final cashState = posState.posCashDayState ?? const <String, dynamic>{};
+    final cashMetrics = (cashState['metrics'] as Map?) ?? const {};
+    final hasOpenRegister = cashState['register'] != null;
+    final openingBalance =
+        (double.tryParse('${cashMetrics['openingBalance'] ?? 0}') ?? 0);
+    final cashInHand =
+        (double.tryParse('${cashMetrics['cashInHandUndeposited'] ?? 0}') ?? 0);
+    final totalSales =
+        (double.tryParse('${cashMetrics['totalSales'] ?? 0}') ?? 0);
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Daily Sales (POS)'),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(totalSales),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Opening balance'),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(openingBalance),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Cash in hand'),
+                      const SizedBox(height: 4),
+                      Text(
+                        currencyFormat.format(cashInHand),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: cs.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton.tonalIcon(
+                onPressed: posState.posCashActionLoading
+                    ? null
+                    : () async {
+                        if (!hasOpenRegister) {
+                          final err = await posNotifier.openPosCashDay();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(err ?? 'Day opened')),
+                          );
+                          return;
+                        }
+                        _showDepositDialog(context, posNotifier);
+                      },
+                icon: Icon(hasOpenRegister ? Icons.account_balance : Icons.play_arrow),
+                label: Text(hasOpenRegister ? 'Deposit' : 'Open day'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: (!hasOpenRegister || posState.posCashActionLoading)
+                    ? null
+                    : () async {
+                        final err = await posNotifier.closePosCashDay();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(err ?? 'Day closed')),
+                        );
+                      },
+                child: const Text('Close day'),
+              ),
+            ),
+          ],
+        ),
+        if ((posState.posCashMessage ?? '').isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                posState.posCashMessage!,
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+            ),
+          ),
       ],
     );
   }
