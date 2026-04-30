@@ -28,6 +28,7 @@ import {
   alignChartAccountsListToBlueprint,
 } from '@/lib/coaBlueprintDisplayTitles.js';
 import { CODE_ACCOUNTS_RECEIVABLE } from '@/lib/coaPostingCodes.js';
+import { reattachOrphanParentsForCoaRollup } from '@/lib/coaOrphanParentAttach.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -724,9 +725,23 @@ export async function GET(request) {
 
     // Same accountCode on multiple rows breaks hierarchy rollup — merge amounts and remap parents.
     const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
+
+    const parentChainRows = await prisma.account.findMany({
+      where: { tenantId: user.tenantId },
+      select: { id: true, parentAccountId: true },
+    });
+    const parentAccountIdByAccountId = new Map(
+      parentChainRows.map((r) => [r.id, r.parentAccountId ?? null])
+    );
+    // Orphans whose DB parent row is not in this chart response roll up under nearest in-list ancestor (display-only parent tweak).
+    const rollupReadyAccounts = reattachOrphanParentsForCoaRollup(
+      deduplicatedAccounts,
+      parentAccountIdByAccountId
+    );
+
     // Inventory (1300 subtree): always reconcile to Stock Management aggregate (never unexplained GL on parent).
     const stockLedAccounts = applyStockLedInventoryCoaSubtree(
-      deduplicatedAccounts,
+      rollupReadyAccounts,
       totalInventoryValue
     );
     // Liability register: merge after inventory subtree alignment, before parent rollup (ordering matches inventory-style overlays).

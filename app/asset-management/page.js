@@ -54,6 +54,21 @@ const calculateTermMonths = (startDate, maturityDate) => {
   return totalMonths > 0 ? totalMonths : null;
 };
 
+/** Loan term ↔ maturity: sync only from explicit field changes (avoids circular useEffect loops). */
+function maturityFromStartAndTermMonths(startDateYmd, termMonthsStr) {
+  if (!startDateYmd) return null;
+  const months = parseInt(String(termMonthsStr ?? '').trim(), 10);
+  if (!Number.isFinite(months) || months <= 0) return null;
+  const calculated = addMonths(startDateYmd, months);
+  return calculated.toISOString().split('T')[0];
+}
+
+function termMonthsFromStartAndMaturity(startDateYmd, maturityDateYmd) {
+  if (!startDateYmd || !maturityDateYmd) return null;
+  const derived = calculateTermMonths(startDateYmd, maturityDateYmd);
+  return derived != null && derived > 0 ? String(derived) : null;
+}
+
 const generatePaymentSchedule = (liability) => {
   if (!liability) return [];
   const principal = Number(liability.principalAmount) || 0;
@@ -492,25 +507,6 @@ const AssetManagement = () => {
       fetchLiabilities();
     }
   }, [liabilityPage, liabilityCategoryFilter, liabilityStatusFilter, liabilityTypeFilter, liabilitySearchTerm, activeTab]);
-
-  useEffect(() => {
-    if (!liabilityFormData.startDate || !liabilityFormData.maturityDate) return;
-    const derived = calculateTermMonths(liabilityFormData.startDate, liabilityFormData.maturityDate);
-    if (derived && liabilityFormData.termMonths !== derived.toString()) {
-      setLiabilityFormData(prev => ({ ...prev, termMonths: derived.toString() }));
-    }
-  }, [liabilityFormData.startDate, liabilityFormData.maturityDate, liabilityFormData.termMonths]);
-
-  useEffect(() => {
-    if (!liabilityFormData.startDate || !liabilityFormData.termMonths) return;
-    const months = parseInt(liabilityFormData.termMonths, 10);
-    if (!months || Number.isNaN(months)) return;
-    const calculated = addMonths(liabilityFormData.startDate, months);
-    const formatted = calculated.toISOString().split('T')[0];
-    if (liabilityFormData.maturityDate !== formatted) {
-      setLiabilityFormData(prev => ({ ...prev, maturityDate: formatted }));
-    }
-  }, [liabilityFormData.startDate, liabilityFormData.termMonths]);
 
   useEffect(() => {
     if (liabilityFormData.interestType !== 'one_time') return;
@@ -3052,11 +3048,20 @@ const AssetManagement = () => {
                           type="number"
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.termMonths}
-                          onChange={(e) => setLiabilityFormData({...liabilityFormData, termMonths: e.target.value})}
+                          onChange={(e) => {
+                            const termMonths = e.target.value;
+                            setLiabilityFormData((prev) => {
+                              const next = { ...prev, termMonths };
+                              const mat = maturityFromStartAndTermMonths(prev.startDate, termMonths);
+                              if (mat) next.maturityDate = mat;
+                              return next;
+                            });
+                          }}
                           placeholder="Optional"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Updates automatically when you adjust the start or maturity date.
+                          With a start date set, changing the term updates maturity; change maturity to back-calculate
+                          months.
                         </p>
                       </div>
                     </div>
@@ -3068,7 +3073,21 @@ const AssetManagement = () => {
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.startDate}
-                        onChange={(e) => setLiabilityFormData({...liabilityFormData, startDate: e.target.value})}
+                        onChange={(e) => {
+                          const startDate = e.target.value;
+                          setLiabilityFormData((prev) => {
+                            const next = { ...prev, startDate };
+                            const months = parseInt(String(prev.termMonths).trim(), 10);
+                            if (Number.isFinite(months) && months > 0) {
+                              const mat = maturityFromStartAndTermMonths(startDate, prev.termMonths);
+                              if (mat) next.maturityDate = mat;
+                            } else if (prev.maturityDate) {
+                              const term = termMonthsFromStartAndMaturity(startDate, prev.maturityDate);
+                              if (term) next.termMonths = term;
+                            }
+                            return next;
+                          });
+                        }}
                         required
                       />
                     </div>
@@ -3078,7 +3097,15 @@ const AssetManagement = () => {
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.maturityDate}
-                        onChange={(e) => setLiabilityFormData({...liabilityFormData, maturityDate: e.target.value})}
+                        onChange={(e) => {
+                          const maturityDate = e.target.value;
+                          setLiabilityFormData((prev) => {
+                            const next = { ...prev, maturityDate };
+                            const term = termMonthsFromStartAndMaturity(prev.startDate, maturityDate);
+                            if (term) next.termMonths = term;
+                            return next;
+                          });
+                        }}
                       />
                     </div>
                   </div>
