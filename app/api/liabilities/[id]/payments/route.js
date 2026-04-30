@@ -71,8 +71,26 @@ async function resolvePaymentAccount(client, tenantId, paymentMethod) {
 /**
  * Resolve the liability account for loan principal payments
  * Principal payments should DEBIT the liability account (reducing the liability)
+ * @param {import('@prisma/client').PrismaClient|import('@prisma/client').Prisma.TransactionClient} client
+ * @param {string} tenantId
+ * @param {{ name?: string|null, glAccountId?: string|null }} liability
  */
-async function resolveLiabilityAccount(client, tenantId, liabilityName = null) {
+async function resolveLiabilityAccount(client, tenantId, liability) {
+  if (liability?.glAccountId) {
+    const linked = await client.account.findFirst({
+      where: {
+        id: liability.glAccountId,
+        tenantId,
+        accountType: 'Liability',
+        isActive: true,
+      },
+    });
+    if (linked) {
+      return linked;
+    }
+  }
+
+  const liabilityName = liability?.name || null;
   // Preferred account codes for loans/liabilities
   const preferredCodes = ['2510', '2160', '2500', '2300', '2400', '2110', '2000', '2100'];
 
@@ -371,7 +389,7 @@ export async function POST(request, { params }) {
 
       // Get the liability account for principal payment
       // Principal payments DEBIT the liability account (reducing the liability balance)
-      const liabilityAccount = await resolveLiabilityAccount(tx, user.tenantId, liability.name);
+      const liabilityAccount = await resolveLiabilityAccount(tx, user.tenantId, liability);
       
       if (!liabilityAccount) {
         throw new Error('Unable to find a liability account to record the loan principal payment. Please create a liability account (e.g., "Short-term Loans" or "Long-term Loans") in your Chart of Accounts.');

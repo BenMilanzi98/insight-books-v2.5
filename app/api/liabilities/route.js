@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
 
 function calculateTermMonths(startDate, maturityDate) {
   try {
@@ -97,6 +98,13 @@ export async function GET(request) {
       where,
       include: {
         category: true,
+        glAccount: {
+          select: {
+            id: true,
+            accountCode: true,
+            accountName: true,
+          },
+        },
         createdBy: {
           select: {
             id: true,
@@ -183,6 +191,21 @@ export async function POST(request) {
         { status: 400 }
       );
     }
+
+    if (!body.glAccountId) {
+      return NextResponse.json(
+        { error: 'Liability GL account (under 2000) is required.' },
+        { status: 400 }
+      );
+    }
+    try {
+      await assertAccountInSubtree(prisma, tenantId, body.glAccountId, '2000');
+    } catch (glErr) {
+      return NextResponse.json(
+        { error: glErr.message || 'Invalid liability GL account' },
+        { status: 400 }
+      );
+    }
     
     // Calculate initial balance (principal amount minus any initial payment)
     const principalAmount = parseFloat(body.principalAmount) || 0;
@@ -213,10 +236,14 @@ export async function POST(request) {
         currentBalance: initialBalance,
         totalPaid: 0,
         tenantId: tenantId,
-        createdById: user.id
+        createdById: user.id,
+        glAccountId: body.glAccountId,
       },
       include: {
         category: true,
+        glAccount: {
+          select: { id: true, accountCode: true, accountName: true },
+        },
         createdBy: {
           select: {
             id: true,

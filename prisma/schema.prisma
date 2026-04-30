@@ -2085,6 +2085,8 @@ model Account {
   saleItems                SaleItem[]
   expenseCategory          ExpenseCategory?        @relation("ExpenseCategoryAccount")
   paymentAccountsLinked    PaymentAccount[]        @relation("PaymentAccountCoa")
+  assetsGlLinked           Asset[]                 @relation("AssetGlAccount")
+  liabilitiesGlLinked      Liability[]             @relation("LiabilityGlAccount")
   /// Catch-all / unclassified bucket; surfaced in CoA UI for reclassification (guide).
   requiresReclassification Boolean                 @default(false)
   /// Soft retire after migration; row kept for audit (guide: do not delete).
@@ -2727,9 +2729,11 @@ model Asset {
   updatedAt               DateTime                     @updatedAt
   tenantId                String
   createdById             String
+  glAccountId             String?
   category                AssetCategory                @relation(fields: [categoryId], references: [id])
   createdBy               User                         @relation("AssetCreatedBy", fields: [createdById], references: [id])
   tenant                  Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  glAccount               Account?                     @relation("AssetGlAccount", fields: [glAccountId], references: [id], onDelete: SetNull)
   journalEntries          AssetJournalEntry[]
   depreciationSchedules   DepreciationSchedule[]
   interBusinessTransfers  AssetInterBusinessTransfer[]
@@ -2739,6 +2743,7 @@ model Asset {
   @@index([createdById])
   @@index([status])
   @@index([purchaseDate])
+  @@index([glAccountId])
 }
 
 /// Immutable audit row each time an asset is moved to another tenant (business).
@@ -2857,9 +2862,11 @@ model Liability {
   updatedAt             DateTime           @updatedAt
   tenantId              String
   createdById           String
+  glAccountId           String?
   category              LiabilityCategory  @relation(fields: [categoryId], references: [id])
   createdBy             User               @relation("LiabilityCreatedBy", fields: [createdById], references: [id])
   tenant                Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  glAccount             Account?           @relation("LiabilityGlAccount", fields: [glAccountId], references: [id], onDelete: SetNull)
   payments              LiabilityPayment[]
 
   @@index([tenantId])
@@ -2868,6 +2875,7 @@ model Liability {
   @@index([status])
   @@index([startDate])
   @@index([liabilityType])
+  @@index([glAccountId])
 }
 
 model LiabilityPayment {

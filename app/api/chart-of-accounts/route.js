@@ -18,6 +18,7 @@ import {
 import {
   apply3100CapitalBucketAncestorPropagation,
   applyCoaParentRollup,
+  applyLiabilityRegisterCoaSubtree,
   applyStockLedInventoryCoaSubtree,
   foldCatchAllBucketTotalsIntoPostedDirect,
 } from '@/lib/coaChartRollup.js';
@@ -351,6 +352,21 @@ export async function GET(request) {
       });
     } catch (error) {
       console.error('Error fetching invoices:', error);
+    }
+
+    let liabilitiesForChartOverlay = [];
+    try {
+      liabilitiesForChartOverlay = await prisma.liability.findMany({
+        where: { tenantId: user.tenantId, status: 'active' },
+        select: {
+          id: true,
+          glAccountId: true,
+          currentBalance: true,
+          status: true,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching liabilities for chart overlay:', error);
     }
     
     // Calculate actual remaining balance from payments (more accurate than stored fields)
@@ -713,7 +729,12 @@ export async function GET(request) {
       deduplicatedAccounts,
       totalInventoryValue
     );
-    const accountsAfterFirstRollup = applyCoaParentRollup(stockLedAccounts);
+    // Liability register: merge after inventory subtree alignment, before parent rollup (ordering matches inventory-style overlays).
+    const withLiabilityOverlay = applyLiabilityRegisterCoaSubtree(
+      stockLedAccounts,
+      liabilitiesForChartOverlay
+    );
+    const accountsAfterFirstRollup = applyCoaParentRollup(withLiabilityOverlay);
     const foldedPosted = foldCatchAllBucketTotalsIntoPostedDirect(accountsAfterFirstRollup);
     const afterCatchAllRollup = applyCoaParentRollup(foldedPosted);
     const accountsWithCatchAllDisplay = apply3100CapitalBucketAncestorPropagation(afterCatchAllRollup);
@@ -744,7 +765,7 @@ export async function GET(request) {
         total: accountsForResponse.length,
         traceability: {
           policy:
-            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Period filters (dateFrom/dateTo) apply to posted journal entry dates and posted transaction dates (and AR sub-ledger invoice scope where applicable). They do not zero out inventory: the Asset 1300 subtree is always aligned to the current physical inventory valuation from Stock Management (GET /api/stock/statistics — same branch scope query params), typically shown on 1310 Stock on Hand when that ledger leaf exists, otherwise on 1300. Without posted GL, other non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts. Range catch-all buckets (1999, 2999, …) are folded into parent rollups server-side so structural totals reconcile. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Period filters (dateFrom/dateTo) apply to posted journal entry dates and posted transaction dates (and AR sub-ledger invoice scope where applicable). They do not zero out inventory: the Asset 1300 subtree is always aligned to the current physical inventory valuation from Stock Management (GET /api/stock/statistics — same branch scope query params), typically shown on 1310 Stock on Hand when that ledger leaf exists, otherwise on 1300. Without posted GL, other non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts. Active liability loans with outstanding principal add a **liability register overlay** onto CoA root **2000** (unassigned GL) or the liability’s **glAccountId** leaf only when that target row has **zero** posted GL lines — if the account already has journal/transaction activity, overlay is skipped for that row to avoid double-counting with uncollated sub-ledger + GL. Fixed assets use **glAccountId** on purchase journals instead of a chart overlay (no stacked NBV on posted PPE). Range catch-all buckets (1999, 2999, …) are folded into parent rollups server-side so structural totals reconcile. No revenue, COGS, payroll, AP, tax, or expense-module overlays beyond those described — other registers belong in the GL or management reports.',
         },
         period: {
           dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
