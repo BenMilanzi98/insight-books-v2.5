@@ -97,6 +97,26 @@ describe('applyStockLedInventoryCoaSubtree', () => {
     const invR = rolled.find((a) => a.accountCode === '1300');
     expect(invR.currentBalance).toBeCloseTo(1234.56, 5);
   });
+
+  /**
+   * Regression: chart GET always passes stock aggregate even when dateFrom/dateTo are set (month preset).
+   * Period filters scope posted GL only; inventory uses point-in-time Stock Management total (this S).
+   * QA: if 1310/1320/1330 show "Not set up", create blueprint rows via POST /api/chart-of-accounts/bootstrap.
+   */
+  it('applies full stock total to 1300 when no 1310 leaf row exists', () => {
+    const accounts = [
+      {
+        id: 'inv',
+        parentAccountId: null,
+        accountCode: '1300',
+        accountType: 'Asset',
+        postedDirectBalance: 0,
+      },
+    ];
+    const S = 11_947_245;
+    const adj = applyStockLedInventoryCoaSubtree(accounts, S);
+    expect(adj.find((a) => a.accountCode === '1300').postedDirectBalance).toBe(S);
+  });
 });
 
 describe('foldCatchAllBucketTotalsIntoPostedDirect', () => {

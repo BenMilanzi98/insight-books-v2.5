@@ -412,22 +412,21 @@ export async function GET(request) {
       return sum + Math.max(0, inv.actualRemaining); // Use actual calculated remaining
     }, 0);
 
-    // Inventory — same aggregate as GET /api/stock/statistics (`allBranches` default true; optional branchId)
+    // Inventory — same aggregate as GET /api/stock/statistics (`allBranches` default true; optional branchId).
+    // Always loaded: point-in-time valuation from Stock Management, not period-scoped GL (chart date filters still apply to journals/transactions above).
     let totalInventoryValue = 0;
     let inventoryProductCount = 0;
-    if (!hasDateFilter) {
-      try {
-        const invAgg = await computePhysicalInventoryValuationTotal(
-          prisma,
-          user.tenantId,
-          user,
-          searchParams
-        );
-        totalInventoryValue = invAgg.total;
-        inventoryProductCount = invAgg.productCount;
-      } catch (error) {
-        console.error('Error fetching inventory aggregate for chart:', error);
-      }
+    try {
+      const invAgg = await computePhysicalInventoryValuationTotal(
+        prisma,
+        user.tenantId,
+        user,
+        searchParams
+      );
+      totalInventoryValue = invAgg.total;
+      inventoryProductCount = invAgg.productCount;
+    } catch (error) {
+      console.error('Error fetching inventory aggregate for chart:', error);
     }
 
     console.log('Chart of Accounts (GL-first): inventory aggregate & AR sub-ledger context', {
@@ -745,7 +744,7 @@ export async function GET(request) {
         total: accountsForResponse.length,
         traceability: {
           policy:
-            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Without posted GL, only these non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts, and the Asset 1300 subtree is aligned to the same physical inventory valuation as Stock Management (GET /api/stock/statistics), typically shown on 1310 Stock on Hand when that leaf exists. Range catch-all buckets (1999, 2999, …) are folded into parent rollups server-side so structural totals reconcile. Optional query params branchId and allBranches match stock listing scope. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
+            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Period filters (dateFrom/dateTo) apply to posted journal entry dates and posted transaction dates (and AR sub-ledger invoice scope where applicable). They do not zero out inventory: the Asset 1300 subtree is always aligned to the current physical inventory valuation from Stock Management (GET /api/stock/statistics — same branch scope query params), typically shown on 1310 Stock on Hand when that ledger leaf exists, otherwise on 1300. Without posted GL, other non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts. Range catch-all buckets (1999, 2999, …) are folded into parent rollups server-side so structural totals reconcile. No revenue, COGS, payroll, AP, tax, PPE register, or expense-module overlays are applied — those belong in the GL or management reports, not on this chart.',
         },
         period: {
           dateFrom: dateRange.from ? dateRange.from.toISOString() : null,

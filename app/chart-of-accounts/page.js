@@ -673,6 +673,10 @@ const ChartOfAccountsPage = () => {
                 className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
               />
             </div>
+            <p className="w-full text-[11px] leading-snug text-slate-500 sm:w-auto sm:min-w-0 sm:flex-1">
+              Inventory (1300 / 1310) ties to Stock Management valuation for the selected scope; period dates filter
+              posted GL activity only.
+            </p>
           </div>
 
           <p className="mb-6 text-xs leading-relaxed text-slate-500">
