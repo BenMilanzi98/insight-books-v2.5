@@ -125,14 +125,49 @@ class PosRepository {
     }
   }
 
+  /// Same source as web `/payments/management`: balances first, then active accounts list.
+  Map<String, dynamic> _normalizePaymentAccountRow(Map<String, dynamic> raw) {
+    final name = (raw['name'] ?? raw['accountName'] ?? '').toString();
+    return {
+      ...raw,
+      'name': name.isNotEmpty ? name : raw['name'],
+      'accountName': name.isNotEmpty ? name : raw['accountName'],
+    };
+  }
+
   Future<List<Map<String, dynamic>>> fetchPaymentAccounts() async {
+    try {
+      final balanceResp = await _dio.get('/api/payment-accounts/balances');
+      final balanceData = balanceResp.data;
+      if (balanceResp.statusCode != null &&
+          balanceResp.statusCode! >= 200 &&
+          balanceResp.statusCode! < 300 &&
+          balanceData is Map &&
+          balanceData['success'] == true &&
+          balanceData['accounts'] is List) {
+        final list = (balanceData['accounts'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .where((a) => a['isActive'] != false)
+            .map(_normalizePaymentAccountRow)
+            .toList();
+        await _saveMapListCache(_paymentAccountsCacheKey, list);
+        return list;
+      }
+    } catch (_) {
+      // Fall through to list endpoint.
+    }
+
     try {
       final response = await _dio.get(
         '/api/payment-accounts',
         queryParameters: {'activeOnly': 'true'},
       );
       final List accounts = response.data['paymentAccounts'] ?? [];
-      final list = accounts.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      final list = accounts
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .where((a) => a['isActive'] != false)
+          .map(_normalizePaymentAccountRow)
+          .toList();
       await _saveMapListCache(_paymentAccountsCacheKey, list);
       return list;
     } catch (e) {

@@ -53,6 +53,12 @@ function FormSection({ title, description, children }) {
 }
 
 function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inventory", onSave, onCancel }) {
+  const ALLOCATION_EPSILON = 1e-6;
+  const makeDefaultAllocation = (qty = 1, unitCost = 0) => ({
+    qty: Number(qty) > 0 ? Number(qty) : 1,
+    expiryDate: "",
+    unitCost: Number(unitCost) >= 0 ? Number(unitCost) : 0,
+  });
   const isServiceMode = receiptMode === "service";
   const [form, setForm] = useState({
     supplierId: "",
@@ -62,10 +68,24 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     notes: "",
   });
   const [items, setItems] = useState([
-    { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+    {
+      productId: "",
+      quantityReceived: 1,
+      unitCost: 0,
+      isPerishable: false,
+      expiryAllocations: [],
+      poItemId: null,
+    },
   ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const productPerishableMap = useMemo(
+    () =>
+      new Map(
+        (products || []).map((product) => [product.id, Boolean(product.isPerishable)])
+      ),
+    [products]
+  );
 
   const selectedPo = useMemo(
     () => purchaseOrders.find((po) => po.id === form.purchaseOrderId) || null,
@@ -85,7 +105,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
       setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
       if (!isServiceMode) {
         setItems([
-          { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+          {
+            productId: "",
+            quantityReceived: 1,
+            unitCost: 0,
+            isPerishable: false,
+            expiryAllocations: [],
+            poItemId: null,
+          },
         ]);
       }
     }
@@ -115,7 +142,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
       }));
       if (!keepPo && !isServiceMode) {
         setItems([
-          { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+          {
+            productId: "",
+            quantityReceived: 1,
+            unitCost: 0,
+            isPerishable: false,
+            expiryAllocations: [],
+            poItemId: null,
+          },
         ]);
       }
       return;
@@ -125,7 +159,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
         setForm((prev) => ({ ...prev, purchaseOrderId: "" }));
         if (!isServiceMode) {
           setItems([
-            { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+            {
+              productId: "",
+              quantityReceived: 1,
+              unitCost: 0,
+              isPerishable: false,
+              expiryAllocations: [],
+              poItemId: null,
+            },
           ]);
         }
         return;
@@ -164,12 +205,23 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
                 poItemId: line.id,
                 quantityReceived: remaining > 0 ? remaining : 1,
                 unitCost: receiptUnitCostFromPurchaseOrderLine(line, pit),
+                isPerishable: Boolean(
+                  productPerishableMap.get(line.productId) ?? line.product?.isPerishable
+                ),
+                expiryAllocations: [],
               };
             })
           );
         } else {
           setItems([
-            { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+            {
+              productId: "",
+              quantityReceived: 1,
+              unitCost: 0,
+              isPerishable: false,
+              expiryAllocations: [],
+              poItemId: null,
+            },
           ]);
         }
       }
@@ -179,8 +231,98 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
   };
 
   const handleItemChange = (index, key, value) => {
+    setItems((prev) => {
+      return prev.map((item, idx) => {
+        if (idx !== index) return item;
+        if (key === "productId") {
+          const isPerishable = Boolean(productPerishableMap.get(value));
+          return {
+            ...item,
+            productId: value,
+            isPerishable,
+            expiryAllocations: isPerishable
+              ? item.expiryAllocations?.length
+                ? item.expiryAllocations
+                : [makeDefaultAllocation(item.quantityReceived, item.unitCost)]
+              : [],
+          };
+        }
+        if (key === "isPerishable") {
+          const isPerishable = Boolean(value);
+          return {
+            ...item,
+            isPerishable,
+            expiryAllocations: isPerishable
+              ? item.expiryAllocations?.length
+                ? item.expiryAllocations
+                : [makeDefaultAllocation(item.quantityReceived, item.unitCost)]
+              : [],
+          };
+        }
+        const updated = { ...item, [key]: value };
+        if (
+          updated.isPerishable &&
+          Array.isArray(updated.expiryAllocations) &&
+          updated.expiryAllocations.length === 1
+        ) {
+          updated.expiryAllocations = [
+            {
+              ...updated.expiryAllocations[0],
+              qty:
+                key === "quantityReceived"
+                  ? Number(value || 0)
+                  : Number(updated.expiryAllocations[0].qty || 0),
+              unitCost:
+                key === "unitCost"
+                  ? Number(value || 0)
+                  : Number(updated.expiryAllocations[0].unitCost || 0),
+            },
+          ];
+        }
+        return updated;
+      });
+    });
+  };
+
+  const handleAllocationChange = (itemIndex, allocationIndex, key, value) => {
     setItems((prev) =>
-      prev.map((item, idx) => (idx === index ? { ...item, [key]: value } : item))
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const nextAllocations = Array.isArray(item.expiryAllocations)
+          ? [...item.expiryAllocations]
+          : [];
+        const current = nextAllocations[allocationIndex] || makeDefaultAllocation();
+        nextAllocations[allocationIndex] = { ...current, [key]: value };
+        return { ...item, expiryAllocations: nextAllocations };
+      })
+    );
+  };
+
+  const addAllocationRow = (itemIndex) => {
+    setItems((prev) =>
+      prev.map((item, idx) =>
+        idx === itemIndex
+          ? {
+              ...item,
+              expiryAllocations: [
+                ...(item.expiryAllocations || []),
+                makeDefaultAllocation(0, item.unitCost),
+              ],
+            }
+          : item
+      )
+    );
+  };
+
+  const removeAllocationRow = (itemIndex, allocationIndex) => {
+    setItems((prev) =>
+      prev.map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const nextAllocations = (item.expiryAllocations || []).filter(
+          (_, allocIdx) => allocIdx !== allocationIndex
+        );
+        return { ...item, expiryAllocations: nextAllocations };
+      })
     );
   };
 
@@ -188,7 +330,14 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
     if (poLinesLocked) return;
     setItems((prev) => [
       ...prev,
-      { productId: "", quantityReceived: 1, unitCost: 0, poItemId: null },
+      {
+        productId: "",
+        quantityReceived: 1,
+        unitCost: 0,
+        isPerishable: false,
+        expiryAllocations: [],
+        poItemId: null,
+      },
     ]);
   };
 
@@ -209,6 +358,46 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
           throw new Error(validationErr.message || String(validationErr));
         }
       }
+      if (!isServiceMode) {
+        for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+          const row = items[itemIndex];
+          if (!row.isPerishable) continue;
+          const allocations = Array.isArray(row.expiryAllocations)
+            ? row.expiryAllocations
+            : [];
+          if (allocations.length === 0) {
+            throw new Error(
+              `Item ${itemIndex + 1}: add at least one expiry allocation for perishable items`
+            );
+          }
+          const sumQty = allocations.reduce(
+            (sum, alloc) => sum + Number(alloc?.qty || 0),
+            0
+          );
+          if (
+            Math.abs(sumQty - Number(row.quantityReceived || 0)) > ALLOCATION_EPSILON
+          ) {
+            throw new Error(
+              `Item ${itemIndex + 1}: allocation quantity total (${sumQty}) must equal received quantity (${Number(
+                row.quantityReceived || 0
+              )})`
+            );
+          }
+          for (let allocIndex = 0; allocIndex < allocations.length; allocIndex += 1) {
+            const alloc = allocations[allocIndex];
+            if (!(Number(alloc?.qty || 0) > 0)) {
+              throw new Error(
+                `Item ${itemIndex + 1}, allocation ${allocIndex + 1}: qty must be greater than 0`
+              );
+            }
+            if (!alloc?.expiryDate) {
+              throw new Error(
+                `Item ${itemIndex + 1}, allocation ${allocIndex + 1}: expiry date is required`
+              );
+            }
+          }
+        }
+      }
       const payload = isServiceMode
         ? { ...form, receiptType: "service", items: [] }
         : {
@@ -217,6 +406,22 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
             status: "Posted",
             items: items.map((row) => ({
               ...row,
+              expiryAllocations: row.isPerishable
+                ? (row.expiryAllocations || []).map((alloc) => ({
+                    qty: Number(alloc.qty || 0),
+                    expiryDate: alloc.expiryDate || null,
+                    unitCost:
+                      alloc.unitCost !== "" && alloc.unitCost !== undefined
+                        ? Number(alloc.unitCost)
+                        : Number(row.unitCost || 0),
+                  }))
+                : [],
+              expiryDate:
+                row.isPerishable &&
+                Array.isArray(row.expiryAllocations) &&
+                row.expiryAllocations.length === 1
+                  ? row.expiryAllocations[0]?.expiryDate || null
+                  : null,
               poItemId: row.poItemId || undefined,
             })),
           };
@@ -345,56 +550,153 @@ function ReceiptForm({ suppliers, products, purchaseOrders, receiptMode = "inven
             {items.map((item, idx) => (
               <div
                 key={idx}
-                className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-3 sm:grid-cols-4"
+                className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/70 p-3"
               >
-                <select
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.productId}
-                  onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
-                  required
-                >
-                  <option value="">Product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.quantityReceived}
-                  onChange={(e) => handleItemChange(idx, "quantityReceived", e.target.value)}
-                  required
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
-                  value={item.unitCost}
-                  onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
-                  required
-                />
-                <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
-                  <span>
-                    MWK{" "}
-                    {(
-                      Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
-                    ).toLocaleString()}
-                  </span>
-                  {items.length > 1 && !poLinesLocked && (
-                    <button
-                      type="button"
-                      onClick={() => removeItem(idx)}
-                      className="text-xs text-red-600"
-                    >
-                      Remove
-                    </button>
-                  )}
+                <div className="grid gap-3 sm:grid-cols-5">
+                  <select
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                    value={item.productId}
+                    onChange={(e) => handleItemChange(idx, "productId", e.target.value)}
+                    required
+                  >
+                    <option value="">Product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                    value={item.quantityReceived}
+                    onChange={(e) => handleItemChange(idx, "quantityReceived", e.target.value)}
+                    required
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm  focus:border-indigo-500 focus:ring-indigo-500"
+                    value={item.unitCost}
+                    onChange={(e) => handleItemChange(idx, "unitCost", e.target.value)}
+                    required
+                  />
+                  <label className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(item.isPerishable)}
+                      onChange={(e) =>
+                        handleItemChange(idx, "isPerishable", e.target.checked)
+                      }
+                    />
+                    Perishable
+                  </label>
+                  <div className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm font-medium text-gray-700">
+                    <span>
+                      MWK{" "}
+                      {(
+                        Number(item.quantityReceived || 0) * Number(item.unitCost || 0)
+                      ).toLocaleString()}
+                    </span>
+                    {items.length > 1 && !poLinesLocked && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        className="text-xs text-red-600"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {item.isPerishable && (
+                  <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-amber-900">
+                        Expiry allocations
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => addAllocationRow(idx)}
+                        className="text-xs font-medium text-amber-700 hover:text-amber-900"
+                      >
+                        + Add allocation
+                      </button>
+                    </div>
+                    {(item.expiryAllocations || []).map((alloc, allocIdx) => (
+                      <div
+                        key={`${idx}-${allocIdx}`}
+                        className="grid gap-2 sm:grid-cols-4"
+                      >
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={alloc.qty}
+                          onChange={(e) =>
+                            handleAllocationChange(
+                              idx,
+                              allocIdx,
+                              "qty",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Qty"
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="date"
+                          value={alloc.expiryDate || ""}
+                          onChange={(e) =>
+                            handleAllocationChange(
+                              idx,
+                              allocIdx,
+                              "expiryDate",
+                              e.target.value
+                            )
+                          }
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={alloc.unitCost}
+                          onChange={(e) =>
+                            handleAllocationChange(
+                              idx,
+                              allocIdx,
+                              "unitCost",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Unit cost"
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeAllocationRow(idx, allocIdx)}
+                          className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-600 hover:bg-red-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <p className="text-[11px] text-amber-800">
+                      Allocation total:{" "}
+                      {Number(
+                        (item.expiryAllocations || []).reduce(
+                          (sum, alloc) => sum + Number(alloc.qty || 0),
+                          0
+                        )
+                      ).toLocaleString()}{" "}
+                      / Received qty: {Number(item.quantityReceived || 0).toLocaleString()}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
             <button

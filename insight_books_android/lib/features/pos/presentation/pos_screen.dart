@@ -89,7 +89,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
   final TextEditingController _barcodeController = TextEditingController();
   final TextEditingController _historySearchController = TextEditingController();
   final TextEditingController _depositAmountController = TextEditingController();
-  final TextEditingController _depositAccountController = TextEditingController();
   final TextEditingController _depositNotesController = TextEditingController();
   /// Default: list view (primary). Users can switch to grid via the toggle.
   bool _productLayoutIsList = true;
@@ -109,7 +108,6 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     _barcodeController.dispose();
     _historySearchController.dispose();
     _depositAmountController.dispose();
-    _depositAccountController.dispose();
     _depositNotesController.dispose();
     super.dispose();
   }
@@ -999,127 +997,152 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final totalSales =
         (double.tryParse('${cashMetrics['totalSales'] ?? 0}') ?? 0);
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Daily Sales (POS)'),
-                      const SizedBox(height: 4),
-                      Text(
-                        currencyFormat.format(totalSales),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: cs.primary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Opening balance'),
-                      const SizedBox(height: 4),
-                      Text(
-                        currencyFormat.format(openingBalance),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Cash in hand'),
-                      const SizedBox(height: 4),
-                      Text(
-                        currencyFormat.format(cashInHand),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          color: cs.onSurface,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton.tonalIcon(
-                onPressed: posState.posCashActionLoading
-                    ? null
-                    : () async {
-                        if (!hasOpenRegister) {
-                          final err = await posNotifier.openPosCashDay();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(err ?? 'Day opened')),
-                          );
-                          return;
-                        }
-                        _showDepositDialog(context, posNotifier);
-                      },
-                icon: Icon(hasOpenRegister ? Icons.account_balance : Icons.play_arrow),
-                label: Text(hasOpenRegister ? 'Deposit' : 'Open day'),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: FilledButton(
-                onPressed: (!hasOpenRegister || posState.posCashActionLoading)
-                    ? null
-                    : () async {
-                        final err = await posNotifier.closePosCashDay();
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(err ?? 'Day closed')),
-                        );
-                      },
-                child: const Text('Close day'),
-              ),
-            ),
-          ],
-        ),
-        if ((posState.posCashMessage ?? '').isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                posState.posCashMessage!,
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-              ),
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+        title: Text(
+          'POS cash day',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: cs.onSurface,
           ),
-      ],
+        ),
+        subtitle: Text(
+          '${currencyFormat.format(totalSales)} sales · '
+          '${hasOpenRegister ? 'Open' : 'Closed'} · '
+          '${currencyFormat.format(cashInHand)} in hand',
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        children: [
+          Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Daily Sales (POS)'),
+                            const SizedBox(height: 4),
+                            Text(
+                              currencyFormat.format(totalSales),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: cs.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Opening balance'),
+                            const SizedBox(height: 4),
+                            Text(
+                              currencyFormat.format(openingBalance),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Cash in hand'),
+                            const SizedBox(height: 4),
+                            Text(
+                              currencyFormat.format(cashInHand),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: posState.posCashActionLoading
+                          ? null
+                          : () async {
+                              if (!hasOpenRegister) {
+                                final err = await posNotifier.openPosCashDay();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(err ?? 'Day opened')),
+                                );
+                                return;
+                              }
+                              _showDepositDialog(context, posState, posNotifier);
+                            },
+                      icon: Icon(
+                          hasOpenRegister ? Icons.account_balance : Icons.play_arrow),
+                      label: Text(hasOpenRegister ? 'Deposit' : 'Open day'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: (!hasOpenRegister || posState.posCashActionLoading)
+                          ? null
+                          : () async {
+                              final err = await posNotifier.closePosCashDay();
+                              if (!context.mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text(err ?? 'Day closed')),
+                              );
+                            },
+                      child: const Text('Close day'),
+                    ),
+                  ),
+                ],
+              ),
+              if ((posState.posCashMessage ?? '').isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      posState.posCashMessage!,
+                      style:
+                          TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -1215,74 +1238,127 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 
   Future<void> _showDepositDialog(
     BuildContext context,
+    PosPageState posState,
     Pos posNotifier,
   ) async {
     _depositAmountController.clear();
-    _depositAccountController.clear();
     _depositNotesController.clear();
+    final accounts = posState.paymentAccounts;
+    String? selectedAccountId = accounts.isNotEmpty
+        ? accounts.first['id']?.toString()
+        : null;
+
     await showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Deposit'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: _depositAccountController,
-              decoration: const InputDecoration(
-                labelText: 'To Account ID',
-                border: OutlineInputBorder(),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            title: const Text('Deposit'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (accounts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'No payment accounts found. Configure accounts under Payments management on the web.',
+                      style: TextStyle(
+                        color: Theme.of(ctx).colorScheme.error,
+                        fontSize: 13,
+                      ),
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: selectedAccountId,
+                    decoration: const InputDecoration(
+                      labelText: 'Deposit to account',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: accounts
+                        .map(
+                          (acc) => DropdownMenuItem<String>(
+                            value: acc['id']?.toString(),
+                            child: Text(
+                              [
+                                (acc['accountName'] ??
+                                        acc['name'] ??
+                                        'Payment account')
+                                    .toString(),
+                                if ((acc['accountType'] ?? '')
+                                    .toString()
+                                    .isNotEmpty)
+                                  ' (${acc['accountType']})',
+                              ].join(),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .where((item) => item.value != null && item.value!.isNotEmpty)
+                        .toList(),
+                    onChanged: (v) =>
+                        setDialogState(() => selectedAccountId = v),
+                  ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _depositAmountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _depositNotesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Notes (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _depositAmountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Amount',
-                border: OutlineInputBorder(),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _depositNotesController,
-              decoration: const InputDecoration(
-                labelText: 'Notes (optional)',
-                border: OutlineInputBorder(),
+              FilledButton(
+                onPressed: accounts.isEmpty ||
+                        selectedAccountId == null ||
+                        selectedAccountId!.isEmpty
+                    ? null
+                    : () async {
+                        final amount = double.tryParse(
+                              _depositAmountController.text.trim(),
+                            ) ??
+                            0;
+                        if (amount <= 0) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Enter a valid amount'),
+                            ),
+                          );
+                          return;
+                        }
+                        final err = await posNotifier.depositPosCashDay(
+                          toAccountId: selectedAccountId!,
+                          amount: amount,
+                          notes: _depositNotesController.text.trim(),
+                        );
+                        if (!context.mounted) return;
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(err ?? 'Deposit saved')),
+                        );
+                      },
+                child: const Text('Save'),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final account = _depositAccountController.text.trim();
-              final amount =
-                  double.tryParse(_depositAmountController.text.trim()) ?? 0;
-              if (account.isEmpty || amount <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Enter valid account and amount')),
-                );
-                return;
-              }
-              final err = await posNotifier.depositPosCashDay(
-                toAccountId: account,
-                amount: amount,
-                notes: _depositNotesController.text.trim(),
-              );
-              if (!context.mounted) return;
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(err ?? 'Deposit saved')),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

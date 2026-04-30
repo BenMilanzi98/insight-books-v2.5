@@ -1400,6 +1400,7 @@ model GoodsReceiptItem {
   unitCost            Decimal            @db.Decimal(15, 2)
   batchNumber         String?
   expiryDate          DateTime?
+  expiryAllocations   Json?
   notes               String?
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt

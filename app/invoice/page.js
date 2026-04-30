@@ -1090,7 +1090,7 @@ const InvoicingPage = () => {
                             {isEligibleForPartialPayment(invoice) && pagePermissions.canUpdateInvoices && (
                               <button 
                                 className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
-                                title="Add Partial Payment"
+                                title="Record Payment"
                                 onClick={() => handlePartialPayment(invoice)}
                               >
                                 <CreditCard size={16} />

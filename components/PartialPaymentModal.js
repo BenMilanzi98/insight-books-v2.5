@@ -10,7 +10,7 @@ const PartialPaymentModal = ({
 }) => {
   const [formData, setFormData] = useState({
     amount: '',
-    paymentMethod: 'cash',
+    paymentMethod: '',
     paymentDate: new Date().toISOString().split('T')[0],
     reference: '',
     notes: ''
@@ -24,11 +24,13 @@ const PartialPaymentModal = ({
 
   // Reset form when modal opens/closes or invoice changes
   useEffect(() => {
-    if (isOpen && invoice && paymentAccounts.length > 0) {
+    if (isOpen && invoice) {
       const remaining = invoice.total - (invoice.totalPaid || 0);
       setRemainingBalance(remaining);
-      // Set default payment method to first available account (prefer Cash)
-      const defaultAccount = paymentAccounts.find(acc => acc.accountType === 'Cash' && acc.isActive) || paymentAccounts[0];
+      // Management-configured accounts only (same as /payments/management).
+      const defaultAccount =
+        paymentAccounts.find((acc) => acc.accountType === 'Cash' && acc.isActive) ||
+        paymentAccounts[0];
       setFormData({
         amount: '',
         paymentMethod: defaultAccount?.id || '',
@@ -74,6 +76,11 @@ const PartialPaymentModal = ({
     
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       setError('Please enter a valid payment amount');
+      return;
+    }
+
+    if (!formData.paymentMethod) {
+      setError('Please select a payment account');
       return;
     }
 
@@ -134,7 +141,7 @@ const PartialPaymentModal = ({
               <CreditCard className="h-6 w-6 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Partial Payment</h2>
+              <h2 className="text-xl font-semibold text-gray-900">Record Payment</h2>
               <p className="text-sm text-gray-600">Invoice #{invoice.invoiceNumber}</p>
             </div>
           </div>
@@ -223,11 +230,6 @@ const PartialPaymentModal = ({
                   {account.name} {account.accountType ? `(${account.accountType})` : ''}
                 </option>
               ))}
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="mobile_money">Mobile Money</option>
-              <option value="check">Check</option>
-              <option value="credit_card">Credit Card</option>
-              <option value="other">Other</option>
             </select>
           </div>
 
@@ -298,7 +300,7 @@ const PartialPaymentModal = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !!error || !formData.amount}
+              disabled={isSubmitting || !!error || !formData.amount || !formData.paymentMethod || paymentAccounts.length === 0}
               className="flex-1 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors flex items-center justify-center"
             >
               {isSubmitting ? (
@@ -307,7 +309,7 @@ const PartialPaymentModal = ({
                   Processing...
                 </>
               ) : (
-                'Process Payment'
+                'Record Payment'
               )}
             </button>
           </div>

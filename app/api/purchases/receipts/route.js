@@ -17,6 +17,7 @@ import {
   sumPostedGoodsReceiptQtyByPoLineIds,
   goodsLineRemainingQty,
 } from '@/lib/poLineReceivedFromReceipts';
+import { normalizeExpiryAllocations } from '@/lib/expiryAllocations';
 
 function validateItems(items) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -31,6 +32,51 @@ function validateItems(items) {
     if (item.unitCost === undefined || !Number.isFinite(uc) || uc < 0) {
       throw new Error(`Item ${index + 1}: unitCost must be a valid non-negative number`);
     }
+  });
+}
+
+function toIsoDateOnly(dateValue) {
+  if (!dateValue) return null;
+  const dt = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().split('T')[0];
+}
+
+function normalizeReceiptExpiryAllocations(items, perishableByProductId) {
+  return items.map((item) => {
+    const quantityReceived = Number(item.quantityReceived);
+    const unitCost = Number(item.unitCost);
+    const productIsPerishable = Boolean(
+      perishableByProductId.get(item.productId) ?? item.isPerishable
+    );
+    const normalizedAllocations = normalizeExpiryAllocations({
+      expiryAllocations: item.expiryAllocations,
+      isPerishable: productIsPerishable,
+      fallbackExpiryDate: item.expiryDate || null,
+      targetQty: quantityReceived,
+      fallbackUnitCost: unitCost,
+    });
+    const allocationPayload = normalizedAllocations.map((row) => ({
+      qty: Number(row.qty || 0),
+      unitCost: Number(row.unitCost || 0),
+      expiryDate: row.expiryDate ? toIsoDateOnly(row.expiryDate) : null,
+    }));
+
+    let legacyExpiryDate = null;
+    if (allocationPayload.length === 1 && allocationPayload[0]?.expiryDate) {
+      legacyExpiryDate = allocationPayload[0].expiryDate;
+    } else if (item.expiryDate) {
+      legacyExpiryDate = toIsoDateOnly(item.expiryDate);
+    }
+
+    return {
+      ...item,
+      isPerishable: productIsPerishable,
+      quantityReceived,
+      unitCost,
+      expiryAllocations: allocationPayload,
+      expiryDate: legacyExpiryDate,
+    };
   });
 }
 
@@ -241,10 +287,43 @@ export async function POST(request) {
 
     let inventoryItemsForCreate = null;
     if (!isServiceReceipt) {
+      const inventoryProductIds = [...new Set((body.items || []).map((item) => item.productId).filter(Boolean))];
+      const inventoryProducts = await prisma.product.findMany({
+        where: {
+          tenantId: user.tenantId,
+          id: { in: inventoryProductIds },
+          isDeleted: false,
+        },
+        select: {
+          id: true,
+          isPerishable: true,
+        },
+      });
+      const productPerishableMap = new Map(
+        inventoryProducts.map((p) => [p.id, Boolean(p.isPerishable)])
+      );
+      const missingProductIds = inventoryProductIds.filter((id) => !productPerishableMap.has(id));
+      if (missingProductIds.length > 0) {
+        return NextResponse.json(
+          { error: `One or more products were not found: ${missingProductIds.join(', ')}` },
+          { status: 400 }
+        );
+      }
+
+      let normalizedInputItems;
+      try {
+        normalizedInputItems = normalizeReceiptExpiryAllocations(
+          body.items,
+          productPerishableMap
+        );
+      } catch (e) {
+        return NextResponse.json({ error: e.message }, { status: 400 });
+      }
+
       try {
         inventoryItemsForCreate = enrichInventoryItemsAgainstPo(
           purchaseOrder,
-          body.items,
+          normalizedInputItems,
           receiptSumByPoLineId
         );
       } catch (e) {
@@ -322,6 +401,7 @@ export async function POST(request) {
                   unitCost: new Prisma.Decimal(String(Math.max(0, Number(item.unitCost)))),
                   batchNumber: item.batchNumber || null,
                   expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
+                expiryAllocations: item.expiryAllocations || null,
                   notes: item.notes || null,
                 })),
           },

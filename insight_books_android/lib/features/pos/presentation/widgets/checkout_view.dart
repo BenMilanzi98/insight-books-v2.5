@@ -14,7 +14,8 @@ class CheckoutView extends ConsumerStatefulWidget {
 }
 
 class _CheckoutViewState extends ConsumerState<CheckoutView> {
-  String _paymentMethod = 'cash';
+  /// PaymentAccount id from `/payments/management` (same API stack as web).
+  String? _selectedPaymentAccountId;
   bool _useSplitPayments = false;
   final TextEditingController _notesController = TextEditingController();
   final List<_AllocationDraft> _allocations = [];
@@ -102,32 +103,54 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
 
                 const SizedBox(height: 32),
 
-                // Payment Method
                 Text(
-                  'Payment Method',
+                  'Payment account',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: colorScheme.onSurface),
                 ),
-                const SizedBox(height: 12),
-                _buildPaymentMethodTile(
-                  'cash',
-                  'Cash',
-                  Icons.payments_outlined,
-                ),
-                _buildPaymentMethodTile(
-                  'card',
-                  'Card',
-                  Icons.credit_card_outlined,
-                ),
-                _buildPaymentMethodTile(
-                  'bank_transfer',
-                  'Bank Transfer',
-                  Icons.account_balance_outlined,
-                ),
-                _buildPaymentMethodTile(
-                  'mobile_money',
-                  'Mobile Money',
-                  Icons.smartphone_outlined,
-                ),
+                const SizedBox(height: 8),
+                if (posState.paymentAccounts.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'No payment accounts loaded. Configure accounts under Payments management on the web, then reopen checkout.',
+                      style: TextStyle(color: colorScheme.error, fontSize: 13),
+                    ),
+                  )
+                else
+                  DropdownButtonFormField<String>(
+                    value: _effectivePaymentAccountId(posState),
+                    decoration: const InputDecoration(
+                      labelText: 'Pay into account',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: posState.paymentAccounts
+                        .map(
+                          (acc) => DropdownMenuItem<String>(
+                            value: acc['id']?.toString(),
+                            child: Text(
+                              [
+                                (acc['accountName'] ??
+                                        acc['name'] ??
+                                        'Payment account')
+                                    .toString(),
+                                if ((acc['accountType'] ?? '')
+                                    .toString()
+                                    .isNotEmpty)
+                                  ' (${acc['accountType']})',
+                              ].join(),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .where(
+                          (item) =>
+                              item.value != null && item.value!.isNotEmpty,
+                        )
+                        .toList(),
+                    onChanged: posState.paymentAccounts.isEmpty
+                        ? null
+                        : (v) => setState(() => _selectedPaymentAccountId = v),
+                  ),
                 const SizedBox(height: 12),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -475,47 +498,16 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     );
   }
 
-  Widget _buildPaymentMethodTile(String id, String label, IconData icon) {
-    final isSelected = _paymentMethod == id;
-    final colorScheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: InkWell(
-        onTap: () => setState(() => _paymentMethod = id),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? colorScheme.primary.withValues(alpha: 0.15)
-                : colorScheme.surface,
-            border: Border.all(
-              color: isSelected ? colorScheme.primary : colorScheme.outline.withValues(alpha: 0.5),
-              width: isSelected ? 2 : 1,
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              if (isSelected)
-                Icon(Icons.check_circle, color: colorScheme.primary),
-            ],
-          ),
-        ),
-      ),
-    );
+  String? _effectivePaymentAccountId(PosPageState posState) {
+    final ids = posState.paymentAccounts
+        .map((a) => a['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+    if (ids.isEmpty) return null;
+    final sel = _selectedPaymentAccountId;
+    if (sel != null && ids.contains(sel)) return sel;
+    return ids.first;
   }
 
   void _showCustomerPicker(
@@ -617,6 +609,19 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
       return;
     }
 
+    final paymentAccountId = _effectivePaymentAccountId(posState);
+    if (!_useSplitPayments &&
+        (posState.paymentAccounts.isEmpty || paymentAccountId == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Select a payment account — configure accounts under Payments management.',
+          ),
+        ),
+      );
+      return;
+    }
+
     List<PaymentAllocation>? allocations;
     if (_useSplitPayments) {
       if (!_isAllocationValid(ref.read(posProvider).total)) {
@@ -640,7 +645,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     }
 
     final success = await notifier.checkout(
-      paymentMethod: _paymentMethod,
+      paymentMethod: paymentAccountId ?? '',
       allocations: allocations,
       notes: _notesController.text.trim().isEmpty
           ? null
@@ -671,6 +676,20 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
   }
 
   Future<void> _saveDraft(BuildContext context, Pos notifier) async {
+    final posState = ref.read(posProvider);
+    final paymentAccountId = _effectivePaymentAccountId(posState);
+    if (!_useSplitPayments &&
+        (posState.paymentAccounts.isEmpty || paymentAccountId == null)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Select a payment account — configure accounts under Payments management.',
+          ),
+        ),
+      );
+      return;
+    }
+
     List<PaymentAllocation>? allocations;
     if (_useSplitPayments) {
       if (!_isAllocationValid(ref.read(posProvider).total)) {
@@ -694,7 +713,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
     }
 
     final success = await notifier.saveDraft(
-      paymentMethod: _paymentMethod,
+      paymentMethod: paymentAccountId ?? '',
       allocations: allocations,
       notes: _notesController.text.trim().isEmpty
           ? null

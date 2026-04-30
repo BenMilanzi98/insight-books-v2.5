@@ -2,13 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:insightbooks_android/core/theme/app_theme.dart';
 import '../../domain/dashboard_data.dart';
 
-class StockAlertsList extends StatelessWidget {
+const int _kStockAlertsPreviewCount = 5;
+
+class StockAlertsList extends StatefulWidget {
   final List<StockAlert> alerts;
 
   const StockAlertsList({super.key, required this.alerts});
 
   @override
+  State<StockAlertsList> createState() => _StockAlertsListState();
+}
+
+class _StockAlertsListState extends State<StockAlertsList> {
+  bool _showAll = false;
+
+  @override
   Widget build(BuildContext context) {
+    final alerts = widget.alerts;
     if (alerts.isEmpty) {
       final successColor = AppTheme.successColor(context);
       return Padding(
@@ -42,6 +52,12 @@ class StockAlertsList extends StatelessWidget {
       );
     }
 
+    final total = alerts.length;
+    final visibleCount =
+        _showAll ? total : total.clamp(0, _kStockAlertsPreviewCount);
+    final visible = alerts.take(visibleCount).toList();
+    final hasMore = total > _kStockAlertsPreviewCount;
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Column(
@@ -67,18 +83,44 @@ class StockAlertsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Stock Alerts',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary(context),
+              Expanded(
+                child: Text(
+                  'Stock Alerts',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary(context),
+                  ),
                 ),
               ),
+              if (total > 0)
+                Text(
+                  '$total',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textSecondary(context),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
-          ...alerts.map((alert) => _buildAlertItem(context, alert)),
+          ...visible.map((alert) => _buildAlertItem(context, alert)),
+          if (hasMore) ...[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.center,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _showAll = !_showAll),
+                icon: Icon(_showAll ? Icons.expand_less : Icons.expand_more),
+                label: Text(
+                  _showAll
+                      ? 'Show less'
+                      : 'View ${total - _kStockAlertsPreviewCount} more',
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

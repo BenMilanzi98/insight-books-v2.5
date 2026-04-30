@@ -164,7 +164,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
       );
     }
 
-    // Partial Payment — matches web isEligibleForPartialPayment: pending or partial only
+    // Record payment — matches web isEligibleForPartialPayment: pending or partial only
     if (['pending', 'partial'].contains(status) &&
         permissions.canUpdateInvoices) {
       items.add(
@@ -175,7 +175,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
               Icons.pie_chart,
               color: Theme.of(context).colorScheme.secondary,
             ),
-            title: const Text('Record Partial Payment'),
+            title: const Text('Record Payment'),
           ),
         ),
       );
@@ -683,9 +683,52 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   //  Mark as Paid Dialog
   // ═══════════════════════════════════════════════════
 
+  Future<List<Map<String, dynamic>>?> _loadPaymentAccountsForInvoice() async {
+    try {
+      final list = await ref
+          .read(invoiceRepositoryProvider)
+          .fetchPaymentAccountsLikeManagement();
+      if (!mounted) return null;
+      if (list.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'No payment accounts configured. Add accounts under Payments management on the web.',
+            ),
+          ),
+        );
+        return null;
+      }
+      return list;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              NetworkErrorMapper.toUserMessage(
+                e,
+                fallback: 'Could not load payment accounts',
+              ),
+            ),
+          ),
+        );
+      }
+      return null;
+    }
+  }
+
+  String _paymentAccountDropdownLabel(Map<String, dynamic> acc) {
+    final name = (acc['accountName'] ?? acc['name'] ?? 'Account').toString();
+    final t = (acc['accountType'] ?? '').toString().trim();
+    if (t.isEmpty) return name;
+    return '$name ($t)';
+  }
+
   Future<void> _showMarkAsPaidDialog(Invoice invoice) async {
-    String selectedMethod = 'cash';
-    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+    final accounts = await _loadPaymentAccountsForInvoice();
+    if (!mounted || accounts == null || accounts.isEmpty) return;
+
+    var selectedMethod = accounts.first['id']!.toString();
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -703,20 +746,20 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    key: ValueKey<String>('mark_paid_$selectedMethod'),
-                    initialValue: selectedMethod,
+                    value: selectedMethod,
                     decoration: const InputDecoration(
-                      labelText: 'Payment Method',
+                      labelText: 'Payment account',
                     ),
-                    items: methods
+                    items: accounts
                         .map(
-                          (m) => DropdownMenuItem(
-                            value: m,
-                            child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                          (acc) => DropdownMenuItem<String>(
+                            value: acc['id']!.toString(),
+                            child: Text(_paymentAccountDropdownLabel(acc)),
                           ),
                         )
                         .toList(),
-                    onChanged: (v) => setDialogState(() => selectedMethod = v!),
+                    onChanged: (v) =>
+                        setDialogState(() => selectedMethod = v ?? selectedMethod),
                   ),
                 ],
               ),
@@ -771,10 +814,12 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   // ═══════════════════════════════════════════════════
 
   Future<void> _showPartialPaymentSheet(Invoice invoice) async {
+    final accounts = await _loadPaymentAccountsForInvoice();
+    if (accounts == null || accounts.isEmpty) return;
+
     final amountCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
-    String method = 'cash';
-    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+    var method = accounts.first['id']!.toString();
     final formKey = GlobalKey<FormState>();
 
     final confirmed = await showModalBottomSheet<bool>(
@@ -800,7 +845,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Record Partial Payment',
+                      'Record Payment',
                       style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -833,20 +878,20 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      key: ValueKey<String>('partial_pay_$method'),
-                      initialValue: method,
+                      value: method,
                       decoration: const InputDecoration(
-                        labelText: 'Payment Method',
+                        labelText: 'Payment account',
                       ),
-                      items: methods
+                      items: accounts
                           .map(
-                            (m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                            (acc) => DropdownMenuItem<String>(
+                              value: acc['id']!.toString(),
+                              child: Text(_paymentAccountDropdownLabel(acc)),
                             ),
                           )
                           .toList(),
-                      onChanged: (v) => setSheetState(() => method = v!),
+                      onChanged: (v) =>
+                          setSheetState(() => method = v ?? method),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -1006,11 +1051,13 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
   // ═══════════════════════════════════════════════════
 
   Future<void> _showRefundSheet(Invoice invoice) async {
+    final accounts = await _loadPaymentAccountsForInvoice();
+    if (!mounted || accounts == null || accounts.isEmpty) return;
+
     final amountCtrl = TextEditingController();
     final reasonCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
-    String method = 'cash';
-    final methods = ['cash', 'bank_transfer', 'mobile_money', 'card', 'cheque'];
+    var method = accounts.first['id']!.toString();
     final formKey = GlobalKey<FormState>();
 
     final confirmed = await showModalBottomSheet<bool>(
@@ -1083,20 +1130,20 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      key: ValueKey<String>('refund_$method'),
-                      initialValue: method,
+                      value: method,
                       decoration: const InputDecoration(
-                        labelText: 'Refund Method',
+                        labelText: 'Refund account',
                       ),
-                      items: methods
+                      items: accounts
                           .map(
-                            (m) => DropdownMenuItem(
-                              value: m,
-                              child: Text(m.replaceAll('_', ' ').toUpperCase()),
+                            (acc) => DropdownMenuItem<String>(
+                              value: acc['id']!.toString(),
+                              child: Text(_paymentAccountDropdownLabel(acc)),
                             ),
                           )
                           .toList(),
-                      onChanged: (v) => setSheetState(() => method = v!),
+                      onChanged: (v) =>
+                          setSheetState(() => method = v ?? method),
                     ),
                     const SizedBox(height: 12),
                     TextFormField(

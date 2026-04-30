@@ -168,15 +168,8 @@ class DashboardScreen extends ConsumerWidget {
         const SizedBox(height: 24),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: Text(
-            'Recent Transactions',
-            style: Theme.of(
-              context,
-            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
+          child: RecentTransactionsTable(transactions: data.recentTransactions),
         ),
-        const SizedBox(height: 12),
-        RecentTransactionsTable(transactions: data.recentTransactions),
       ],
     );
   }
