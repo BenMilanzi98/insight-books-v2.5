@@ -37,8 +37,7 @@
     "normalize:expenses": "node scripts/normalize-expense-categories.js",
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run",
-    "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
-    "audit:gl": "node scripts/audit-gl.cjs"
+    "coa:snapshot": "node scripts/coa-snapshot-export.cjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
 
 const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
   let expenseAccount = null;
@@ -44,7 +44,8 @@ const resolveExpenseAccount = async (tenantId, expenseAccountId, category) => {
     });
   }
 
-  if (!expenseAccount || !isTenantExpenseCategoryAccount(expenseAccount)) return null;
+  const glCode = expenseAccount?.accountCode || expenseAccount?.code || '';
+  if (!expenseAccount || !isSystemExpenseStructureCode(glCode)) return null;
   return expenseAccount;
 };
 

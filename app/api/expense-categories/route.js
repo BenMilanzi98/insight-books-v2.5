@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
 
 /**
  * GET /api/expense-categories
@@ -48,18 +48,13 @@ export async function GET(request) {
       }
     });
 
-    const allowed = categories.filter((cat) => {
-      if (cat.account) return isTenantExpenseCategoryAccount(cat.account);
-      const code = cat.accountCode || '';
-      return isTenantExpenseCategoryAccount({
-        accountCode: code,
-        accountType: 'Expense',
-        mergedIntoAccountId: null,
-      });
+    const systemOnly = categories.filter((cat) => {
+      const code = cat.account?.accountCode || cat.account?.code || cat.accountCode || '';
+      return isSystemExpenseStructureCode(code);
     });
 
     return NextResponse.json({
-      categories: allowed.map(cat => ({
+      categories: systemOnly.map(cat => ({
         id: cat.id,
         name: cat.name,
         description: cat.description,
@@ -81,13 +76,13 @@ export async function GET(request) {
 }
 
 /**
- * POST /api/expense-categories — disabled; link GL via Chart of Accounts (expense range 5000–5999).
+ * POST /api/expense-categories — disabled; categories are fixed to SYSTEM CoA codes.
  */
 export async function POST() {
   return NextResponse.json(
     {
       error:
-        'Creating expense categories from the app is disabled. Add expense accounts under Chart of accounts; they appear in expenses automatically.',
+        'Creating expense categories from the app is disabled. Use the predefined SYSTEM expense accounts (chart of accounts structure).',
     },
     { status: 403 }
   );

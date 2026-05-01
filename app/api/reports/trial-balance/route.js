@@ -7,8 +7,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
- * Canonical trial balance API (journal-driven; accountant-friendly).
- * Legacy path `/api/trial-balance` delegates to the same `buildTrialBalance` engine.
+ * Trial Balance (journal-driven; accountant-friendly)
  *
  * Core rule: calculated from POSTED journal entries + lines.
  * Never “fix” imbalances at report level.
