@@ -3,7 +3,6 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
 
 /**
  * GET handler for individual asset
@@ -40,13 +39,6 @@ export async function GET(request, { params }) {
       },
       include: {
         category: true,
-        glAccount: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-          },
-        },
         createdBy: {
           select: {
             id: true,
@@ -171,22 +163,7 @@ export async function PUT(request, { params }) {
       );
     }
 
-    if (!body.glAccountId) {
-      return NextResponse.json(
-        { error: 'Fixed asset GL account (under 1500) is required.' },
-        { status: 400 }
-      );
-    }
-    try {
-      await assertAccountInSubtree(prisma, user.tenantId, body.glAccountId, '1500');
-    } catch (glErr) {
-      return NextResponse.json(
-        { error: glErr.message || 'Invalid fixed asset GL account' },
-        { status: 400 }
-      );
-    }
-
-    // Update asset (changing glAccountId does not re-post historical journals)
+    // Update asset
     const updatedAsset = await prisma.asset.update({
       where: { id: id },
       data: {
@@ -204,14 +181,10 @@ export async function PUT(request, { params }) {
         warrantyExpiry: body.warrantyExpiry ? new Date(body.warrantyExpiry) : null,
         notes: body.notes,
         isExistingAsset: body.isExistingAsset || false,
-        accumulatedDepreciation: parseFloat(body.accumulatedDepreciation) || 0,
-        glAccountId: body.glAccountId,
+        accumulatedDepreciation: parseFloat(body.accumulatedDepreciation) || 0
       },
       include: {
         category: true,
-        glAccount: {
-          select: { id: true, accountCode: true, accountName: true },
-        },
         createdBy: {
           select: {
             id: true,

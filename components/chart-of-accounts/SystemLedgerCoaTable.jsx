@@ -21,13 +21,13 @@ import {
   SYSTEM_COA_STRUCTURE,
   groupAccountsByCode,
   sumLedgerBalances,
+  structureRowDisplayBalance,
   pickPrimaryAccountForStructure,
   accountsFor1130ExtraDropdown,
   accountsForCatchAllDropdown,
   accountsFor3100CapitalDropdown,
   accountTypeForStructureCode,
 } from '@/lib/coaSystemStructureTree.js';
-import { structureNodeBalanceBreakdown } from '@/lib/coaStructureDisplayBalance.js';
 
 const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
 
@@ -149,8 +149,6 @@ export default function SystemLedgerCoaTable({
     [accounts]
   );
 
-  const structureBalanceMemo = useMemo(() => new Map(), [accounts, activeFilter]);
-
   const handleExpandAll = useCallback(() => {
     setExpandedAccounts(new Set(collectStructureExpandKeys(SYSTEM_COA_STRUCTURE)));
   }, []);
@@ -203,14 +201,8 @@ export default function SystemLedgerCoaTable({
     const matches = (accountsByCode.get(node.code) || []).filter((a) =>
       activeFilter ? a.isActive !== false : true
     );
-    const breakdown = structureNodeBalanceBreakdown(
-      node,
-      accountsByCode,
-      dropdownBuckets,
-      activeFilter,
-      structureBalanceMemo
-    );
-    const rowBalance = breakdown.display;
+    // Range catch-alls (5900, …): balances post to codes like 5003 in the bucket, not on 5900 itself.
+    const rowBalance = structureRowDisplayBalance(matches, node.code, dropdownBuckets);
     const primary =
       pickPrimaryAccountForStructure(matches, node.name, node.code) ||
       matches.find((m) => m.isActive !== false) ||
@@ -249,23 +241,9 @@ export default function SystemLedgerCoaTable({
       primary &&
       primary.postedDirectBalance != null &&
       Math.abs(Number(primary.postedDirectBalance) - Number(rowBalance || 0)) > 0.005;
-    const subtreeMismatch =
-      hasStructChildren &&
-      matches.length > 0 &&
-      Math.abs(breakdown.leafSelf - breakdown.childrenSum) > 0.005;
-    const rollupBalanceTitle =
-      showRollupHint || subtreeMismatch
-        ? [
-            showRollupHint
-              ? `Posted on this code only: ${formatCurrency(primary.postedDirectBalance)}. Displayed: ${formatCurrency(rowBalance)}.`
-              : null,
-            subtreeMismatch
-              ? `Visible subtree sums to ${formatCurrency(breakdown.childrenSum)}; rolled row ${formatCurrency(breakdown.leafSelf)}. Check hidden parents or links.`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(' ')
-        : undefined;
+    const rollupBalanceTitle = showRollupHint
+      ? `Posted on this code only: ${formatCurrency(primary.postedDirectBalance)}. Sum of all rows with this code: ${formatCurrency(rowBalance)}.`
+      : undefined;
 
     const isLocked = primary ? primary.isSystem || primary.transactionCount > 0 : true;
     const rowActive = primary ? primary.isActive !== false : true;
@@ -281,10 +259,10 @@ export default function SystemLedgerCoaTable({
               : 'border-l-[3px] border-l-transparent bg-white hover:bg-slate-50/70',
           ].join(' ')}
         >
-          <td className="px-2 py-2.5 align-middle sm:px-4 sm:py-3 md:px-5 md:py-3.5">
+          <td className="px-4 py-3 align-middle sm:px-5 sm:py-3.5">
             <div
               className="flex items-center gap-2.5 min-w-0"
-              style={{ paddingLeft: `${level * 14}px` }}
+              style={{ paddingLeft: `${level * 18}px` }}
             >
               {hasStructChildren ? (
                 <button
@@ -517,7 +495,7 @@ export default function SystemLedgerCoaTable({
               </button>
             </div>
           ) : null}
-          <table className="w-full min-w-[280px] border-collapse text-left text-sm md:min-w-full">
+          <table className="w-full min-w-[720px] border-collapse text-left text-sm sm:min-w-full">
             <thead>
               <tr className="border-b border-slate-200/90 bg-slate-50/95 backdrop-blur-md">
                 <th className="sticky top-0 z-10 whitespace-nowrap px-4 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider text-slate-500 sm:px-5">

@@ -104,15 +104,12 @@ export async function GET(request, { params }) {
       });
     }
 
+    const branchId = user.currentBranchId || null;
     const balanceSources = await computeCoaAccountBalanceBreakdown(
       prisma,
       user.tenantId,
       account,
-      {
-        inventoryUser: user,
-        inventorySearchParams: searchParams,
-        maxInvoiceDetailLines: 50,
-      }
+      { branchId, maxInvoiceDetailLines: 50 }
     );
 
     const balance = balanceSources.displayedRowTotal;

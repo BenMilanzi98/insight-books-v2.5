@@ -8,7 +8,6 @@ import { generateReferenceNumber } from '@/lib/journalService';
 import { updateAccountBalance } from '@/lib/core';
 import { validateTransactionBalance } from '@/lib/accountingValidation';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
-import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
 
 /**
  * GET handler for assets
@@ -99,23 +98,12 @@ export async function GET(request) {
     const totalCount = await prisma.asset.count({
       where
     });
-
-    const unallocatedGlCount = await prisma.asset.count({
-      where: { ...where, glAccountId: null },
-    });
     
     // Fetch assets with category information
     const assets = await prisma.asset.findMany({
       where,
       include: {
         category: true,
-        glAccount: {
-          select: {
-            id: true,
-            accountCode: true,
-            accountName: true,
-          },
-        },
         createdBy: {
           select: {
             id: true,
@@ -152,7 +140,6 @@ export async function GET(request) {
     
     return NextResponse.json({
       assets: assetsWithValues,
-      unallocatedGlCount,
       pagination: {
         page,
         limit,
@@ -225,21 +212,6 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    if (!body.glAccountId) {
-      return NextResponse.json(
-        { error: 'Fixed asset GL account (under 1500) is required.' },
-        { status: 400 }
-      );
-    }
-    try {
-      await assertAccountInSubtree(prisma, tenantId, body.glAccountId, '1500');
-    } catch (glErr) {
-      return NextResponse.json(
-        { error: glErr.message || 'Invalid fixed asset GL account' },
-        { status: 400 }
-      );
-    }
     
     // Resolve payment method to account ID if provided
     let paymentAccountId = null;
@@ -290,14 +262,10 @@ export async function POST(request) {
         isExistingAsset: body.isExistingAsset || false,
         accumulatedDepreciation: parseFloat(body.accumulatedDepreciation) || 0,
         tenantId: tenantId,
-        createdById: user.id,
-        glAccountId: body.glAccountId,
+        createdById: user.id
       },
       include: {
         category: true,
-        glAccount: {
-          select: { id: true, accountCode: true, accountName: true },
-        },
         createdBy: {
           select: {
             id: true,
@@ -374,56 +342,43 @@ async function createAssetJournalEntry(asset, entryType, tenantId, userId, payme
   try {
     console.log('Creating asset journal entry:', { assetId: asset.id, entryType, paymentAccountId, paymentMethodKey });
     
-    let assetAccount = null;
-    if (asset.glAccountId) {
-      assetAccount = await prisma.account.findFirst({
-        where: {
-          id: asset.glAccountId,
-          tenantId,
-          accountType: 'Asset',
-          isActive: true,
-        },
-      });
-      if (!assetAccount) {
-        throw new Error('Selected fixed asset GL account is missing or inactive');
+    // Get or create asset account
+    let assetAccount = await prisma.account.findFirst({
+      where: {
+        tenantId: tenantId,
+        accountName: { contains: asset.category.name, mode: 'insensitive' },
+        accountType: 'Asset',
+        isActive: true
       }
-    } else {
-      // Legacy: category-named auto account (no glAccountId — pre-migration rows only)
+    });
+    
+    // If not found, try with legacy fields
+    if (!assetAccount) {
       assetAccount = await prisma.account.findFirst({
         where: {
           tenantId: tenantId,
-          accountName: { contains: asset.category.name, mode: 'insensitive' },
-          accountType: 'Asset',
+          name: { contains: asset.category.name, mode: 'insensitive' },
+          type: 'ASSET',
           isActive: true
         }
       });
-
-      if (!assetAccount) {
-        assetAccount = await prisma.account.findFirst({
-          where: {
-            tenantId: tenantId,
-            name: { contains: asset.category.name, mode: 'insensitive' },
-            type: 'ASSET',
-            isActive: true
-          }
-        });
-      }
-
-      if (!assetAccount) {
-        const accountCode = generateAssetAccountCode(asset.category.name);
-        assetAccount = await prisma.account.create({
-          data: {
-            accountCode: accountCode,
-            accountName: `${asset.category.name} Assets`,
-            accountType: 'Asset',
-            accountSubtype: 'fixed',
-            normalBalance: 'Debit',
-            isActive: true,
-            tenantId: tenantId
-          }
-        });
-        console.log('Created asset account:', assetAccount.id);
-      }
+    }
+    
+    if (!assetAccount) {
+      // Create asset account if it doesn't exist (accountSubtype 'fixed' so balance sheet shows under PP&E)
+      const accountCode = generateAssetAccountCode(asset.category.name);
+      assetAccount = await prisma.account.create({
+        data: {
+          accountCode: accountCode,
+          accountName: `${asset.category.name} Assets`,
+          accountType: 'Asset',
+          accountSubtype: 'fixed',
+          normalBalance: 'Debit',
+          isActive: true,
+          tenantId: tenantId
+        }
+      });
+      console.log('Created asset account:', assetAccount.id);
     }
     
     // Get or create accumulated depreciation account

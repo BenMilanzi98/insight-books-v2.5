@@ -551,6 +551,12 @@ const ChartOfAccountsPage = () => {
                   <h1 className="mt-2.5 text-2xl font-bold tracking-tight text-slate-900 sm:text-[2.35rem] sm:leading-[1.15]">
                     Chart of accounts
                   </h1>
+                  <p className="mt-3 max-w-xl text-sm leading-relaxed text-slate-600 sm:text-[15px]">
+                    The main tree matches the standard SYSTEM structure (same for every tenant). Your existing GL
+                    codes attach by <span className="font-mono font-semibold text-slate-800">accountCode</span>; extras
+                    appear in the dropdowns on Bank - Primary (1130), Owner's Capital (3100), and the range
+                    catch-all lines.
+                  </p>
                 </div>
               </div>
               <div className="flex flex-col gap-3 lg:items-end">
@@ -597,8 +603,8 @@ const ChartOfAccountsPage = () => {
           </header>
 
           {/* Toolbar */}
-          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:p-5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-3">
-            <div className="relative min-w-0 w-full lg:max-w-xl lg:flex-1">
+          <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:p-5">
+            <div className="relative min-w-0 flex-1 max-w-xl">
               <Search
                 size={18}
                 className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 sm:left-4"
@@ -612,64 +618,60 @@ const ChartOfAccountsPage = () => {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:w-auto lg:min-w-0 lg:flex-1 lg:justify-end">
-              <div className="inline-flex w-full items-center justify-center rounded-xl border border-indigo-200/80 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-900 sm:w-auto sm:justify-start">
-                Period: {periodLabel}
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:w-auto sm:items-center sm:gap-2">
-                <select
-                  value={accountTypeFilter}
-                  onChange={(e) => setAccountTypeFilter(e.target.value)}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[8.5rem] sm:px-4"
-                >
-                  <option value="All">All types</option>
-                  {accountTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-                <label className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto sm:px-4">
-                  <input
-                    type="checkbox"
-                    checked={activeFilter}
-                    onChange={(e) => setActiveFilter(e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
-                  />
-                  Active only
-                </label>
-                <select
-                  value={datePreset}
-                  onChange={(e) => setDatePreset(e.target.value)}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[9rem] sm:px-4"
-                >
-                  <option value="day">Today</option>
-                  <option value="week">This week</option>
-                  <option value="month">This month</option>
-                  <option value="year">This year</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-              <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-stretch">
+            <div className="inline-flex items-center rounded-xl border border-indigo-200/80 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-900">
+              Period: {periodLabel}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={accountTypeFilter}
+                onChange={(e) => setAccountTypeFilter(e.target.value)}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              >
+                <option value="All">All types</option>
+                {accountTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
+              <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:px-4">
                 <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => {
-                    setDatePreset('custom');
-                    setDateFrom(e.target.value);
-                  }}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[11rem] sm:px-4"
+                  type="checkbox"
+                  checked={activeFilter}
+                  onChange={(e) => setActiveFilter(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500/30"
                 />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => {
-                    setDatePreset('custom');
-                    setDateTo(e.target.value);
-                  }}
-                  className="min-h-[44px] w-full min-w-0 flex-1 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:w-auto sm:min-w-[11rem] sm:px-4"
-                />
-              </div>
+                Active only
+              </label>
+              <select
+                value={datePreset}
+                onChange={(e) => setDatePreset(e.target.value)}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              >
+                <option value="day">Today</option>
+                <option value="week">This week</option>
+                <option value="month">This month</option>
+                <option value="year">This year</option>
+                <option value="custom">Custom</option>
+              </select>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDatePreset('custom');
+                  setDateFrom(e.target.value);
+                }}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDatePreset('custom');
+                  setDateTo(e.target.value);
+                }}
+                className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 sm:px-4"
+              />
             </div>
           </div>
 

@@ -3,10 +3,47 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
-import {
-  buildPhysicalInventoryWhere,
-  sumPhysicalInventoryProductLines,
-} from '@/lib/stockValuationAggregate';
+import { resolveProductListBranchId } from '@/lib/branchAccess';
+import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
+
+/**
+ * Same branch rules as app/api/stock/route.js for the current tenant.
+ * @returns {Promise<object|null>} Extra conjunct for AND (null = no branch filter).
+ */
+async function branchScopeClauseForStockStatistics(user, searchParams) {
+  const allBranchesParam = searchParams.get('allBranches');
+  const allBranches =
+    allBranchesParam == null || allBranchesParam === ''
+      ? true
+      : /^(1|true|yes)$/i.test(String(allBranchesParam));
+  const branchIdParam = searchParams.get('branchId')?.trim() || null;
+
+  if (allBranches && !branchIdParam) {
+    const allowed = user?.allowedBranchIds;
+    if (Array.isArray(allowed) && allowed.length === 0) {
+      return { id: { in: [] } };
+    }
+    if (allowed == null) {
+      return null;
+    }
+    return { OR: [{ branchId: null }, { branchId: { in: allowed } }] };
+  }
+
+  const desiredBranchId = resolveProductListBranchId(user, branchIdParam);
+  if (desiredBranchId === false) {
+    return { id: { in: [] } };
+  }
+  if (desiredBranchId && typeof desiredBranchId === 'string') {
+    const branch = await prisma.branch.findFirst({
+      where: { id: desiredBranchId, tenantId: user.tenantId, isActive: true },
+      select: { id: true },
+    });
+    if (branch) {
+      return { OR: [{ branchId: desiredBranchId }, { branchId: null }] };
+    }
+  }
+  return null;
+}
 
 // GET - Fetch inventory statistics with fallbacks
 export async function GET(request) {
@@ -18,40 +55,35 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const tenantId = user.tenantId;
+    const branchClause = await branchScopeClauseForStockStatistics(user, searchParams);
 
-    const { physicalWhere, branchClause, useDeletedFilter } = await buildPhysicalInventoryWhere(
-      prisma,
-      tenantId,
-      user,
-      searchParams
-    );
+    let useDeletedFilter = false;
+    try {
+      const probeWhere = {
+        AND: [
+          { tenantId },
+          { isService: false },
+          ...(branchClause ? [branchClause] : []),
+          { isDeleted: false },
+        ],
+      };
+      await prisma.product.findFirst({ where: probeWhere, select: { id: true } });
+      useDeletedFilter = true;
+    } catch {
+      useDeletedFilter = false;
+    }
 
-    const productSelect = {
-      id: true,
-      name: true,
-      stockLevel: true,
-      cost: true,
-      totalStockValue: true,
-      averageCost: true,
-      lastPurchaseCost: true,
-      reorderPoint: true,
+    const buildProductWhere = (isService) => {
+      const parts = [{ tenantId }, { isService }];
+      if (useDeletedFilter) parts.push({ isDeleted: false });
+      if (branchClause) parts.push(branchClause);
+      return { AND: parts };
     };
 
-    const [totalItems, products] = await Promise.all([
-      prisma.product.count({ where: physicalWhere }),
-      prisma.product.findMany({ where: physicalWhere, select: productSelect }),
-    ]);
+    const physicalWhere = buildProductWhere(false);
+    const serviceWhere = buildProductWhere(true);
 
-    const totalValueNum = sumPhysicalInventoryProductLines(products);
-
-    const serviceWhere = {
-      AND: [
-        { tenantId },
-        { isService: true },
-        ...(useDeletedFilter ? [{ isDeleted: false }] : []),
-        ...(branchClause ? [branchClause] : []),
-      ],
-    };
+    const totalItems = await prisma.product.count({ where: physicalWhere });
 
     let serviceCount = 0;
     try {
@@ -60,11 +92,31 @@ export async function GET(request) {
       serviceCount = 0;
     }
 
+    const products = await prisma.product.findMany({
+      where: physicalWhere,
+      select: {
+        id: true,
+        name: true,
+        stockLevel: true,
+        cost: true,
+        averageCost: true,
+        lastPurchaseCost: true,
+        totalStockValue: true,
+        reorderPoint: true,
+      },
+    });
+
     let lowStock = 0;
     let outOfStock = 0;
+    let totalValue = 0;
 
     products.forEach((product) => {
       const stockLevel = Number(product.stockLevel) || 0;
+      const cost = resolveProductCostPriceForDisplay(product);
+      const stored = product.totalStockValue != null ? Number(product.totalStockValue) : null;
+      const productValue = stored != null && stored > 0 ? stored : stockLevel * cost;
+      totalValue += productValue;
+
       const reorderPoint = product.reorderPoint || 10;
 
       if (stockLevel === 0) {
@@ -93,7 +145,7 @@ export async function GET(request) {
     return NextResponse.json({
       totalItems,
       serviceCount,
-      totalValue: totalValueNum.toLocaleString(undefined, {
+      totalValue: totalValue.toLocaleString(undefined, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }),
