@@ -18,11 +18,20 @@ export async function POST(request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        ownerUserId: true,
+      },
     });
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
     let hasAccess = user.role?.name === 'MASTER_ADMIN';
+
+    if (!hasAccess && tenant.ownerUserId === user.id) {
+      hasAccess = true;
+    }
 
     if (!hasAccess) {
       const [membership, legacyUser] = await Promise.all([

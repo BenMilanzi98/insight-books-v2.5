@@ -68,8 +68,9 @@ export async function GET(request) {
     // Businesses the user may access:
     // 1) TenantMembership (canonical for multi-business RBAC) — may exist without User↔Tenant M2M rows
     // 2) Legacy UserTenants many-to-many
-    // 3) Primary user.tenantId (active session / home tenant)
-    const [membershipRows, userWithTenants] = await Promise.all([
+    // 3) Tenants where this user is recorded owner (ownerUserId) — older flows / failed membership writes
+    // 4) Primary user.tenantId (active session / home tenant)
+    const [membershipRows, userWithTenants, ownedTenants] = await Promise.all([
       prisma.tenantMembership.findMany({
         where: {
           userId: user.id,
@@ -88,6 +89,11 @@ export async function GET(request) {
           },
         },
       }),
+      prisma.tenant.findMany({
+        where: { ownerUserId: user.id },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      }),
     ]);
 
     const byTenantId = new Map();
@@ -100,6 +106,11 @@ export async function GET(request) {
       }
     }
     for (const t of userWithTenants?.tenants || []) {
+      if (t?.id && !byTenantId.has(t.id)) {
+        byTenantId.set(t.id, { id: t.id, name: t.name });
+      }
+    }
+    for (const t of ownedTenants || []) {
       if (t?.id && !byTenantId.has(t.id)) {
         byTenantId.set(t.id, { id: t.id, name: t.name });
       }

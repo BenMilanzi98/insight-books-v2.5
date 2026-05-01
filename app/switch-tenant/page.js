@@ -27,20 +27,33 @@ export default function SwitchTenantPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [isSwitching, setIsSwitching] = useState(false);
 
+  const fetchTenantList = async () => {
+    const res = await fetch('/api/tenant/list', {
+      credentials: 'include',
+      cache: 'no-store',
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || 'Failed to load businesses');
+    }
+    setTenants(data.tenants || []);
+    setCurrentTenantId(data.currentTenantId ?? null);
+  };
+
   useEffect(() => {
-    const fetchTenants = async () => {
+    let cancelled = false;
+    (async () => {
       try {
-        const res = await fetch('/api/tenant/list');
-        const data = await res.json();
-        setTenants(data.tenants || []);
-        setCurrentTenantId(data.currentTenantId);
+        await fetchTenantList();
       } catch (error) {
-        console.error('Error fetching tenants:', error);
+        if (!cancelled) console.error('Error fetching tenants:', error);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-    fetchTenants();
   }, []);
 
   const handleTenantSelect = async (tenant) => {
@@ -51,6 +64,7 @@ export default function SwitchTenantPage() {
       const res = await fetch('/api/tenant/switch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ tenantId: tenant.id })
       });
       
@@ -72,14 +86,24 @@ export default function SwitchTenantPage() {
       const res = await fetch('/api/tenant/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ name: newTenantName })
       });
       const data = await res.json();
       
       if (res.ok) {
-        setTenants([...tenants, data.tenant]);
         setShowAddModal(false);
         setNewTenantName('');
+        try {
+          await fetchTenantList();
+        } catch {
+          setTenants((prev) => {
+            const t = data.tenant;
+            if (!t?.id) return prev;
+            if (prev.some((x) => x.id === t.id)) return prev;
+            return [...prev, { id: t.id, name: t.name, subscription: {} }];
+          });
+        }
       }
     } catch (error) {
       console.error('Error adding tenant:', error);
