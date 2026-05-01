@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import Link from 'next/link';
 import {
   Plus,
   Search,
@@ -621,27 +620,6 @@ const ChartOfAccountsPage = () => {
               </div>
             </div>
           </header>
-
-          <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3.5 text-xs leading-relaxed text-slate-700 shadow-sm ring-1 ring-slate-900/[0.03] sm:px-5 sm:text-sm">
-            <p className="font-semibold text-slate-900">Balance basis</p>
-            <p className="mt-1.5">
-              Grid totals use <strong>posted</strong> GL in the selected date range (when set), merge roll-ups, and chart rules (e.g. inventory). The API exposes{' '}
-              <code className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-800">balanceSource</code> and{' '}
-              <code className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-800">reconciliationHint</code> on each account in{' '}
-              <strong>Account details</strong> so you can see AR / inventory / legacy vs pure posted GL.
-            </p>
-            <p className="mt-2 text-slate-600">
-              For period-based <strong>debits = credits</strong> proof, use{' '}
-              <Link href="/trial-balance" className="font-semibold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900">
-                Trial balance
-              </Link>
-              . Internal engine checks:{' '}
-              <code className="font-mono text-[11px] text-slate-700">GET /api/reports/gl-reconciliation?startDate=&amp;endDate=</code>{' '}
-              (optional <code className="font-mono text-[11px]">branchId</code>) or CLI{' '}
-              <code className="font-mono text-[11px] text-slate-700">npm run audit:gl -- &lt;start&gt; &lt;end&gt;</code>{' '}
-              with <code className="font-mono text-[11px]">AUDIT_GL_TENANT_ID</code> or session env (see <code className="font-mono text-[11px]">scripts/audit-gl.cjs</code>).
-            </p>
-          </div>
 
           {/* Toolbar */}
           <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:p-5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-3">
