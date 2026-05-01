@@ -18,6 +18,7 @@ import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
 import { journalAccountOptionLabel, sortAccountsForJournalSelect } from "@/lib/journalAccountSelect";
+import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
 
 const JournalEntries = () => {
   // State variables
@@ -402,8 +403,14 @@ const JournalEntries = () => {
       lines: entry.lines.map(line => ({
         accountId: line.accountId,
         description: line.description || "",
-        debit: line.debit ? line.debit.toString() : "",
-        credit: line.credit ? line.credit.toString() : ""
+        debit: (() => {
+          const v = coerceJournalAmount(line.debit ?? line.debitAmount);
+          return Math.abs(v) > 1e-9 ? String(v) : "";
+        })(),
+        credit: (() => {
+          const v = coerceJournalAmount(line.credit ?? line.creditAmount);
+          return Math.abs(v) > 1e-9 ? String(v) : "";
+        })()
       }))
     };
     
@@ -554,8 +561,8 @@ const handleDeleteEntry = async (entryId) => {
     let totalCredit = 0;
     
     entryFormData.lines.forEach(line => {
-      totalDebit += parseFloat(line.debit || 0);
-      totalCredit += parseFloat(line.credit || 0);
+      totalDebit += coerceJournalAmount(line.debit ?? line.debitAmount);
+      totalCredit += coerceJournalAmount(line.credit ?? line.creditAmount);
     });
     
     return { totalDebit, totalCredit };
@@ -783,8 +790,8 @@ const handleDeleteEntry = async (entryId) => {
                   const rowSpan = lines.length || 1;
 
                   return lines.map((line, index) => {
-                    const debitValue = line.debit ?? line.debitAmount ?? 0;
-                    const creditValue = line.credit ?? line.creditAmount ?? 0;
+                    const debitValue = coerceJournalAmount(line.debit ?? line.debitAmount);
+                    const creditValue = coerceJournalAmount(line.credit ?? line.creditAmount);
                     const accountCode = line.account?.accountCode || line.account?.code || line.accountCode || '—';
                     const accountName = line.account?.accountName || line.account?.name || line.accountName || 'Unnamed Account';
 
@@ -818,10 +825,10 @@ const handleDeleteEntry = async (entryId) => {
                           {line.description || entry.description || '—'}
                         </td>
                         <td className="p-3 text-right font-medium text-amber-700">
-                          {debitValue ? formatCurrency(debitValue) : '—'}
+                          {Math.abs(debitValue) > 1e-9 ? formatCurrency(debitValue) : '—'}
                         </td>
                         <td className="p-3 text-right font-medium text-emerald-700">
-                          {creditValue ? formatCurrency(creditValue) : '—'}
+                          {Math.abs(creditValue) > 1e-9 ? formatCurrency(creditValue) : '—'}
                         </td>
                         {index === 0 && (
                           <>
@@ -1199,17 +1206,17 @@ const handleDeleteEntry = async (entryId) => {
                         <tr key={index} className="border-t border-gray-200">
                           <td className="p-3">{line.accountCode} - {line.accountName}</td>
                           <td className="p-3">{line.description || viewEntry.description}</td>
-                          <td className="p-3 text-right">{formatCurrency(line.debit || 0)}</td>
-                          <td className="p-3 text-right">{formatCurrency(line.credit || 0)}</td>
+                          <td className="p-3 text-right">{formatCurrency(coerceJournalAmount(line.debit ?? line.debitAmount))}</td>
+                          <td className="p-3 text-right">{formatCurrency(coerceJournalAmount(line.credit ?? line.creditAmount))}</td>
                         </tr>
                       ))}
                       <tr className="border-t border-gray-200 bg-gray-50 font-medium">
                         <td colSpan="2" className="p-3 text-right">Totals</td>
                         <td className="p-3 text-right">
-                          {formatCurrency(viewEntry.lines.reduce((sum, line) => sum + (line.debit || 0), 0))}
+                          {formatCurrency(viewEntry.lines.reduce((sum, line) => sum + coerceJournalAmount(line.debit ?? line.debitAmount), 0))}
                         </td>
                         <td className="p-3 text-right">
-                          {formatCurrency(viewEntry.lines.reduce((sum, line) => sum + (line.credit || 0), 0))}
+                          {formatCurrency(viewEntry.lines.reduce((sum, line) => sum + coerceJournalAmount(line.credit ?? line.creditAmount), 0))}
                         </td>
                       </tr>
                     </tbody>

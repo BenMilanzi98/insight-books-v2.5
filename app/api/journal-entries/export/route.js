@@ -4,6 +4,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
 import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
+import { formatJournalEntries } from '@/lib/journalEntryFormatter';
 
 const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
 
@@ -159,7 +160,7 @@ export async function GET(request) {
     
     // Process data based on the requested format
     if (format.toLowerCase() === 'csv') {
-      return generateCsvResponse(entries);
+      return generateCsvResponse(formatJournalEntries(entries));
     } else {
       // Unsupported format
       return NextResponse.json(
@@ -190,14 +191,19 @@ function generateCsvResponse(entries) {
       entry.lines.forEach(line => {
         const account = line.account || {};
         csvData.push({
-          date: entry.entryDate ? entry.entryDate.toISOString().split('T')[0] : '',
+          date: (entry.entryDate || entry.date)
+            ? new Date(entry.entryDate || entry.date).toISOString().split('T')[0]
+            : '',
           reference: entry.referenceNumber || '',
           description: entry.description || '',
-          account_code: account.accountCode || account.code || 'N/A',
-          account_name: account.accountName || account.name || 'N/A',
-          account_type: account.accountType || account.type || 'N/A',
-          debit: line.debitAmount || 0,
-          credit: line.creditAmount || 0,
+          account_code:
+            line.accountCode || account.accountCode || account.code || 'N/A',
+          account_name:
+            line.accountName || account.accountName || account.name || 'N/A',
+          account_type:
+            line.accountType || account.accountType || account.type || 'N/A',
+          debit: line.debitAmount ?? line.debit ?? 0,
+          credit: line.creditAmount ?? line.credit ?? 0,
           status: entry.status || 'Posted'
         });
       });

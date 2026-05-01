@@ -17,6 +17,7 @@ import {
   groupAccountsForJournalSelect,
   journalAccountOptionLabel,
 } from "@/lib/journalAccountSelect";
+import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
 
 const JournalEntryForm = ({ existingEntry = null }) => {
   const router = useRouter();
@@ -61,11 +62,17 @@ const JournalEntryForm = ({ existingEntry = null }) => {
         entryType: existingEntry.entryType || "Correction",
         description: existingEntry.description || "",
         internalReference: existingEntry.notes || "",
-        lines: existingEntry.lines.map(entry => ({
-          accountId: entry.accountId || "",
-          description: entry.description || "",
-          debit: entry.debit > 0 ? entry.debit.toString() : "",
-          credit: entry.credit > 0 ? entry.credit.toString() : ""
+        lines: existingEntry.lines.map((jl) => ({
+          accountId: jl.accountId || "",
+          description: jl.description || "",
+          debit: (() => {
+            const v = coerceJournalAmount(jl.debit ?? jl.debitAmount);
+            return Math.abs(v) > 1e-9 ? String(v) : "";
+          })(),
+          credit: (() => {
+            const v = coerceJournalAmount(jl.credit ?? jl.creditAmount);
+            return Math.abs(v) > 1e-9 ? String(v) : "";
+          })(),
         }))
       });
     }

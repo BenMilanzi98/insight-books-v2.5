@@ -157,14 +157,11 @@ export async function GET(request, { params }) {
     }
 
     if (action === 'impact') {
-      const totals = entry.lines.reduce(
-        (acc, line) => {
-          acc.debits += line.debitAmount || 0;
-          acc.credits += line.creditAmount || 0;
-          return acc;
-        },
-        { debits: 0, credits: 0 }
-      );
+      const formatted = formatJournalEntry(entry);
+      const totals = {
+        debits: formatted.totalDebit,
+        credits: formatted.totalCredit,
+      };
 
       return NextResponse.json({
         entryId: entry.id,
@@ -174,10 +171,10 @@ export async function GET(request, { params }) {
         status: entry.status,
         totals,
         isBalanced: Math.abs(totals.debits - totals.credits) < 0.0001,
-        lines: entry.lines.map((line) => ({
+        lines: formatted.lines.map((line) => ({
           accountId: line.accountId,
-          accountCode: line.account?.accountCode || line.account?.code || null,
-          accountName: line.account?.accountName || line.account?.name || null,
+          accountCode: line.accountCode,
+          accountName: line.accountName,
           debitAmount: line.debitAmount || 0,
           creditAmount: line.creditAmount || 0,
         })),
