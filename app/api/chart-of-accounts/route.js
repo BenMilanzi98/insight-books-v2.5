@@ -24,8 +24,11 @@ import {
 } from '@/lib/coaChartRollup.js';
 import { loadCoaBulkGlAggregates } from '@/lib/coaBulkGlAggregation.js';
 import { getTenantFiscalYearStartMonth } from '@/lib/accountingPeriodService';
-import { roundCents } from '@/lib/coaMoney.js';
-import { computePhysicalInventoryValuationTotal } from '@/lib/stockValuationAggregate.js';
+import { roundCents, inferCoaNormalBalance } from '@/lib/coaMoney.js';
+import {
+  alignInventorySearchParamsWithGlBranch,
+  computePhysicalInventoryValuationTotal,
+} from '@/lib/stockValuationAggregate.js';
 import {
   blueprintCatalogTitleForCode,
   alignChartAccountsListToBlueprint,
@@ -427,22 +430,34 @@ export async function GET(request) {
       return sum + Math.max(0, inv.actualRemaining); // Use actual calculated remaining
     }, 0);
 
-    // Inventory — movement-based as-of when date filter set; else current valuation (same branch scope as /stock).
+    /** When set, GL transaction lines match branch-scoped registers (e.g. expenses). */
+    const glBranchFilter =
+      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
+        ? { branchId: user.currentBranchId }
+        : {};
+
+    const inventorySearchAligned = alignInventorySearchParamsWithGlBranch(searchParams, glBranchFilter);
+
+    // Inventory — live valuation matching GET /api/stock/statistics (same branch scope as GL above).
+    // Date filters apply to posted GL only; inventory overlay stays aligned with Stock Management so 1300 matches /stock.
     let totalInventoryValue = 0;
     let inventoryProductCount = 0;
     let inventoryValuationNote = null;
     try {
-      const asOfInv = dateRange.to || dateRange.from;
       const invAgg = await computePhysicalInventoryValuationTotal(
         prisma,
         user.tenantId,
         user,
-        searchParams,
-        hasDateFilter && asOfInv ? { asOfDate: asOfInv } : {}
+        inventorySearchAligned,
+        {}
       );
       totalInventoryValue = invAgg.total;
       inventoryProductCount = invAgg.productCount;
-      inventoryValuationNote = invAgg.valuationNote ?? null;
+      inventoryValuationNote =
+        invAgg.valuationNote ??
+        (hasDateFilter
+          ? 'Inventory total matches Stock Management (live); chart date filters apply to posted GL on accounts, not to this inventory aggregate.'
+          : null);
     } catch (error) {
       console.error('Error fetching inventory aggregate for chart:', error);
     }
@@ -455,12 +470,6 @@ export async function GET(request) {
 
     const mergeRollupRows = await fetchTenantAccountsForMergeRollup(user.tenantId, prisma);
     const mergeRollupCtx = buildMergeRollupContext(mergeRollupRows);
-
-    /** When set, GL transaction lines match branch-scoped registers (e.g. expenses). */
-    const glBranchFilter =
-      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
-        ? { branchId: user.currentBranchId }
-        : {};
 
     const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
     let journalBySurvivor = new Map();
@@ -490,9 +499,7 @@ export async function GET(request) {
         const totalDebits = ja.debit + txAgg.debit;
         const totalCredits = ja.credit + txAgg.credit;
 
-        // Determine normal balance - use account.normalBalance or infer from account type
-        const normalBalance = account.normalBalance || 
-          (account.accountType === 'Asset' || account.accountType === 'Expense' ? 'Debit' : 'Credit');
+        const normalBalance = inferCoaNormalBalance(account);
 
         // Calculate balance based on normal balance (posted journal + posted transactions only)
         let balance = 0;
@@ -691,7 +698,7 @@ export async function GET(request) {
         total: accountsForResponse.length,
         traceability: {
           policy:
-            'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (isReversal=false). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. Inventory aligns to Stock Management; with a filter, quantity-on-hand is reconstructed from InventoryTransaction through that date × current unit cost (see inventoryValuationNote). Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
+            'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (isReversal=false). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. The 1300 inventory overlay uses the same live physical-stock valuation as GET /api/stock/statistics, scoped to the same branch as GL when a branch is selected (see inventoryValuationNote). Chart date filters do not restate inventory; they only change posted GL amounts on accounts. Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
           inventoryValuationNote: inventoryValuationNote || undefined,
         },
         period: {
