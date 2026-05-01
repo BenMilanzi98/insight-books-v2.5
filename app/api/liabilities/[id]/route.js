@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { assertAccountInSubtree } from '@/lib/coaGlSubtreeValidation.js';
 
 function calculateTermMonths(startDate, maturityDate) {
   try {
@@ -48,6 +49,13 @@ export async function GET(request, { params }) {
       },
       include: {
         category: true,
+        glAccount: {
+          select: {
+            id: true,
+            accountCode: true,
+            accountName: true,
+          },
+        },
         createdBy: {
           select: {
             id: true,
@@ -145,6 +153,41 @@ export async function PUT(request, { params }) {
       );
     }
 
+    const paymentCount = await prisma.liabilityPayment.count({
+      where: { liabilityId: id },
+    });
+
+    let nextGlId = existingLiability.glAccountId;
+    const incomingGl =
+      body.glAccountId !== undefined && body.glAccountId !== null
+        ? String(body.glAccountId).trim()
+        : '';
+    if (incomingGl) {
+      if (
+        paymentCount > 0 &&
+        incomingGl !== String(existingLiability.glAccountId || '')
+      ) {
+        return NextResponse.json(
+          { error: 'Cannot change liability GL account after payments have been recorded.' },
+          { status: 400 }
+        );
+      }
+      try {
+        await assertAccountInSubtree(prisma, user.tenantId, incomingGl, '2000');
+      } catch (glErr) {
+        return NextResponse.json(
+          { error: glErr.message || 'Invalid liability GL account' },
+          { status: 400 }
+        );
+      }
+      nextGlId = incomingGl;
+    } else if (paymentCount === 0 && !existingLiability.glAccountId) {
+      return NextResponse.json(
+        { error: 'Liability GL account (under 2000) is required.' },
+        { status: 400 }
+      );
+    }
+
     // Update liability
     const interestType = body.interestType || existingLiability.interestType || 'reducing_balance';
     const oneTimeInterestAmount = body.oneTimeInterestAmount ? parseFloat(body.oneTimeInterestAmount) : (existingLiability.oneTimeInterestAmount || 0);
@@ -168,11 +211,15 @@ export async function PUT(request, { params }) {
         status: body.status || 'active',
         lender: body.lender || null,
         accountNumber: body.accountNumber || null,
-        notes: body.notes || null
+        notes: body.notes || null,
+        glAccountId: nextGlId,
         // Note: currentBalance and totalPaid are updated via payments, not directly
       },
       include: {
         category: true,
+        glAccount: {
+          select: { id: true, accountCode: true, accountName: true },
+        },
         createdBy: {
           select: {
             id: true,

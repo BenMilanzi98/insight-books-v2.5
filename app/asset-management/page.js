@@ -54,6 +54,21 @@ const calculateTermMonths = (startDate, maturityDate) => {
   return totalMonths > 0 ? totalMonths : null;
 };
 
+/** Loan term ↔ maturity: sync only from explicit field changes (avoids circular useEffect loops). */
+function maturityFromStartAndTermMonths(startDateYmd, termMonthsStr) {
+  if (!startDateYmd) return null;
+  const months = parseInt(String(termMonthsStr ?? '').trim(), 10);
+  if (!Number.isFinite(months) || months <= 0) return null;
+  const calculated = addMonths(startDateYmd, months);
+  return calculated.toISOString().split('T')[0];
+}
+
+function termMonthsFromStartAndMaturity(startDateYmd, maturityDateYmd) {
+  if (!startDateYmd || !maturityDateYmd) return null;
+  const derived = calculateTermMonths(startDateYmd, maturityDateYmd);
+  return derived != null && derived > 0 ? String(derived) : null;
+}
+
 const generatePaymentSchedule = (liability) => {
   if (!liability) return [];
   const principal = Number(liability.principalAmount) || 0;
@@ -182,6 +197,39 @@ const buildLiabilityPayload = (form) => {
   return payload;
 };
 
+const glSubtreeOptionLabel = (row) => {
+  const prefix = '\u2014 '.repeat(Math.min(row.depth || 0, 8));
+  return `${prefix}${row.accountCode} ${row.accountName || ''}`.trim();
+};
+
+function pickDefaultAssetGlAccountId(accounts) {
+  if (!accounts?.length) return '';
+  const prefer = ['1510', '1520', '1530', '1540', '1500'];
+  for (const code of prefer) {
+    const hit = accounts.find((a) => String(a.accountCode) === code);
+    if (hit) return hit.id;
+  }
+  const sorted = [...accounts].sort((a, b) =>
+    String(a.accountCode).localeCompare(String(b.accountCode))
+  );
+  const depthChild = sorted.find((a) => (a.depth || 0) >= 1);
+  return depthChild?.id || sorted[0]?.id || '';
+}
+
+function pickDefaultLiabilityGlAccountId(accounts) {
+  if (!accounts?.length) return '';
+  const prefer = ['2110', '2100', '2000'];
+  for (const code of prefer) {
+    const hit = accounts.find((a) => String(a.accountCode) === code);
+    if (hit) return hit.id;
+  }
+  const sorted = [...accounts].sort((a, b) =>
+    String(a.accountCode).localeCompare(String(b.accountCode))
+  );
+  const depthChild = sorted.find((a) => (a.depth || 0) >= 1);
+  return depthChild?.id || sorted[0]?.id || '';
+}
+
 const AssetManagement = () => {
   // Active tab state
   const [activeTab, setActiveTab] = useState("assets");
@@ -237,6 +285,11 @@ const AssetManagement = () => {
       { principal: 0, interest: 0, payment: 0 }
     );
   }, [paymentSchedule]);
+
+  const [assetGlSubtreeAccounts, setAssetGlSubtreeAccounts] = useState([]);
+  const [liabilityGlSubtreeAccounts, setLiabilityGlSubtreeAccounts] = useState([]);
+  const [assetUnallocatedGlCount, setAssetUnallocatedGlCount] = useState(0);
+  const [liabilityEditPaymentCount, setLiabilityEditPaymentCount] = useState(0);
   
   useEffect(() => {
     const loadPaymentAccounts = async () => {
@@ -272,6 +325,31 @@ const AssetManagement = () => {
       }
     };
     loadPaymentAccounts();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [ra, rl] = await Promise.all([
+          fetch('/api/chart-of-accounts/gl-subtree?root=1500'),
+          fetch('/api/chart-of-accounts/gl-subtree?root=2000'),
+        ]);
+        if (ra.ok && !cancelled) {
+          const ja = await ra.json();
+          setAssetGlSubtreeAccounts(Array.isArray(ja.accounts) ? ja.accounts : []);
+        }
+        if (rl.ok && !cancelled) {
+          const jl = await rl.json();
+          setLiabilityGlSubtreeAccounts(Array.isArray(jl.accounts) ? jl.accounts : []);
+        }
+      } catch (e) {
+        console.error('GL subtree load failed', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const limit = 10;
@@ -310,7 +388,8 @@ const AssetManagement = () => {
     notes: "",
     isExistingAsset: false,
     accumulatedDepreciation: "0",
-    paymentMethod: ""
+    paymentMethod: "",
+    glAccountId: "",
   });
   
   const [assetCategoryFormData, setAssetCategoryFormData] = useState({
@@ -337,8 +416,27 @@ const AssetManagement = () => {
     status: "active",
     lender: "",
     accountNumber: "",
-    notes: ""
+    notes: "",
+    glAccountId: "",
   });
+
+  useEffect(() => {
+    if (!showAssetModal || assetEditId) return;
+    if (!assetGlSubtreeAccounts.length) return;
+    setAssetFormData((prev) => {
+      if (prev.glAccountId) return prev;
+      return { ...prev, glAccountId: pickDefaultAssetGlAccountId(assetGlSubtreeAccounts) };
+    });
+  }, [showAssetModal, assetEditId, assetGlSubtreeAccounts]);
+
+  useEffect(() => {
+    if (!showLiabilityModal || liabilityEditId) return;
+    if (!liabilityGlSubtreeAccounts.length) return;
+    setLiabilityFormData((prev) => {
+      if (prev.glAccountId) return prev;
+      return { ...prev, glAccountId: pickDefaultLiabilityGlAccountId(liabilityGlSubtreeAccounts) };
+    });
+  }, [showLiabilityModal, liabilityEditId, liabilityGlSubtreeAccounts]);
   
   const [liabilityCategoryFormData, setLiabilityCategoryFormData] = useState({
     name: "",
@@ -409,25 +507,6 @@ const AssetManagement = () => {
       fetchLiabilities();
     }
   }, [liabilityPage, liabilityCategoryFilter, liabilityStatusFilter, liabilityTypeFilter, liabilitySearchTerm, activeTab]);
-
-  useEffect(() => {
-    if (!liabilityFormData.startDate || !liabilityFormData.maturityDate) return;
-    const derived = calculateTermMonths(liabilityFormData.startDate, liabilityFormData.maturityDate);
-    if (derived && liabilityFormData.termMonths !== derived.toString()) {
-      setLiabilityFormData(prev => ({ ...prev, termMonths: derived.toString() }));
-    }
-  }, [liabilityFormData.startDate, liabilityFormData.maturityDate, liabilityFormData.termMonths]);
-
-  useEffect(() => {
-    if (!liabilityFormData.startDate || !liabilityFormData.termMonths) return;
-    const months = parseInt(liabilityFormData.termMonths, 10);
-    if (!months || Number.isNaN(months)) return;
-    const calculated = addMonths(liabilityFormData.startDate, months);
-    const formatted = calculated.toISOString().split('T')[0];
-    if (liabilityFormData.maturityDate !== formatted) {
-      setLiabilityFormData(prev => ({ ...prev, maturityDate: formatted }));
-    }
-  }, [liabilityFormData.startDate, liabilityFormData.termMonths]);
 
   useEffect(() => {
     if (liabilityFormData.interestType !== 'one_time') return;
@@ -605,6 +684,9 @@ const AssetManagement = () => {
       setAssets(data.assets);
       setAssetTotalPages(data.pagination.totalPages);
       setAssetTotalCount(data.pagination.totalCount);
+      setAssetUnallocatedGlCount(
+        typeof data.unallocatedGlCount === 'number' ? data.unallocatedGlCount : 0
+      );
     } catch (error) {
       console.error("Error fetching assets:", error);
       setAssetsError("Failed to load assets. Please try again later.");
@@ -853,7 +935,8 @@ const AssetManagement = () => {
       notes: "",
       isExistingAsset: false,
       accumulatedDepreciation: "0",
-      paymentMethod: ""
+      paymentMethod: "",
+      glAccountId: "",
     });
     setAssetEditId(null);
   };
@@ -894,11 +977,15 @@ const AssetManagement = () => {
       notes: asset.notes || "",
       isExistingAsset: asset.isExistingAsset,
       accumulatedDepreciation: asset.accumulatedDepreciation.toString(),
-      paymentMethod: asset.paymentMethod || ""
+      paymentMethod: asset.paymentMethod || "",
+      glAccountId:
+        asset.glAccountId ||
+        pickDefaultAssetGlAccountId(assetGlSubtreeAccounts) ||
+        "",
     });
-      setAssetEditId(asset.id);
-      setShowAssetModal(true);
-    };
+    setAssetEditId(asset.id);
+    setShowAssetModal(true);
+  };
   
     // Delete asset
     const handleDeleteAsset = async (assetId) => {
@@ -1174,9 +1261,11 @@ const AssetManagement = () => {
       status: "active",
       lender: "",
       accountNumber: "",
-      notes: ""
+      notes: "",
+      glAccountId: "",
     });
     setLiabilityEditId(null);
+    setLiabilityEditPaymentCount(0);
   };
   
   const handleViewLiability = async (liability) => {
@@ -1197,6 +1286,7 @@ const AssetManagement = () => {
   };
   
   const handleEditLiability = (liability) => {
+    setLiabilityEditPaymentCount(liability._count?.payments ?? 0);
     setLiabilityFormData({
       name: liability.name,
       description: liability.description || "",
@@ -1219,7 +1309,11 @@ const AssetManagement = () => {
       status: liability.status,
       lender: liability.lender || "",
       accountNumber: liability.accountNumber || "",
-      notes: liability.notes || ""
+      notes: liability.notes || "",
+      glAccountId:
+        liability.glAccountId ||
+        pickDefaultLiabilityGlAccountId(liabilityGlSubtreeAccounts) ||
+        "",
     });
     setLiabilityEditId(liability.id);
     setShowLiabilityModal(true);
@@ -1403,6 +1497,18 @@ const AssetManagement = () => {
               </div>
             </div>
 
+            {assetUnallocatedGlCount > 0 && (
+              <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                {assetUnallocatedGlCount === 1 ? (
+                  <>One asset has no GL account linked (legacy data).</>
+                ) : (
+                  <>{assetUnallocatedGlCount} assets have no GL account linked (legacy data).</>
+                )}{' '}
+                Edit each asset and select an account under <strong>1500</strong> so purchases and the chart stay
+                aligned.
+              </div>
+            )}
+
             <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
               <div className="flex flex-col md:flex-row gap-4 mb-6">
                 <div className="flex-1">
@@ -1481,6 +1587,7 @@ const AssetManagement = () => {
                   <tr className="bg-gray-50 text-left">
                     <th className="p-3 font-medium">Asset Name</th>
                     <th className="p-3 font-medium">Category</th>
+                    <th className="p-3 font-medium">GL account</th>
                     <th className="p-3 font-medium">Purchase Date</th>
                     <th className="p-3 font-medium text-right">Original Cost</th>
                     <th className="p-3 font-medium text-right">Accumulated Depreciation</th>
@@ -1504,6 +1611,11 @@ const AssetManagement = () => {
                         </div>
                       </td>
                       <td className="p-3">{asset.category.name}</td>
+                      <td className="p-3 font-mono text-xs">
+                        {asset.glAccount
+                          ? `${asset.glAccount.accountCode} ${asset.glAccount.accountName}`
+                          : '—'}
+                      </td>
                       <td className="p-3">{new Date(asset.purchaseDate).toLocaleDateString()}</td>
                       <td className="p-3 text-right">{formatCurrency(asset.originalCost)}</td>
                       <td className="p-3 text-right">{formatCurrency(asset.currentAccumulatedDepreciation)}</td>
@@ -1711,6 +1823,7 @@ const AssetManagement = () => {
                         <th className="p-3 font-medium">Liability Name</th>
                         <th className="p-3 font-medium">Type</th>
                         <th className="p-3 font-medium">Category</th>
+                        <th className="p-3 font-medium">GL account</th>
                         <th className="p-3 font-medium">Lender</th>
                         <th className="p-3 font-medium">Interest Method</th>
                         <th className="p-3 font-medium text-right">Principal Amount</th>
@@ -1733,6 +1846,11 @@ const AssetManagement = () => {
                               </span>
                             </td>
                             <td className="p-3">{liability.category.name}</td>
+                            <td className="p-3 font-mono text-xs">
+                              {liability.glAccount
+                                ? `${liability.glAccount.accountCode} ${liability.glAccount.accountName}`
+                                : '—'}
+                            </td>
                             <td className="p-3">{liability.lender || '-'}</td>
                             <td className="p-3">
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
@@ -2015,6 +2133,31 @@ const AssetManagement = () => {
                       </select>
                     </div>
                   </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">Fixed asset GL account (1500 subtree) *</label>
+                    <select
+                      className="w-full p-2 border border-gray-200 rounded font-mono text-sm"
+                      value={assetFormData.glAccountId}
+                      onChange={(e) =>
+                        setAssetFormData({ ...assetFormData, glAccountId: e.target.value })
+                      }
+                      required
+                      disabled={!assetGlSubtreeAccounts.length}
+                    >
+                      <option value="">
+                        {assetGlSubtreeAccounts.length ? 'Select GL account' : 'Loading chart accounts…'}
+                      </option>
+                      {assetGlSubtreeAccounts.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {glSubtreeOptionLabel(row)}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Purchase journals debit this balance-sheet account.
+                    </p>
+                  </div>
                   
                   <div className="mb-4">
                     <label className="block text-sm font-medium mb-1">Description</label>
@@ -2286,6 +2429,14 @@ const AssetManagement = () => {
                   <div>
                     <p className="text-sm text-gray-500 mb-1">Category</p>
                     <p className="font-medium">{viewAsset.category.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">GL account (1500 subtree)</p>
+                    <p className="font-medium font-mono text-sm">
+                      {viewAsset.glAccount
+                        ? `${viewAsset.glAccount.accountCode} — ${viewAsset.glAccount.accountName}`
+                        : 'Not assigned'}
+                    </p>
                   </div>
                   {viewAsset.description && (
                     <div className="md:col-span-2">
@@ -2700,6 +2851,37 @@ const AssetManagement = () => {
                       </select>
                     </div>
                   </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium mb-1">Liability GL account (2000 subtree) *</label>
+                    <select
+                      className="w-full p-2 border border-gray-200 rounded font-mono text-sm"
+                      value={liabilityFormData.glAccountId}
+                      onChange={(e) =>
+                        setLiabilityFormData({ ...liabilityFormData, glAccountId: e.target.value })
+                      }
+                      required
+                      disabled={
+                        !liabilityGlSubtreeAccounts.length ||
+                        (!!liabilityEditId && liabilityEditPaymentCount > 0)
+                      }
+                    >
+                      <option value="">
+                        {liabilityGlSubtreeAccounts.length ? 'Select GL account' : 'Loading chart accounts…'}
+                      </option>
+                      {liabilityGlSubtreeAccounts.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {glSubtreeOptionLabel(row)}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Principal payments post to this liability account.
+                      {liabilityEditId && liabilityEditPaymentCount > 0
+                        ? ' GL account cannot be changed after payments are recorded.'
+                        : ''}
+                    </p>
+                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -2866,11 +3048,20 @@ const AssetManagement = () => {
                           type="number"
                           className="w-full p-2 border border-gray-200 rounded"
                           value={liabilityFormData.termMonths}
-                          onChange={(e) => setLiabilityFormData({...liabilityFormData, termMonths: e.target.value})}
+                          onChange={(e) => {
+                            const termMonths = e.target.value;
+                            setLiabilityFormData((prev) => {
+                              const next = { ...prev, termMonths };
+                              const mat = maturityFromStartAndTermMonths(prev.startDate, termMonths);
+                              if (mat) next.maturityDate = mat;
+                              return next;
+                            });
+                          }}
                           placeholder="Optional"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Updates automatically when you adjust the start or maturity date.
+                          With a start date set, changing the term updates maturity; change maturity to back-calculate
+                          months.
                         </p>
                       </div>
                     </div>
@@ -2882,7 +3073,21 @@ const AssetManagement = () => {
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.startDate}
-                        onChange={(e) => setLiabilityFormData({...liabilityFormData, startDate: e.target.value})}
+                        onChange={(e) => {
+                          const startDate = e.target.value;
+                          setLiabilityFormData((prev) => {
+                            const next = { ...prev, startDate };
+                            const months = parseInt(String(prev.termMonths).trim(), 10);
+                            if (Number.isFinite(months) && months > 0) {
+                              const mat = maturityFromStartAndTermMonths(startDate, prev.termMonths);
+                              if (mat) next.maturityDate = mat;
+                            } else if (prev.maturityDate) {
+                              const term = termMonthsFromStartAndMaturity(startDate, prev.maturityDate);
+                              if (term) next.termMonths = term;
+                            }
+                            return next;
+                          });
+                        }}
                         required
                       />
                     </div>
@@ -2892,7 +3097,15 @@ const AssetManagement = () => {
                         type="date"
                         className="w-full p-2 border border-gray-200 rounded"
                         value={liabilityFormData.maturityDate}
-                        onChange={(e) => setLiabilityFormData({...liabilityFormData, maturityDate: e.target.value})}
+                        onChange={(e) => {
+                          const maturityDate = e.target.value;
+                          setLiabilityFormData((prev) => {
+                            const next = { ...prev, maturityDate };
+                            const term = termMonthsFromStartAndMaturity(prev.startDate, maturityDate);
+                            if (term) next.termMonths = term;
+                            return next;
+                          });
+                        }}
                       />
                     </div>
                   </div>
@@ -2991,6 +3204,14 @@ const AssetManagement = () => {
                       <div><span className="font-medium">Name:</span> {viewLiability.name}</div>
                       <div><span className="font-medium">Type:</span> {liabilityTypes.find(t => t.value === viewLiability.liabilityType)?.label || viewLiability.liabilityType}</div>
                       <div><span className="font-medium">Category:</span> {viewLiability.category.name}</div>
+                      <div>
+                        <span className="font-medium">GL account:</span>{' '}
+                        <span className="font-mono text-sm">
+                          {viewLiability.glAccount
+                            ? `${viewLiability.glAccount.accountCode} — ${viewLiability.glAccount.accountName}`
+                            : 'Not assigned'}
+                        </span>
+                      </div>
                       <div><span className="font-medium">Status:</span> 
                         <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                           viewLiability.status === "active" 

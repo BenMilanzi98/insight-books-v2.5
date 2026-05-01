@@ -18,17 +18,42 @@ export async function POST(request) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: tenantId },
+      select: {
+        id: true,
+        name: true,
+        ownerUserId: true,
+      },
     });
     if (!tenant) return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
 
-    const hasAccess = await prisma.user.findFirst({
-      where: {
-        id: user.id,
-        OR: [{ tenantId }, { tenants: { some: { id: tenantId } } }],
-      },
-      select: { id: true },
-    });
+    let hasAccess = user.role?.name === 'MASTER_ADMIN';
+
+    if (!hasAccess && tenant.ownerUserId === user.id) {
+      hasAccess = true;
+    }
+
+    if (!hasAccess) {
+      const [membership, legacyUser] = await Promise.all([
+        prisma.tenantMembership.findFirst({
+          where: {
+            userId: user.id,
+            tenantId,
+            status: { equals: 'active', mode: 'insensitive' },
+          },
+          select: { id: true },
+        }),
+        prisma.user.findFirst({
+          where: {
+            id: user.id,
+            OR: [{ tenantId }, { tenants: { some: { id: tenantId } } }],
+          },
+          select: { id: true },
+        }),
+      ]);
+      hasAccess = !!(membership || legacyUser);
+    }
+
     if (!hasAccess) {
       return NextResponse.json(
         { error: 'You do not have access to this organization' },
@@ -70,9 +95,18 @@ export async function POST(request) {
     });
 
     await prisma.user.update({
-        where: { id: user.id },
-        data: { tenantId }
+      where: { id: user.id },
+      data: { tenantId },
     });
+
+    try {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { tenants: { connect: { id: tenantId } } },
+      });
+    } catch {
+      /* already linked via UserTenants */
+    }
 
     return NextResponse.json({
       success: true,

@@ -2,10 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import {
-  isSystemExpenseStructureCode,
-  SYSTEM_EXPENSE_STRUCTURE_CODES,
-} from '@/lib/systemExpenseCategoryCodes.js';
+import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -89,15 +86,15 @@ export async function GET(request) {
                 accountCode: true,
                 accountName: true,
                 accountType: true,
-                isActive: true
+                isActive: true,
+                mergedIntoAccountId: true,
               }
             }
           },
           orderBy: { name: 'asc' }
         });
         expenseCategories.forEach((cat) => {
-          const acctCode = cat.account?.accountCode || cat.accountCode || '';
-          if (!isSystemExpenseStructureCode(acctCode)) return;
+          if (!cat.account || !isTenantExpenseCategoryAccount(cat.account)) return;
           const accountId = cat.accountId;
           if (categoriesById.has(accountId)) return;
           categoriesById.set(
@@ -116,30 +113,31 @@ export async function GET(request) {
         name: true,
         accountType: true,
         accountSubtype: true,
-        isActive: true
+        isActive: true,
+        mergedIntoAccountId: true,
       };
-      const baseWhere = { tenantId, isActive: true };
-      const systemCodes = [...SYSTEM_EXPENSE_STRUCTURE_CODES];
+      const baseWhere = {
+        tenantId,
+        isActive: true,
+        accountType: 'Expense',
+        mergedIntoAccountId: null,
+      };
       try {
-        const systemAccounts = await prisma.account.findMany({
-          where: {
-            ...baseWhere,
-            OR: [{ accountCode: { in: systemCodes } }, { code: { in: systemCodes } }],
-          },
+        const expenseGlAccounts = await prisma.account.findMany({
+          where: baseWhere,
           select: accountSelect,
           orderBy: [{ accountCode: 'asc' }],
         });
-        const accountsById = new Map();
-        systemAccounts.forEach((acc) => accountsById.set(acc.id, acc));
-        accountsById.forEach((acc, id) => {
+        expenseGlAccounts.forEach((acc) => {
+          if (!isTenantExpenseCategoryAccount(acc)) return;
+          const id = acc.id;
           if (categoriesById.has(id)) return;
           const code = acc.accountCode || acc.code || '';
-          if (!isSystemExpenseStructureCode(code)) return;
           const label = acc.accountName || acc.name || code || 'Unnamed';
           categoriesById.set(id, toEntry(id, code, label, acc, null, false));
         });
       } catch (accountErr) {
-        console.warn('Categories API: SYSTEM expense accounts unavailable:', accountErr?.message || accountErr);
+        console.warn('Categories API: expense GL accounts unavailable:', accountErr?.message || accountErr);
       }
 
       // Auto-create ExpenseCategory records for Account-only entries so dropdowns always have valid IDs
@@ -282,7 +280,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'Expense categories cannot be created here. Only predefined SYSTEM expense accounts may be used.',
+            'Expense categories cannot be created here. Add expense GL accounts under Chart of accounts (5000–5999 range).',
         },
         { status: 403 }
       );
