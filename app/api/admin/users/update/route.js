@@ -2,184 +2,240 @@ import { NextResponse } from 'next/server';
 import { getAdminFromRequest } from '@/lib/adminAuth';
 import prisma from '@/lib/prisma';
 
+function normalizeMemberships(memberships, legacyTenantId, legacyRoleId) {
+  if (Array.isArray(memberships) && memberships.length > 0) {
+    const byTenant = new Map();
+    for (const m of memberships) {
+      const tid = m?.tenantId;
+      const rid = m?.roleId;
+      if (!tid || !rid) continue;
+      if (!byTenant.has(tid)) byTenant.set(tid, { tenantId: tid, roleId: rid });
+    }
+    return [...byTenant.values()];
+  }
+  if (legacyTenantId && legacyRoleId) {
+    return [{ tenantId: legacyTenantId, roleId: legacyRoleId }];
+  }
+  return [];
+}
+
 export async function POST(request) {
   try {
-    console.log('Update user endpoint called');
     const body = await request.json();
-    console.log('Request body:', body);
     const { userId, ...updateData } = body;
-    
+
     if (!userId) {
       return NextResponse.json({ success: false, error: 'User ID is required' }, { status: 400 });
     }
 
     const admin = await getAdminFromRequest(request);
     if (!admin) {
-      console.log('Admin authentication failed');
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
-    console.log('Admin authenticated:', admin.email);
-    console.log('Attempting to update user with ID:', userId);
 
-    const { name, email, phone, role, status, tenantId, defaultBranchId, allowedBranchIds } = updateData;
+    const {
+      name,
+      email,
+      phone,
+      role,
+      status,
+      tenantId,
+      memberships,
+      primaryTenantId,
+      defaultBranchId,
+      allowedBranchIds,
+    } = updateData;
 
-    // Validate required fields
-    if (!name || !email || !role || !status || !tenantId) {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Missing required fields: name, email, role, status, and tenant are required' 
-      }, { status: 400 });
+    if (!name || !email || !status) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Missing required fields: name, email, and status are required',
+        },
+        { status: 400 }
+      );
     }
 
-    // Check if user exists
+    const cleaned = normalizeMemberships(memberships, tenantId, role);
+    if (cleaned.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'At least one business with a role is required (memberships or tenant + role)',
+        },
+        { status: 400 }
+      );
+    }
+
+    const primaryTid =
+      primaryTenantId && cleaned.some((x) => x.tenantId === primaryTenantId)
+        ? primaryTenantId
+        : cleaned[0].tenantId;
+    const primaryRow = cleaned.find((x) => x.tenantId === primaryTid) || cleaned[0];
+
     const existingUser = await prisma.user.findUnique({
-      where: { id: userId }
+      where: { id: userId },
     });
 
     if (!existingUser) {
-      console.log('User not found:', userId);
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    if (email !== existingUser.email) {
+    if (String(email).trim().toLowerCase() !== String(existingUser.email).toLowerCase()) {
       const emailConflict = await prisma.user.findFirst({
         where: {
           email: { equals: String(email).trim(), mode: 'insensitive' },
-          tenantId,
+          tenantId: primaryTid,
           id: { not: userId },
         },
       });
 
       if (emailConflict) {
-        console.log('Email conflict detected:', email);
-        return NextResponse.json({
-          success: false,
-          error: 'A user with this email already exists in that business',
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'A user with this email already exists in the primary business',
+          },
+          { status: 400 }
+        );
       }
     }
 
-    // Verify tenant exists
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+    const primaryTenant = await prisma.tenant.findUnique({
+      where: { id: primaryTid },
+      select: { id: true, name: true },
     });
 
-    if (!tenant) {
-      console.log('Tenant not found:', tenantId);
-      return NextResponse.json({ success: false, error: 'Tenant not found' }, { status: 404 });
+    if (!primaryTenant) {
+      return NextResponse.json({ success: false, error: 'Primary tenant not found' }, { status: 404 });
     }
 
-    // Verify role exists
-    const userRole = await prisma.role.findUnique({
-      where: { id: role }
-    });
-
-    if (!userRole) {
-      console.log('Role not found:', role);
-      return NextResponse.json({ success: false, error: 'Role not found' }, { status: 404 });
+    for (const m of cleaned) {
+      const r = await prisma.role.findUnique({
+        where: { id: m.roleId },
+        select: { id: true, tenantId: true },
+      });
+      if (!r || r.tenantId !== m.tenantId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Role does not belong to the selected business (tenant ${m.tenantId})`,
+          },
+          { status: 400 }
+        );
+      }
     }
 
-    console.log('User, tenant, and role found, proceeding with update');
-
-    // Create admin audit log for user update
     await prisma.adminAuditLog.create({
       data: {
         adminId: admin.id,
         action: 'USER_UPDATE',
         entityType: 'USER',
         entityId: userId,
-        details: `Updated user: ${name} (${email}) in tenant: ${tenant.name}`,
+        details: `Updated user: ${name} (${email}); businesses: ${cleaned.map((c) => c.tenantId).join(', ')}; primary: ${primaryTid}`,
         ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
-        timestamp: new Date()
-      }
+        timestamp: new Date(),
+      },
     });
 
     const data = {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       phone: phone || null,
-      roleId: userRole.id,
-      tenantId: tenant.id,
+      roleId: primaryRow.roleId,
+      tenantId: primaryTid,
       isActive: status === 'active',
-      status: status,
-      updatedAt: new Date()
+      status,
+      updatedAt: new Date(),
     };
     if (defaultBranchId !== undefined) data.defaultBranchId = defaultBranchId || null;
 
-    if (Array.isArray(allowedBranchIds)) {
-      const userBranch = prisma.userBranch;
-      if (!userBranch || typeof userBranch.deleteMany !== 'function') {
-        // Outdated generated client (schema has UserBranch but client was not regenerated).
-        // Still apply core user fields; branch restrictions are skipped until `npx prisma generate` + restart.
-        console.warn(
-          '[admin/users/update] Prisma client missing userBranch delegate; skipping allowedBranchIds sync. Run: npx prisma generate && restart.'
-        );
-      } else {
-        await userBranch.deleteMany({ where: { userId } });
-        if (allowedBranchIds.length > 0) {
-          const validBranchIds = await prisma.branch.findMany({
-            where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
-            select: { id: true }
-          });
-          const ids = validBranchIds.map((b) => b.id);
-          if (ids.length > 0) {
-            await userBranch.createMany({
-              data: ids.map((branchId) => ({ userId, branchId })),
-            });
-          }
-        }
-      }
-    }
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data,
+      });
 
-    // Update the user
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data,
-      include: {
-        tenant: {
-          select: {
-            id: true,
-            name: true
-          }
+      await tx.tenantMembership.deleteMany({ where: { userId } });
+
+      await tx.tenantMembership.createMany({
+        data: cleaned.map((m) => ({
+          userId,
+          tenantId: m.tenantId,
+          roleId: m.roleId,
+          status: 'active',
+        })),
+      });
+
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          tenants: { set: cleaned.map((m) => ({ id: m.tenantId })) },
         },
-        role: {
-          select: {
-            id: true,
-            name: true
+      });
+
+      if (Array.isArray(allowedBranchIds)) {
+        const userBranch = tx.userBranch;
+        if (!userBranch || typeof userBranch.deleteMany !== 'function') {
+          console.warn(
+            '[admin/users/update] Prisma client missing userBranch delegate; skipping allowedBranchIds sync.'
+          );
+        } else {
+          await userBranch.deleteMany({ where: { userId } });
+          if (allowedBranchIds.length > 0) {
+            const validBranchIds = await tx.branch.findMany({
+              where: { id: { in: allowedBranchIds }, tenantId: primaryTid },
+              select: { id: true },
+            });
+            const ids = validBranchIds.map((b) => b.id);
+            if (ids.length > 0) {
+              await userBranch.createMany({
+                data: ids.map((branchId) => ({ userId, branchId })),
+              });
+            }
           }
         }
       }
     });
 
-    console.log('User updated successfully:', userId);
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        tenant: { select: { id: true, name: true } },
+        role: { select: { id: true, name: true } },
+      },
+    });
 
-    // Transform the response
     const transformedUser = {
       id: updatedUser.id,
       name: updatedUser.name || 'No Name',
       email: updatedUser.email,
       phone: updatedUser.phone || '',
       role: updatedUser.role?.name || 'No Role',
-      status: updatedUser.status === 'pending' ? 'pending' : (updatedUser.isActive ? 'active' : 'inactive'),
+      roleId: updatedUser.role?.id,
+      status: updatedUser.status === 'pending' ? 'pending' : updatedUser.isActive ? 'active' : 'inactive',
       tenant: updatedUser.tenant?.name || 'No Tenant',
+      tenantId: updatedUser.tenant?.id,
       lastLogin: updatedUser.lastLogin,
       createdAt: updatedUser.createdAt,
-      avatar: (updatedUser.name || 'U').split(' ').map(n => n[0]).join('').toUpperCase()
+      avatar: (updatedUser.name || 'U')
+        .split(' ')
+        .map((n) => n[0])
+        .join('')
+        .toUpperCase(),
     };
 
     return NextResponse.json({
       success: true,
       message: 'User updated successfully',
-      user: transformedUser
+      user: transformedUser,
     });
-
   } catch (error) {
     console.error('Error updating user:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Failed to update user: ' + error.message 
-    }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: 'Failed to update user: ' + error.message },
+      { status: 500 }
+    );
   }
 }

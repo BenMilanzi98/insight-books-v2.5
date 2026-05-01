@@ -128,20 +128,64 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { name, email, phone, role, status, tenantId, password, department, defaultBranchId, allowedBranchIds } = body;
+    const {
+      name,
+      email,
+      phone,
+      role,
+      status,
+      tenantId,
+      memberships,
+      primaryTenantId,
+      password,
+      department,
+      defaultBranchId,
+      allowedBranchIds,
+    } = body;
 
-    // Validate required fields
-    if (!name || !email || !role || !status || !tenantId) {
+    function normalizeMembershipsCreate(membershipsArr, legacyTenantId, legacyRoleId) {
+      if (Array.isArray(membershipsArr) && membershipsArr.length > 0) {
+        const byTenant = new Map();
+        for (const m of membershipsArr) {
+          const tid = m?.tenantId;
+          const rid = m?.roleId;
+          if (!tid || !rid) continue;
+          if (!byTenant.has(tid)) byTenant.set(tid, { tenantId: tid, roleId: rid });
+        }
+        return [...byTenant.values()];
+      }
+      if (legacyTenantId && legacyRoleId) {
+        return [{ tenantId: legacyTenantId, roleId: legacyRoleId }];
+      }
+      return [];
+    }
+
+    const cleaned = normalizeMembershipsCreate(memberships, tenantId, role);
+
+    if (!name || !email || !status) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, email, role, status, and tenant are required' },
+        { error: 'Missing required fields: name, email, and status are required' },
         { status: 400 }
       );
     }
 
+    if (cleaned.length === 0) {
+      return NextResponse.json(
+        { error: 'At least one business with a role is required' },
+        { status: 400 }
+      );
+    }
+
+    const primaryTid =
+      primaryTenantId && cleaned.some((x) => x.tenantId === primaryTenantId)
+        ? primaryTenantId
+        : cleaned[0].tenantId;
+    const primaryRow = cleaned.find((x) => x.tenantId === primaryTid) || cleaned[0];
+
     const existingUser = await prisma.user.findFirst({
       where: {
         email: { equals: String(email).trim(), mode: 'insensitive' },
-        tenantId,
+        tenantId: primaryTid,
       },
     });
 
@@ -152,28 +196,36 @@ export async function POST(request) {
       );
     }
 
-    // Find tenant by ID
     const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId }
+      where: { id: primaryTid },
     });
 
     if (!tenant) {
+      return NextResponse.json({ error: 'Primary tenant not found' }, { status: 404 });
+    }
+
+    const userRole = await prisma.role.findUnique({
+      where: { id: primaryRow.roleId },
+    });
+
+    if (!userRole || userRole.tenantId !== primaryTid) {
       return NextResponse.json(
-        { error: 'Tenant not found' },
+        { error: 'Primary role not found or does not belong to primary business' },
         { status: 404 }
       );
     }
 
-    // Find the role by ID
-    const userRole = await prisma.role.findUnique({
-      where: { id: role }
-    });
-
-    if (!userRole) {
-      return NextResponse.json(
-        { error: 'Role not found' },
-        { status: 404 }
-      );
+    for (const m of cleaned) {
+      const r = await prisma.role.findUnique({
+        where: { id: m.roleId },
+        select: { tenantId: true },
+      });
+      if (!r || r.tenantId !== m.tenantId) {
+        return NextResponse.json(
+          { error: `Role does not belong to the selected business` },
+          { status: 400 }
+        );
+      }
     }
 
     const trimmedPassword =
@@ -191,7 +243,7 @@ export async function POST(request) {
         isActive: status === 'active',
         status: status, // Keep the status field as well
         password: await bcrypt.hash(plainPassword, 12),
-        tenantId: tenant?.id || null,
+        tenantId: tenant.id,
         isEmailVerified: true,
         otpCode: null,
         otpExpiry: null,
@@ -213,16 +265,32 @@ export async function POST(request) {
       }
     });
 
-    // Assign allowed branches when provided (user-branch separation)
+    await prisma.tenantMembership.createMany({
+      data: cleaned.map((m) => ({
+        userId: newUser.id,
+        tenantId: m.tenantId,
+        roleId: m.roleId,
+        status: 'active',
+      })),
+      skipDuplicates: true,
+    });
+
+    await prisma.user.update({
+      where: { id: newUser.id },
+      data: {
+        tenants: { connect: cleaned.map((m) => ({ id: m.tenantId })) },
+      },
+    });
+
     if (Array.isArray(allowedBranchIds) && allowedBranchIds.length > 0 && newUser.id) {
       const validBranchIds = await prisma.branch.findMany({
         where: { id: { in: allowedBranchIds }, tenantId: tenant.id },
-        select: { id: true }
+        select: { id: true },
       });
       const ids = validBranchIds.map((b) => b.id);
       if (ids.length > 0) {
         await prisma.userBranch.createMany({
-          data: ids.map((branchId) => ({ userId: newUser.id, branchId }))
+          data: ids.map((branchId) => ({ userId: newUser.id, branchId })),
         });
       }
     }

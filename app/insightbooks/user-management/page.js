@@ -22,6 +22,17 @@ import {
   XCircle
 } from 'lucide-react';
 
+async function fetchRolesForTenantApi(tenantId) {
+  if (!tenantId) return [];
+  const res = await fetch(
+    `/api/admin/roles?tenantId=${encodeURIComponent(tenantId)}`,
+    { cache: 'no-store' }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data.roles) ? data.roles : [];
+}
+
 export default function UserManagementPage() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
@@ -43,7 +54,6 @@ export default function UserManagementPage() {
   const [success, setSuccess] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const [tenants, setTenants] = useState([]);
-  const [roles, setRoles] = useState([]);
   const [branches, setBranches] = useState([]);
 
   // Fetch users from API
@@ -136,133 +146,12 @@ export default function UserManagementPage() {
     }
   }, []);
 
-  // Fetch roles for dropdown
-  const fetchRoles = async () => {
-    try {
-      console.log('Fetching roles...');
-      const response = await fetch('/api/admin/roles');
-      console.log('Roles response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Roles data:', data);
-        
-        if (data.roles && data.roles.length > 0) {
-          console.log('Setting roles from API:', data.roles);
-          setRoles(data.roles);
-        } else {
-          console.log('No roles found, creating default roles...');
-          // If no roles exist, create default roles
-          await createDefaultRoles();
-        }
-      } else {
-        console.log('Roles API not available, using fallback roles');
-        // If roles API doesn't exist, use default roles
-        setRoles([
-          { id: 'user', name: 'User' },
-          { id: 'manager', name: 'Manager' },
-          { id: 'admin', name: 'Admin' }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-      // Fallback to default roles
-      setRoles([
-        { id: 'user', name: 'User' },
-        { id: 'manager', name: 'Manager' },
-        { id: 'admin', name: 'Admin' }
-      ]);
-    }
-  };
-
-  // Create default roles if none exist
-  const createDefaultRoles = async () => {
-    try {
-      console.log('Creating default roles...');
-      console.log('Available tenants:', tenants);
-      
-      // Get the first tenant to create roles for
-      if (tenants.length > 0) {
-        const defaultTenant = tenants[0];
-        console.log('Using default tenant:', defaultTenant);
-        
-        // Create default roles
-        const defaultRoles = [
-          { name: 'User', description: 'Basic user with limited permissions' },
-          { name: 'Manager', description: 'Manager with elevated permissions' },
-          { name: 'Admin', description: 'Administrator with full permissions' }
-        ];
-
-        const createdRoles = [];
-        for (const roleData of defaultRoles) {
-          console.log('Creating role:', roleData.name);
-          const response = await fetch('/api/admin/roles', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ...roleData,
-              tenantId: defaultTenant.id,
-              permissions: {}
-            }),
-          });
-
-          console.log('Role creation response status:', response.status);
-          if (response.ok) {
-            const result = await response.json();
-            console.log('Role created:', result);
-            createdRoles.push(result.role);
-          } else {
-            const errorText = await response.text();
-            console.error('Failed to create role:', roleData.name, 'Status:', response.status, 'Error:', errorText);
-          }
-        }
-
-        if (createdRoles.length > 0) {
-          console.log('Setting created roles:', createdRoles);
-          setRoles(createdRoles);
-          console.log('Default roles created successfully');
-        } else {
-          console.log('No roles were created, using fallback');
-          setRoles([
-            { id: 'user', name: 'User' },
-            { id: 'manager', name: 'Manager' },
-            { id: 'admin', name: 'Admin' }
-          ]);
-        }
-      } else {
-        console.log('No tenants available, using fallback roles');
-        setRoles([
-          { id: 'user', name: 'User' },
-          { id: 'manager', name: 'Manager' },
-          { id: 'admin', name: 'Admin' }
-        ]);
-      }
-    } catch (error) {
-      console.error('Error creating default roles:', error);
-      // Fallback to static roles
-      setRoles([
-        { id: 'user', name: 'User' },
-        { id: 'manager', name: 'Manager' },
-        { id: 'admin', name: 'Admin' }
-      ]);
-    }
-  };
-
   // Initial data fetch
   useEffect(() => {
     fetchUsers();
     fetchStats();
     fetchTenants();
   }, []);
-
-  // Fetch roles after tenants are loaded
-  useEffect(() => {
-    if (tenants.length > 0) {
-      fetchRoles();
-    }
-  }, [tenants]);
 
   // Filter users when search/filters change
   useEffect(() => {
@@ -291,8 +180,8 @@ export default function UserManagementPage() {
         },
         body: JSON.stringify({
           ...userData,
-          tenantId: userData.tenantId,
-          password: userData.password || undefined
+          tenantId: userData.primaryTenantId || userData.tenantId,
+          password: userData.password || undefined,
         }),
       });
 
@@ -860,7 +749,6 @@ export default function UserManagementPage() {
           onSubmit={handleCreateUser}
           loading={actionLoading}
           tenants={tenants}
-          roles={roles}
         />
       )}
 
@@ -875,7 +763,6 @@ export default function UserManagementPage() {
           onSubmit={handleEditUser}
           loading={actionLoading}
           tenants={tenants}
-          roles={roles}
           branches={branches}
           onTenantChange={fetchBranches}
         />
@@ -898,18 +785,19 @@ export default function UserManagementPage() {
 }
 
 // Create User Modal Component
-function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
+function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
+  const [membershipRows, setMembershipRows] = useState([{ tenantId: '', roleId: '' }]);
+  const [primaryIndex, setPrimaryIndex] = useState(0);
+  const [rolesCache, setRolesCache] = useState({});
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
-    role: '',
     status: 'active',
-    tenantId: '',
     password: '',
     department: '',
     defaultBranchId: '',
-    allowedBranchIds: []
+    allowedBranchIds: [],
   });
   const [modalBranches, setModalBranches] = useState([]);
   const [modalDepartments, setModalDepartments] = useState([]);
@@ -919,18 +807,31 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
   const [newDepartmentName, setNewDepartmentName] = useState('');
   const [addingDepartment, setAddingDepartment] = useState(false);
 
-  // Fetch branches and departments when tenant changes
+  const primaryTenantId = membershipRows[primaryIndex]?.tenantId || '';
+
+  const ensureRolesLoaded = async (tenantId) => {
+    if (!tenantId || rolesCache[tenantId]) return;
+    const list = await fetchRolesForTenantApi(tenantId);
+    setRolesCache((prev) => ({ ...prev, [tenantId]: list }));
+  };
+
   useEffect(() => {
-    if (!formData.tenantId) {
+    membershipRows.forEach((row) => {
+      if (row.tenantId) ensureRolesLoaded(row.tenantId);
+    });
+  }, [membershipRows]);
+
+  useEffect(() => {
+    if (!primaryTenantId) {
       setModalBranches([]);
       setModalDepartments([]);
-      setFormData((prev) => ({ ...prev, defaultBranchId: '', allowedBranchIds: [] }));
+      setFormData((prev) => ({ ...prev, defaultBranchId: '', allowedBranchIds: [], department: '' }));
       return;
     }
-    const fetchBranches = async () => {
+    const loadBranches = async () => {
       setBranchesLoading(true);
       try {
-        const res = await fetch(`/api/admin/branches?tenantId=${formData.tenantId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/admin/branches?tenantId=${primaryTenantId}`, { cache: 'no-store' });
         const data = await res.json();
         setModalBranches(data.branches || []);
       } catch (e) {
@@ -939,10 +840,10 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
         setBranchesLoading(false);
       }
     };
-    const fetchDepartments = async () => {
+    const loadDepartments = async () => {
       setDepartmentsLoading(true);
       try {
-        const res = await fetch(`/api/admin/departments?tenantId=${formData.tenantId}`, { cache: 'no-store' });
+        const res = await fetch(`/api/admin/departments?tenantId=${primaryTenantId}`, { cache: 'no-store' });
         const data = await res.json();
         setModalDepartments(Array.isArray(data) ? data : []);
       } catch (e) {
@@ -951,22 +852,23 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
         setDepartmentsLoading(false);
       }
     };
-    fetchBranches();
-    fetchDepartments();
-  }, [formData.tenantId]);
+    loadBranches();
+    loadDepartments();
+  }, [primaryTenantId]);
 
   const resetForm = () => {
+    setMembershipRows([{ tenantId: '', roleId: '' }]);
+    setPrimaryIndex(0);
+    setRolesCache({});
     setFormData({
       name: '',
       email: '',
       phone: '',
-      role: '',
       status: 'active',
-      tenantId: '',
       password: '',
       department: '',
       defaultBranchId: '',
-      allowedBranchIds: []
+      allowedBranchIds: [],
     });
     setShowNewDepartment(false);
     setNewDepartmentName('');
@@ -974,13 +876,13 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
 
   const handleAddDepartment = async () => {
     const name = newDepartmentName.trim();
-    if (!name || !formData.tenantId) return;
+    if (!name || !primaryTenantId) return;
     setAddingDepartment(true);
     try {
       const res = await fetch('/api/admin/departments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: formData.tenantId, name })
+        body: JSON.stringify({ tenantId: primaryTenantId, name })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create department');
@@ -997,24 +899,32 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.email || !formData.role || !formData.tenantId) {
-      alert('Please fill in all required fields');
+    const filled = membershipRows.filter((r) => r.tenantId && r.roleId);
+    if (!formData.name || !formData.email || filled.length === 0) {
+      alert('Please fill name, email, and at least one business with a role');
+      return;
+    }
+    const primaryRow = membershipRows[primaryIndex];
+    if (!primaryRow?.tenantId || !primaryRow?.roleId) {
+      alert('The primary business row must have both business and role selected');
       return;
     }
     const payload = {
       ...formData,
+      memberships: filled.map((r) => ({ tenantId: r.tenantId, roleId: r.roleId })),
+      primaryTenantId: primaryRow.tenantId,
       department: formData.department || undefined,
       defaultBranchId: formData.defaultBranchId || undefined,
-      allowedBranchIds: Array.isArray(formData.allowedBranchIds) ? formData.allowedBranchIds : []
+      allowedBranchIds: Array.isArray(formData.allowedBranchIds) ? formData.allowedBranchIds : [],
     };
     onSubmit(payload);
   };
 
-  const tenantBranches = modalBranches.filter((b) => b.tenantId === formData.tenantId || !b.tenantId);
+  const tenantBranches = modalBranches.filter((b) => b.tenantId === primaryTenantId || !b.tenantId);
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-10 mx-auto p-5 border max-w-md w-full shadow-lg rounded-md bg-white mb-10">
+      <div className="relative top-10 mx-auto p-5 border max-w-xl w-full shadow-lg rounded-md bg-white mb-10">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Create New User</h3>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -1065,22 +975,6 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Role</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-                disabled={roles.length === 0}
-              >
-                <option value="">{roles.length === 0 ? 'Loading roles...' : 'Select a role'}</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
               <label className="block text-sm font-medium text-gray-700">Status</label>
               <select
                 value={formData.status}
@@ -1093,25 +987,96 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tenant</label>
-              <select
-                value={formData.tenantId}
-                onChange={(e) => setFormData({ ...formData, tenantId: e.target.value, department: '', defaultBranchId: '', allowedBranchIds: [] })}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Select a tenant</option>
-                {tenants.map((tenant) => (
-                  <option key={tenant.id} value={tenant.id}>{tenant.name} ({tenant.subdomain})</option>
-                ))}
-              </select>
+            <div className="border border-gray-200 rounded-md p-3 space-y-3 bg-gray-50">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-gray-900">Business access</label>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setMembershipRows((prev) => [...prev, { tenantId: '', roleId: '' }])
+                  }
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  + Add business
+                </button>
+              </div>
+              <p className="text-xs text-gray-600">
+                Roles load per business. Choose which row is the user&apos;s primary login business (email uniqueness applies there).
+              </p>
+              {membershipRows.map((row, idx) => (
+                <div key={idx} className="border border-gray-200 rounded-md p-2 bg-white space-y-2">
+                  <label className="flex items-center gap-2 text-xs text-gray-700">
+                    <input
+                      type="radio"
+                      name="primaryBizCreate"
+                      checked={primaryIndex === idx}
+                      onChange={() => setPrimaryIndex(idx)}
+                    />
+                    Primary login business
+                  </label>
+                  <select
+                    value={row.tenantId}
+                    onChange={(e) => {
+                      const tid = e.target.value;
+                      setMembershipRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { tenantId: tid, roleId: '' } : r))
+                      );
+                      if (tid) ensureRolesLoaded(tid);
+                    }}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    required={idx === 0}
+                  >
+                    <option value="">Select business</option>
+                    {tenants.map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.name} ({tenant.subdomain})
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={row.roleId}
+                    onChange={(e) =>
+                      setMembershipRows((prev) =>
+                        prev.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r))
+                      )
+                    }
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    required={idx === 0}
+                    disabled={!row.tenantId}
+                  >
+                    <option value="">
+                      {!row.tenantId ? 'Select business first' : 'Select role for this business'}
+                    </option>
+                    {(rolesCache[row.tenantId] || []).map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                  {membershipRows.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMembershipRows((prev) => prev.filter((_, i) => i !== idx));
+                        setPrimaryIndex((p) => {
+                          if (p === idx) return Math.max(0, idx - 1);
+                          if (p > idx) return p - 1;
+                          return p;
+                        });
+                      }}
+                      className="text-xs text-red-600 hover:text-red-800"
+                    >
+                      Remove row
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
 
             {/* Department */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Department (optional)</label>
-              {formData.tenantId && (
+              {primaryTenantId && (
                 <>
                   <select
                     value={showNewDepartment ? '__new__' : (formData.department || '')}
@@ -1155,15 +1120,15 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
                   )}
                 </>
               )}
-              {!formData.tenantId && (
-                <p className="mt-1 text-xs text-gray-500">Select a tenant first</p>
+              {!primaryTenantId && (
+                <p className="mt-1 text-xs text-gray-500">Mark a primary business above first</p>
               )}
             </div>
 
             {/* Default branch */}
             <div>
               <label className="block text-sm font-medium text-gray-700">Default branch (optional)</label>
-              {formData.tenantId && (
+              {primaryTenantId && (
                 <select
                   value={formData.defaultBranchId || ''}
                   onChange={(e) => setFormData({ ...formData, defaultBranchId: e.target.value || null })}
@@ -1183,7 +1148,7 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
             <div>
               <label className="block text-sm font-medium text-gray-700">Allowed branches (optional)</label>
               <p className="mt-1 text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
-              {formData.tenantId && tenantBranches.length > 0 && (
+              {primaryTenantId && tenantBranches.length > 0 && (
                 <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-200 rounded p-2">
                   {tenantBranches.map((branch) => (
                     <label key={branch.id} className="flex items-center gap-2 py-1">
@@ -1205,7 +1170,7 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
                   ))}
                 </div>
               )}
-              {formData.tenantId && tenantBranches.length === 0 && !branchesLoading && (
+              {primaryTenantId && tenantBranches.length === 0 && !branchesLoading && (
                 <p className="text-xs text-gray-500">No branches for this tenant</p>
               )}
             </div>
@@ -1242,207 +1207,334 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants, roles }) {
 }
 
 // Edit User Modal Component
-function EditUserModal({ user, onClose, onSubmit, loading, tenants, roles, branches, onTenantChange }) {
-  // Find the tenant ID for the current user (prefer user.tenantId from API)
-  const findTenantId = (tenantName) => {
-    if (user.tenantId) return user.tenantId;
-    const tenant = tenants.find(t => t.name === tenantName);
-    return tenant ? tenant.id : '';
-  };
-
-  // Find the role ID for the current user (prefer user.roleId from API)
-  const findRoleId = (roleName) => {
-    if (user.roleId) return user.roleId;
-    const role = roles.find(r => r.name === roleName);
-    return role ? role.id : roleName;
-  };
-
+function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, onTenantChange }) {
+  const [detailLoading, setDetailLoading] = useState(true);
+  const [detailError, setDetailError] = useState('');
+  const [membershipRows, setMembershipRows] = useState([{ tenantId: '', roleId: '' }]);
+  const [primaryIndex, setPrimaryIndex] = useState(0);
+  const [rolesCache, setRolesCache] = useState({});
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email,
     phone: user.phone || '',
-    role: findRoleId(user.role),
     status: user.status,
-    tenantId: findTenantId(user.tenant),
     defaultBranchId: user.defaultBranchId || null,
-    allowedBranchIds: Array.isArray(user.allowedBranchIds) ? [...user.allowedBranchIds] : []
+    allowedBranchIds: Array.isArray(user.allowedBranchIds) ? [...user.allowedBranchIds] : [],
   });
 
-  // Load branches when tenant changes (onTenantChange is stable via useCallback on parent)
+  const primaryTenantId = membershipRows[primaryIndex]?.tenantId || '';
+
+  const ensureRolesLoaded = async (tenantId) => {
+    if (!tenantId || rolesCache[tenantId]) return;
+    const list = await fetchRolesForTenantApi(tenantId);
+    setRolesCache((prev) => ({ ...prev, [tenantId]: list }));
+  };
+
   useEffect(() => {
-    if (formData.tenantId && onTenantChange) {
-      onTenantChange(formData.tenantId);
+    membershipRows.forEach((row) => {
+      if (row.tenantId) ensureRolesLoaded(row.tenantId);
+    });
+  }, [membershipRows]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setDetailLoading(true);
+      setDetailError('');
+      try {
+        const res = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}`, {
+          cache: 'no-store',
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to load user');
+        if (cancelled) return;
+        const d = data.user;
+        setFormData({
+          name: d.name,
+          email: d.email,
+          phone: d.phone || '',
+          status: d.status,
+          defaultBranchId: d.defaultBranchId || null,
+          allowedBranchIds: Array.isArray(d.allowedBranchIds) ? [...d.allowedBranchIds] : [],
+        });
+        const mems =
+          d.memberships && d.memberships.length > 0
+            ? d.memberships.map((m) => ({ tenantId: m.tenantId, roleId: m.roleId }))
+            : [{ tenantId: d.tenantId || '', roleId: d.roleId || '' }];
+        setMembershipRows(mems.length ? mems : [{ tenantId: '', roleId: '' }]);
+        const pIdx = mems.findIndex((m) => m.tenantId === d.primaryTenantId);
+        const nextPrimary = pIdx >= 0 ? pIdx : 0;
+        setPrimaryIndex(nextPrimary);
+        const tidForBranches = mems[nextPrimary]?.tenantId;
+        if (tidForBranches && onTenantChange) onTenantChange(tidForBranches);
+      } catch (e) {
+        if (!cancelled) setDetailError(e.message || 'Load failed');
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user.id]);
+
+  useEffect(() => {
+    if (primaryTenantId && onTenantChange) {
+      onTenantChange(primaryTenantId);
     }
-  }, [formData.tenantId, onTenantChange]);
+  }, [primaryTenantId, onTenantChange]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
-    // Validate required fields
-    if (!formData.name || !formData.email || !formData.role || !formData.tenantId) {
-      alert('Please fill in all required fields');
+    const filled = membershipRows.filter((r) => r.tenantId && r.roleId);
+    if (!formData.name || !formData.email || filled.length === 0) {
+      alert('Please fill name, email, and at least one business with a role');
       return;
     }
-    
-    onSubmit(formData);
+    const primaryRow = membershipRows[primaryIndex];
+    if (!primaryRow?.tenantId || !primaryRow?.roleId) {
+      alert('The primary business row must have both business and role selected');
+      return;
+    }
+    onSubmit({
+      ...formData,
+      memberships: filled.map((r) => ({ tenantId: r.tenantId, roleId: r.roleId })),
+      primaryTenantId: primaryRow.tenantId,
+      tenantId: primaryRow.tenantId,
+      role: primaryRow.roleId,
+    });
   };
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div className="relative top-12 mx-auto p-5 border max-w-xl w-full shadow-lg rounded-md bg-white mb-10">
         <div className="mt-3">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Edit User</h3>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+          {detailLoading && (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+          )}
+          {detailError && (
+            <div className="mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-3">
+              {detailError}
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Phone</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Role</label>
-              <select
-                value={formData.role}
-                onChange={(e) => setFormData({...formData, role: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Select a role</option>
-                {roles.map(role => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData({...formData, status: e.target.value})}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="pending">Pending</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Tenant</label>
-              <select
-                value={formData.tenantId}
-                onChange={(e) => {
-                  setFormData({...formData, tenantId: e.target.value, defaultBranchId: null});
-                  if (onTenantChange) onTenantChange(e.target.value);
-                }}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value="">Select a tenant</option>
-                {tenants.map(tenant => (
-                  <option key={tenant.id} value={tenant.id}>
-                    {tenant.name} ({tenant.subdomain})
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            {formData.tenantId && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
-                  <select
-                    value={formData.defaultBranchId || ''}
-                    onChange={(e) => setFormData({...formData, defaultBranchId: e.target.value || null})}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+          )}
+          {!detailLoading && !detailError && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Name</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="pending">Pending</option>
+                </select>
+              </div>
+
+              <div className="border border-gray-200 rounded-md p-3 space-y-3 bg-gray-50">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-900">Business access</label>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setMembershipRows((prev) => [...prev, { tenantId: '', roleId: '' }])
+                    }
+                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                   >
-                    <option value="">-- No Default Branch --</option>
-                    {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
-                      <option key={branch.id} value={branch.id}>
-                        {branch.name} {branch.code ? `(${branch.code})` : ''}
+                    + Add business
+                  </button>
+                </div>
+                <p className="text-xs text-gray-600">
+                  Role lists are loaded per business (roles from other tenants are not shown).
+                </p>
+                {membershipRows.map((row, idx) => (
+                  <div key={idx} className="border border-gray-200 rounded-md p-2 bg-white space-y-2">
+                    <label className="flex items-center gap-2 text-xs text-gray-700">
+                      <input
+                        type="radio"
+                        name="primaryBizEdit"
+                        checked={primaryIndex === idx}
+                        onChange={() => setPrimaryIndex(idx)}
+                      />
+                      Primary login business
+                    </label>
+                    <select
+                      value={row.tenantId}
+                      onChange={(e) => {
+                        const tid = e.target.value;
+                        setMembershipRows((prev) =>
+                          prev.map((r, i) => (i === idx ? { tenantId: tid, roleId: '' } : r))
+                        );
+                        if (tid) ensureRolesLoaded(tid);
+                      }}
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      required={idx === 0}
+                    >
+                      <option value="">Select business</option>
+                      {tenants.map((tenant) => (
+                        <option key={tenant.id} value={tenant.id}>
+                          {tenant.name} ({tenant.subdomain})
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={row.roleId}
+                      onChange={(e) =>
+                        setMembershipRows((prev) =>
+                          prev.map((r, i) => (i === idx ? { ...r, roleId: e.target.value } : r))
+                        )
+                      }
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
+                      required={idx === 0}
+                      disabled={!row.tenantId}
+                    >
+                      <option value="">
+                        {!row.tenantId ? 'Select business first' : 'Select role for this business'}
                       </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Login and transactions default to this branch when not specified</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Allowed Branches</label>
-                  <p className="mt-1 text-xs text-gray-500 mb-2">Leave empty for access to all branches. Select specific branches to restrict this user.</p>
-                  <div className="mt-1 border border-gray-300 rounded-md p-2 max-h-32 overflow-y-auto bg-gray-50">
-                    {branches.filter(b => b.tenantId === formData.tenantId || !b.tenantId).map(branch => (
-                      <label key={branch.id} className="flex items-center gap-2 py-1">
-                        <input
-                          type="checkbox"
-                          checked={formData.allowedBranchIds.includes(branch.id)}
-                          onChange={(e) => {
-                            const next = e.target.checked
-                              ? [...formData.allowedBranchIds, branch.id]
-                              : formData.allowedBranchIds.filter(id => id !== branch.id);
-                            setFormData({ ...formData, allowedBranchIds: next });
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <span className="text-sm">{branch.name}{branch.code ? ` (${branch.code})` : ''}</span>
-                      </label>
-                    ))}
+                      {(rolesCache[row.tenantId] || []).map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                    {membershipRows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMembershipRows((prev) => prev.filter((_, i) => i !== idx));
+                          setPrimaryIndex((p) => {
+                            if (p === idx) return Math.max(0, idx - 1);
+                            if (p > idx) return p - 1;
+                            return p;
+                          });
+                        }}
+                        className="text-xs text-red-600 hover:text-red-800"
+                      >
+                        Remove row
+                      </button>
+                    )}
                   </div>
-                </div>
-              </>
-            )}
-            
-            <div className="flex justify-end space-x-3 pt-4">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={loading}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    <span>Updating...</span>
-                  </>
-                ) : (
-                  <span>Update User</span>
-                )}
-              </button>
-            </div>
-          </form>
+                ))}
+              </div>
+
+              {primaryTenantId && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Default Branch (Optional)</label>
+                    <select
+                      value={formData.defaultBranchId || ''}
+                      onChange={(e) =>
+                        setFormData({ ...formData, defaultBranchId: e.target.value || null })
+                      }
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">-- No Default Branch --</option>
+                      {branches
+                        .filter((b) => b.tenantId === primaryTenantId || !b.tenantId)
+                        .map((branch) => (
+                          <option key={branch.id} value={branch.id}>
+                            {branch.name} {branch.code ? `(${branch.code})` : ''}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Applies to the primary business. Login defaults to this branch when not specified.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Allowed Branches</label>
+                    <p className="mt-1 text-xs text-gray-500 mb-2">
+                      For the primary business only. Leave empty for all branches.
+                    </p>
+                    <div className="mt-1 border border-gray-300 rounded-md p-2 max-h-32 overflow-y-auto bg-gray-50">
+                      {branches
+                        .filter((b) => b.tenantId === primaryTenantId || !b.tenantId)
+                        .map((branch) => (
+                          <label key={branch.id} className="flex items-center gap-2 py-1">
+                            <input
+                              type="checkbox"
+                              checked={formData.allowedBranchIds.includes(branch.id)}
+                              onChange={(e) => {
+                                const next = e.target.checked
+                                  ? [...formData.allowedBranchIds, branch.id]
+                                  : formData.allowedBranchIds.filter((id) => id !== branch.id);
+                                setFormData({ ...formData, allowedBranchIds: next });
+                              }}
+                              className="rounded border-gray-300"
+                            />
+                            <span className="text-sm">
+                              {branch.name}
+                              {branch.code ? ` (${branch.code})` : ''}
+                            </span>
+                          </label>
+                        ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={loading}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 flex items-center space-x-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Updating...</span>
+                    </>
+                  ) : (
+                    <span>Update User</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>
