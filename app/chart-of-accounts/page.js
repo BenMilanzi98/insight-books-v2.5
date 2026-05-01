@@ -1,9 +1,11 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import Link from 'next/link';
 import {
   Plus,
   Search,
   FileSpreadsheet,
+  FileDown,
   Upload,
   ChevronDown,
   CheckCircle,
@@ -14,7 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currencyUtils';
-import { downloadExcel } from '@/lib/exportUtils';
+import { downloadExcel, downloadExcelWorkbook, downloadPDF } from '@/lib/exportUtils';
 import PermissionGuard from '@/components/PermissionGuard';
 import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
 
@@ -596,6 +598,27 @@ const ChartOfAccountsPage = () => {
             </div>
           </header>
 
+          <div className="mb-6 rounded-2xl border border-slate-200/80 bg-white/90 px-4 py-3.5 text-xs leading-relaxed text-slate-700 shadow-sm ring-1 ring-slate-900/[0.03] sm:px-5 sm:text-sm">
+            <p className="font-semibold text-slate-900">Balance basis</p>
+            <p className="mt-1.5">
+              Grid totals use <strong>posted</strong> GL in the selected date range (when set), merge roll-ups, and chart rules (e.g. inventory). The API exposes{' '}
+              <code className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-800">balanceSource</code> and{' '}
+              <code className="rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-800">reconciliationHint</code> on each account in{' '}
+              <strong>Account details</strong> so you can see AR / inventory / legacy vs pure posted GL.
+            </p>
+            <p className="mt-2 text-slate-600">
+              For period-based <strong>debits = credits</strong> proof, use{' '}
+              <Link href="/trial-balance" className="font-semibold text-indigo-700 underline decoration-indigo-300 underline-offset-2 hover:text-indigo-900">
+                Trial balance
+              </Link>
+              . Internal engine checks:{' '}
+              <code className="font-mono text-[11px] text-slate-700">GET /api/reports/gl-reconciliation?startDate=&amp;endDate=</code>{' '}
+              (optional <code className="font-mono text-[11px]">branchId</code>) or CLI{' '}
+              <code className="font-mono text-[11px] text-slate-700">npm run audit:gl -- &lt;start&gt; &lt;end&gt;</code>{' '}
+              with <code className="font-mono text-[11px]">AUDIT_GL_TENANT_ID</code> or session env (see <code className="font-mono text-[11px]">scripts/audit-gl.cjs</code>).
+            </p>
+          </div>
+
           {/* Toolbar */}
           <div className="mb-6 flex flex-col gap-4 rounded-3xl border border-slate-200/70 bg-white/90 p-4 shadow-sm backdrop-blur-sm ring-1 ring-slate-900/[0.03] sm:p-5 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between lg:gap-x-4 lg:gap-y-3">
             <div className="relative min-w-0 w-full lg:max-w-xl lg:flex-1">
@@ -810,6 +833,7 @@ const ChartOfAccountsPage = () => {
         {showViewModal && selectedAccount && (
           <ViewAccountModal
             account={selectedAccount}
+            chartAccounts={accounts}
             onClose={() => {
               setShowViewModal(false);
               setSelectedAccount(null);
@@ -1176,298 +1200,556 @@ const AccountModal = ({
   );
 };
 
+/** Chart list subtree under `rootId` with rolled balances (depth-first by code). */
+function collectChartSubtreeRows(rootId, chartAccounts) {
+  if (!rootId || !Array.isArray(chartAccounts)) return [];
+  const byParent = new Map();
+  for (const a of chartAccounts) {
+    const pid = a.parentAccountId;
+    if (!pid) continue;
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(a);
+  }
+  const codeSort = (x, y) =>
+    String(x.accountCode || x.code || '').localeCompare(String(y.accountCode || y.code || ''), undefined, {
+      numeric: true,
+    });
+  const out = [];
+  const walk = (parentId, depth) => {
+    const kids = [...(byParent.get(parentId) || [])].sort(codeSort);
+    for (const k of kids) {
+      out.push({ row: k, depth });
+      walk(k.id, depth + 1);
+    }
+  };
+  walk(rootId, 0);
+  return out;
+}
+
+function safeCoaExportBasename(codeRaw) {
+  const c = String(codeRaw || 'account').trim().replace(/[^\w.-]+/g, '_');
+  return c || 'account';
+}
+
 // View Account Modal Component
-const ViewAccountModal = ({ account, onClose }) => {
+const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
   const dl = 'text-xs font-semibold uppercase tracking-wider text-slate-500';
-  const card = 'rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 ring-1 ring-slate-900/[0.02]';
+  const card = 'rounded-xl border border-slate-200/90 bg-white p-4 shadow-sm ring-1 ring-slate-900/[0.03]';
+  const btnExport =
+    'inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:flex-initial';
+
+  const subtreeRows = useMemo(
+    () => collectChartSubtreeRows(account?.id, chartAccounts),
+    [account?.id, chartAccounts]
+  );
+
+  const chartBalanceMain =
+    account.chartGridBalance != null ? Number(account.chartGridBalance) : Number(account.currentBalance) || 0;
+
+  const descendantsTotal = useMemo(
+    () => subtreeRows.reduce((s, { row }) => s + (Number(row.currentBalance) || 0), 0),
+    [subtreeRows]
+  );
+
+  const subtreeMismatch =
+    subtreeRows.length > 0 && Math.abs(descendantsTotal - chartBalanceMain) > 0.02;
+
+  const handleExportExcel = useCallback(async () => {
+    const code = safeCoaExportBasename(account.accountCode || account.code);
+    const name = account.accountName || account.name || '';
+    const summaryHeaders = [
+      { key: 'field', label: 'Field' },
+      { key: 'value', label: 'Value' },
+    ];
+    const summaryData = [
+      { field: 'Account code', value: account.accountCode || account.code || '' },
+      { field: 'Account name', value: name },
+      { field: 'Type', value: account.accountType || account.type || '' },
+      { field: 'Sub-type', value: account.accountSubtype || '' },
+      { field: 'Normal balance', value: account.normalBalance || '' },
+      {
+        field: 'Chart balance (grid)',
+        value: chartBalanceMain,
+      },
+      {
+        field: 'Posted on this code only (API)',
+        value:
+          account.balanceSources?.displayedRowTotal != null
+            ? Number(account.balanceSources.displayedRowTotal)
+            : Number(account.postedDirectBalance ?? account.currentBalance) || 0,
+      },
+      { field: 'Posted transaction lines (est.)', value: account.transactionCount ?? 0 },
+      { field: 'Status', value: account.isActive !== false ? 'Active' : 'Inactive' },
+      { field: 'Parent', value: account.parentAccount ? `${account.parentAccount.accountCode} — ${account.parentAccount.accountName || ''}` : '' },
+      {
+        field: 'Sum of sub-account chart balances',
+        value: descendantsTotal,
+      },
+    ];
+
+    const subHeaders = [
+      { key: 'level', label: 'Level' },
+      { key: 'code', label: 'Code' },
+      { key: 'name', label: 'Name' },
+      { key: 'type', label: 'Type' },
+      { key: 'status', label: 'Status' },
+      { key: 'chartBalance', label: 'Chart balance' },
+    ];
+    const subData = subtreeRows.map(({ row, depth }) => ({
+      level: depth + 1,
+      code: row.accountCode || row.code || '',
+      name: row.accountName || row.name || '',
+      type: row.accountType || row.type || '',
+      status: row.isActive !== false ? 'Active' : 'Inactive',
+      chartBalance: Number(row.currentBalance) || 0,
+    }));
+
+    const sheets = [
+      { name: 'Summary', data: summaryData, headers: summaryHeaders },
+      { name: 'Sub-accounts', data: subData, headers: subHeaders },
+    ];
+
+    if (account.balanceSources?.components?.length) {
+      const compHeaders = [
+        { key: 'source', label: 'Source' },
+        { key: 'debit', label: 'Debit' },
+        { key: 'credit', label: 'Credit' },
+        { key: 'net', label: 'Net / amount' },
+        { key: 'lines', label: 'Lines' },
+      ];
+      const compData = account.balanceSources.components.map((row) => ({
+        source: row.note ? `${row.label} — ${row.note}` : row.label,
+        debit: row.debit != null ? Number(row.debit) : '',
+        credit: row.credit != null ? Number(row.credit) : '',
+        net:
+          row.netEffect != null
+            ? Number(row.netEffect)
+            : row.amount != null
+              ? Number(row.amount)
+              : '',
+        lines: row.lineCount != null ? row.lineCount : '',
+      }));
+      sheets.push({ name: 'Balance composition', data: compData, headers: compHeaders });
+    }
+
+    await downloadExcelWorkbook(sheets, `${code}_account_details.xlsx`);
+  }, [account, chartBalanceMain, descendantsTotal, subtreeRows]);
+
+  const handleExportPdf = useCallback(() => {
+    const code = safeCoaExportBasename(account.accountCode || account.code);
+    const name = account.accountName || account.name || 'Account';
+    const summaryData = [
+      { label: 'Account code', value: account.accountCode || account.code || '—' },
+      { label: 'Name', value: name },
+      { label: 'Type', value: account.accountType || account.type || '—' },
+      { label: 'Chart balance (grid)', value: formatCurrency(chartBalanceMain) },
+      {
+        label: 'Posted on this code (detail)',
+        value: formatCurrency(
+          account.balanceSources?.displayedRowTotal != null
+            ? Number(account.balanceSources.displayedRowTotal)
+            : Number(account.postedDirectBalance ?? account.currentBalance) || 0
+        ),
+      },
+      { label: 'Transactions (posted lines est.)', value: String(account.transactionCount ?? 0) },
+      { label: 'Sub-accounts listed', value: String(subtreeRows.length) },
+      { label: 'Sum of sub-account balances', value: formatCurrency(descendantsTotal) },
+    ];
+
+    const pdfRows = subtreeRows.map(({ row, depth }) => ({
+      code: `${'· '.repeat(depth)}${row.accountCode || row.code || ''}`,
+      name: row.accountName || row.name || '',
+      type: row.accountType || row.type || '',
+      balance: Number(row.currentBalance) || 0,
+    }));
+
+    const sections = [];
+    if (account.balanceSources?.components?.length) {
+      sections.push({
+        title: 'Balance composition',
+        table: {
+          headers: ['Source', 'Net / amount', 'Lines'],
+          data: account.balanceSources.components.map((row) => [
+            row.note ? `${row.label} (${row.note})` : row.label,
+            formatCurrency(row.netEffect != null ? row.netEffect : row.amount ?? 0),
+            row.lineCount != null ? String(row.lineCount) : '—',
+          ]),
+        },
+      });
+    }
+
+    downloadPDF(
+      {
+        title: 'Chart of accounts — account details',
+        subtitle: `${account.accountCode || account.code || ''} — ${name}`,
+        summaryData,
+        data: pdfRows,
+        headers: [
+          { key: 'code', label: 'Code' },
+          { key: 'name', label: 'Name' },
+          { key: 'type', label: 'Type' },
+          { key: 'balance', label: 'Chart balance', format: 'currency' },
+        ],
+        sections,
+      },
+      `${code}_account_details.pdf`
+    );
+  }, [account, chartBalanceMain, descendantsTotal, subtreeRows]);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-sm"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/15"
+        className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl shadow-slate-900/20 flex flex-col"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="coa-view-account-title"
       >
-        <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-6 py-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Account details</h2>
-              <p className="mt-1 font-mono text-sm font-semibold text-indigo-600">
-                {account.accountCode || account.code || 'N/A'}
-              </p>
+        <div className="shrink-0 border-b border-indigo-100/80 bg-gradient-to-br from-indigo-50/90 via-white to-slate-50 px-5 py-4 sm:px-6 sm:py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-indigo-600">Account details</p>
+              <h2 id="coa-view-account-title" className="mt-1 truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                {account.accountName || account.name || 'Unnamed account'}
+              </h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-indigo-600/10 px-2.5 py-1 font-mono text-sm font-semibold text-indigo-800 ring-1 ring-indigo-200/60">
+                  {account.accountCode || account.code || 'N/A'}
+                </span>
+                <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium capitalize text-slate-700">
+                  {account.accountType || account.type || '—'}
+                </span>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
-              aria-label="Close"
-            >
-              <X size={22} strokeWidth={2} />
-            </button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <button type="button" className={btnExport} onClick={handleExportExcel} aria-label="Export Excel">
+                <FileSpreadsheet size={18} strokeWidth={2} className="text-emerald-600" />
+                Excel
+              </button>
+              <button type="button" className={btnExport} onClick={handleExportPdf} aria-label="Export PDF">
+                <FileDown size={18} strokeWidth={2} className="text-rose-600" />
+                PDF
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-white/80 hover:text-slate-700"
+                aria-label="Close"
+              >
+                <X size={22} strokeWidth={2} />
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <p className={dl}>Chart balance</p>
+              <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">
+                {formatCurrency(chartBalanceMain)}
+              </p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">As shown on the CoA grid (includes roll-ups).</p>
+            </div>
+            <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <p className={dl}>Sub-accounts</p>
+              <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">{subtreeRows.length}</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">Direct & nested under this account in the chart.</p>
+            </div>
+            <div className="rounded-xl border border-white/60 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+              <p className={dl}>Posted activity</p>
+              <p className="mt-1 font-mono text-xl font-bold tabular-nums text-slate-900">{account.transactionCount ?? 0}</p>
+              <p className="mt-1 text-[11px] leading-snug text-slate-500">Journal + GL lines on this code (detail API).</p>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
-          <div className={card}>
-            <p className={dl}>Name</p>
-            <p className="mt-1 text-lg font-semibold text-slate-900">
-              {account.accountName || account.name || 'Unnamed account'}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className={card}>
-              <p className={dl}>Type</p>
-              <p className="mt-1 font-medium capitalize text-slate-900">{account.accountType || account.type || '—'}</p>
-            </div>
-            <div className={card}>
-              <p className={dl}>Sub-type</p>
-              <p className="mt-1 font-medium text-slate-900">{account.accountSubtype || '—'}</p>
-            </div>
-            <div className={card}>
-              <p className={dl}>Normal balance</p>
-              <p className="mt-1 font-medium text-slate-900">{account.normalBalance || '—'}</p>
-            </div>
-            <div className={card}>
-              <p className={dl}>Current balance (chart)</p>
-              <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
-                {formatCurrency(
-                  account.chartGridBalance != null ? account.chartGridBalance : account.currentBalance || 0
-                )}
-              </p>
-              {account.balanceSources &&
-                Math.abs(
-                  Number(account.chartGridBalance ?? account.currentBalance) -
-                    Number(account.balanceSources.displayedRowTotal)
-                ) > 0.005 && (
-                  <p className="mt-2 text-xs leading-relaxed text-amber-800">
-                    This code alone (no child rollup):{' '}
-                    <span className="font-mono font-semibold">
-                      {formatCurrency(account.balanceSources.displayedRowTotal)}
-                    </span>
-                    . The chart total above includes rolled-up sub-accounts when this row is a parent.
-                  </p>
-                )}
-              {account.postedDirectBalance != null &&
-                Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                    Posted on this code only: {formatCurrency(account.postedDirectBalance)}. Total includes
-                    sub-accounts on this row.
-                  </p>
-                )}
-            </div>
-          </div>
-
-          {account.balanceSources && (
-            <div className={card}>
-              <p className={dl}>Balance composition</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                Source: <span className="font-mono text-slate-800">{account.balanceSources.balanceSource}</span>
-                {account.balanceSources.mergeRollupPostingAccountCount > 1 && (
-                  <>
-                    {' '}
-                    · CoA merge rollup:{' '}
-                    <span className="font-mono">{account.balanceSources.mergeRollupPostingAccountCount}</span>{' '}
-                    account ids post into this code
-                  </>
-                )}
-              </p>
-              {account.balanceSources.reconciliationHint && (
-                <p className="mt-2 text-xs leading-relaxed text-slate-500">
-                  {account.balanceSources.reconciliationHint}
-                </p>
-              )}
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200/80">
-                <table className="min-w-full text-left text-sm text-slate-800">
-                  <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    <tr>
-                      <th className="px-3 py-2">Source</th>
-                      <th className="px-3 py-2 text-right">Debit</th>
-                      <th className="px-3 py-2 text-right">Credit</th>
-                      <th className="px-3 py-2 text-right">Net / amount</th>
-                      <th className="px-3 py-2 text-right">Accumulated</th>
-                      <th className="px-3 py-2 text-right">Running total</th>
-                      <th className="px-3 py-2 text-right">Lines</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {account.balanceSources.components.map((row) => (
-                      <tr key={row.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2 align-top">
-                          <div className="font-medium text-slate-900">{row.label}</div>
-                          {row.note && (
-                            <div className="mt-0.5 text-xs font-normal text-slate-500">{row.note}</div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums">
-                          {row.debit != null ? formatCurrency(row.debit) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums">
-                          {row.credit != null ? formatCurrency(row.credit) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
-                          {row.netEffect != null
-                            ? formatCurrency(row.netEffect)
-                            : row.amount != null
-                              ? formatCurrency(row.amount)
-                              : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-900">
-                          {row.accumulatedAmount != null ? formatCurrency(row.accumulatedAmount) : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-indigo-900">
-                          {row.runningTotalAfterThisSource != null
-                            ? formatCurrency(row.runningTotalAfterThisSource)
-                            : '—'}
-                        </td>
-                        <td className="px-3 py-2 text-right font-mono tabular-nums">
-                          {row.lineCount != null ? row.lineCount : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <p className="mt-2 text-xs text-slate-500">
-                Displayed row total:{' '}
-                <span className="font-mono font-semibold text-slate-800">
-                  {formatCurrency(account.balanceSources.displayedRowTotal)}
-                </span>
-                {account.balanceSources.components.length > 0 && (
-                  <>
-                    {' '}
-                    (last running total should match, for the active source row)
-                  </>
-                )}
-              </p>
-              {account.balanceSources.components.some((c) => c.detailLines?.length) && (
-                <div className="mt-4 space-y-2">
-                  <p className={dl}>Invoice-level detail (AR sub-ledger)</p>
-                  <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-200/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                    <span>Invoice</span>
-                    <span className="text-right">Accumulated</span>
-                    <span className="text-right">Running total</span>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className={card}>
+                <p className={dl}>Classification</p>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                    <dt className="text-slate-500">Sub-type</dt>
+                    <dd className="font-medium text-slate-900">{account.accountSubtype || '—'}</dd>
                   </div>
-                  <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 border-t-0 bg-white p-2 text-xs">
-                    {account.balanceSources.components
-                      .flatMap((c) =>
-                        c.detailLines ? c.detailLines.map((d) => ({ ...d, _src: c.id, _unpaid: c.lineCount })) : []
-                      )
-                      .map((inv) => (
-                        <li
-                          key={`${inv._src}-${inv.id}`}
-                          className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-50 py-1 font-mono text-slate-700 last:border-0"
-                        >
-                          <span className="min-w-0">
-                            {inv.invoiceNumber || inv.id}{' '}
-                            <span className="text-slate-500">({inv.status || '—'})</span>
-                          </span>
-                          <span className="text-right tabular-nums text-slate-600" title="This invoice (accumulated)">
-                            {formatCurrency(inv.accumulatedAmount ?? inv.actualRemaining)}
-                          </span>
-                          <span className="text-right tabular-nums font-semibold text-indigo-900" title="Running AR total">
-                            {inv.runningTotalAfterThisSource != null
-                              ? formatCurrency(inv.runningTotalAfterThisSource)
-                              : '—'}
-                          </span>
-                        </li>
-                      ))}
-                  </ul>
-                  {(() => {
-                    const ar = account.balanceSources.components.find((c) => c.id === 'ar_unpaid_invoices');
-                    if (!ar?.detailLines?.length || !ar.lineCount) return null;
-                    if (ar.lineCount <= ar.detailLines.length) return null;
-                    return (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Showing {ar.detailLines.length} of {ar.lineCount} unpaid invoices. Full AR accumulated total:{' '}
-                        <span className="font-mono font-semibold text-slate-800">
-                          {formatCurrency(ar.accumulatedAmount ?? ar.amount ?? 0)}
+                  <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                    <dt className="text-slate-500">Normal balance</dt>
+                    <dd className="font-medium text-slate-900">{account.normalBalance || '—'}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3 pt-1">
+                    <dt className="text-slate-500">Status</dt>
+                    <dd>
+                      {account.isActive !== false ? (
+                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                          <CheckCircle size={16} strokeWidth={2} className="text-emerald-600" />
+                          Active
                         </span>
-                        .
-                      </p>
-                    );
-                  })()}
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-semibold text-slate-500">
+                          <XCircle size={16} strokeWidth={2} />
+                          Inactive
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className={card}>
+                <p className={dl}>Hierarchy</p>
+                {account.parentAccount ? (
+                  <div className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                    <span className="text-slate-500">Parent · </span>
+                    <span className="font-mono font-semibold text-indigo-800">
+                      {account.parentAccount.accountCode || account.parentAccount.code || '—'}
+                    </span>
+                    <span className="text-slate-700"> — {account.parentAccount.accountName || account.parentAccount.name || ''}</span>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-sm text-slate-500">Top-level (no parent)</p>
+                )}
+                {account.description ? (
+                  <p className="mt-3 text-sm leading-relaxed text-slate-600">{account.description}</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className={card}>
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className={dl}>Sub-account balances</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Amounts match the chart grid for each descendant. Sum of rows:{' '}
+                    <span className="font-mono font-semibold text-slate-900">{formatCurrency(descendantsTotal)}</span>
+                  </p>
+                </div>
+                {subtreeMismatch ? (
+                  <p className="text-xs font-medium text-amber-800">
+                    Differs from parent chart total ({formatCurrency(chartBalanceMain)}); normal when filters hide rows or roll-ups differ.
+                  </p>
+                ) : null}
+              </div>
+              {subtreeRows.length === 0 ? (
+                <p className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-500">
+                  No sub-accounts in the current chart list for this account.
+                </p>
+              ) : (
+                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-200/90">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="sticky top-0 z-10 bg-slate-100/95 text-xs font-semibold uppercase tracking-wide text-slate-600 backdrop-blur">
+                      <tr>
+                        <th className="px-3 py-2.5">Code</th>
+                        <th className="px-3 py-2.5">Name</th>
+                        <th className="hidden px-3 py-2.5 sm:table-cell">Type</th>
+                        <th className="px-3 py-2.5 text-right">Chart balance</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {subtreeRows.map(({ row, depth }) => (
+                        <tr key={row.id} className="bg-white hover:bg-slate-50/80">
+                          <td className="px-3 py-2.5 font-mono text-xs font-semibold tabular-nums text-indigo-800 sm:text-sm">
+                            <span style={{ paddingLeft: `${depth * 14}px` }} className="inline-block border-l-2 border-indigo-200 pl-2">
+                              {row.accountCode || row.code}
+                            </span>
+                          </td>
+                          <td className="max-w-[200px] truncate px-3 py-2.5 text-slate-800 sm:max-w-none">{row.accountName || row.name}</td>
+                          <td className="hidden px-3 py-2.5 capitalize text-slate-600 sm:table-cell">{row.accountType || row.type || '—'}</td>
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums font-semibold text-slate-900">
+                            {formatCurrency(Number(row.currentBalance) || 0)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    {subtreeRows.length > 0 ? (
+                      <tfoot>
+                        <tr className="bg-slate-50 font-semibold">
+                          <td colSpan={3} className="px-3 py-2.5 text-right text-slate-600">
+                            Total (sum of listed sub-accounts)
+                          </td>
+                          <td className="px-3 py-2.5 text-right font-mono tabular-nums text-indigo-900">
+                            {formatCurrency(descendantsTotal)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
                 </div>
               )}
-              {account.balanceSources.notes?.length > 0 && (
-                <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600">
-                  {account.balanceSources.notes.map((n, i) => (
-                    <li key={i}>{n}</li>
-                  ))}
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className={card}>
+                <p className={dl}>Balance vs chart</p>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700">
+                  <li>
+                    <span className="text-slate-500">Chart total: </span>
+                    <span className="font-mono font-semibold">{formatCurrency(chartBalanceMain)}</span>
+                  </li>
+                  {account.balanceSources &&
+                    Math.abs(chartBalanceMain - Number(account.balanceSources.displayedRowTotal)) > 0.005 && (
+                      <li className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+                        This code alone (no child rollup in detail):{' '}
+                        <span className="font-mono font-semibold">
+                          {formatCurrency(account.balanceSources.displayedRowTotal)}
+                        </span>
+                        . The chart total includes rolled-up sub-accounts when this row is a parent.
+                      </li>
+                    )}
+                  {account.postedDirectBalance != null &&
+                    Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
+                      <li className="text-xs text-slate-600">
+                        Posted on this code only: {formatCurrency(account.postedDirectBalance)}. Grid total can include
+                        sub-ledgers.
+                      </li>
+                    )}
                 </ul>
-              )}
+              </div>
             </div>
-          )}
 
-          {account.parentAccount && (
-            <div className={card}>
-              <p className={dl}>Parent</p>
-              <p className="mt-1 text-sm font-medium text-slate-900">
-                {account.parentAccount.accountCode || account.parentAccount.code || 'N/A'} —{' '}
-                {account.parentAccount.accountName || account.parentAccount.name || 'Unnamed'}
-              </p>
-            </div>
-          )}
-
-          {account.childAccounts && account.childAccounts.length > 0 && (
-            <div className={card}>
-              <p className={dl}>Child accounts</p>
-              <ul className="mt-2 space-y-2 border-t border-slate-200/60 pt-3">
-                {account.childAccounts.map((child) => {
-                  const code = child.accountCode || child.code || 'N/A';
-                  const name = child.accountName || child.name || 'Unnamed';
-                  return (
-                    <li key={child.id} className="flex justify-between gap-3 text-sm text-slate-800">
-                      <span className="font-mono font-semibold tabular-nums text-indigo-700">{code}</span>
-                      <span className="min-w-0 text-right text-slate-700">{name}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )}
-
-          {account.description && (
-            <div className={card}>
-              <p className={dl}>Description</p>
-              <p className="mt-1 text-sm leading-relaxed text-slate-700">{account.description}</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className={card}>
-              <p className={dl}>Status</p>
-              <p className="mt-1">
-                {account.isActive ? (
-                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700">
-                    <CheckCircle size={18} strokeWidth={2} className="text-emerald-600" />
-                    Active
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500">
-                    <XCircle size={18} strokeWidth={2} />
-                    Inactive
-                  </span>
+            {account.balanceSources && (
+              <div className={card}>
+                <p className={dl}>Balance composition (detail)</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                  Source: <span className="font-mono text-slate-800">{account.balanceSources.balanceSource}</span>
+                  {account.balanceSources.mergeRollupPostingAccountCount > 1 && (
+                    <>
+                      {' '}
+                      · CoA merge rollup:{' '}
+                      <span className="font-mono">{account.balanceSources.mergeRollupPostingAccountCount}</span> account ids
+                      post into this code
+                    </>
+                  )}
+                </p>
+                {account.balanceSources.reconciliationHint && (
+                  <p className="mt-2 text-xs leading-relaxed text-slate-500">{account.balanceSources.reconciliationHint}</p>
                 )}
-              </p>
-            </div>
-            <div className={card}>
-              <p className={dl}>Transactions</p>
-              <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-slate-900">
-                {account.transactionCount || 0}
-                <span className="ml-2 text-sm font-normal text-slate-600">posted</span>
-              </p>
-            </div>
+                <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200/80">
+                  <table className="min-w-[720px] w-full text-left text-sm text-slate-800">
+                    <thead className="bg-slate-100/80 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2">Source</th>
+                        <th className="px-3 py-2 text-right">Debit</th>
+                        <th className="px-3 py-2 text-right">Credit</th>
+                        <th className="px-3 py-2 text-right">Net / amount</th>
+                        <th className="px-3 py-2 text-right">Accumulated</th>
+                        <th className="px-3 py-2 text-right">Running total</th>
+                        <th className="px-3 py-2 text-right">Lines</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {account.balanceSources.components.map((row) => (
+                        <tr key={row.id} className="border-t border-slate-100">
+                          <td className="px-3 py-2 align-top">
+                            <div className="font-medium text-slate-900">{row.label}</div>
+                            {row.note && <div className="mt-0.5 text-xs font-normal text-slate-500">{row.note}</div>}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {row.debit != null ? formatCurrency(row.debit) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {row.credit != null ? formatCurrency(row.credit) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                            {row.netEffect != null
+                              ? formatCurrency(row.netEffect)
+                              : row.amount != null
+                                ? formatCurrency(row.amount)
+                                : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums text-slate-900">
+                            {row.accumulatedAmount != null ? formatCurrency(row.accumulatedAmount) : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums text-indigo-900">
+                            {row.runningTotalAfterThisSource != null
+                              ? formatCurrency(row.runningTotalAfterThisSource)
+                              : '—'}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono tabular-nums">
+                            {row.lineCount != null ? row.lineCount : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Displayed row total:{' '}
+                  <span className="font-mono font-semibold text-slate-800">
+                    {formatCurrency(account.balanceSources.displayedRowTotal)}
+                  </span>
+                  {account.balanceSources.components.length > 0 && (
+                    <> (last running total should match the active source row)</>
+                  )}
+                </p>
+                {account.balanceSources.components.some((c) => c.detailLines?.length) && (
+                  <div className="mt-4 space-y-2">
+                    <p className={dl}>Invoice-level detail (AR sub-ledger)</p>
+                    <div className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-200/80 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      <span>Invoice</span>
+                      <span className="text-right">Accumulated</span>
+                      <span className="text-right">Running total</span>
+                    </div>
+                    <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-slate-200/80 border-t-0 bg-white p-2 text-xs">
+                      {account.balanceSources.components
+                        .flatMap((c) =>
+                          c.detailLines ? c.detailLines.map((d) => ({ ...d, _src: c.id })) : []
+                        )
+                        .map((inv) => (
+                          <li
+                            key={`${inv._src}-${inv.id}`}
+                            className="grid grid-cols-[1fr_auto_auto] gap-x-3 border-b border-slate-50 py-1 font-mono text-slate-700 last:border-0"
+                          >
+                            <span className="min-w-0">
+                              {inv.invoiceNumber || inv.id}{' '}
+                              <span className="text-slate-500">({inv.status || '—'})</span>
+                            </span>
+                            <span className="text-right tabular-nums text-slate-600" title="This invoice (accumulated)">
+                              {formatCurrency(inv.accumulatedAmount ?? inv.actualRemaining)}
+                            </span>
+                            <span className="text-right tabular-nums font-semibold text-indigo-900" title="Running AR total">
+                              {inv.runningTotalAfterThisSource != null
+                                ? formatCurrency(inv.runningTotalAfterThisSource)
+                                : '—'}
+                            </span>
+                          </li>
+                        ))}
+                    </ul>
+                    {(() => {
+                      const ar = account.balanceSources.components.find((c) => c.id === 'ar_unpaid_invoices');
+                      if (!ar?.detailLines?.length || !ar.lineCount) return null;
+                      if (ar.lineCount <= ar.detailLines.length) return null;
+                      return (
+                        <p className="mt-1 text-xs text-slate-500">
+                          Showing {ar.detailLines.length} of {ar.lineCount} unpaid invoices. Full AR accumulated total:{' '}
+                          <span className="font-mono font-semibold text-slate-800">
+                            {formatCurrency(ar.accumulatedAmount ?? ar.amount ?? 0)}
+                          </span>
+                          .
+                        </p>
+                      );
+                    })()}
+                  </div>
+                )}
+                {account.balanceSources.notes?.length > 0 && (
+                  <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600">
+                    {account.balanceSources.notes.map((n, i) => (
+                      <li key={i}>{n}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="flex justify-end border-t border-slate-100 bg-slate-50/60 px-6 py-4">
+        <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-slate-50/80 px-5 py-4 sm:px-6">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700"
+            className="rounded-xl bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md shadow-indigo-600/20 transition hover:bg-indigo-700 min-h-[44px]"
           >
             Close
           </button>

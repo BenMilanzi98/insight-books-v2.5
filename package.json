@@ -37,7 +37,8 @@
     "normalize:expenses": "node scripts/normalize-expense-categories.js",
     "consolidate-salary-accounts": "node scripts/consolidate-salary-accounts.js",
     "consolidate-salary-accounts:dry-run": "node scripts/consolidate-salary-accounts.js --dry-run",
-    "coa:snapshot": "node scripts/coa-snapshot-export.cjs"
+    "coa:snapshot": "node scripts/coa-snapshot-export.cjs",
+    "audit:gl": "node scripts/audit-gl.cjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -90,6 +91,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "9.39.4",
     "eslint-config-next": "16.2.1",
+    "jiti": "^2.4.2",
     "postcss": "^8.5.3",
     "prisma": "^6.8.1",
     "rimraf": "^6.1.3",

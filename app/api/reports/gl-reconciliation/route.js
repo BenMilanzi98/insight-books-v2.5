@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
-import { buildTrialBalance } from '@/lib/trialBalanceReport';
+import { runGlReconciliation } from '@/lib/glReconciliation';
 
-/**
- * @deprecated Prefer GET /api/reports/trial-balance — same engine (buildTrialBalance).
- * This path remains for backwards compatibility with bookmarks and older integrations.
- */
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+/**
+ * GET /api/reports/gl-reconciliation
+ *
+ * Auditors / admins: verifies TB engine internal consistency (raw survivor map vs TB rows)
+ * and that posted manual journals balance per entry.
+ *
+ * Query: startDate, endDate (required YYYY-MM-DD), branchId optional (all / empty = all branches)
+ */
 export async function GET(request) {
   try {
     const user = await getUserFromSession(request);
@@ -19,39 +23,30 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const branchIdParam = searchParams.get('branchId');
-    const includeZero = (searchParams.get('includeZero') || 'false').toLowerCase() === 'true';
-
     if (!startDate || !endDate) {
       return NextResponse.json(
-        { error: 'Start date and end date are required (YYYY-MM-DD).' },
+        { error: 'startDate and endDate are required (YYYY-MM-DD)' },
         { status: 400 }
       );
     }
 
+    const branchIdParam = searchParams.get('branchId');
     const branchId =
       branchIdParam === 'all' || branchIdParam === '' ? null :
       (branchIdParam ?? user.currentBranchId ?? null);
 
-    const report = await buildTrialBalance({
+    const report = await runGlReconciliation({
       tenantId: user.tenantId,
       branchId,
       startDate,
       endDate,
-      includeZero,
     });
 
-    return NextResponse.json({
-      ...report,
-      meta: {
-        canonicalPath: '/api/reports/trial-balance',
-        note: 'Legacy /api/trial-balance mirrors /api/reports/trial-balance (posted journals + transactions, merge rollup).',
-      },
-    });
+    return NextResponse.json(report);
   } catch (error) {
-    console.error('Error generating trial balance (legacy route):', error);
+    console.error('gl-reconciliation:', error);
     return NextResponse.json(
-      { error: 'Failed to generate trial balance', message: error.message },
+      { error: 'Failed to run GL reconciliation', message: error.message },
       { status: 500 }
     );
   }

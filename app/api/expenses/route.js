@@ -6,7 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { isSystemExpenseStructureCode } from '@/lib/systemExpenseCategoryCodes.js';
+import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 
@@ -678,19 +678,17 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'Invalid expense account. Choose one of the predefined expense categories (SYSTEM chart).',
+            'Invalid expense account. Choose an active expense account from your chart of accounts.',
         },
         { status: 400 }
       );
     }
 
-    const expenseGlCode =
-      expenseAccount.accountCode || expenseAccount.code || '';
-    if (!isSystemExpenseStructureCode(expenseGlCode)) {
+    if (!isTenantExpenseCategoryAccount(expenseAccount)) {
       return NextResponse.json(
         {
           error:
-            'That account is not an allowed expense category. Select an account from the predefined SYSTEM expense list.',
+            'That account is not a valid expense category. Select an expense GL account from your chart (code range 5000–5999).',
         },
         { status: 400 }
       );
