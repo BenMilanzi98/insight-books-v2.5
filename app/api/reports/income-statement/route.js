@@ -213,6 +213,20 @@ export async function GET(request) {
               }))
             };
           }),
+          accountLines: (data.operatingExpenses?.accountLines || []).map((line) => {
+            const cleanName = stripEmbeddedPeriodFromReportLabel(line.accountName || '');
+            return {
+              ...line,
+              accountName: cleanName || line.accountName,
+              percentage: totalRevenue > 0 ? (line.amount / totalRevenue) * 100 : 0,
+              details: (line.details || []).map((d) => ({
+                ...d,
+                category: d.category
+                  ? stripEmbeddedPeriodFromReportLabel(d.category)
+                  : d.category
+              }))
+            };
+          }),
           // Keep legacy fields for backward compatibility (will be empty if using dynamic categories)
           salariesWages: {
             amount: data.operatingExpenses?.salaries || 0,

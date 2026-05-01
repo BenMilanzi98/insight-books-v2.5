@@ -232,7 +232,23 @@ export const ProfitLossReport = ({
   const netProfit = getValue(data.operatingIncome) ?? getValue(data.netIncome) ?? 0;
   const hasComparison = data.previous && data.comparisonType;
   const operatingExpensesCategories = data.operatingExpenses?.categories ?? [];
-  const hasOperatingExpenses = operatingExpensesCategories.length > 0;
+  const operatingExpenseAccountLines = data.operatingExpenses?.accountLines ?? [];
+  const useAccountLineBreakdown = operatingExpenseAccountLines.length > 0;
+  const operatingExpenseRows = useAccountLineBreakdown
+    ? operatingExpenseAccountLines
+    : operatingExpensesCategories;
+  const hasOperatingExpenses = operatingExpenseRows.length > 0;
+
+  const formatOperatingExpenseRowLabel = (row) => {
+    if (useAccountLineBreakdown) {
+      const code = row.accountCode != null ? String(row.accountCode) : '';
+      const name = stripEmbeddedPeriodFromReportLabel(row.accountName || '');
+      if (code.startsWith('cat:')) return name || code.replace(/^cat:/i, '').trim() || 'Expense';
+      if (code && name) return `${code} – ${name}`;
+      return name || code || 'Expense';
+    }
+    return stripEmbeddedPeriodFromReportLabel(row.accountName || row.category || '');
+  };
 
   return (
     <FinancialReport
@@ -270,7 +286,9 @@ export const ProfitLossReport = ({
             <h1 className="text-xl sm:text-2xl font-bold text-slate-800">{companyName || 'Company'}</h1>
             <h2 className="text-lg sm:text-xl font-semibold text-slate-600 mt-2">Income Statement</h2>
             <p className="text-sm text-slate-500 mt-1">For the period: {periodLabel}</p>
-            <p className="text-xs text-slate-400 mt-0.5">Revenue and COGS are system-generated. Operating expenses are rolled up to your Chart of Accounts main expense lines.</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Revenue and COGS are system-generated. Operating expenses list each expense account (or category) with activity in this period.
+            </p>
           </div>
 
           {/* Comparison Toggle */}
@@ -470,26 +488,32 @@ export const ProfitLossReport = ({
                 <tr className="bg-slate-50/80">
                   <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-3 px-4 sm:px-5 font-bold text-slate-700 uppercase text-xs sm:text-sm tracking-wide">
                     <span className="block">Operating expenses</span>
-                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">Rolled up to main chart-of-accounts expense lines (expenses, payroll, depreciation)</span>
+                    <span className="block text-xs font-normal text-slate-500 mt-0.5 normal-case">
+                      All expense accounts with a balance this period (tracked expenses, payroll, depreciation)
+                    </span>
                   </td>
                 </tr>
                 {hasOperatingExpenses ? (
-                  operatingExpensesCategories.map((category, index) => {
-                    const rowLabel = stripEmbeddedPeriodFromReportLabel(
-                      category.accountName || category.category || ''
-                    );
-                    const previousCategory = data.previous?.operatingExpenses?.categories?.find(
-                      (cat) =>
-                        (cat.accountCode && cat.accountCode === category.accountCode) ||
-                        stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || '') === rowLabel
-                    );
+                  operatingExpenseRows.map((category, index) => {
+                    const rowLabel = formatOperatingExpenseRowLabel(category);
+                    const previousCategory = useAccountLineBreakdown
+                      ? data.previous?.operatingExpenses?.accountLines?.find(
+                          (cat) => cat.accountCode === category.accountCode
+                        )
+                      : data.previous?.operatingExpenses?.categories?.find(
+                          (cat) =>
+                            (cat.accountCode && cat.accountCode === category.accountCode) ||
+                            stripEmbeddedPeriodFromReportLabel(cat.accountName || cat.category || '') === rowLabel
+                        );
                     return (
                       <IncomeStatementRow
-                        key={`expense-category-${index}-${category.accountCode ?? rowLabel}`}
+                        key={`expense-row-${index}-${category.accountCode ?? rowLabel}`}
                         label={rowLabel}
                         value={{
                           amount: category.amount || 0,
-                          percentage: category.percentage || 0,
+                          percentage:
+                            category.percentage ??
+                            (totalRevenue > 0 ? ((category.amount || 0) / totalRevenue) * 100 : 0),
                           details: category.details || []
                         }}
                         totalRevenue={totalRevenue}
@@ -497,7 +521,11 @@ export const ProfitLossReport = ({
                         onDrillDown={() => handleDrillDown({ type: rowLabel, details: category.details || [] })}
                         previousValue={previousCategory ? {
                           amount: previousCategory.amount || 0,
-                          percentage: previousCategory.percentage || 0,
+                          percentage:
+                            previousCategory.percentage ??
+                            (totalRevenue > 0 && data.previous?.totalRevenue
+                              ? ((previousCategory.amount || 0) / data.previous.totalRevenue) * 100
+                              : 0),
                           details: previousCategory.details || []
                         } : undefined}
                         showComparison={hasComparison && expandedSections.comparison}
@@ -507,7 +535,7 @@ export const ProfitLossReport = ({
                 ) : (
                   <tr>
                     <td colSpan={hasComparison && expandedSections.comparison ? 4 : 2} className="py-4 px-4 sm:px-5 text-center text-sm text-slate-500 italic">
-                      No operating expenses in this period. Expense categories with transactions will appear here.
+                      No operating expenses in this period. Expense accounts with activity will appear here.
                     </td>
                   </tr>
                 )}
