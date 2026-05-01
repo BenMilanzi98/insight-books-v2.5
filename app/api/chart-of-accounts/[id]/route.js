@@ -8,6 +8,12 @@ import {
 } from '@/lib/chartOfAccountsAccess';
 import { alignAccountDisplayTitleToBlueprint } from '@/lib/coaBlueprintDisplayTitles.js';
 import { computeCoaAccountBalanceBreakdown } from '@/lib/coaAccountBalanceBreakdown.js';
+import { getTenantFiscalYearStartMonth } from '@/lib/accountingPeriodService';
+import { COA_SYNTHETIC_DIRECT_PREFIX } from '@/lib/coaChartRollup.js';
+import {
+  CUSTOM_EXPENSE_HEADER_CODE,
+  isCustomExpenseLeafCode,
+} from '@/lib/customExpenseRange.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -19,6 +25,13 @@ const normalizeAccountType = (value) => {
 };
 
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
+
+function parseOptionalDateParam(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+}
 
 // GET - Get single account
 export async function GET(request, { params }) {
@@ -38,9 +51,29 @@ export async function GET(request, { params }) {
       );
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params.then === 'function' ? await params : params;
+    let { id } = resolvedParams;
+    if (String(id || '').startsWith(COA_SYNTHETIC_DIRECT_PREFIX)) {
+      id = String(id).slice(COA_SYNTHETIC_DIRECT_PREFIX.length);
+    }
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
+
+    let dateFrom = parseOptionalDateParam(searchParams.get('dateFrom'));
+    let dateTo = parseOptionalDateParam(searchParams.get('dateTo'));
+    if (dateFrom) dateFrom.setHours(0, 0, 0, 0);
+    if (dateTo) dateTo.setHours(23, 59, 59, 999);
+    const dateRange = { from: dateFrom, to: dateTo, invalid: Boolean(dateFrom && dateTo && dateFrom > dateTo) };
+    if (dateRange.invalid) {
+      return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
+    }
+
+    const glBranchFilter =
+      user?.currentBranchId != null && String(user.currentBranchId).trim() !== ''
+        ? { branchId: user.currentBranchId }
+        : {};
+
+    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
 
     const account = await prisma.account.findUnique({
       where: { id },
@@ -112,6 +145,9 @@ export async function GET(request, { params }) {
         inventoryUser: user,
         inventorySearchParams: searchParams,
         maxInvoiceDetailLines: 50,
+        dateRange,
+        glBranchFilter,
+        fiscalYearStartMonth,
       }
     );
 
@@ -161,7 +197,8 @@ export async function PUT(request, { params }) {
       throw lockErr;
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params.then === 'function' ? await params : params;
+    const { id } = resolvedParams;
     const body = await request.json();
 
     // Check if account exists and belongs to tenant
@@ -300,6 +337,36 @@ export async function PUT(request, { params }) {
       }
     }
 
+    const existingCodeStr = String(existingAccount.accountCode || '').trim();
+    if (isCustomExpenseLeafCode(existingCodeStr)) {
+      const header5700 = await prisma.account.findFirst({
+        where: { tenantId: user.tenantId, accountCode: CUSTOM_EXPENSE_HEADER_CODE },
+        select: { id: true },
+      });
+      const nextParentId =
+        body.parentAccountId !== undefined
+          ? body.parentAccountId || null
+          : existingAccount.parentAccountId;
+      if (!header5700?.id || nextParentId !== header5700.id) {
+        return NextResponse.json(
+          {
+            error: `Accounts in 5701–5899 must stay parented under Custom Expenses (${CUSTOM_EXPENSE_HEADER_CODE}).`,
+          },
+          { status: 400 }
+        );
+      }
+      if (
+        body.accountCode != null &&
+        String(body.accountCode).trim() !== '' &&
+        String(body.accountCode).trim() !== existingCodeStr
+      ) {
+        return NextResponse.json(
+          { error: 'Cannot change account code for custom expense accounts (5701–5899).' },
+          { status: 400 }
+        );
+      }
+    }
+
     const normalizedType = body.accountType ? normalizeAccountType(body.accountType) : undefined;
     if (normalizedType && !ACCOUNT_TYPES.includes(normalizedType)) {
       return NextResponse.json(
@@ -364,7 +431,8 @@ export async function DELETE(request, { params }) {
       throw lockErr;
     }
 
-    const { id } = params;
+    const resolvedParams = typeof params.then === 'function' ? await params : params;
+    const { id } = resolvedParams;
 
     const account = await prisma.account.findUnique({
       where: { id }

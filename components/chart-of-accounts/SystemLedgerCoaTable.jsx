@@ -28,6 +28,8 @@ import {
   accountTypeForStructureCode,
 } from '@/lib/coaSystemStructureTree.js';
 import { structureNodeBalanceBreakdown } from '@/lib/coaStructureDisplayBalance.js';
+import { isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
+import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
 
 const ROOT_CODES = new Set(['1000', '2000', '3000', '4000', '5000']);
 
@@ -151,6 +153,19 @@ export default function SystemLedgerCoaTable({
 
   const structureBalanceMemo = useMemo(() => new Map(), [accounts, activeFilter]);
 
+  /** Server synthetic "Direct postings" rows keyed by parent account id */
+  const syntheticDirectByParentId = useMemo(() => {
+    const m = new Map();
+    for (const a of accounts || []) {
+      if (!isCoaSyntheticDirectRow(a)) continue;
+      const pid = a.parentAccountId;
+      if (!pid) continue;
+      if (!m.has(pid)) m.set(pid, []);
+      m.get(pid).push(a);
+    }
+    return m;
+  }, [accounts]);
+
   const handleExpandAll = useCallback(() => {
     setExpandedAccounts(new Set(collectStructureExpandKeys(SYSTEM_COA_STRUCTURE)));
   }, []);
@@ -248,11 +263,11 @@ export default function SystemLedgerCoaTable({
     const showRollupHint =
       primary &&
       primary.postedDirectBalance != null &&
-      Math.abs(Number(primary.postedDirectBalance) - Number(rowBalance || 0)) > 0.005;
+      Math.abs(Number(primary.postedDirectBalance) - Number(rowBalance || 0)) > COA_RECONCILE_TOLERANCE;
     const subtreeMismatch =
       hasStructChildren &&
       matches.length > 0 &&
-      Math.abs(breakdown.leafSelf - breakdown.childrenSum) > 0.005;
+      Math.abs(breakdown.leafSelf - breakdown.childrenSum) > COA_RECONCILE_TOLERANCE;
     const rollupBalanceTitle =
       showRollupHint || subtreeMismatch
         ? [
@@ -269,6 +284,105 @@ export default function SystemLedgerCoaTable({
 
     const isLocked = primary ? primary.isSystem || primary.transactionCount > 0 : true;
     const rowActive = primary ? primary.isActive !== false : true;
+    const syntheticDirectRows = primary ? syntheticDirectByParentId.get(primary.id) || [] : [];
+
+    const renderSyntheticDirectSubRow = (synth, indentLevel) => {
+      const synthBal = Number(synth.currentBalance) || 0;
+      const synthType = synth.accountType || synth.type || accountTypeForStructureCode(node.code);
+      return (
+        <tr
+          key={synth.id}
+          className="group/row border-b border-slate-100/90 bg-slate-50/60 transition-colors duration-150 hover:bg-slate-50/90"
+        >
+          <td className="px-2 py-2 align-middle sm:px-4 sm:py-2.5 md:px-5 md:py-2.5">
+            <div className="flex items-center gap-2.5 min-w-0" style={{ paddingLeft: `${indentLevel * 14}px` }}>
+              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center" aria-hidden>
+                <span className="h-1.5 w-1.5 rounded-full bg-indigo-300" />
+              </span>
+              <code className="shrink-0 rounded-lg bg-indigo-50/90 px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-indigo-950 ring-1 ring-indigo-200/60">
+                {synth.accountCode || synth.code}
+              </code>
+            </div>
+          </td>
+          <td className="px-4 py-2 align-middle sm:px-5 sm:py-2.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <span className="min-w-0 text-[12px] font-medium leading-snug text-slate-800">
+                {synth.accountName || synth.name || 'Direct postings'}
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-md bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-950 ring-1 ring-indigo-200/70">
+                Direct
+              </span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 sm:hidden">
+              <span className="font-mono text-xs tabular-nums font-medium text-slate-700">
+                {formatCurrency(synthBal)}
+              </span>
+              <span className={`text-[10px] font-medium capitalize ${typeBadgeClass(synthType)} rounded px-1.5 py-0`}>
+                {synthType}
+              </span>
+            </div>
+          </td>
+          <td className="hidden px-4 py-2 align-middle sm:table-cell sm:px-5 sm:py-2.5">
+            <span
+              className={[
+                'inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold capitalize',
+                typeBadgeClass(synthType),
+              ].join(' ')}
+            >
+              {synthType || '—'}
+            </span>
+          </td>
+          <td className="hidden px-4 py-2 text-right align-middle font-mono text-[12px] font-semibold tabular-nums text-slate-800 sm:table-cell sm:px-5 sm:py-2.5">
+            {formatCurrency(synthBal)}
+          </td>
+          <td className="px-4 py-2 align-middle sm:px-5 sm:py-2.5">
+            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200 sm:text-[11px]">
+              Synthetic
+            </span>
+          </td>
+          <td className="px-3 py-2 align-middle sm:px-5 sm:py-2.5">
+            <div className="inline-flex items-center justify-end gap-0.5 rounded-xl border border-slate-200/80 bg-white/90 p-0.5 shadow-sm sm:justify-start">
+              <button
+                type="button"
+                onClick={() => onViewAccount?.(synth)}
+                className="touch-manipulation rounded-md p-2.5 text-slate-500 transition-colors hover:bg-white hover:text-slate-900 sm:p-2"
+                title="View GL breakdown for postings on this parent code"
+              >
+                <Eye size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
+              </button>
+              {showEdit ? (
+                <button
+                  type="button"
+                  disabled
+                  className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
+                  title="System-generated row — not editable"
+                >
+                  <Edit size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                disabled
+                className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
+                title="System-generated row — merge not available"
+              >
+                <GitMerge size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
+              </button>
+              {showDelete ? (
+                <button
+                  type="button"
+                  disabled
+                  className="touch-manipulation cursor-not-allowed rounded-md p-2.5 text-slate-200 sm:p-2"
+                  title="System-generated row — cannot delete"
+                >
+                  <Trash2 size={18} strokeWidth={2} className="sm:h-4 sm:w-4" />
+                </button>
+              ) : null}
+            </div>
+          </td>
+        </tr>
+      );
+    };
 
     return (
       <React.Fragment key={structKey}>
@@ -469,6 +583,7 @@ export default function SystemLedgerCoaTable({
             </div>
           </td>
         </tr>
+        {syntheticDirectRows.map((synth) => renderSyntheticDirectSubRow(synth, level + 1))}
         {hasStructChildren && isExpanded && node.children.map((child) => renderStructureNodeRow(child, level + 1))}
       </React.Fragment>
     );

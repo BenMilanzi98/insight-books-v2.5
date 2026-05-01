@@ -41,7 +41,7 @@ describe('applyCoaParentRollup', () => {
     expect(p.currentBalance).toBe(100);
   });
 
-  it('zeros direct on 3100 when children exist', () => {
+  it('rolls direct on 3100 plus children (no zeroing — direct is real GL)', () => {
     const accounts = [
       { id: 'eq', parentAccountId: null, accountCode: '3000', postedDirectBalance: 0 },
       {
@@ -59,7 +59,7 @@ describe('applyCoaParentRollup', () => {
     ];
     const rolled = applyCoaParentRollup(accounts);
     const cap = rolled.find((a) => a.id === 'cap');
-    expect(cap.currentBalance).toBe(50);
+    expect(cap.currentBalance).toBe(1049);
   });
 });
 

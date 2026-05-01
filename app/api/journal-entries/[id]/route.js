@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import {
   createReversalEntry,
   postEntry,
@@ -55,25 +56,36 @@ function isFinanceAdmin(user) {
   );
 }
 
-function isTenantOwnerRole(user) {
-  const rn = user?.role?.name?.toLowerCase() || '';
-  return rn === 'owner';
-}
-
 function canViewJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.view');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.view')
+  );
 }
 
 function canUpdateJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.update');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.update')
+  );
 }
 
 function canPostJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.post');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.post')
+  );
 }
 
 function canDeleteJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.delete');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.delete')
+  );
 }
 
 function normalizeLines(lines = [], fallbackDescription) {
@@ -195,9 +207,9 @@ export async function PUT(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canUpdateJournalEntries(user)) {
       return NextResponse.json(
-        { error: 'Access denied. Finance or Admin role required to update journal entries.' },
+        { error: 'Access denied. You do not have permission to update journal entries.' },
         { status: 403 }
       );
     }

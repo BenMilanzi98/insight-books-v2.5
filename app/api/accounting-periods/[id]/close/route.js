@@ -1,17 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { canManageAccountingPeriods } from '@/lib/accountingPeriodAccess';
 
 const FLOAT_TOLERANCE = 0.0001;
-
-function isFinanceAdmin(user) {
-  const roleName = user?.role?.name?.toLowerCase() || '';
-  return (
-    roleName.includes('finance') ||
-    roleName.includes('admin') ||
-    roleName === 'master_admin'
-  );
-}
 
 function computeBalance(account, totals) {
   const debits = totals.debits || 0;
@@ -49,7 +41,7 @@ export async function POST(request, { params }) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canManageAccountingPeriods(user)) {
       return NextResponse.json(
         { error: 'Access denied. Finance or Admin role required.' },
         { status: 403 }

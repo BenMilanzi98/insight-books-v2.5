@@ -28,6 +28,7 @@ import * as api from '@/app/services/api'; // Import the API service
 import AssignUsersModal from '@/components/AssignUsersModal';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
+import { permissionModules } from "@/lib/permissionsMap";
 
 // Components
 const Skeleton = ({ className = "", ...props }) => {
@@ -37,41 +38,6 @@ const Skeleton = ({ className = "", ...props }) => {
       {...props}
     />
   );
-};
-// Permission modules and actions for our permission system
-const permissionModules = {
-  dashboard: { 
-    label: 'Dashboard',
-    actions: ['view']
-  },
-  users: { 
-    label: 'User Management',
-    actions: ['create', 'view', 'update', 'delete', 'export']
-  },
-  roles: {
-    label: 'Role Management',
-    actions: ['create', 'view', 'update', 'delete', 'assign']
-  },
-  system: {
-    label: 'System Customization',
-    actions: ['view', 'update']
-  }, 
-  // Additional modules for comprehensive system coverage
-  clients: { label: 'Client Management', actions: ['create', 'view', 'update', 'delete', 'export'] },
-  sales: { label: 'POS', actions: ['create', 'view', 'update', 'delete', 'void', 'refund', 'export'] },
-  quotations: { label: 'Quotations', actions: ['create', 'view', 'update', 'delete', 'convert', 'approve', 'export'] },
-  invoices: { label: 'Invoicing', actions: ['create', 'view', 'update', 'delete', 'send', 'markAsPaid', 'export'] },
-  expenses: { label: 'Expense Tracking', actions: ['create', 'view', 'update', 'delete', 'approve', 'export'] },
-  payments: { label: 'Payment Accounts', actions: ['create', 'view', 'update', 'delete', 'export'] },
-  reports: { label: 'Financial Reporting', actions: ['view', 'export'] },
-  inventory: { label: 'Stock Management', actions: ['create', 'view', 'update', 'delete', 'adjust', 'export'] },
-  hr: { label: 'HR Management', actions: ['create', 'view', 'update', 'delete', 'export'] },
-  payroll: { label: 'Payroll', actions: ['create', 'view', 'update', 'delete', 'process', 'export'] },
-  tax: { label: 'Tax Management', actions: ['view', 'update', 'export'] },
-  generalLedger: { label: 'General Ledger', actions: ['view', 'export'] },
-  journalEntries: { label: 'Journal Entries', actions: ['create', 'view', 'update', 'delete', 'post', 'export'] },
-  accounts: { label: 'Chart of Accounts', actions: ['create', 'view', 'update', 'delete', 'export'] },
-  trialBalance: { label: 'Trial Balance', actions: ['view', 'export'] }
 };
 // Format date for display
 const formatDate = (dateString) => {

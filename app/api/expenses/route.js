@@ -688,7 +688,7 @@ export async function POST(request) {
       return NextResponse.json(
         {
           error:
-            'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5900).',
+            'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5701–5899 custom expenses, 5900).',
         },
         { status: 400 }
       );

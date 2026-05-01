@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import { createObjectCsvStringifier } from '@/lib/csv-writer';
 
 const MANUAL_SOURCE_TYPES = ['Manual', 'ManualJournalEntry', 'ManualAdjustment'];
@@ -15,13 +16,12 @@ function isFinanceAdmin(user) {
   );
 }
 
-function isTenantOwnerRole(user) {
-  const rn = user?.role?.name?.toLowerCase() || '';
-  return rn === 'owner';
-}
-
 function canExportJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.export');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.export')
+  );
 }
 
 /**

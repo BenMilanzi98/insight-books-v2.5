@@ -738,7 +738,11 @@ const Sidebar = ({ collapsed = false, toggleSidebar }) => {
 
     
     // Add Purchases if user has inventory or purchases permission
-    const canViewPurchases = userHasPermission(user, "purchases.view") || userHasPermission(user, "stock.view");
+    const canViewPurchases =
+      userHasPermission(user, "purchases.view") ||
+      userHasPermission(user, "suppliers.view") ||
+      userHasPermission(user, "inventory.view") ||
+      userHasPermission(user, "stock.view");
     if (canViewPurchases) {
       additionalItems.push({
         href: "/purchases/suppliers",

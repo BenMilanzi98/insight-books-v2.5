@@ -10,18 +10,7 @@ import {
   endOfFinancialYearForDate,
 } from '@/lib/accountingPeriodService';
 import { startOfMonth, endOfMonth } from '@/lib/dateUtils';
-
-function isFinanceAdmin(user) {
-  if (!user || !user.role) {
-    return false;
-  }
-  const roleName = (user.role.name || '').toLowerCase();
-  return (
-    roleName.includes('finance') ||
-    roleName.includes('admin') ||
-    roleName === 'master_admin'
-  );
-}
+import { canManageAccountingPeriods } from '@/lib/accountingPeriodAccess';
 
 function startOfDay(date) {
   const d = new Date(date);
@@ -66,7 +55,7 @@ export async function GET(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canManageAccountingPeriods(user)) {
       return NextResponse.json(
         { error: 'Access denied. Finance or Admin role required.' },
         { status: 403 }
@@ -126,7 +115,7 @@ export async function POST(request) {
       );
     }
 
-    if (!isFinanceAdmin(user)) {
+    if (!canManageAccountingPeriods(user)) {
       return NextResponse.json(
         { error: 'Access denied. Finance or Admin role required.' },
         { status: 403 }

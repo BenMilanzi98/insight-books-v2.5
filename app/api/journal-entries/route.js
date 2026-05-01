@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, hasPermission } from '@/lib/auth';
+import { isFullAccessTenantRole } from '@/lib/tenantRoleAccess';
 import {
   createAndPostEntry,
   createDraftEntry,
@@ -66,17 +67,20 @@ function isFinanceAdmin(user) {
   );
 }
 
-function isTenantOwnerRole(user) {
-  const rn = user?.role?.name?.toLowerCase() || '';
-  return rn === 'owner';
-}
-
 function canViewJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.view');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.view')
+  );
 }
 
 function canCreateJournalEntries(user) {
-  return isFinanceAdmin(user) || isTenantOwnerRole(user) || hasPermission(user, 'journalEntries.create');
+  return (
+    isFinanceAdmin(user) ||
+    isFullAccessTenantRole(user) ||
+    hasPermission(user, 'journalEntries.create')
+  );
 }
 
 function buildWhereClause(tenantId, searchParams) {

@@ -19,6 +19,13 @@ import { formatCurrency } from '@/lib/currencyUtils';
 import { downloadExcel, downloadExcelWorkbook, downloadPDF } from '@/lib/exportUtils';
 import PermissionGuard from '@/components/PermissionGuard';
 import SystemLedgerCoaTable from '@/components/chart-of-accounts/SystemLedgerCoaTable';
+import { COA_SYNTHETIC_DIRECT_PREFIX, isCoaSyntheticDirectRow } from '@/lib/coaChartRollup.js';
+import { COA_RECONCILE_TOLERANCE } from '@/lib/coaMoney.js';
+import {
+  findCustomExpensesParentId,
+  isCustomExpenseLeafCode,
+  nextCustomExpenseCodeHint,
+} from '@/lib/customExpenseRange.js';
 
 const ChartOfAccountsPage = () => {
   const [accounts, setAccounts] = useState([]);
@@ -208,7 +215,11 @@ const ChartOfAccountsPage = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create account');
+        const msg =
+          data?.code === 'CUSTOM_EXPENSE_RANGE_FULL'
+            ? data.error || 'All custom expense account codes (5701–5899) are in use.'
+            : data.error || 'Failed to create account';
+        throw new Error(msg);
       }
 
       setShowAddModal(false);
@@ -492,19 +503,32 @@ const ChartOfAccountsPage = () => {
 
   const openViewModal = async (account) => {
     try {
-      const response = await fetch(`/api/chart-of-accounts/${account.id}`);
+      const rawId = String(account?.id || '');
+      const fetchId = rawId.startsWith(COA_SYNTHETIC_DIRECT_PREFIX)
+        ? rawId.slice(COA_SYNTHETIC_DIRECT_PREFIX.length)
+        : rawId;
+      const qs = new URLSearchParams();
+      if (dateFrom) qs.set('dateFrom', dateFrom);
+      if (dateTo) qs.set('dateTo', dateTo);
+      const q = qs.toString();
+      const response = await fetch(
+        `/api/chart-of-accounts/${encodeURIComponent(fetchId)}${q ? `?${q}` : ''}`,
+        { cache: 'no-store', credentials: 'same-origin' }
+      );
       const data = await response.json();
       if (response.ok && data && !data.error) {
         // Chart grid may roll up children on parents; API returns row-level breakdown in balanceSources.
+        const gridBal =
+          account.currentBalance != null ? Number(account.currentBalance) : Number(data.currentBalance);
         setSelectedAccount({
           ...data,
-          chartGridBalance:
-            account.currentBalance != null ? Number(account.currentBalance) : Number(data.currentBalance),
+          chartGridBalance: gridBal,
           rowOnlyTotalFromApi: Number(data.currentBalance),
           postedDirectBalance:
             account.postedDirectBalance != null ? account.postedDirectBalance : data.postedDirectBalance,
           currentBalance:
             account.currentBalance != null ? account.currentBalance : data.currentBalance,
+          coaOpenedFromSyntheticDirect: isCoaSyntheticDirectRow(account),
         });
       } else {
         setSelectedAccount(account);
@@ -1003,6 +1027,11 @@ const AccountModal = ({
     }
   }, [formData.accountType, isEdit]);
 
+  const isNewCustomExpense = !isEdit && formData.accountType === 'Expense';
+  const isLockedCustomExpenseChild =
+    isEdit && isCustomExpenseLeafCode(account?.accountCode || account?.code);
+  const parent5700Id = useMemo(() => findCustomExpensesParentId(accounts), [accounts]);
+
   const field =
     'w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20';
   const label = 'mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-500';
@@ -1043,16 +1072,39 @@ const AccountModal = ({
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <label className={label}>
-                Account code <span className="font-normal normal-case text-slate-400">(required, numeric)</span>
+                Account code{' '}
+                <span className="font-normal normal-case text-slate-400">
+                  {isNewCustomExpense ? '(auto-assigned 5701–5899)' : '(required, numeric)'}
+                </span>
               </label>
-              <input
-                type="text"
-                value={formData.accountCode}
-                onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
-                className={field}
-                placeholder="e.g. 1010"
-                disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
-              />
+              {isNewCustomExpense ? (
+                <div
+                  className={`${field} bg-slate-50 text-sm text-slate-700`}
+                  title="The next free code in 5701–5899 is assigned when you create the account."
+                >
+                  {nextCustomExpenseCodeHint(accounts)}
+                  {!parent5700Id ? (
+                    <span className="mt-2 block text-xs font-medium text-amber-800">
+                      Custom Expenses (5700) is not in your ledger yet — it will be created when you save, or use
+                      &quot;Sync standard CoA&quot; first.
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={formData.accountCode}
+                  onChange={(e) => setFormData({ ...formData, accountCode: e.target.value })}
+                  className={field}
+                  placeholder="e.g. 1010"
+                  disabled={
+                    isEdit &&
+                    (account?.transactionCount > 0 ||
+                      account?.isSystem ||
+                      isCustomExpenseLeafCode(account?.accountCode || account?.code))
+                  }
+                />
+              )}
             </div>
 
             <div>
@@ -1073,7 +1125,20 @@ const AccountModal = ({
               <label className={label}>Account type</label>
               <select
                 value={formData.accountType}
-                onChange={(e) => setFormData({ ...formData, accountType: e.target.value, accountSubtype: '' })}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFormData((prev) => {
+                    const next = { ...prev, accountType: v, accountSubtype: '' };
+                    if (!isEdit && v === 'Expense') {
+                      next.parentAccountId = findCustomExpensesParentId(accounts);
+                      next.accountCode = '';
+                    }
+                    if (!isEdit && v !== 'Expense' && prev.accountType === 'Expense') {
+                      next.parentAccountId = '';
+                    }
+                    return next;
+                  });
+                }}
                 className={field}
                 disabled={isEdit && (account?.transactionCount > 0 || account?.isSystem)}
               >
@@ -1134,26 +1199,39 @@ const AccountModal = ({
 
             <div>
               <label className={label}>
-                Parent <span className="font-normal normal-case text-slate-400">(optional)</span>
+                Parent{' '}
+                <span className="font-normal normal-case text-slate-400">
+                  {isNewCustomExpense ? '(Custom Expenses 5700)' : '(optional)'}
+                </span>
               </label>
-              <select
-                value={formData.parentAccountId}
-                onChange={(e) => setFormData({ ...formData, parentAccountId: e.target.value })}
-                className={field}
-              >
-                <option value="">None (top level)</option>
-                {accounts
-                  .filter((a) => (a.accountType || a.type) === formData.accountType && a.id !== account?.id)
-                  .map((acc) => {
-                    const code = acc.accountCode || acc.code || 'N/A';
-                    const name = acc.accountName || acc.name || 'Unnamed';
-                    return (
-                      <option key={acc.id} value={acc.id}>
-                        {code} — {name}
-                      </option>
-                    );
-                  })}
-              </select>
+              {isNewCustomExpense || isLockedCustomExpenseChild ? (
+                <div className={`${field} bg-slate-50 text-sm text-slate-800`}>
+                  {isLockedCustomExpenseChild
+                    ? '5700 — Custom Expenses (required parent for this account)'
+                    : parent5700Id
+                      ? '5700 — Custom Expenses (locked for new expense accounts)'
+                      : '5700 — Custom Expenses (assigned on save)'}
+                </div>
+              ) : (
+                <select
+                  value={formData.parentAccountId}
+                  onChange={(e) => setFormData({ ...formData, parentAccountId: e.target.value })}
+                  className={field}
+                >
+                  <option value="">None (top level)</option>
+                  {accounts
+                    .filter((a) => (a.accountType || a.type) === formData.accountType && a.id !== account?.id)
+                    .map((acc) => {
+                      const code = acc.accountCode || acc.code || 'N/A';
+                      const name = acc.accountName || acc.name || 'Unnamed';
+                      return (
+                        <option key={acc.id} value={acc.id}>
+                          {code} — {name}
+                        </option>
+                      );
+                    })}
+                </select>
+              )}
             </div>
           </div>
 
@@ -1252,7 +1330,7 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
   );
 
   const subtreeMismatch =
-    subtreeRows.length > 0 && Math.abs(descendantsTotal - chartBalanceMain) > 0.02;
+    subtreeRows.length > 0 && Math.abs(descendantsTotal - chartBalanceMain) > COA_RECONCILE_TOLERANCE;
 
   const handleExportExcel = useCallback(async () => {
     const code = safeCoaExportBasename(account.accountCode || account.code);
@@ -1589,7 +1667,8 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                     <span className="font-mono font-semibold">{formatCurrency(chartBalanceMain)}</span>
                   </li>
                   {account.balanceSources &&
-                    Math.abs(chartBalanceMain - Number(account.balanceSources.displayedRowTotal)) > 0.005 && (
+                    Math.abs(chartBalanceMain - Number(account.balanceSources.displayedRowTotal)) >
+                      COA_RECONCILE_TOLERANCE && (
                       <li className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
                         This code alone (no child rollup in detail):{' '}
                         <span className="font-mono font-semibold">
@@ -1599,7 +1678,8 @@ const ViewAccountModal = ({ account, chartAccounts = [], onClose }) => {
                       </li>
                     )}
                   {account.postedDirectBalance != null &&
-                    Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) > 0.005 && (
+                    Math.abs(Number(account.postedDirectBalance) - Number(account.currentBalance || 0)) >
+                      COA_RECONCILE_TOLERANCE && (
                       <li className="text-xs text-slate-600">
                         Posted on this code only: {formatCurrency(account.postedDirectBalance)}. Grid total can include
                         sub-ledgers.

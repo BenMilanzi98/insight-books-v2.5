@@ -70,7 +70,8 @@ describe('structureNodeBalanceBreakdown', () => {
     ]);
     const memo = new Map();
     const bd = structureNodeBalanceBreakdown(node2000, accountsByCode, {}, true, memo);
-    expect(bd.display).toBe(500);
+    // Parent structure row with both a same-code balance and subtree: display = leaf + children (server parity).
+    expect(bd.display).toBe(600);
     expect(bd.leafSelf).toBe(500);
     expect(bd.childrenSum).toBe(100);
   });

@@ -9,7 +9,6 @@ import {
 import {
   fetchTenantAccountsForMergeRollup,
   buildMergeRollupContext,
-  aggregateGroupByRowsBySurvivor,
 } from '@/lib/accountMergeRollup';
 import { validateCoaAccountCreationRules } from '@/lib/coaAccountCreateRules.js';
 import {
@@ -21,7 +20,11 @@ import {
   applyLiabilityRegisterCoaSubtree,
   applyStockLedInventoryCoaSubtree,
   foldCatchAllBucketTotalsIntoPostedDirect,
+  injectSyntheticDirectPostingLeaves,
 } from '@/lib/coaChartRollup.js';
+import { loadCoaBulkGlAggregates } from '@/lib/coaBulkGlAggregation.js';
+import { getTenantFiscalYearStartMonth } from '@/lib/accountingPeriodService';
+import { roundCents } from '@/lib/coaMoney.js';
 import { computePhysicalInventoryValuationTotal } from '@/lib/stockValuationAggregate.js';
 import {
   blueprintCatalogTitleForCode,
@@ -29,6 +32,10 @@ import {
 } from '@/lib/coaBlueprintDisplayTitles.js';
 import { CODE_ACCOUNTS_RECEIVABLE } from '@/lib/coaPostingCodes.js';
 import { reattachOrphanParentsForCoaRollup } from '@/lib/coaOrphanParentAttach.js';
+import {
+  assignNextCustomExpenseAccountCode,
+  ensureCustomExpenses5700ForTenant,
+} from '@/lib/customExpenseRange.server.js';
 
 const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
 
@@ -60,13 +67,6 @@ function buildChartDateRange(searchParams) {
   if (from) from.setHours(0, 0, 0, 0);
   if (to) to.setHours(23, 59, 59, 999);
   return { from, to, invalid: false };
-}
-
-function buildDateBounds(range) {
-  return {
-    ...(range.from ? { gte: range.from } : {}),
-    ...(range.to ? { lte: range.to } : {}),
-  };
 }
 
 /**
@@ -311,11 +311,10 @@ export async function GET(request) {
           tenantId: user.tenantId, // CRITICAL: Filter by tenant ID
           voidedAt: null,
           refundedAt: null,
-          ...(dateRange.from || dateRange.to
+          ...(dateRange.to || dateRange.from
             ? {
                 issueDate: {
-                  ...(dateRange.from ? { gte: dateRange.from } : {}),
-                  ...(dateRange.to ? { lte: dateRange.to } : {}),
+                  lte: dateRange.to || dateRange.from,
                 },
               }
             : {}),
@@ -332,11 +331,10 @@ export async function GET(request) {
           payments: {
             where: {
               status: 'Completed',
-              ...(dateRange.from || dateRange.to
+              ...(dateRange.to || dateRange.from
                 ? {
                     paymentDate: {
-                      ...(dateRange.from ? { gte: dateRange.from } : {}),
-                      ...(dateRange.to ? { lte: dateRange.to } : {}),
+                      lte: dateRange.to || dateRange.from,
                     },
                   }
                 : {}),
@@ -429,19 +427,22 @@ export async function GET(request) {
       return sum + Math.max(0, inv.actualRemaining); // Use actual calculated remaining
     }, 0);
 
-    // Inventory — same aggregate as GET /api/stock/statistics (`allBranches` default true; optional branchId).
-    // Always loaded: point-in-time valuation from Stock Management, not period-scoped GL (chart date filters still apply to journals/transactions above).
+    // Inventory — movement-based as-of when date filter set; else current valuation (same branch scope as /stock).
     let totalInventoryValue = 0;
     let inventoryProductCount = 0;
+    let inventoryValuationNote = null;
     try {
+      const asOfInv = dateRange.to || dateRange.from;
       const invAgg = await computePhysicalInventoryValuationTotal(
         prisma,
         user.tenantId,
         user,
-        searchParams
+        searchParams,
+        hasDateFilter && asOfInv ? { asOfDate: asOfInv } : {}
       );
       totalInventoryValue = invAgg.total;
       inventoryProductCount = invAgg.productCount;
+      inventoryValuationNote = invAgg.valuationNote ?? null;
     } catch (error) {
       console.error('Error fetching inventory aggregate for chart:', error);
     }
@@ -461,107 +462,33 @@ export async function GET(request) {
         ? { branchId: user.currentBranchId }
         : {};
 
-    // Posted GL lines from Transaction model (sales, payroll, etc.) — roll merge sources into survivors
-    let txnByAccountId = {};
+    const fiscalYearStartMonth = await getTenantFiscalYearStartMonth(user.tenantId, prisma);
+    let journalBySurvivor = new Map();
+    let draftBySurvivor = new Map();
+    let txnBySurvivor = new Map();
     try {
-      const txnAggRows = await prisma.transactionLine.groupBy({
-        by: ['accountId'],
-        where: {
-          transaction: {
-            tenantId: user.tenantId,
-            status: { in: ['posted', 'Posted'] },
-            ...glBranchFilter,
-            ...(dateRange.from || dateRange.to ? { date: buildDateBounds(dateRange) } : {}),
-          },
-        },
-        _sum: {
-          debitAmount: true,
-          creditAmount: true,
-        },
-        _count: {
-          id: true,
-        },
+      const bulk = await loadCoaBulkGlAggregates(prisma, {
+        tenantId: user.tenantId,
+        glBranchFilter,
+        mergeRollupCtx,
+        accounts,
+        dateRange,
+        fiscalYearStartMonth,
       });
-      const txnMerged = aggregateGroupByRowsBySurvivor(
-        txnAggRows,
-        mergeRollupCtx.survivorOf
-      );
-      txnByAccountId = Object.fromEntries(
-        [...txnMerged].map(([k, v]) => [
-          k,
-          {
-            debit: v.debit,
-            credit: v.credit,
-            lineCount: v.lineCount,
-          },
-        ])
-      );
+      journalBySurvivor = bulk.journalBySurvivor;
+      draftBySurvivor = bulk.draftBySurvivor;
+      txnBySurvivor = bulk.txnBySurvivor;
     } catch (e) {
-      console.error('Error aggregating transaction lines for chart of accounts:', e);
+      console.error('Error bulk-loading GL for chart of accounts:', e);
     }
 
-    // Calculate current balances from journal entries
-    // Wrap in try-catch to handle any individual account calculation errors
-    const accountsWithBalances = await Promise.allSettled(accounts.map(async (account) => {
+    const accountsWithBalances = accounts.map((account) => {
       try {
-        // Get all journal entry lines for this account (both Posted and Draft)
-        const journalAccountIds = mergeRollupCtx.allIdsRollingInto(account.id);
-        const allJournalLines = await prisma.journalEntryLine.findMany({
-          where: {
-            accountId: { in: journalAccountIds },
-            journalEntry: {
-              tenantId: user.tenantId,
-              ...glBranchFilter,
-              ...(dateRange.from || dateRange.to
-                ? {
-                    OR: [
-                      { entryDate: buildDateBounds(dateRange) },
-                      { AND: [{ entryDate: null }, { postedDate: buildDateBounds(dateRange) }] },
-                      {
-                        AND: [
-                          { entryDate: null },
-                          { postedDate: null },
-                          { createdAt: buildDateBounds(dateRange) },
-                        ],
-                      },
-                    ],
-                  }
-                : {}),
-            }
-          },
-          include: {
-            journalEntry: {
-              select: {
-                status: true
-              }
-            }
-          }
-        });
+        const ja = journalBySurvivor.get(account.id) || { debit: 0, credit: 0, lineCount: 0 };
+        const txAgg = txnBySurvivor.get(account.id) || { debit: 0, credit: 0, lineCount: 0 };
 
-        const journalStatus = (s) => (s || '').toString().trim().toLowerCase();
-
-        // Separate Posted and Draft entries (support Posted / posted)
-        const postedLines = allJournalLines.filter(
-          (line) => journalStatus(line.journalEntry?.status) === 'posted'
-        );
-        const draftLines = allJournalLines.filter(
-          (line) => journalStatus(line.journalEntry?.status) === 'draft'
-        );
-
-        const txAgg = txnByAccountId[account.id] || { debit: 0, credit: 0, lineCount: 0 };
-
-        // Calculate totals from Posted journal lines + posted Transaction lines (GL)
-        const totalDebits =
-          postedLines.reduce((sum, line) => {
-            const debit = parseFloat(line.debitAmount) || 0;
-            return sum + debit;
-          }, 0) + txAgg.debit;
-
-        const totalCredits =
-          postedLines.reduce((sum, line) => {
-            const credit = parseFloat(line.creditAmount) || 0;
-            return sum + credit;
-          }, 0) + txAgg.credit;
+        const totalDebits = ja.debit + txAgg.debit;
+        const totalCredits = ja.credit + txAgg.credit;
 
         // Determine normal balance - use account.normalBalance or infer from account type
         const normalBalance = account.normalBalance || 
@@ -574,11 +501,10 @@ export async function GET(request) {
         } else {
           balance = totalCredits - totalDebits;
         }
-        const glBookBalance = balance;
-
         const postedGlLineCount =
-          postedLines.length + (Number(txAgg.lineCount) || 0);
+          (Number(ja.lineCount) || 0) + (Number(txAgg.lineCount) || 0);
         const hasPostedGlActivity = postedGlLineCount > 0;
+        const draftEntryCount = draftBySurvivor.get(account.id) || 0;
 
         const accountCode = String(account.accountCode || account.code || '').trim();
         const accountName = (account.accountName || account.name || '').toLowerCase().trim();
@@ -652,13 +578,16 @@ export async function GET(request) {
           finalBalance = 0;
         }
 
+        finalBalance = roundCents(finalBalance);
+        balance = roundCents(balance);
+
         let balanceSource = 'none';
         if (hasPostedGlActivity) {
           balanceSource = 'posted_gl';
         } else if (isAccountsReceivableLeaf) {
           balanceSource = 'ar_subledger';
         } else if (isInventoryLedger) {
-          balanceSource = 'inventory_subledger';
+          balanceSource = hasDateFilter ? 'inventory_subledger_as_of' : 'inventory_subledger';
         } else if (subledgerOverlayBeforeSuppress > 0) {
           balanceSource = 'subledger_estimate';
         } else if (legacyBalance !== 0) {
@@ -670,12 +599,12 @@ export async function GET(request) {
           /** Posted GL (and documented sub-ledgers) on this account id only (before parent/child rollup). */
           postedDirectBalance: finalBalance,
           currentBalance: finalBalance,
-          transactionCount: postedLines.length + txAgg.lineCount,
-          postedEntryCount: postedLines.length + txAgg.lineCount,
-          draftEntryCount: draftLines.length,
+          transactionCount: postedGlLineCount,
+          postedEntryCount: postedGlLineCount,
+          draftEntryCount,
           additionalBalance,
           journalEntryBalance: balance,
-          postedGlNet: glBookBalance,
+          postedGlNet: balance,
           balanceSource,
           subledgerOverlaySuppressed:
             hasPostedGlActivity && subledgerOverlayBeforeSuppress > 0
@@ -698,30 +627,11 @@ export async function GET(request) {
           journalEntryBalance: 0
         };
       }
-    }));
+    });
 
-    // Extract successful results and handle failures
-    const successfulAccounts = accountsWithBalances
-      .map((result, index) => {
-        if (result.status === 'fulfilled') {
-          return result.value;
-        } else {
-          console.error(`Failed to calculate balance for account at index ${index}:`, result.reason);
-          // Return a basic account object with zero balance
-          const account = accounts[index];
-          return {
-            ...account,
-            postedDirectBalance: 0,
-            currentBalance: 0,
-            transactionCount: 0,
-            postedEntryCount: 0,
-            draftEntryCount: 0,
-            additionalBalance: 0,
-            journalEntryBalance: 0
-          };
-        }
-      })
-      .filter(account => account !== null && account !== undefined);
+    const successfulAccounts = accountsWithBalances.filter(
+      (account) => account !== null && account !== undefined
+    );
 
     // Same accountCode on multiple rows breaks hierarchy rollup — merge amounts and remap parents.
     const deduplicatedAccounts = mergeDuplicateAccountCodeRows(successfulAccounts);
@@ -749,7 +659,8 @@ export async function GET(request) {
       stockLedAccounts,
       liabilitiesForChartOverlay
     );
-    const accountsAfterFirstRollup = applyCoaParentRollup(withLiabilityOverlay);
+    const withSyntheticLeaves = injectSyntheticDirectPostingLeaves(withLiabilityOverlay);
+    const accountsAfterFirstRollup = applyCoaParentRollup(withSyntheticLeaves);
     const foldedPosted = foldCatchAllBucketTotalsIntoPostedDirect(accountsAfterFirstRollup);
     const afterCatchAllRollup = applyCoaParentRollup(foldedPosted);
     const accountsWithCatchAllDisplay = apply3100CapitalBucketAncestorPropagation(afterCatchAllRollup);
@@ -780,7 +691,8 @@ export async function GET(request) {
         total: accountsForResponse.length,
         traceability: {
           policy:
-            'Chart balances are posted GL (journals + posted transactions) when any lines exist on the account. Period filters (dateFrom/dateTo) apply to posted journal entry dates and posted transaction dates (and AR sub-ledger invoice scope where applicable). They do not zero out inventory: the Asset 1300 subtree is always aligned to the current physical inventory valuation from Stock Management (GET /api/stock/statistics — same branch scope query params), typically shown on 1310 Stock on Hand when that ledger leaf exists, otherwise on 1300. Without posted GL, other non-GL displays apply: unpaid sales invoices on the canonical receivables leaf (1200-style), stock-valued leaves for non-1300 inventory-named asset accounts. Active liability loans with outstanding principal add a **liability register overlay** onto CoA root **2000** (unassigned GL) or the liability’s **glAccountId** leaf only when that target row has **zero** posted GL lines — if the account already has journal/transaction activity, overlay is skipped for that row to avoid double-counting with uncollated sub-ledger + GL. Fixed assets use **glAccountId** on purchase journals instead of a chart overlay (no stacked NBV on posted PPE). Range catch-all buckets (1999, 2999, …) are folded into parent rollups server-side so structural totals reconcile. No revenue, COGS, payroll, AP, tax, or expense-module overlays beyond those described — other registers belong in the GL or management reports.',
+            'Posted GL only: manual journals with transactionId=null (no mirrored system journals) plus posted Transaction lines (isReversal=false). With a date filter: Asset/Liability/Equity use cumulative activity through dateTo; Revenue/Expense use net activity in [dateFrom or FY-start, dateTo]. AR sub-ledger uses invoices and completed payments through the as-of end date. Inventory aligns to Stock Management; with a filter, quantity-on-hand is reconstructed from InventoryTransaction through that date × current unit cost (see inventoryValuationNote). Parent totals include synthetic "Direct postings" children so parent = sum of descendants. Liability register overlay unchanged when the target leaf has zero posted GL.',
+          inventoryValuationNote: inventoryValuationNote || undefined,
         },
         period: {
           dateFrom: dateRange.from ? dateRange.from.toISOString() : null,
@@ -840,23 +752,58 @@ export async function POST(request) {
 
     const body = await request.json();
     const {
-      accountCode,
+      accountCode: rawAccountCode,
       accountName,
       accountType,
       accountSubtype,
       normalBalance,
-      parentAccountId,
+      parentAccountId: rawParentAccountId,
       description,
       isActive = true
     } = body;
+
+    let accountCode = rawAccountCode != null ? String(rawAccountCode).trim() : '';
+    let parentAccountId = rawParentAccountId ?? null;
 
     const normalizedType = normalizeAccountType(accountType);
     const resolvedNormalBalance =
       normalBalance ||
       (normalizedType === 'Asset' || normalizedType === 'Expense' ? 'Debit' : 'Credit');
 
-    // Validation
-    if (!accountCode || !accountName || !normalizedType) {
+    if (!accountName || !normalizedType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: accountName, accountType' },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedType === 'Expense') {
+      const header5700 = await ensureCustomExpenses5700ForTenant(user.tenantId, prisma);
+      if (!header5700?.id) {
+        return NextResponse.json(
+          { error: 'Could not ensure Custom Expenses header account (5700). Try Sync standard CoA from Chart of Accounts.' },
+          { status: 500 }
+        );
+      }
+      const autoAssign =
+        !accountCode || /^AUTO$/i.test(accountCode);
+      if (autoAssign) {
+        const next = await assignNextCustomExpenseAccountCode(user.tenantId, prisma);
+        if (!next) {
+          return NextResponse.json(
+            {
+              error: 'All custom expense account codes (5701–5899) are in use.',
+              code: 'CUSTOM_EXPENSE_RANGE_FULL',
+            },
+            { status: 409 }
+          );
+        }
+        accountCode = next;
+        parentAccountId = header5700.id;
+      } else {
+        parentAccountId = header5700.id;
+      }
+    } else if (!accountCode) {
       return NextResponse.json(
         { error: 'Missing required fields: accountCode, accountName, accountType' },
         { status: 400 }
@@ -949,6 +896,7 @@ export async function POST(request) {
       accountCode,
       accountType: normalizedType,
       parentAccount,
+      userOriginated: normalizedType === 'Expense' ? true : false,
     });
     if (!coaCreateRules.ok) {
       return NextResponse.json({ error: coaCreateRules.message }, { status: 400 });
