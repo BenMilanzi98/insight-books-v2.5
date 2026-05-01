@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 
 /**
  * GET /api/expense-categories
@@ -49,10 +49,9 @@ export async function GET(request) {
     });
 
     const allowed = categories.filter((cat) => {
-      if (cat.account) return isTenantExpenseCategoryAccount(cat.account);
-      const code = cat.accountCode || '';
-      return isTenantExpenseCategoryAccount({
-        accountCode: code,
+      if (cat.account) return isSystemExpenseStructurePickerAccount(cat.account);
+      return isSystemExpenseStructurePickerAccount({
+        accountCode: cat.accountCode || '',
         accountType: 'Expense',
         mergedIntoAccountId: null,
       });

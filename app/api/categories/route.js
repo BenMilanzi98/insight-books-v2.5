@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 
 /** Product/stock categories (InventoryCategory model). API accepts `stock` or `inventory`; DB unchanged. */
 function isProductCategoryType(type) {
@@ -50,31 +50,15 @@ export async function GET(request) {
       const tenantId = user.tenantId;
 
       const categoriesById = new Map();
-      const toEntry = (accountId, code, name, account, description, fromExpenseCategory = false, expCatId = null) => {
-        const entry = {
-          id: accountId,
-          code: code || '',
-          name: name || 'Unnamed',
-          accountId,
-          expenseCategoryId: expCatId || null,
-          account: account ?? null,
-          description: description ?? null
-        };
-        if (fromExpenseCategory) entry._fromExpenseCategory = true;
-        return entry;
-      };
-
-      // Normalize name for deduplication so "Bank Charges", "5190 - Bank Charges", "Marketing & Advertising Expense" collapse to one
-      const normalizeName = (s) => {
-        let n = (s || '')
-          .replace(/^\d+\s*-\s*/, '')  // strip leading "CODE - "
-          .replace(/\s*&\s*/g, ' and ') // "Marketing & Advertising" -> "Marketing and Advertising"
-          .trim()
-          .toLowerCase()
-          .replace(/\s+expense(s)?\s*$/i, '')  // strip trailing " expense" or " expenses"
-          .replace(/\s+/g, ' ');               // collapse multiple spaces
-        return n.trim() || (s || '').toLowerCase();
-      };
+      const toEntry = (accountId, code, name, account, description, expCatId = null) => ({
+        id: accountId,
+        code: code || '',
+        name: name || 'Unnamed',
+        accountId,
+        expenseCategoryId: expCatId || null,
+        account: account ?? null,
+        description: description ?? null,
+      });
 
       try {
         const expenseCategories = await prisma.expenseCategory.findMany({
@@ -94,12 +78,12 @@ export async function GET(request) {
           orderBy: { name: 'asc' }
         });
         expenseCategories.forEach((cat) => {
-          if (!cat.account || !isTenantExpenseCategoryAccount(cat.account)) return;
+          if (!cat.account || !isSystemExpenseStructurePickerAccount(cat.account)) return;
           const accountId = cat.accountId;
           if (categoriesById.has(accountId)) return;
           categoriesById.set(
             accountId,
-            toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, true, cat.id)
+            toEntry(accountId, cat.accountCode, cat.name, cat.account, cat.description, cat.id)
           );
         });
       } catch (expenseCatErr) {
@@ -129,105 +113,28 @@ export async function GET(request) {
           orderBy: [{ accountCode: 'asc' }],
         });
         expenseGlAccounts.forEach((acc) => {
-          if (!isTenantExpenseCategoryAccount(acc)) return;
+          if (!isSystemExpenseStructurePickerAccount(acc)) return;
           const id = acc.id;
           if (categoriesById.has(id)) return;
           const code = acc.accountCode || acc.code || '';
           const label = acc.accountName || acc.name || code || 'Unnamed';
-          categoriesById.set(id, toEntry(id, code, label, acc, null, false));
+          categoriesById.set(id, toEntry(id, code, label, acc, null));
         });
       } catch (accountErr) {
         console.warn('Categories API: expense GL accounts unavailable:', accountErr?.message || accountErr);
       }
 
-      // Auto-create ExpenseCategory records for Account-only entries so dropdowns always have valid IDs
-      const accountOnlyEntries = Array.from(categoriesById.values()).filter(e => !e.expenseCategoryId);
-      if (accountOnlyEntries.length > 0) {
-        for (const entry of accountOnlyEntries) {
-          try {
-            let ec = await prisma.expenseCategory.findFirst({
-              where: { accountId: entry.accountId, tenantId }
-            });
-            if (!ec) {
-              ec = await prisma.expenseCategory.create({
-                data: {
-                  name: entry.name || 'Unnamed',
-                  accountId: entry.accountId,
-                  accountCode: entry.code || '',
-                  tenantId,
-                }
-              });
-            }
-            entry.expenseCategoryId = ec.id;
-            entry._fromExpenseCategory = true;
-          } catch (autoCreateErr) {
-            // Non-fatal: keep the Account ID; backend will handle lookup
-          }
-        }
-      }
-
-      let list = Array.from(categoriesById.values());
-      // Deduplicate by normalized name: keep one per logical name (prefer ExpenseCategory entry, else smallest code)
-      const byNormalizedName = new Map();
-      list
-        .sort((a, b) => {
-          const aNorm = normalizeName(a.name);
-          const bNorm = normalizeName(b.name);
-          if (aNorm !== bNorm) return aNorm.localeCompare(bNorm);
-          if (a._fromExpenseCategory !== b._fromExpenseCategory) return a._fromExpenseCategory ? -1 : 1;
-          return (a.code || '').localeCompare(b.code || '');
-        })
-        .forEach((cat) => {
-          const key = normalizeName(cat.name);
-          if (byNormalizedName.has(key)) return;
-          byNormalizedName.set(key, cat);
-        });
-
-      // Merge similar categories: when one name is a clear variant of another (e.g. "tax" vs "tax expense", "marketing" vs "marketing and advertising"), keep the more specific (longer) one. Avoid merging generic "expense" into everything.
-      const keys = [...byNormalizedName.keys()];
-      const isVariantOf = (shortKey, longKey) => {
-        if (longKey.length <= shortKey.length || !longKey.includes(shortKey)) return false;
-        // Long is "short + expense(s)" or "short + something" (word boundary)
-        if (longKey === shortKey + ' expense' || longKey === shortKey + ' expenses') return true;
-        if (longKey.startsWith(shortKey + ' ')) return true;
-        if (longKey.endsWith(' ' + shortKey)) return true;
-        return false;
-      };
-      const getCanonicalKey = (key) => {
-        let best = key;
-        for (const other of keys) {
-          if (other.length <= best.length) continue;
-          if (isVariantOf(key, other)) best = other; // key is short form of other
-        }
-        return best;
-      };
-      const merged = new Map();
-      for (const [key, cat] of byNormalizedName) {
-        const canon = getCanonicalKey(key);
-        const existing = merged.get(canon);
-        if (!existing) {
-          merged.set(canon, cat);
-          continue;
-        }
-        const existingNorm = normalizeName(existing.name);
-        if (cat._fromExpenseCategory && !existing._fromExpenseCategory) merged.set(canon, cat);
-        else if (!cat._fromExpenseCategory && existing._fromExpenseCategory) { /* keep existing */ }
-        else if (key.length > existingNorm.length) merged.set(canon, cat);
-        else if (key.length === existingNorm.length && (cat.code || '').localeCompare(existing.code || '') < 0) merged.set(canon, cat);
-      }
-
-      // Prefer display name without "CODE - " prefix so dropdown shows "Bank Charges" not "5190 - Bank Charges"
       const cleanDisplayName = (name) => {
         if (!name || typeof name !== 'string') return name || 'Unnamed';
         const withoutCode = name.replace(/^\d+\s*-\s*/, '').trim();
         return withoutCode || name;
       };
-      categories = Array.from(merged.values()).map(({ _fromExpenseCategory, ...cat }) => ({
+      categories = Array.from(categoriesById.values()).map((cat) => ({
         ...cat,
         name: cleanDisplayName(cat.name),
         expenseCategoryId: cat.expenseCategoryId || null,
       }));
-      categories.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      categories.sort((a, b) => (a.code || '').localeCompare(b.code || '', undefined, { numeric: true }));
     }
 
     return NextResponse.json({

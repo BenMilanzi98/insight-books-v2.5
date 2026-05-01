@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { createExpenseReversal, validateReversalReason } from '@/lib/transactionReversalService';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 import {
   GL_POSTED_STATUSES,
   postApprovedExpenseJournalIfMissing
@@ -222,11 +222,11 @@ export async function PUT(request, { params }) {
         );
       }
 
-      if (!isTenantExpenseCategoryAccount(expenseAccount)) {
+      if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
         return NextResponse.json(
           {
             error:
-              'That account is not a valid expense category. Select an expense GL account from your chart (code range 5000–5999).',
+              'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5900).',
           },
           { status: 400 }
         );

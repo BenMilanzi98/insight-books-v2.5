@@ -52,7 +52,7 @@ const ExpenseForm = ({
   // Load payment accounts dynamically
   const { paymentAccounts, isLoading: isLoadingPaymentAccounts } = usePaymentAccounts();
 
-  // Load expense categories (from expense categories + CoA expense accounts for compatibility)
+  // Load expense categories: standard EXPENSES (5000) structure only (/api/categories?type=expense)
   const loadCategories = async () => {
     try {
       const response = await fetch('/api/categories?type=expense');

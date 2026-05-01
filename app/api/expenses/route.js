@@ -6,7 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { createExpenseJournalEntry } from '@/lib/transactionJournalHelpers';
 import { resolveBranchId } from '@/lib/branchHelpers';
-import { isTenantExpenseCategoryAccount } from '@/lib/systemExpenseCategoryCodes.js';
+import { isSystemExpenseStructurePickerAccount } from '@/lib/systemExpenseCategoryCodes.js';
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { normalizeExpenseAmountsForGl } from '@/lib/expenseGlPosting';
 
@@ -684,11 +684,11 @@ export async function POST(request) {
       );
     }
 
-    if (!isTenantExpenseCategoryAccount(expenseAccount)) {
+    if (!isSystemExpenseStructurePickerAccount(expenseAccount)) {
       return NextResponse.json(
         {
           error:
-            'That account is not a valid expense category. Select an expense GL account from your chart (code range 5000–5999).',
+            'That account is not a standard expense category. Select an account from the EXPENSES (5000) structure in Chart of accounts (e.g. 5110–5140, 5200–5210, 5300–5340, 5400, 5500, 5900).',
         },
         { status: 400 }
       );

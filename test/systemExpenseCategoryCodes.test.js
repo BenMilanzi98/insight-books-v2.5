@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isTenantExpenseCategoryAccount,
   isSystemExpenseStructureCode,
+  isSystemExpenseStructurePickerAccount,
 } from '../lib/systemExpenseCategoryCodes.js';
 
 describe('isTenantExpenseCategoryAccount', () => {
@@ -46,5 +47,16 @@ describe('isTenantExpenseCategoryAccount', () => {
   it('returns false for null or non-object', () => {
     expect(isTenantExpenseCategoryAccount(null)).toBe(false);
     expect(isTenantExpenseCategoryAccount(undefined)).toBe(false);
+  });
+});
+
+describe('isSystemExpenseStructurePickerAccount', () => {
+  it('matches tenant expense check for blueprint codes only', () => {
+    expect(isSystemExpenseStructurePickerAccount({ accountCode: '5320', accountType: 'Expense' })).toBe(true);
+    expect(isSystemExpenseStructurePickerAccount({ accountCode: '5355', accountType: 'Expense' })).toBe(false);
+  });
+
+  it('rejects non-expense same as tenant helper', () => {
+    expect(isSystemExpenseStructurePickerAccount({ accountCode: '5320', accountType: 'Asset' })).toBe(false);
   });
 });
