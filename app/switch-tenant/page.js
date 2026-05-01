@@ -1,19 +1,18 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { 
-  Building, 
-  Plus, 
-  Trash2, 
-  Check, 
-  ArrowRight, 
+import {
+  Building,
+  Plus,
+  Trash2,
+  Check,
+  ArrowRight,
   Search,
   X,
   AlertTriangle,
-  Clock,
   Crown,
-  Zap
+  Zap,
+  RefreshCw,
 } from 'lucide-react';
-import Link from 'next/link';
 import PermissionGuard from '@/components/PermissionGuard';
 
 export default function SwitchTenantPage() {
@@ -26,6 +25,8 @@ export default function SwitchTenantPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSwitching, setIsSwitching] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncFeedback, setSyncFeedback] = useState(null);
 
   const fetchTenantList = async () => {
     const res = await fetch('/api/tenant/list', {
@@ -38,6 +39,43 @@ export default function SwitchTenantPage() {
     }
     setTenants(data.tenants || []);
     setCurrentTenantId(data.currentTenantId ?? null);
+  };
+
+  const handleSyncBusinesses = async () => {
+    setSyncFeedback(null);
+    setIsSyncing(true);
+    try {
+      const res = await fetch('/api/tenant/sync-my-businesses', {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncFeedback({
+          type: 'error',
+          text: data.error || data.message || 'Could not sync businesses.',
+        });
+        return;
+      }
+      await fetchTenantList();
+      const s = data.summary || {};
+      const extra =
+        Array.isArray(s.partialErrors) && s.partialErrors.length > 0
+          ? ` Some rows reported issues (${s.partialErrors.length}); check server logs if problems continue.`
+          : '';
+      setSyncFeedback({
+        type: 'ok',
+        text: `Synced: ${s.tenantsConsidered ?? 0} business(es) checked. Linked ${s.m2mLinksApplied ?? 0} connection(s); ensured ${s.ownerMembershipsEnsured ?? 0} owner membership record(s).${extra}`,
+      });
+    } catch (error) {
+      setSyncFeedback({
+        type: 'error',
+        text: error?.message || 'Sync failed.',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   useEffect(() => {
@@ -157,11 +195,27 @@ export default function SwitchTenantPage() {
         {/* Header Section */}
         <div className="mb-8 sm:mb-10">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">Your Businesses</h1>
-          <p className="text-gray-600 text-sm sm:text-base">Switch between your businesses or create a new one</p>
+          <p className="text-gray-600 text-sm sm:text-base">
+            Switch between your businesses or create a new one. Owners and admins can{' '}
+            <span className="font-medium text-gray-800">sync linked businesses</span> if some are missing from this list.
+          </p>
         </div>
 
+        {syncFeedback && (
+          <div
+            className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+              syncFeedback.type === 'ok'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                : 'border-red-200 bg-red-50 text-red-800'
+            }`}
+            role="status"
+          >
+            {syncFeedback.text}
+          </div>
+        )}
+
         {/* Search and Add Section */}
-        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
+        <div className="mb-6 sm:mb-8 flex flex-col lg:flex-row gap-4 items-stretch lg:items-center lg:justify-between">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4 sm:w-5 sm:h-5" />
             <input
@@ -172,13 +226,25 @@ export default function SwitchTenantPage() {
               className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base bg-white shadow-sm"
             />
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-sm sm:text-base font-medium"
-          >
-            <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-            Add New Business
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={handleSyncBusinesses}
+              disabled={isSyncing}
+              className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 border border-slate-300 bg-white text-slate-800 rounded-lg hover:bg-slate-50 transition-all duration-200 shadow-sm text-sm sm:text-base font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing…' : 'Sync linked businesses'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center justify-center px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-sm sm:text-base font-medium"
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
+              Add New Business
+            </button>
+          </div>
         </div>
 
         {/* Tenants Grid */}
