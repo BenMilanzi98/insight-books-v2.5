@@ -25,13 +25,14 @@ const UnitBasedQuantityInput = ({
     onUnitQuantitiesChangeRef.current = onUnitQuantitiesChange;
   }, [onQuantityChange, onPriceChange, onUnitQuantitiesChange]);
 
-  // Initialize unit quantities when product changes
+  // Initialize unit quantities when product changes (prefer cart-provided unitQuantities when present)
   useEffect(() => {
     if (product?.units && product.units.length > 0) {
       const initialQuantities = {};
-      product.units.forEach(unit => {
-        // Start with all units at 0 - let user enter what they want
-        initialQuantities[unit.id] = 0;
+      product.units.forEach((unit) => {
+        const v = product.unitQuantities?.[unit.id];
+        const n = v != null && v !== '' ? Number(v) : 0;
+        initialQuantities[unit.id] = Number.isFinite(n) ? n : 0;
       });
       setUnitQuantities(initialQuantities);
     }

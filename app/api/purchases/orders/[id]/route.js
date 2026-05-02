@@ -1,6 +1,6 @@
 // app/api/purchases/orders/[id]/route.js
 //
-// Inventory policy: PUT/updates here do not mutate stock. Receipt posting drives quantity (see receipts API).
+// Inventory policy: PUT does not change on-hand qty. Line unit costs sync to Product.cost / stock value.
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -14,6 +14,7 @@ import {
   effectiveQuantityReceived,
   attachQuantityReceivedEffective,
 } from '@/lib/poLineReceivedFromReceipts';
+import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -198,6 +199,8 @@ export async function PUT(request, { params }) {
 
     const round2 = (n) => Math.round(Number(n) * 100) / 100;
 
+    let itemRows = null;
+
     if (body.items) {
       const taxTypeIds = [...new Set(body.items.map((it) => it.taxTypeId).filter(Boolean))];
       if (taxTypeIds.length > 0) {
@@ -208,7 +211,7 @@ export async function PUT(request, { params }) {
           return NextResponse.json({ error: 'One or more tax types not found or inactive.' }, { status: 400 });
         }
       }
-      const itemRows = body.items.map((item, index) => {
+      itemRows = body.items.map((item, index) => {
         const lineType = getLineType(item);
         const qty = Number(item.quantityOrdered ?? 0);
         const unitCost = Number(item.unitCost ?? 0);
@@ -266,26 +269,34 @@ export async function PUT(request, { params }) {
     data.totalAmount = round2(subtotal + taxAmount);
     data.taxRate = headerTaxRate;
 
-    const updated = await prisma.purchaseOrder.update({
-      where: { id: purchaseOrder.id },
-      data,
-      include: {
-        supplier: { select: { supplierName: true, supplierCode: true } },
-        items: {
-          include: {
-            product: { select: { id: true, name: true, sku: true, barcode: true } },
-            expenseCategory: {
-              select: {
-                id: true,
-                name: true,
-                accountCode: true,
-                account: { select: { accountCode: true, accountName: true } }
+    const updated = await prisma.$transaction(async (tx) => {
+      const po = await tx.purchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data,
+        include: {
+          supplier: { select: { supplierName: true, supplierCode: true } },
+          items: {
+            include: {
+              product: { select: { id: true, name: true, sku: true, barcode: true } },
+              expenseCategory: {
+                select: {
+                  id: true,
+                  name: true,
+                  accountCode: true,
+                  account: { select: { accountCode: true, accountName: true } }
+                }
               }
             }
-          }
-        },
-        expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
+          },
+          expenses: { select: { id: true, description: true, amount: true, date: true, status: true } }
+        }
+      });
+
+      if (itemRows?.length) {
+        await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, itemRows);
       }
+
+      return po;
     });
 
     return NextResponse.json({ purchaseOrder: updated });

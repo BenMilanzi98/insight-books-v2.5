@@ -11,6 +11,10 @@ import { hasEISAccess } from '@/lib/subscriptionService';
 import eisService from '@/lib/eisService';
 import { prismaWhereCoaIncomeAccounts } from '@/lib/coaIncomeAccounts';
 import { allocateNextSaleNumberReliable } from '@/lib/documentSequences';
+import {
+  resolveSaleItemBaseQuantity,
+  resolveSaleLineAmount,
+} from '@/lib/saleItemBaseQuantity';
 
 /** Local calendar YYYYMMDD for sale number prefix (matches business sale date). */
 function saleNumberDatePrefixFromDate(d) {
@@ -503,11 +507,27 @@ export async function POST(request) {
     for (let i = 0; i < data.items.length; i++) {
       const item = data.items[i];
       
-      if (!item.description || !item.quantity || !item.unitPrice) {
+      if (item.description == null || String(item.description).trim() === '') {
         return NextResponse.json(
-          { 
-            error: `Item ${i + 1}: description, quantity, and unitPrice are required`,
-            details: `Missing fields in item: ${JSON.stringify(item)}`
+          { error: `Item ${i + 1}: description is required` },
+          { status: 400 }
+        );
+      }
+      if (item.unitPrice === undefined || item.unitPrice === null) {
+        return NextResponse.json(
+          { error: `Item ${i + 1}: unitPrice is required` },
+          { status: 400 }
+        );
+      }
+      const hasPositiveUnitQty =
+        item.unitQuantities &&
+        typeof item.unitQuantities === 'object' &&
+        Object.values(item.unitQuantities).some((v) => Number(v) > 0);
+      const qNum = Number(item.quantity);
+      if (!hasPositiveUnitQty && (!Number.isFinite(qNum) || qNum <= 0)) {
+        return NextResponse.json(
+          {
+            error: `Item ${i + 1}: enter a quantity (or unit amounts for flexible-unit products)`,
           },
           { status: 400 }
         );
@@ -547,13 +567,34 @@ export async function POST(request) {
       }
     }
     
-    // Enhanced calculation: Handle individual item taxes and discounts
+    // Line subtotals: flexible-unit products use per-unit sell prices × unitQuantities (not cart quantity × one price)
+    const productIdsForSubtotal = [
+      ...new Set(data.items.filter((i) => i.productId && !i.isCustom).map((i) => i.productId)),
+    ];
+    let productMapForSubtotal = {};
+    if (productIdsForSubtotal.length > 0) {
+      const rows = await prisma.product.findMany({
+        where: { id: { in: productIdsForSubtotal }, tenantId: user.tenantId },
+        include: { productUnits: { include: { unit: true } } },
+      });
+      productMapForSubtotal = Object.fromEntries(rows.map((p) => [p.id, p]));
+    }
+
     let subtotal = 0;
     let totalTaxAmount = 0;
     let totalDiscountAmount = 0;
 
-    data.items.forEach(item => {
-      const itemSubtotal = item.quantity * item.unitPrice;
+    data.items.forEach((item) => {
+      let itemSubtotal = Number(item.quantity) * Number(item.unitPrice);
+      if (!item.isCustom && item.productId && productMapForSubtotal[item.productId]) {
+        const p = productMapForSubtotal[item.productId];
+        try {
+          const baseQ = resolveSaleItemBaseQuantity(item, p);
+          itemSubtotal = resolveSaleLineAmount(item, p, baseQ);
+        } catch {
+          itemSubtotal = Number(item.quantity) * Number(item.unitPrice);
+        }
+      }
       subtotal += itemSubtotal;
       totalTaxAmount += item.taxAmount || 0;
       totalDiscountAmount += item.discountAmount || 0;
@@ -857,16 +898,20 @@ export async function POST(request) {
             
             const product = await tx.product.findUnique({
               where: { id: item.productId },
-              select: { id: true, name: true, stockLevel: true }
+              include: { productUnits: { include: { unit: true } } },
             });
             
             if (!product) {
               throw new Error(`Product with ID ${item.productId} not found`);
             }
+
+            const baseQtyRequested = resolveSaleItemBaseQuantity(item, product);
             
             // Skip check if stockLevel is null (unlimited)
-            if (product.stockLevel !== null && product.stockLevel < item.quantity) {
-              throw new Error(`Insufficient stock for "${product.name}". Available: ${product.stockLevel}, Requested: ${item.quantity}`);
+            if (product.stockLevel !== null && Number(product.stockLevel) < baseQtyRequested) {
+              throw new Error(
+                `Insufficient stock for "${product.name}". Available: ${product.stockLevel}, Requested (base qty): ${baseQtyRequested}`
+              );
             }
           }
         }
@@ -969,15 +1014,32 @@ export async function POST(request) {
         // Create sale items with enhanced fields
         const items = await Promise.all(
           data.items.map(async (item) => {
-            // Calculate item amount
-            const amount = item.quantity * item.unitPrice;
+            let saleQuantity = Number(item.quantity) || 0;
+            let saleUnitPrice = Number(item.unitPrice) || 0;
+            let amount = saleQuantity * saleUnitPrice;
+
+            if (!item.isCustom && item.productId) {
+              const productForLine = await tx.product.findUnique({
+                where: { id: item.productId },
+                include: { productUnits: { include: { unit: true } } },
+              });
+              if (!productForLine) {
+                throw new Error(`Product with ID ${item.productId} not found`);
+              }
+              saleQuantity = resolveSaleItemBaseQuantity(item, productForLine);
+              const grossLine = resolveSaleLineAmount(item, productForLine, saleQuantity);
+              amount = Math.round(grossLine * 100) / 100;
+              if (saleQuantity > 0) {
+                saleUnitPrice = Math.round((amount / saleQuantity) * 1000000) / 1000000;
+              }
+            }
             
             // Base fields for sale item (no account yet - try both shapes for Prisma client compatibility)
             const baseSaleItemData = {
               sale: { connect: { id: sale.id } },
               description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
+              quantity: saleQuantity,
+              unitPrice: saleUnitPrice,
               amount: amount,
               taxRate: item.taxRate || 0,
               taxAmount: item.taxAmount || 0,
@@ -1092,88 +1154,32 @@ export async function POST(request) {
             data.items
               .filter(item => !item.isCustom && item.productId) // Only non-custom products
               .map(async (item) => {
-                // Create inventory transaction
+                const productForStock = await tx.product.findUnique({
+                  where: { id: item.productId },
+                  include: { productUnits: { include: { unit: true } } },
+                });
+                if (!productForStock) {
+                  throw new Error(`Product with ID ${item.productId} not found`);
+                }
+                const baseQty = resolveSaleItemBaseQuantity(item, productForStock);
+
                 await tx.inventoryTransaction.create({
                   data: {
                     productId: item.productId,
                     type: 'sale',
-                    quantity: -item.quantity, // Negative for stock reduction
+                    quantity: -baseQty,
                     notes: `Sale ${saleNumber}`,
                     userId: user.id,
                     tenantId: user.tenantId
                   }
                 });
 
-                // Check if product has unit management enabled
-                const productWithUnits = await tx.product.findUnique({
+                return tx.product.update({
                   where: { id: item.productId },
-                  include: {
-                    productUnits: {
-                      include: {
-                        unit: true
-                      }
-                    }
+                  data: {
+                    stockLevel: { decrement: baseQty }
                   }
                 });
-                
-                console.log("🔥 BACKEND: PRODUCT UNITS CHECK");
-                console.log("🔥 BACKEND: Product ID:", item.productId);
-                console.log("🔥 BACKEND: Product has units:", productWithUnits?.productUnits?.length > 0);
-                console.log("🔥 BACKEND: Product units count:", productWithUnits?.productUnits?.length || 0);
-                console.log("🔥 BACKEND: Unit quantities in item:", item.unitQuantities);
-                console.log("🔥 BACKEND: ==========================");
-
-                if (productWithUnits?.productUnits && productWithUnits.productUnits.length > 0) {
-                  // Handle unit-based stock reduction
-                  const unitQuantities = item.unitQuantities || {};
-                  
-                  console.log("=== SALES API STOCK REDUCTION DEBUG ===");
-                  console.log("Product ID:", item.productId);
-                  console.log("Product name:", productWithUnits.name);
-                  console.log("Unit quantities received:", unitQuantities);
-                  console.log("Product units:", productWithUnits.productUnits);
-                  
-                  // Calculate total quantity in base units (same logic as frontend)
-                  let totalBaseQuantity = 0;
-                  Object.entries(unitQuantities).forEach(([unitId, qty]) => {
-                    const unit = productWithUnits.productUnits.find(pu => pu.unit.id === unitId);
-                    if (unit && qty > 0) {
-                      const conversionRate = parseFloat(unit.unit.conversionToBase);
-                      const convertedToBase = unit.unit.isBaseUnit ? qty : qty / conversionRate;
-                      totalBaseQuantity += convertedToBase;
-                      console.log(`Unit ${unit.unit.symbol}: ${qty} = ${convertedToBase.toFixed(6)} base units`);
-                    }
-                  });
-                  
-                  console.log("Total base quantity to reduce:", totalBaseQuantity.toFixed(6));
-                  console.log("=====================================");
-                  
-                  // Reduce from main product stock (base unit logic)
-                  await tx.product.update({
-                    where: { id: item.productId },
-                    data: {
-                      stockLevel: {
-                        decrement: totalBaseQuantity
-                      }
-                    }
-                  });
-                  
-                  console.log(`Reduced ${totalBaseQuantity} from main product stock`);
-                  
-                  // For unit-managed products, we only reduce the main product stock
-                  // The individual unit stocks are calculated from the main stock
-                  // This ensures consistency across all displays
-                } else {
-                  // Handle regular product stock reduction
-                  return tx.product.update({
-                    where: { id: item.productId },
-                    data: {
-                      stockLevel: {
-                        decrement: item.quantity
-                      }
-                    }
-                  });
-                }
               })
           );
 
@@ -1272,7 +1278,7 @@ export async function POST(request) {
               if (dataItem.productId && !dataItem.isCustom) {
                 try {
                   // Check if product is a service (services don't have COGS)
-                  const product = await tx.product.findUnique({
+                    const product = await tx.product.findUnique({
                     where: { id: dataItem.productId },
                     select: { 
                       id: true, 
@@ -1285,6 +1291,12 @@ export async function POST(request) {
                   
                   // Only calculate COGS for non-service products
                   if (product && !product.isService) {
+                    const productWithUnitsForFifo = await tx.product.findUnique({
+                      where: { id: dataItem.productId },
+                      include: { productUnits: { include: { unit: true } } },
+                    });
+                    const qtyForFifo = resolveSaleItemBaseQuantity(dataItem, productWithUnitsForFifo);
+
                     // Get product cost at time of sale (to store for fallback if FIFO fails)
                     const productAtSaleTime = await tx.product.findUnique({
                       where: { id: dataItem.productId },
@@ -1302,7 +1314,7 @@ export async function POST(request) {
                         // "no batches found" and silently fall back to productCostAtSale.
                         branchId: product.branchId || sale.branchId || null,
                         productId: dataItem.productId,
-                        quantitySold: dataItem.quantity,
+                        quantitySold: qtyForFifo,
                         saleId: sale.id,
                         saleItemId: saleItem.id, // Use the actual database ID from created sale item
                         tx,
@@ -1316,7 +1328,7 @@ export async function POST(request) {
                         : Number(fifo.cogsAmount);
                       
                       itemCOGS = cogsAmountValue;
-                      console.log(`[FIFO Sale] ✅ Calculated FIFO COGS: ${cogsAmountValue} for ${dataItem.quantity} units`);
+                      console.log(`[FIFO Sale] ✅ Calculated FIFO COGS: ${cogsAmountValue} for ${qtyForFifo} base units`);
                       console.log(`[FIFO Sale] Allocations:`, fifo.allocations.map(a => `${a.quantity} @ ${a.unitCost} = ${a.cogsAmount}`).join(', '));
                       
                       await tx.saleItem.update({
@@ -1359,13 +1371,13 @@ export async function POST(request) {
                         message: fifoError.message,
                         stack: fifoError.stack,
                         productId: dataItem.productId,
-                        quantity: dataItem.quantity,
+                        quantity: qtyForFifo,
                         branchId: product.branchId || sale.branchId || null
                       });
                       
                       // FIFO failed - use product cost at sale time as fallback
-                      itemCOGS = dataItem.quantity * productCostAtSale;
-                      console.warn(`[FIFO Sale] ⚠️ Using product cost at sale time as fallback: ${productCostAtSale} × ${dataItem.quantity} = ${itemCOGS}`);
+                      itemCOGS = qtyForFifo * productCostAtSale;
+                      console.warn(`[FIFO Sale] ⚠️ Using product cost at sale time as fallback: ${productCostAtSale} × ${qtyForFifo} = ${itemCOGS}`);
                       
                       // Store product cost at sale time for fallback calculation
                       await tx.saleItem.update({

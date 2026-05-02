@@ -1,9 +1,8 @@
 // app/api/purchases/orders/route.js
 //
-// Inventory policy: creating or updating a purchase order does not change product stock,
-// FIFO batches, or inventory transactions. On-hand quantity increases only when a goods
-// receipt is posted (see app/api/purchases/receipts/route.js) or when a standalone supplier
-// inventory bill is finalized without a linked goods receipt (app/api/purchases/bills/route.js).
+// Inventory policy: PO create/update does not change on-hand qty or FIFO batches.
+// Line unit costs sync to Product.cost / totalStockValue so Stock reflects ordered pricing.
+// Quantity increases when a goods receipt is posted (see receipts route) or via supplier bills.
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
@@ -12,6 +11,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateValidation';
 import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequences';
 import { attachQuantityReceivedEffective } from '@/lib/poLineReceivedFromReceipts';
+import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -336,7 +336,6 @@ export async function POST(request) {
     const totalAmount = round2(subtotal + taxAmount);
     const headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
 
-    // PO rows only; no stockLevel / inventoryBatch / inventoryTransaction updates here.
     const purchaseOrder = await prisma.$transaction(async (tx) => {
       let poNumber;
       const manual = body.poNumber?.trim();
@@ -355,7 +354,7 @@ export async function POST(request) {
         poNumber = formatPoNumber(n);
       }
 
-      return tx.purchaseOrder.create({
+      const created = await tx.purchaseOrder.create({
         data: {
           tenantId: user.tenantId,
           supplierId: supplier.id,
@@ -410,6 +409,10 @@ export async function POST(request) {
           }
         }
       });
+
+      await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, itemRows);
+
+      return created;
     });
 
     return NextResponse.json({ purchaseOrder }, { status: 201 });
