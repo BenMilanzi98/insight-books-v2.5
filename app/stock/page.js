@@ -5448,10 +5448,15 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    // For number fields, allow empty string or convert to number
+    // For number fields, allow empty string or convert to number (preserve 0; do not use || '' which drops 0)
     let processedValue;
     if (type === 'number') {
-      processedValue = value === '' ? '' : parseFloat(value) || '';
+      if (value === '') {
+        processedValue = '';
+      } else {
+        const n = parseFloat(String(value).replace(/,/g, ''));
+        processedValue = Number.isFinite(n) ? n : '';
+      }
     } else if (type === 'checkbox') {
       processedValue = checked;
     } else {
@@ -5658,6 +5663,17 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
     const categoryValue = formData.category ? formData.category.trim() : "Uncategorized";
     
     try {
+      const isEdit = Boolean(product);
+      const parseCostForApi = () => {
+        const raw = formData.costPrice;
+        if (raw === '' || raw === null || raw === undefined) {
+          return isEdit ? undefined : 0;
+        }
+        const n =
+          typeof raw === 'number' ? raw : parseFloat(String(raw).replace(/,/g, ''));
+        if (Number.isFinite(n)) return n;
+        return isEdit ? undefined : 0;
+      };
       // Prepare product data
       const productData = {
         ...formData,
@@ -5669,7 +5685,7 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
         quantityInStock: formData.quantityInStock === '' ? null : parseFloat(formData.quantityInStock),
         reorderPoint: formData.reorderPoint === '' ? null : parseFloat(formData.reorderPoint),
         unitPrice: formData.unitPrice === '' ? null : parseFloat(formData.unitPrice),
-        costPrice: formData.costPrice === '' ? null : parseFloat(formData.costPrice),
+        costPrice: parseCostForApi(),
         discountAmount: formData.discountAmount === '' ? null : parseFloat(formData.discountAmount),
         weight: formData.weight === '' ? null : parseFloat(formData.weight),
         // Catalog-wide for this business (all locations)

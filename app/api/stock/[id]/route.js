@@ -5,6 +5,18 @@ import { getUserFromSession } from '@/lib/auth';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 import { normalizeExpiryAllocations } from '@/lib/expiryAllocations';
 
+/** Only finite numeric costs from the body override DB; null/NaN/omit keep existing (avoid wiping cost → fallback to average cost). */
+function resolveIncomingProductCost(body, existingCost) {
+  const candidates = [body.costPrice, body.cost];
+  for (const c of candidates) {
+    if (c === undefined || c === null) continue;
+    if (typeof c === 'string' && String(c).trim() === '') continue;
+    const n = Number(c);
+    if (Number.isFinite(n)) return n;
+  }
+  return existingCost;
+}
+
 // Helper function to get product by ID with validation
 async function getProductWithValidation(id, tenantId) {
   const selectBase = {
@@ -372,9 +384,12 @@ export async function PUT(request, { params }) {
       computedTaxRate = body.taxRate !== undefined ? body.taxRate : result.product.taxRate;
     }
     
-    // Resolve new cost for recalcing totalStockValue
-    const newCost = body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost);
-    const numericCost = Number(newCost) || 0;
+    // Resolve new cost for recalcing totalStockValue (do not treat null as an update)
+    const resolvedCostForUpdate = resolveIncomingProductCost(body, result.product.cost);
+    const numericCost =
+      resolvedCostForUpdate != null && Number.isFinite(Number(resolvedCostForUpdate))
+        ? Number(resolvedCostForUpdate)
+        : 0;
     const requestedPerishable =
       body.isPerishable !== undefined ? !!body.isPerishable : !!result.product.isPerishable;
     const requestedExpiryDate =
@@ -443,7 +458,7 @@ export async function PUT(request, { params }) {
             : result.product.reorderPoint,
       location: body.location !== undefined ? body.location : result.product.location,
       price: body.unitPrice !== undefined ? body.unitPrice : (body.price !== undefined ? body.price : result.product.price),
-      cost: body.costPrice !== undefined ? body.costPrice : (body.cost !== undefined ? body.cost : result.product.cost),
+      cost: resolvedCostForUpdate,
       taxRate: computedTaxRate,
       isService: body.isService !== undefined ? body.isService : result.product.isService,
       isPerishable:
