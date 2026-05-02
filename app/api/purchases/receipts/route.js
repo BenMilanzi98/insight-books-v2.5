@@ -401,7 +401,10 @@ export async function POST(request) {
                   unitCost: new Prisma.Decimal(String(Math.max(0, Number(item.unitCost)))),
                   batchNumber: item.batchNumber || null,
                   expiryDate: item.expiryDate ? new Date(item.expiryDate) : null,
-                expiryAllocations: item.expiryAllocations || null,
+                  expiryAllocations:
+                    Array.isArray(item.expiryAllocations) && item.expiryAllocations.length > 0
+                      ? item.expiryAllocations
+                      : null,
                   notes: item.notes || null,
                 })),
           },

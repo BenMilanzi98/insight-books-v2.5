@@ -15,6 +15,7 @@ import {
   attachQuantityReceivedEffective,
 } from '@/lib/poLineReceivedFromReceipts';
 import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
+import { resolvePurchaseOrderLineProductUnit } from '@/lib/resolvePurchaseOrderLineProductUnit';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -66,6 +67,9 @@ async function getPurchaseOrder(id, tenantId) {
       items: {
         include: {
           product: { select: { id: true, name: true, sku: true, barcode: true } },
+          productUnit: {
+            include: { unit: { select: { id: true, symbol: true, name: true } } },
+          },
           expenseCategory: {
             select: {
               id: true,
@@ -241,27 +245,13 @@ export async function PUT(request, { params }) {
           taxTypeId: item.taxTypeId && String(item.taxTypeId).trim() ? item.taxTypeId : null,
           taxRate: taxRatePct,
           taxAmount: lineTaxAmount,
-          _lineSubtotal: lineSubtotal
+          _lineSubtotal: lineSubtotal,
+          _bodyItem: item,
         };
       });
       subtotal = round2(itemRows.reduce((sum, row) => sum + (row._lineSubtotal ?? Number(row.quantityOrdered) * Number(row.unitCost)), 0));
       taxAmount = round2(itemRows.reduce((sum, row) => sum + row.taxAmount, 0));
       headerTaxRate = subtotal > 0 ? round2((taxAmount / subtotal) * 100) : (body.taxRate ?? 0);
-      data.items = {
-        deleteMany: { purchaseOrderId: purchaseOrder.id },
-        create: itemRows.map((row) => ({
-          lineNumber: row.lineNumber,
-          lineType: row.lineType,
-          productId: row.productId,
-          expenseCategoryId: row.expenseCategoryId,
-          description: row.description,
-          quantityOrdered: row.quantityOrdered,
-          unitCost: row.unitCost,
-          taxTypeId: row.taxTypeId,
-          taxRate: row.taxRate,
-          taxAmount: row.taxAmount
-        }))
-      };
     }
 
     data.subtotal = subtotal;
@@ -270,14 +260,60 @@ export async function PUT(request, { params }) {
     data.taxRate = headerTaxRate;
 
     const updated = await prisma.$transaction(async (tx) => {
+      const updatePayload = { ...data };
+
+      let syncRows = null;
+      if (itemRows?.length) {
+        const rowsWithUnits = [];
+        for (const row of itemRows) {
+          const bodyItem = row._bodyItem;
+          const { productUnitId, error: unitErr } = await resolvePurchaseOrderLineProductUnit(
+            tx,
+            user.tenantId,
+            {
+              lineType: row.lineType,
+              productId: row.productId,
+              productUnitId: bodyItem?.productUnitId,
+              unitId: bodyItem?.unitId,
+            }
+          );
+          if (unitErr) {
+            const err = new Error(unitErr);
+            err.code = 'PO_LINE_UNIT';
+            throw err;
+          }
+          rowsWithUnits.push({ ...row, productUnitId });
+        }
+        syncRows = rowsWithUnits.map(({ _bodyItem: _b, _lineSubtotal: _l, ...rest }) => rest);
+        updatePayload.items = {
+          deleteMany: { purchaseOrderId: purchaseOrder.id },
+          create: syncRows.map((r) => ({
+            lineNumber: r.lineNumber,
+            lineType: r.lineType,
+            productId: r.productId,
+            productUnitId: r.productUnitId,
+            expenseCategoryId: r.expenseCategoryId,
+            description: r.description,
+            quantityOrdered: r.quantityOrdered,
+            unitCost: r.unitCost,
+            taxTypeId: r.taxTypeId,
+            taxRate: r.taxRate,
+            taxAmount: r.taxAmount,
+          })),
+        };
+      }
+
       const po = await tx.purchaseOrder.update({
         where: { id: purchaseOrder.id },
-        data,
+        data: updatePayload,
         include: {
           supplier: { select: { supplierName: true, supplierCode: true } },
           items: {
             include: {
               product: { select: { id: true, name: true, sku: true, barcode: true } },
+              productUnit: {
+                include: { unit: { select: { id: true, symbol: true, name: true } } },
+              },
               expenseCategory: {
                 select: {
                   id: true,
@@ -292,8 +328,8 @@ export async function PUT(request, { params }) {
         }
       });
 
-      if (itemRows?.length) {
-        await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, itemRows);
+      if (syncRows?.length) {
+        await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, syncRows);
       }
 
       return po;
@@ -302,6 +338,9 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ purchaseOrder: updated });
   } catch (error) {
     console.error('Error updating purchase order:', error);
+    if (error && error.code === 'PO_LINE_UNIT') {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to update purchase order.' },
       { status: 500 }

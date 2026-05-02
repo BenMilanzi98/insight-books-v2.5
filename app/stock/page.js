@@ -435,7 +435,8 @@ const StockManagement = () => {
         }
         // Tenant-wide stock: entire business, not scoped to a single location
         queryParams.append('allBranches', 'true');
-        
+        queryParams.append('productUnits', '1');
+
         const queryString = queryParams.toString();
         const url = `/api/stock${queryString ? `?${queryString}` : ''}`;
         
@@ -4683,6 +4684,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   const [items, setItems] = useState([
     {
       productId: "",
+      productUnitId: "",
       quantityOrdered: "",
       unitCost: "",
       description: "",
@@ -4711,9 +4713,17 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   useEffect(() => {
     if (!isOpen) return;
     if (product) {
+      const pus = Array.isArray(product.productUnits) ? product.productUnits : [];
+      let defaultPu = "";
+      if (pus.length === 1) defaultPu = pus[0].id;
+      else if (pus.length > 1) {
+        const d = pus.find((u) => u.isDefault);
+        defaultPu = d ? d.id : pus[0].id;
+      }
       setItems([
         {
           productId: product.id,
+          productUnitId: defaultPu,
           quantityOrdered: String(product.reorderPoint || 10),
           unitCost: String(getDefaultProductCost(product)),
           description: product.description || product.name || "",
@@ -4721,7 +4731,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
       ]);
     } else {
       setItems([
-        { productId: "", quantityOrdered: "", unitCost: "", description: "" },
+        { productId: "", productUnitId: "", quantityOrdered: "", unitCost: "", description: "" },
       ]);
     }
   }, [isOpen, product]);
@@ -4760,9 +4770,18 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
             if (!updated.description) {
               updated.description = selectedProduct.description || selectedProduct.name || "";
             }
+            const pus = Array.isArray(selectedProduct.productUnits)
+              ? selectedProduct.productUnits
+              : [];
+            if (pus.length === 1) updated.productUnitId = pus[0].id;
+            else if (pus.length > 1) {
+              const d = pus.find((u) => u.isDefault);
+              updated.productUnitId = d ? d.id : pus[0].id;
+            } else updated.productUnitId = "";
           } else {
             // Product not found, clear the cost
             updated.unitCost = "";
+            updated.productUnitId = "";
           }
         }
         return updated;
@@ -4771,7 +4790,10 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
   };
 
   const addItem = () => {
-    setItems((prev) => [...prev, { productId: "", quantityOrdered: "", unitCost: "", description: "" }]);
+    setItems((prev) => [
+      ...prev,
+      { productId: "", productUnitId: "", quantityOrdered: "", unitCost: "", description: "" },
+    ]);
   };
 
   const removeItem = (index) => {
@@ -4784,9 +4806,11 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
     setError(null);
     try {
       const normalizedItems = items.map((item) => ({
-        ...item,
+        productId: item.productId || undefined,
+        productUnitId: item.productUnitId || undefined,
         quantityOrdered: Number(item.quantityOrdered || 0),
         unitCost: Number(item.unitCost || 0),
+        description: item.description?.trim() || undefined,
       }));
       await onSave({ ...form, status: "Approved", items: normalizedItems });
     } catch (err) {
@@ -4873,7 +4897,7 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                 {items.map((item, idx) => (
                   <div
                     key={idx}
-                    className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-5"
+                    className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50/80 p-3 sm:grid-cols-6"
                   >
                     <div>
                       <label className="block text-xs font-medium text-gray-600">Product</label>
@@ -4886,6 +4910,33 @@ function PurchaseOrderModal({ isOpen, onClose, product, suppliers, suppliersLoad
                         placeholder="Search by name, SKU, code, or barcode…"
                       />
                     </div>
+                    {item.productId &&
+                      (() => {
+                        const sel = products.find((p) => p.id === item.productId);
+                        const pus = Array.isArray(sel?.productUnits) ? sel.productUnits : [];
+                        if (pus.length === 0) return null;
+                        return (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Unit{pus.length > 1 ? " *" : ""}
+                            </label>
+                            <select
+                              className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                              value={item.productUnitId}
+                              onChange={(e) => handleItemChange(idx, "productUnitId", e.target.value)}
+                              required={pus.length > 1}
+                            >
+                              {pus.length > 1 && <option value="">Select unit…</option>}
+                              {pus.map((pu) => (
+                                <option key={pu.id} value={pu.id}>
+                                  {pu.unit?.symbol || pu.unit?.name || "Unit"}
+                                  {pu.isDefault ? " (default)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })()}
                     <div>
                       <label className="block text-xs font-medium text-gray-600">Quantity</label>
                       <input

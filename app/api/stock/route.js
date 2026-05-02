@@ -31,7 +31,19 @@ export async function GET(request) {
     }
     
     const { searchParams } = new URL(request.url);
-    
+    const includeProductUnits = /^(1|true|yes)$/i.test(String(searchParams.get('productUnits') || ''));
+    const productUnitsInclude = includeProductUnits
+      ? {
+          productUnits: {
+            where: { isActive: true },
+            include: {
+              unit: { select: { id: true, symbol: true, name: true } },
+            },
+            orderBy: [{ isDefault: 'desc' }, { id: 'asc' }],
+          },
+        }
+      : {};
+
     // Parse query parameters
     const page = parseInt(searchParams.get('page')) || 1;
     const limitParam = searchParams.get('limit');
@@ -180,6 +192,7 @@ export async function GET(request) {
         }
       },
       productBarcodes: { select: { barcode: true } },
+      ...productUnitsInclude,
       ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     const includeWithoutBarcodes = {
@@ -190,6 +203,7 @@ export async function GET(request) {
           }
         }
       },
+      ...productUnitsInclude,
       ...(includeUsageCounts ? { _count: { select: countSelect } } : {}),
     };
     try {

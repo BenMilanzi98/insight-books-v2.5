@@ -200,6 +200,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     <th className="px-4 py-2">Product / Description</th>
                     <th className="px-4 py-2">Expense category (code)</th>
                     <th className="px-4 py-2">Qty</th>
+                    <th className="px-4 py-2">Unit</th>
                     <th className="px-4 py-2">Unit Cost</th>
                     <th className="px-4 py-2 text-right">Tax %</th>
                     <th className="px-4 py-2 text-right">Tax (MWK)</th>
@@ -222,6 +223,9 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                         <td className="px-4 py-2 text-gray-700">
                           {Number(item.quantityOrdered || 0).toLocaleString()}
                         </td>
+                        <td className="px-4 py-2 text-gray-600">
+                          {item.productUnit?.unit?.symbol || item.productUnit?.unit?.name || "—"}
+                        </td>
                         <td className="px-4 py-2 text-gray-700">
                           MWK {Number(item.unitCost || 0).toLocaleString()}
                         </td>
@@ -240,7 +244,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                 </tbody>
                 <tfoot className="bg-gray-50 font-medium text-gray-900">
                   <tr>
-                    <td colSpan={6} className="px-4 py-2 text-right text-sm text-gray-600">
+                    <td colSpan={7} className="px-4 py-2 text-right text-sm text-gray-600">
                       Subtotal (excl. tax)
                     </td>
                     <td className="px-4 py-2 text-right text-gray-700">—</td>
@@ -249,7 +253,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     </td>
                   </tr>
                   <tr>
-                    <td colSpan={6} className="px-4 py-2 text-right text-sm text-gray-600">
+                    <td colSpan={7} className="px-4 py-2 text-right text-sm text-gray-600">
                       Total tax
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -258,7 +262,7 @@ function DetailDrawer({ order, onClose, onUploadSuccess }) {
                     <td className="px-4 py-2 text-right">—</td>
                   </tr>
                   <tr className="border-t border-gray-200">
-                    <td colSpan={6} className="px-4 py-3 text-right text-sm uppercase text-gray-500">
+                    <td colSpan={7} className="px-4 py-3 text-right text-sm uppercase text-gray-500">
                       Total (incl. tax)
                     </td>
                     <td className="px-4 py-3 text-right">—</td>
@@ -497,6 +501,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       return initialData.items.map((item) => ({
         lineType: item.lineType || (item.productId ? "goods" : "service"),
         productId: item.productId || "",
+        productUnitId: item.productUnitId || "",
         expenseCategoryId: item.expenseCategoryId || "",
         description: item.description || "",
         quantityOrdered:
@@ -512,7 +517,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         taxAmount: item.taxAmount != null ? String(item.taxAmount) : "",
       }));
     }
-    return [{ lineType: "goods", productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" }];
+    return [{ lineType: "goods", productId: "", productUnitId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" }];
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -563,6 +568,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
       (initialData.items || []).map((item) => ({
         lineType: item.lineType || (item.productId ? "goods" : "service"),
         productId: item.productId || "",
+        productUnitId: item.productUnitId || "",
         expenseCategoryId: item.expenseCategoryId || "",
         description: item.description || "",
         quantityOrdered: item.quantityOrdered != null ? String(item.quantityOrdered) : "1",
@@ -657,6 +663,9 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
             if (taxType != null) newItem.taxRate = String(taxType.taxRate ?? "");
           }
           // If product is being changed, auto-populate unit cost
+          if (key === "productId" && !value) {
+            newItem.productUnitId = "";
+          }
           if (key === "productId" && value) {
             const selectedProduct = products.find((p) => p.id === value);
             if (selectedProduct) {
@@ -683,9 +692,22 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
               if (!newItem.description && selectedProduct.name) {
                 newItem.description = selectedProduct.name;
               }
+
+              const pus = Array.isArray(selectedProduct.productUnits)
+                ? selectedProduct.productUnits
+                : [];
+              if (pus.length === 1) {
+                newItem.productUnitId = pus[0].id;
+              } else if (pus.length > 1) {
+                const def = pus.find((u) => u.isDefault);
+                newItem.productUnitId = def ? def.id : pus[0].id;
+              } else {
+                newItem.productUnitId = "";
+              }
             } else {
               // Product not found, clear the cost
               newItem.unitCost = "";
+              newItem.productUnitId = "";
             }
           }
           
@@ -701,7 +723,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
     const lt = defaultLineType(form.orderType);
     setItems((prev) => [
       ...prev,
-      { lineType: lt, productId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" },
+      { lineType: lt, productId: "", productUnitId: "", expenseCategoryId: "", quantityOrdered: "", unitCost: "", description: "", taxTypeId: "", taxRate: "", taxAmount: "" },
     ]);
   };
 
@@ -735,6 +757,7 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
         return {
           lineType,
           productId: item.productId || undefined,
+          productUnitId: item.productUnitId || undefined,
           expenseCategoryId: item.expenseCategoryId || undefined,
           description: item.description?.trim() || undefined,
           quantityOrdered: qty,
@@ -943,6 +966,36 @@ function OrderForm({ suppliers, products, expenseCategories = [], taxTypes = [],
                       </div>
                     </div>
                   )}
+
+                  {showProductSelect &&
+                    item.productId &&
+                    (() => {
+                      const sel = products.find((p) => p.id === item.productId);
+                      const pus = Array.isArray(sel?.productUnits) ? sel.productUnits : [];
+                      if (pus.length === 0) return null;
+                      return (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600">
+                            Unit of measure{" "}
+                            {pus.length > 1 ? <span className="text-red-500">*</span> : null}
+                          </label>
+                          <select
+                            className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                            value={item.productUnitId}
+                            onChange={(e) => handleItemChange(idx, "productUnitId", e.target.value)}
+                            required={pus.length > 1}
+                          >
+                            {pus.length > 1 && <option value="">Select unit…</option>}
+                            {pus.map((pu) => (
+                              <option key={pu.id} value={pu.id}>
+                                {pu.unit?.symbol || pu.unit?.name || "Unit"}
+                                {pu.isDefault ? " (default)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
 
                   {/* SERVICE lines: description + expense account */}
                   {isService && (
@@ -1186,7 +1239,7 @@ export default function PurchaseOrdersPage() {
       const [orderRes, supplierRes, productRes, categoriesRes, taxTypesRes] = await Promise.all([
         getOrders({ search, status: statusFilter }),
         fetch("/api/purchases/suppliers").then((res) => res.json()),
-        fetch("/api/stock").then((res) => res.json()),
+        fetch("/api/stock?productUnits=1").then((res) => res.json()),
         fetch("/api/categories?type=expense").then((res) => res.ok ? res.json() : { categories: [] }).catch(() => ({ categories: [] })),
         fetch("/api/tax-types?status=Active").then((res) => res.ok ? res.json() : []).catch(() => []),
       ]);

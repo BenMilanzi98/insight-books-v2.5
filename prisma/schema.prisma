@@ -1336,6 +1336,8 @@ model PurchaseOrderItem {
   lineNumber        Int
   lineType          String?            @default("goods") // "goods" | "service"
   productId         String?
+  /// Which ProductUnit this line is priced/ordered in (flexible measurements); null = legacy / single-unit products.
+  productUnitId     String?
   expenseCategoryId String?
   description       String?
   quantityOrdered   Decimal            @db.Decimal(12, 4)
@@ -1348,12 +1350,14 @@ model PurchaseOrderItem {
   updatedAt         DateTime           @updatedAt
   receiptItems      GoodsReceiptItem[]
   product           Product?           @relation(fields: [productId], references: [id])
+  productUnit       ProductUnit?       @relation(fields: [productUnitId], references: [id], onDelete: SetNull)
   expenseCategory   ExpenseCategory?   @relation(fields: [expenseCategoryId], references: [id])
   purchaseOrder     PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   taxType           TaxType?           @relation(fields: [taxTypeId], references: [id])
 
   @@index([purchaseOrderId])
   @@index([productId])
+  @@index([productUnitId])
   @@index([expenseCategoryId])
   @@index([taxTypeId])
 }
@@ -2454,19 +2458,20 @@ model Unit {
 }
 
 model ProductUnit {
-  id              String   @id @default(cuid())
+  id              String              @id @default(cuid())
   productId       String
   unitId          String
-  isDefault       Boolean  @default(false)
-  unitPrice       Decimal  @db.Decimal(10, 2)
-  costPrice       Decimal  @db.Decimal(10, 2)
-  quantityInStock Decimal  @default(0) @db.Decimal(15, 6)
-  reorderPoint    Decimal  @default(0) @db.Decimal(15, 6)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  unit            Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  isDefault       Boolean             @default(false)
+  unitPrice       Decimal             @db.Decimal(10, 2)
+  costPrice       Decimal             @db.Decimal(10, 2)
+  quantityInStock Decimal             @default(0) @db.Decimal(15, 6)
+  reorderPoint    Decimal             @default(0) @db.Decimal(15, 6)
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  product         Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unit            Unit                @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  purchaseOrderItems PurchaseOrderItem[]
 
   @@unique([productId, unitId])
   @@map("product_units")

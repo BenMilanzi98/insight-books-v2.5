@@ -12,6 +12,7 @@ import { assertExpectedDeliveryOnOrAfterPoDate } from '@/lib/purchaseOrderDateVa
 import { allocateNextPONumberReliable, formatPoNumber } from '@/lib/documentSequences';
 import { attachQuantityReceivedEffective } from '@/lib/poLineReceivedFromReceipts';
 import { syncProductCostsFromPurchaseOrderItems } from '@/lib/syncProductCostFromPurchaseOrder';
+import { resolvePurchaseOrderLineProductUnit } from '@/lib/resolvePurchaseOrderLineProductUnit';
 
 const PO_STATUSES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'];
 const ORDER_TYPES = ['goods', 'services', 'mixed', 'assets'];
@@ -105,6 +106,9 @@ export async function GET(request) {
       items: {
         include: {
           product: { select: { id: true, name: true, sku: true, barcode: true } },
+          productUnit: {
+            include: { unit: { select: { id: true, symbol: true, name: true } } },
+          },
           expenseCategory: {
             select: {
               id: true,
@@ -354,6 +358,28 @@ export async function POST(request) {
         poNumber = formatPoNumber(n);
       }
 
+      const itemRowsWithUnits = [];
+      for (let i = 0; i < itemRows.length; i++) {
+        const row = itemRows[i];
+        const bodyItem = body.items[i] || {};
+        const { productUnitId, error: unitErr } = await resolvePurchaseOrderLineProductUnit(
+          tx,
+          user.tenantId,
+          {
+            lineType: row.lineType,
+            productId: row.productId,
+            productUnitId: bodyItem.productUnitId,
+            unitId: bodyItem.unitId,
+          }
+        );
+        if (unitErr) {
+          const err = new Error(unitErr);
+          err.code = 'PO_LINE_UNIT';
+          throw err;
+        }
+        itemRowsWithUnits.push({ ...row, productUnitId });
+      }
+
       const created = await tx.purchaseOrder.create({
         data: {
           tenantId: user.tenantId,
@@ -378,10 +404,11 @@ export async function POST(request) {
           supplierInvoiceUrl: body.supplierInvoiceUrl || null,
           createdById: user.id,
           items: {
-            create: itemRows.map((row) => ({
+            create: itemRowsWithUnits.map((row) => ({
               lineNumber: row.lineNumber,
               lineType: row.lineType,
               productId: row.productId,
+              productUnitId: row.productUnitId,
               expenseCategoryId: row.expenseCategoryId,
               description: row.description,
               quantityOrdered: row.quantityOrdered,
@@ -397,6 +424,9 @@ export async function POST(request) {
           items: {
             include: {
               product: { select: { id: true, name: true, sku: true, barcode: true } },
+              productUnit: {
+                include: { unit: { select: { id: true, symbol: true, name: true } } },
+              },
               expenseCategory: {
                 select: {
                   id: true,
@@ -410,7 +440,7 @@ export async function POST(request) {
         }
       });
 
-      await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, itemRows);
+      await syncProductCostsFromPurchaseOrderItems(tx, user.tenantId, itemRowsWithUnits);
 
       return created;
     });
@@ -421,6 +451,9 @@ export async function POST(request) {
 
     if (error && error.code === 'DUPLICATE_PO_NUMBER') {
       return NextResponse.json({ error: 'Purchase order number already exists' }, { status: 409 });
+    }
+    if (error && error.code === 'PO_LINE_UNIT') {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     // Prisma unique constraint (tenantId + poNumber) -> 409
