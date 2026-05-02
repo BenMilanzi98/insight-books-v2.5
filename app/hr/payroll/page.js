@@ -339,12 +339,11 @@ export default function PayrollProcessing() {
     return payrollRuns.filter(r => r.status !== 'Reversed');
   }, [payrollRuns, runFilter]);
 
-  /** Matches POST /api/payroll/calculate when saving the edit modal (PAYE + NPS + custom lines). */
+  /** PAYE/NPS/custom on basic salary only; additions (benefits) added to net after deductions. */
   const editPayrollPreview = useMemo(() => {
     const basicSalary = Number(editFormData.basicSalary) || 0;
     const additions = Number(editFormData.additions) || 0;
-    const gross = basicSalary + additions;
-    if (gross <= 0) {
+    if (basicSalary <= 0) {
       return { netPay: 0 };
     }
     const custom = Object.entries(editFormData.deductions || {}).map(([name, value]) => ({
@@ -353,7 +352,7 @@ export default function PayrollProcessing() {
       value: Number(value) || 0,
     }));
     const calc = calculatePayroll(
-      gross,
+      basicSalary,
       [
         { name: 'PAYE', isStatutory: true },
         { name: 'NPS', isStatutory: true },
@@ -364,7 +363,7 @@ export default function PayrollProcessing() {
         npsEmployerRatePercent: npsDisplayRates.npsEmployerRatePercent,
       }
     );
-    return { netPay: calc.netPay };
+    return { netPay: Math.max(0, calc.netPay + additions) };
   }, [
     editFormData.basicSalary,
     editFormData.additions,
@@ -636,14 +635,14 @@ export default function PayrollProcessing() {
 
     try {
       setIsSaving(true);
-      // Calculate gross salary including additions
-      const grossSalaryWithAdditions = editFormData.basicSalary + (editFormData.additions || 0);
-      
+      const baseGross = Number(editFormData.basicSalary) || 0;
+      const additions = Number(editFormData.additions) || 0;
+
       const response = await fetch('/api/payroll/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          grossSalary: grossSalaryWithAdditions, // Include additions in gross salary for deduction calculation
+          grossSalary: baseGross,
           deductionIds: [],
           customDeductions: [
             { name: 'PAYE', isStatutory: true },
@@ -665,9 +664,12 @@ export default function PayrollProcessing() {
       const data = await response.json();
       const calculation = data.calculation;
       
-      const calculatedGrossPay = calculation.grossSalary ?? grossSalaryWithAdditions;
+      const calculatedGrossPay = calculation.grossSalary ?? baseGross;
       const calculatedDeductions = calculation.totalDeductions ?? 0;
-      const calculatedNetPay = calculation.netPay ?? Math.max(0, calculatedGrossPay - calculatedDeductions);
+      const calculatedNetPay = Math.max(
+        0,
+        (calculation.netPay ?? 0) + additions
+      );
       
       const updateResponse = await fetch(`/api/payroll/${editingPayroll.id}`, {
         method: 'PUT',
@@ -1612,17 +1614,17 @@ export default function PayrollProcessing() {
                       <span className="font-medium">MWK {editFormData.basicSalary.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Additions:</span>
+                      <span className="text-gray-600">Additions (benefits, after tax):</span>
                       <span className="font-medium text-green-600">+ MWK {(editFormData.additions || 0).toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between border-t pt-2">
-                      <span className="text-gray-700 font-medium">Gross Pay:</span>
-                      <span className="font-bold text-blue-600">MWK {(editFormData.basicSalary + (editFormData.additions || 0)).toLocaleString()}</span>
+                      <span className="text-gray-700 font-medium">Gross salary (PAYE / NPS base):</span>
+                      <span className="font-bold text-blue-600">MWK {editFormData.basicSalary.toLocaleString()}</span>
                     </div>
                     <div className="pt-2 space-y-1">
                       <div className="text-xs text-gray-500 font-medium mb-1">Deductions (will be calculated):</div>
                       <div className="text-xs text-gray-500 pl-2">
-                        • PAYE (on taxable income after employee NPS / pension)
+                        • PAYE (on gross salary after employee NPS / pension)
                       </div>
                       <div className="text-xs text-gray-500 pl-2">
                         • NPS Employee:{" "}
@@ -1630,7 +1632,7 @@ export default function PayrollProcessing() {
                           npsDisplayRates.npsEmployeeRatePercent,
                           true,
                         )}
-                        % of gross pay (HR → Pension; statutory 5% when unset)
+                        % of gross salary (HR → Pension; statutory 5% when unset)
                       </div>
                       {Object.keys(editFormData.deductions || {}).length > 0 && (
                         <>

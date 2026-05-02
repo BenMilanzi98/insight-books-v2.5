@@ -77,6 +77,24 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
     expect(r.payeTaxableIncome).toBe(500_000);
     expect(r.payeAmount).toBe(99_000);
   });
+
+  it('excludes allowances from PAYE/NPS base but adds them to net pay', () => {
+    const withAllow = calculateMalawiPayroll(
+      { basicSalary: 500_000, allowances: { housing: 100_000 }, otherDeductions: {} },
+      true,
+      true,
+      { employeeRatePercent: 5, employerRatePercent: 5 },
+    );
+    const noAllow = calculateMalawiPayroll(
+      { basicSalary: 500_000, allowances: {}, otherDeductions: {} },
+      true,
+      true,
+      { employeeRatePercent: 5, employerRatePercent: 5 },
+    );
+    expect(withAllow.payeAmount).toBe(noAllow.payeAmount);
+    expect(withAllow.npsEmployeeAmount).toBe(noAllow.npsEmployeeAmount);
+    expect(withAllow.netPay).toBe(noAllow.netPay + 100_000);
+  });
 });
 
 describe('toPayrollNumber', () => {

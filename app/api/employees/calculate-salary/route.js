@@ -38,11 +38,10 @@ export async function POST(request) {
       );
     }
 
-    // Sum benefit amounts (allowances) — included in **gross** for PAYE / NPS / % deductions (same as enhanced payroll).
+    // Benefits are added to **net** after PAYE / NPS / other deductions (not in PAYE gross).
     const totalBenefits = Array.isArray(benefits)
       ? benefits.reduce((sum, b) => sum + (toPayrollNumber(b?.amount) ?? 0), 0)
       : 0;
-    const grossForPayroll = Math.round((baseSalary + totalBenefits) * 100) / 100;
 
     // Fetch selected deductions from database
     let deductions = [];
@@ -73,13 +72,15 @@ export async function POST(request) {
       console.warn('Salary calculate raw NPS rate read failed:', e?.message || e);
     }
 
-    const payrollCalculation = calculatePayroll(grossForPayroll, deductions, npsOptions);
+    const payrollCalculation = calculatePayroll(baseSalary, deductions, npsOptions);
+    const netWithBenefits =
+      Math.round((payrollCalculation.netPay + totalBenefits) * 100) / 100;
     const calculation = {
       ...payrollCalculation,
       baseSalary: Math.round(baseSalary * 100) / 100,
       totalBenefits: Math.round(totalBenefits * 100) / 100,
       grossSalary: Math.round(payrollCalculation.grossSalary * 100) / 100,
-      netPay: Math.round(payrollCalculation.netPay * 100) / 100
+      netPay: netWithBenefits,
     };
 
     return NextResponse.json({

@@ -208,7 +208,7 @@ export async function POST(request) {
         (sum, eb) => sum + (toPayrollNumber(eb.amount) ?? 0),
         0
       );
-      const grossForPayroll = roundPayrollMoney(grossFromField + benefitsTotal);
+      // PAYE / NPS / % deductions use contractual gross only; benefits are added to net after deductions.
       const ids = normalizeDeductionIds(employee.selectedDeductions);
       const selected =
         ids.length > 0
@@ -216,10 +216,11 @@ export async function POST(request) {
               where: { id: { in: ids }, tenantId: user.tenantId, isActive: true },
             })
           : [];
-      const calc = calculatePayroll(grossForPayroll, selected, {
+      const calc = calculatePayroll(grossFromField, selected, {
         npsEmployeeRatePercent,
         npsEmployerRatePercent,
       });
+      const netWithBenefits = roundPayrollMoney(calc.netPay + benefitsTotal);
 
       return prisma.payroll.create({
         data: {
@@ -228,10 +229,10 @@ export async function POST(request) {
           periodStart,
           periodEnd,
           basicSalary: employee.salary,
-          grossPay: grossForPayroll,
+          grossPay: roundPayrollMoney(grossFromField),
           deductions: calc.totalDeductions,
           additions: roundPayrollMoney(benefitsTotal),
-          netPay: calc.netPay,
+          netPay: netWithBenefits,
           payeAmount: calc.paye.payeAmount,
           totalNpsAmount: calc.nps.totalAmount,
           status: 'Pending',

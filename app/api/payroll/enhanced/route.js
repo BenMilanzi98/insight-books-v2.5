@@ -720,23 +720,20 @@ export async function POST(request) {
       const totalDeductions = payeAmount + npsEmployeeAmount + otherDeductionsTotal;
       
       const grossPay = Number(payrollCalculation.totalGrossPay) || 0;
-      const additions = Number(payrollCalculation.overtimePay) || 0;
-      
-      // Calculate net pay: Gross Pay - Total Deductions
-      // Ensure net pay is never negative
-      const netPay = Math.max(0, grossPay - totalDeductions);
+      const additions = Number(payrollCalculation.totalAllowances) || 0;
+      const netPay = Math.max(0, Number(payrollCalculation.netPay) || 0);
       
       // Debug logging to verify calculation
       console.log(`Payroll Calculation for ${employee.name}:`, {
         basicSalary: baseSalary,
-        additions: additions,
-        grossPay: grossPay,
+        allowancesTotal: additions,
+        taxableGrossPay: grossPay,
         payeAmount: payeAmount,
         npsEmployeeAmount: npsEmployeeAmount,
         otherDeductionsTotal: otherDeductionsTotal,
         totalDeductions: totalDeductions,
         netPay: netPay,
-        calculation: `Net Pay = ${grossPay} - ${totalDeductions} = ${netPay}`
+        calculation: `Net = taxable gross − deductions + allowances → ${netPay}`
       });
 
       // Total advance deductions already calculated above for transaction lines
@@ -1002,7 +999,7 @@ export async function POST(request) {
       // ============================================
       // Total expense = grossPay + additions + employer NPS
       // This represents the total cost to the company for this employee's payroll
-      // grossPay = basic salary + allowances
+      // grossPay on Payroll = taxable gross (basic + overtime); additions = allowances (net after tax)
       // additions = overtime pay
       // npsEmployerAmount = employer's pension contribution (additional cost)
       // 
