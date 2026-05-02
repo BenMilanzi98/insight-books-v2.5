@@ -8,6 +8,17 @@ import nodemailer from 'nodemailer';
 import fs from 'fs';
 import path from 'path';
 
+/** Escapes text for safe insertion into HTML email bodies. */
+function escapeHtml(str) {
+  if (str == null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export async function POST(request, context) {
     try {
       // Await params for Next.js 15 compatibility
@@ -202,18 +213,18 @@ export async function POST(request, context) {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
             <div style="text-align: center; margin-bottom: 20px;">
-              <h2 style="color: ${tenant?.primaryColor || '#4338ca'};">${companyName}</h2>
+              <h2 style="color: ${tenant?.primaryColor || '#4338ca'};">${escapeHtml(companyName)}</h2>
             </div>
-            <p>Hello ${invoice.client.name},</p>
-            <p>${isPaid ? `Your invoice #${invoice.invoiceNumber} has been paid. Please find the payment confirmation below.` : `Please find your invoice #${invoice.invoiceNumber} below.`}</p>
-            ${customMessage ? `<p>${customMessage}</p>` : ''}
+            <p>Hello ${escapeHtml(invoice.client.name)},</p>
+            <p>${isPaid ? `Your invoice #${escapeHtml(String(invoice.invoiceNumber))} has been paid. Please find the payment confirmation below.` : `Please find your invoice #${escapeHtml(String(invoice.invoiceNumber))} below.`}</p>
+            ${customMessage ? `<p>${escapeHtml(customMessage)}</p>` : ''}
 
             ${invoiceHtml}
 
             <p style="margin-top: 20px;">If you have any questions about this invoice, please contact us.</p>
             <p>Thank you for your business!</p>
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 12px; color: #6b7280;">
-              <p>${tenant?.settings?.emailFooter || `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`}</p>
+              <p>${escapeHtml(tenant?.settings?.emailFooter || `© ${new Date().getFullYear()} ${companyName}. All rights reserved.`)}</p>
             </div>
           </div>
         `,
@@ -347,8 +358,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
   const primaryColor = tenant?.primaryColor || '#4338ca';
   let logoUrl = tenant?.logoUrl;
   if (logoUrl && logoUrl.startsWith('/')) {
-    // Get the base URL from environment variable or use a default
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL;
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || '';
     logoUrl = `${baseUrl}${logoUrl}`;
   }
   // Generate HTML for invoice items with per-line tax breakdown (VAT, withholding, etc. visible)
@@ -357,7 +367,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
     const taxRate = Number(item.taxRate) || 0;
     const lineTaxAmount = lineTotal * (taxRate / 100);
     const taxLabel = taxRate > 0 ? `Tax (${taxRate}%): ${formatCurrency(lineTaxAmount)}` : '—';
-    const title = (item.description && String(item.description).trim()) || 'Item';
+    const title = escapeHtml((item.description && String(item.description).trim()) || 'Item');
     return `
       <tr style="border-bottom: 1px solid #eee;">
         <td style="padding: 10px;">${title}</td>
@@ -377,12 +387,12 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
           <tr>
             <td>
               <h1 style="margin: 0; font-size: 24px;">${isPaid ? 'PAYMENT CONFIRMATION' : 'INVOICE'}</h1>
-              <p style="margin: 5px 0 0 0; opacity: 0.9;">#${invoice.invoiceNumber}</p>
+              <p style="margin: 5px 0 0 0; opacity: 0.9;">#${escapeHtml(invoice.invoiceNumber)}</p>
             </td>
             <td style="text-align: right;">
               ${logoUrl ? 
-                `<img src="${logoUrl}" alt="${tenant?.name || 'Company'}" style="max-height: 80px; background: white; padding: 8px; border-radius: 6px;">` : 
-                `<h2 style="margin: 0; color: white;">${tenant?.name || 'InsightBooks'}</h2>`}
+                `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(tenant?.name || 'Company')}" style="max-height: 80px; background: white; padding: 8px; border-radius: 6px;">` : 
+                `<h2 style="margin: 0; color: white;">${escapeHtml(tenant?.name || 'InsightBooks')}</h2>`}
             </td>
           </tr>
         </table>
@@ -394,11 +404,11 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
           <tr>
             <td style="width: 50%; vertical-align: top;">
               <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Bill To:</h3>
-              <p style="margin: 0 0 5px 0; font-weight: bold;">${invoice.client.name}</p>
-              ${invoice.client.contactPerson ? `<p style="margin: 0 0 5px 0;">Attn: ${invoice.client.contactPerson}</p>` : ''}
-              ${invoice.client.address ? `<p style="margin: 0 0 5px 0;">${invoice.client.address}</p>` : ''}
-              <p style="margin: 0 0 5px 0;">${invoice.client.email}</p>
-              ${invoice.client.phone ? `<p style="margin: 0 0 5px 0;">Phone: ${invoice.client.phone}</p>` : ''}
+              <p style="margin: 0 0 5px 0; font-weight: bold;">${escapeHtml(invoice.client.name)}</p>
+              ${invoice.client.contactPerson ? `<p style="margin: 0 0 5px 0;">Attn: ${escapeHtml(invoice.client.contactPerson)}</p>` : ''}
+              ${invoice.client.address ? `<p style="margin: 0 0 5px 0;">${escapeHtml(invoice.client.address)}</p>` : ''}
+              <p style="margin: 0 0 5px 0;">${escapeHtml(invoice.client.email)}</p>
+              ${invoice.client.phone ? `<p style="margin: 0 0 5px 0;">Phone: ${escapeHtml(invoice.client.phone)}</p>` : ''}
             </td>
             <td style="width: 50%; vertical-align: top;">
               <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Invoice Details:</h3>
@@ -423,7 +433,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
                       invoice.status === 'Pending' ? '#92400e' : 
                       invoice.status === 'Overdue' ? '#b91c1c' : '#374151'
                     };">
-                      ${invoice.status}
+                      ${escapeHtml(invoice.status)}
                     </span>
                   </td>
                 </tr>
@@ -472,7 +482,7 @@ function generateInvoiceHtml(invoice, tenant, isPaid = false) {
       <!-- Notes -->
       <div style="padding: 20px; background-color: #f9fafb; border-top: 1px solid #e5e7eb;">
         <h3 style="color: #6b7280; margin-top: 0; margin-bottom: 10px; font-size: 14px; text-transform: uppercase;">Notes:</h3>
-        <p style="margin: 0; color: #4b5563;">${invoice.notes || 'Thank you for your business!'}</p>
+        <p style="margin: 0; color: #4b5563;">${escapeHtml(invoice.notes || 'Thank you for your business!')}</p>
       </div>
     </div>
   `;
