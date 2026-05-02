@@ -2,36 +2,12 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import {
+  EMPLOYEE_IMPORT_EXPORT_HEADERS,
+  EMPLOYEE_IMPORT_REQUIRED_HEADER_LABELS,
+} from '@/lib/employeeImportExportColumns';
 
 export const runtime = 'nodejs';
-
-const REQUIRED_HEADERS = ['Full Name', 'Job Title', 'Start Date'];
-
-const TEMPLATE_HEADERS = [
-  'Employee ID',
-  'Full Name',
-  'Email',
-  'Phone',
-  'ID Number',
-  'Job Title',
-  'Department',
-  'Employment Type',
-  'Gross Salary',
-  'Hourly Rate',
-  'Start Date',
-  'Date of Birth',
-  'Gender',
-  'Marital Status',
-  'Nationality',
-  'Address',
-  'Work Location',
-  'Is Active',
-  'Next of Kin Name',
-  'Next of Kin Relationship',
-  'Next of Kin Phone',
-  'Next of Kin Address',
-  'Selected Deductions'
-];
 
 export async function GET(request) {
   const accessError = await requireStandardAccess(request);
@@ -41,6 +17,9 @@ export async function GET(request) {
   if (!user || !user.tenantId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+
+  const TEMPLATE_HEADERS = EMPLOYEE_IMPORT_EXPORT_HEADERS;
+  const REQUIRED_HEADERS = EMPLOYEE_IMPORT_REQUIRED_HEADER_LABELS;
 
   const exampleRow = [
     '',
@@ -65,7 +44,7 @@ export async function GET(request) {
     'Spouse',
     '265888000111',
     'Area 49, Lilongwe',
-    'PAYE,NPS'
+    'PAYE,NPS',
   ];
 
   const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, exampleRow]);
@@ -79,9 +58,9 @@ export async function GET(request) {
       font: { bold: true, color: { rgb: isRequired ? 'C62828' : '1E3A8A' } },
       fill: {
         patternType: 'solid',
-        fgColor: { rgb: isRequired ? 'FFF59D' : 'E3F2FD' }
+        fgColor: { rgb: isRequired ? 'FFF59D' : 'E3F2FD' },
       },
-      alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
     };
   });
 
@@ -92,6 +71,8 @@ export async function GET(request) {
     ['Employment Type example values: Permanent, Contract, Intern.'],
     ['Is Active accepts TRUE/FALSE, yes/no, 1/0.'],
     ['Selected Deductions: comma-separated IDs or names (e.g., PAYE,NPS).'],
+    [''],
+    ['Export from HR → Employees includes extra columns (deductions detail, benefits, bank/contact JSON) after the import block; bulk import ignores those.'],
   ]);
   instructions['!cols'] = [{ wch: 90 }];
 
@@ -105,7 +86,7 @@ export async function GET(request) {
     status: 200,
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': 'attachment; filename="employee-import-template.xlsx"'
-    }
+      'Content-Disposition': 'attachment; filename="employee-import-template.xlsx"',
+    },
   });
 }

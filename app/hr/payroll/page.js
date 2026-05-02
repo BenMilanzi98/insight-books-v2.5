@@ -5,7 +5,7 @@ import { DollarSign, Calendar, Play, Download, Eye, CheckCircle, AlertCircle, Ed
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatSalaryAmount } from "@/lib/currencyUtils";
-import { computeMalawiPayeMonthly } from "@/lib/malawiPAYE";
+import { calculatePayroll } from "@/lib/payrollCalculations";
 import { effectiveNpsRatePercentForPayroll } from "@/lib/npsTenantRates";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
 
@@ -339,6 +339,40 @@ export default function PayrollProcessing() {
     return payrollRuns.filter(r => r.status !== 'Reversed');
   }, [payrollRuns, runFilter]);
 
+  /** Matches POST /api/payroll/calculate when saving the edit modal (PAYE + NPS + custom lines). */
+  const editPayrollPreview = useMemo(() => {
+    const basicSalary = Number(editFormData.basicSalary) || 0;
+    const additions = Number(editFormData.additions) || 0;
+    const gross = basicSalary + additions;
+    if (gross <= 0) {
+      return { netPay: 0 };
+    }
+    const custom = Object.entries(editFormData.deductions || {}).map(([name, value]) => ({
+      name,
+      type: 'fixed',
+      value: Number(value) || 0,
+    }));
+    const calc = calculatePayroll(
+      gross,
+      [
+        { name: 'PAYE', isStatutory: true },
+        { name: 'NPS', isStatutory: true },
+        ...custom,
+      ],
+      {
+        npsEmployeeRatePercent: npsDisplayRates.npsEmployeeRatePercent,
+        npsEmployerRatePercent: npsDisplayRates.npsEmployerRatePercent,
+      }
+    );
+    return { netPay: calc.netPay };
+  }, [
+    editFormData.basicSalary,
+    editFormData.additions,
+    editFormData.deductions,
+    npsDisplayRates.npsEmployeeRatePercent,
+    npsDisplayRates.npsEmployerRatePercent,
+  ]);
+
   const canReversePayrollEntry = (entry) => {
     if (!entry?.id) return false;
     if (entry.status === 'Reversed') return false;
@@ -611,11 +645,15 @@ export default function PayrollProcessing() {
         body: JSON.stringify({
           grossSalary: grossSalaryWithAdditions, // Include additions in gross salary for deduction calculation
           deductionIds: [],
-          customDeductions: Object.entries(editFormData.deductions).map(([name, value]) => ({
-            name,
-            type: 'amount',
-            value: Number(value) || 0
-          }))
+          customDeductions: [
+            { name: 'PAYE', isStatutory: true },
+            { name: 'NPS', isStatutory: true },
+            ...Object.entries(editFormData.deductions).map(([name, value]) => ({
+              name,
+              type: 'fixed',
+              value: Number(value) || 0,
+            })),
+          ],
         })
       });
 
@@ -627,11 +665,9 @@ export default function PayrollProcessing() {
       const data = await response.json();
       const calculation = data.calculation;
       
-      // Net pay should be: (basicSalary + additions) - deductions
-      // The calculation already includes additions in grossSalary, so netPay is correct
-      const calculatedGrossPay = calculation.grossSalary || grossSalaryWithAdditions;
-      const calculatedDeductions = calculation.totalDeductions || 0;
-      const calculatedNetPay = calculatedGrossPay - calculatedDeductions;
+      const calculatedGrossPay = calculation.grossSalary ?? grossSalaryWithAdditions;
+      const calculatedDeductions = calculation.totalDeductions ?? 0;
+      const calculatedNetPay = calculation.netPay ?? Math.max(0, calculatedGrossPay - calculatedDeductions);
       
       const updateResponse = await fetch(`/api/payroll/${editingPayroll.id}`, {
         method: 'PUT',
@@ -1608,31 +1644,7 @@ export default function PayrollProcessing() {
                     </div>
                     <div className="flex justify-between border-t pt-2 mt-2">
                       <span className="text-gray-700 font-medium">Net Pay:</span>
-                      <span className="font-bold text-green-600">MWK {(() => {
-                        try {
-                          const basicSalary = Number(editFormData.basicSalary) || 0;
-                          const additions = Number(editFormData.additions) || 0;
-                          const gross = basicSalary + additions;
-
-                          const empNpsPctPoints = effectiveNpsRatePercentForPayroll(
-                            npsDisplayRates.npsEmployeeRatePercent,
-                            true,
-                          );
-                          const npsPct = empNpsPctPoints / 100;
-                          const estimatedNPS = gross * npsPct;
-                          const taxableForPaye = Math.max(0, gross - estimatedNPS);
-                          const estimatedPAYE =
-                            computeMalawiPayeMonthly(taxableForPaye).payeAmount;
-                          const otherDeductions = Object.values(editFormData.deductions || {}).reduce((sum, val) => {
-                            return sum + (Number(val) || 0);
-                          }, 0);
-                          const estimatedDeductions = estimatedPAYE + estimatedNPS + otherDeductions;
-                          return Math.max(0, gross - estimatedDeductions).toLocaleString();
-                        } catch (e) {
-                          console.error('Error calculating estimated net pay:', e);
-                          return '0';
-                        }
-                      })()}</span>
+                      <span className="font-bold text-green-600">MWK {Math.max(0, editPayrollPreview.netPay).toLocaleString()}</span>
                     </div>
                     <div className="text-xs text-gray-500 mt-2 italic">
                       * Final calculation will be done when you save

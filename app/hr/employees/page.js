@@ -1878,6 +1878,21 @@ const EmployeeManagement = () => {
     }
   };
 
+  const buildEmployeeExportQueryParams = () => {
+    const params = new URLSearchParams();
+    if (searchTerm) params.set('search', searchTerm);
+    if (filterDepartment && filterDepartment !== 'All') {
+      params.set('department', filterDepartment);
+    }
+    if (filterStatus && filterStatus !== 'All') {
+      params.set('status', filterStatus);
+    }
+    if (filterEmploymentType && filterEmploymentType !== 'All') {
+      params.set('employmentType', filterEmploymentType);
+    }
+    return params;
+  };
+
   const handleDownloadTemplate = async () => {
     try {
       const response = await fetch('/api/employees/import-template');
@@ -1897,6 +1912,33 @@ const EmployeeManagement = () => {
     } catch (error) {
       console.error('Error downloading template:', error);
       setError(error.message || 'Failed to download template');
+    }
+  };
+
+  const handleExportEmployees = async (format) => {
+    const ext = format === 'xlsx' ? 'xlsx' : format === 'csv' ? 'csv' : 'pdf';
+    const params = buildEmployeeExportQueryParams();
+    params.set('format', format);
+    const stem = `employees-export-${new Date().toISOString().slice(0, 10)}`;
+    try {
+      setError(null);
+      const response = await fetch(`/api/employees/export?${params.toString()}`);
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Export failed (${response.status})`);
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${stem}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting employees:', error);
+      setError(error.message || 'Failed to export');
     }
   };
 
@@ -2484,7 +2526,26 @@ const EmployeeManagement = () => {
           <h1 className="text-2xl font-bold">Employee Management</h1>
           <p className="text-gray-600">Manage your employees and their information</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <label className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50 cursor-pointer">
+            <Download size={16} />
+            <span>Export</span>
+            <select
+              className="bg-transparent border-0 text-sm font-medium text-gray-800 focus:ring-0 cursor-pointer min-w-[10rem]"
+              defaultValue=""
+              onChange={(e) => {
+                const v = e.target.value;
+                e.target.value = '';
+                if (v === 'xlsx' || v === 'csv' || v === 'pdf') handleExportEmployees(v);
+              }}
+              aria-label="Export employees"
+            >
+              <option value="">Choose format…</option>
+              <option value="xlsx">Excel (.xlsx) — same columns as import</option>
+              <option value="csv">CSV — same columns as import</option>
+              <option value="pdf">PDF (print / archive)</option>
+            </select>
+          </label>
           <button 
             className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md flex items-center gap-2 hover:bg-gray-50"
             onClick={handleDownloadTemplate}

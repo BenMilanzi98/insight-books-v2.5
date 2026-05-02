@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { calculateMalawiPayroll } from '../lib/malawiTaxUtils.js';
-import { calculatePayroll } from '../lib/payrollCalculations.js';
+import {
+  calculatePayroll,
+  calculateCustomDeductions,
+  toPayrollNumber,
+} from '../lib/payrollCalculations.js';
 import { effectiveNpsRatePercentForPayroll } from '../lib/npsTenantRates.js';
 
 const payeDeduction = { id: 'p1', name: 'PAYE', isStatutory: true };
@@ -72,6 +76,43 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
     );
     expect(r.payeTaxableIncome).toBe(500_000);
     expect(r.payeAmount).toBe(99_000);
+  });
+});
+
+describe('toPayrollNumber', () => {
+  it('parses comma-separated decimals', () => {
+    expect(toPayrollNumber('200,999.82')).toBe(200999.82);
+    expect(toPayrollNumber(' 100,000 ')).toBe(100000);
+  });
+});
+
+describe('calculateCustomDeductions', () => {
+  it('uses Prisma-style percentage on gross', () => {
+    const r = calculateCustomDeductions(1_000_000, [
+      { name: 'Loan', percentage: 17.5, amount: null },
+    ]);
+    expect(r.totalAmount).toBe(175000);
+    expect(r.breakdown[0].type).toBe('percentage');
+  });
+
+  it('prefers positive percentage over fixed amount when both set', () => {
+    const r = calculateCustomDeductions(200_000, [
+      { name: 'Mixed', percentage: 10, amount: 50_000 },
+    ]);
+    expect(r.totalAmount).toBe(20_000);
+  });
+
+  it('uses fixed amount when percentage is zero or absent', () => {
+    const r = calculateCustomDeductions(500_000, [{ name: 'Flat', percentage: 0, amount: 12_345.67 }]);
+    expect(r.totalAmount).toBe(12345.67);
+  });
+
+  it('supports legacy type/value payloads', () => {
+    const r = calculateCustomDeductions(800_000, [
+      { name: 'Legacy %', type: 'percentage', value: '5' },
+      { name: 'Legacy fix', type: 'fixed', value: 1000 },
+    ]);
+    expect(r.totalAmount).toBe(40_000 + 1_000);
   });
 });
 

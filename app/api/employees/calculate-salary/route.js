@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { calculatePayroll } from '@/lib/payrollCalculations';
+import { calculatePayroll, toPayrollNumber } from '@/lib/payrollCalculations';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 
 /**
@@ -30,19 +30,19 @@ export async function POST(request) {
     const body = await request.json();
     const { grossSalary, deductionIds = [], employmentType = 'Permanent', benefits = [] } = body;
 
-    // Validate required fields
-    if (!grossSalary || grossSalary <= 0) {
+    const baseSalary = toPayrollNumber(grossSalary);
+    if (baseSalary == null || baseSalary <= 0) {
       return NextResponse.json(
         { error: 'Gross salary must be a positive number' },
         { status: 400 }
       );
     }
 
-    // Sum benefit amounts (allowances) – added to net salary (take-home), not to gross
+    // Sum benefit amounts (allowances) — included in **gross** for PAYE / NPS / % deductions (same as enhanced payroll).
     const totalBenefits = Array.isArray(benefits)
-      ? benefits.reduce((sum, b) => sum + (Number(b?.amount) || 0), 0)
+      ? benefits.reduce((sum, b) => sum + (toPayrollNumber(b?.amount) ?? 0), 0)
       : 0;
-    const baseSalary = parseFloat(grossSalary) || 0;
+    const grossForPayroll = Math.round((baseSalary + totalBenefits) * 100) / 100;
 
     // Fetch selected deductions from database
     let deductions = [];
@@ -73,15 +73,13 @@ export async function POST(request) {
       console.warn('Salary calculate raw NPS rate read failed:', e?.message || e);
     }
 
-    // Calculate payroll: deductions apply to base salary only; benefits are added to net (take-home)
-    const payrollCalculation = calculatePayroll(baseSalary, deductions, npsOptions);
-    const netWithBenefits = payrollCalculation.netPay + totalBenefits;
+    const payrollCalculation = calculatePayroll(grossForPayroll, deductions, npsOptions);
     const calculation = {
       ...payrollCalculation,
       baseSalary: Math.round(baseSalary * 100) / 100,
       totalBenefits: Math.round(totalBenefits * 100) / 100,
       grossSalary: Math.round(payrollCalculation.grossSalary * 100) / 100,
-      netPay: Math.round(netWithBenefits * 100) / 100
+      netPay: Math.round(payrollCalculation.netPay * 100) / 100
     };
 
     return NextResponse.json({

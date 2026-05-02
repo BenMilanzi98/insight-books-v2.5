@@ -3,8 +3,12 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
-import { calculatePayroll } from '@/lib/payrollCalculations';
+import { calculatePayroll, toPayrollNumber } from '@/lib/payrollCalculations';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+
+function roundPayrollMoney(n) {
+  return Math.round(Number(n) * 100) / 100;
+}
 
 function normalizeDeductionIds(raw) {
   if (raw == null) return [];
@@ -159,6 +163,12 @@ export async function POST(request) {
         tenantId: user.tenantId,
         status: 'Active',
         isActive: true
+      },
+      include: {
+        employeeBenefits: {
+          where: { benefit: { isActive: true } },
+          select: { amount: true }
+        }
       }
     });
     
@@ -194,6 +204,11 @@ export async function POST(request) {
         employee.grossSalary != null && Number(employee.grossSalary) > 0
           ? Number(employee.grossSalary)
           : Number(employee.salary) || 0;
+      const benefitsTotal = (employee.employeeBenefits || []).reduce(
+        (sum, eb) => sum + (toPayrollNumber(eb.amount) ?? 0),
+        0
+      );
+      const grossForPayroll = roundPayrollMoney(grossFromField + benefitsTotal);
       const ids = normalizeDeductionIds(employee.selectedDeductions);
       const selected =
         ids.length > 0
@@ -201,7 +216,7 @@ export async function POST(request) {
               where: { id: { in: ids }, tenantId: user.tenantId, isActive: true },
             })
           : [];
-      const calc = calculatePayroll(grossFromField, selected, {
+      const calc = calculatePayroll(grossForPayroll, selected, {
         npsEmployeeRatePercent,
         npsEmployerRatePercent,
       });
@@ -213,9 +228,9 @@ export async function POST(request) {
           periodStart,
           periodEnd,
           basicSalary: employee.salary,
-          grossPay: grossFromField,
+          grossPay: grossForPayroll,
           deductions: calc.totalDeductions,
-          additions: 0,
+          additions: roundPayrollMoney(benefitsTotal),
           netPay: calc.netPay,
           payeAmount: calc.paye.payeAmount,
           totalNpsAmount: calc.nps.totalAmount,

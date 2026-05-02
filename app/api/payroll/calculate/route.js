@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
-import { calculatePayroll } from '@/lib/payrollCalculations';
+import { calculatePayroll, toPayrollNumber, deductionRowForCalculation } from '@/lib/payrollCalculations';
 
 /**
  * POST handler for calculating payroll
@@ -29,8 +29,8 @@ export async function POST(request) {
     const body = await request.json();
     const { grossSalary, deductionIds = [], customDeductions = [] } = body;
 
-    // Validate required fields
-    if (!grossSalary || grossSalary <= 0) {
+    const grossNum = toPayrollNumber(grossSalary);
+    if (grossNum == null || grossNum <= 0) {
       return NextResponse.json(
         { error: 'Gross salary must be a positive number' },
         { status: 400 }
@@ -51,13 +51,7 @@ export async function POST(request) {
 
     // Combine database deductions with custom deductions
     const allDeductions = [
-      ...deductions.map(d => ({
-        id: d.id,
-        name: d.name,
-        type: d.type,
-        value: d.value,
-        isStatutory: d.isStatutory
-      })),
+      ...deductions.map(d => deductionRowForCalculation(d)),
       ...customDeductions
     ];
 
@@ -84,7 +78,7 @@ export async function POST(request) {
       // use nulls (treated as 0% by calculation)
     }
 
-    const payrollCalculation = calculatePayroll(grossSalary, allDeductions, {
+    const payrollCalculation = calculatePayroll(grossNum, allDeductions, {
       npsEmployeeRatePercent,
       npsEmployerRatePercent
     });
