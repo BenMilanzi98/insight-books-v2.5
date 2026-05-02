@@ -2,38 +2,6 @@
 import React, { useState } from 'react';
 import { formatCurrency, formatAmount, formatAmountForExport, formatCurrencyForExport, formatDate } from '@/lib/invoiceCalculations';
 
-// Generate payment breakdown for Partial status invoices (currencyFmt: formatCurrency or formatCurrencyForExport for print)
-const renderPaymentBreakdown = (displayData, currencyFmt = formatCurrency) => {
-  const hasPayments = (displayData.payments?.length ?? 0) > 0;
-  if (displayData.status !== 'Partial' || !hasPayments) {
-    return null;
-  }
-
-  return (
-    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-      <h4 className="font-medium text-blue-800 mb-2">Payment Breakdown:</h4>
-      <div className="space-y-1">
-        {displayData.payments.map((payment, index) => (
-          <div key={payment.id || index} className="flex justify-between text-blue-700">
-            <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-            <span className="font-medium">{currencyFmt(payment.amount)}</span>
-          </div>
-        ))}
-        <div className="pt-2 mt-2 border-t border-blue-200">
-          <div className="flex justify-between font-medium text-blue-800">
-            <span>Total Paid:</span>
-            <span>{currencyFmt(displayData.paymentInfo.totalPaid)}</span>
-          </div>
-          <div className="flex justify-between text-blue-700">
-            <span>Outstanding:</span>
-            <span>{currencyFmt(displayData.paymentInfo.outstandingAmount)}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 /**
  * Component to preview an invoice template
  * 
@@ -336,11 +304,9 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
 
-      {/* Notes (custom notes only) */}
-      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+      {displayData.notes && (
         <div className="px-6 py-5 border-t border-gray-200 bg-gray-50/40 text-sm text-left">
-          {displayData.notes && <p className="text-gray-700 whitespace-pre-line">{displayData.notes}</p>}
-          {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+          <p className="text-gray-700 whitespace-pre-line">{displayData.notes}</p>
         </div>
       )}
 
@@ -543,13 +509,11 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Notes (custom notes only) */}
-      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+      {displayData.notes && (
         <div className="mt-6 sm:mt-8 lg:mt-12 pt-4 sm:pt-6 border-t border-gray-200 text-left">
           <h3 className="text-gray-500 font-medium mb-2 text-xs sm:text-sm">Notes:</h3>
           <div className="text-xs sm:text-sm text-gray-700">
-            {displayData.notes && <p>{displayData.notes}</p>}
-            {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+            <p>{displayData.notes}</p>
           </div>
         </div>
       )}
@@ -743,11 +707,9 @@ const InvoiceTemplatePreview = ({ template, branding, invoice, isPrint = false }
         </div>
       </div>
       
-      {/* Notes (custom notes only) */}
-      {(displayData.notes || renderPaymentBreakdown(displayData, formatCurrencyDisplay)) && (
+      {displayData.notes && (
         <div className="mt-8 pt-6 border-t border-gray-100 text-sm text-left">
-          {displayData.notes && <p>{displayData.notes}</p>}
-          {renderPaymentBreakdown(displayData, formatCurrencyDisplay)}
+          <p>{displayData.notes}</p>
         </div>
       )}
 

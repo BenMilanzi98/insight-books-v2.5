@@ -120,18 +120,36 @@ export async function GET(request, { params }) {
       tpin: tenant?.tpin || '',
     };
 
+    const eligiblePayments = (invoice.payments || []).filter(
+      (p) => p && !p.isReversal && (p.status == null || String(p.status) === 'Completed')
+    );
+    const totalPaidPdf = eligiblePayments.reduce(
+      (sum, p) => sum + (parseFloat(p.amount) || 0),
+      0
+    );
+    const invTotalPdf = parseFloat(invoice.total) || 0;
+    const outstandingPdf = Math.max(0, invTotalPdf - totalPaidPdf);
     const inv = {
       ...invoice,
       subtotal: parseFloat(invoice.subtotal) || 0,
       taxAmount: parseFloat(invoice.taxAmount) || 0,
-      total: parseFloat(invoice.total) || 0,
+      total: invTotalPdf,
       items: invoice.items.map((item) => ({
         ...item,
         quantity: parseFloat(item.quantity) || 0,
         unitPrice: parseFloat(item.unitPrice) || 0,
         taxRate: parseFloat(item.taxRate) || 0,
+        discountAmount: parseFloat(item.discountAmount) || 0,
         description: item.description || (item.product ? item.product.name : ''),
       })),
+      payments: eligiblePayments,
+      paymentInfo: {
+        totalPaid: totalPaidPdf,
+        outstandingAmount: outstandingPdf,
+        isFullyPaid: totalPaidPdf >= invTotalPdf - 0.005,
+        isPartiallyPaid: totalPaidPdf > 0 && totalPaidPdf < invTotalPdf - 0.005,
+        paymentCount: eligiblePayments.length,
+      },
     };
 
     let buffer;
