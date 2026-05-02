@@ -16,6 +16,10 @@ import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAc
 import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
+import {
+  invoiceItemNetRevenueExTax,
+  saleItemNetRevenueExTax,
+} from '@/lib/reportLineNetRevenue';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -186,11 +190,14 @@ export async function GET(request) {
                   total: true,
                   subtotal: true,
                   client: { select: { name: true } },
-                  items: {
-                    select: {
-                      amount: true,
-                      netAmount: true,
-                      product: {
+              items: {
+                select: {
+                  quantity: true,
+                  unitPrice: true,
+                  discountAmount: true,
+                  amount: true,
+                  netAmount: true,
+                  product: {
                         select: {
                           categoryId: true,
                           category: true,
@@ -222,6 +229,7 @@ export async function GET(request) {
               items: {
                 select: {
                   amount: true,
+                  discountAmount: true,
                   product: {
                     select: {
                       categoryId: true,
@@ -341,13 +349,13 @@ export async function GET(request) {
         addToMap(revenueByCategoryMap, key, Number(paymentAmount));
         return;
       }
-      const invTotal = Math.max(Number(invoice.total) || 0, 0);
-      let sumLines = 0;
+      /** Post-discount net line amounts (ex tax when netAmount is stored); do not use max(net, amount) — that ignored discounts. */
+      let sumNet = 0;
       for (const it of lines) {
-        sumLines +=
-          Math.max(Number(it.netAmount) || 0, Number(it.amount) || 0) || 0;
+        sumNet += invoiceItemNetRevenueExTax(it);
       }
-      const denom = invTotal > 0 ? invTotal : sumLines;
+      const invTotal = Math.max(Number(invoice.total) || 0, 0);
+      const denom = sumNet > 0 ? sumNet : invTotal;
       if (!(denom > 0)) {
         const key = 'legacy:Uncategorized';
         categoriesMap.set(key, { id: null, name: 'Uncategorized' });
@@ -356,8 +364,7 @@ export async function GET(request) {
       }
       let allocated = 0;
       for (const item of lines) {
-        const lineAmt =
-          Math.max(Number(item.netAmount) || 0, Number(item.amount) || 0) || 0;
+        const lineAmt = invoiceItemNetRevenueExTax(item);
         if (!(lineAmt > 0)) continue;
         const alloc = (Number(paymentAmount) * lineAmt) / denom;
         if (!(alloc > 0)) continue;
@@ -395,7 +402,7 @@ export async function GET(request) {
       for (const item of sale.items || []) {
         const category = getCategoryDescriptor(item.product);
         categoriesMap.set(category.key, { id: category.id, name: category.name });
-        const lineAmount = Number(item.amount || 0);
+        const lineAmount = saleItemNetRevenueExTax(item);
         addToMap(revenueByCategoryMap, category.key, lineAmount);
       }
     });

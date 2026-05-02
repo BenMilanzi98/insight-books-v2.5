@@ -8,6 +8,10 @@ import {
   parseInclusiveApiYmdRange,
 } from '@/lib/dateUtils';
 import { getEffectiveDashboardBranchId, normalizeBranchId } from '@/lib/branchAccess';
+import {
+  invoiceItemNetRevenueExTax,
+  saleItemNetRevenueExTax,
+} from '@/lib/reportLineNetRevenue';
 
 function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -41,16 +45,6 @@ function unitCostFromProduct(product) {
   const a = product.averageCost != null ? Number(product.averageCost) : NaN;
   if (Number.isFinite(a) && a >= 0) return a;
   return 0;
-}
-
-function invoiceLineRevenue(item) {
-  const net = Number(item.netAmount);
-  if (Number.isFinite(net) && Math.abs(net) > 0.0001) return net;
-  return Number(item.amount) || 0;
-}
-
-function saleLineRevenue(item) {
-  return Number(item.amount) || 0;
 }
 
 const DRAFT_STATUSES = ['draft', 'Draft', 'void', 'Void', 'cancelled', 'Cancelled'];
@@ -113,6 +107,7 @@ export async function GET(request) {
               quantity: true,
               unitPrice: true,
               amount: true,
+              discountAmount: true,
               netAmount: true,
               productId: true,
               product: { select: productSelect },
@@ -148,6 +143,7 @@ export async function GET(request) {
               quantity: true,
               unitPrice: true,
               amount: true,
+              discountAmount: true,
               productId: true,
               isCustom: true,
               product: { select: productSelect },
@@ -199,7 +195,7 @@ export async function GET(request) {
 
     for (const it of invoiceItems) {
       const qty = Number(it.quantity) || 0;
-      const rev = invoiceLineRevenue(it);
+      const rev = invoiceItemNetRevenueExTax(it);
       const p = it.product;
       const uc = unitCostFromProduct(p);
       const cost = round2(qty * uc);
@@ -224,7 +220,7 @@ export async function GET(request) {
 
     for (const it of saleItems) {
       const qty = Number(it.quantity) || 0;
-      const rev = saleLineRevenue(it);
+      const rev = saleItemNetRevenueExTax(it);
       const p = it.product;
       const uc = unitCostFromProduct(p);
       const cost = round2(qty * uc);

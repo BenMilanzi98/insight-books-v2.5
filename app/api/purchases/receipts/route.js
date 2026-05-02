@@ -565,10 +565,25 @@ export async function POST(request) {
         { status: 409 }
       );
     }
-    return NextResponse.json(
-      { error: error.message || 'Failed to post goods receipt.' },
-      { status: 500 }
-    );
+
+    const msg = String(error?.message || 'Failed to post goods receipt.');
+    const code = error?.code;
+
+    if (code === 'PERIOD_LOCKED' || /accounting period|period is (locked|closed)/i.test(msg)) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    if (
+      /inventory or accounts payable|chart of accounts|accounts payable.*not found|inventory.*not found/i.test(
+        msg
+      )
+    ) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    if (/no branch access|do not have access to this branch|invalid or inactive branch/i.test(msg)) {
+      return NextResponse.json({ error: msg }, { status: 403 });
+    }
+
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 

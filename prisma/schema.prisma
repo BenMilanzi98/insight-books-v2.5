@@ -1606,7 +1606,8 @@ model InventoryLocation {
 model InventoryTransaction {
   id        String   @id @default(cuid())
   type      String
-  quantity  Int
+  /// Matches fractional goods receipts / product stock (was Int; migration widens column).
+  quantity  Decimal  @db.Decimal(18, 4)
   notes     String?
   createdAt DateTime @default(now())
   productId String
