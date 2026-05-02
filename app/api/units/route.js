@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
+import { ensureGlobalUnitsCatalog } from '@/lib/ensureGlobalUnitsCatalog';
 
 // GET /api/units - Fetch all base units and their associated units
 export async function GET(request) {
   try {
+    await ensureGlobalUnitsCatalog(prisma);
     const { searchParams } = new URL(request.url);
     const baseUnitId = searchParams.get('baseUnitId');
     const includeUnits = searchParams.get('includeUnits') === 'true';
@@ -56,6 +56,7 @@ export async function GET(request) {
 // POST /api/units - Create a new custom unit
 export async function POST(request) {
   try {
+    await ensureGlobalUnitsCatalog(prisma);
     const body = await request.json();
     const { baseUnitId, name, symbol, conversionToBase } = body;
 
@@ -87,7 +88,8 @@ export async function POST(request) {
         symbol,
         conversionToBase: parseFloat(conversionToBase),
         isBaseUnit: false,
-        isActive: true
+        isActive: true,
+        isCatalogUnit: false
       },
       include: {
         baseUnit: true

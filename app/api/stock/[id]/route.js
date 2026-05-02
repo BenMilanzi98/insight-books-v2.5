@@ -4,6 +4,10 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 import { normalizeExpiryAllocations } from '@/lib/expiryAllocations';
+import {
+  buildProductUnitPayloadRows,
+  ensureOneDefaultUnit,
+} from '@/lib/productUnitSavePayload';
 
 /** Only finite numeric costs from the body override DB; null/NaN/omit keep existing (avoid wiping cost → fallback to average cost). */
 function resolveIncomingProductCost(body, existingCost) {
@@ -576,71 +580,48 @@ export async function PUT(request, { params }) {
       
       try {
         if (body.unitManagementEnabled && body.selectedUnits && body.selectedUnits.length > 0) {
-          // Delete existing product units
+          const payloadRows = ensureOneDefaultUnit(
+            buildProductUnitPayloadRows(body),
+            body.selectedUnits
+          );
+          if (payloadRows.length === 0) {
+            throw new Error(
+              'Flexible units: no valid catalog units to save. Pick units from the list (custom placeholder IDs cannot be saved), or turn off Flexible Unit Management.'
+            );
+          }
+
           console.log("Deleting existing product units...");
           await tx.productUnit.deleteMany({
             where: { productId: productId }
           });
-          
-          // Create new product units
-          const productUnits = [];
-          for (const unit of body.selectedUnits) {
-            const config = body.unitConfigurations[unit.id];
-            if (config && unit.id) {
-              console.log("Processing unit:", unit.id, unit.name, "Config:", config);
-              
-              // Validate and cap numeric values to prevent database overflow
-              const maxValue = 999999999.999999; // Max value for precision 15, scale 6
-              const quantityInStock = Math.max(0, Math.min(Number(config.quantityInStock) || 0, maxValue));
-              const reorderPoint = Math.max(0, Math.min(Number(config.reorderPoint) || 0, maxValue));
-              const unitPrice = Math.max(0, Math.min(Number(config.unitPrice) || 0, maxValue));
-              const costPrice = Math.max(0, Math.min(Number(config.costPrice) || 0, maxValue));
-              
-              if (Number(config.quantityInStock) > maxValue) {
-                console.warn(`Quantity capped from ${config.quantityInStock} to ${quantityInStock} for unit ${unit.name}`);
-              }
-              if (Number(config.reorderPoint) > maxValue) {
-                console.warn(`Reorder point capped from ${config.reorderPoint} to ${reorderPoint} for unit ${unit.name}`);
-              }
-              
-              productUnits.push({
-                productId: productId,
-                unitId: unit.id,
-                isDefault: Boolean(config.isDefault),
-                unitPrice,
-                costPrice,
-                quantityInStock,
-                reorderPoint,
-                isActive: true
-              });
-            } else {
-              console.warn("Skipping unit due to missing config or ID:", unit);
-            }
+
+          const maxValue = 999999999.999999;
+          const productUnits = payloadRows.map((r) => ({
+            productId: productId,
+            unitId: r.unitId,
+            isDefault: Boolean(r.isDefault),
+            unitPrice: Math.max(0, Math.min(Number(r.unitPrice) || 0, maxValue)),
+            costPrice: Math.max(0, Math.min(Number(r.costPrice) || 0, maxValue)),
+            quantityInStock: Math.max(0, Math.min(Number(r.quantityInStock) || 0, maxValue)),
+            reorderPoint: Math.max(0, Math.min(Number(r.reorderPoint) || 0, maxValue)),
+            isActive: true
+          }));
+
+          const unitIds = productUnits.map((pu) => pu.unitId);
+          const existingUnits = await tx.unit.findMany({
+            where: { id: { in: unitIds } },
+            select: { id: true }
+          });
+          const existingUnitIds = new Set(existingUnits.map((u) => u.id));
+          const missingUnitIds = unitIds.filter((id) => !existingUnitIds.has(id));
+          if (missingUnitIds.length > 0) {
+            throw new Error(`Units not found: ${missingUnitIds.join(', ')}`);
           }
-          
-          if (productUnits.length > 0) {
-            console.log("Creating new product units:", productUnits.length);
-            console.log("Product units data:", JSON.stringify(productUnits, null, 2));
-            
-            // Verify that all unit IDs exist before creating ProductUnit records
-            const unitIds = productUnits.map(pu => pu.unitId);
-            const existingUnits = await tx.unit.findMany({
-              where: { id: { in: unitIds } },
-              select: { id: true }
-            });
-            
-            const existingUnitIds = existingUnits.map(u => u.id);
-            const missingUnitIds = unitIds.filter(id => !existingUnitIds.includes(id));
-            
-            if (missingUnitIds.length > 0) {
-              console.error("Missing unit IDs:", missingUnitIds);
-              throw new Error(`Units not found: ${missingUnitIds.join(', ')}`);
-            }
-            
-            await tx.productUnit.createMany({
-              data: productUnits
-            });
-          }
+
+          console.log("Creating new product units:", productUnits.length);
+          await tx.productUnit.createMany({
+            data: productUnits
+          });
         } else if (body.unitManagementEnabled === false) {
           // If unit management is disabled, remove all existing units
           console.log("Disabling unit management, removing all units...");

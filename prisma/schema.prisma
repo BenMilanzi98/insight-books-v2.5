@@ -2443,6 +2443,8 @@ model Unit {
   conversionToBase Decimal       @db.Decimal(15, 6)
   isBaseUnit       Boolean       @default(false)
   isActive         Boolean       @default(true)
+  /// Set by app: true = rows from the global catalog (sync may update). false = user-created custom units (never overwritten by sync).
+  isCatalogUnit    Boolean       @default(false)
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
   productUnits     ProductUnit[]

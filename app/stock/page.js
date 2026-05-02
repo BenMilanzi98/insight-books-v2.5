@@ -5280,7 +5280,30 @@ const ProductForm = ({ isOpen, onClose, product, onSubmit, isSubmitting, showToa
   }, []);
 
   const handleUnitsChange = useCallback((units) => {
-    setFormData(prev => ({ ...prev, selectedUnits: units }));
+    setFormData((prev) => {
+      const nextConfigs = { ...prev.unitConfigurations };
+      const nextIds = new Set((units || []).map((u) => u.id).filter(Boolean));
+      (units || []).forEach((u) => {
+        if (!u?.id) return;
+        if (!nextConfigs[u.id]) {
+          const up = parseFloat(prev.unitPrice);
+          const cp = parseFloat(prev.costPrice);
+          const q = prev.quantityInStock === '' ? 0 : parseFloat(prev.quantityInStock) || 0;
+          const rp = prev.reorderPoint === '' ? 0 : parseFloat(prev.reorderPoint) || 0;
+          nextConfigs[u.id] = {
+            unitPrice: Number.isFinite(up) ? up.toFixed(2) : '0.00',
+            costPrice: Number.isFinite(cp) ? cp.toFixed(2) : '0.00',
+            quantityInStock: String(q),
+            reorderPoint: String(rp),
+            isDefault: Boolean(u.isBaseUnit),
+          };
+        }
+      });
+      Object.keys(nextConfigs).forEach((k) => {
+        if (!nextIds.has(k)) delete nextConfigs[k];
+      });
+      return { ...prev, selectedUnits: units, unitConfigurations: nextConfigs };
+    });
   }, []);
 
   // Reset form when opening for new product

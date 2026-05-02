@@ -7,6 +7,10 @@ import { createFifoBatch } from '@/lib/fifoCosting';
 import { userHasAccessToTenant } from '@/lib/tenantStockAccess';
 import { resolveProductCostPriceForDisplay } from '@/lib/productCostDisplay';
 import { normalizeExpiryAllocations } from '@/lib/expiryAllocations';
+import {
+  buildProductUnitPayloadRows,
+  ensureOneDefaultUnit,
+} from '@/lib/productUnitSavePayload';
 
 // GET - Fetch products with all fields
 export async function GET(request) {
@@ -667,6 +671,24 @@ export async function POST(request) {
       };
     }
 
+    /** Flexible units: validate & merge configs before creating Product (avoids orphan rows without ProductUnit). */
+    let preparedProductUnitRows = null;
+    if (body.unitManagementEnabled && Array.isArray(body.selectedUnits) && body.selectedUnits.length > 0) {
+      preparedProductUnitRows = ensureOneDefaultUnit(
+        buildProductUnitPayloadRows(body),
+        body.selectedUnits
+      );
+      if (preparedProductUnitRows.length === 0) {
+        return NextResponse.json(
+          {
+            error:
+              'Flexible units: choose valid catalog units (e.g. kg, L). Placeholder custom IDs cannot be saved until those units exist in your catalog.',
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const product = await prisma.product.create({
       data: productData
     });
@@ -686,60 +708,32 @@ export async function POST(request) {
       }
     }
 
-    // Handle unit management if enabled
-    if (body.unitManagementEnabled && body.selectedUnits && body.selectedUnits.length > 0) {
-      try {
-        const productUnits = [];
-        
-        for (const unit of body.selectedUnits) {
-          if (!unit || !unit.id) {
-            console.warn('Skipping invalid unit:', unit);
-            continue;
-          }
-          
-          const config = body.unitConfigurations?.[unit.id];
-          if (config) {
-            // Validate and cap numeric values to prevent database overflow
-            const maxValue = 999999999.999999; // Max value for precision 15, scale 6
-            const quantityInStock = Math.min(parseFloat(config.quantityInStock || 0), maxValue);
-            const reorderPoint = Math.min(parseFloat(config.reorderPoint || 0), maxValue);
-            const unitPrice = Math.min(parseFloat(config.unitPrice || 0), maxValue);
-            const costPrice = Math.min(parseFloat(config.costPrice || 0), maxValue);
-            
-            // Validate unit exists
-            const unitExists = await prisma.unit.findUnique({
-              where: { id: unit.id },
-              select: { id: true }
-            });
-            
-            if (!unitExists) {
-              console.warn(`Unit ${unit.id} does not exist, skipping`);
-              continue;
-            }
-            
-            productUnits.push({
-              productId: product.id,
-              unitId: unit.id,
-              isDefault: config.isDefault || false,
-              unitPrice: isNaN(unitPrice) ? 0 : unitPrice,
-              costPrice: isNaN(costPrice) ? 0 : costPrice,
-              quantityInStock: isNaN(quantityInStock) ? 0 : quantityInStock,
-              reorderPoint: isNaN(reorderPoint) ? 0 : reorderPoint,
-              isActive: true
-            });
-          }
-        }
-        
-        if (productUnits.length > 0) {
-          await prisma.productUnit.createMany({
-            data: productUnits
-          });
-        }
-      } catch (unitError) {
-        console.error('Error creating product units:', unitError);
-        // Don't fail the entire product creation if unit management fails
-        // The product is already created, we'll just log the unit error
+    if (preparedProductUnitRows?.length > 0) {
+      const maxValue = 999999999.999999;
+      const unitIds = preparedProductUnitRows.map((r) => r.unitId);
+      const existingUnits = await prisma.unit.findMany({
+        where: { id: { in: unitIds } },
+        select: { id: true },
+      });
+      const okIds = new Set(existingUnits.map((u) => u.id));
+      const missing = unitIds.filter((id) => !okIds.has(id));
+      if (missing.length > 0) {
+        console.error('ProductUnit create: missing Unit ids', missing);
+        throw new Error(`Units not found: ${missing.join(', ')}`);
       }
+
+      await prisma.productUnit.createMany({
+        data: preparedProductUnitRows.map((r) => ({
+          productId: product.id,
+          unitId: r.unitId,
+          isDefault: Boolean(r.isDefault),
+          unitPrice: Math.max(0, Math.min(Number(r.unitPrice) || 0, maxValue)),
+          costPrice: Math.max(0, Math.min(Number(r.costPrice) || 0, maxValue)),
+          quantityInStock: Math.max(0, Math.min(Number(r.quantityInStock) || 0, maxValue)),
+          reorderPoint: Math.max(0, Math.min(Number(r.reorderPoint) || 0, maxValue)),
+          isActive: true,
+        })),
+      });
     }
     
     // Create FIFO batch if product has initial stock
