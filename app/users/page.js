@@ -403,12 +403,12 @@ const UsersTable = ({
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
+            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
           {usersData.map(user => (
-            <tr key={user.id} className="hover:bg-gray-50/80 transition-colors">
+            <tr key={user.id} className="group hover:bg-gray-50/80 transition-colors">
               {columns.map(column => {
                 if (column.key === "name") {
                   return (
@@ -480,17 +480,20 @@ const UsersTable = ({
                   );
                 }
               })}
-              <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <div className="relative">
+              <td className="sticky right-0 z-10 px-4 py-4 whitespace-nowrap text-right text-sm font-medium bg-white group-hover:bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem] align-middle">
+                <div className="relative flex justify-end">
                   <button
-                    className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    type="button"
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md p-1"
                     onClick={() => onToggleActionMenu(user.id)}
                     aria-haspopup="true"
+                    aria-expanded={actionMenuOpen === user.id}
+                    aria-label="Open user actions"
                   >
                     <MoreVertical size={16} />
                   </button>
                   {actionMenuOpen === user.id && (
-                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-10 action-menu py-1">
+                    <div className="origin-top-right absolute right-0 top-full mt-1 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-50 action-menu py-1">
                         {actions.view.enabled && (
                           <button 
                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -680,12 +683,12 @@ const getDisplayPermissions = (permissions) => {
                 </div>
               </th>
             ))}
-            <th className="px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider relative w-20">Actions</th>
+            <th className="sticky right-0 z-20 px-4 py-3.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem]">Actions</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-100">
           {rolesData.map(role => (
-            <tr key={role.id} className="hover:bg-gray-50/80 transition-colors">
+            <tr key={role.id} className="group hover:bg-gray-50/80 transition-colors">
               {columns.map(column => {
                 if (column.key === "name") {
                   return (
@@ -780,17 +783,20 @@ const getDisplayPermissions = (permissions) => {
                   );
                 }
               })}
-              <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium">
-                <div className="relative">
+              <td className="sticky right-0 z-10 px-4 py-4 whitespace-nowrap text-right text-sm font-medium bg-white group-hover:bg-gray-50/80 shadow-[-6px_0_12px_-4px_rgba(15,23,42,0.12)] min-w-[4.5rem] align-middle">
+                <div className="relative flex justify-end">
                   <button
-                    className="text-gray-400 hover:text-gray-500 focus:outline-none"
+                    type="button"
+                    className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md p-1"
                     onClick={() => onToggleActionMenu(role.id)}
                     aria-haspopup="true"
+                    aria-expanded={actionMenuOpen === role.id}
+                    aria-label="Open role actions"
                   >
                     <MoreVertical size={16} />
                   </button>
                   {actionMenuOpen === role.id && (
-                    <div className="origin-top-right absolute right-0 mt-2 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-10 action-menu py-1">
+                    <div className="origin-top-right absolute right-0 top-full mt-1 w-56 rounded-xl shadow-lg bg-white border border-gray-100 focus:outline-none z-50 action-menu py-1">
                         {actions.view.enabled && (
                           <button 
                             className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
@@ -2424,11 +2430,11 @@ const toggleModulePermissions = (module) => {
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 bg-white rounded-t-xl border border-gray-200 border-b-0 shadow-sm">
-          <div className="flex gap-0 px-1 pt-1">
+        <div className="mb-6 bg-white rounded-t-xl border border-gray-200 border-b-0 shadow-sm min-w-0">
+          <div className="flex gap-0 px-1 pt-1 overflow-x-auto sm:overflow-visible">
             {mergedConfig.tabs.users.enabled && (
               <button 
-                className={`py-3.5 px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors ${
+                className={`shrink-0 py-3.5 px-4 sm:px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap ${
                   activeTab === "users"
                     ? "bg-white text-blue-600 border border-b-0 border-gray-200 -mb-px border-b-white shadow-sm"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -2450,7 +2456,7 @@ const toggleModulePermissions = (module) => {
             )}
             {mergedConfig.tabs.roles.enabled && (
               <button 
-                className={`py-3.5 px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors ${
+                className={`shrink-0 py-3.5 px-4 sm:px-5 flex items-center gap-2 rounded-t-lg font-medium text-sm transition-colors whitespace-nowrap ${
                   activeTab === "roles"
                     ? "bg-white text-blue-600 border border-b-0 border-gray-200 -mb-px border-b-white shadow-sm"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
@@ -2475,7 +2481,7 @@ const toggleModulePermissions = (module) => {
 
       {/* Users Tab Content */}
       {activeTab === "users" && mergedConfig.tabs.users.enabled && (
-        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0">
         <div className="p-4 sm:p-6">
           {/* Controls */}
           <div className="flex flex-col lg:flex-row gap-4 mb-6">
@@ -2492,7 +2498,7 @@ const toggleModulePermissions = (module) => {
               />
             </div>
             
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-3 w-full min-w-0 lg:flex-1 lg:flex-row lg:flex-wrap lg:items-center">
               {mergedConfig.filters.status.enabled && (
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-gray-600 flex items-center gap-1.5">
@@ -2543,28 +2549,28 @@ const toggleModulePermissions = (module) => {
                 </div>
               )}
               
-              <div className="flex gap-2 ml-auto">
+              <div className="flex flex-wrap gap-2 w-full justify-stretch sm:justify-end lg:ml-auto lg:w-auto">
                 {mergedConfig.actions.export.enabled && (
                   <button 
-                    className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="inline-flex flex-1 sm:flex-initial items-center justify-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors min-h-[2.75rem]"
                     onClick={handleExport}
                     disabled={loading}
                   >
-                    <Download size={16} className="mr-2" />
-                    <span>{mergedConfig.actions.export.label}</span>
+                    <Download size={16} className="mr-2 shrink-0" />
+                    <span className="truncate">{mergedConfig.actions.export.label}</span>
                   </button>
                 )}
                 {mergedConfig.actions.refresh.enabled && (
                   <button 
-                    className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    className="inline-flex flex-1 sm:flex-initial items-center justify-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors min-h-[2.75rem]"
                     onClick={handleRefresh}
                     disabled={loading}
                   >
                     {loading ? 
-                      <Loader size={16} className="animate-spin mr-2" /> : 
-                      <RefreshCw size={16} className="mr-2" />
+                      <Loader size={16} className="animate-spin mr-2 shrink-0" /> : 
+                      <RefreshCw size={16} className="mr-2 shrink-0" />
                     }
-                    <span>{mergedConfig.actions.refresh.label}</span>
+                    <span className="truncate">{mergedConfig.actions.refresh.label}</span>
                   </button>
                 )}
               </div>
@@ -2629,10 +2635,10 @@ const toggleModulePermissions = (module) => {
 
       {/* Roles Tab Content */}
       {activeTab === "roles" && mergedConfig.tabs.roles.enabled && (
-        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-gray-200 border-t-0 rounded-b-xl shadow-sm min-w-0">
         <div className="p-4 sm:p-6">
           {/* Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4 mb-6 sm:items-stretch">
             <div className="relative flex-grow min-w-0">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search size={18} className="text-gray-400" />
@@ -2646,28 +2652,28 @@ const toggleModulePermissions = (module) => {
               />
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:justify-end sm:shrink-0">
               {mergedConfig.actions.export.enabled && (
                 <button 
-                  className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  className="inline-flex flex-1 sm:flex-initial items-center justify-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors min-h-[2.75rem]"
                   onClick={handleExport}
                   disabled={loading}
                 >
-                  <Download size={16} className="mr-2" />
-                  <span>{mergedConfig.actions.export.label}</span>
+                  <Download size={16} className="mr-2 shrink-0" />
+                  <span className="truncate">{mergedConfig.actions.export.label}</span>
                 </button>
               )}
               {mergedConfig.actions.refresh.enabled && (
                 <button 
-                  className="inline-flex items-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  className="inline-flex flex-1 sm:flex-initial items-center justify-center px-3.5 py-2.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors min-h-[2.75rem]"
                   onClick={handleRefresh}
                   disabled={loading}
                 >
                   {loading ? 
-                    <Loader size={16} className="animate-spin mr-2" /> : 
-                    <RefreshCw size={16} className="mr-2" />
+                    <Loader size={16} className="animate-spin mr-2 shrink-0" /> : 
+                    <RefreshCw size={16} className="mr-2 shrink-0" />
                   }
-                  <span>{mergedConfig.actions.refresh.label}</span>
+                  <span className="truncate">{mergedConfig.actions.refresh.label}</span>
                 </button>
               )}
             </div>
