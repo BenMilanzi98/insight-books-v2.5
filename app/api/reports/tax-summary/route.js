@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
+import {
+  validInvoiceReportWhere,
+  validPurchaseDocumentStatusFilter,
+  validSaleReportWhere,
+} from '@/lib/reportingSourceRules';
+import {
+  invoiceItemNetRevenueExTax,
+  roundReportAmount,
+  saleItemNetRevenueExTax,
+} from '@/lib/reportLineNetRevenue';
 
 export async function GET(request) {
   try {
@@ -27,23 +38,13 @@ export async function GET(request) {
       );
     }
 
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
     
     // Get invoice items with tax data - filter by branch
     const invoiceItems = await prisma.invoiceItem.findMany({
       where: {
         invoice: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          voidedAt: null,
-          refundedAt: null,
-          status: { notIn: ['Draft', 'Cancelled'] },
-          issueDate: {
-            gte: start,
-            lte: end
-          }
+          ...validInvoiceReportWhere(user.tenantId, 'issueDate', start, end)
         })
       },
       include: {
@@ -66,14 +67,7 @@ export async function GET(request) {
     const saleItems = await prisma.saleItem.findMany({
       where: {
         sale: addBranchFilter(user, {
-          tenantId: user.tenantId,
-          status: 'completed',
-          voidedAt: null,
-          refundedAt: null,
-          saleDate: {
-            gte: start,
-            lte: end
-          }
+          ...validSaleReportWhere(user.tenantId, 'saleDate', start, end)
         })
       },
       include: {
@@ -134,7 +128,8 @@ export async function GET(request) {
           gte: start,
           lte: end
         },
-        isDeleted: false // Exclude deleted expenses
+        isDeleted: false, // Exclude deleted expenses
+        isReversal: false
       }),
       select: {
         id: true,
@@ -164,7 +159,8 @@ export async function GET(request) {
           items: []
         };
       }
-      const taxableAmount = item.quantity * item.unitPrice;
+      const taxableAmount = invoiceItemNetRevenueExTax(item);
+      if (taxableAmount <= 0) return;
       // Ensure we're using a valid number for tax calculation
       const taxAmount = taxableAmount * (item.taxRate / 100);
       
@@ -232,7 +228,8 @@ export async function GET(request) {
         return; // Skip this item
       }
       
-      const taxableAmount = item.quantity * item.unitPrice;
+      const taxableAmount = saleItemNetRevenueExTax(item);
+      if (taxableAmount <= 0) return;
       
       // If SaleItemTax records exist, use them (more accurate)
       if (item.itemTaxes && item.itemTaxes.length > 0) {
@@ -304,9 +301,7 @@ export async function GET(request) {
               if (taxType.calculationType === 'Fixed') {
                 calculatedTaxAmount = taxType.taxRate * (item.quantity || 1);
               } else {
-                // Percentage calculation - apply to taxable amount after discount
-                const discountedAmount = taxableAmount - (item.discountAmount || 0);
-                calculatedTaxAmount = discountedAmount * (taxType.taxRate / 100);
+                calculatedTaxAmount = taxableAmount * (taxType.taxRate / 100);
               }
               
               collectedTaxesByRate[taxRate].taxableAmount += taxableAmount;
@@ -379,27 +374,28 @@ export async function GET(request) {
     });
     
     // Calculate totals
-    const totalTaxableAmount = Object.values(collectedTaxesByRate).reduce(
+    const totalTaxableAmount = roundReportAmount(Object.values(collectedTaxesByRate).reduce(
       (sum, category) => sum + category.taxableAmount,
       0
-    );
+    ));
     
-    const totalCollectedTax = Object.values(collectedTaxesByRate).reduce(
+    const totalCollectedTax = roundReportAmount(Object.values(collectedTaxesByRate).reduce(
       (sum, category) => sum + category.taxAmount,
       0
-    );
+    ));
     
-    const totalTaxPaid = taxExpenses.reduce(
+    const totalTaxPaid = roundReportAmount(taxExpenses.reduce(
       (sum, expense) => sum + expense.amount,
       0
-    );
+    ));
     
-    const netTaxLiability = totalCollectedTax - totalTaxPaid;
+    const netTaxLiability = roundReportAmount(totalCollectedTax - totalTaxPaid);
 
     // Input VAT: tax on purchases (Supplier Bills + Purchase Order line tax in period)
     const supplierBillsInPeriod = await prisma.supplierBill.findMany({
       where: {
         tenantId: user.tenantId,
+        status: validPurchaseDocumentStatusFilter(),
         billDate: {
           gte: start,
           lte: end
@@ -413,6 +409,8 @@ export async function GET(request) {
       where: {
         purchaseOrder: {
           tenantId: user.tenantId,
+          status: validPurchaseDocumentStatusFilter(),
+          supplierBills: { none: {} },
           poDate: {
             gte: start,
             lte: end
@@ -422,11 +420,11 @@ export async function GET(request) {
       select: { taxAmount: true }
     });
     const inputVatFromPOs = poItemsInPeriod.reduce((sum, i) => sum + (Number(i.taxAmount) || 0), 0);
-    const inputVat = inputVatFromBills + inputVatFromPOs;
+    const inputVat = roundReportAmount(inputVatFromBills + inputVatFromPOs);
 
     // Output VAT = tax collected on sales/invoices
-    const outputVat = totalCollectedTax;
-    const netVatPayable = outputVat - inputVat;
+    const outputVat = roundReportAmount(totalCollectedTax);
+    const netVatPayable = roundReportAmount(outputVat - inputVat);
     
     return NextResponse.json({
       period: {

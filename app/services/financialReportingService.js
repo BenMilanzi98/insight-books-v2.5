@@ -6,6 +6,7 @@
 
 import { formatCurrency } from '@/lib/currencyUtils';
 import { calculateDateRange, formatYmdInTimeZone } from '@/lib/dateUtils';
+import { normalizeReportYmdParam } from '@/lib/reportingSourceRules';
 
 // Financial periods align to calendar year (1 January – 31 December). All annual report ranges use 1 Jan – 31 Dec.
 const getDateRange = (timeframe = 'thisMonth', customDateRange = null) => {
@@ -287,8 +288,7 @@ export const fetchInventoryLossReport = async ({
  */
 export const fetchPosDailyReport = async (date = null) => {
   try {
-    const d = date ? new Date(date) : new Date();
-    const dateStr = formatYmdInTimeZone(d);
+    const dateStr = normalizeReportYmdParam(date);
     const response = await fetch(`/api/reports/pos-daily?date=${dateStr}`);
     if (!response.ok) {
       throw new Error(`Error fetching daily POS report: ${response.statusText}`);

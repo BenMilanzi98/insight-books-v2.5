@@ -18,8 +18,15 @@ import { getCOGSTransactionStats } from '@/lib/cogsIntegration';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 import {
   invoiceItemNetRevenueExTax,
+  invoiceNetRevenueTotalExTax,
   saleItemNetRevenueExTax,
+  saleNetRevenueTotalExTax,
 } from '@/lib/reportLineNetRevenue';
+import {
+  validInvoiceReportWhere,
+  validPurchaseDocumentStatusFilter,
+  validSaleReportWhere,
+} from '@/lib/reportingSourceRules';
 
 const VALID_GROUPS = ['day', 'week', 'month'];
 
@@ -155,41 +162,21 @@ export async function GET(request) {
     const plRevenueBranchId =
       accessEff === false ? null : normalizeBranchId(user.currentBranchId) ?? null;
 
-    // Revenue: completed invoice payments by paymentDate + POS completed sales by saleDate (matches P&L).
-    const [invoicePayments, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
+    // Revenue: valid issued invoices + completed POS sales, net of tax and discounts (matches P&L).
+    const [invoices, sales, expenses, supplierBills, activeBudgets] = await Promise.all([
       accessEff === false
         ? Promise.resolve([])
-        : prisma.payment.findMany({
+        : prisma.invoice.findMany({
             where: {
-              tenantId: user.tenantId,
-              isReversal: false,
-              invoiceId: { not: null },
-              status: { equals: 'Completed', mode: 'insensitive' },
-              paymentDate: { gte: startDate, lte: endDate },
-              invoice: {
-                is: {
-                  tenantId: user.tenantId,
-                  voidedAt: null,
-                  refundedAt: null
-                }
-              },
-              ...(plRevenueBranchId
-                ? {
-                    OR: [
-                      { branchId: plRevenueBranchId },
-                      { invoice: { branchId: plRevenueBranchId } }
-                    ]
-                  }
-                : {})
+              ...validInvoiceReportWhere(user.tenantId, 'issueDate', startDate, endDate),
+              ...(plRevenueBranchId ? { branchId: plRevenueBranchId } : {})
             },
             select: {
-              amount: true,
-              paymentDate: true,
-              invoice: {
-                select: {
-                  total: true,
-                  subtotal: true,
-                  client: { select: { name: true } },
+              issueDate: true,
+              total: true,
+              subtotal: true,
+              taxAmount: true,
+              client: { select: { name: true } },
               items: {
                 select: {
                   quantity: true,
@@ -198,12 +185,10 @@ export async function GET(request) {
                   amount: true,
                   netAmount: true,
                   product: {
-                        select: {
-                          categoryId: true,
-                          category: true,
-                          inventoryCategory: { select: { id: true, name: true } }
-                        }
-                      }
+                    select: {
+                      categoryId: true,
+                      category: true,
+                      inventoryCategory: { select: { id: true, name: true } }
                     }
                   }
                 }
@@ -214,17 +199,17 @@ export async function GET(request) {
         ? Promise.resolve([])
         : prisma.sale.findMany({
             where: {
-              tenantId: user.tenantId,
-              status: 'completed',
-              voidedAt: null,
-              refundedAt: null,
-              saleDate: { gte: startDate, lte: endDate },
+              ...validSaleReportWhere(user.tenantId, 'saleDate', startDate, endDate),
               ...(plRevenueBranchId ? { branchId: plRevenueBranchId } : {})
             },
             select: {
               total: true,
+              subtotal: true,
               saleDate: true,
               taxAmount: true,
+              totalTaxAmount: true,
+              discount: true,
+              totalDiscountAmount: true,
               client: { select: { name: true } },
               items: {
                 select: {
@@ -266,7 +251,7 @@ export async function GET(request) {
         where: {
           tenantId: user.tenantId,
           billDate: { gte: startDate, lte: endDate },
-          status: { notIn: ['Draft', 'Cancelled'] }
+          status: validPurchaseDocumentStatusFilter()
         },
         select: {
           id: true,
@@ -320,7 +305,7 @@ export async function GET(request) {
     /** @type {Map<string, { label: string; value: number }>} */
     const expenseBreakdownBuckets = new Map();
     const revenueBySource = new Map([
-      ['Invoice payments', 0],
+      ['Invoice sales', 0],
       ['POS sales', 0]
     ]);
     const customerMap = new Map();
@@ -340,13 +325,14 @@ export async function GET(request) {
       return { key, id, name };
     };
 
-    const allocatePaymentToRevenueCategories = (paymentAmount, invoice) => {
-      if (!invoice || !(Number(paymentAmount) > 0)) return;
+    const allocateInvoiceToRevenueCategories = (invoice) => {
+      const invoiceAmount = invoiceNetRevenueTotalExTax(invoice);
+      if (!invoice || !(invoiceAmount > 0)) return;
       const lines = invoice.items || [];
       if (!lines.length) {
         const key = 'legacy:Uncategorized';
         categoriesMap.set(key, { id: null, name: 'Uncategorized' });
-        addToMap(revenueByCategoryMap, key, Number(paymentAmount));
+        addToMap(revenueByCategoryMap, key, invoiceAmount);
         return;
       }
       /** Post-discount net line amounts (ex tax when netAmount is stored); do not use max(net, amount) — that ignored discounts. */
@@ -359,21 +345,21 @@ export async function GET(request) {
       if (!(denom > 0)) {
         const key = 'legacy:Uncategorized';
         categoriesMap.set(key, { id: null, name: 'Uncategorized' });
-        addToMap(revenueByCategoryMap, key, Number(paymentAmount));
+        addToMap(revenueByCategoryMap, key, invoiceAmount);
         return;
       }
       let allocated = 0;
       for (const item of lines) {
         const lineAmt = invoiceItemNetRevenueExTax(item);
         if (!(lineAmt > 0)) continue;
-        const alloc = (Number(paymentAmount) * lineAmt) / denom;
+        const alloc = (invoiceAmount * lineAmt) / denom;
         if (!(alloc > 0)) continue;
         const category = getCategoryDescriptor(item.product);
         categoriesMap.set(category.key, { id: category.id, name: category.name });
         addToMap(revenueByCategoryMap, category.key, alloc);
         allocated += alloc;
       }
-      const remainder = Number(paymentAmount) - allocated;
+      const remainder = invoiceAmount - allocated;
       if (remainder > 1e-4) {
         const key = 'legacy:Uncategorized';
         categoriesMap.set(key, { id: null, name: 'Uncategorized' });
@@ -381,19 +367,18 @@ export async function GET(request) {
       }
     };
 
-    invoicePayments.forEach((payment) => {
-      const payAmt = Number(payment.amount) || 0;
-      if (!(payAmt > 0)) return;
-      const label = formatLabel(payment.paymentDate, groupBy);
-      addToBucket(trendMap, label, 'revenue', payAmt);
-      addToMap(revenueBySource, 'Invoice payments', payAmt);
-      const inv = payment.invoice;
-      if (inv?.client?.name) addToMap(customerMap, inv.client.name, payAmt);
-      allocatePaymentToRevenueCategories(payAmt, inv);
+    invoices.forEach((invoice) => {
+      const invoiceAmount = invoiceNetRevenueTotalExTax(invoice);
+      if (!(invoiceAmount > 0)) return;
+      const label = formatLabel(invoice.issueDate, groupBy);
+      addToBucket(trendMap, label, 'revenue', invoiceAmount);
+      addToMap(revenueBySource, 'Invoice sales', invoiceAmount);
+      if (invoice.client?.name) addToMap(customerMap, invoice.client.name, invoiceAmount);
+      allocateInvoiceToRevenueCategories(invoice);
     });
 
     sales.forEach((sale) => {
-      const amount = Number(sale.total) || 0;
+      const amount = saleNetRevenueTotalExTax(sale);
       const label = formatLabel(sale.saleDate, groupBy);
       addToBucket(trendMap, label, 'revenue', amount);
       addToMap(revenueBySource, 'POS sales', amount);
@@ -681,7 +666,7 @@ export async function GET(request) {
       },
       metadata: {
         revenueBasis:
-          'Invoice cash: completed payments by paymentDate; POS: completed sales by saleDate (same rules as P&L sales revenue).',
+          'Valid invoice sales by issueDate and completed POS sales by saleDate, net of tax and line discounts (same rules as P&L sales revenue).',
         plSalesRevenueTotal,
         analyticsRevenueTotal: round2(totalRevenue),
         revenueBranchId: plRevenueBranchId

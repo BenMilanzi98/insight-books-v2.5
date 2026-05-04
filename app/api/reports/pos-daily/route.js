@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import { generatePosDailyReport } from '@/lib/posDailyReportService';
+import { normalizeReportYmdParam } from '@/lib/reportingSourceRules';
 
 export async function GET(request) {
   try {
@@ -18,10 +19,7 @@ export async function GET(request) {
     const url = request.nextUrl ?? request.url;
     const searchParams = typeof url === 'object' && url.searchParams ? url.searchParams : new URL(String(url || '').startsWith('http') ? url : `http://localhost${String(url || '').startsWith('/') ? url : '/'}`, 'http://localhost').searchParams;
     let date = searchParams.get('date');
-    if (!date) {
-      const t = new Date();
-      date = t.toISOString().slice(0, 10);
-    }
+    date = normalizeReportYmdParam(date);
 
     const branchIdParam = searchParams.get('branchId');
     const allBranches = /^(1|true|yes)$/i.test(String(searchParams.get('allBranches') || ''));

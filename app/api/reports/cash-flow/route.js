@@ -32,9 +32,6 @@ export async function GET(request) {
       );
     }
     
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
     // Get tenant name and logo
     const tenant = await prisma.tenant.findUnique({
       where: { id: user.tenantId },

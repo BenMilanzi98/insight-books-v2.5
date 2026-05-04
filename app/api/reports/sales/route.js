@@ -3,6 +3,20 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
+import {
+  validInvoiceReportWhere,
+  validSaleReportWhere,
+} from '@/lib/reportingSourceRules';
+import {
+  invoiceDocumentTaxAmount,
+  invoiceItemNetRevenueExTax,
+  invoiceNetRevenueTotalExTax,
+  saleDocumentTaxAmount,
+  saleItemNetRevenueExTax,
+  saleNetRevenueTotalExTax,
+  roundReportAmount,
+} from '@/lib/reportLineNetRevenue';
 
 export async function GET(request) {
   try {
@@ -30,22 +44,12 @@ export async function GET(request) {
       );
     }
 
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
     
     // Get sales data - filter by branch
     const sales = await prisma.sale.findMany({
       where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: 'completed',
-        voidedAt: null,
-        refundedAt: null,
-        saleDate: {
-          gte: start,
-          lte: end
-        }
+        ...validSaleReportWhere(user.tenantId, 'saleDate', start, end)
       }),
       include: {
         items: {
@@ -63,14 +67,7 @@ export async function GET(request) {
     // Get invoice data (also considered sales) - filter by branch
     const invoices = await prisma.invoice.findMany({
       where: addBranchFilter(user, {
-        tenantId: user.tenantId,
-        status: { in: ['Paid', 'Completed'] },
-        voidedAt: null,
-        refundedAt: null,
-        issueDate: {
-          gte: start,
-          lte: end
-        }
+        ...validInvoiceReportWhere(user.tenantId, 'issueDate', start, end)
       }),
       include: {
         items: {
@@ -123,10 +120,8 @@ export async function GET(request) {
       }
       
       salesByDate[dateKey].sales += 1;
-      salesByDate[dateKey].totalRevenue += sale.total;
-      // Use totalTaxAmount if available, otherwise fallback to taxAmount or calculate from items
-      const saleTax = sale.totalTaxAmount || sale.taxAmount || sale.items.reduce((sum, item) => sum + (item.taxAmount || 0), 0);
-      salesByDate[dateKey].totalTax += saleTax;
+      salesByDate[dateKey].totalRevenue += saleNetRevenueTotalExTax(sale);
+      salesByDate[dateKey].totalTax += saleDocumentTaxAmount(sale);
     });
     
     // Process invoices
@@ -144,8 +139,8 @@ export async function GET(request) {
       }
       
       salesByDate[dateKey].invoices += 1;
-      salesByDate[dateKey].totalRevenue += invoice.total;
-      salesByDate[dateKey].totalTax += invoice.taxAmount;
+      salesByDate[dateKey].totalRevenue += invoiceNetRevenueTotalExTax(invoice);
+      salesByDate[dateKey].totalTax += invoiceDocumentTaxAmount(invoice);
     });
     
     // Analyze sales by product
@@ -167,7 +162,7 @@ export async function GET(request) {
         }
         
         salesByProduct[productId].quantity += item.quantity;
-        salesByProduct[productId].revenue += item.amount;
+        salesByProduct[productId].revenue += saleItemNetRevenueExTax(item);
       });
     });
     
@@ -188,7 +183,7 @@ export async function GET(request) {
           }
           
           salesByProduct[productId].quantity += item.quantity;
-          salesByProduct[productId].revenue += item.amount;
+          salesByProduct[productId].revenue += invoiceItemNetRevenueExTax(item);
         }
       });
     });
@@ -213,7 +208,7 @@ export async function GET(request) {
         }
         
         salesByCustomer[clientId].salesCount += 1;
-        salesByCustomer[clientId].totalSpent += sale.total;
+        salesByCustomer[clientId].totalSpent += saleNetRevenueTotalExTax(sale);
       }
     });
     
@@ -233,27 +228,34 @@ export async function GET(request) {
       }
       
       salesByCustomer[clientId].invoiceCount += 1;
-      salesByCustomer[clientId].totalSpent += invoice.total;
+      salesByCustomer[clientId].totalSpent += invoiceNetRevenueTotalExTax(invoice);
     });
     
     // Calculate totals
     const totalSalesCount = sales.length;
     const totalInvoiceCount = invoices.length;
-    const totalRevenue = [...sales, ...invoices].reduce((sum, item) => sum + item.total, 0);
-    // Calculate total tax: use totalTaxAmount for sales, taxAmount for invoices, or sum item taxes
-    const totalTax = [...sales, ...invoices].reduce((sum, item) => {
-      if (item.totalTaxAmount !== undefined && item.totalTaxAmount !== null) {
-        // Sale with totalTaxAmount
-        return sum + (item.totalTaxAmount || 0);
-      } else if (item.taxAmount !== undefined && item.taxAmount !== null) {
-        // Invoice or sale with taxAmount
-        return sum + (item.taxAmount || 0);
-      } else if (item.items && Array.isArray(item.items)) {
-        // Fallback: sum tax from items
-        return sum + item.items.reduce((itemSum, saleItem) => itemSum + (saleItem.taxAmount || 0), 0);
-      }
-      return sum;
-    }, 0);
+    const totalRevenue = roundReportAmount(
+      sales.reduce((sum, sale) => sum + saleNetRevenueTotalExTax(sale), 0) +
+      invoices.reduce((sum, invoice) => sum + invoiceNetRevenueTotalExTax(invoice), 0)
+    );
+    const grossSales = roundReportAmount(
+      sales.reduce(
+        (sum, sale) => sum + (sale.items || []).reduce((itemSum, item) => itemSum + (Number(item.amount) || 0), 0),
+        0
+      ) +
+      invoices.reduce(
+        (sum, invoice) => sum + (invoice.items || []).reduce(
+          (itemSum, item) => itemSum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+          0
+        ),
+        0
+      )
+    );
+    const totalDiscounts = roundReportAmount(Math.max(0, grossSales - totalRevenue));
+    const totalTax = roundReportAmount(
+      sales.reduce((sum, sale) => sum + saleDocumentTaxAmount(sale), 0) +
+      invoices.reduce((sum, invoice) => sum + invoiceDocumentTaxAmount(invoice), 0)
+    );
     
     // Sort the salesByDate array by date
     const salesByDateArray = Object.values(salesByDate).sort((a, b) => 
@@ -278,9 +280,14 @@ export async function GET(request) {
       summary: {
         totalSalesCount,
         totalInvoiceCount,
+        grossSales,
+        totalDiscounts,
         totalRevenue,
+        netSales: totalRevenue,
         totalTax,
-        averageSaleValue: totalSalesCount > 0 ? totalRevenue / (totalSalesCount + totalInvoiceCount) : 0
+        averageSaleValue: (totalSalesCount + totalInvoiceCount) > 0
+          ? totalRevenue / (totalSalesCount + totalInvoiceCount)
+          : 0
       },
       salesByDate: salesByDateArray,
       salesByProduct: salesByProductArray,

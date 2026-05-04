@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilter } from '@/lib/dashboardBranchFilter';
+import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 
 export async function GET(request) {
   try {
@@ -29,10 +30,7 @@ export async function GET(request) {
       );
     }
 
-    const start = new Date(startDate);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
     
     // Build query filter — approved register only (aligned with P&L operating expenses)
     const filter = addBranchFilter(user, {

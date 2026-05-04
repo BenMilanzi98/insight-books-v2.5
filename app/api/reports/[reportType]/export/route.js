@@ -2,10 +2,19 @@
 import { NextResponse } from 'next/server';
 import { getUserFromSession } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange } from '@/lib/dateUtils';
+import { stripEmbeddedPeriodFromReportLabel, parseInclusiveApiYmdRange, formatYmdInTimeZone } from '@/lib/dateUtils';
 import { getSalesRevenueForPeriod } from '@/lib/incomeStatementService';
 import * as XLSX from 'xlsx';
 import { RETIRED_REPORT_IDS, retiredReportResponse } from '@/lib/retiredReports';
+import {
+  normalizeReportYmdParam,
+  validInvoiceReportWhere,
+  validSaleReportWhere,
+} from '@/lib/reportingSourceRules';
+import {
+  invoiceNetRevenueTotalExTax,
+  saleNetRevenueTotalExTax,
+} from '@/lib/reportLineNetRevenue';
 
 /**
  * GET handler for exporting various reports
@@ -89,7 +98,7 @@ export async function GET(request, context) {
           return await generateBalanceSheetPDF(user.tenantId, endDate, request);
         }
         // For CSV/XLSX, use the simplified format
-        reportData = await generateBalanceSheetData(user.tenantId, endDate);
+        reportData = await generateBalanceSheetData(user.tenantId, endDate, user.currentBranchId || null);
         headers = [
           { key: 'section', label: 'Section' },
           { key: 'type', label: 'Type' },
@@ -100,7 +109,7 @@ export async function GET(request, context) {
         break;
         
       case 'expenses':
-        reportData = await generateExpenseReportData(user.tenantId, startDate, endDate);
+        reportData = await generateExpenseReportData(user.tenantId, startDate, endDate, user.currentBranchId || null);
         headers = [
           { key: 'date', label: 'Date' },
           { key: 'category', label: 'Category' },
@@ -114,7 +123,7 @@ export async function GET(request, context) {
         break;
         
       case 'sales':
-        reportData = await generateSalesReportData(user.tenantId, startDate, endDate);
+        reportData = await generateSalesReportData(user.tenantId, startDate, endDate, user.currentBranchId || null);
         headers = [
           { key: 'date', label: 'Date' },
           { key: 'type', label: 'Type' },
@@ -209,7 +218,7 @@ export async function GET(request, context) {
         break;
 
       case 'pos-daily': {
-        const dateParam = searchParams.get('date') || new Date().toISOString().split('T')[0];
+        const dateParam = normalizeReportYmdParam(searchParams.get('date'));
         const { generatePosDailyReport } = await import('@/lib/posDailyReportService');
         const posData = await generatePosDailyReport(
           user.tenantId,
@@ -388,155 +397,61 @@ async function generateIncomeStatementData(tenantId, startDate, endDate) {
 /**
  * Generate Balance Sheet data for export
  */
-async function generateBalanceSheetData(tenantId, asOfDate) {
-  // Get accounts with their balances
-  const accounts = await prisma.account.findMany({
-    where: {
-      tenantId
-    },
-    include: {
-      journalEntries: {
-        where: {
-          transaction: {
-            date: {
-              lte: new Date(asOfDate)
-            }
-          }
-        },
-        include: {
-          transaction: {
-            select: {
-              date: true
-            }
-          }
-        }
-      }
-    }
+async function generateBalanceSheetData(tenantId, asOfDate, branchId = null) {
+  const { generateBalanceSheetFromAccounts } = await import('@/lib/balanceSheetService');
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { name: true },
   });
-  
-  // Get outstanding invoices (accounts receivable)
-  const accountsReceivable = await prisma.invoice.findMany({
-    where: {
-      tenantId,
-      status: 'Pending',
-      issueDate: {
-        lte: new Date(asOfDate)
-      }
-    },
-    select: {
-      id: true,
-      invoiceNumber: true,
-      clientId: true,
-      total: true,
-      dueDate: true,
-      client: {
-        select: {
-          name: true
-        }
-      }
-    }
-  });
-  
-  // Get current inventory value
-  const inventory = await prisma.product.findMany({
-    where: {
-      tenantId,
-      isService: false
-    },
-    select: {
-      id: true,
-      name: true,
-      stockLevel: true,
-      cost: true
-    }
-  });
-  
-  // Categorize accounts
-  const assets = accounts.filter(account => account.type === 'Asset');
-  const liabilities = accounts.filter(account => account.type === 'Liability');
-  const equity = accounts.filter(account => account.type === 'Equity');
-  
-  // Calculate account balances
-  const calculateBalance = (account) => {
-    return account.journalEntries.reduce((balance, entry) => {
-      if (account.type === 'Asset' || account.type === 'Expense') {
-        // Debits increase assets and expenses
-        return balance + entry.debit - entry.credit;
-      } else {
-        // Credits increase liabilities, equity, and revenue
-        return balance + entry.credit - entry.debit;
-      }
-    }, 0);
+  const sheet = await generateBalanceSheetFromAccounts(
+    tenantId,
+    asOfDate,
+    tenant?.name || 'Company',
+    null,
+    branchId
+  );
+
+  const rows = [];
+  const pushLine = (section, type, line) => {
+    rows.push({
+      section,
+      type,
+      name: line.label,
+      balance: Number(line.value || 0),
+    });
   };
-  
-  // Format data for export
-  const exportData = [];
-  
-  // Add asset accounts
-  assets.forEach(account => {
-    exportData.push({
-      section: 'Assets',
-      type: 'Account',
-      name: account.name,
-      balance: calculateBalance(account)
-    });
-  });
-  
-  // Add accounts receivable
-  accountsReceivable.forEach(item => {
-    exportData.push({
-      section: 'Assets',
-      type: 'Accounts Receivable',
-      name: `${item.client.name} (${item.invoiceNumber})`,
-      balance: item.total
-    });
-  });
-  
-  // Add inventory items
-  inventory.forEach(item => {
-    exportData.push({
-      section: 'Assets',
-      type: 'Inventory',
-      name: item.name,
-      balance: item.stockLevel * item.cost
-    });
-  });
-  
-  // Add liability accounts
-  liabilities.forEach(account => {
-    exportData.push({
-      section: 'Liabilities',
-      type: 'Account',
-      name: account.name,
-      balance: calculateBalance(account)
-    });
-  });
-  
-  // Add equity accounts
-  equity.forEach(account => {
-    exportData.push({
-      section: 'Equity',
-      type: 'Account',
-      name: account.name,
-      balance: calculateBalance(account)
-    });
-  });
-  
-  return exportData;
+  (sheet.assets?.currentAssets?.lineItems || []).forEach((line) => pushLine('Assets', 'Current Asset', line));
+  (sheet.assets?.nonCurrentAssets?.lineItems || []).forEach((line) => pushLine('Assets', 'Non-Current Asset', line));
+  (sheet.liabilities?.currentLiabilities?.lineItems || []).forEach((line) => pushLine('Liabilities', 'Current Liability', line));
+  (sheet.liabilities?.nonCurrentLiabilities?.lineItems || []).forEach((line) => pushLine('Liabilities', 'Non-Current Liability', line));
+  (sheet.equity?.lineItems || []).forEach((line) => pushLine('Equity', 'Equity', line));
+  rows.push(
+    { section: 'Total', type: 'Assets', name: 'Total Assets', balance: sheet.totalAssets || 0 },
+    { section: 'Total', type: 'Liabilities', name: 'Total Liabilities', balance: sheet.totalLiabilities || 0 },
+    { section: 'Total', type: 'Equity', name: 'Total Equity', balance: sheet.totalEquity || 0 },
+    {
+      section: 'Total',
+      type: 'Liabilities and Equity',
+      name: 'Total Liabilities and Equity',
+      balance: sheet.totalLiabilitiesAndEquity || 0,
+    }
+  );
+  return rows;
 }
 
 /**
  * Generate Expense Report data for export
  */
-async function generateExpenseReportData(tenantId, startDate, endDate) {
-  // Get expenses
+async function generateExpenseReportData(tenantId, startDate, endDate, branchId = null) {
+  const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
   const expenses = await prisma.expense.findMany({
     where: {
       tenantId,
-      date: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      status: 'Approved',
+      isDeleted: false,
+      isReversal: false,
+      date: { gte: start, lte: end },
+      ...(branchId ? { branchId } : {})
     },
     include: {
       submittedBy: {
@@ -552,7 +467,7 @@ async function generateExpenseReportData(tenantId, startDate, endDate) {
   
   // Format data for export
   const exportData = expenses.map(expense => ({
-    date: expense.date.toISOString().split('T')[0],
+    date: formatYmdInTimeZone(expense.date),
     category: expense.category,
     description: expense.description,
     merchant: expense.merchant || 'N/A',
@@ -569,10 +484,7 @@ async function generateExpenseReportData(tenantId, startDate, endDate) {
  * Includes inventory write-off + stock-out expenses mirrored from inventory journals.
  */
 async function generateInventoryLossReportData(tenantId, startDate, endDate, branchId = null) {
-  const start = new Date(startDate);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate);
-  end.setHours(23, 59, 59, 999);
+  const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
 
   const normalizedBranchId =
     branchId && typeof branchId === 'object'
@@ -612,7 +524,7 @@ async function generateInventoryLossReportData(tenantId, startDate, endDate, bra
       ? 'Stock-out'
       : 'Unknown';
     return {
-      date: expense.date.toISOString().split('T')[0],
+      date: formatYmdInTimeZone(expense.date),
       eventType,
       description: expense.description || 'Inventory adjustment loss',
       reference: reference || 'N/A',
@@ -626,22 +538,20 @@ async function generateInventoryLossReportData(tenantId, startDate, endDate, bra
 /**
  * Generate Sales Report data for export
  */
-async function generateSalesReportData(tenantId, startDate, endDate) {
-  // Get sales
+async function generateSalesReportData(tenantId, startDate, endDate, branchId = null) {
+  const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
   const sales = await prisma.sale.findMany({
     where: {
-      tenantId,
-      saleDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      ...validSaleReportWhere(tenantId, 'saleDate', start, end),
+      ...(branchId ? { branchId } : {})
     },
     include: {
       client: {
         select: {
           name: true
         }
-      }
+      },
+      items: true
     },
     orderBy: {
       saleDate: 'desc'
@@ -651,18 +561,16 @@ async function generateSalesReportData(tenantId, startDate, endDate) {
   // Get invoices
   const invoices = await prisma.invoice.findMany({
     where: {
-      tenantId,
-      issueDate: {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      }
+      ...validInvoiceReportWhere(tenantId, 'issueDate', start, end),
+      ...(branchId ? { branchId } : {})
     },
     include: {
       client: {
         select: {
           name: true
         }
-      }
+      },
+      items: true
     },
     orderBy: {
       issueDate: 'desc'
@@ -675,24 +583,24 @@ async function generateSalesReportData(tenantId, startDate, endDate) {
   // Add sales data
   sales.forEach(sale => {
     exportData.push({
-      date: sale.saleDate.toISOString().split('T')[0],
+      date: formatYmdInTimeZone(sale.saleDate),
       type: 'Direct Sale',
       number: sale.saleNumber,
       customer: sale.client?.name || 'Direct Customer',
       status: sale.status,
-      total: sale.total
+      total: saleNetRevenueTotalExTax(sale)
     });
   });
   
   // Add invoice data
   invoices.forEach(invoice => {
     exportData.push({
-      date: invoice.issueDate.toISOString().split('T')[0],
+      date: formatYmdInTimeZone(invoice.issueDate),
       type: 'Invoice',
       number: invoice.invoiceNumber,
       customer: invoice.client?.name || 'Unknown',
       status: invoice.status,
-      total: invoice.total
+      total: invoiceNetRevenueTotalExTax(invoice)
     });
   });
   

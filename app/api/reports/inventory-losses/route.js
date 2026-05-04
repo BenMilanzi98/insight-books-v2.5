@@ -2,20 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { addBranchFilterIncludeUnassigned } from '@/lib/dashboardBranchFilter';
-
-function parseDateAtStart(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function parseDateAtEnd(value) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  date.setHours(23, 59, 59, 999);
-  return date;
-}
+import { parseInclusiveApiYmdRange } from '@/lib/dateUtils';
 
 function getEventTypeFromReference(originalReference = '') {
   if (originalReference.startsWith('inventory-writeoff:')) return 'write_off';
@@ -51,9 +38,8 @@ export async function GET(request) {
       );
     }
 
-    const start = parseDateAtStart(startDate);
-    const end = parseDateAtEnd(endDate);
-    if (!start || !end) {
+    const { start, end } = parseInclusiveApiYmdRange(startDate, endDate);
+    if (!start || !end || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return NextResponse.json(
         { error: 'Invalid date format. Use YYYY-MM-DD.' },
         { status: 400 }
