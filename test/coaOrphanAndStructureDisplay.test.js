@@ -59,7 +59,7 @@ describe('structureNodeBalanceBreakdown', () => {
     expect(bd.childrenSum).toBe(100);
   });
 
-  it('uses rolled row when ledger matches exist for code', () => {
+  it('keeps legacy unrolled rows compatible by adding visible children', () => {
     const node2000 = {
       code: '2000',
       children: [{ code: '2110', children: [] }],
@@ -70,9 +70,117 @@ describe('structureNodeBalanceBreakdown', () => {
     ]);
     const memo = new Map();
     const bd = structureNodeBalanceBreakdown(node2000, accountsByCode, {}, true, memo);
-    // Parent structure row with both a same-code balance and subtree: display = leaf + children (server parity).
     expect(bd.display).toBe(600);
     expect(bd.leafSelf).toBe(500);
     expect(bd.childrenSum).toBe(100);
+  });
+
+  it('does not add children again when the API row is already rolled up', () => {
+    const stock = 11_037_070;
+    const node1300 = {
+      code: '1300',
+      children: [
+        { code: '1310', children: [] },
+        { code: '1320', children: [] },
+        { code: '1330', children: [] },
+      ],
+    };
+    const accountsByCode = new Map([
+      [
+        '1300',
+        [
+          {
+            id: 'inv',
+            accountCode: '1300',
+            currentBalance: stock,
+            postedDirectBalance: 0,
+            balanceSource: 'none',
+            isActive: true,
+          },
+        ],
+      ],
+      [
+        '1310',
+        [
+          {
+            id: 'soh',
+            accountCode: '1310',
+            currentBalance: stock,
+            postedDirectBalance: stock,
+            balanceSource: 'inventory_subledger',
+            isActive: true,
+          },
+        ],
+      ],
+      ['1320', [{ id: 'raw', accountCode: '1320', currentBalance: 0, postedDirectBalance: 0, isActive: true }]],
+      ['1330', [{ id: 'git', accountCode: '1330', currentBalance: 0, postedDirectBalance: 0, isActive: true }]],
+    ]);
+    const bd = structureNodeBalanceBreakdown(node1300, accountsByCode, {}, true, new Map());
+    expect(bd.display).toBe(stock);
+    expect(bd.childrenSum).toBe(stock);
+  });
+
+  it('uses rolled parent totals with legitimate direct postings only once', () => {
+    const node = {
+      code: '5200',
+      children: [
+        { code: '5201', children: [] },
+        { code: '5202', children: [] },
+      ],
+    };
+    const accountsByCode = new Map([
+      [
+        '5200',
+        [
+          {
+            id: 'wages',
+            accountCode: '5200',
+            currentBalance: 125,
+            postedDirectBalance: 25,
+            balanceSource: 'posted_gl',
+            isActive: true,
+          },
+        ],
+      ],
+      ['5201', [{ id: 'admin', accountCode: '5201', currentBalance: 40, postedDirectBalance: 40, isActive: true }]],
+      ['5202', [{ id: 'sales', accountCode: '5202', currentBalance: 60, postedDirectBalance: 60, isActive: true }]],
+    ]);
+    const bd = structureNodeBalanceBreakdown(node, accountsByCode, {}, true, new Map());
+    expect(bd.display).toBe(125);
+    expect(bd.childrenSum).toBe(100);
+  });
+
+  it('does not multiply nested server rollups across parent, child, and grandchild rows', () => {
+    const node = {
+      code: '1000',
+      children: [
+        {
+          code: '1100',
+          children: [{ code: '1110', children: [] }],
+        },
+      ],
+    };
+    const accountsByCode = new Map([
+      ['1000', [{ id: 'assets', accountCode: '1000', currentBalance: 140, postedDirectBalance: 0, isActive: true }]],
+      ['1100', [{ id: 'current', accountCode: '1100', currentBalance: 140, postedDirectBalance: 0, isActive: true }]],
+      ['1110', [{ id: 'cash', accountCode: '1110', currentBalance: 140, postedDirectBalance: 140, isActive: true }]],
+    ]);
+    const bd = structureNodeBalanceBreakdown(node, accountsByCode, {}, true, new Map());
+    expect(bd.display).toBe(140);
+    expect(bd.childrenSum).toBe(140);
+  });
+
+  it('keeps zero-balance parent and child rows at zero', () => {
+    const node = {
+      code: '2500',
+      children: [{ code: '2510', children: [] }],
+    };
+    const accountsByCode = new Map([
+      ['2500', [{ id: 'lt', accountCode: '2500', currentBalance: 0, postedDirectBalance: 0, isActive: true }]],
+      ['2510', [{ id: 'loan', accountCode: '2510', currentBalance: 0, postedDirectBalance: 0, isActive: true }]],
+    ]);
+    const bd = structureNodeBalanceBreakdown(node, accountsByCode, {}, true, new Map());
+    expect(bd.display).toBe(0);
+    expect(bd.childrenSum).toBe(0);
   });
 });

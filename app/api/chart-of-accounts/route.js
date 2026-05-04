@@ -579,7 +579,7 @@ export async function GET(request) {
           finalBalance = balance;
         } else if (subledgerOverlayBeforeSuppress > 0) {
           finalBalance = subledgerOverlayBeforeSuppress;
-        } else if (legacyBalance !== 0) {
+        } else if (!hasChildren && legacyBalance !== 0) {
           finalBalance = legacyBalance;
         } else {
           finalBalance = 0;
@@ -597,7 +597,7 @@ export async function GET(request) {
           balanceSource = hasDateFilter ? 'inventory_subledger_as_of' : 'inventory_subledger';
         } else if (subledgerOverlayBeforeSuppress > 0) {
           balanceSource = 'subledger_estimate';
-        } else if (legacyBalance !== 0) {
+        } else if (!hasChildren && legacyBalance !== 0) {
           balanceSource = 'legacy_account_balance';
         }
 
@@ -613,6 +613,8 @@ export async function GET(request) {
           journalEntryBalance: balance,
           postedGlNet: balance,
           balanceSource,
+          legacyStoredBalanceIgnored:
+            hasChildren && !hasPostedGlActivity && legacyBalance !== 0 ? legacyBalance : 0,
           subledgerOverlaySuppressed:
             hasPostedGlActivity && subledgerOverlayBeforeSuppress > 0
               ? subledgerOverlayBeforeSuppress
@@ -1013,4 +1015,3 @@ export async function POST(request) {
     );
   }
 }
-

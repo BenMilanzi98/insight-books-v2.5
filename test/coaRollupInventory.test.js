@@ -4,6 +4,7 @@ import {
   applyStockLedInventoryCoaSubtree,
   foldCatchAllBucketTotalsIntoPostedDirect,
   apply3100CapitalBucketAncestorPropagation,
+  injectSyntheticDirectPostingLeaves,
 } from '../lib/coaChartRollup.js';
 import {
   structureRowDisplayBalance,
@@ -60,6 +61,63 @@ describe('applyCoaParentRollup', () => {
     const rolled = applyCoaParentRollup(accounts);
     const cap = rolled.find((a) => a.id === 'cap');
     expect(cap.currentBalance).toBe(1049);
+  });
+
+  it('does not reuse an already-rolled parent currentBalance as direct when postedDirectBalance is zero', () => {
+    const accounts = [
+      {
+        id: 'p',
+        parentAccountId: null,
+        accountCode: '1300',
+        postedDirectBalance: 0,
+        currentBalance: 11_037_070,
+      },
+      {
+        id: 'c',
+        parentAccountId: 'p',
+        accountCode: '1310',
+        postedDirectBalance: 11_037_070,
+        currentBalance: 11_037_070,
+      },
+    ];
+    const rolled = applyCoaParentRollup(accounts);
+    expect(rolled.find((a) => a.id === 'p').currentBalance).toBe(11_037_070);
+  });
+
+  it('sums multiple child balances and preserves signed debit/credit behavior', () => {
+    const accounts = [
+      { id: 'p', parentAccountId: null, accountCode: '5000', postedDirectBalance: 10 },
+      { id: 'c1', parentAccountId: 'p', accountCode: '5100', postedDirectBalance: 80 },
+      { id: 'c2', parentAccountId: 'p', accountCode: '5200', postedDirectBalance: -30 },
+      { id: 'c3', parentAccountId: 'p', accountCode: '5300', postedDirectBalance: 0 },
+    ];
+    const rolled = applyCoaParentRollup(accounts);
+    expect(rolled.find((a) => a.id === 'p').currentBalance).toBe(60);
+  });
+
+  it('rolls legitimate direct postings once through a synthetic direct child', () => {
+    const accounts = [
+      { id: 'p', parentAccountId: null, accountCode: '5200', postedDirectBalance: 25 },
+      { id: 'c1', parentAccountId: 'p', accountCode: '5201', postedDirectBalance: 40 },
+      { id: 'c2', parentAccountId: 'p', accountCode: '5202', postedDirectBalance: 60 },
+    ];
+    const withSynthetic = injectSyntheticDirectPostingLeaves(accounts);
+    const rolled = applyCoaParentRollup(withSynthetic);
+    const parent = rolled.find((a) => a.id === 'p');
+    const direct = rolled.find((a) => a.parentAccountId === 'p' && a.isSynthetic);
+    expect(direct.currentBalance).toBe(25);
+    expect(parent.currentBalance).toBe(125);
+  });
+
+  it('rolls nested parent child grandchild accounts without multiplying descendant balances', () => {
+    const accounts = [
+      { id: 'root', parentAccountId: null, accountCode: '1000', postedDirectBalance: 0 },
+      { id: 'mid', parentAccountId: 'root', accountCode: '1100', postedDirectBalance: 0 },
+      { id: 'leaf', parentAccountId: 'mid', accountCode: '1110', postedDirectBalance: 140 },
+    ];
+    const rolled = applyCoaParentRollup(accounts);
+    expect(rolled.find((a) => a.id === 'mid').currentBalance).toBe(140);
+    expect(rolled.find((a) => a.id === 'root').currentBalance).toBe(140);
   });
 });
 
