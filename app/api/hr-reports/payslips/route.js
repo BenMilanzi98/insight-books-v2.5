@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import * as XLSX from 'xlsx';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 // Helper function to format currency
 function formatCurrency(amount) {
@@ -164,13 +165,14 @@ async function generatePayslipsPDF(payslips, tenantId) {
       ['Basic Salary', formatCurrency(payslip.earnings.basicSalary)]
     ];
     
-    if (totalAllowances > 0) {
-      earningsData.push(['Allowances', formatCurrency(totalAllowances)]);
-    }
     if (payslip.earnings.overtimePay > 0) {
       earningsData.push(['Overtime Pay', formatCurrency(payslip.earnings.overtimePay)]);
     }
-    earningsData.push(['Gross Pay', formatCurrency(payslip.earnings.grossPay)]);
+    earningsData.push(['Taxable Gross Pay', formatCurrency(payslip.earnings.grossPay)]);
+    if (totalAllowances > 0) {
+      earningsData.push(['Benefits & Allowances (after tax)', formatCurrency(totalAllowances)]);
+      earningsData.push(['Total Earnings Paid', formatCurrency(payslip.earnings.totalEarnings)]);
+    }
 
     autoTable(doc, {
       startY: yPos,
@@ -189,7 +191,7 @@ async function generatePayslipsPDF(payslips, tenantId) {
     if (Object.keys(payslip.earnings.allowances || {}).length > 0) {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('Allowance Breakdown', margin, yPos);
+      doc.text('After-tax Benefits & Allowances Breakdown', margin, yPos);
       yPos += 6;
 
       const allowanceRows = Object.entries(payslip.earnings.allowances).map(([name, value]) => [
@@ -199,7 +201,7 @@ async function generatePayslipsPDF(payslips, tenantId) {
 
       autoTable(doc, {
         startY: yPos,
-        head: [['Allowance', 'Amount']],
+        head: [['Benefit / Allowance', 'Amount']],
         body: allowanceRows,
         theme: 'grid',
         styles: { fontSize: 9, cellPadding: 3, ...borderStyles },
@@ -386,6 +388,26 @@ export async function GET(request) {
         }
       }
 
+      const statutory = getPayrollStatutoryBreakdown(payroll);
+      const totalDeductions = Number(payroll.deductions || 0) || 0;
+      const statutoryDeductions = (statutory.payeAmount || 0) + (statutory.npsEmployeeAmount || 0);
+      const otherDeductionsTotal = Math.max(0, totalDeductions - statutoryDeductions);
+      const existingOtherDeductions = additionalInfo.otherDeductions || {};
+      const existingOtherTotal = Object.values(existingOtherDeductions).reduce(
+        (sum, value) => sum + (Number(value) || 0),
+        0
+      );
+      const otherDeductions =
+        existingOtherTotal > 0 || otherDeductionsTotal === 0
+          ? existingOtherDeductions
+          : { other: otherDeductionsTotal };
+      const allowances = additionalInfo.allowances || {};
+      const allowanceTotal = Object.values(allowances).reduce(
+        (sum, value) => sum + (Number(value) || 0),
+        0
+      );
+      const taxableGrossPay = Number(payroll.grossPay || payroll.basicSalary || 0) || 0;
+
       const payslip = {
         id: `Payslip-${payroll.id}`,
         employee: {
@@ -403,16 +425,17 @@ export async function GET(request) {
         },
         earnings: {
           basicSalary: payroll.basicSalary,
-          allowances: additionalInfo.allowances || {},
+          allowances,
           overtimePay: additionalInfo.overtimePay || 0,
-          grossPay: payroll.grossPay || 0
+          grossPay: taxableGrossPay,
+          totalEarnings: taxableGrossPay + allowanceTotal
         },
         deductions: {
-          paye: payroll.payeAmount || 0,
-          npsEmployee: additionalInfo.npsEmployeeAmount || 0,
-          otherDeductions: additionalInfo.otherDeductions || {},
+          paye: statutory.payeAmount || 0,
+          npsEmployee: statutory.npsEmployeeAmount || 0,
+          otherDeductions,
           deductionNames: additionalInfo.deductionNames || {}, // Include deduction names for display
-          totalDeductions: payroll.deductions || 0
+          totalDeductions
         },
         netPay: payroll.netPay || 0,
         hoursWorked: additionalInfo.hoursWorked || 0,
@@ -447,7 +470,9 @@ export async function GET(request) {
         'Period End': formatDate(payslip.period.end),
         'Payment Date': payslip.period.paymentDate ? formatDate(payslip.period.paymentDate) : '',
         'Basic Salary': payslip.earnings.basicSalary || 0,
-        'Gross Pay': payslip.earnings.grossPay || 0,
+        'Taxable Gross Pay': payslip.earnings.grossPay || 0,
+        'Benefits & Allowances': Object.values(payslip.earnings.allowances || {}).reduce((sum, val) => sum + (Number(val) || 0), 0),
+        'Total Earnings Paid': payslip.earnings.totalEarnings || 0,
         'PAYE': payslip.deductions.paye || 0,
         'NPS Employee': payslip.deductions.npsEmployee || 0,
         'Other Deductions': Object.values(payslip.deductions.otherDeductions || {}).reduce((sum, val) => sum + (typeof val === 'number' ? val : 0), 0),
@@ -468,7 +493,9 @@ export async function GET(request) {
         'Period End': '',
         'Payment Date': '',
         'Basic Salary': payslips.reduce((sum, p) => sum + (p.earnings.basicSalary || 0), 0),
-        'Gross Pay': payslips.reduce((sum, p) => sum + (p.earnings.grossPay || 0), 0),
+        'Taxable Gross Pay': payslips.reduce((sum, p) => sum + (p.earnings.grossPay || 0), 0),
+        'Benefits & Allowances': payslips.reduce((sum, p) => sum + Object.values(p.earnings.allowances || {}).reduce((s, val) => s + (Number(val) || 0), 0), 0),
+        'Total Earnings Paid': payslips.reduce((sum, p) => sum + (p.earnings.totalEarnings || 0), 0),
         'PAYE': payslips.reduce((sum, p) => sum + (p.deductions.paye || 0), 0),
         'NPS Employee': payslips.reduce((sum, p) => sum + (p.deductions.npsEmployee || 0), 0),
         'Other Deductions': payslips.reduce((sum, p) => {

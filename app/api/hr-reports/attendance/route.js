@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isAttendanceStatus, roundHrNumber } from '@/lib/hrCalculations';
 
 /**
  * GET - Generate attendance report
@@ -46,40 +47,9 @@ export async function GET(request) {
       where.employeeId = employeeId;
     }
 
-    // Build base where clause for aggregations
-    const baseWhere = { ...where };
-
-    // Get summary statistics using database aggregation
-    const [presentCount, absentCount, lateCount, leaveCount, totalRecords, totalHoursWorked, totalOvertimeHours] = await Promise.all([
-      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Present' } }),
-      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Absent' } }),
-      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Late' } }),
-      prisma.attendanceRecord.count({ where: { ...baseWhere, status: 'Leave' } }),
-      prisma.attendanceRecord.count({ where: baseWhere }),
-      prisma.attendanceRecord.aggregate({
-        where: baseWhere,
-        _sum: { hoursWorked: true }
-      }).then(result => result._sum.hoursWorked || 0),
-      prisma.attendanceRecord.aggregate({
-        where: baseWhere,
-        _sum: { overtimeHours: true }
-      }).then(result => result._sum.overtimeHours || 0)
-    ]);
-
-    // Calculate summary statistics
-    const summary = {
-      totalRecords,
-      totalHoursWorked,
-      totalOvertimeHours,
-      presentCount,
-      absentCount,
-      lateCount,
-      leaveCount
-    };
-
     // Get attendance records with employee info for detailed report
     const attendanceRecords = await prisma.attendanceRecord.findMany({
-      where: baseWhere,
+      where,
       include: {
         employee: {
           select: {
@@ -112,6 +82,30 @@ export async function GET(request) {
       );
     }
 
+    const summary = filteredRecords.reduce(
+      (stats, record) => {
+        stats.totalRecords++;
+        stats.totalHoursWorked = roundHrNumber(stats.totalHoursWorked + (record.hoursWorked || 0));
+        stats.totalOvertimeHours = roundHrNumber(stats.totalOvertimeHours + (record.overtimeHours || 0));
+        if (isAttendanceStatus(record.status, 'present')) stats.presentCount++;
+        else if (isAttendanceStatus(record.status, 'absent')) stats.absentCount++;
+        else if (isAttendanceStatus(record.status, 'late')) stats.lateCount++;
+        else if (isAttendanceStatus(record.status, 'leave')) stats.leaveCount++;
+        return stats;
+      },
+      {
+        totalRecords: 0,
+        totalHoursWorked: 0,
+        totalOvertimeHours: 0,
+        totalPaidHours: 0,
+        presentCount: 0,
+        absentCount: 0,
+        lateCount: 0,
+        leaveCount: 0
+      }
+    );
+    summary.totalPaidHours = roundHrNumber(summary.totalHoursWorked + summary.totalOvertimeHours);
+
     // Group by employee using database queries for better performance
     const employeeIds = [...new Set(filteredRecords.map(r => r.employeeId))];
     const employeeStats = {};
@@ -123,12 +117,13 @@ export async function GET(request) {
       const employee = empRecords[0].employee;
       const empStats = {
         totalDays: empRecords.length,
-        presentDays: empRecords.filter(r => r.status === 'Present').length,
-        absentDays: empRecords.filter(r => r.status === 'Absent').length,
-        lateDays: empRecords.filter(r => r.status === 'Late').length,
-        leaveDays: empRecords.filter(r => r.status === 'Leave').length,
-        totalHours: empRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0),
-        totalOvertime: empRecords.reduce((sum, r) => sum + (r.overtimeHours || 0), 0)
+        presentDays: empRecords.filter(r => isAttendanceStatus(r.status, 'present')).length,
+        absentDays: empRecords.filter(r => isAttendanceStatus(r.status, 'absent')).length,
+        lateDays: empRecords.filter(r => isAttendanceStatus(r.status, 'late')).length,
+        leaveDays: empRecords.filter(r => isAttendanceStatus(r.status, 'leave')).length,
+        totalHours: roundHrNumber(empRecords.reduce((sum, r) => sum + (r.hoursWorked || 0), 0)),
+        totalOvertime: roundHrNumber(empRecords.reduce((sum, r) => sum + (r.overtimeHours || 0), 0)),
+        totalPaidHours: roundHrNumber(empRecords.reduce((sum, r) => sum + (r.hoursWorked || 0) + (r.overtimeHours || 0), 0))
       };
 
       employeeStats[empId] = {

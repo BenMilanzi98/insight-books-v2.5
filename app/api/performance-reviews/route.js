@@ -3,6 +3,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function parseRating(value, field = 'Rating') {
+  const rating = Number(value);
+  if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
+    throw new Error(`${field} must be a number between 0 and 5`);
+  }
+  return rating;
+}
+
 /**
  * GET - List performance reviews with filters
  */
@@ -127,11 +135,18 @@ export async function POST(request) {
       goalIds
     } = data;
 
-    if (!employeeId || !reviewPeriod || !reviewDate) {
+    if (!employeeId || !reviewPeriod || !reviewDate || overallRating === undefined || overallRating === null || overallRating === '') {
       return NextResponse.json(
-        { error: 'Employee ID, review period, and review date are required' },
+        { error: 'Employee ID, review period, review date, and overall rating are required' },
         { status: 400 }
       );
+    }
+
+    let parsedOverallRating;
+    try {
+      parsedOverallRating = parseRating(overallRating, 'Overall rating');
+    } catch (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     // Verify employee belongs to tenant
@@ -167,6 +182,23 @@ export async function POST(request) {
       goalsAchieved = goals.filter(g => g.status === 'completed').length;
     }
 
+    let normalizedCriteria = [];
+    if (reviewCriteria && Array.isArray(reviewCriteria) && reviewCriteria.length > 0) {
+      try {
+        normalizedCriteria = reviewCriteria
+          .filter(c => c.criteriaName && c.rating !== undefined && c.rating !== null && c.rating !== '')
+          .map(criteria => ({
+            criteriaName: String(criteria.criteriaName).trim(),
+            rating: parseRating(criteria.rating, `Rating for ${criteria.criteriaName}`),
+            comments: criteria.comments || null,
+            weight: Number.isFinite(Number(criteria.weight)) ? Number(criteria.weight) : 1.0
+          }))
+          .filter(criteria => criteria.criteriaName);
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+
     // Create review
     const review = await prisma.performanceReview.create({
       data: {
@@ -176,23 +208,14 @@ export async function POST(request) {
         reviewPeriod,
         reviewType: reviewType || 'annual',
         reviewDate: new Date(reviewDate),
-        overallRating: overallRating ? parseFloat(overallRating) : null,
+        overallRating: parsedOverallRating,
         overallComments: overallComments || null,
         strengths: strengths || null,
         areasForImprovement: areasForImprovement || null,
         goalsAchieved,
         goalsTotal,
         status: 'draft',
-        reviewCriteria: reviewCriteria && Array.isArray(reviewCriteria) && reviewCriteria.length > 0 ? {
-          create: reviewCriteria
-            .filter(c => c.criteriaName && c.rating)
-            .map(criteria => ({
-              criteriaName: criteria.criteriaName,
-              rating: parseFloat(criteria.rating) || 0,
-              comments: criteria.comments || null,
-              weight: criteria.weight ? parseFloat(criteria.weight) : 1.0
-            }))
-        } : undefined
+        reviewCriteria: normalizedCriteria.length > 0 ? { create: normalizedCriteria } : undefined
       },
       include: {
         employee: {

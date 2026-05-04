@@ -5,6 +5,36 @@ import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
 
+function roundEmployeeMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function sumBenefitPayloadAmounts(benefits) {
+  if (!Array.isArray(benefits)) return null;
+  return benefits.reduce((sum, benefit) => {
+    const amount = Number(benefit?.amount);
+    return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+  }, 0);
+}
+
+async function resolveBenefitTotalForSalary({ employeeId, tenantId, benefits }) {
+  const payloadTotal = sumBenefitPayloadAmounts(benefits);
+  if (payloadTotal !== null) return payloadTotal;
+
+  const assigned = await prisma.employeeBenefit.findMany({
+    where: {
+      employeeId,
+      benefit: {
+        tenantId,
+        isActive: true,
+      },
+    },
+    select: { amount: true },
+  });
+
+  return assigned.reduce((sum, eb) => sum + (Number(eb.amount) || 0), 0);
+}
+
 // GET - Fetch a single employee by ID
 export async function GET(request, { params }) {
   try {
@@ -216,7 +246,13 @@ export async function PUT(request, { params }) {
       // as the relation is optional and managed on the GratuityAccount side
     }
 
-    // Handle salary calculation
+    const totalBenefits = await resolveBenefitTotalForSalary({
+      employeeId,
+      tenantId: user.tenantId,
+      benefits: body.benefits,
+    });
+
+    // Handle salary calculation. Benefits are added to net pay, not PAYE/NPS gross.
     if (body.grossSalary !== undefined) {
       if (body.selectedDeductions && body.selectedDeductions.length > 0) {
         const { calculatePayroll } = await import('@/lib/payrollCalculations');
@@ -252,11 +288,11 @@ export async function PUT(request, { params }) {
         const salaryCalculation = calculatePayroll(parseFloat(body.grossSalary), deductions, npsOptions);
         
         // Update salary data
-        updateData.salary = salaryCalculation.netPay;
+        updateData.salary = roundEmployeeMoney(salaryCalculation.netPay + totalBenefits);
         updateData.grossSalary = salaryCalculation.grossSalary;
       } else {
         // No deductions selected, use gross salary as net salary
-        updateData.salary = parseFloat(body.grossSalary);
+        updateData.salary = roundEmployeeMoney(parseFloat(body.grossSalary) + totalBenefits);
         updateData.grossSalary = parseFloat(body.grossSalary);
       }
     } else if (body.salary !== undefined) {

@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
+
+function signedPayrollAmount(payroll, value) {
+  const amount = Number(value) || 0;
+  return payroll.status === 'Reversed' ? -amount : amount;
+}
 
 /**
  * GET - Generate payroll summary report
@@ -100,18 +107,39 @@ export async function GET(request) {
       });
     }
 
+    let npsOptions = { npsEmployeeRatePercent: null, npsEmployerRatePercent: null };
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row) npsOptions = npsRatesFromTenantSettingsRow(row);
+    } catch (e) {
+      console.warn('Payroll summary NPS rate read failed:', e?.message || e);
+    }
+
+    const statutoryByPayrollId = new Map(
+      payrolls.map((payroll) => [
+        payroll.id,
+        getPayrollStatutoryBreakdown(payroll, { ...npsOptions, signed: true }),
+      ]),
+    );
+
     // Calculate summary
     const summary = {
       totalEmployees: new Set(payrolls.map(p => p.employeeId)).size,
       totalPayrolls: payrolls.length,
-      totalBasicSalary: payrolls.reduce((sum, p) => sum + (p.basicSalary || 0), 0),
-      totalAdditions: payrolls.reduce((sum, p) => sum + (p.additions || 0), 0),
-      totalGrossPay: payrolls.reduce((sum, p) => sum + (p.grossPay || 0), 0),
-      totalDeductions: payrolls.reduce((sum, p) => sum + (p.deductions || 0), 0),
-      totalPAYE: payrolls.reduce((sum, p) => sum + (p.payeAmount || 0), 0),
-      totalNPSEmployee: payrolls.reduce((sum, p) => sum + (p.npsEmployeeAmount || 0), 0),
-      totalNPSEmployer: payrolls.reduce((sum, p) => sum + (p.npsEmployerAmount || 0), 0),
-      totalNetPay: payrolls.reduce((sum, p) => sum + (p.netPay || 0), 0)
+      totalBasicSalary: payrolls.reduce((sum, p) => sum + signedPayrollAmount(p, p.basicSalary), 0),
+      totalAdditions: payrolls.reduce((sum, p) => sum + signedPayrollAmount(p, p.additions), 0),
+      totalGrossPay: payrolls.reduce((sum, p) => sum + signedPayrollAmount(p, p.grossPay), 0),
+      totalDeductions: payrolls.reduce((sum, p) => sum + signedPayrollAmount(p, p.deductions), 0),
+      totalPAYE: payrolls.reduce((sum, p) => sum + (statutoryByPayrollId.get(p.id)?.payeAmount || 0), 0),
+      totalNPSEmployee: payrolls.reduce((sum, p) => sum + (statutoryByPayrollId.get(p.id)?.npsEmployeeAmount || 0), 0),
+      totalNPSEmployer: payrolls.reduce((sum, p) => sum + (statutoryByPayrollId.get(p.id)?.npsEmployerAmount || 0), 0),
+      totalNetPay: payrolls.reduce((sum, p) => sum + signedPayrollAmount(p, p.netPay), 0)
     };
 
     // Group by employee
@@ -132,20 +160,24 @@ export async function GET(request) {
         };
       }
       employeePayrolls[empId].payrolls.push({
+        id: payroll.id,
         periodStart: payroll.periodStart,
         periodEnd: payroll.periodEnd,
-        basicSalary: payroll.basicSalary,
-        additions: payroll.additions,
-        grossPay: payroll.grossPay,
-        deductions: payroll.deductions,
-        netPay: payroll.netPay,
+        basicSalary: signedPayrollAmount(payroll, payroll.basicSalary),
+        additions: signedPayrollAmount(payroll, payroll.additions),
+        grossPay: signedPayrollAmount(payroll, payroll.grossPay),
+        deductions: signedPayrollAmount(payroll, payroll.deductions),
+        payeAmount: statutoryByPayrollId.get(payroll.id)?.payeAmount || 0,
+        npsEmployeeAmount: statutoryByPayrollId.get(payroll.id)?.npsEmployeeAmount || 0,
+        npsEmployerAmount: statutoryByPayrollId.get(payroll.id)?.npsEmployerAmount || 0,
+        netPay: signedPayrollAmount(payroll, payroll.netPay),
         status: payroll.status
       });
-      employeePayrolls[empId].totals.basicSalary += payroll.basicSalary || 0;
-      employeePayrolls[empId].totals.additions += payroll.additions || 0;
-      employeePayrolls[empId].totals.grossPay += payroll.grossPay || 0;
-      employeePayrolls[empId].totals.deductions += payroll.deductions || 0;
-      employeePayrolls[empId].totals.netPay += payroll.netPay || 0;
+      employeePayrolls[empId].totals.basicSalary += signedPayrollAmount(payroll, payroll.basicSalary);
+      employeePayrolls[empId].totals.additions += signedPayrollAmount(payroll, payroll.additions);
+      employeePayrolls[empId].totals.grossPay += signedPayrollAmount(payroll, payroll.grossPay);
+      employeePayrolls[empId].totals.deductions += signedPayrollAmount(payroll, payroll.deductions);
+      employeePayrolls[empId].totals.netPay += signedPayrollAmount(payroll, payroll.netPay);
     });
 
     // Group by department
@@ -161,9 +193,9 @@ export async function GET(request) {
           totalDeductions: 0
         };
       }
-      departmentBreakdown[deptName].totalGrossPay += payroll.grossPay || 0;
-      departmentBreakdown[deptName].totalNetPay += payroll.netPay || 0;
-      departmentBreakdown[deptName].totalDeductions += payroll.deductions || 0;
+      departmentBreakdown[deptName].totalGrossPay += signedPayrollAmount(payroll, payroll.grossPay);
+      departmentBreakdown[deptName].totalNetPay += signedPayrollAmount(payroll, payroll.netPay);
+      departmentBreakdown[deptName].totalDeductions += signedPayrollAmount(payroll, payroll.deductions);
     });
 
     // Count unique employees per department
@@ -194,11 +226,14 @@ export async function GET(request) {
           employeeId: p.employee.employeeId,
           department: p.employee.department || p.employee.departmentRef?.name
         },
-        basicSalary: p.basicSalary,
-        additions: p.additions,
-        grossPay: p.grossPay,
-        deductions: p.deductions,
-        netPay: p.netPay,
+        basicSalary: signedPayrollAmount(p, p.basicSalary),
+        additions: signedPayrollAmount(p, p.additions),
+        grossPay: signedPayrollAmount(p, p.grossPay),
+        deductions: signedPayrollAmount(p, p.deductions),
+        payeAmount: statutoryByPayrollId.get(p.id)?.payeAmount || 0,
+        npsEmployeeAmount: statutoryByPayrollId.get(p.id)?.npsEmployeeAmount || 0,
+        npsEmployerAmount: statutoryByPayrollId.get(p.id)?.npsEmployerAmount || 0,
+        netPay: signedPayrollAmount(p, p.netPay),
         status: p.status
       }))
     };

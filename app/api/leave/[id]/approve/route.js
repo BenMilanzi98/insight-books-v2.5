@@ -2,86 +2,66 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { isLeaveStatus, normalizeLeaveStatus } from '@/lib/hrCalculations';
 
-// PUT - Approve a leave request
 export async function PUT(request, { params }) {
   try {
-    // Check permission
     const permissionCheck = await requirePermission(request, 'leave.approve');
     if (permissionCheck) return permissionCheck;
-    
+
     const user = await getUserFromSession(request);
-    const leaveId = params.id;
-    
-    // Check if leave request exists
+    const { id } = await params;
+
     const existingRequest = await prisma.leaveRequest.findFirst({
-      where: {
-        id: leaveId,
-        tenantId: user.tenantId
-      },
-      include: {
-        employee: {
-          select: {
-            name: true
-          }
-        }
-      }
+      where: { id, tenantId: user.tenantId },
+      include: { employee: { select: { name: true } }, leavePolicy: { select: { leaveType: true } } },
     });
-    
+
     if (!existingRequest) {
+      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+    }
+    if (!isLeaveStatus(existingRequest.status, 'pending')) {
       return NextResponse.json(
-        { error: 'Leave request not found' },
-        { status: 404 }
+        { error: `Cannot approve a leave request that is already ${normalizeLeaveStatus(existingRequest.status)}` },
+        { status: 400 },
       );
     }
-    
-    // Can only approve pending requests
-    if (existingRequest.status !== 'Pending') {
-      return NextResponse.json(
-        { error: `Cannot approve a leave request that is already ${existingRequest.status.toLowerCase()}` },
-        { status: 400 }
-      );
-    }
-    
-    // Update the leave request
+
     const updatedRequest = await prisma.leaveRequest.update({
-      where: {
-        id: leaveId
-      },
+      where: { id },
       data: {
-        status: 'Approved',
-        approvedById: user.id,
-        approvedAt: new Date()
-      }
+        status: normalizeLeaveStatus('approved'),
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+      },
     });
-    
-    // Create audit log entry
+
     await prisma.auditLog.create({
       data: {
         action: 'LEAVE_REQUEST_APPROVED',
         entityType: 'LEAVE_REQUEST',
-        entityId: leaveId,
+        entityId: id,
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
           employeeName: existingRequest.employee.name,
-          type: existingRequest.type,
+          leaveType: existingRequest.leavePolicy?.leaveType,
           startDate: existingRequest.startDate.toISOString(),
-          endDate: existingRequest.endDate.toISOString()
-        })
-      }
+          endDate: existingRequest.endDate.toISOString(),
+          totalDays: existingRequest.totalDays,
+        }),
+      },
     });
-    
+
     return NextResponse.json({
       message: 'Leave request approved successfully',
-      leaveRequest: updatedRequest
+      leaveRequest: updatedRequest,
     });
-    
   } catch (error) {
-    console.error(`Error approving leave request ${params.id}:`, error);
+    console.error('Error approving leave request:', error);
     return NextResponse.json(
-      { error: 'Failed to approve leave request. Please try again.' },
-      { status: 500 }
+      { error: 'Failed to approve leave request. Please try again.', details: error.message },
+      { status: 500 },
     );
   }
 }

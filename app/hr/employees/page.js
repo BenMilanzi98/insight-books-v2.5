@@ -1007,7 +1007,7 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
               <div className="mb-6">
                 <h4 className="text-md font-medium text-gray-800 mb-3">Benefits & Allowances</h4>
                 <p className="text-sm text-gray-600 mb-3">
-                  Optional perks paid in addition to basic salary (e.g. house allowance, airtime). These are included in gross pay for payroll.
+                  Optional perks paid in addition to basic salary (e.g. house allowance, airtime). These are added to net pay after deductions.
                 </p>
                 {benefits.filter((b) => b.isActive).length > 0 ? (
                   <div className="space-y-2">
@@ -2349,8 +2349,8 @@ const EmployeeManagement = () => {
 
   const handleFormSubmit = async (formData, options = {}) => {
     setIsSubmitting(true);
-    const { benefits: benefitsPayload, ...employeePayload } = formData;
-    const benefits = Array.isArray(benefitsPayload) ? benefitsPayload : [];
+    const employeePayload = formData;
+    const benefits = Array.isArray(formData.benefits) ? formData.benefits : [];
 
     try {
       let employeeId;

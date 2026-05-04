@@ -2,6 +2,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  calculateLeaveDays,
+  getActiveLeaveStatusVariants,
+  getLeaveStatusVariants,
+  normalizeLeaveStatus,
+} from '@/lib/hrCalculations';
 
 /**
  * GET - List leave requests with filters and pagination
@@ -32,7 +38,7 @@ export async function GET(request) {
     };
 
     if (status && status !== 'All') {
-      where.status = status;
+      where.status = { in: getLeaveStatusVariants(status) };
     }
 
     if (employeeId) {
@@ -133,10 +139,10 @@ export async function POST(request) {
     const startDate = new Date(data.startDate);
     const endDate = new Date(data.endDate);
 
-    // Validate dates
-    if (startDate >= endDate) {
+    // Validate dates. Same-day leave is valid.
+    if (endDate < startDate) {
       return NextResponse.json(
-        { error: 'End date must be after start date' },
+        { error: 'End date cannot be before start date' },
         { status: 400 }
       );
     }
@@ -148,9 +154,7 @@ export async function POST(request) {
       );
     }
 
-    // Calculate total days
-    const timeDiff = endDate.getTime() - startDate.getTime();
-    const totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1; // +1 to include both start and end dates
+    const totalDays = calculateLeaveDays(startDate, endDate);
 
     // Check if employee exists and belongs to tenant
     const employee = await prisma.employee.findFirst({
@@ -204,7 +208,7 @@ export async function POST(request) {
       where: {
         employeeId: data.employeeId,
         tenantId: user.tenantId,
-        status: { in: ['pending', 'approved'] },
+        status: { in: getActiveLeaveStatusVariants() },
         OR: [
           {
             AND: [
@@ -233,7 +237,7 @@ export async function POST(request) {
         totalDays: totalDays,
         reason: data.reason || null,
         documentation: data.documentation || null,
-        status: 'pending',
+        status: normalizeLeaveStatus('pending'),
         tenantId: user.tenantId
       },
       include: {

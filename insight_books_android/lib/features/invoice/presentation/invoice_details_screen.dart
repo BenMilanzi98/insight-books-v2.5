@@ -746,7 +746,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
-                    value: selectedMethod,
+                    initialValue: selectedMethod,
                     decoration: const InputDecoration(
                       labelText: 'Payment account',
                     ),
@@ -878,7 +878,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: method,
+                      initialValue: method,
                       decoration: const InputDecoration(
                         labelText: 'Payment account',
                       ),
@@ -1130,7 +1130,7 @@ class _InvoiceDetailsScreenState extends ConsumerState<InvoiceDetailsScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: method,
+                      initialValue: method,
                       decoration: const InputDecoration(
                         labelText: 'Refund account',
                       ),

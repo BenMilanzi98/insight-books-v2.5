@@ -957,41 +957,6 @@ export async function POST(request) {
         });
       }
 
-      // 4. Overtime expense (if any)
-      if (additions > 0) {
-        const overtimeExpense = await prisma.expense.create({
-          data: {
-            description: `Overtime - ${employee.name}`,
-            amount: additions,
-            date: expenseDate,
-            category: 'Salary',
-            employeeId: employee.id,
-            paymentMethod: getAccountDisplayName(paymentAccount),
-            sourceAccountId: paymentAccount.id,
-            status: 'Approved',
-            paymentStatus: 'Fully paid',
-            paidAmount: additions,
-            submittedById: user.id,
-            tenantId: user.tenantId,
-            originalReference: payrollEntry.id,
-            notes: `Overtime payment for ${employee.name} | ${payrollExpenseMarker}`
-          }
-        });
-
-        await prisma.payment.create({
-          data: {
-            tenantId: user.tenantId,
-            amount: additions,
-            paymentDate: paymentDate,
-            paymentMethod: getAccountDisplayName(paymentAccount),
-            type: 'expense',
-            status: 'Completed',
-            expenseId: overtimeExpense.id,
-            notes: `Overtime payment for ${employee.name}`
-          }
-        });
-      }
-
       const transactionLines = [];
       
       // ============================================
@@ -999,15 +964,14 @@ export async function POST(request) {
       // ============================================
       // Total expense = grossPay + additions + employer NPS
       // This represents the total cost to the company for this employee's payroll
-      // grossPay on Payroll = taxable gross (basic + overtime); additions = allowances (net after tax)
-      // additions = overtime pay
+      // grossPay on Payroll = taxable gross (basic + overtime); additions = benefits/allowances after tax
       // npsEmployerAmount = employer's pension contribution (additional cost)
       // 
       // Accounting Equation:
       // Debit (Salary Expense) = grossPay + additions + npsEmployerAmount
-      // Credits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsExcludingAdvances + totalAdvanceDeductions + netPay + additions
+      // Credits = payeAmount + npsEmployeeAmount + npsEmployerAmount + otherDeductionsExcludingAdvances + totalAdvanceDeductions + netPay
       // 
-      // Since netPay = grossPay - payeAmount - npsEmployeeAmount - otherDeductionsTotal
+      // Since netPay = grossPay - payeAmount - npsEmployeeAmount - otherDeductionsTotal + additions
       // And otherDeductionsTotal = otherDeductionsExcludingAdvances + totalAdvanceDeductions
       // Therefore: Credits = grossPay + additions + npsEmployerAmount ✓ (BALANCED)
       // ============================================
@@ -1022,7 +986,7 @@ export async function POST(request) {
           accountId: expenseAccount.id,
           debitAmount: totalExpenseAmount,
           creditAmount: 0,
-          description: `Payroll expense for ${employee.name} - Gross: ${grossPay.toFixed(2)}, Overtime: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
+          description: `Payroll expense for ${employee.name} - Gross: ${grossPay.toFixed(2)}, Benefits: ${additions.toFixed(2)}, Employer NPS: ${npsEmployerAmount.toFixed(2)}`
         });
       }
 
@@ -1072,16 +1036,15 @@ export async function POST(request) {
         });
       }
 
-      // Credit cash/payment account for net pay + additions (overtime)
-      // This accounts for all cash paid out: net pay to employee + overtime
-      const totalCashPaid = netPay + additions;
+      // Credit cash/payment account for net pay. Net pay already includes after-tax benefits/allowances.
+      const totalCashPaid = netPay;
       if (totalCashPaid > 0) {
         transactionLines.push({
           lineNumber: transactionLines.length + 1,
           accountId: paymentAccount.id,
           debitAmount: 0,
           creditAmount: totalCashPaid,
-          description: `Net pay + overtime to employees (${getAccountDisplayName(paymentAccount)})`
+          description: `Net pay to employees (${getAccountDisplayName(paymentAccount)})`
         });
       }
 

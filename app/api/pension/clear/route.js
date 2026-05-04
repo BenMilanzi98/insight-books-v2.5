@@ -6,6 +6,7 @@ import { requireStandardAccess } from '@/lib/accessControl';
 import { updateAccountBalance } from '@/lib/core';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
 import { parseDateInputForMonthNormalization } from '@/lib/dateUtils';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 function safeNumber(n) {
   const v = Number(n);
@@ -47,15 +48,6 @@ async function getTenantNpsRatesFallback(tenantId) {
   return { employeeRatePercent: employee, employerRatePercent: employer };
 }
 
-function getRatesForPayroll(notesInfo, fallbackRates) {
-  const emp = safeNumber(notesInfo?.npsEmployeeRatePercent);
-  const er = safeNumber(notesInfo?.npsEmployerRatePercent);
-  return {
-    employeeRatePercent: emp > 0 ? emp : fallbackRates.employeeRatePercent,
-    employerRatePercent: er > 0 ? er : fallbackRates.employerRatePercent,
-  };
-}
-
 /**
  * POST /api/pension/clear
  * Body:
@@ -66,7 +58,7 @@ function getRatesForPayroll(notesInfo, fallbackRates) {
  * - clearDate: string (optional, ISO) - payment/expense date
  *
  * Behavior:
- * - Computes employer NPS amount per payroll (grossPay * employerRate%)
+ * - Clears the employer NPS amount that was posted on each payroll
  * - Creates ONE Expense + Payment PER employee (category: "Pension")
  * - Marks payroll.notes as cleared for employer portion to prevent double-clearing
  */
@@ -124,7 +116,6 @@ export async function POST(request) {
         employeeId: true,
         periodStart: true,
         periodEnd: true,
-        grossPay: true,
         totalNpsAmount: true,
         notes: true,
       },
@@ -142,10 +133,11 @@ export async function POST(request) {
       const clearedEmployer = !!info?.pensionClearedEmployer;
       if (clearedEmployer) continue; // idempotency: already cleared
 
-      const rates = getRatesForPayroll(info, fallbackRates);
-      const employerRatePercent = safeNumber(rates.employerRatePercent);
-      const gross = safeNumber(p.grossPay);
-      const employerAmount = gross > 0 ? round2((gross * employerRatePercent) / 100) : 0;
+      const statutory = getPayrollStatutoryBreakdown(p, {
+        npsEmployeeRatePercent: fallbackRates.employeeRatePercent,
+        npsEmployerRatePercent: fallbackRates.employerRatePercent,
+      });
+      const employerAmount = round2(statutory.npsEmployerAmount);
       if (employerAmount <= 0) continue;
 
       const cur = byEmployee.get(p.employeeId) || { payrollIds: [], amount: 0 };

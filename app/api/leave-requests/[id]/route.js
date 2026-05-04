@@ -2,6 +2,12 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import {
+  calculateLeaveDays,
+  getActiveLeaveStatusVariants,
+  isLeaveStatus,
+  normalizeLeaveStatus,
+} from '@/lib/hrCalculations';
 
 /**
  * GET - Fetch a specific leave request
@@ -104,7 +110,7 @@ export async function PUT(request, { params }) {
     }
 
     // Only allow updates for pending requests
-    if (existingRequest.status !== 'pending') {
+    if (!isLeaveStatus(existingRequest.status, 'pending')) {
       return NextResponse.json(
         { error: 'Only pending leave requests can be updated' },
         { status: 400 }
@@ -120,9 +126,9 @@ export async function PUT(request, { params }) {
       startDate = data.startDate ? new Date(data.startDate) : existingRequest.startDate;
       endDate = data.endDate ? new Date(data.endDate) : existingRequest.endDate;
 
-      if (startDate >= endDate) {
+      if (endDate < startDate) {
         return NextResponse.json(
-          { error: 'End date must be after start date' },
+          { error: 'End date cannot be before start date' },
           { status: 400 }
         );
       }
@@ -134,9 +140,7 @@ export async function PUT(request, { params }) {
         );
       }
 
-      // Recalculate total days
-      const timeDiff = endDate.getTime() - startDate.getTime();
-      totalDays = Math.ceil(timeDiff / (1000 * 3600 * 24)) + 1;
+      totalDays = calculateLeaveDays(startDate, endDate);
     }
 
     // Check for overlapping requests (excluding current request)
@@ -146,7 +150,7 @@ export async function PUT(request, { params }) {
           employeeId: existingRequest.employeeId,
           tenantId: user.tenantId,
           id: { not: id },
-          status: { in: ['pending', 'approved'] },
+          status: { in: getActiveLeaveStatusVariants() },
           OR: [
             {
               AND: [
@@ -240,15 +244,16 @@ export async function DELETE(request, { params }) {
     }
 
     // Only allow cancellation for pending requests
-    if (existingRequest.status !== 'pending') {
+    if (!isLeaveStatus(existingRequest.status, 'pending')) {
       return NextResponse.json(
         { error: 'Only pending leave requests can be cancelled' },
         { status: 400 }
       );
     }
 
-    await prisma.leaveRequest.delete({
-      where: { id }
+    await prisma.leaveRequest.update({
+      where: { id },
+      data: { status: normalizeLeaveStatus('cancelled') }
     });
 
     return NextResponse.json({

@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function statusIs(value, expected) {
+  return String(value || '').toLowerCase() === expected;
+}
+
 /**
  * GET - Get performance statistics and history
  */
@@ -29,11 +33,13 @@ export async function GET(request) {
     }
 
     // Get reviews for the year
+    const startOfYear = new Date(`${year}-01-01T00:00:00.000Z`);
+    const endOfYear = new Date(`${year}-12-31T23:59:59.999Z`);
     const reviewsWhere = {
       ...where,
       reviewDate: {
-        gte: new Date(`${year}-01-01`),
-        lte: new Date(`${year}-12-31`)
+        gte: startOfYear,
+        lte: endOfYear
       }
     };
 
@@ -54,10 +60,10 @@ export async function GET(request) {
         where: {
           ...where,
           startDate: {
-            lte: new Date(`${year}-12-31`)
+            lte: endOfYear
           },
           targetDate: {
-            gte: new Date(`${year}-01-01`)
+            gte: startOfYear
           }
         },
         include: {
@@ -74,8 +80,8 @@ export async function GET(request) {
         where: {
           ...where,
           createdAt: {
-            gte: new Date(`${year}-01-01`),
-            lte: new Date(`${year}-12-31`)
+            gte: startOfYear,
+            lte: endOfYear
           }
         },
         include: {
@@ -93,19 +99,19 @@ export async function GET(request) {
     // Calculate statistics
     const stats = {
       totalReviews: reviews.length,
-      completedReviews: reviews.filter(r => r.status === 'completed').length,
+      completedReviews: reviews.filter(r => statusIs(r.status, 'completed') || statusIs(r.status, 'acknowledged')).length,
       averageRating: reviews.length > 0
         ? reviews.reduce((sum, r) => sum + (r.overallRating || 0), 0) / reviews.length
         : 0,
       totalGoals: goals.length,
-      activeGoals: goals.filter(g => g.status === 'active').length,
-      completedGoals: goals.filter(g => g.status === 'completed').length,
+      activeGoals: goals.filter(g => statusIs(g.status, 'active')).length,
+      completedGoals: goals.filter(g => statusIs(g.status, 'completed')).length,
       averageGoalProgress: goals.length > 0
         ? goals.reduce((sum, g) => sum + g.progress, 0) / goals.length
         : 0,
       totalFeedback: feedback.length,
-      averageFeedbackRating: feedback.length > 0
-        ? feedback.filter(f => f.rating).reduce((sum, f) => sum + (f.rating || 0), 0) / feedback.filter(f => f.rating).length
+      averageFeedbackRating: feedback.filter(f => Number.isFinite(Number(f.rating))).length > 0
+        ? feedback.filter(f => Number.isFinite(Number(f.rating))).reduce((sum, f) => sum + (Number(f.rating) || 0), 0) / feedback.filter(f => Number.isFinite(Number(f.rating))).length
         : 0
     };
 
@@ -130,7 +136,7 @@ export async function GET(request) {
             ? empReviews.reduce((sum, r) => sum + (r.overallRating || 0), 0) / empReviews.length
             : 0,
           goals: empGoals.length,
-          completedGoals: empGoals.filter(g => g.status === 'completed').length,
+          completedGoals: empGoals.filter(g => statusIs(g.status, 'completed')).length,
           averageGoalProgress: empGoals.length > 0
             ? empGoals.reduce((sum, g) => sum + g.progress, 0) / empGoals.length
             : 0,

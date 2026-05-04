@@ -167,7 +167,12 @@ export async function POST(request) {
       include: {
         employeeBenefits: {
           where: { benefit: { isActive: true } },
-          select: { amount: true }
+          select: {
+            amount: true,
+            benefit: {
+              select: { name: true }
+            }
+          }
         }
       }
     });
@@ -208,6 +213,14 @@ export async function POST(request) {
         (sum, eb) => sum + (toPayrollNumber(eb.amount) ?? 0),
         0
       );
+      const allowances = {};
+      for (const eb of employee.employeeBenefits || []) {
+        const name = eb.benefit?.name;
+        const amount = toPayrollNumber(eb.amount) ?? 0;
+        if (name && amount > 0) {
+          allowances[name] = amount;
+        }
+      }
       // PAYE / NPS / % deductions use contractual gross only; benefits are added to net after deductions.
       const ids = normalizeDeductionIds(employee.selectedDeductions);
       const selected =
@@ -221,6 +234,14 @@ export async function POST(request) {
         npsEmployerRatePercent,
       });
       const netWithBenefits = roundPayrollMoney(calc.netPay + benefitsTotal);
+      const notes = JSON.stringify({
+        allowances,
+        payeTaxableIncome: calc.payeTaxableIncome ?? null,
+        npsEmployeeAmount: calc.nps.employeeAmount || 0,
+        npsEmployerAmount: calc.nps.employerAmount || 0,
+        npsEmployeeRatePercent: calc.npsRatesApplied?.employeeRatePercent ?? null,
+        npsEmployerRatePercent: calc.npsRatesApplied?.employerRatePercent ?? null,
+      });
 
       return prisma.payroll.create({
         data: {
@@ -228,13 +249,14 @@ export async function POST(request) {
           tenantId: user.tenantId,
           periodStart,
           periodEnd,
-          basicSalary: employee.salary,
+          basicSalary: roundPayrollMoney(grossFromField),
           grossPay: roundPayrollMoney(grossFromField),
           deductions: calc.totalDeductions,
           additions: roundPayrollMoney(benefitsTotal),
           netPay: netWithBenefits,
           payeAmount: calc.paye.payeAmount,
           totalNpsAmount: calc.nps.totalAmount,
+          notes,
           status: 'Pending',
           paymentDate,
         },
@@ -252,6 +274,8 @@ export async function POST(request) {
     // Calculate totals
     const totalAmount = payrollEntries.reduce((sum, p) => sum + p.basicSalary + p.additions, 0);
     const totalDeductions = payrollEntries.reduce((sum, p) => sum + p.deductions, 0);
+    const totalPAYE = payrollEntries.reduce((sum, p) => sum + (p.payeAmount || 0), 0);
+    const totalNPS = payrollEntries.reduce((sum, p) => sum + (p.totalNpsAmount || 0), 0);
     const netAmount = payrollEntries.reduce((sum, p) => sum + p.netPay, 0);
     
     // Create audit log entry
@@ -282,7 +306,9 @@ export async function POST(request) {
         totalAmount,
         employeeCount: employees.length,
         status: 'Pending',
-        taxes: totalAmount - totalDeductions - netAmount,
+        taxes: totalPAYE,
+        totalDeductions,
+        totalNPS,
         netAmount,
         employees: employees.map(e => e.id)
       },

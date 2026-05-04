@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { getLeaveStatusVariants } from '@/lib/hrCalculations';
 
 /**
  * GET - Fetch leave balances for employees
@@ -137,7 +138,7 @@ export async function POST(request) {
         employeeId,
         leavePolicyId,
         tenantId: user.tenantId,
-        status: 'approved',
+        status: { in: getLeaveStatusVariants('approved') },
         OR: [
           {
             AND: [
@@ -157,7 +158,7 @@ export async function POST(request) {
         employeeId,
         leavePolicyId,
         tenantId: user.tenantId,
-        status: 'pending',
+        status: { in: getLeaveStatusVariants('pending') },
         OR: [
           {
             AND: [

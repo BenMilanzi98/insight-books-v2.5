@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isLeaveStatus, normalizeLeaveStatus } from '@/lib/hrCalculations';
 
 /**
  * POST - Approve or reject a leave request
@@ -58,14 +59,14 @@ export async function POST(request, { params }) {
     }
 
     // Only allow approval/rejection for pending requests
-    if (existingRequest.status !== 'pending') {
+    if (!isLeaveStatus(existingRequest.status, 'pending')) {
       return NextResponse.json(
         { error: 'Only pending leave requests can be approved or rejected' },
         { status: 400 }
       );
     }
 
-    const newStatus = action === 'approve' ? 'approved' : 'rejected';
+    const newStatus = normalizeLeaveStatus(action === 'approve' ? 'approved' : 'rejected');
 
     const updatedRequest = await prisma.leaveRequest.update({
       where: { id },

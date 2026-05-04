@@ -141,9 +141,26 @@ export async function POST(request) {
     const start = new Date(startDate);
     const target = new Date(targetDate);
 
+    if (Number.isNaN(start.getTime()) || Number.isNaN(target.getTime())) {
+      return NextResponse.json(
+        { error: 'Start date and target date must be valid dates' },
+        { status: 400 }
+      );
+    }
+
     if (start >= target) {
       return NextResponse.json(
         { error: 'Target date must be after start date' },
+        { status: 400 }
+      );
+    }
+
+    const parsedTargetValue = targetValue !== undefined && targetValue !== null && targetValue !== ''
+      ? Number(targetValue)
+      : null;
+    if (parsedTargetValue !== null && (!Number.isFinite(parsedTargetValue) || parsedTargetValue < 0)) {
+      return NextResponse.json(
+        { error: 'Target value must be a non-negative number' },
         { status: 400 }
       );
     }
@@ -155,7 +172,7 @@ export async function POST(request) {
         title,
         description: description || null,
         category: category || null,
-        targetValue: targetValue ? parseFloat(targetValue) : null,
+        targetValue: parsedTargetValue,
         targetUnit: targetUnit || null,
         startDate: start,
         targetDate: target,

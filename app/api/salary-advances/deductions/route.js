@@ -46,6 +46,35 @@ export async function POST(request) {
     }
 
     const deductionAmount = Number(amount);
+    if (!Number.isFinite(deductionAmount) || deductionAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Deduction amount must be greater than zero' },
+        { status: 400 }
+      );
+    }
+    if (deductionAmount > advance.outstandingAmount) {
+      return NextResponse.json(
+        { error: 'Deduction amount cannot exceed the outstanding advance balance' },
+        { status: 400 }
+      );
+    }
+
+    if (payrollId) {
+      const payroll = await prisma.payroll.findFirst({
+        where: {
+          id: payrollId,
+          tenantId: user.tenantId,
+          employeeId: advance.employeeId
+        }
+      });
+      if (!payroll) {
+        return NextResponse.json(
+          { error: 'Payroll record not found for this employee' },
+          { status: 404 }
+        );
+      }
+    }
+
     const newTotalDeducted = advance.totalDeducted + deductionAmount;
     const newOutstanding = Math.max(0, advance.amount - newTotalDeducted);
 

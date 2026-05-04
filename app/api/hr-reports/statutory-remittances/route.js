@@ -4,6 +4,8 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateStatutoryRemittances } from '@/lib/malawiTaxUtils';
 import { getTenantBranding } from '@/lib/reportBranding';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 /**
  * GET - Generate statutory remittances report
@@ -62,8 +64,22 @@ export async function GET(request) {
       );
     }
 
-    // Calculate statutory remittances
-    const remittances = calculateStatutoryRemittances(payrolls);
+    let npsOptions = { npsEmployeeRatePercent: null, npsEmployerRatePercent: null };
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row) npsOptions = npsRatesFromTenantSettingsRow(row);
+    } catch (e) {
+      console.warn('Statutory remittances NPS rate read failed:', e?.message || e);
+    }
+
+    // Calculate statutory remittances from posted payroll values/rates.
+    const remittances = calculateStatutoryRemittances(payrolls, npsOptions);
 
     // Get tenant information
     const tenantBranding = await getTenantBranding(user.tenantId);
@@ -77,7 +93,7 @@ export async function GET(request) {
       },
       summary: {
         totalEmployees: payrolls.length,
-        totalGrossPay: payrolls.reduce((sum, p) => sum + p.grossPay, 0),
+        totalGrossPay: payrolls.reduce((sum, p) => sum + (Number(p.grossPay) || 0), 0),
         totalPAYE: remittances.paye.amount,
         totalNPS: remittances.nps.totalAmount,
         totalStatutory: remittances.totalStatutory
@@ -98,14 +114,20 @@ export async function GET(request) {
         authority: 'Pension Fund Administrator',
         accountDetails: 'To be provided by pension fund administrator'
       },
-      employeeBreakdown: payrolls.map(payroll => ({
-        employeeId: payroll.employee.employeeId,
-        employeeName: payroll.employee.name,
-        grossPay: payroll.grossPay,
-        payeAmount: payroll.payeAmount || 0,
-        npsEmployeeAmount: payroll.npsEmployeeAmount || 0,
-        npsEmployerAmount: payroll.npsEmployerAmount || 0
-      }))
+      employeeBreakdown: payrolls.map(payroll => {
+        const statutory = getPayrollStatutoryBreakdown(payroll, {
+          ...npsOptions,
+          signed: true,
+        });
+        return {
+          employeeId: payroll.employee.employeeId,
+          employeeName: payroll.employee.name,
+          grossPay: payroll.grossPay,
+          payeAmount: statutory.payeAmount,
+          npsEmployeeAmount: statutory.npsEmployeeAmount,
+          npsEmployerAmount: statutory.npsEmployerAmount,
+        };
+      })
     };
 
     if (format === 'json') {

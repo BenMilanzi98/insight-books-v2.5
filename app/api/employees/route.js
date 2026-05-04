@@ -12,6 +12,18 @@ function employeeIsActiveForStats(e) {
   return true;
 }
 
+function roundEmployeeMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function sumBenefitPayloadAmounts(benefits) {
+  if (!Array.isArray(benefits)) return 0;
+  return benefits.reduce((sum, benefit) => {
+    const amount = Number(benefit?.amount);
+    return sum + (Number.isFinite(amount) && amount > 0 ? amount : 0);
+  }, 0);
+}
+
 export async function POST(request) {
   try {
     const data = await request.json();
@@ -181,7 +193,9 @@ export async function POST(request) {
       tenantId: user.tenantId
     };
 
-    // Calculate salary with deductions if provided
+    const totalBenefits = sumBenefitPayloadAmounts(data.benefits);
+
+    // Calculate salary with deductions if provided. Benefits are added to net pay, not PAYE/NPS gross.
     let salaryCalculation = null;
     if (data.grossSalary) {
       if (data.selectedDeductions && data.selectedDeductions.length > 0) {
@@ -218,11 +232,11 @@ export async function POST(request) {
         salaryCalculation = calculatePayroll(parseFloat(data.grossSalary), deductions, npsOptions);
         
         // Update employee data with calculated salary
-        employeeData.salary = salaryCalculation.netPay;
+        employeeData.salary = roundEmployeeMoney(salaryCalculation.netPay + totalBenefits);
         employeeData.grossSalary = salaryCalculation.grossSalary;
       } else {
         // No deductions selected, use gross salary as net salary
-        employeeData.salary = parseFloat(data.grossSalary);
+        employeeData.salary = roundEmployeeMoney(parseFloat(data.grossSalary) + totalBenefits);
         employeeData.grossSalary = parseFloat(data.grossSalary);
       }
     }

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { calculateMalawiPayroll } from '../lib/malawiTaxUtils.js';
+import {
+  calculateMalawiPayroll,
+  calculateStatutoryRemittances,
+  generatePayrollJournalEntries,
+} from '../lib/malawiTaxUtils.js';
 import {
   calculatePayroll,
   calculateCustomDeductions,
@@ -94,6 +98,86 @@ describe('calculateMalawiPayroll — PAYE on taxable income after NPS', () => {
     expect(withAllow.payeAmount).toBe(noAllow.payeAmount);
     expect(withAllow.npsEmployeeAmount).toBe(noAllow.npsEmployeeAmount);
     expect(withAllow.netPay).toBe(noAllow.netPay + 100_000);
+  });
+
+  it('accumulates PAYE, NPS, other deductions, and benefits exactly once', () => {
+    const r = calculateMalawiPayroll(
+      {
+        basicSalary: 500_000,
+        allowances: { housing: 100_000 },
+        otherDeductions: { loan: 10_000 },
+      },
+      true,
+      true,
+      { employeeRatePercent: 5, employerRatePercent: 5 },
+    );
+
+    expect(r.grossPay).toBe(500_000);
+    expect(r.totalAllowances).toBe(100_000);
+    expect(r.npsEmployeeAmount).toBe(25_000);
+    expect(r.payeTaxableIncome).toBe(475_000);
+    expect(r.payeAmount).toBe(91_500);
+    expect(r.totalDeductions).toBe(126_500);
+    expect(r.netPay).toBe(473_500);
+  });
+
+  it('balances generated journal entries when benefits and employer NPS are present', () => {
+    const payroll = calculateMalawiPayroll(
+      {
+        basicSalary: 500_000,
+        allowances: { housing: 100_000 },
+        otherDeductions: {},
+      },
+      true,
+      true,
+      { employeeRatePercent: 5, employerRatePercent: 5 },
+    );
+
+    const entries = generatePayrollJournalEntries(payroll, 'tenant-1');
+    const debit = entries.reduce((sum, entry) => sum + entry.debit, 0);
+    const credit = entries.reduce((sum, entry) => sum + entry.credit, 0);
+
+    expect(debit).toBe(625_000);
+    expect(credit).toBe(625_000);
+  });
+
+  it('reports posted NPS split from payroll notes, including non-5/5 tenant rates', () => {
+    const remittances = calculateStatutoryRemittances([
+      {
+        payeAmount: 91_500,
+        totalNpsAmount: 60_000,
+        status: 'Posted',
+        notes: JSON.stringify({
+          npsEmployeeAmount: 25_000,
+          npsEmployerAmount: 35_000,
+          npsEmployeeRatePercent: 5,
+          npsEmployerRatePercent: 7,
+        }),
+      },
+    ]);
+
+    expect(remittances.paye.amount).toBe(91_500);
+    expect(remittances.nps.employeeAmount).toBe(25_000);
+    expect(remittances.nps.employerAmount).toBe(35_000);
+    expect(remittances.nps.totalAmount).toBe(60_000);
+  });
+
+  it('splits legacy total NPS by configured fallback rates when split is missing', () => {
+    const remittances = calculateStatutoryRemittances(
+      [
+        {
+          payeAmount: 0,
+          totalNpsAmount: 120_000,
+          status: 'Posted',
+          notes: null,
+        },
+      ],
+      { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 7 },
+    );
+
+    expect(remittances.nps.employeeAmount).toBe(50_000);
+    expect(remittances.nps.employerAmount).toBe(70_000);
+    expect(remittances.nps.totalAmount).toBe(120_000);
   });
 });
 

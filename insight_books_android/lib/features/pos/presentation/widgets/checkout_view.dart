@@ -118,7 +118,7 @@ class _CheckoutViewState extends ConsumerState<CheckoutView> {
                   )
                 else
                   DropdownButtonFormField<String>(
-                    value: _effectivePaymentAccountId(posState),
+                    initialValue: _effectivePaymentAccountId(posState),
                     decoration: const InputDecoration(
                       labelText: 'Pay into account',
                       border: OutlineInputBorder(),

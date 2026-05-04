@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isAttendanceStatus, roundHrNumber } from '@/lib/hrCalculations';
+
+function currentGrossSalary(employee) {
+  return Number(employee.grossSalary || 0) || Number(employee.salary || 0) || 0;
+}
 
 /**
  * GET - Generate employee summary report
@@ -89,11 +94,12 @@ export async function GET(request) {
 
       const attendanceStats = employee.attendanceRecords.reduce((stats, record) => {
         stats.totalDays++;
-        stats.totalHours += record.hoursWorked || 0;
-        stats.totalOvertime += record.overtimeHours || 0;
-        if (record.status === 'Present') stats.presentDays++;
-        else if (record.status === 'Absent') stats.absentDays++;
-        else if (record.status === 'Late') stats.lateDays++;
+        stats.totalHours = roundHrNumber(stats.totalHours + (record.hoursWorked || 0));
+        stats.totalOvertime = roundHrNumber(stats.totalOvertime + (record.overtimeHours || 0));
+        stats.totalPaidHours = roundHrNumber(stats.totalHours + stats.totalOvertime);
+        if (isAttendanceStatus(record.status, 'present')) stats.presentDays++;
+        else if (isAttendanceStatus(record.status, 'absent')) stats.absentDays++;
+        else if (isAttendanceStatus(record.status, 'late')) stats.lateDays++;
         return stats;
       }, {
         totalDays: 0,
@@ -101,7 +107,8 @@ export async function GET(request) {
         absentDays: 0,
         lateDays: 0,
         totalHours: 0,
-        totalOvertime: 0
+        totalOvertime: 0,
+        totalPaidHours: 0
       });
 
       return {
@@ -115,7 +122,8 @@ export async function GET(request) {
         employmentType: employee.employmentType || 'N/A',
         startDate: employee.startDate,
         isActive: employee.isActive,
-        salary: employee.salary || employee.grossSalary || 0,
+        salary: currentGrossSalary(employee),
+        netSalary: employee.salary || 0,
         payrollStatistics: {
           totalPayrolls,
           totalGrossPay,
@@ -133,9 +141,9 @@ export async function GET(request) {
       activeEmployees: employees.filter(e => e.isActive).length,
       inactiveEmployees: employees.filter(e => !e.isActive).length,
       totalDepartments: new Set(employees.map(e => e.department || e.departmentRef?.name).filter(Boolean)).size,
-      totalSalaryExpense: employees.reduce((sum, e) => sum + (e.salary || e.grossSalary || 0), 0),
+      totalSalaryExpense: employees.reduce((sum, e) => sum + currentGrossSalary(e), 0),
       averageSalary: employees.length > 0 
-        ? employees.reduce((sum, e) => sum + (e.salary || e.grossSalary || 0), 0) / employees.length 
+        ? employees.reduce((sum, e) => sum + currentGrossSalary(e), 0) / employees.length 
         : 0
     };
 
@@ -152,7 +160,7 @@ export async function GET(request) {
         };
       }
       departmentBreakdown[deptName].employeeCount++;
-      departmentBreakdown[deptName].totalSalary += employee.salary || employee.grossSalary || 0;
+      departmentBreakdown[deptName].totalSalary += currentGrossSalary(employee);
       departmentBreakdown[deptName].employees.push({
         id: employee.id,
         name: employee.name,

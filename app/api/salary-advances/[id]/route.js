@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { createTransactionReversal } from '@/lib/transactionReversalService';
 
 /**
  * GET - Get specific salary advance
@@ -97,10 +98,38 @@ export async function PUT(request, { params }) {
 
     // If updating amount and no deductions yet, recalculate
     if (body.amount && advance.totalDeducted === 0) {
+      const postedTransaction = await prisma.transaction.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          sourceType: 'SalaryAdvance',
+          sourceId: id,
+          isReversal: false
+        },
+        select: { id: true }
+      });
+      if (postedTransaction && Number(body.amount) !== Number(advance.amount)) {
+        return NextResponse.json(
+          { error: 'Cannot modify a posted advance amount. Cancel this advance and create a corrected one.' },
+          { status: 400 }
+        );
+      }
       const months = body.repaymentMonths || advance.repaymentMonths;
-      updateData.amount = Number(body.amount);
-      updateData.monthlyDeduction = Number(body.amount) / months;
-      updateData.outstandingAmount = Number(body.amount);
+      const amount = Number(body.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return NextResponse.json(
+          { error: 'Advance amount must be greater than zero' },
+          { status: 400 }
+        );
+      }
+      if (!Number.isInteger(Number(months)) || Number(months) <= 0) {
+        return NextResponse.json(
+          { error: 'Repayment months must be a positive whole number' },
+          { status: 400 }
+        );
+      }
+      updateData.amount = amount;
+      updateData.monthlyDeduction = Math.round((amount / Number(months)) * 100) / 100;
+      updateData.outstandingAmount = amount;
       if (body.repaymentMonths) updateData.repaymentMonths = months;
     }
 
@@ -130,7 +159,7 @@ export async function PUT(request, { params }) {
 }
 
 /**
- * DELETE - Cancel/delete salary advance (only if no deductions)
+ * DELETE - Cancel salary advance and reverse its posted GL if no deductions exist
  */
 export async function DELETE(request, { params }) {
   try {
@@ -162,11 +191,50 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    await prisma.salaryAdvance.delete({
-      where: { id }
+    const postedTransaction = await prisma.transaction.findFirst({
+      where: {
+        tenantId: user.tenantId,
+        sourceType: 'SalaryAdvance',
+        sourceId: id,
+        isReversal: false
+      },
+      orderBy: { date: 'asc' }
     });
 
-    return NextResponse.json({ message: 'Salary advance deleted successfully' });
+    if (postedTransaction) {
+      const existingReversal = await prisma.transaction.findFirst({
+        where: {
+          tenantId: user.tenantId,
+          isReversal: true,
+          reversedTransactionId: postedTransaction.id
+        }
+      });
+      if (!existingReversal) {
+        await createTransactionReversal({
+          transactionId: postedTransaction.id,
+          reversalReason: 'Salary advance cancelled before any payroll deduction',
+          userId: user.id,
+          tenantId: user.tenantId
+        });
+      }
+    }
+
+    const updated = await prisma.salaryAdvance.update({
+      where: { id },
+      data: {
+        status: 'Cancelled',
+        outstandingAmount: advance.amount,
+        notes: [
+          advance.notes,
+          `Cancelled on ${new Date().toISOString()} before payroll deductions.`
+        ].filter(Boolean).join('\n')
+      }
+    });
+
+    return NextResponse.json({
+      message: 'Salary advance cancelled successfully',
+      advance: updated
+    });
 
   } catch (error) {
     console.error('Error deleting salary advance:', error);

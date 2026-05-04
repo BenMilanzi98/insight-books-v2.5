@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { formatSalaryAmount } from '@/lib/currencyUtils';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 export async function GET(request, { params }) {
   const { id } = await params;
@@ -75,12 +76,15 @@ export async function GET(request, { params }) {
 function processPayslipData(payroll) {
   const basicSalary = payroll.basicSalary || 0;
   const additions = payroll.additions || 0;
-  const deductions = payroll.deductions || 0;
-  const grossPay = basicSalary + additions;
-  const paye = Number(payroll.payeAmount || 0) || 0;
-  const pension = Number(payroll.totalNpsAmount || 0) || 0;
+  const statutory = getPayrollStatutoryBreakdown(payroll);
+  const grossPay = Number(payroll.grossPay || basicSalary || 0) || 0;
+  const paye = statutory.payeAmount || 0;
+  const pension = statutory.npsEmployeeAmount || 0;
+  const deductions = Math.max(0, (Number(payroll.deductions || 0) || 0) - paye - pension);
   const tax = paye;
   const netPay = payroll.netPay || 0;
+  const deductionsTotal = deductions + pension + paye;
+  const totalEarnings = grossPay + additions;
 
   return {
     ...payroll,
@@ -89,17 +93,18 @@ function processPayslipData(payroll) {
     deductions,
     pension,
     paye,
-    deductionsTotal: deductions,
+    deductionsTotal,
     netPay,
     tax,
     grossPay,
+    totalEarnings,
     refNumber: `PS-${payroll.id.substring(0, 8).toUpperCase()}`,
     issueDate: new Date().toISOString(),
     payPeriod: `${new Date(payroll.periodStart).toLocaleString('default', { month: 'long' })} ${new Date(payroll.periodStart).getFullYear()}`,
     benefits: {},
     benefitsTotal: 0,
     yearToDate: {
-      earnings: grossPay,
+      earnings: totalEarnings,
       tax: tax,
       netPay: netPay
     }
@@ -434,12 +439,12 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
             </tr>
             ${processedPayslip.additions > 0 ? `
             <tr>
-              <td>Additions</td>
+              <td>Benefits & Allowances (after tax)</td>
               <td>${formatSalaryAmount(processedPayslip.additions)}</td>
             </tr>
             ` : ''}
             <tr class="total-row">
-              <td><strong>Gross Pay</strong></td>
+              <td><strong>Taxable Gross Pay</strong></td>
               <td><strong>${formatSalaryAmount(processedPayslip.grossPay)}</strong></td>
             </tr>
           </tbody>
@@ -470,7 +475,7 @@ function generatePayslipHtml(processedPayslip, tenant, tenantSettings) {
             </tr>
             <tr class="total-row">
               <td><strong>Total Deductions</strong></td>
-              <td><strong>${formatSalaryAmount((processedPayslip.deductions || 0) + (processedPayslip.pension || 0) + (processedPayslip.paye || 0))}</strong></td>
+              <td><strong>${formatSalaryAmount(processedPayslip.deductionsTotal || 0)}</strong></td>
             </tr>
           </tbody>
         </table>
@@ -633,8 +638,8 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
       head: [['Description', 'Amount']],
       body: [
         ['Basic Salary', formatSalaryAmount(processedPayslip.basicSalary)],
-        ...(processedPayslip.additions > 0 ? [['Additions', formatSalaryAmount(processedPayslip.additions)]] : []),
-        ['Gross Pay', formatSalaryAmount(processedPayslip.grossPay)]
+        ...(processedPayslip.additions > 0 ? [['Benefits & Allowances (after tax)', formatSalaryAmount(processedPayslip.additions)]] : []),
+        ['Taxable Gross Pay', formatSalaryAmount(processedPayslip.grossPay)]
       ],
       headStyles: {
         fillColor: [40, 40, 40],
@@ -656,11 +661,7 @@ async function generatePayslipPDFWithJsPDF(processedPayslip) {
         ['Income Tax (PAYE)', formatSalaryAmount(processedPayslip.paye || 0)],
         [
           'Total Deductions',
-          formatSalaryAmount(
-            (processedPayslip.deductions || 0) +
-              (processedPayslip.pension || 0) +
-              (processedPayslip.paye || 0)
-          )
+          formatSalaryAmount(processedPayslip.deductionsTotal || 0)
         ]
       ],
       headStyles: {

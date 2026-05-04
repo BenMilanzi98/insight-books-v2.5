@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { calculateAttendanceHours } from '@/lib/hrCalculations';
 
 // GET - List attendance with filters (date range, employeeId, department) and pagination
 export async function GET(request) {
@@ -150,11 +151,19 @@ export async function POST(request) {
     }
 
     // Check if record already exists for this employee and date
+    const startOfParsedDay = new Date(parsedDate);
+    startOfParsedDay.setHours(0, 0, 0, 0);
+    const endOfParsedDay = new Date(parsedDate);
+    endOfParsedDay.setHours(23, 59, 59, 999);
+
     const existingRecord = await prisma.attendanceRecord.findFirst({
       where: {
         employeeId,
         tenantId: user.tenantId,
-        date: parsedDate
+        date: {
+          gte: startOfParsedDay,
+          lte: endOfParsedDay
+        }
       }
     });
 
@@ -207,20 +216,17 @@ export async function POST(request) {
     let calculatedHoursWorked = Number(hoursWorked) || 0;
     let calculatedOvertimeHours = Number(overtimeHours) || 0;
     
-    if (parsedClockIn && parsedClockOut && (calculatedHoursWorked === 0 || !hoursWorked)) {
-      const diffMs = parsedClockOut.getTime() - parsedClockIn.getTime();
-      if (diffMs > 0) {
-        const diffHours = diffMs / (1000 * 60 * 60);
-        const totalHours = Math.round(diffHours * 100) / 100;
-        const standardHours = 8;
-        
-        if (totalHours > standardHours) {
-          calculatedHoursWorked = standardHours;
-          calculatedOvertimeHours = Math.round((totalHours - standardHours) * 100) / 100;
-        } else {
-          calculatedHoursWorked = totalHours;
-          calculatedOvertimeHours = 0;
-        }
+    if (parsedClockIn && parsedClockOut) {
+      let attendanceHours;
+      try {
+        attendanceHours = calculateAttendanceHours(parsedClockIn, parsedClockOut);
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
+      if (calculatedHoursWorked === 0 || !hoursWorked) {
+        calculatedHoursWorked = attendanceHours.hoursWorked;
+        calculatedOvertimeHours = attendanceHours.overtimeHours;
       }
     }
 

@@ -3,6 +3,15 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function parseOptionalRating(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const rating = Number(value);
+  if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
+    throw new Error('Rating must be a number between 0 and 5');
+  }
+  return rating;
+}
+
 /**
  * GET - List performance feedback with filters
  */
@@ -170,6 +179,13 @@ export async function POST(request) {
       );
     }
 
+    let parsedRating;
+    try {
+      parsedRating = parseOptionalRating(rating);
+    } catch (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
     const feedback = await prisma.performanceFeedback.create({
       data: {
         employeeId,
@@ -177,7 +193,7 @@ export async function POST(request) {
         tenantId: user.tenantId,
         feedbackType: feedbackType || 'peer',
         reviewId: reviewId || null,
-        rating: rating ? parseFloat(rating) : null,
+        rating: parsedRating,
         strengths: strengths || null,
         areasForImprovement: areasForImprovement || null,
         suggestions: suggestions || null,

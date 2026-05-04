@@ -3,6 +3,14 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 
+function parseRating(value, field = 'Rating') {
+  const rating = Number(value);
+  if (!Number.isFinite(rating) || rating < 0 || rating > 5) {
+    throw new Error(`${field} must be a number between 0 and 5`);
+  }
+  return rating;
+}
+
 /**
  * GET - Get a specific performance review
  */
@@ -106,23 +114,37 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Update review criteria if provided
+    let normalizedCriteria = null;
     if (data.reviewCriteria) {
+      if (!Array.isArray(data.reviewCriteria)) {
+        return NextResponse.json({ error: 'Review criteria must be an array' }, { status: 400 });
+      }
+      try {
+        normalizedCriteria = data.reviewCriteria
+          .filter(criteria => criteria.criteriaName && criteria.rating !== undefined && criteria.rating !== null && criteria.rating !== '')
+          .map(criteria => ({
+            reviewId: id,
+            criteriaName: String(criteria.criteriaName).trim(),
+            rating: parseRating(criteria.rating, `Rating for ${criteria.criteriaName}`),
+            comments: criteria.comments || null,
+            weight: Number.isFinite(Number(criteria.weight)) ? Number(criteria.weight) : 1.0
+          }))
+          .filter(criteria => criteria.criteriaName);
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+
       // Delete existing criteria
       await prisma.performanceReviewCriteria.deleteMany({
         where: { reviewId: id }
       });
 
       // Create new criteria
-      await prisma.performanceReviewCriteria.createMany({
-        data: data.reviewCriteria.map(criteria => ({
-          reviewId: id,
-          criteriaName: criteria.criteriaName,
-          rating: parseFloat(criteria.rating),
-          comments: criteria.comments || null,
-          weight: criteria.weight ? parseFloat(criteria.weight) : 1.0
-        }))
-      });
+      if (normalizedCriteria.length > 0) {
+        await prisma.performanceReviewCriteria.createMany({
+          data: normalizedCriteria
+        });
+      }
     }
 
     // Calculate goals if goalIds provided
@@ -142,6 +164,15 @@ export async function PUT(request, { params }) {
       goalsAchieved = goals.filter(g => g.status === 'completed').length;
     }
 
+    let parsedOverallRating;
+    if (data.overallRating !== undefined) {
+      try {
+        parsedOverallRating = parseRating(data.overallRating, 'Overall rating');
+      } catch (error) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+    }
+
     // Update review
     const updatedReview = await prisma.performanceReview.update({
       where: { id },
@@ -149,7 +180,7 @@ export async function PUT(request, { params }) {
         reviewPeriod: data.reviewPeriod,
         reviewType: data.reviewType,
         reviewDate: data.reviewDate ? new Date(data.reviewDate) : undefined,
-        overallRating: data.overallRating !== undefined ? parseFloat(data.overallRating) : undefined,
+        overallRating: parsedOverallRating,
         overallComments: data.overallComments,
         strengths: data.strengths,
         areasForImprovement: data.areasForImprovement,

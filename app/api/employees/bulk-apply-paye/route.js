@@ -21,6 +21,10 @@ function normalizeDeductionIds(raw) {
   return [];
 }
 
+function roundMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
 async function findPayeDeductionId(tenantId) {
   const rows = await prisma.deduction.findMany({
     where: { tenantId, isActive: true },
@@ -128,6 +132,10 @@ export async function POST(request) {
           grossSalary: true,
           salary: true,
           selectedDeductions: true,
+          employeeBenefits: {
+            where: { benefit: { isActive: true } },
+            select: { amount: true },
+          },
         },
       });
       if (!emp) {
@@ -158,6 +166,10 @@ export async function POST(request) {
 
       let salaryUpdate = {};
       if (hasGross) {
+        const benefitsTotal = (emp.employeeBenefits || []).reduce(
+          (sum, eb) => sum + (Number(eb.amount) || 0),
+          0
+        );
         const deductions = await prisma.deduction.findMany({
           where: {
             id: { in: ids },
@@ -167,7 +179,7 @@ export async function POST(request) {
         });
         const calc = calculatePayroll(gross, deductions, npsOptions);
         salaryUpdate = {
-          salary: calc.netPay,
+          salary: roundMoney(calc.netPay + benefitsTotal),
           grossSalary: calc.grossSalary,
         };
       }

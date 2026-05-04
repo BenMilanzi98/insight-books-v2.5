@@ -2,18 +2,34 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isLeaveStatus, normalizeLeaveStatus } from '@/lib/hrCalculations';
 
 export async function POST(request, { params }) {
   try {
     const user = await getUserFromSession(request);
     if (!user || !user.tenantId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json().catch(() => ({}));
     const { reason } = body;
 
+    const existing = await prisma.leaveRequest.findFirst({
+      where: { id, tenantId: user.tenantId }
+    });
+    if (!existing) {
+      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+    }
+    if (!isLeaveStatus(existing.status, 'pending')) {
+      return NextResponse.json({ error: 'Only pending leave requests can be rejected' }, { status: 400 });
+    }
+
     const updated = await prisma.leaveRequest.update({
       where: { id },
-      data: { status: 'Rejected', rejectionReason: reason || null }
+      data: {
+        status: normalizeLeaveStatus('rejected'),
+        reviewedAt: new Date(),
+        reviewedBy: user.id,
+        reviewComments: reason || null
+      }
     });
 
     return NextResponse.json({ request: updated });

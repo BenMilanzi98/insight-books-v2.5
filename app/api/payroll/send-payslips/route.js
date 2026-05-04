@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { sendEmail } from '@/lib/emailService';
 import { formatSalaryAmount } from '@/lib/currencyUtils';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 // Helper function to format date
 function formatDate(date) {
@@ -77,7 +78,15 @@ async function generatePayslipPDF(payslip, tenant) {
   if (payslip.earnings.overtimePay > 0) {
     earningsData.push(['Overtime Pay', formatSalaryAmount(payslip.earnings.overtimePay)]);
   }
-  earningsData.push(['Gross Pay', formatSalaryAmount(payslip.earnings.grossPay)]);
+  earningsData.push(['Taxable Gross Pay', formatSalaryAmount(payslip.earnings.grossPay)]);
+  const allowancesTotal = Object.values(payslip.earnings.allowances || {}).reduce(
+    (sum, value) => sum + (Number(value) || 0),
+    0
+  );
+  if (allowancesTotal > 0) {
+    earningsData.push(['Benefits & Allowances (after tax)', formatSalaryAmount(allowancesTotal)]);
+    earningsData.push(['Total Earnings Paid', formatSalaryAmount(payslip.earnings.totalEarnings || 0)]);
+  }
 
   autoTable(doc, {
     startY: yPos,
@@ -243,6 +252,21 @@ export async function POST(request) {
           }
         }
 
+        const statutory = getPayrollStatutoryBreakdown(payroll);
+        const totalDeductions = Number(payroll.deductions) || 0;
+        const otherDeductionsTotal = Math.max(
+          0,
+          totalDeductions - (statutory.payeAmount || 0) - (statutory.npsEmployeeAmount || 0)
+        );
+        const existingOtherDeductions = additionalInfo.otherDeductions || {};
+        const existingOtherTotal = Object.values(existingOtherDeductions).reduce(
+          (sum, value) => sum + (Number(value) || 0),
+          0
+        );
+        const allowances = additionalInfo.allowances || {};
+        const allowanceTotal = Object.values(allowances).reduce((sum, value) => sum + (Number(value) || 0), 0);
+        const taxableGrossPay = Number(payroll.grossPay || payroll.basicSalary || 0) || 0;
+
         // Generate payslip data
         const payslip = {
           id: `Payslip-${payroll.id}`,
@@ -259,16 +283,19 @@ export async function POST(request) {
           },
           earnings: {
             basicSalary: Number(payroll.basicSalary) || 0,
-            grossPay: Number(payroll.grossPay) || 0,
+            grossPay: taxableGrossPay,
             overtimePay: additionalInfo.overtimePay || 0,
-            allowances: additionalInfo.allowances || {}
+            allowances,
+            totalEarnings: taxableGrossPay + allowanceTotal
           },
           deductions: {
-            paye: Number(payroll.payeAmount) || 0,
-            npsEmployee: additionalInfo.npsEmployeeAmount || 0,
-            otherDeductions: additionalInfo.otherDeductions || {},
+            paye: statutory.payeAmount || 0,
+            npsEmployee: statutory.npsEmployeeAmount || 0,
+            otherDeductions: existingOtherTotal > 0 || otherDeductionsTotal === 0
+              ? existingOtherDeductions
+              : { other: otherDeductionsTotal },
             deductionNames: additionalInfo.deductionNames || {},
-            totalDeductions: Number(payroll.deductions) || 0
+            totalDeductions
           },
           netPay: Number(payroll.netPay) || 0,
           hoursWorked: additionalInfo.hoursWorked || 0,

@@ -1271,7 +1271,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   )
                 else
                   DropdownButtonFormField<String>(
-                    value: selectedAccountId,
+                    initialValue: selectedAccountId,
                     decoration: const InputDecoration(
                       labelText: 'Deposit to account',
                       border: OutlineInputBorder(),

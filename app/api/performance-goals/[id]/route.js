@@ -85,12 +85,52 @@ export async function PUT(request, { params }) {
       );
     }
 
+    const nextTargetValue =
+      data.targetValue !== undefined ? Number(data.targetValue) : existingGoal.targetValue;
+    if (data.targetValue !== undefined && (!Number.isFinite(nextTargetValue) || nextTargetValue < 0)) {
+      return NextResponse.json(
+        { error: 'Target value must be a non-negative number' },
+        { status: 400 }
+      );
+    }
+
+    const nextCurrentValue =
+      data.currentValue !== undefined ? Number(data.currentValue) : existingGoal.currentValue;
+    if (data.currentValue !== undefined && !Number.isFinite(nextCurrentValue)) {
+      return NextResponse.json(
+        { error: 'Current value must be a valid number' },
+        { status: 400 }
+      );
+    }
+
+    const nextStartDate = data.startDate ? new Date(data.startDate) : existingGoal.startDate;
+    const nextTargetDate = data.targetDate ? new Date(data.targetDate) : existingGoal.targetDate;
+    if (Number.isNaN(nextStartDate.getTime()) || Number.isNaN(nextTargetDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Start date and target date must be valid dates' },
+        { status: 400 }
+      );
+    }
+    if (nextStartDate >= nextTargetDate) {
+      return NextResponse.json(
+        { error: 'Target date must be after start date' },
+        { status: 400 }
+      );
+    }
+
     // Calculate progress if currentValue and targetValue are provided
     let progress = existingGoal.progress;
-    if (data.currentValue !== undefined && existingGoal.targetValue) {
-      progress = Math.min(100, Math.max(0, (data.currentValue / existingGoal.targetValue) * 100));
+    if (data.currentValue !== undefined && nextTargetValue) {
+      progress = Math.min(100, Math.max(0, (nextCurrentValue / nextTargetValue) * 100));
     } else if (data.progress !== undefined) {
-      progress = Math.min(100, Math.max(0, parseFloat(data.progress)));
+      const parsedProgress = Number(data.progress);
+      if (!Number.isFinite(parsedProgress)) {
+        return NextResponse.json(
+          { error: 'Progress must be a valid number' },
+          { status: 400 }
+        );
+      }
+      progress = Math.min(100, Math.max(0, parsedProgress));
     }
 
     // Auto-update status based on progress
@@ -105,13 +145,13 @@ export async function PUT(request, { params }) {
         title: data.title,
         description: data.description,
         category: data.category,
-        targetValue: data.targetValue !== undefined ? parseFloat(data.targetValue) : undefined,
+        targetValue: data.targetValue !== undefined ? nextTargetValue : undefined,
         targetUnit: data.targetUnit,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        targetDate: data.targetDate ? new Date(data.targetDate) : undefined,
+        startDate: data.startDate ? nextStartDate : undefined,
+        targetDate: data.targetDate ? nextTargetDate : undefined,
         status,
         progress,
-        currentValue: data.currentValue !== undefined ? parseFloat(data.currentValue) : undefined,
+        currentValue: data.currentValue !== undefined ? nextCurrentValue : undefined,
         notes: data.notes,
         completedAt: status === 'completed' && existingGoal.status !== 'completed' ? new Date() : existingGoal.completedAt
       },

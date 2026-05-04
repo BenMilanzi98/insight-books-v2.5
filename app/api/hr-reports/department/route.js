@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
+import { isAttendanceStatus, roundHrNumber } from '@/lib/hrCalculations';
+
+function currentGrossSalary(employee) {
+  return Number(employee.grossSalary || 0) || Number(employee.salary || 0) || 0;
+}
 
 /**
  * GET - Generate department report
@@ -71,7 +76,7 @@ export async function GET(request) {
       
       const totalSalary = employees.reduce((sum, e) => {
         const latestPayroll = e.payrolls[0];
-        return sum + (latestPayroll?.grossPay || e.salary || e.grossSalary || 0);
+        return sum + (latestPayroll?.grossPay || currentGrossSalary(e));
       }, 0);
 
       const totalNetPay = employees.reduce((sum, e) => {
@@ -82,9 +87,9 @@ export async function GET(request) {
       // Calculate attendance stats for the department
       const attendanceStats = employees.reduce((stats, employee) => {
         employee.attendanceRecords.forEach(record => {
-          stats.totalHours += record.hoursWorked || 0;
-          if (record.status === 'Present') stats.presentDays++;
-          else if (record.status === 'Absent') stats.absentDays++;
+          stats.totalHours = roundHrNumber(stats.totalHours + (record.hoursWorked || 0));
+          if (isAttendanceStatus(record.status, 'present')) stats.presentDays++;
+          else if (isAttendanceStatus(record.status, 'absent')) stats.absentDays++;
         });
         return stats;
       }, {
@@ -110,7 +115,8 @@ export async function GET(request) {
           name: e.name,
           jobTitle: e.jobTitle || e.position,
           isActive: e.isActive,
-          salary: e.salary || e.grossSalary || 0,
+          salary: currentGrossSalary(e),
+          netSalary: e.salary || 0,
           latestPayroll: e.payrolls[0] || null
         }))
       };
@@ -125,7 +131,7 @@ export async function GET(request) {
       totalSalaryExpense: departments.reduce((sum, d) => {
         const deptTotal = (d.employees || []).reduce((empSum, e) => {
           const latestPayroll = e.payrolls?.[0];
-          return empSum + (latestPayroll?.grossPay || e.salary || e.grossSalary || 0);
+          return empSum + (latestPayroll?.grossPay || currentGrossSalary(e));
         }, 0);
         return sum + deptTotal;
       }, 0)

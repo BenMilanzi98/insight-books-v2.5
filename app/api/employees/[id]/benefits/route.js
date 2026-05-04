@@ -3,6 +3,48 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
+import { calculatePayroll } from '@/lib/payrollCalculations';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+
+function roundMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+function normalizeDeductionIds(raw) {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function loadNpsOptions(tenantId) {
+  try {
+    const rows = await prisma.$queryRaw`
+      SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+      FROM "TenantSettings"
+      WHERE "tenantId" = ${tenantId}
+      LIMIT 1
+    `;
+    const row = Array.isArray(rows) ? rows[0] : null;
+    return row ? npsRatesFromTenantSettingsRow(row) : {
+      npsEmployeeRatePercent: null,
+      npsEmployerRatePercent: null,
+    };
+  } catch (e) {
+    console.warn('Employee benefits NPS rate read failed:', e?.message || e);
+    return {
+      npsEmployeeRatePercent: null,
+      npsEmployerRatePercent: null,
+    };
+  }
+}
 
 /**
  * GET - List benefits assigned to this employee (with amounts)
@@ -134,6 +176,30 @@ export async function PUT(request, { params }) {
         }
       }
     });
+
+    const grossSalary = Number(employee.grossSalary);
+    if (Number.isFinite(grossSalary) && grossSalary > 0) {
+      const benefitTotal = updated.reduce((sum, eb) => sum + (Number(eb.amount) || 0), 0);
+      const deductionIds = normalizeDeductionIds(employee.selectedDeductions);
+      const deductions = deductionIds.length > 0
+        ? await prisma.deduction.findMany({
+            where: {
+              id: { in: deductionIds },
+              tenantId: user.tenantId,
+              isActive: true,
+            },
+          })
+        : [];
+      const npsOptions = await loadNpsOptions(user.tenantId);
+      const calc = calculatePayroll(grossSalary, deductions, npsOptions);
+      await prisma.employee.update({
+        where: { id: employeeId },
+        data: {
+          salary: roundMoney(calc.netPay + benefitTotal),
+          grossSalary: calc.grossSalary,
+        },
+      });
+    }
 
     return NextResponse.json({
       benefits: updated.map(eb => ({

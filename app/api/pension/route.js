@@ -4,32 +4,11 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { getPayrollStatutoryBreakdown } from '@/lib/payrollStatutoryBreakdown';
 
 function safeNumber(n) {
   const v = Number(n);
   return Number.isFinite(v) ? v : 0;
-}
-
-function parseNotesJSON(notes) {
-  if (!notes) return {};
-  try {
-    return JSON.parse(notes);
-  } catch {
-    return {};
-  }
-}
-
-function round2(n) {
-  return Math.round((Number(n) || 0) * 100) / 100;
-}
-
-function getRatePercentFromNotesOrFallback(info, fallbackEmployee = 5, fallbackEmployer = 5) {
-  const emp = safeNumber(info?.npsEmployeeRatePercent);
-  const er = safeNumber(info?.npsEmployerRatePercent);
-  return {
-    employeeRatePercent: emp > 0 ? emp : fallbackEmployee,
-    employerRatePercent: er > 0 ? er : fallbackEmployer
-  };
 }
 
 /**
@@ -136,51 +115,14 @@ export async function GET(request) {
       orderBy: [{ periodEnd: 'desc' }],
     });
 
-    // Build entries with computed split amounts.
-    // IMPORTANT: We compute contributions from grossPay * (rates) so the report stays accurate
-    // even if older payroll rows were posted with default 5%/5% due to stale Prisma client config.
+    // Build entries from posted payroll split/total amounts. Rates are only used to split
+    // legacy rows that stored totalNpsAmount without employee/employer split in notes.
     const entries = payrolls.map((p) => {
-      const info = parseNotesJSON(p.notes);
-      const storedTotal = safeNumber(p.totalNpsAmount);
-      const grossForNps = safeNumber(p.grossPay);
-
-      // Prefer rates stored on the payroll run (if present), else fall back to tenant rates
-      const rates = getRatePercentFromNotesOrFallback(info, fallbackEmployeeRate, fallbackEmployerRate);
-      const employeeRatePercent = safeNumber(rates.employeeRatePercent);
-      const employerRatePercent = safeNumber(rates.employerRatePercent);
-
-      // Preferred computation: compute NPS from grossPay * configured rates.
-      const computedEmployee = grossForNps > 0 ? round2((grossForNps * employeeRatePercent) / 100) : 0;
-      const computedEmployer = grossForNps > 0 ? round2((grossForNps * employerRatePercent) / 100) : 0;
-
-      // Legacy fallback: use stored split if present, else split storedTotal proportionally.
-      const hasSplit =
-        info.npsEmployeeAmount !== undefined || info.npsEmployerAmount !== undefined;
-      let employeeAmount = hasSplit ? safeNumber(info.npsEmployeeAmount) : 0;
-      let employerAmount = hasSplit ? safeNumber(info.npsEmployerAmount) : 0;
-
-      if (!hasSplit && storedTotal > 0) {
-        const denom = employeeRatePercent + employerRatePercent;
-        if (denom > 0) {
-          employeeAmount = (storedTotal * employeeRatePercent) / denom;
-          employerAmount = storedTotal - employeeAmount;
-        } else {
-          employeeAmount = storedTotal / 2;
-          employerAmount = storedTotal / 2;
-        }
-      }
-
-      // If we can compute from grossPay, prefer that over stored split/total.
-      if (grossForNps > 0) {
-        employeeAmount = computedEmployee;
-        employerAmount = computedEmployer;
-      }
-
-      // If employer pension has been cleared/paid for this payroll, exclude it from "outstanding" reporting.
-      const employerCleared = !!info?.pensionClearedEmployer;
-      if (employerCleared) {
-        employerAmount = 0;
-      }
+      const statutory = getPayrollStatutoryBreakdown(p, {
+        npsEmployeeRatePercent: fallbackEmployeeRate,
+        npsEmployerRatePercent: fallbackEmployerRate,
+        excludeClearedEmployer: true,
+      });
 
       return {
         payrollId: p.id,
@@ -189,12 +131,12 @@ export async function GET(request) {
         periodStart: p.periodStart,
         periodEnd: p.periodEnd,
         paymentDate: p.paymentDate,
-        npsEmployeeAmount: employeeAmount,
-        npsEmployerAmount: employerAmount,
-        totalNpsAmount: round2(employeeAmount + employerAmount) || storedTotal,
-        npsEmployeeRatePercent: employeeRatePercent || fallbackEmployeeRate,
-        npsEmployerRatePercent: employerRatePercent || fallbackEmployerRate,
-        pensionClearedEmployer: employerCleared,
+        npsEmployeeAmount: statutory.npsEmployeeAmount,
+        npsEmployerAmount: statutory.npsEmployerAmount,
+        totalNpsAmount: statutory.totalNpsAmount,
+        npsEmployeeRatePercent: statutory.npsEmployeeRatePercent,
+        npsEmployerRatePercent: statutory.npsEmployerRatePercent,
+        pensionClearedEmployer: !!statutory.notes?.pensionClearedEmployer,
         status: p.status,
       };
     });

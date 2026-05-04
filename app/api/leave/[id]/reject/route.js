@@ -2,89 +2,69 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
+import { isLeaveStatus, normalizeLeaveStatus } from '@/lib/hrCalculations';
 
-// PUT - Reject a leave request
 export async function PUT(request, { params }) {
   try {
-    // Check permission
     const permissionCheck = await requirePermission(request, 'leave.approve');
     if (permissionCheck) return permissionCheck;
-    
+
     const user = await getUserFromSession(request);
-    const leaveId = params.id;
-    const body = await request.json();
-    
-    // Check if leave request exists
+    const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+
     const existingRequest = await prisma.leaveRequest.findFirst({
-      where: {
-        id: leaveId,
-        tenantId: user.tenantId
-      },
-      include: {
-        employee: {
-          select: {
-            name: true
-          }
-        }
-      }
+      where: { id, tenantId: user.tenantId },
+      include: { employee: { select: { name: true } }, leavePolicy: { select: { leaveType: true } } },
     });
-    
+
     if (!existingRequest) {
+      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+    }
+    if (!isLeaveStatus(existingRequest.status, 'pending')) {
       return NextResponse.json(
-        { error: 'Leave request not found' },
-        { status: 404 }
+        { error: `Cannot reject a leave request that is already ${normalizeLeaveStatus(existingRequest.status)}` },
+        { status: 400 },
       );
     }
-    
-    // Can only reject pending requests
-    if (existingRequest.status !== 'Pending') {
-      return NextResponse.json(
-        { error: `Cannot reject a leave request that is already ${existingRequest.status.toLowerCase()}` },
-        { status: 400 }
-      );
-    }
-    
-    // Update the leave request
+
     const updatedRequest = await prisma.leaveRequest.update({
-      where: {
-        id: leaveId
-      },
+      where: { id },
       data: {
-        status: 'Rejected',
-        approvedById: user.id,
-        approvedAt: new Date(),
-        notes: body.reason || existingRequest.notes // Add rejection reason
-      }
+        status: normalizeLeaveStatus('rejected'),
+        reviewedBy: user.id,
+        reviewedAt: new Date(),
+        reviewComments: body.reason || null,
+      },
     });
-    
-    // Create audit log entry
+
     await prisma.auditLog.create({
       data: {
         action: 'LEAVE_REQUEST_REJECTED',
         entityType: 'LEAVE_REQUEST',
-        entityId: leaveId,
+        entityId: id,
         userId: user.id,
         tenantId: user.tenantId,
         details: JSON.stringify({
           employeeName: existingRequest.employee.name,
-          type: existingRequest.type,
+          leaveType: existingRequest.leavePolicy?.leaveType,
           startDate: existingRequest.startDate.toISOString(),
           endDate: existingRequest.endDate.toISOString(),
-          reason: body.reason || 'No reason provided'
-        })
-      }
+          totalDays: existingRequest.totalDays,
+          reason: body.reason || 'No reason provided',
+        }),
+      },
     });
-    
+
     return NextResponse.json({
       message: 'Leave request rejected successfully',
-      leaveRequest: updatedRequest
+      leaveRequest: updatedRequest,
     });
-    
   } catch (error) {
-    console.error(`Error rejecting leave request ${params.id}:`, error);
+    console.error('Error rejecting leave request:', error);
     return NextResponse.json(
-      { error: 'Failed to reject leave request. Please try again.' },
-      { status: 500 }
+      { error: 'Failed to reject leave request. Please try again.', details: error.message },
+      { status: 500 },
     );
   }
 }

@@ -110,8 +110,20 @@ export async function POST(request) {
     }
 
     const advanceAmount = Number(amount);
-    const months = repaymentMonths || 1;
-    const monthlyDeduction = advanceAmount / months;
+    const months = Number(repaymentMonths || 1);
+    if (!Number.isFinite(advanceAmount) || advanceAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Advance amount must be greater than zero' },
+        { status: 400 }
+      );
+    }
+    if (!Number.isInteger(months) || months <= 0) {
+      return NextResponse.json(
+        { error: 'Repayment months must be a positive whole number' },
+        { status: 400 }
+      );
+    }
+    const monthlyDeduction = Math.round((advanceAmount / months) * 100) / 100;
     const selectedPaymentMethod = paymentMethod || 'Cash';
 
     // Create advance and journal entry in a transaction

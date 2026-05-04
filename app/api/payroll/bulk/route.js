@@ -3,6 +3,28 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
+import { calculatePayroll, toPayrollNumber } from '@/lib/payrollCalculations';
+import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+
+function roundPayrollMoney(value) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function normalizeDeductionIds(raw) {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => (typeof item === 'object' ? item?.id || item?.deductionId : item))
+      .filter(Boolean)
+      .map(String);
+  }
+  if (typeof raw === 'object') {
+    return Object.entries(raw)
+      .filter(([, value]) => value === true)
+      .map(([key]) => key);
+  }
+  return [];
+}
 
 /**
  * POST - Create payroll records for multiple employees for a specified period
@@ -47,6 +69,13 @@ export async function POST(request) {
         id: {
           in: body.employeeIds
         }
+      },
+      include: {
+        employeeBenefits: {
+          include: {
+            benefit: true
+          }
+        }
       }
     });
     
@@ -60,11 +89,33 @@ export async function POST(request) {
     // Create payroll records for each employee
     const payrollRecords = [];
     const errors = [];
+    const requestedStatus = body.status || 'Draft';
+    const payrollStatus = requestedStatus === 'Completed' ? 'Pending' : requestedStatus;
+    let npsEmployeeRatePercent = null;
+    let npsEmployerRatePercent = null;
+    try {
+      const rows = await prisma.$queryRaw`
+        SELECT "npsEmployeeRatePercent", "npsEmployerRatePercent"
+        FROM "TenantSettings"
+        WHERE "tenantId" = ${user.tenantId}
+        LIMIT 1
+      `;
+      const row = Array.isArray(rows) ? rows[0] : null;
+      if (row) {
+        const rates = npsRatesFromTenantSettingsRow(row);
+        npsEmployeeRatePercent = rates.npsEmployeeRatePercent;
+        npsEmployerRatePercent = rates.npsEmployerRatePercent;
+      }
+    } catch (error) {
+      console.warn('Bulk payroll could not read tenant NPS rates:', error?.message || error);
+    }
     
     for (const employee of employees) {
       try {
-        // Calculate base salary (prorated if needed)
-        let basicSalary = employee.salary || 0;
+        let basicSalary =
+          employee.grossSalary != null && Number(employee.grossSalary) > 0
+            ? Number(employee.grossSalary)
+            : Number(employee.salary) || 0;
         
         // Handle any customizations per employee if provided
         const employeeOverride = body.employeeOverrides?.find(override => override.employeeId === employee.id);
@@ -74,14 +125,41 @@ export async function POST(request) {
           }
         }
         
-        // Calculate deductions (tax, benefits, etc.)
-        const deductions = employeeOverride?.deductions || body.defaultDeductions || 0;
-        
-        // Calculate additions (bonuses, allowances, etc.)
-        const additions = employeeOverride?.additions || body.defaultAdditions || 0;
-        
-        // Calculate net pay
-        const netPay = basicSalary + additions - deductions;
+        const benefitAllowances = {};
+        const benefitsTotal = (employee.employeeBenefits || []).reduce((sum, eb) => {
+          const amount = toPayrollNumber(eb.amount) ?? 0;
+          if (amount > 0 && eb.benefit?.name) {
+            benefitAllowances[eb.benefit.name] = amount;
+          }
+          return sum + amount;
+        }, 0);
+        const manualAdditions = Number(employeeOverride?.additions || body.defaultAdditions || 0) || 0;
+        const manualDeductions = Number(employeeOverride?.deductions || body.defaultDeductions || 0) || 0;
+        const ids = normalizeDeductionIds(employee.selectedDeductions);
+        const selectedDeductions =
+          ids.length > 0
+            ? await prisma.deduction.findMany({
+                where: { id: { in: ids }, tenantId: user.tenantId, isActive: true },
+              })
+            : [];
+        const calc = calculatePayroll(basicSalary, selectedDeductions, {
+          npsEmployeeRatePercent,
+          npsEmployerRatePercent,
+        });
+        const additions = roundPayrollMoney(benefitsTotal + manualAdditions);
+        const deductions = roundPayrollMoney(calc.totalDeductions + manualDeductions);
+        const netPay = roundPayrollMoney(calc.netPay + additions - manualDeductions);
+        const notes = JSON.stringify({
+          allowances: benefitAllowances,
+          manualAdditions,
+          manualDeductions,
+          bulkNote: body.notes || null,
+          payeTaxableIncome: calc.payeTaxableIncome ?? null,
+          npsEmployeeAmount: calc.nps.employeeAmount || 0,
+          npsEmployerAmount: calc.nps.employerAmount || 0,
+          npsEmployeeRatePercent: calc.npsRatesApplied?.employeeRatePercent ?? null,
+          npsEmployerRatePercent: calc.npsRatesApplied?.employerRatePercent ?? null,
+        });
         
         // Create the payroll record
         const payroll = await prisma.payroll.create({
@@ -90,12 +168,15 @@ export async function POST(request) {
             tenantId: user.tenantId,
             periodStart,
             periodEnd,
-            basicSalary,
+            basicSalary: roundPayrollMoney(basicSalary),
+            grossPay: roundPayrollMoney(basicSalary),
             deductions,
             additions,
             netPay,
-            status: body.status || 'Draft',
-            notes: body.notes || `Bulk payroll for ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()}`
+            payeAmount: calc.paye.payeAmount || 0,
+            totalNpsAmount: calc.nps.totalAmount || 0,
+            status: payrollStatus,
+            notes
           },
           include: {
             employee: {
@@ -130,65 +211,6 @@ export async function POST(request) {
       errorCount: errors.length
     });
 
-    // Create accounting journal entries for payroll
-    if (payrollRecords.length > 0 && body.status === 'Completed') {
-      try {
-        const totalGrossPay = payrollRecords.reduce((sum, payroll) => sum + payroll.basicSalary + payroll.additions, 0);
-        const totalDeductions = payrollRecords.reduce((sum, payroll) => sum + payroll.deductions, 0);
-        const totalNetPay = payrollRecords.reduce((sum, payroll) => sum + payroll.netPay, 0);
-        
-        // Create journal entry for payroll expenses
-        const journalEntryData = {
-          date: new Date(),
-          description: `Payroll for ${periodStart.toLocaleDateString()} - ${periodEnd.toLocaleDateString()}`,
-          reference: `PAYROLL-${periodStart.getFullYear()}-${(periodStart.getMonth() + 1).toString().padStart(2, '0')}`,
-          status: 'Posted',
-          lines: [
-            // Debit: Payroll Expenses
-            {
-              accountId: '6011', // Salaries & Wages
-              description: 'Salaries & Wages',
-              debit: totalGrossPay,
-              credit: 0
-            },
-            // Debit: Employee Benefits (if any)
-            ...(totalDeductions > 0 ? [{
-              accountId: '6012', // Employee Benefits
-              description: 'Employee Benefits & Deductions',
-              debit: totalDeductions,
-              credit: 0
-            }] : []),
-            // Credit: Payroll Liabilities
-            {
-              accountId: '2030', // Payroll Liabilities
-              description: 'Payroll Liabilities',
-              debit: 0,
-              credit: totalNetPay
-            }
-          ]
-        };
-
-        // Create the journal entry
-        const journalEntryResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/journal-entries`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cookie': request.headers.get('cookie') || ''
-          },
-          body: JSON.stringify(journalEntryData)
-        });
-
-        if (journalEntryResponse.ok) {
-          console.log('Payroll journal entry created successfully');
-        } else {
-          console.error('Failed to create payroll journal entry:', await journalEntryResponse.text());
-        }
-      } catch (accountingError) {
-        console.error('Error creating payroll journal entry:', accountingError);
-        // Don't fail the entire payroll process if accounting fails
-      }
-    }
-    
     // Return the created payroll records and any errors
     return NextResponse.json({
       message: `Successfully processed ${payrollRecords.length} out of ${employees.length} payrolls`,
@@ -199,6 +221,11 @@ export async function POST(request) {
         processedSuccessfully: payrollRecords.length,
         failed: errors.length,
         totalNetPay: payrollRecords.reduce((sum, payroll) => sum + payroll.netPay, 0),
+        totalPAYE: payrollRecords.reduce((sum, payroll) => sum + (payroll.payeAmount || 0), 0),
+        totalNPS: payrollRecords.reduce((sum, payroll) => sum + (payroll.totalNpsAmount || 0), 0),
+        accountingPosting: 'not_posted_use_enhanced_payroll_for_gl',
+        requestedStatus,
+        storedStatus: payrollStatus,
         periodStart: periodStart.toISOString(),
         periodEnd: periodEnd.toISOString()
       }
