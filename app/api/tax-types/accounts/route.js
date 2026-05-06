@@ -15,13 +15,18 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
+    // Same scope as Chart of Accounts pickers (visible, non-merge-source GL rows).
     const accounts = await prisma.account.findMany({
       where: {
         tenantId: user.tenantId,
         isActive: true,
+        visibleInChart: true,
+        mergedIntoAccountId: null,
         OR: [
           { accountType: { equals: 'Liability', mode: 'insensitive' } },
           { accountType: { equals: 'Asset', mode: 'insensitive' } },
+          { type: { equals: 'Liability', mode: 'insensitive' } },
+          { type: { equals: 'Asset', mode: 'insensitive' } },
         ],
       },
       select: {

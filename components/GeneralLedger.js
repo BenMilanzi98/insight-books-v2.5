@@ -21,6 +21,7 @@ import { calculateDateRange } from "@/lib/dateUtils";
 import { formatCurrency } from "@/lib/currencyUtils";
 import { cn } from "@/lib/utils";
 import { getPermission } from "@/lib/permissions";
+import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 
 const GeneralLedger = () => {
   // Helper function to format dates safely
@@ -157,13 +158,13 @@ const GeneralLedger = () => {
   useEffect(() => {
     const fetchAccounts = async () => {
       try {
-        const response = await fetch('/api/accounts?forSelect=true&includeInactive=true');
+        const response = await fetch('/api/chart-of-accounts/picker?includeInactive=true');
         if (!response.ok) {
           throw new Error(`Error fetching accounts: ${response.statusText}`);
         }
         
         const data = await response.json();
-        setAccounts(data.accounts || []);
+        setAccounts(filterCoaAccountsForPostingPicker(data.accounts || []));
       } catch (err) {
         console.error("Error fetching accounts:", err);
         // Use mock accounts if API fails

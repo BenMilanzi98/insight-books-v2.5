@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PermissionGuard from "@/components/PermissionGuard";
+import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 import {
   Building2,
   CalendarRange,
@@ -256,7 +257,7 @@ export default function RentalsClient({ mode }) {
       try {
         const [tt, acc] = await Promise.all([
           fetch("/api/tax-types?status=Active").then((r) => r.json()),
-          fetch("/api/accounts?forSelect=true&type=Liability&limit=5000").then((r) => r.json()),
+          fetch("/api/chart-of-accounts/picker?accountType=Liability&isActive=true").then((r) => r.json()),
         ]);
         if (cancelled) return;
         const raw = tt.taxTypes || [];
@@ -267,7 +268,9 @@ export default function RentalsClient({ mode }) {
             !/paye/i.test(String(t.taxName || ""))
         );
         setTaxTypes(usable);
-        setLiabilityAccounts(acc.accounts || acc.data || []);
+        setLiabilityAccounts(
+          filterCoaAccountsForPostingPicker(acc.accounts || acc.data || [])
+        );
       } catch {
         if (!cancelled) {
           setTaxTypes([]);

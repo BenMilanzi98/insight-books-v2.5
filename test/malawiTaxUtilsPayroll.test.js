@@ -258,4 +258,33 @@ describe('calculatePayroll — PAYE base after NPS', () => {
     expect(calc.nps.employeeAmount).toBe(25_000);
     expect(calc.payeTaxableIncome).toBe(475_000);
   });
+
+  it('does not apply PAYE when only NPS plus an unrelated statutory row containing "tax"', () => {
+    const unrelatedStatutory = {
+      id: 'levy1',
+      name: 'Statutory levy (tax component)',
+      isStatutory: true,
+    };
+    const calc = calculatePayroll(
+      550_000,
+      [npsDeduction, unrelatedStatutory],
+      { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 },
+    );
+    expect(calc.paye.payeAmount).toBe(0);
+    expect(calc.nps.employeeAmount).toBe(27_500);
+    expect(calc.netPay).toBe(522_500);
+  });
+
+  it('550k gross with PAYE + NPS: PAYE uses gross after employee NPS (combined net)', () => {
+    const calc = calculatePayroll(
+      550_000,
+      [payeDeduction, npsDeduction],
+      { npsEmployeeRatePercent: 5, npsEmployerRatePercent: 5 },
+    );
+    expect(calc.payeTaxableIncome).toBe(522_500);
+    expect(calc.paye.payeAmount).toBe(105_750);
+    expect(calc.nps.employeeAmount).toBe(27_500);
+    expect(calc.totalDeductions).toBe(133_250);
+    expect(calc.netPay).toBe(416_750);
+  });
 });

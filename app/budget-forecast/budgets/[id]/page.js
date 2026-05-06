@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
+import { filterCoaAccountsForPostingPicker } from '@/lib/journalAccountSelect';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 
 function cellKey(accountId, period) {
@@ -24,10 +25,10 @@ export default function BfBudgetDetailPage() {
   const [matrix, setMatrix] = useState({});
 
   const loadAccounts = useCallback(async () => {
-    const res = await fetch('/api/accounts?forSelect=true&type=Expense&limit=5000');
+    const res = await fetch('/api/chart-of-accounts/picker?accountType=Expense&isActive=true');
     const j = await res.json();
     if (!res.ok) return;
-    const list = j.accounts || j.data || [];
+    const list = filterCoaAccountsForPostingPicker(j.accounts || j.data || []);
     setAccountOptions(Array.isArray(list) ? list : []);
   }, []);
 

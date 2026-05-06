@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getUserFromSession } from '@/lib/auth';
 import { calculateMalawiPayroll } from '@/lib/malawiTaxUtils';
+import { deductionMatchesNps, deductionMatchesPaye } from '@/lib/payrollDeductionMatching';
 import { updateAccountBalanceOnTransaction } from '@/lib/accountBalanceService';
 import { assertPeriodOpen } from '@/lib/accountingPeriodService';
 import { generateReferenceNumber } from '@/lib/journalService';
@@ -536,32 +537,15 @@ export async function POST(request) {
             }
           });
 
-          deductions.forEach(deduction => {
-            // Check if this is PAYE deduction (by name or isStatutory flag)
-            const isPAYE = deduction.name && (
-              deduction.name.toLowerCase().includes('paye') || 
-              deduction.name.toLowerCase().includes('income tax') ||
-              (deduction.isStatutory && deduction.name.toLowerCase().includes('tax'))
-            );
-            
-            // Check if this is NPS deduction
-            // IMPORTANT: Only treat statutory NPS as NPS; don't trigger NPS for custom deductions
-            // that happen to include the word "pension".
-            const isNPS = deduction.name && (
-              deduction.name.toLowerCase().includes('nps') || 
-              (deduction.isStatutory && deduction.name.toLowerCase().includes('pension'))
-            );
-            
-            if (isPAYE) {
-              // PAYE is selected, will be calculated automatically
-              applyPAYE = true;
-            } else if (isNPS) {
-              // NPS is selected
-              applyNPS = true;
-            } else if (deduction.amount) {
+          deductions.forEach((deduction) => {
+            const isPAYE = deductionMatchesPaye(deduction);
+            const isNPS = deductionMatchesNps(deduction);
+            if (isPAYE) applyPAYE = true;
+            if (isNPS) applyNPS = true;
+            if (!isPAYE && !isNPS && deduction.amount) {
               otherDeductions[deduction.id] = Number(deduction.amount);
               deductionNames[deduction.id] = deduction.name;
-            } else if (deduction.percentage && baseSalary > 0) {
+            } else if (!isPAYE && !isNPS && deduction.percentage && baseSalary > 0) {
               otherDeductions[deduction.id] = (baseSalary * Number(deduction.percentage)) / 100;
               deductionNames[deduction.id] = deduction.name;
             }

@@ -39,15 +39,11 @@ import {
   assignNextCustomExpenseAccountCode,
   ensureCustomExpenses5700ForTenant,
 } from '@/lib/customExpenseRange.server.js';
-
-const ACCOUNT_TYPES = ['Asset', 'Liability', 'Equity', 'Income', 'Expense'];
-
-const normalizeAccountType = (value) => {
-  if (!value) return value;
-  const normalized = value.toString().trim();
-  const upper = normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
-  return ACCOUNT_TYPES.includes(upper) ? upper : normalized;
-};
+import {
+  buildCoaAccountListWhere,
+  COA_ACCOUNT_TYPES,
+  normalizeCoaAccountType,
+} from '@/lib/coaAccountListWhere.js';
 
 // Digits-only (3–10) or hierarchical form e.g. 1130-01 per CoA spec
 const validateAccountCode = (code) => /^\d{3,10}(-\d{2,4})?$/.test(String(code || '').trim());
@@ -184,63 +180,13 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const accountType = searchParams.get('accountType');
-    const isActive = searchParams.get('isActive');
-    const search = searchParams.get('search');
-    const includeInactive = searchParams.get('includeInactive') === 'true';
-    /** When true, include rows where mergedIntoAccountId is set (merge sources kept for audit). */
-    const includeMergedSources = searchParams.get('includeMergedSources') === 'true';
-    /** When true, include rows with visibleInChart=false (retired / hidden from default chart). */
-    const includeChartHidden = searchParams.get('includeChartHidden') === 'true';
     const dateRange = buildChartDateRange(searchParams);
     if (dateRange.invalid) {
       return NextResponse.json({ error: 'Invalid date range: dateFrom must be <= dateTo' }, { status: 400 });
     }
     const hasDateFilter = Boolean(dateRange.from || dateRange.to);
 
-    const where = {
-      tenantId: user.tenantId
-    };
-
-    if (!includeChartHidden) {
-      where.visibleInChart = true;
-    }
-
-    if (accountType && accountType !== 'All') {
-      where.accountType = normalizeAccountType(accountType);
-    }
-
-    // Merge sources stay in the DB but are hidden from the chart and pickers unless auditing.
-    if (!includeMergedSources) {
-      where.mergedIntoAccountId = null;
-    }
-
-    const andBlocks = [];
-    if (isActive === 'true' || (!includeInactive && isActive !== 'false')) {
-      if (includeMergedSources) {
-        andBlocks.push({
-          OR: [{ isActive: true }, { mergedIntoAccountId: { not: null } }],
-        });
-      } else {
-        andBlocks.push({ isActive: true });
-      }
-    } else if (isActive === 'false') {
-      where.isActive = false;
-    }
-
-    if (search) {
-      andBlocks.push({
-        OR: [
-          { accountCode: { contains: search, mode: 'insensitive' } },
-          { accountName: { contains: search, mode: 'insensitive' } },
-          { description: { contains: search, mode: 'insensitive' } },
-        ],
-      });
-    }
-
-    if (andBlocks.length) {
-      where.AND = andBlocks;
-    }
+    const where = buildCoaAccountListWhere(user.tenantId, searchParams);
 
     let accounts = [];
     try {
@@ -774,7 +720,7 @@ export async function POST(request) {
     let accountCode = rawAccountCode != null ? String(rawAccountCode).trim() : '';
     let parentAccountId = rawParentAccountId ?? null;
 
-    const normalizedType = normalizeAccountType(accountType);
+    const normalizedType = normalizeCoaAccountType(accountType);
     const resolvedNormalBalance =
       normalBalance ||
       (normalizedType === 'Asset' || normalizedType === 'Expense' ? 'Debit' : 'Credit');
@@ -827,9 +773,9 @@ export async function POST(request) {
       );
     }
 
-    if (!ACCOUNT_TYPES.includes(normalizedType)) {
+    if (!COA_ACCOUNT_TYPES.includes(normalizedType)) {
       return NextResponse.json(
-        { error: `Invalid account type. Expected one of: ${ACCOUNT_TYPES.join(', ')}` },
+        { error: `Invalid account type. Expected one of: ${COA_ACCOUNT_TYPES.join(', ')}` },
         { status: 400 }
       );
     }
