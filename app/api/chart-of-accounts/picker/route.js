@@ -4,6 +4,7 @@ import { getUserFromSession } from '@/lib/auth';
 import { requireStandardAccess } from '@/lib/accessControl';
 import { canUseCoaAccountPicker } from '@/lib/chartOfAccountsAccess';
 import { buildCoaAccountListWhere } from '@/lib/coaAccountListWhere.js';
+import { accountBlocksDirectPosting } from '@/lib/coaDirectPostingEligibility.js';
 
 /**
  * GET /api/chart-of-accounts/picker
@@ -33,6 +34,9 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const where = buildCoaAccountListWhere(user.tenantId, searchParams);
+    const postingEligibleOnly =
+      searchParams.get('postingEligibleOnly') === 'true' ||
+      searchParams.get('postingEligibleOnly') === '1';
 
     const rows = await prisma.account.findMany({
       where,
@@ -50,6 +54,16 @@ export async function GET(request) {
         isSystem: true,
         mergedIntoAccountId: true,
         visibleInChart: true,
+        ...(postingEligibleOnly
+          ? {
+              acceptsNewTransactions: true,
+              _count: {
+                select: {
+                  childAccounts: { where: { isActive: true } },
+                },
+              },
+            }
+          : {}),
         parentAccount: {
           select: {
             id: true,
@@ -63,13 +77,19 @@ export async function GET(request) {
       orderBy: [{ accountCode: 'asc' }],
     });
 
-    const accounts = rows.map((acc) => ({
+    let mapped = rows.map((acc) => ({
       ...acc,
       code: acc.code ?? acc.accountCode ?? '',
       name: acc.name ?? acc.accountName ?? '',
       accountCode: acc.accountCode ?? acc.code ?? '',
       accountName: acc.accountName ?? acc.name ?? '',
     }));
+
+    if (postingEligibleOnly) {
+      mapped = mapped.filter((acc) => !accountBlocksDirectPosting(acc).blocked);
+    }
+
+    const accounts = mapped;
 
     return NextResponse.json(
       { accounts, total: accounts.length },

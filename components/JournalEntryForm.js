@@ -84,7 +84,7 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     const fetchAccounts = async () => {
       setIsLoadingAccounts(true);
       try {
-        const response = await fetch('/api/chart-of-accounts/picker');
+        const response = await fetch('/api/chart-of-accounts/picker?postingEligibleOnly=true');
         if (!response.ok) {
           throw new Error(`Error fetching accounts: ${response.statusText}`);
         }

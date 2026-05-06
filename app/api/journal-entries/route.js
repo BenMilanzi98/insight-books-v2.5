@@ -433,6 +433,12 @@ export async function POST(request) {
         accountType: true,
         type: true,
         accountSubtype: true,
+        acceptsNewTransactions: true,
+        _count: {
+          select: {
+            childAccounts: { where: { isActive: true } },
+          },
+        },
       },
     });
     const structural = validateNoPostingToStructuralCoaRoots(lines, lineAccounts);
