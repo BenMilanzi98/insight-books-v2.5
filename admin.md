@@ -7,6 +7,7 @@ This document describes the administrative APIs available in the system. Most of
 All admin APIs require authentication via an `admin_token` cookie. This cookie is set upon successful login.
 
 ### Admin Login
+
 - **Endpoint:** `POST /api/admin/auth/login`
 - **Request Body:**
   ```json
@@ -32,10 +33,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 - **Notes:** Sets an HTTP-only cookie named `admin_token`.
 
 ### Admin Logout
+
 - **Endpoint:** `POST /api/admin/auth/logout`
 - **Notes:** Clears the `admin_token` cookie.
 
 ### Get Current Admin
+
 - **Endpoint:** `GET /api/admin/auth/me`
 
 ---
@@ -43,10 +46,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Tenants Management
 
 ### List Tenants
+
 - **Endpoint:** `GET /api/admin/tenants`
 - **Response:** Returns a list of all tenants with their subscription status and plan.
 
 ### Create Tenant
+
 - **Endpoint:** `POST /api/admin/tenants`
 - **Request Body:**
   ```json
@@ -57,6 +62,7 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 - **Notes:** Automatically generates a subdomain, sets up default roles, financial defaults, and a 30-day trial subscription.
 
 ### Delete Tenant
+
 - **Endpoint:** `DELETE /api/admin/tenants/delete`
 - **Query Params:** `?tenantId=...`
 
@@ -65,6 +71,7 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## User Management
 
 ### List Users
+
 - **Endpoint:** `GET /api/admin/users`
 - **Query Params:**
   - `page`: Page number (default: 1)
@@ -75,6 +82,7 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
   - `tenant`: Filter by tenant name
 
 ### Create User
+
 - **Endpoint:** `POST /api/admin/users`
 - **Request Body:**
   ```json
@@ -97,11 +105,13 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Subscriptions
 
 ### Main Subscriptions
+
 - **List Subscriptions:** `GET /api/admin/subscriptions`
 - **Create/Update Subscription:** `POST /api/admin/subscriptions`
   - **Request Body:** `{ tenantId, plan, amount, currency, status, isActive, isTrial, expiresAt, paymentMethod, notes }`
 
 ### EIS Subscriptions
+
 - **List EIS Subscriptions:** `GET /api/admin/eis-subscriptions`
   - **Query Params:** `status` (active, expired, all), `planType` (monthly, yearly, all), `search`.
 - **Create EIS Subscription:** `POST /api/admin/eis-subscriptions`
@@ -109,6 +119,7 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
   - **Notes:** Plans are `eis-monthly` and `eis-yearly`.
 
 ### Branch Subscriptions
+
 - **List Branch Subscriptions:** `GET /api/admin/branch-subscriptions`
   - **Query Params:** `tenantId`.
 - **Create Branch Subscription:** `POST /api/admin/branch-subscriptions`
@@ -120,10 +131,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## System Health & Metrics
 
 ### System Health
+
 - **Endpoint:** `GET /api/admin/system-health`
 - **Response:** Returns system statistics (total tenants, users, invoices, etc.), database status, performance metrics (CPU, memory), and security metrics.
 
 ### Admin Metrics
+
 - **Endpoint:** `GET /api/admin/metrics`
 
 ---
@@ -131,10 +144,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Backups
 
 ### List Backups
+
 - **Endpoint:** `GET /api/admin/backups`
 - **Response:** Returns a list of available backups (currently mock data).
 
 ### Create Backup
+
 - **Endpoint:** `POST /api/admin/backups`
 - **Request Body:**
   ```json
@@ -149,10 +164,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Audit Logs
 
 ### General Audit Logs
+
 - **Endpoint:** `GET /api/admin/audit-logs`
 - **Query Params:** `page`, `limit`, `action`.
 
 ### Admin Audit Logs
+
 - **Endpoint:** `GET /api/admin/audit/admin-logs`
 
 ---
@@ -160,10 +177,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Roles & Permissions
 
 ### List Roles
+
 - **Endpoint:** `GET /api/admin/roles`
 - **Query Params:** `tenantId`, `search`.
 
 ### Create Role
+
 - **Endpoint:** `POST /api/admin/roles`
 - **Request Body:**
   ```json
@@ -180,10 +199,12 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Settings & Maintenance
 
 ### System Settings
+
 - **Endpoint:** `GET /api/admin/settings`
 - **Endpoint:** `POST /api/admin/settings`
 
 ### Maintenance Mode
+
 - **Endpoint:** `POST /api/admin/maintenance`
 
 ---
@@ -191,5 +212,7 @@ All admin APIs require authentication via an `admin_token` cookie. This cookie i
 ## Security
 
 ### Security Stats
+
 - **Endpoint:** `GET /api/admin/security`
 - **Response:** Returns login attempts, active sessions, and security-related logs.
+

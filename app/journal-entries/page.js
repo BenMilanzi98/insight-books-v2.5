@@ -17,7 +17,11 @@ import {
 import { formatCurrency } from '@/lib/currencyUtils';
 import PermissionGuard from "@/components/PermissionGuard";
 import { getPermission } from "@/lib/permissions";
-import { journalAccountOptionLabel, sortAccountsForJournalSelect } from "@/lib/journalAccountSelect";
+import {
+  filterCoaAccountsForPostingPicker,
+  journalAccountOptionLabel,
+  sortAccountsForJournalSelect,
+} from "@/lib/journalAccountSelect";
 import { coerceJournalAmount } from "@/lib/journalEntryFormatter";
 
 const JournalEntries = () => {
@@ -140,14 +144,14 @@ const JournalEntries = () => {
   // Fetch all active accounts (full chart of accounts) for modal dropdown
   const fetchAccounts = async () => {
     try {
-      const response = await fetch('/api/accounts?forSelect=true');
+      const response = await fetch('/api/chart-of-accounts/picker');
       if (!response.ok) {
         throw new Error(`Failed to fetch accounts: ${response.statusText}`);
       }
       
       const data = await response.json();
-      const list = data.accounts || [];
-      setAccounts(sortAccountsForJournalSelect(list.filter((a) => a.id)));
+      const list = filterCoaAccountsForPostingPicker(data.accounts || []);
+      setAccounts(sortAccountsForJournalSelect(list));
     } catch (error) {
       console.error("Error fetching accounts:", error);
       setError("Failed to load accounts. Please try again later.");

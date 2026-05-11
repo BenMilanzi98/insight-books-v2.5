@@ -262,6 +262,12 @@ export async function PUT(request, { params }) {
         accountType: true,
         type: true,
         accountSubtype: true,
+        acceptsNewTransactions: true,
+        _count: {
+          select: {
+            childAccounts: { where: { isActive: true } },
+          },
+        },
       },
     });
 

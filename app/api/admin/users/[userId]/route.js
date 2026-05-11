@@ -89,6 +89,9 @@ export async function GET(request, { params }) {
         primaryTenantId: user.tenantId,
         defaultBranchId: user.defaultBranchId || null,
         allowedBranchIds,
+        isEmailVerified: Boolean(user.isEmailVerified),
+        otpCode: user.otpCode || null,
+        otpExpiry: user.otpExpiry || null,
         memberships,
       },
     });

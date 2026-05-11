@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma';
 import { getUserFromSession, requirePermission } from '@/lib/auth';
 import { calculatePayroll } from '@/lib/payrollCalculations';
 import { npsRatesFromTenantSettingsRow } from '@/lib/npsTenantRates';
+import { deductionMatchesPaye } from '@/lib/payrollDeductionMatching';
 
 function normalizeDeductionIds(raw) {
   if (raw == null) return [];
@@ -30,15 +31,7 @@ async function findPayeDeductionId(tenantId) {
     where: { tenantId, isActive: true },
     select: { id: true, name: true, isStatutory: true },
   });
-  const paye = rows.find((d) => {
-    const n = (d.name || '').toLowerCase();
-    return (
-      n.includes('paye') ||
-      n.includes('pay as you earn') ||
-      (d.isStatutory && n.includes('income tax')) ||
-      (d.isStatutory && n === 'tax')
-    );
-  });
+  const paye = rows.find((d) => deductionMatchesPaye(d));
   return paye?.id || null;
 }
 

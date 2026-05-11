@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InsightBooks | Security, Data Privacy, System Uptime & Technical Support</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #5b6575;
+      --line: #d9dee7;
+      --paper: #f7f8fb;
+      --panel: #ffffff;
+      --navy: #17233c;
+      --teal: #0f766e;
+      --gold: #c08419;
+      --red: #b42318;
+      --green: #12715b;
+      --blue: #265fbb;
+      --shadow: 0 18px 60px rgba(17, 24, 39, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #e9edf4;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    .deck {
+      height: 100vh;
+      width: 100vw;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .slide {
+      display: none;
+      width: min(1280px, 100%);
+      aspect-ratio: 16 / 9;
+      background: var(--paper);
+      border: 1px solid rgba(17, 24, 39, 0.12);
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+      padding: 58px 68px 54px;
+    }
+
+    .slide.active {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(23, 35, 60, 0.08) 0 1px, transparent 1px 100%),
+        linear-gradient(0deg, rgba(23, 35, 60, 0.05) 0 1px, transparent 1px 100%);
+      background-size: 88px 88px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.28), transparent 60%);
+    }
+
+    .cover {
+      background: var(--navy);
+      color: #ffffff;
+    }
+
+    .cover::before {
+      background:
+        linear-gradient(90deg, rgba(255,255,255,0.08) 0 1px, transparent 1px 100%),
+        linear-gradient(0deg, rgba(255,255,255,0.06) 0 1px, transparent 1px 100%);
+      background-size: 86px 86px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent 78%);
+    }
+
+    .cover .accent-band {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 36%;
+      height: 100%;
+      background: linear-gradient(180deg, #0f766e, #2563eb 52%, #c08419);
+      clip-path: polygon(26% 0, 100% 0, 100% 100%, 0 100%);
+      opacity: 0.95;
+    }
+
+    .kicker {
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--teal);
+      margin: 0 0 18px;
+    }
+
+    .cover .kicker {
+      color: #7dd3c7;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 820px;
+      font-size: clamp(58px, 6vw, 88px);
+      line-height: 0.95;
+      letter-spacing: 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    h2 {
+      font-size: clamp(34px, 4vw, 58px);
+      line-height: 1.02;
+      letter-spacing: 0;
+      max-width: 980px;
+    }
+
+    h3 {
+      font-size: 24px;
+      line-height: 1.18;
+      margin-bottom: 12px;
+    }
+
+    .subtitle {
+      max-width: 780px;
+      margin-top: 24px;
+      font-size: 24px;
+      line-height: 1.35;
+      color: rgba(255,255,255,0.78);
+      position: relative;
+      z-index: 1;
+    }
+
+    .footer {
+      position: absolute;
+      left: 68px;
+      right: 68px;
+      bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .cover .footer {
+      color: rgba(255,255,255,0.68);
+      z-index: 1;
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 28px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .split {
+      grid-template-columns: 1fr 0.82fr;
+      align-items: center;
+    }
+
+    .grid-2,
+    .grid-3,
+    .grid-4 {
+      display: grid;
+      gap: 18px;
+      align-items: stretch;
+    }
+
+    .grid-2 {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .grid-4 {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .card,
+    .metric,
+    .quote,
+    .timeline-item {
+      background: rgba(255,255,255,0.92);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+    }
+
+    .metric {
+      min-height: 150px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 42px;
+      line-height: 1;
+      color: var(--navy);
+      margin-bottom: 12px;
+    }
+
+    .metric span,
+    .card p,
+    li,
+    .timeline-item p {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.42;
+    }
+
+    .card strong {
+      color: var(--ink);
+    }
+
+    ul {
+      margin: 16px 0 0;
+      padding-left: 22px;
+    }
+
+    li + li {
+      margin-top: 10px;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .pill {
+      border: 1px solid rgba(255,255,255,0.25);
+      background: rgba(255,255,255,0.12);
+      color: #ffffff;
+      border-radius: 999px;
+      padding: 9px 14px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .trust-stack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .trust-row {
+      display: grid;
+      grid-template-columns: 142px 1fr;
+      gap: 18px;
+      align-items: start;
+      padding: 18px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .trust-row:last-child {
+      border-bottom: 0;
+    }
+
+    .trust-row b {
+      color: var(--navy);
+      font-size: 18px;
+    }
+
+    .trust-row p {
+      color: var(--muted);
+      font-size: 18px;
+      line-height: 1.4;
+    }
+
+    .system-map {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 140px repeat(4, 1fr);
+      gap: 10px;
+      align-items: center;
+    }
+
+    .lane-label {
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 13px 12px;
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--navy);
+    }
+
+    .box.teal {
+      border-color: rgba(15, 118, 110, 0.34);
+      background: rgba(15, 118, 110, 0.08);
+    }
+
+    .box.gold {
+      border-color: rgba(192, 132, 25, 0.38);
+      background: rgba(192, 132, 25, 0.09);
+    }
+
+    .box.blue {
+      border-color: rgba(38, 95, 187, 0.32);
+      background: rgba(38, 95, 187, 0.08);
+    }
+
+    .big-number {
+      font-size: 96px;
+      line-height: 0.9;
+      color: var(--teal);
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .statement {
+      font-size: 31px;
+      line-height: 1.24;
+      color: var(--navy);
+      max-width: 900px;
+      font-weight: 800;
+    }
+
+    .quote {
+      border-left: 8px solid var(--teal);
+      padding: 28px 32px;
+    }
+
+    .quote p {
+      font-size: 28px;
+      line-height: 1.3;
+      color: var(--navy);
+      font-weight: 800;
+    }
+
+    .timeline {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-top: 10px;
+    }
+
+    .timeline-item {
+      position: relative;
+      padding-top: 42px;
+    }
+
+    .timeline-item::before {
+      content: attr(data-step);
+      position: absolute;
+      left: 20px;
+      top: 16px;
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--navy);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .timeline-item h3 {
+      font-size: 20px;
+    }
+
+    .risk-table {
+      display: grid;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .risk-row {
+      display: grid;
+      grid-template-columns: 0.82fr 1.45fr 0.92fr;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .risk-row:last-child {
+      border-bottom: 0;
+    }
+
+    .risk-row div {
+      padding: 15px 18px;
+      font-size: 17px;
+      line-height: 1.32;
+      color: var(--muted);
+      border-right: 1px solid var(--line);
+    }
+
+    .risk-row div:last-child {
+      border-right: 0;
+    }
+
+    .risk-row.header div {
+      background: var(--navy);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .risk-row b {
+      color: var(--ink);
+    }
+
+    .controls {
+      position: fixed;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      background: rgba(17, 24, 39, 0.86);
+      color: #ffffff;
+      padding: 8px 10px;
+      border-radius: 999px;
+      z-index: 10;
+      box-shadow: 0 10px 30px rgba(17, 24, 39, 0.25);
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 8px 13px;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      color: #111827;
+      background: #ffffff;
+      cursor: pointer;
+    }
+
+    .counter {
+      min-width: 70px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .speaker-notes {
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      body {
+        overflow: auto;
+      }
+
+      .deck {
+        height: auto;
+        padding: 0;
+        display: block;
+      }
+
+      .slide,
+      .slide.active {
+        display: flex;
+        width: 100%;
+        min-height: 100vh;
+        aspect-ratio: auto;
+        padding: 38px 22px 76px;
+        border: 0;
+        box-shadow: none;
+      }
+
+      h1 {
+        font-size: 48px;
+      }
+
+      h2 {
+        font-size: 34px;
+      }
+
+      .subtitle,
+      .statement,
+      .quote p {
+        font-size: 22px;
+      }
+
+      .split,
+      .grid-2,
+      .grid-3,
+      .grid-4,
+      .timeline {
+        grid-template-columns: 1fr;
+      }
+
+      .lane,
+      .risk-row {
+        grid-template-columns: 1fr;
+      }
+
+      .risk-row div {
+        border-right: 0;
+      }
+
+      .footer {
+        left: 22px;
+        right: 22px;
+      }
+
+      .controls {
+        bottom: 8px;
+      }
+    }
+
+    @media print {
+      body {
+        overflow: visible;
+        background: #ffffff;
+      }
+
+      .deck {
+        display: block;
+        height: auto;
+        width: auto;
+        padding: 0;
+      }
+
+      .slide,
+      .slide.active {
+        display: flex;
+        width: 100vw;
+        height: 100vh;
+        box-shadow: none;
+        border: 0;
+        page-break-after: always;
+      }
+
+      .controls {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="deck">
+    <section class="slide cover active">
+      <div class="accent-band"></div>
+      <p class="kicker">InsightBooks trust presentation</p>
+      <h1>Security, Data Privacy, System Uptime & Technical Support</h1>
+      <p class="subtitle">A practical assurance model for a financial platform that businesses depend on every day.</p>
+      <div class="pill-row">
+        <span class="pill">Financial data protection</span>
+        <span class="pill">Tenant isolation</span>
+        <span class="pill">Operational resilience</span>
+        <span class="pill">Responsive support</span>
+      </div>
+      <div class="footer">
+        <span>InsightBooks Africa</span>
+        <span>Prepared May 6, 2026</span>
+      </div>
+      <aside class="speaker-notes">
+        Open with the buyer's real concern: accounting systems are trusted only when security, privacy, uptime, and support are treated as product features.
+      </aside>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Executive promise</p>
+      <div class="content split">
+        <div>
+          <h2>InsightBooks is built around one simple trust standard: protect the books, keep the business running, and support people fast.</h2>
+          <p class="statement" style="margin-top: 28px;">Every invoice, payment, stock movement, payroll record, and journal entry needs confidentiality, integrity, availability, and accountability.</p>
+        </div>
+        <div class="grid-2">
+          <div class="metric"><strong>C</strong><span>Confidentiality: access only by the right users and roles.</span></div>
+          <div class="metric"><strong>I</strong><span>Integrity: financial changes are traceable and reversible.</span></div>
+          <div class="metric"><strong>A</strong><span>Availability: health checks, container restarts, and recovery paths.</span></div>
+          <div class="metric"><strong>A</strong><span>Accountability: admin actions, reversals, and security events are logged.</span></div>
+        </div>
+      </div>
+      <div class="footer"><span>Trust model</span><span>2 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">What the system protects</p>
+      <div class="content">
+        <h2>The protected surface is broader than login screens.</h2>
+        <div class="system-map">
+          <div class="lane">
+            <div class="lane-label">People</div>
+            <div class="box teal">Admins</div>
+            <div class="box teal">Tenant owners</div>
+            <div class="box teal">Finance users</div>
+            <div class="box teal">Branch teams</div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Data</div>
+            <div class="box blue">Invoices and payments</div>
+            <div class="box blue">General ledger</div>
+            <div class="box blue">Clients and suppliers</div>
+            <div class="box blue">Payroll and HR</div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Controls</div>
+            <div class="box gold">RBAC permissions</div>
+            <div class="box gold">Tenant and branch scope</div>
+            <div class="box gold">Audit logs</div>
+            <div class="box gold">Reversal policy</div>
+          </div>
+          <div class="lane">
+            <div class="lane-label">Operations</div>
+            <div class="box">Docker runtime</div>
+            <div class="box">PostgreSQL database</div>
+            <div class="box">Backups and restore</div>
+            <div class="box">Health monitoring</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>System protection scope</span><span>3 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Security posture</p>
+      <div class="content grid-3">
+        <div class="card">
+          <h3>Identity and access</h3>
+          <p>Authentication middleware, HTTP-only admin cookies, JWT-backed sessions, and role-based permissions limit access by responsibility.</p>
+          <ul>
+            <li>Tenant roles with JSON permission sets</li>
+            <li>Admin APIs protected by admin session checks</li>
+            <li>Branch access support for multi-location businesses</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Application safeguards</h3>
+          <p>The application uses Prisma ORM, input validation patterns, and structured API boundaries to reduce common web and data risks.</p>
+          <ul>
+            <li>SQL injection protection through parameterized ORM access</li>
+            <li>Server-side route checks for protected workflows</li>
+            <li>Financial operations constrained by business rules</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Hardened deployment</h3>
+          <p>Production Docker configuration reduces runtime exposure and keeps the app environment consistent across releases.</p>
+          <ul>
+            <li>Multi-stage image build</li>
+            <li>Non-root application user</li>
+            <li>No-new-privileges and read-only app filesystem</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer"><span>Security controls</span><span>4 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Financial integrity</p>
+      <div class="content split">
+        <div>
+          <h2>For accounting software, integrity is security.</h2>
+          <p class="statement" style="margin-top: 26px;">InsightBooks treats posted financial records as business evidence. Material changes are handled through reversal, reason capture, and audit logs instead of silent deletion.</p>
+        </div>
+        <div class="trust-stack">
+          <div class="trust-row">
+            <b>No silent removal</b>
+            <p>Posted money movement is reversed with equal-and-opposite entries where applicable.</p>
+          </div>
+          <div class="trust-row">
+            <b>Reason required</b>
+            <p>User-initiated removals require a meaningful reversal reason for review and accountability.</p>
+          </div>
+          <div class="trust-row">
+            <b>Audit evidence</b>
+            <p>Structured audit log entries preserve who did what, when, and why.</p>
+          </div>
+          <div class="trust-row">
+            <b>Protected totals</b>
+            <p>Invoices, payments, sales, supplier bills, and purchase flows update balances through controlled workflows.</p>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Accounting-grade integrity</span><span>5 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Data privacy</p>
+      <div class="content">
+        <h2>Privacy is designed around minimum necessary access.</h2>
+        <div class="grid-4">
+          <div class="metric"><strong>01</strong><span><b>Tenant separation</b><br />Business data is scoped by tenant so one company does not browse another company's records.</span></div>
+          <div class="metric"><strong>02</strong><span><b>Role limits</b><br />Finance, stock, HR, reporting, and admin actions can be exposed only to assigned roles.</span></div>
+          <div class="metric"><strong>03</strong><span><b>Branch controls</b><br />Users can be restricted to the branches and operating locations they are allowed to manage.</span></div>
+          <div class="metric"><strong>04</strong><span><b>Audit visibility</b><br />Administrative and financial events can be reviewed when privacy questions arise.</span></div>
+        </div>
+        <div class="quote">
+          <p>Privacy is not only about hiding data. It is about making sure each user sees enough to do their job, and no more.</p>
+        </div>
+      </div>
+      <div class="footer"><span>Data privacy model</span><span>6 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">System uptime</p>
+      <div class="content split">
+        <div>
+          <h2>Availability is engineered at the runtime, database, and recovery layers.</h2>
+          <div class="timeline">
+            <div class="timeline-item" data-step="1">
+              <h3>Detect</h3>
+              <p>Container health checks verify the app and PostgreSQL are reachable.</p>
+            </div>
+            <div class="timeline-item" data-step="2">
+              <h3>Restart</h3>
+              <p>Production services use restart policies to recover from transient failure.</p>
+            </div>
+            <div class="timeline-item" data-step="3">
+              <h3>Restore</h3>
+              <p>Documented backup and restore workflows support recovery after database issues.</p>
+            </div>
+            <div class="timeline-item" data-step="4">
+              <h3>Validate</h3>
+              <p>Deployment guides, runbooks, and validation scripts reduce release risk.</p>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Operational commitments to present</h3>
+          <ul>
+            <li><strong>Target uptime:</strong> 99.5%+ for hosted production environments, excluding scheduled maintenance.</li>
+            <li><strong>Maintenance windows:</strong> communicated in advance for planned releases or database work.</li>
+            <li><strong>Recovery objective:</strong> restore from the latest verified backup as the primary recovery path.</li>
+            <li><strong>Escalation:</strong> production incidents prioritized ahead of standard support requests.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer"><span>Reliability story</span><span>7 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Backup and continuity</p>
+      <div class="content grid-3">
+        <div class="card">
+          <h3>Database first</h3>
+          <p>InsightBooks relies on PostgreSQL as the system of record, with documented dump, restore, and migration procedures.</p>
+        </div>
+        <div class="card">
+          <h3>Release safety</h3>
+          <p>Deployment guides recommend controlled builds, environment configuration, and checks before production updates.</p>
+        </div>
+        <div class="card">
+          <h3>Business continuity</h3>
+          <p>POS service worker support improves the user experience during intermittent connectivity for selected workflows.</p>
+        </div>
+        <div class="card">
+          <h3>Restore readiness</h3>
+          <p>Restore scripts and runbooks give support teams a repeatable path instead of improvising during an outage.</p>
+        </div>
+        <div class="card">
+          <h3>Data protection</h3>
+          <p>Backups should be encrypted, access-limited, and tested on a schedule as part of the operating policy.</p>
+        </div>
+        <div class="card">
+          <h3>Improvement roadmap</h3>
+          <p>Add automated off-site backup verification, incident dashboards, and formal RPO/RTO reporting for enterprise clients.</p>
+        </div>
+      </div>
+      <div class="footer"><span>Continuity planning</span><span>8 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Technical support</p>
+      <div class="content">
+        <h2>Support is structured around urgency, ownership, and clear resolution paths.</h2>
+        <div class="risk-table">
+          <div class="risk-row header">
+            <div>Priority</div>
+            <div>Examples</div>
+            <div>Target response</div>
+          </div>
+          <div class="risk-row">
+            <div><b>P1 Critical</b></div>
+            <div>Production outage, login unavailable for all users, data integrity incident, payment or invoicing blocked business-wide.</div>
+            <div>Within 30 minutes</div>
+          </div>
+          <div class="risk-row">
+            <div><b>P2 High</b></div>
+            <div>Core module impaired for a tenant, branch cannot transact, reports materially incorrect, integrations failing.</div>
+            <div>Within 2 business hours</div>
+          </div>
+          <div class="risk-row">
+            <div><b>P3 Standard</b></div>
+            <div>How-to requests, user setup, permission changes, minor bugs, template or report adjustments.</div>
+            <div>Within 1 business day</div>
+          </div>
+          <div class="risk-row">
+            <div><b>P4 Advisory</b></div>
+            <div>Training, new feature requests, workflow optimization, accounting setup advice.</div>
+            <div>Scheduled</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Support model</span><span>9 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Client assurance</p>
+      <div class="content split">
+        <div>
+          <h2>How clients experience the difference</h2>
+          <div class="quote" style="margin-top: 28px;">
+            <p>InsightBooks gives management confidence that the numbers are protected, traceable, recoverable, and supported by people who understand business operations.</p>
+          </div>
+        </div>
+        <div class="trust-stack">
+          <div class="trust-row">
+            <b>Owners</b>
+            <p>See accurate business performance without worrying that records were changed behind the scenes.</p>
+          </div>
+          <div class="trust-row">
+            <b>Accountants</b>
+            <p>Work with audit trails, controlled reversals, and reports designed for review.</p>
+          </div>
+          <div class="trust-row">
+            <b>Branch teams</b>
+            <p>Operate within assigned locations while management keeps centralized control.</p>
+          </div>
+          <div class="trust-row">
+            <b>Executives</b>
+            <p>Have a credible answer for security, privacy, uptime, and support questions.</p>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Business value</span><span>10 / 12</span></div>
+    </section>
+
+    <section class="slide">
+      <p class="kicker">Risk transparency</p>
+      <div class="content">
+        <h2>A convincing security story includes the controls and the next improvements.</h2>
+        <div class="risk-table">
+          <div class="risk-row header">
+            <div>Area</div>
+            <div>Current assurance</div>
+            <div>Next strengthening step</div>
+          </div>
+          <div class="risk-row">
+            <div><b>Secrets</b></div>
+            <div>Environment-based configuration separates deploy-time values from application code.</div>
+            <div>Rotate any exposed credentials and move production secrets to a managed vault.</div>
+          </div>
+          <div class="risk-row">
+            <div><b>Backups</b></div>
+            <div>Backup and restore procedures are documented with multiple restore scripts.</div>
+            <div>Automate encrypted off-site backups and monthly restore tests.</div>
+          </div>
+          <div class="risk-row">
+            <div><b>Monitoring</b></div>
+            <div>App and database health checks are configured in Docker production deployment.</div>
+            <div>Add alerting, incident timelines, and uptime reports for stakeholders.</div>
+          </div>
+          <div class="risk-row">
+            <div><b>Access</b></div>
+            <div>Tenant, branch, admin, role, and permission models support least-privilege access.</div>
+            <div>Introduce periodic access reviews and optional MFA for administrators.</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer"><span>Trust roadmap</span><span>11 / 12</span></div>
+    </section>
+
+    <section class="slide cover">
+      <div class="accent-band"></div>
+      <p class="kicker">Closing position</p>
+      <h1 style="max-width: 900px;">Trust is a product feature.</h1>
+      <p class="subtitle">InsightBooks combines security controls, privacy boundaries, uptime practices, and responsive support into one operating promise: your business records stay protected, available, and accountable.</p>
+      <div class="pill-row">
+        <span class="pill">Protect</span>
+        <span class="pill">Isolate</span>
+        <span class="pill">Monitor</span>
+        <span class="pill">Recover</span>
+        <span class="pill">Support</span>
+      </div>
+      <div class="footer">
+        <span>Security, Data Privacy, Uptime & Support</span>
+        <span>12 / 12</span>
+      </div>
+    </section>
+  </main>
+
+  <nav class="controls" aria-label="Presentation controls">
+    <button type="button" id="prev" aria-label="Previous slide">Prev</button>
+    <span class="counter" id="counter">1 / 12</span>
+    <button type="button" id="next" aria-label="Next slide">Next</button>
+  </nav>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll(".slide"));
+    const counter = document.getElementById("counter");
+    let current = 0;
+
+    function showSlide(index) {
+      current = Math.max(0, Math.min(index, slides.length - 1));
+      slides.forEach((slide, i) => slide.classList.toggle("active", i === current));
+      counter.textContent = `${current + 1} / ${slides.length}`;
+      window.location.hash = `slide-${current + 1}`;
+    }
+
+    document.getElementById("prev").addEventListener("click", () => showSlide(current - 1));
+    document.getElementById("next").addEventListener("click", () => showSlide(current + 1));
+
+    document.addEventListener("keydown", (event) => {
+      if (["ArrowRight", "PageDown", " "].includes(event.key)) {
+        event.preventDefault();
+        showSlide(current + 1);
+      }
+      if (["ArrowLeft", "PageUp"].includes(event.key)) {
+        event.preventDefault();
+        showSlide(current - 1);
+      }
+      if (event.key === "Home") showSlide(0);
+      if (event.key === "End") showSlide(slides.length - 1);
+    });
+
+    const match = window.location.hash.match(/slide-(\d+)/);
+    if (match) showSlide(Number(match[1]) - 1);
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/currencyUtils";
 import {
+  filterCoaAccountsForPostingPicker,
   groupAccountsForJournalSelect,
   journalAccountOptionLabel,
 } from "@/lib/journalAccountSelect";
@@ -83,15 +84,14 @@ const JournalEntryForm = ({ existingEntry = null }) => {
     const fetchAccounts = async () => {
       setIsLoadingAccounts(true);
       try {
-        const response = await fetch('/api/accounts?forSelect=true');
+        const response = await fetch('/api/chart-of-accounts/picker?postingEligibleOnly=true');
         if (!response.ok) {
           throw new Error(`Error fetching accounts: ${response.statusText}`);
         }
         
         const data = await response.json();
         
-        // Ensure accounts have proper IDs (all active parents + children from chart of accounts)
-        const validAccounts = (data.accounts || []).filter((account) => account.id);
+        const validAccounts = filterCoaAccountsForPostingPicker(data.accounts || []);
         setAccounts(validAccounts);
         setAccountsByType(groupAccountsForJournalSelect(validAccounts));
       } catch (err) {

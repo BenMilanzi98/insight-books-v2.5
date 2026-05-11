@@ -23,9 +23,12 @@ async function syncPaymentAccountsToCoa(tenantId) {
     orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
   });
 
+  const { findPaymentAccountsNeedingLeafCoaMigration } = await import('@/lib/paymentAccountCoaLink');
+  const needsLeafMigration = await findPaymentAccountsNeedingLeafCoaMigration(tenantId, prisma);
   const needsLink = paymentAccounts.filter((p) => !p.coaAccountId);
-  if (needsLink.length > 0) {
-    await ensurePaymentCoaForAccounts(tenantId, needsLink.slice(0, 50));
+  const toCoaFix = [...new Map([...needsLink, ...needsLeafMigration].map((p) => [p.id, p])).values()];
+  if (toCoaFix.length > 0) {
+    await ensurePaymentCoaForAccounts(tenantId, toCoaFix.slice(0, 80));
     paymentAccounts = await prisma.paymentAccount.findMany({
       where: { tenantId, isActive: true },
       orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],

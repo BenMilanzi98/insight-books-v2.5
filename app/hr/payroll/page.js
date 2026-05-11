@@ -8,6 +8,7 @@ import { formatSalaryAmount } from "@/lib/currencyUtils";
 import { calculatePayroll } from "@/lib/payrollCalculations";
 import { effectiveNpsRatePercentForPayroll } from "@/lib/npsTenantRates";
 import { toYmdLocal, todayYmdLocal } from "@/lib/dateUtils";
+import { filterCoaAccountsForPostingPicker } from "@/lib/journalAccountSelect";
 
 export default function PayrollProcessing() {
   const router = useRouter();
@@ -123,13 +124,13 @@ export default function PayrollProcessing() {
     try {
       setAccountsLoading(true);
       setAccountsError(null);
-      const response = await fetch('/api/accounts?limit=500');
+      const response = await fetch('/api/chart-of-accounts/picker?accountType=Expense&isActive=true');
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to load accounts');
       }
       const data = await response.json();
-      setAccounts(data.accounts || []);
+      setAccounts(filterCoaAccountsForPostingPicker(data.accounts || []));
     } catch (error) {
       console.error('Error loading accounts:', error);
       setAccounts([]);

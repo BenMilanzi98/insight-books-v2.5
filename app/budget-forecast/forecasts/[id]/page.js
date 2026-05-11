@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import PermissionGuard from '@/components/PermissionGuard';
+import { filterCoaAccountsForPostingPicker } from '@/lib/journalAccountSelect';
 import { Loader2, Save, Trash2 } from 'lucide-react';
 
 function cellKey(accountId, period) {
@@ -11,19 +12,11 @@ function cellKey(accountId, period) {
 }
 
 async function fetchIncomeRevenueAccounts() {
-  const [r1, r2] = await Promise.all([
-    fetch('/api/accounts?forSelect=true&type=Income&limit=5000'),
-    fetch('/api/accounts?forSelect=true&type=Revenue&limit=5000'),
-  ]);
-  const j1 = await r1.json();
-  const j2 = await r2.json();
-  const a1 = r1.ok && Array.isArray(j1.accounts) ? j1.accounts : [];
-  const a2 = r2.ok && Array.isArray(j2.accounts) ? j2.accounts : [];
-  const byId = new Map();
-  for (const a of [...a1, ...a2]) {
-    byId.set(a.id, a);
-  }
-  return [...byId.values()].sort((a, b) =>
+  const res = await fetch('/api/chart-of-accounts/picker?accountType=Income&isActive=true');
+  const j = await res.json();
+  if (!res.ok || !Array.isArray(j.accounts)) return [];
+  const rows = filterCoaAccountsForPostingPicker(j.accounts);
+  return [...rows].sort((a, b) =>
     String(a.accountCode || a.code || '').localeCompare(String(b.accountCode || b.code || ''), undefined, {
       numeric: true,
     })

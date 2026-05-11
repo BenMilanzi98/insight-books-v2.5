@@ -17,6 +17,8 @@ import {
   Users,
   Download,
   Upload,
+  Copy,
+  KeyRound,
   AlertCircle,
   CheckCircle,
   XCircle
@@ -765,6 +767,10 @@ export default function UserManagementPage() {
           tenants={tenants}
           branches={branches}
           onTenantChange={fetchBranches}
+          onActivated={() => {
+            fetchUsers(currentPage, searchTerm, selectedRole, selectedStatus);
+            fetchStats();
+          }}
         />
       )}
 
@@ -1207,12 +1213,19 @@ function CreateUserModal({ onClose, onSubmit, loading, tenants }) {
 }
 
 // Edit User Modal Component
-function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, onTenantChange }) {
+function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, onTenantChange, onActivated }) {
   const [detailLoading, setDetailLoading] = useState(true);
   const [detailError, setDetailError] = useState('');
+  const [activationLoading, setActivationLoading] = useState(false);
+  const [activationMessage, setActivationMessage] = useState('');
   const [membershipRows, setMembershipRows] = useState([{ tenantId: '', roleId: '' }]);
   const [primaryIndex, setPrimaryIndex] = useState(0);
   const [rolesCache, setRolesCache] = useState({});
+  const [verificationData, setVerificationData] = useState({
+    isEmailVerified: false,
+    otpCode: null,
+    otpExpiry: null,
+  });
   const [formData, setFormData] = useState({
     name: user.name,
     email: user.email,
@@ -1256,6 +1269,11 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
           status: d.status,
           defaultBranchId: d.defaultBranchId || null,
           allowedBranchIds: Array.isArray(d.allowedBranchIds) ? [...d.allowedBranchIds] : [],
+        });
+        setVerificationData({
+          isEmailVerified: Boolean(d.isEmailVerified),
+          otpCode: d.otpCode || null,
+          otpExpiry: d.otpExpiry || null,
         });
         const mems =
           d.memberships && d.memberships.length > 0
@@ -1304,6 +1322,61 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
       role: primaryRow.roleId,
     });
   };
+
+  const handleManualActivation = async () => {
+    const confirmed = window.confirm(
+      `Manually activate ${formData.email}? This will mark the email as verified and clear any outstanding OTP.`
+    );
+    if (!confirmed) return;
+
+    setActivationLoading(true);
+    setActivationMessage('');
+    setDetailError('');
+    try {
+      const res = await fetch(
+        `/api/admin/users/${encodeURIComponent(user.id)}/manual-activation`,
+        { method: 'POST' }
+      );
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to manually activate user');
+      }
+      setVerificationData({
+        isEmailVerified: true,
+        otpCode: null,
+        otpExpiry: null,
+      });
+      setFormData((prev) => ({ ...prev, status: data.user?.status || 'active' }));
+      setActivationMessage('User account manually activated. They can now log in without email OTP verification.');
+      if (onActivated) onActivated();
+    } catch (e) {
+      setDetailError(e.message || 'Manual activation failed');
+    } finally {
+      setActivationLoading(false);
+    }
+  };
+
+  const handleCopyOtp = async () => {
+    if (!verificationData.otpCode) return;
+    try {
+      await navigator.clipboard.writeText(String(verificationData.otpCode));
+      setActivationMessage('OTP copied to clipboard.');
+    } catch {
+      setActivationMessage('Could not copy automatically. Select and copy the OTP manually.');
+    }
+  };
+
+  const otpExpiryText = verificationData.otpExpiry
+    ? new Date(verificationData.otpExpiry).toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+  const otpExpired =
+    verificationData.otpExpiry && new Date(verificationData.otpExpiry).getTime() < Date.now();
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -1365,6 +1438,78 @@ function EditUserModal({ user, onClose, onSubmit, loading, tenants, branches, on
                   <option value="inactive">Inactive</option>
                   <option value="pending">Pending</option>
                 </select>
+              </div>
+
+              <div className="border border-blue-100 rounded-md p-3 bg-blue-50">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4 text-blue-700" />
+                      <h4 className="text-sm font-medium text-gray-900">Email verification</h4>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-600">
+                      Use this when the tenant did not receive the verification email.
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      verificationData.isEmailVerified
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}
+                  >
+                    {verificationData.isEmailVerified ? 'Verified' : 'Not verified'}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-md border border-blue-200 bg-white p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase">Current OTP</p>
+                      <p className="mt-1 font-mono text-lg font-semibold tracking-widest text-gray-900">
+                        {verificationData.otpCode || 'No active OTP'}
+                      </p>
+                    </div>
+                    {verificationData.otpCode && (
+                      <button
+                        type="button"
+                        onClick={handleCopyOtp}
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        <Copy className="h-4 w-4" />
+                        Copy
+                      </button>
+                    )}
+                  </div>
+                  <p className={`mt-2 text-xs ${otpExpired ? 'text-red-600' : 'text-gray-500'}`}>
+                    {otpExpiryText
+                      ? `${otpExpired ? 'Expired' : 'Expires'}: ${otpExpiryText}`
+                      : 'No OTP expiry is recorded.'}
+                  </p>
+                </div>
+
+                {activationMessage && (
+                  <p className="mt-2 text-sm text-green-700">{activationMessage}</p>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleManualActivation}
+                  disabled={activationLoading || verificationData.isEmailVerified}
+                  className="mt-3 inline-flex items-center gap-2 px-3 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                >
+                  {activationLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Activating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Manually activate account
+                    </>
+                  )}
+                </button>
               </div>
 
               <div className="border border-gray-200 rounded-md p-3 space-y-3 bg-gray-50">

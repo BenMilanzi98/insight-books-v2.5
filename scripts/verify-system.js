@@ -82,6 +82,7 @@ async function main() {
     'app/api/general-ledger/route.js',
     'app/api/journal-entries/route.js',
     'app/api/chart-of-accounts/route.js',
+    'app/api/chart-of-accounts/picker/route.js',
     'app/api/accounting-periods/route.js',
     'app/api/payments/route.js',
     'app/api/stock/route.js',
