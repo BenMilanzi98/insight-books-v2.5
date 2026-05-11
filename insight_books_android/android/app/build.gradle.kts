@@ -20,7 +20,10 @@ if (keystorePropertiesFile.exists()) {
 android {
     namespace = "com.insightbooksafrica.insightbooks_android"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Highest NDK required by any plugin (NDK is backward compatible). Several
+    // plugins (audioplayers_android, mobile_scanner, file_picker, ...) require
+    // 27.0.12077973; flutter.ndkVersion alone resolves to 25.x on Flutter 3.41.
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -74,6 +77,7 @@ android {
             }
         }
     }
+
 }
 
 flutter {
