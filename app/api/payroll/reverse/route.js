@@ -133,7 +133,7 @@ export async function GET(request) {
         { status: 400 }
       );
     }
-    const periodCheck = await checkAccountingPeriodLock(user.tenantId, journalTransaction.date);
+    const periodCheck = await checkAccountingPeriodLock(user.tenantId, new Date());
     if (periodCheck.isLocked) {
       return NextResponse.json(
         { eligible: false, error: periodCheck.error },

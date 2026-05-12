@@ -10,6 +10,7 @@ import { generateReferenceNumber } from '@/lib/journalService';
 import { getTaxType, autoPostTaxEntry } from '@/lib/taxCalculationService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import { getAccountForPaymentMethod } from '@/lib/paymentMethodAccountMapping';
+import { assertAccountsAllowDirectPosting } from '@/lib/coaDirectPostingEligibility';
 
 /**
  * POST - Create enhanced payroll run with Malawi tax compliance
@@ -213,16 +214,22 @@ export async function POST(request) {
 
     const expenseAccount =
       selectedExpenseAccount || findAccountByName('Salaries Expense');
-    // Resolve payment account selection:
-    // - If `paymentAccountId` is a Chart-of-Accounts `Account` id, use it directly.
-    // - If it's a `PaymentAccount` id from `/payments/management`, map it to the corresponding CoA Asset account.
-    let paymentAccount = selectedCoAPaymentAccount || null;
-    if (!paymentAccount && selectedPaymentAccountRecord) {
+    // Resolve payment account selection through the central mapper so structural headers
+    // such as 1000 are never used as payroll cash/bank posting accounts.
+    let paymentAccount = null;
+    if (paymentAccountId && (selectedCoAPaymentAccount || selectedPaymentAccountRecord)) {
       try {
         paymentAccount = await getAccountForPaymentMethod(user.tenantId, paymentAccountId, prisma);
       } catch (e) {
-        // Non-fatal fallback: use Cash if mapping fails (but still must exist in CoA).
-        paymentAccount = findAccountByName('Cash') || null;
+        console.warn('Payroll payment account mapping failed, falling back to standard Cash:', e?.message || e);
+      }
+    }
+
+    if (!paymentAccount) {
+      try {
+        paymentAccount = await getAccountForPaymentMethod(user.tenantId, 'cash', prisma);
+      } catch (e) {
+        console.warn('Payroll standard Cash mapping failed:', e?.message || e);
       }
     }
 
@@ -447,6 +454,30 @@ export async function POST(request) {
         { 
           error: 'Required payroll accounts are missing. Please ensure all payroll accounts exist.',
           missingAccounts: missingAccounts
+        },
+        { status: 400 }
+      );
+    }
+
+    try {
+      await assertAccountsAllowDirectPosting(
+        [
+          expenseAccount.id,
+          paymentAccount.id,
+          payeAccount.id,
+          npsEmployeeAccount.id,
+          npsEmployerAccount.id,
+          otherDeductionsAccount.id,
+          advanceReceivableAccount.id,
+        ],
+        prisma
+      );
+    } catch (postingAccountError) {
+      return NextResponse.json(
+        {
+          error: 'One or more payroll accounts cannot receive direct postings.',
+          details: postingAccountError.message,
+          hint: 'Use detail payroll, PAYE, NPS, deduction, salary advance, and cash/bank accounts instead of chart section headers like 1000.',
         },
         { status: 400 }
       );

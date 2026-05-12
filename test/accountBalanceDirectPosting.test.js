@@ -44,6 +44,32 @@ describe('updateAccountBalanceOnTransaction — consolidation guard', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('allows an explicit reversal balance update to cancel a legacy structural-root posting', async () => {
+    findUnique.mockResolvedValue({
+      id: 'asset-root',
+      accountType: 'Asset',
+      normalBalance: 'Debit',
+      balance: 500,
+      accountCode: '1000',
+      code: '1000',
+      accountName: 'Assets',
+      name: null,
+      acceptsNewTransactions: true,
+      _count: { childAccounts: 4 },
+    });
+    update.mockResolvedValue({});
+
+    const bal = await updateAccountBalanceOnTransaction('asset-root', 0, 500, prisma, {
+      allowBlockedAccountForReversal: true,
+    });
+
+    expect(bal).toBe(0);
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'asset-root' },
+      data: { balance: 0 },
+    });
+  });
+
   it('updates balance for a leaf expense account', async () => {
     findUnique.mockResolvedValue({
       id: 'leaf-exp',
