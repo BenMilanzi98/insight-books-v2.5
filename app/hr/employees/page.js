@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import DynamicSelect from "@/components/DynamicSelect";
 import { 
   Search, 
@@ -321,43 +321,107 @@ const EmployeeForm = ({ employee, onSubmit, onCancel, isSubmitting, departments 
     }));
   };
 
+  const fetchSalaryCalculation = useCallback(async () => {
+    const benefitsList = Object.entries(employeeBenefitAmounts || {})
+      .filter(([, amount]) => amount !== '' && amount !== undefined && Number(amount) > 0)
+      .map(([benefitId, amount]) => ({ benefitId, amount: Number(amount) }));
+    const response = await fetch('/api/employees/calculate-salary', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        grossSalary: formData.grossSalary,
+        deductionIds: selectedDeductions.map(d => d.id),
+        employmentType: formData.employmentType,
+        benefits: benefitsList
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        const err = new Error('Unauthorized');
+        err.status = 401;
+        throw err;
+      }
+      throw new Error('Failed to calculate salary');
+    }
+
+    const data = await response.json();
+    return data.calculation;
+  }, [formData.grossSalary, formData.employmentType, selectedDeductions, employeeBenefitAmounts]);
+
+  useEffect(() => {
+    if (currentStep !== 2) {
+      return;
+    }
+
+    let cancelled = false;
+    const grossVal = parseFloat(formData.grossSalary);
+    if (
+      formData.grossSalary === '' ||
+      formData.grossSalary === null ||
+      formData.grossSalary === undefined ||
+      !Number.isFinite(grossVal) ||
+      grossVal <= 0
+    ) {
+      setSalaryCalculation(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const timer = setTimeout(() => {
+      (async () => {
+        if (cancelled) return;
+        setCalculating(true);
+        try {
+          const calculation = await fetchSalaryCalculation();
+          if (cancelled) return;
+          setSalaryCalculation(calculation);
+        } catch (error) {
+          if (cancelled) return;
+          console.error('Error calculating salary:', error);
+          setSalaryCalculation(null);
+        } finally {
+          if (!cancelled) {
+            setCalculating(false);
+          }
+        }
+      })();
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [currentStep, formData.grossSalary, fetchSalaryCalculation]);
+
   const calculateSalary = async () => {
-    if (!formData.grossSalary || formData.grossSalary <= 0) {
+    const grossVal = parseFloat(formData.grossSalary);
+    if (
+      formData.grossSalary === '' ||
+      formData.grossSalary === null ||
+      formData.grossSalary === undefined ||
+      !Number.isFinite(grossVal) ||
+      grossVal <= 0
+    ) {
       alert('Please enter a valid gross salary');
       return;
     }
 
     try {
       setCalculating(true);
-      const benefitsList = Object.entries(employeeBenefitAmounts || {})
-        .filter(([, amount]) => amount !== '' && amount !== undefined && Number(amount) > 0)
-        .map(([benefitId, amount]) => ({ benefitId, amount: Number(amount) }));
-      const response = await fetch('/api/employees/calculate-salary', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          grossSalary: formData.grossSalary,
-          deductionIds: selectedDeductions.map(d => d.id),
-          employmentType: formData.employmentType,
-          benefits: benefitsList
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          setError("Please log in to calculate salary. Authentication required.");
-          return;
-        }
-        throw new Error('Failed to calculate salary');
-      }
-
-      const data = await response.json();
-      setSalaryCalculation(data.calculation);
+      const calculation = await fetchSalaryCalculation();
+      setSalaryCalculation(calculation);
     } catch (error) {
       console.error('Error calculating salary:', error);
-      alert('Failed to calculate salary');
+      if (error.status === 401) {
+        alert('Please log in to calculate salary. Authentication required.');
+      } else {
+        alert('Failed to calculate salary');
+      }
+      setSalaryCalculation(null);
     } finally {
       setCalculating(false);
     }
@@ -2792,7 +2856,21 @@ const EmployeeManagement = () => {
                     <td className="px-4 py-4 text-sm text-gray-900">{employee.jobTitle || employee.position || 'N/A'}</td>
                     <td className="px-4 py-4 text-sm text-gray-900">{employee.department || 'N/A'}</td>
                     <td className="px-4 py-4 text-sm text-gray-900">{employee.employmentType || 'N/A'}</td>
-                    <td className="px-4 py-4 text-sm text-gray-900 text-right">{formatCurrency(employee.salary)}</td>
+                    <td className="px-4 py-4 text-right align-top">
+                      <div className="flex flex-col items-end gap-0.5">
+                        <div className="text-xs text-red-600">
+                          Gross:{' '}
+                          {employee.grossSalary != null &&
+                          employee.grossSalary !== '' &&
+                          Number(employee.grossSalary) > 0
+                            ? formatCurrency(employee.grossSalary)
+                            : '—'}
+                        </div>
+                        <div className="text-sm text-green-600">
+                          Net: {formatCurrency(employee.salary)}
+                        </div>
+                      </div>
+                    </td>
                     <td className="px-4 py-4 text-sm">
                       <span className={`px-2.5 py-1 rounded-full text-xs ${
                         employee.status === 'Suspended'
