@@ -81,14 +81,17 @@ export async function GET(request) {
       return Number.isFinite(n) ? n : 0;
     };
 
-    // Totals: treat reversed payrolls as negative deductions (for audit correctness).
+    // Totals for this MRA summary should show active PAYE only.
+    // Reversed payrolls are tracked separately, but must not reduce the report below zero.
     const totals = payrolls.reduce(
       (acc, p) => {
         const amt = num(p.payeAmount);
-        const signed = p.status === 'Reversed' ? -amt : amt;
-        acc.total += signed;
-        if (p.status === 'Reversed') acc.reversed += amt;
-        else acc.deducted += amt;
+        if (p.status === 'Reversed') {
+          acc.reversed += amt;
+        } else {
+          acc.total += amt;
+          acc.deducted += amt;
+        }
         return acc;
       },
       { total: 0, deducted: 0, reversed: 0 }
@@ -99,7 +102,7 @@ export async function GET(request) {
     
     for (const p of payrolls) {
       const amt = num(p.payeAmount);
-      const signed = p.status === 'Reversed' ? -amt : amt;
+      const reportAmount = p.status === 'Reversed' ? 0 : amt;
       const empId = p.employeeId || p.employee?.id || 'unknown';
       const empName = p.employee?.name || 'Unknown';
       
@@ -116,7 +119,7 @@ export async function GET(request) {
         };
       }
 
-      employeeBreakdown[empId].totalPaye += signed;
+      employeeBreakdown[empId].totalPaye += reportAmount;
       if (p.status !== 'Reversed') {
         employeeBreakdown[empId].pendingAmount += amt;
       }
@@ -124,7 +127,7 @@ export async function GET(request) {
       const periodLabel = `${new Date(p.periodStart).toLocaleDateString()} - ${new Date(p.periodEnd).toLocaleDateString()}`;
       employeeBreakdown[empId].periods.push({
         date: p.paymentDate || p.periodEnd,
-        amount: signed,
+        amount: reportAmount,
         status: p.status === 'Reversed' ? 'Reversed' : 'Pending',
         period: periodLabel
       });
@@ -146,14 +149,14 @@ export async function GET(request) {
       byEmployee: breakdownArray,
       details: payrolls.map(p => {
         const amt = num(p.payeAmount);
-        const signed = p.status === 'Reversed' ? -amt : amt;
+        const reportAmount = p.status === 'Reversed' ? 0 : amt;
         return {
           id: p.id,
           date: p.paymentDate || p.periodEnd,
           employeeName: p.employee?.name || 'Unknown',
           employeeNumber: p.employee?.employeeId || 'N/A',
           department: p.employee?.department || 'N/A',
-          amount: signed,
+          amount: reportAmount,
           status: p.status === 'Reversed' ? 'Reversed' : 'Pending',
           periodStart: p.periodStart,
           periodEnd: p.periodEnd
