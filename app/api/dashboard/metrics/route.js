@@ -20,6 +20,7 @@ import {
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -247,28 +248,12 @@ export async function GET(request) {
     // Get current period data with refund calculations
     const currentPeriodEndDate = currentPeriodEnd || new Date(); // Use currentPeriodEnd if defined, otherwise use now
     
-    // First, find COGS account(s) for this tenant (cost accounts for expense reports)
-    const cogsAccounts = await prisma.account.findMany({
-      where: {
-        ...tw,
-        isActive: true,
-        accountType: 'Expense',
-        OR: [
-          { accountCode: '5000' },
-          { code: '5000' },
-          { accountCode: '5100' },
-          { code: '5100' },
-          { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-          { accountName: { contains: 'cost of sales', mode: 'insensitive' } },
-          { accountName: { contains: 'cogs', mode: 'insensitive' } },
-          { name: { contains: 'cost of goods', mode: 'insensitive' } },
-          { name: { contains: 'cost of sales', mode: 'insensitive' } },
-          { name: { contains: 'cogs', mode: 'insensitive' } }
-        ]
-      },
-      select: { id: true }
-    });
-    const cogsAccountIds = cogsAccounts.map(acc => acc.id);
+    let cogsAccountIds = [];
+    try {
+      cogsAccountIds = await getCogsAccountIdsForExpenseRegister(prisma, tw);
+    } catch (e) {
+      console.error('[dashboard/metrics] COGS account lookup failed:', e?.message || e);
+    }
 
     const sessionBranchRaw =
       user?.currentBranchId &&

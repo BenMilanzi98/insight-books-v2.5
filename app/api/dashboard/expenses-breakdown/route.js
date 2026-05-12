@@ -12,6 +12,7 @@ import {
   userForDashboardBranchFilter,
 } from '@/lib/dashboardTenantScope';
 import { sumNetCogsDebitMinusCredit } from '@/lib/dashboardCogsNet';
+import { getCogsAccountIdsForExpenseRegister } from '@/lib/getCogsAccountIdsForExpenseRegister';
 
 // Prevent caching to ensure fresh data on branch switch
 export const dynamic = 'force-dynamic';
@@ -179,33 +180,11 @@ export async function GET(request) {
       throw err;
     }
 
-    // COGS: find cost accounts (optional; skip if schema/DB differs)
     let cogsAccountIds = [];
     try {
-      const cogsAccounts = await prisma.account.findMany({
-        where: {
-          ...tw,
-          isActive: true,
-          accountType: 'Expense',
-          OR: [
-            { accountCode: '5000' },
-            { code: '5000' },
-            { accountCode: '5100' },
-            { code: '5100' },
-            { accountName: { contains: 'cost of goods', mode: 'insensitive' } },
-            { accountName: { contains: 'cost of sales', mode: 'insensitive' } },
-            { accountName: { contains: 'cogs', mode: 'insensitive' } },
-            { name: { contains: 'cost of goods', mode: 'insensitive' } },
-            { name: { contains: 'cost of sales', mode: 'insensitive' } },
-            { name: { contains: 'cogs', mode: 'insensitive' } }
-          ]
-        },
-        select: { id: true }
-      });
-      cogsAccountIds = cogsAccounts.map(acc => acc.id);
+      cogsAccountIds = await getCogsAccountIdsForExpenseRegister(prisma, tw);
     } catch (accountErr) {
       console.error('expenses-breakdown cogs accounts lookup failed:', accountErr?.message || accountErr);
-      // Continue without COGS if Account query fails (e.g. missing column in restored DB)
     }
 
     let cogsTotal = 0;
