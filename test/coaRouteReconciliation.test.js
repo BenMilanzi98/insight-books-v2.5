@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { loadCoaBulkGlAggregates } from '../lib/coaBulkGlAggregation.js';
 
 describe('loadCoaBulkGlAggregates (chart route GL)', () => {
-  it('sums journal + txn for survivor; journal query requires transactionId null; txn excludes reversals', async () => {
+  it('sums journal + txn for survivor; journal query requires transactionId null; txn includes reversals in aggregate', async () => {
     const journalCalls = [];
     const txnCalls = [];
     const prisma = {
@@ -35,7 +35,7 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
               transaction: {
                 date: new Date(2024, 4, 2),
                 status: 'posted',
-                isReversal: false,
+                isReversal: true,
               },
             },
           ];
@@ -59,7 +59,7 @@ describe('loadCoaBulkGlAggregates (chart route GL)', () => {
     });
 
     expect(journalCalls[0].where.journalEntry.transactionId).toBeNull();
-    expect(txnCalls[0].where.transaction.isReversal).toBe(false);
+    expect(txnCalls[0].where.transaction.isReversal).toBeUndefined();
     expect(txnCalls[0].where.transaction.branchId).toBe('b1');
 
     const j = r.journalBySurvivor.get('a1');

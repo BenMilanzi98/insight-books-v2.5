@@ -122,19 +122,19 @@ describe('structureNodeBalanceBreakdown', () => {
 
   it('uses rolled parent totals with legitimate direct postings only once', () => {
     const node = {
-      code: '5200',
+      code: '5100',
       children: [
-        { code: '5201', children: [] },
-        { code: '5202', children: [] },
+        { code: '5110', children: [] },
+        { code: '5120', children: [] },
       ],
     };
     const accountsByCode = new Map([
       [
-        '5200',
+        '5100',
         [
           {
-            id: 'wages',
-            accountCode: '5200',
+            id: 'cogs',
+            accountCode: '5100',
             currentBalance: 125,
             postedDirectBalance: 25,
             balanceSource: 'posted_gl',
@@ -142,8 +142,8 @@ describe('structureNodeBalanceBreakdown', () => {
           },
         ],
       ],
-      ['5201', [{ id: 'admin', accountCode: '5201', currentBalance: 40, postedDirectBalance: 40, isActive: true }]],
-      ['5202', [{ id: 'sales', accountCode: '5202', currentBalance: 60, postedDirectBalance: 60, isActive: true }]],
+      ['5110', [{ id: 'purch', accountCode: '5110', currentBalance: 40, postedDirectBalance: 40, isActive: true }]],
+      ['5120', [{ id: 'returns', accountCode: '5120', currentBalance: 60, postedDirectBalance: 60, isActive: true }]],
     ]);
     const bd = structureNodeBalanceBreakdown(node, accountsByCode, {}, true, new Map());
     expect(bd.display).toBe(125);
