@@ -783,6 +783,8 @@ const handleDeleteEntry = async (entryId) => {
                     'LiabilityPayment': 'bg-orange-100 text-orange-800',
                     'SupplierPayment': 'bg-yellow-100 text-yellow-800',
                     'Asset': 'bg-indigo-100 text-indigo-800',
+                    'Payroll': 'bg-cyan-100 text-cyan-800',
+                    'Transaction': 'bg-slate-100 text-slate-800',
                     'Manual': 'bg-gray-100 text-gray-800',
                   };
                   const sourceTypeColor = sourceTypeColors[sourceType] || 'bg-gray-100 text-gray-800';
@@ -838,12 +840,21 @@ const handleDeleteEntry = async (entryId) => {
                           <>
                             <td className="p-3" rowSpan={rowSpan}>
                               <span className={`px-2 py-1 rounded-full text-xs ${
-                                entry.status === "Posted" || entry.status === "posted"
-                                  ? "bg-green-100 text-green-800" 
-                                  : "bg-yellow-100 text-yellow-800"
+                                entry.isReversal
+                                  ? "bg-red-100 text-red-800"
+                                  : entry.reversedAt
+                                    ? "bg-slate-200 text-slate-700"
+                                    : entry.status === "Posted" || entry.status === "posted"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-yellow-100 text-yellow-800"
                               }`}>
-                                {entry.status || 'Draft'}
+                                {entry.isReversal ? 'Reversal' : entry.reversedAt ? 'Reversed' : (entry.status || 'Draft')}
                               </span>
+                              {entry.reversalReason && (
+                                <div className="mt-1 text-xs text-slate-500 max-w-[180px] truncate" title={entry.reversalReason}>
+                                  {entry.reversalReason}
+                                </div>
+                              )}
                             </td>
                             <td className="p-3" rowSpan={rowSpan}>
                               <div className="flex items-center gap-2">

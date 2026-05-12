@@ -191,6 +191,8 @@ export async function GET(request) {
               entryType: true,
               reversedTransactionId: true,
               reversalReason: true,
+              reversedAt: true,
+              reversedById: true,
               notes: true,
             },
           },
@@ -282,6 +284,13 @@ export async function GET(request) {
           isReversal: line.transaction?.isReversal ?? false,
           reversedTransactionId: line.transaction?.reversedTransactionId || null,
           reversalReason: line.transaction?.reversalReason || null,
+          reversedAt: line.transaction?.reversedAt || null,
+          reversedById: line.transaction?.reversedById || null,
+          reversalStatus: line.transaction?.isReversal
+            ? 'Reversal'
+            : line.transaction?.reversedAt
+              ? 'Reversed'
+              : 'Active',
           date: line.transaction?.date ? new Date(line.transaction.date).toISOString() : null,
           description: line.transaction?.description || line.description || '',
           reference: line.transaction?.reference || '',

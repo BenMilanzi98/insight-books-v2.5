@@ -5,6 +5,7 @@ import { getUserFromSession } from '@/lib/auth';
 import {
   reversePayroll,
   resolvePostedPayrollJournalState,
+  validateReversalReason,
 } from '@/lib/transactionReversalService';
 import { normalizePayrollMonthPeriod } from '@/lib/dateUtils';
 import {
@@ -88,6 +89,75 @@ export async function PUT(request, context) {
         { error: 'Payroll not found' },
         { status: 404 }
       );
+    }
+
+    if (String(body.status || '').trim().toLowerCase() === 'reversed') {
+      if (existingPayroll.status === 'Reversed') {
+        return NextResponse.json({ message: 'Payroll already reversed', payroll: existingPayroll });
+      }
+
+      const rawReason =
+        typeof body.reversalReason === 'string' && body.reversalReason.trim()
+          ? body.reversalReason.trim()
+          : 'Payroll reversed through payroll update.';
+      const reasonValidation = validateReversalReason(rawReason);
+      const reversalReason = reasonValidation.isValid
+        ? reasonValidation.reason
+        : 'Payroll reversed through payroll update.';
+
+      let glState;
+      try {
+        glState = await resolvePostedPayrollJournalState(user.tenantId, payrollId);
+      } catch (glResolveErr) {
+        const linked = await countTransactionsLinkedToPayroll(user.tenantId, payrollId);
+        if (linked > 0) throw glResolveErr;
+        glState = { kind: 'none' };
+      }
+
+      if (glState.kind === 'multiple') {
+        return NextResponse.json(
+          { error: 'Multiple payroll journals found for this payroll; resolve duplicates before reversing.' },
+          { status: 409 }
+        );
+      }
+
+      let reversal = null;
+      if (glState.kind === 'none' || glState.kind === 'empty_journal') {
+        const n = await markPayrollReversedIfNotAlready(user.tenantId, payrollId);
+        if (n === 0) {
+          return NextResponse.json({ message: 'Payroll already reversed', payroll: existingPayroll });
+        }
+        await prisma.auditLog.create({
+          data: {
+            action: 'PAYROLL_REVERSED',
+            entityType: 'PAYROLL',
+            entityId: payrollId,
+            userId: user.id,
+            tenantId: user.tenantId,
+            details: JSON.stringify({
+              mode: 'payroll_update_no_posted_journal',
+              employeeName: existingPayroll.employee?.name ?? null,
+              reversalReason,
+            }),
+          },
+        });
+      } else {
+        reversal = await reversePayroll({
+          payrollId,
+          reversalReason,
+          userId: user.id,
+          tenantId: user.tenantId,
+        });
+      }
+
+      const payroll = await getPayrollById(payrollId, user.tenantId);
+      return NextResponse.json({
+        message: reversal
+          ? 'Payroll reversed successfully. Reversing journal has been posted.'
+          : 'Payroll marked reversed. No posted journal existed for this payroll.',
+        payroll,
+        reversal,
+      });
     }
     
     // Check if payroll belongs to the user's tenant (if multi-tenancy is implemented)
