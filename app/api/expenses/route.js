@@ -849,6 +849,17 @@ export async function POST(request) {
           // Don't fail expense creation if balance update fails (e.g. no AccountBalance row yet)
         }
 
+        if (paymentMethod.length >= 20 && /^[a-z0-9]+$/i.test(paymentMethod)) {
+          const pa = await tx.paymentAccount.findFirst({
+            where: { id: paymentMethod, tenantId: user.tenantId, isActive: true },
+            select: { id: true, name: true, accountType: true, coaAccountId: true, isSystem: true },
+          });
+          if (pa) {
+            const { ensurePaymentAccountCoaLink } = await import('@/lib/paymentAccountCoaLink');
+            await ensurePaymentAccountCoaLink(user.tenantId, pa, tx);
+          }
+        }
+
         // Create journal entry for expense
         console.log('🔥 About to create journal entry for expense:', expense.id);
         await createExpenseJournalEntry({
