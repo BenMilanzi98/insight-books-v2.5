@@ -11,6 +11,38 @@ import {
   COA_STRUCTURE_CODES_WITH_SERVER_FOLDED_BUCKETS,
 } from '../lib/coaSystemStructureTree.js';
 import { sumPhysicalInventoryProductLines, productLineValue } from '../lib/stockValuationAggregate.js';
+import {
+  accountsForCatchAllDropdown,
+  accountsFor1130ExtraDropdown,
+} from '../lib/coaSystemStructureTree.js';
+
+describe('accountsForCatchAllDropdown (1999)', () => {
+  it('excludes inventory 1300–1399 from Other Assets catch-all (e.g. 1312 Stock on Hand)', () => {
+    const accounts = [
+      { id: 'soh', accountCode: '1312', accountType: 'Asset', currentBalance: 12e6, parentAccountId: 'inv' },
+      { id: 'orph', accountCode: '1750', accountType: 'Asset', currentBalance: 100, parentAccountId: null },
+    ];
+    const c1999 = accountsForCatchAllDropdown(accounts, '1999');
+    expect(c1999.map((a) => a.accountCode)).toEqual(['1750']);
+  });
+
+  it('excludes current-asset / receivable 1100–1299 from 1999 (e.g. legacy 1111 Cash)', () => {
+    const accounts = [{ id: 'c', accountCode: '1111', accountType: 'Asset', currentBalance: -1e6 }];
+    expect(accountsForCatchAllDropdown(accounts, '1999')).toHaveLength(0);
+  });
+});
+
+describe('accountsFor1130ExtraDropdown', () => {
+  it('omits 1130-xx rows already parented under Bank - Primary 1130 (avoids double-count on fold)', () => {
+    const accounts = [
+      { id: 'bank', accountCode: '1130', accountType: 'Asset', parentAccountId: 'ca' },
+      { id: 'nb', accountCode: '1130-06', accountType: 'Asset', parentAccountId: 'bank', currentBalance: -600_000 },
+      { id: 'orph', accountCode: '1130-99', accountType: 'Asset', parentAccountId: null, currentBalance: -50 },
+    ];
+    const extra = accountsFor1130ExtraDropdown(accounts);
+    expect(extra.map((a) => a.accountCode)).toEqual(['1130-99']);
+  });
+});
 
 describe('applyCoaParentRollup', () => {
   it('sums children plus direct posted balance', () => {
